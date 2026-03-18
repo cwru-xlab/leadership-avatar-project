@@ -1,8 +1,8 @@
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
-  name: "CWRU WSOM AI Avatar",
-  description: "CWRU WSOM AI Avatar",
+  name: "AI Case Study",
+  description: "AI Case Study",
   navItems: [
     {
       label: "Home",
@@ -10,22 +10,13 @@ export const siteConfig = {
       icon: "Home",
     },
     {
-      label: "System Settings",
-      href: "/system-settings",
-      icon: "Settings",
-    },
-    {
       label: "Case Management",
       href: "/case-management",
       icon: "Briefcase",
     },
+
     {
       label: "Avatar Management",
-      href: "/avatar-management",
-      icon: "Users",
-    },
-    {
-      label: "Avatar Profiles",
       href: "/avatar-profiles",
       icon: "Video",
     },
@@ -33,16 +24,6 @@ export const siteConfig = {
       label: "Cohort Management",
       href: "/cohort-management",
       icon: "GraduationCap",
-    },
-    {
-      label: "Users and Usages",
-      href: "/users-and-usages",
-      icon: "ChartColumnBig",
-    },
-    {
-      label: "CTA Management",
-      href: "/cta-management",
-      icon: "Mail",
     },
     {
       label: "Student History",
