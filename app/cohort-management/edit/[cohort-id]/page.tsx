@@ -288,7 +288,7 @@ export default function CohortEditPage() {
     setErrors({});
 
     try {
-      const parsedStudents = accessMode === "specific" ? parseEmails() : [];
+      const parsedStudents = accessMode === "specific" ? parseEmails() : students;
 
       if (isNew) {
         const input: CohortCreateInput = {
