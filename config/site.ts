@@ -1,8 +1,10 @@
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
-  name: "CaseBridge",
-  description: "AI Case Study",
+  // Placeholder product name (TBD) — Weatherhead Leadership Institute practice platform
+  name: "LeadPath",
+  description:
+    "Weatherhead leadership practice: interviews, pitches, and courageous conversations",
   navItems: [
     {
       label: "Home",
@@ -10,11 +12,10 @@ export const siteConfig = {
       icon: "Home",
     },
     {
-      label: "Case Management",
+      label: "Scenarios",
       href: "/case-management",
       icon: "Briefcase",
     },
-
     {
       label: "Avatar Management",
       href: "/avatar-profiles",
@@ -28,9 +29,19 @@ export const siteConfig = {
   ],
   studentNavItems: [
     {
-      label: "My Cases",
-      href: "/student-cases",
+      label: "Practice",
+      href: "/practice",
       icon: "Briefcase",
+    },
+    {
+      label: "Progress",
+      href: "/progress",
+      icon: "ChartColumnBig",
+    },
+    {
+      label: "Plan",
+      href: "/plan",
+      icon: "GraduationCap",
     },
     {
       label: "Settings",

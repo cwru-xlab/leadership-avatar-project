@@ -187,9 +187,14 @@ export interface ChatSession {
 
 /**
  * ==================================================================================
- * CASE MANAGEMENT TYPES
+ * SCENARIO / CASE MANAGEMENT TYPES
  * ==================================================================================
  */
+
+export type PracticeTopic =
+  | "interview"
+  | "pitch"
+  | "courageous_conversation";
 
 export interface CaseAvatar {
   id: string;
@@ -199,19 +204,33 @@ export interface CaseAvatar {
   profileId?: string;
 }
 
+/** Rich scenario payload stored in S3 (still named CaseStudy for API compatibility). */
 export interface CaseStudy {
   id: string;
   name: string;
   backgroundInfo: string;
   evaluationPrompt?: string;
-  coverImage?: string;  // URL to cover image stored in S3
+  coverImage?: string;
   avatars: CaseAvatar[];
-  cohortIds: string[];  // Cases are assigned to cohorts (following Alfred's sectionIds pattern)
+  cohortIds: string[];
   createdBy: string;
   lastEditedBy: string;
   createdAt: string;
   lastEditedAt: string;
+  /** P1 topic taxonomy */
+  topic?: PracticeTopic;
+  /** e.g. behavioral | investor | conflict */
+  subtype?: string;
+  /** Counterpart persona role label (interviewer / audience / counterpart) */
+  personaRole?: string;
+  /** Skills this scenario is designed to train */
+  targetSkills?: string[];
+  difficulty?: "beginner" | "intermediate" | "advanced";
+  estimatedMins?: number;
 }
+
+/** Alias for product language */
+export type Scenario = CaseStudy;
 
 /**
  * ==================================================================================
@@ -377,6 +396,8 @@ export interface InteractionLog {
   totalTimeSeconds: number;
   evalScore?: number;
   evalResult?: string;
+  /** Per-skill scores 0-100 from rubric evaluation */
+  skillScores?: Record<string, number>;
   createdAt: string;
   updatedAt: string;
 }

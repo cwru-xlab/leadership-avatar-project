@@ -47,9 +47,9 @@ export const DEFAULT_GUARDRAILS_CONFIG: GuardrailsConfig = {
     'depression', 'anxiety', 'stress', 'mental health', 'counseling', 'therapy'
   ],
   blockedResponses: [
-    "I'm here to help with questions about CWRU and Weatherhead School. Is there something about academics, campus life, or school programs I can help you with?",
-    "I focus on providing information about Case Western Reserve University and the Weatherhead School. What can I tell you about our programs or campus?",
-    "Let's keep our conversation focused on CWRU and academic topics. What would you like to know about the university or Weatherhead School?"
+    "I'm here to help you practice leadership conversations—interviews, pitches, and difficult discussions. How would you like to continue?",
+    "Let's keep this focused on professional practice and leadership skills. What part of the scenario should we work on?",
+    "I can help with interview, pitch, or courageous-conversation practice. What would you like to try next?"
   ],
   mentalHealthResources: {
     counselingPhone: "216-368-5872",

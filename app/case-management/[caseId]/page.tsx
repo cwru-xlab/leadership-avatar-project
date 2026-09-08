@@ -20,7 +20,13 @@ import { title as pageTitle } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";
 import { caseStorage } from "@/lib/case-storage";
 import Image from "next/image";
-import type { CaseStudy, CaseAvatar, VideoAudioProfile } from "@/types";
+import type { CaseStudy, CaseAvatar, VideoAudioProfile, PracticeTopic } from "@/types";
+import {
+  PRACTICE_TOPICS,
+  TOPIC_META,
+  TOPIC_SUBTYPES,
+  DEFAULT_TOPIC_SKILLS,
+} from "@/lib/topics";
 
 export default function CaseDetailPage() {
   const params = useParams();
@@ -36,6 +42,10 @@ export default function CaseDetailPage() {
   const [evaluationPrompt, setEvaluationPrompt] = useState("");
   const [avatars, setAvatars] = useState<CaseAvatar[]>([]);
   const [coverImage, setCoverImage] = useState<string | undefined>(undefined);
+  const [topic, setTopic] = useState<PracticeTopic>("interview");
+  const [subtype, setSubtype] = useState("");
+  const [personaRole, setPersonaRole] = useState("interviewer");
+  const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">("intermediate");
   const [uploadingCover, setUploadingCover] = useState(false);
   const [generatingCover, setGeneratingCover] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -47,12 +57,26 @@ export default function CaseDetailPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
-  const [originalValues, setOriginalValues] = useState({
+  const [originalValues, setOriginalValues] = useState<{
+    name: string;
+    backgroundInfo: string;
+    evaluationPrompt: string;
+    avatars: string;
+    coverImage: string | undefined;
+    topic: PracticeTopic;
+    subtype: string;
+    personaRole: string;
+    difficulty: "beginner" | "intermediate" | "advanced";
+  }>({
     name: "",
     backgroundInfo: "",
     evaluationPrompt: "",
     avatars: "[]",
-    coverImage: undefined as string | undefined,
+    coverImage: undefined,
+    topic: "interview",
+    subtype: "",
+    personaRole: "interviewer",
+    difficulty: "intermediate",
   });
 
   const generatedId = useMemo(() => {
@@ -72,9 +96,24 @@ export default function CaseDetailPage() {
       backgroundInfo !== originalValues.backgroundInfo ||
       evaluationPrompt !== originalValues.evaluationPrompt ||
       JSON.stringify(avatars) !== originalValues.avatars ||
-      coverImage !== originalValues.coverImage
+      coverImage !== originalValues.coverImage ||
+      topic !== originalValues.topic ||
+      subtype !== originalValues.subtype ||
+      personaRole !== originalValues.personaRole ||
+      difficulty !== originalValues.difficulty
     );
-  }, [name, backgroundInfo, evaluationPrompt, avatars, coverImage, originalValues]);
+  }, [
+    name,
+    backgroundInfo,
+    evaluationPrompt,
+    avatars,
+    coverImage,
+    topic,
+    subtype,
+    personaRole,
+    difficulty,
+    originalValues,
+  ]);
 
   useEffect(() => {
     const loadCase = async () => {
@@ -83,24 +122,33 @@ export default function CaseDetailPage() {
         try {
           const caseData = await caseStorage.get(caseId);
           if (caseData) {
+            const loadedTopic = (caseData.topic || "interview") as PracticeTopic;
             setName(caseData.name);
             setBackgroundInfo(caseData.backgroundInfo);
             setEvaluationPrompt(caseData.evaluationPrompt || "");
             setAvatars(caseData.avatars);
             setCoverImage(caseData.coverImage);
+            setTopic(loadedTopic);
+            setSubtype(caseData.subtype || "");
+            setPersonaRole(caseData.personaRole || "interviewer");
+            setDifficulty(caseData.difficulty || "intermediate");
             setOriginalValues({
               name: caseData.name,
               backgroundInfo: caseData.backgroundInfo,
               evaluationPrompt: caseData.evaluationPrompt || "",
               avatars: JSON.stringify(caseData.avatars),
               coverImage: caseData.coverImage,
+              topic: loadedTopic,
+              subtype: caseData.subtype || "",
+              personaRole: caseData.personaRole || "interviewer",
+              difficulty: caseData.difficulty || "intermediate",
             });
           } else {
-            setErrors({ load: "Case not found" });
+            setErrors({ load: "Scenario not found" });
           }
         } catch (error) {
-          console.error("Failed to load case:", error);
-          setErrors({ load: "Failed to load case" });
+          console.error("Failed to load scenario:", error);
+          setErrors({ load: "Failed to load scenario" });
         } finally {
           setIsLoading(false);
         }
@@ -129,9 +177,9 @@ export default function CaseDetailPage() {
     const newErrors: Record<string, string> = {};
 
     if (!name.trim()) {
-      newErrors.name = "Case name is required";
+      newErrors.name = "Scenario name is required";
     } else if (generatedId === "new") {
-      newErrors.name = "Case name cannot generate 'new' as ID";
+      newErrors.name = "Scenario name cannot generate 'new' as ID";
     }
 
     if (!backgroundInfo.trim()) {
@@ -140,6 +188,10 @@ export default function CaseDetailPage() {
 
     if (!evaluationPrompt.trim()) {
       newErrors.evaluationPrompt = "Evaluation prompt is required";
+    }
+
+    if (!topic) {
+      newErrors.topic = "Topic is required";
     }
 
     setErrors(newErrors);
@@ -152,6 +204,7 @@ export default function CaseDetailPage() {
     setIsSaving(true);
     try {
       const userName = user?.name || "Unknown User";
+      const targetSkills = DEFAULT_TOPIC_SKILLS[topic];
 
       if (isNewCase) {
         await caseStorage.add({
@@ -163,11 +216,16 @@ export default function CaseDetailPage() {
           cohortIds: [],
           createdBy: userName,
           lastEditedBy: userName,
+          topic,
+          subtype: subtype || undefined,
+          personaRole: personaRole || undefined,
+          difficulty,
+          targetSkills,
         });
 
         addToast({
-          title: "Case Created",
-          description: "Your case study has been created successfully.",
+          title: "Scenario Created",
+          description: "Your scenario has been created successfully.",
           color: "success",
         });
       } else {
@@ -178,10 +236,15 @@ export default function CaseDetailPage() {
           coverImage,
           avatars,
           lastEditedBy: userName,
+          topic,
+          subtype: subtype || undefined,
+          personaRole: personaRole || undefined,
+          difficulty,
+          targetSkills,
         });
 
         addToast({
-          title: "Case Updated",
+          title: "Scenario Updated",
           description: "Your changes have been saved successfully.",
           color: "success",
         });
@@ -189,9 +252,9 @@ export default function CaseDetailPage() {
 
       router.push("/case-management");
     } catch (error) {
-      console.error("Error saving case:", error);
+      console.error("Error saving scenario:", error);
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to save case";
+        error instanceof Error ? error.message : "Failed to save scenario";
       setErrors({ save: errorMessage });
     } finally {
       setIsSaving(false);
@@ -401,13 +464,13 @@ export default function CaseDetailPage() {
           <ArrowLeft />
         </Button>
         <h1 className={pageTitle()}>
-          {isNewCase ? "Create Case Study" : "Edit Case Study"}
+          {isNewCase ? "Create Scenario" : "Edit Scenario"}
         </h1>
       </div>
 
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold">Case Details</h2>
+          <h2 className="text-xl font-semibold">Scenario Details</h2>
         </CardHeader>
         <CardBody className="space-y-6">
           <div>
@@ -415,11 +478,71 @@ export default function CaseDetailPage() {
               isRequired
               errorMessage={errors.name}
               isInvalid={!!errors.name}
-              label="Case Name"
-              placeholder="Enter case study name"
+              label="Scenario Name"
+              placeholder="Enter scenario name"
               value={name}
               onValueChange={setName}
             />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Select
+              isRequired
+              label="Practice Topic"
+              selectedKeys={[topic]}
+              errorMessage={errors.topic}
+              isInvalid={!!errors.topic}
+              onSelectionChange={(keys) => {
+                const v = Array.from(keys)[0] as PracticeTopic;
+                if (v) {
+                  setTopic(v);
+                  setSubtype("");
+                  if (v === "interview") setPersonaRole("interviewer");
+                  else if (v === "pitch") setPersonaRole("audience");
+                  else setPersonaRole("counterpart");
+                }
+              }}
+            >
+              {PRACTICE_TOPICS.map((t) => (
+                <SelectItem key={t}>{TOPIC_META[t].label}</SelectItem>
+              ))}
+            </Select>
+            <Select
+              label="Subtype"
+              selectedKeys={subtype ? [subtype] : []}
+              onSelectionChange={(keys) => {
+                const v = Array.from(keys)[0] as string;
+                setSubtype(v || "");
+              }}
+            >
+              {TOPIC_SUBTYPES[topic].map((s) => (
+                <SelectItem key={s}>{s}</SelectItem>
+              ))}
+            </Select>
+            <Select
+              label="Counterpart Role"
+              selectedKeys={[personaRole]}
+              onSelectionChange={(keys) => {
+                const v = Array.from(keys)[0] as string;
+                if (v) setPersonaRole(v);
+              }}
+            >
+              <SelectItem key="interviewer">Interviewer</SelectItem>
+              <SelectItem key="audience">Audience</SelectItem>
+              <SelectItem key="counterpart">Counterpart</SelectItem>
+            </Select>
+            <Select
+              label="Difficulty"
+              selectedKeys={[difficulty]}
+              onSelectionChange={(keys) => {
+                const v = Array.from(keys)[0] as typeof difficulty;
+                if (v) setDifficulty(v);
+              }}
+            >
+              <SelectItem key="beginner">Beginner</SelectItem>
+              <SelectItem key="intermediate">Intermediate</SelectItem>
+              <SelectItem key="advanced">Advanced</SelectItem>
+            </Select>
           </div>
 
           <div>
@@ -429,9 +552,9 @@ export default function CaseDetailPage() {
               description={
                 isNewCase
                   ? "This ID is automatically generated from the name"
-                  : "Case ID is permanent and cannot be changed"
+                  : "Scenario ID is permanent and cannot be changed"
               }
-              label={isNewCase ? "Case ID (Auto-generated)" : "Case ID"}
+              label={isNewCase ? "Scenario ID (Auto-generated)" : "Scenario ID"}
               value={generatedId}
             />
           </div>
@@ -518,7 +641,7 @@ export default function CaseDetailPage() {
           <div>
             <Textarea
               isRequired
-              description="Provide detailed background information about this case study"
+              description="Provide detailed background / briefing for this practice scenario"
               errorMessage={errors.backgroundInfo}
               isInvalid={!!errors.backgroundInfo}
               label="Background Information"
@@ -533,7 +656,7 @@ export default function CaseDetailPage() {
           <div>
             <Textarea
               isRequired
-              description="Define the criteria for evaluating student interactions with this case"
+              description="Ask the model to return SCORE, per-skill JSON scores, and EVALUATION text"
               errorMessage={errors.evaluationPrompt}
               isInvalid={!!errors.evaluationPrompt}
               label="Evaluation Prompt"
@@ -548,9 +671,9 @@ export default function CaseDetailPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold">Case Avatars</h3>
+                <h3 className="text-lg font-semibold">Counterpart Persona</h3>
                 <p className="text-sm text-default-500">
-                  Manage avatars associated with this case study
+                  Prefer a single 1:1 counterpart (interviewer, audience, or conversation partner)
                 </p>
               </div>
               <Button

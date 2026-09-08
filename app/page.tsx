@@ -14,14 +14,15 @@ export default function Home() {
 
   useEffect(() => {
     if (!loading && user?.role === "student") {
-      router.replace("/student-cases");
+      router.replace("/practice");
     }
   }, [user, loading, router]);
 
   const navigationCards = [
     {
-      title: "Cases",
-      description: "Create and manage case studies with multiple avatar roles and evaluation criteria",
+      title: "Scenarios",
+      description:
+        "Create practice interviews, pitches, and courageous conversations with 1:1 avatar counterparts",
       icon: Briefcase,
       href: "/case-management",
       color: "primary" as const,
@@ -53,9 +54,9 @@ export default function Home() {
   return (
     <section className="flex flex-col items-center gap-8 py-8 md:py-10 max-w-5xl mx-auto px-4">
       <div className="text-center">
-        <h1 className={title()}>CaseBridge</h1>
+        <h1 className={title()}>LeadPath</h1>
         <p className="text-default-500 mt-4 text-lg">
-          Welcome back, {user?.name || "User"}
+          Weatherhead leadership practice — welcome back, {user?.name || "User"}
         </p>
       </div>
 

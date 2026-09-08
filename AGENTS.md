@@ -4,32 +4,43 @@
 
 ### Overview
 
-This is a Next.js 16 (App Router, Turbopack) monolith — the CWRU Weatherhead AI Avatar Kiosk. 
+This is a Next.js 16 (App Router, Turbopack) monolith — **LeadPath** (working title), a Weatherhead School of Management / Leadership Institute practice platform for interviews, pitches, and courageous conversations. Physical **kiosk** and **CTA** flows are still included.
 
 **Data Storage Architecture:**
-- **PostgreSQL** (via Prisma ORM) - Structured data: users, cohorts, cases, attempts, learning records
-- **AWS S3** - Large files: interaction logs (JSON), images, documents
+- **PostgreSQL** (via Prisma ORM) — users, cohorts, scenarios (Case model), attempts, skill progress, learning plans
+- **AWS S3** — scenario JSON, interaction logs, images, avatar profiles, CTA data
 
 See `README.md` for standard commands (`npm install`, `npm run dev`, `npm run build`).
 
+### Practice topics
+
+| Topic key | Label |
+|-----------|-------|
+| `interview` | Practice Interviews |
+| `pitch` | Practice Pitches |
+| `courageous_conversation` | Courageous Conversations |
+
+Student entry: `/practice`. Progress: `/progress`. Learning plan: `/plan`.
+
+Video/image analysis is **out of scope** for now; rubric scoring uses chat/transcript dimensions only.
+
 ### Database Schema
 
-The database uses Prisma with PostgreSQL. Key models:
+Key models in `prisma/schema.prisma`:
 
 | Model | Purpose |
 |-------|---------|
-| `User` | All users (admin, professor, student) with passwordHash, role (enum), auth provider |
+| `User` | admin / professor / student / kiosk |
 | `Session` | Login session tracking |
-| `Cohort` | Course sections created by professors |
-| `CohortMember` | Student-cohort membership (many-to-many) |
-| `Case` | AI conversation practice scenarios |
-| `CaseAssignment` | Which cases are assigned to which students |
-| `Attempt` | Learning records (scores, time, messages, evaluation) |
+| `Cohort` / `CohortMember` | Course sections |
+| `Case` | Practice scenarios (topic + target skills) |
+| `CaseAssignment` | Assignments to students |
+| `Attempt` | Learning records with skillScores JSON |
+| `SkillProgress` | Per-user skill EMA / XP / level |
+| `LearningPlan` / `PlanActivity` | Personalized plan + recommended trials |
 | `AuditLog` | Operation audit trail |
 
 Role enum: `ADMIN`, `PROFESSOR`, `STUDENT`, `KIOSK`
-
-Schema file: `prisma/schema.prisma`
 
 ### Database Commands (Prisma)
 
@@ -70,9 +81,9 @@ There are no automated test suites (no Jest, Vitest, or similar) configured in t
 
 ### Lint / Build / Run
 
-| Task  | Command         |
-|-------|-----------------|
-| Lint  | `npm run lint` (see known issue above) |
-| Build | `npm run build`  |
-| Dev   | `npm run dev`    |
-| Start | `npm run start`  |
+| Task | Command |
+|------|-----------------|
+| Lint | `npm run lint` (see known issue above) |
+| Build | `npm run build` |
+| Dev | `npm run dev` |
+| Start | `npm run start` |

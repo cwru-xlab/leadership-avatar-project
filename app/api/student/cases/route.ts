@@ -77,13 +77,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const topicFilter = searchParams.get("topic");
+
     // Fetch the actual case details
     const cases = [];
     for (const caseId of assignedCaseIds) {
       const caseData = await s3Storage.getCase(caseId);
       if (caseData) {
+        const resolvedTopic = caseData.topic || "courageous_conversation";
+        if (topicFilter && resolvedTopic !== topicFilter) {
+          continue;
+        }
         cases.push({
           ...caseData,
+          topic: resolvedTopic,
           cohortId: cohortInfo[caseId]?.cohortId,
           cohortName: cohortInfo[caseId]?.cohortName,
           heygenMinutesLimit: cohortInfo[caseId]?.heygenMinutesLimit ?? null,

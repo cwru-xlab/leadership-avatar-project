@@ -1,12 +1,21 @@
 import { SignJWT, jwtVerify } from "jose";
 import { siteConfig } from "@/config/site";
 import { get } from "@vercel/edge-config";
-import crypto from "crypto";
 import { prisma } from "./prisma";
 import { Role, AuthProvider } from "@prisma/client";
+import { hashPassword, verifyPassword } from "./auth-password";
+import { isDatabaseConfigured } from "./db-config";
+import { findDevUser } from "./dev-users";
+
+export { hashPassword, verifyPassword } from "./auth-password";
 
 // Secret key for JWT (in production, use environment variable)
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET ||
+    (process.env.NODE_ENV !== "production"
+      ? "leadpath-local-dev-jwt-secret-do-not-use-in-prod"
+      : "")
+);
 
 // Token expiration time from centralized config
 const JWT_EXPIRES_IN = siteConfig.auth.jwtExpiresIn;
@@ -104,17 +113,9 @@ export async function getCurrentUser(token: string): Promise<User | null> {
 
 /**
  * Hash a password using SHA-512
+ * @deprecated import from auth-password — re-exported for compatibility
  */
-export function hashPassword(password: string): string {
-  return crypto.createHash("sha512").update(password).digest("hex");
-}
-
-/**
- * Verify a password against a hash
- */
-export function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash;
-}
+// hashPassword / verifyPassword re-exported above
 
 /**
  * Convert Prisma Role enum to string for JWT
@@ -131,8 +132,9 @@ function authProviderToString(provider: AuthProvider): "email" | "cwru_sso" {
 }
 
 /**
- * Authenticate user credentials with email and password
- * Now reads from database instead of mock users
+ * Authenticate user credentials with email and password.
+ * Uses Postgres when DATABASE_URL is set; otherwise falls back to in-memory
+ * dev users so the UI can be browsed without a database.
  */
 export async function authenticateUser(
   email: string,
@@ -143,7 +145,23 @@ export async function authenticateUser(
     return null;
   }
 
-  // Development only: authenticate from database
+  if (!isDatabaseConfigured()) {
+    const devUser = findDevUser(email, password);
+    if (!devUser) return null;
+    console.warn(
+      "[auth] DATABASE_URL unset — using local in-memory users (UI-only mode)"
+    );
+    return {
+      id: devUser.id,
+      email: devUser.email,
+      name: devUser.name,
+      role: devUser.role,
+      studentId: devUser.studentNumber,
+      authProvider: "email",
+    };
+  }
+
+  // Development: authenticate from database
   try {
     const dbUser = await prisma.user.findUnique({
       where: { email },
@@ -186,6 +204,19 @@ export async function authenticateUser(
     };
   } catch (error) {
     console.error("Database authentication error:", error);
+    // Last-resort fallback if DB is misconfigured mid-session
+    const devUser = findDevUser(email, password);
+    if (devUser) {
+      console.warn("[auth] DB error — falling back to local in-memory user");
+      return {
+        id: devUser.id,
+        email: devUser.email,
+        name: devUser.name,
+        role: devUser.role,
+        studentId: devUser.studentNumber,
+        authProvider: "email",
+      };
+    }
     return null;
   }
 }

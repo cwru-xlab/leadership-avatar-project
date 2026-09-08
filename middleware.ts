@@ -34,8 +34,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { siteConfig } from "@/config/site";
 
-// Secret key for JWT verification (in production, use environment variable)
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+// Secret key for JWT verification (must match lib/auth.ts)
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET ||
+    (process.env.NODE_ENV !== "production"
+      ? "leadpath-local-dev-jwt-secret-do-not-use-in-prod"
+      : "")
+);
 
 /**
  * PUBLIC ROUTES CONFIGURATION
@@ -199,7 +204,12 @@ const KIOSK_ROUTES: string[] = [
 
 const STUDENT_ROUTES: string[] = [
   "/student-cases",
+  "/practice",
+  "/progress",
+  "/plan",
   "/api/student/cases",
+  "/api/student/progress",
+  "/api/student/plan",
   "/case-play",
   "/api/interaction",
   // Endpoints needed by case-play's avatar mode (streaming avatar,

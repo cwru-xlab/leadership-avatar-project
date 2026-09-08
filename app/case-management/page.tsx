@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
+import { Select, SelectItem } from "@heroui/select";
 import { Plus, RefreshCw } from "lucide-react";
 import { title } from "@/components/primitives";
 import CaseCard from "@/components/case-card";
 import { caseStorage } from "@/lib/case-storage";
+import { PRACTICE_TOPICS, TOPIC_META } from "@/lib/topics";
 import type { CaseStudy } from "@/types";
 
 export default function CaseManagementPage() {
@@ -14,6 +16,7 @@ export default function CaseManagementPage() {
   const [cases, setCases] = useState<CaseStudy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [topicFilter, setTopicFilter] = useState<string>("all");
 
   useEffect(() => {
     loadCases();
@@ -26,36 +29,53 @@ export default function CaseManagementPage() {
       const caseList = await caseStorage.list();
       setCases(caseList);
     } catch (err) {
-      console.error("Failed to load cases:", err);
-      setError("Failed to load cases");
+      console.error("Failed to load scenarios:", err);
+      setError("Failed to load scenarios");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCaseClick = (caseId: string) => {
-    router.push(`/case-management/${caseId}`);
-  };
-
-  const handleSync = async () => {
-    await loadCases();
-  };
-
-  const handleAddCase = () => {
-    router.push("/case-management/new");
-  };
+  const filtered = useMemo(() => {
+    if (topicFilter === "all") return cases;
+    return cases.filter(
+      (c) => (c.topic || "courageous_conversation") === topicFilter
+    );
+  }, [cases, topicFilter]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className={title()}>Case Management</h1>
-        <div className="flex gap-2">
+        <div>
+          <h1 className={title()}>Scenarios</h1>
+          <p className="text-default-500 mt-1">
+            Practice interviews, pitches, and courageous conversations
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Select
+            aria-label="Filter by topic"
+            className="w-56"
+            selectedKeys={[topicFilter]}
+            onSelectionChange={(keys) => {
+              const v = Array.from(keys)[0] as string;
+              setTopicFilter(v || "all");
+            }}
+            items={[
+              { key: "all", label: "All topics" },
+              ...PRACTICE_TOPICS.map((t) => ({
+                key: t,
+                label: TOPIC_META[t].label,
+              })),
+            ]}
+          >
+            {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
+          </Select>
           <Button
             variant="bordered"
             startContent={<RefreshCw className="w-4 h-4" />}
-            onPress={handleSync}
+            onPress={loadCases}
             isLoading={loading}
-            className="self-start sm:self-auto"
           >
             {loading ? "Syncing..." : "Sync"}
           </Button>
@@ -63,10 +83,9 @@ export default function CaseManagementPage() {
             color="primary"
             variant="solid"
             startContent={<Plus className="w-4 h-4" />}
-            onPress={handleAddCase}
-            className="self-start sm:self-auto"
+            onPress={() => router.push("/case-management/new")}
           >
-            Add Case
+            Add Scenario
           </Button>
         </div>
       </div>
@@ -79,32 +98,31 @@ export default function CaseManagementPage() {
 
       {loading && (
         <div className="text-center py-12">
-          <p className="text-default-500">Loading cases...</p>
+          <p className="text-default-500">Loading scenarios...</p>
         </div>
       )}
 
-      {!loading && cases.length > 0 && (
+      {!loading && filtered.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {cases.map((caseStudy) => (
+          {filtered.map((caseStudy) => (
             <CaseCard
               key={caseStudy.id}
               caseStudy={caseStudy}
-              onClick={handleCaseClick}
+              onClick={(id) => router.push(`/case-management/${id}`)}
             />
           ))}
         </div>
       )}
 
-      {!loading && cases.length === 0 && !error && (
+      {!loading && filtered.length === 0 && !error && (
         <div className="text-center py-12">
-          <p className="text-default-500 mb-4">No cases found</p>
+          <p className="text-default-500 mb-4">No scenarios found</p>
           <Button
             color="primary"
-            variant="bordered"
             startContent={<Plus className="w-4 h-4" />}
-            onPress={handleAddCase}
+            onPress={() => router.push("/case-management/new")}
           >
-            Create your first case
+            Create your first scenario
           </Button>
         </div>
       )}
