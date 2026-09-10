@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { s3Storage } from "@/lib/s3-client";
 
+export const maxDuration = 120;
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: 120_000,
+  maxRetries: 2,
 });
 
 export async function POST(request: NextRequest) {

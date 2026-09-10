@@ -3,6 +3,8 @@ import { s3Storage } from "@/lib/s3-client";
 import { waitUntil } from "@vercel/functions";
 import type { InteractionLog } from "@/types";
 
+export const maxDuration = 120;
+
 async function evaluateInteraction(log: InteractionLog): Promise<void> {
   try {
     // Get the case to find the evaluation prompt
@@ -28,7 +30,11 @@ async function evaluateInteraction(log: InteractionLog): Promise<void> {
 
     // Call OpenAI for evaluation
     const OpenAI = (await import("openai")).default;
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      timeout: 120_000,
+      maxRetries: 2,
+    });
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1",
