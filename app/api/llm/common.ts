@@ -109,6 +109,7 @@ export function createLLMStream(
           messages: messages,
           stream: true,
           max_tokens: options.maxTokens ?? 500,
+          stream_options: { include_usage: true },
         });
 
         // Stream the response with accumulated content
@@ -125,6 +126,16 @@ export function createLLMStream(
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(contentMessage)}\n\n`)
             );
+          }
+
+          // Log usage metrics when available (typically on final chunk)
+          if (chunk.usage) {
+            console.log("[llm] usage", {
+              model: modelName,
+              prompt: chunk.usage.prompt_tokens,
+              cached: chunk.usage.prompt_tokens_details?.cached_tokens ?? 0,
+              completion: chunk.usage.completion_tokens,
+            });
           }
         }
 

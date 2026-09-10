@@ -15,22 +15,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const styleGuide = `\n\n## Reply Style
+    const styleGuide = `## Reply Style
 - Speak naturally and conversationally, like a real person in a meeting or interview
 - Keep responses short and to the point — 1 to 3 sentences unless more detail is truly needed
 - Avoid bullet points, formal headings, or structured lists in your replies
 - Never start with filler phrases like "Certainly!", "Great question!", or "Of course!"
 - If you don't know something, say so simply and move on`;
 
-    // Build system prompt from role context
-    let fullSystemPrompt = systemPrompt || "You are a helpful assistant.";
+    // ── CACHE PREFIX ──────────────────────────────────────────────────────
+    // Everything below must be byte-identical across every turn of a given
+    // (case, role) pair, or OpenAI's automatic prefix cache will miss.
+    // NEVER interpolate per-turn values (timestamps, turn counts, user names).
+    const staticParts: string[] = [styleGuide.trim()];
     if (roleContext) {
-      fullSystemPrompt = `You are playing the role of "${roleContext.roleName}" in a case study simulation.\n\n${roleContext.additionalInfo || ""}\n\n${systemPrompt || ""}`.trim();
+      staticParts.push(
+        `You are playing the role of "${roleContext.roleName}" in a case study simulation.`,
+        roleContext.additionalInfo || ""
+      );
     }
-    fullSystemPrompt += styleGuide;
+    staticParts.push(systemPrompt || "You are a helpful assistant.");
+    const fullSystemPrompt = staticParts.filter(Boolean).join("\n\n");
+    // ── END CACHE PREFIX ──────────────────────────────────────────────────
 
     const fullMessages = [
-      { role: "system" as const, content: fullSystemPrompt },
+      { role: "system" as const, content: fullSystemPrompt }, // Must stay at index 0 for caching
       ...messages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
