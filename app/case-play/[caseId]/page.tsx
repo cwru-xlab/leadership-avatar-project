@@ -679,10 +679,13 @@ export default function CasePlayPage() {
     });
 
     try {
-      const roleHistory = interactionLog.roleInteractions[roleId].messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      // Cap prompt growth: keep the most recent turns only. The case background
+      // lives in the system message (server-side) and is unaffected by this window.
+      const HISTORY_TURNS = 10;              // ~10 user+assistant exchanges
+      const allMessages = interactionLog.roleInteractions[roleId].messages;
+      const roleHistory = allMessages
+        .slice(-HISTORY_TURNS * 2)
+        .map((m) => ({ role: m.role, content: m.content }));
 
       const res = await fetch("/api/interaction/chat", {
         method: "POST",
