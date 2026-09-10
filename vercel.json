@@ -6,15 +6,6 @@
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 60
-    },
-    "app/api/interaction/chat/route.ts": {
-      "maxDuration": 60
-    },
-    "app/api/llm/*/route.ts": {
-      "maxDuration": 60
-    },
-    "app/api/audio/transcribe/route.ts": {
-      "maxDuration": 60
     }
   },
   "env": {
@@ -38,8 +29,7 @@
   },
   "git": {
     "deploymentEnabled": {
-      "main": true,
-      "bug/latency": true
+      "main": true
     }
   },
   "github": {
