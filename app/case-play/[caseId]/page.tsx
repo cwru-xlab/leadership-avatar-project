@@ -167,6 +167,7 @@ export default function CasePlayPage() {
   // Push-to-talk state for avatar mode
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [partialTranscript, setPartialTranscript] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -857,13 +858,17 @@ export default function CasePlayPage() {
       if (!response.ok) throw new Error("Transcription failed");
 
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
       if (!reader) throw new Error("No reader available");
+      const decoder = new TextDecoder();
 
       let buffer = "";
       let transcribedText = "";
+      let transcriptionFailed = false;
+      let finished = false;
 
-      while (true) {
+      setPartialTranscript("");
+
+      while (!finished) {
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -872,26 +877,32 @@ export default function CasePlayPage() {
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === "delta") {
-                transcribedText = data.text;
-              } else if (data.type === "done") {
-                transcribedText = data.text;
-                break;
-              } else if (data.type === "error") {
-                throw new Error("Transcription error");
-              }
-            } catch (parseError) {
-              if (parseError instanceof Error && parseError.message === "Transcription error") {
-                throw parseError;
-              }
-              console.error("Error parsing transcription:", parseError);
-            }
+          if (!line.startsWith("data: ")) continue;
+          let data: { type?: string; text?: string; delta?: string };
+          try {
+            data = JSON.parse(line.slice(6));
+          } catch (parseError) {
+            console.error("Error parsing transcription frame:", parseError);
+            continue;
+          }
+          if (data.type === "delta") {
+            transcribedText = data.text ?? transcribedText;
+            setPartialTranscript(transcribedText);   // show it as it arrives
+          } else if (data.type === "done") {
+            transcribedText = data.text ?? transcribedText;
+            setPartialTranscript(transcribedText);
+            finished = true;                          // now actually exits the outer loop
+            break;
+          } else if (data.type === "error") {
+            transcriptionFailed = true;
+            finished = true;
+            break;
           }
         }
       }
+      void reader.cancel().catch(() => {});           // release the body early
+
+      if (transcriptionFailed) throw new Error("Transcription error");
 
       if (transcribedText.trim()) {
         await sendMessageAndGetResponse(transcribedText.trim());
@@ -901,6 +912,7 @@ export default function CasePlayPage() {
       addToast({ title: "Failed to transcribe audio", color: "danger" });
     } finally {
       setIsTranscribing(false);
+      setPartialTranscript("");
     }
   };
 
@@ -1393,6 +1405,11 @@ export default function CasePlayPage() {
             {/* Floating input area */}
             <div className="absolute bottom-0 left-0 right-0 z-10 p-4 bg-gradient-to-t from-black/60 to-transparent">
               <div className="flex flex-col items-center gap-2">
+                {(isRecording || isTranscribing || partialTranscript) && partialTranscript && (
+                  <div className="max-w-lg mb-1 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm">
+                    <p className="text-sm text-white/90 text-center line-clamp-2">{partialTranscript}</p>
+                  </div>
+                )}
                 <Button
                   size="lg"
                   color={isRecording ? "danger" : "primary"}
@@ -1417,7 +1434,7 @@ export default function CasePlayPage() {
                   {isRecording
                     ? "Release to send"
                     : isTranscribing
-                      ? "Transcribing..."
+                      ? (partialTranscript ? "Transcribing..." : "Processing audio...")
                       : sending
                         ? "Getting response..."
                         : "Hold to talk"}
