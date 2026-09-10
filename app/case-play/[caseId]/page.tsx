@@ -123,6 +123,7 @@ export default function CasePlayPage() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const micStreamRef = useRef<MediaStream | null>(null);
 
   // Toggle full-screen mode when entering/leaving playing state
   useEffect(() => {
@@ -289,6 +290,15 @@ export default function CasePlayPage() {
       if (avatarTimerRef.current) clearInterval(avatarTimerRef.current);
     };
   }, []);
+
+  // Release helper for cached mic stream
+  const releaseMicStream = useCallback(() => {
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
+  }, []);
+
+  // Release the mic on unmount so the browser recording indicator clears.
+  useEffect(() => releaseMicStream, [releaseMicStream]);
 
   // Save interaction on page unload (tab close / navigate away)
   useEffect(() => {
@@ -589,6 +599,7 @@ export default function CasePlayPage() {
       stopAvatarTimer();
       avatarRef.current?.stopSession();
       setAvatarGrandfathered(false);
+      releaseMicStream();
     }
 
     setInteractionMode(newMode);
@@ -689,9 +700,20 @@ export default function CasePlayPage() {
   };
 
   // Push-to-talk handlers for avatar mode
+  /** Acquire the mic once and reuse it; re-acquire if tracks were ended externally. */
+  const getMicStream = async (): Promise<MediaStream> => {
+    const existing = micStreamRef.current;
+    const live = existing?.getAudioTracks().some((t) => t.readyState === "live");
+    if (existing && live) return existing;
+    existing?.getTracks().forEach((t) => t.stop());
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micStreamRef.current = stream;
+    return stream;
+  };
+
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await getMicStream();
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: "audio/webm;codecs=opus",
       });
@@ -705,7 +727,7 @@ export default function CasePlayPage() {
       };
 
       mediaRecorder.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop());
+        // Stream is cached and intentionally left live for the next press.
         processRecording();
       };
 
@@ -816,6 +838,8 @@ export default function CasePlayPage() {
         avatarRef.current?.stopSession();
       }
 
+      releaseMicStream();
+
       const res = await fetch("/api/interaction/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -853,6 +877,7 @@ export default function CasePlayPage() {
         avatarRef.current?.stopSession();
         setAvatarGrandfathered(false);
       }
+      releaseMicStream();
       const log = interactionLogRef.current;
       if (log?.mode === "assessed") {
         await saveInteraction(log);
