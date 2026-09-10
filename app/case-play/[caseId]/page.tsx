@@ -61,6 +61,47 @@ interface InteractionIndexEntry {
 const logSignature = (log: InteractionLog) =>
   `${log.totalMessages ?? 0}:${log.events.length}:${Object.keys(log.roleInteractions).length}`;
 
+const SENTENCE_END = /[.!?…](?=\s|$)|\n/;
+const MIN_SPEAK_CHARS = 20;
+const MAX_SPEAK_CHARS = 220;
+
+/**
+ * Pulls complete, speakable chunks out of buffer.
+ * Returns the chunks plus whatever tail is not yet safe to speak.
+ */
+function extractSpeakable(buffer: string): { chunks: string[]; rest: string } {
+  const chunks: string[] = [];
+  let rest = buffer;
+
+  for (;;) {
+    const m = rest.match(SENTENCE_END);
+    if (m && m.index !== undefined) {
+      const end = m.index + m[0].length;
+      const candidate = rest.slice(0, end).trim();
+      if (candidate.length >= MIN_SPEAK_CHARS) {
+        chunks.push(candidate);
+        rest = rest.slice(end);
+        continue;
+      }
+      const next = rest.slice(end).match(SENTENCE_END);
+      if (!next) break;
+      const merged = rest.slice(0, end + next.index! + next[0].length).trim();
+      chunks.push(merged);
+      rest = rest.slice(end + next.index! + next[0].length);
+      continue;
+    }
+    if (rest.length > MAX_SPEAK_CHARS) {
+      const cut = rest.lastIndexOf(",", MAX_SPEAK_CHARS);
+      const at = cut > MIN_SPEAK_CHARS ? cut + 1 : MAX_SPEAK_CHARS;
+      chunks.push(rest.slice(0, at).trim());
+      rest = rest.slice(at);
+      continue;
+    }
+    break;
+  }
+  return { chunks, rest };
+}
+
 export default function CasePlayPage() {
   const params = useParams();
   const router = useRouter();
@@ -97,6 +138,11 @@ export default function CasePlayPage() {
 
   // Interaction mode state (text vs avatar)
   const [interactionMode, setInteractionMode] = useState<InteractionMode>("text");
+
+  // Streaming state
+  const [streamingText, setStreamingText] = useState("");
+  const interactionModeRef = useRef<InteractionMode>("text");
+  useEffect(() => { interactionModeRef.current = interactionMode; }, [interactionMode]);
   /** null = not loaded yet; mirrors GET /api/avatar/status */
   const [heygenAvatarConfigured, setHeygenAvatarConfigured] = useState<boolean | null>(null);
   const avatarRef = useRef<InteractiveAvatarRef>(null);
@@ -653,40 +699,84 @@ export default function CasePlayPage() {
       });
 
       if (!res.ok) throw new Error("Chat failed");
-      const data = await res.json();
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No stream reader");
+      const decoder = new TextDecoder();
+
+      let sseBuffer = "";
+      let fullText = "";
+      let speakBuffer = "";
+      let streamErrored = false;
+
+      const flush = (final: boolean) => {
+        const { chunks, rest } = extractSpeakable(speakBuffer);
+        speakBuffer = rest;
+        for (const c of chunks) {
+          if (interactionModeRef.current === "avatar") avatarRef.current?.speak(c);
+        }
+        if (final && speakBuffer.trim()) {
+          if (interactionModeRef.current === "avatar") avatarRef.current?.speak(speakBuffer.trim());
+          speakBuffer = "";
+        }
+      };
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          let evt: { type?: string; delta?: string; content?: string };
+          try {
+            evt = JSON.parse(line.slice(6));
+          } catch {
+            continue;
+          }
+          if (evt.type === "content") {
+            const piece = evt.delta ?? "";
+            if (!piece) continue;
+            fullText += piece;
+            speakBuffer += piece;
+            setStreamingText(fullText);
+            flush(false);
+          } else if (evt.type === "error") {
+            streamErrored = true;
+          }
+        }
+      }
+
+      flush(true);
+      setStreamingText("");
+
+      if (streamErrored || !fullText.trim()) throw new Error("Chat stream failed");
 
       const assistantMsg: RoleMessage = {
         role: "assistant",
-        content: data.message,
+        content: fullText,
         timestamp: Date.now(),
       };
-
       setChatMessages((prev) => ({
         ...prev,
         [roleId]: [...(prev[roleId] || []), assistantMsg],
       }));
-
       interactionLog.roleInteractions[roleId].messages.push(assistantMsg);
       interactionLog.events.push({
         type: "receive_message",
         roleId,
         roleName: selectedRole.name,
         timestamp: Date.now(),
-        messageContent: data.message,
+        messageContent: fullText,
         messageRole: "assistant",
       });
-
       setInteractionLog({ ...interactionLog });
-
-      // If in avatar mode, have the avatar speak the response
-      if (interactionMode === "avatar") {
-        avatarRef.current?.speak(data.message);
-      }
-
-      return data.message;
+      return fullText;
     } catch (err) {
       console.error("Chat error:", err);
       addToast({ title: "Failed to get response", color: "danger" });
+      setStreamingText("");
     } finally {
       setSending(false);
     }
@@ -1451,8 +1541,12 @@ export default function CasePlayPage() {
               ))}
               {sending && (
                 <div className="flex justify-start">
-                  <div className="bg-default-100 p-3 rounded-lg">
-                    <Spinner size="sm" />
+                  <div className="bg-default-100 p-3 rounded-lg max-w-[80%]">
+                    {streamingText ? (
+                      <p className="text-sm whitespace-pre-wrap">{streamingText}</p>
+                    ) : (
+                      <Spinner size="sm" />
+                    )}
                   </div>
                 </div>
               )}

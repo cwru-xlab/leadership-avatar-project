@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { createLLMStream, createSSEHeaders } from "../../llm/common";
 
 export const maxDuration = 60;
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 45_000,
-  maxRetries: 1,
-});
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,18 +37,8 @@ export async function POST(request: NextRequest) {
       })),
     ];
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1",
-      messages: fullMessages,
-      max_tokens: 1000,
-    });
-
-    const responseContent = completion.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
-
-    return NextResponse.json({
-      success: true,
-      message: responseContent,
-    });
+    const stream = createLLMStream(fullMessages, "gpt-4.1", { maxTokens: 1000 });
+    return new Response(stream, { headers: createSSEHeaders() });
   } catch (error) {
     console.error("Error in interaction chat:", error);
     return NextResponse.json(

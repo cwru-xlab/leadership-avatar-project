@@ -14,7 +14,8 @@ export interface ChatMessage {
 export interface LLMStreamResponse {
   type: "start" | "content" | "end" | "error";
   message?: string;
-  content?: string;
+  content?: string;   // full accumulated text (keep for backward compat)
+  delta?: string;     // NEW: just this chunk
   timestamp: string;
   metadata?: {
     model?: string;
@@ -69,9 +70,15 @@ export async function fetchAvatarSystemPrompt(avatarId: string): Promise<string>
   return DEFAULT_SYSTEM_PROMPT;
 }
 
+export interface LLMStreamOptions {
+  maxTokens?: number;
+  promptCacheKey?: string;
+}
+
 export function createLLMStream(
   messages: ChatMessage[],
-  modelName: string = "gpt-4.1"
+  modelName: string = "gpt-4.1",
+  options: LLMStreamOptions = {}
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
 
@@ -101,7 +108,7 @@ export function createLLMStream(
           model: modelName,
           messages: messages,
           stream: true,
-          max_tokens: 500,
+          max_tokens: options.maxTokens ?? 500,
         });
 
         // Stream the response with accumulated content
@@ -111,7 +118,8 @@ export function createLLMStream(
             accumulatedContent += content;
             const contentMessage: LLMStreamResponse = {
               type: "content",
-              content: accumulatedContent, // Send full accumulated content
+              content: accumulatedContent, // kept for preview/production consumers
+              delta: content,              // NEW
               timestamp: new Date().toISOString(),
             };
             controller.enqueue(
