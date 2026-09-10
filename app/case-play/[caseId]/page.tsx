@@ -58,6 +58,9 @@ interface InteractionIndexEntry {
   updatedAt: string;
 }
 
+const logSignature = (log: InteractionLog) =>
+  `${log.totalMessages ?? 0}:${log.events.length}:${Object.keys(log.roleInteractions).length}`;
+
 export default function CasePlayPage() {
   const params = useParams();
   const router = useRouter();
@@ -89,6 +92,8 @@ export default function CasePlayPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const autoSaveRef = useRef<NodeJS.Timeout | null>(null);
   const interactionLogRef = useRef<InteractionLog | null>(null);
+  const saveInFlightRef = useRef(false);
+  const lastSavedSigRef = useRef<string>("");
 
   // Interaction mode state (text vs avatar)
   const [interactionMode, setInteractionMode] = useState<InteractionMode>("text");
@@ -258,14 +263,14 @@ export default function CasePlayPage() {
     interactionLogRef.current = interactionLog;
   }, [interactionLog]);
 
-  // Auto-save every 5 seconds for assessed mode
+  // Auto-save every 15 seconds for assessed mode
   useEffect(() => {
     if (pageState === "playing" && mode === "assessed") {
       autoSaveRef.current = setInterval(() => {
         if (interactionLogRef.current) {
-          saveInteraction(interactionLogRef.current);
+          queueAutosave(interactionLogRef.current);
         }
-      }, 5000);
+      }, 15000);
 
       return () => {
         if (autoSaveRef.current) clearInterval(autoSaveRef.current);
@@ -343,6 +348,7 @@ export default function CasePlayPage() {
 
   const saveInteraction = async (log: InteractionLog) => {
     if (log.mode !== "assessed") return;
+    const sig = logSignature(log);
     setSaveState("saving");
     try {
       await fetch("/api/interaction/save", {
@@ -350,12 +356,24 @@ export default function CasePlayPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ log }),
       });
+      lastSavedSigRef.current = sig;
       setSaveState("saved");
       setLastSavedAt(Date.now());
     } catch (err) {
-      console.error("Auto-save failed:", err);
+      console.error("Save failed:", err);
       setSaveState("error");
     }
+  };
+
+  /** Non-blocking autosave: skips when clean or a save is already in flight. */
+  const queueAutosave = (log: InteractionLog) => {
+    if (log.mode !== "assessed") return;
+    if (saveInFlightRef.current) return;
+    if (logSignature(log) === lastSavedSigRef.current) return;
+    saveInFlightRef.current = true;
+    void saveInteraction(log).finally(() => {
+      saveInFlightRef.current = false;
+    });
   };
 
   const handleStart = async (selectedMode: "explore" | "assessed") => {
@@ -422,7 +440,7 @@ export default function CasePlayPage() {
 
       // Immediately save so the resume event is persisted
       if (log.mode === "assessed") {
-        saveInteraction(log);
+        void saveInteraction(log);
       }
 
       addToast({ title: "Session resumed", color: "success" });
@@ -1039,7 +1057,7 @@ export default function CasePlayPage() {
         </div>
         {mode === "assessed" && (
           <p className="text-xs text-default-500">
-            Progress auto-saves every 5s. You can close this page and continue later.
+            Progress auto-saves every 15s. You can close this page and continue later.
           </p>
         )}
         {mode === "assessed" && (
