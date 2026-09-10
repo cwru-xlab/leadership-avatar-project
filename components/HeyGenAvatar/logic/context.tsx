@@ -194,12 +194,16 @@ export const StreamingAvatarProvider = ({
       : undefined) ||
     "https://api.liveavatar.com";
 
-  const sessionRef = useRef<LiveAvatarSession>(
-    new LiveAvatarSession(sessionAccessToken, {
+  // Lazy initialization: only create the session once, not on every render.
+  // Using null as initial value and checking before creating to avoid
+  // allocating a new session object on every render.
+  const sessionRef = useRef<LiveAvatarSession>(null as any);
+  if (!sessionRef.current) {
+    sessionRef.current = new LiveAvatarSession(sessionAccessToken, {
       voiceChat: voiceChatConfig,
       apiUrl: effectiveApiUrl,
-    }),
-  );
+    });
+  }
 
   const { sessionState, isStreamReady, connectionQuality } =
     useSessionState(sessionRef);

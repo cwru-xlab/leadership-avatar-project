@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { s3Storage } from "@/lib/s3-client";
 import { waitUntil } from "@vercel/functions";
 import type { InteractionLog } from "@/types";
+import { getCurrentUser } from "@/lib/auth";
+import { siteConfig } from "@/config/site";
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 async function evaluateInteraction(log: InteractionLog): Promise<void> {
   try {
@@ -29,11 +31,16 @@ async function evaluateInteraction(log: InteractionLog): Promise<void> {
     ];
 
     // Call OpenAI for evaluation
+    // Budget: maxDuration is 60s, leave 10s margin, divide by (retries + 1)
+    const BUDGET_MS = 50_000;
+    const RETRIES = 1;
+    const PER_ATTEMPT_TIMEOUT = Math.floor(BUDGET_MS / (RETRIES + 1));
+
     const OpenAI = (await import("openai")).default;
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
-      timeout: 120_000,
-      maxRetries: 2,
+      timeout: PER_ATTEMPT_TIMEOUT,
+      maxRetries: RETRIES,
     });
 
     const completion = await openai.chat.completions.create({
@@ -107,12 +114,35 @@ function buildInteractionText(log: InteractionLog): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify authentication and get current user
+    const token = request.cookies.get(siteConfig.auth.cookie.name)?.value;
+    const currentUser = await getCurrentUser(token || "");
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { log } = body as { log: InteractionLog };
 
-    if (!log || !log.id || !log.studentEmail || !log.caseId) {
+    if (!log || !log.id || !log.caseId) {
       return NextResponse.json(
         { error: "Missing required interaction log data" },
+        { status: 400 }
+      );
+    }
+
+    // Authorization: Students can only finish their own logs.
+    // Override studentEmail with verified identity for students.
+    const isPrivileged = currentUser.role === "admin" || currentUser.role === "professor";
+    if (!isPrivileged) {
+      log.studentEmail = currentUser.email;
+    } else if (!log.studentEmail) {
+      return NextResponse.json(
+        { error: "studentEmail is required for privileged users" },
         { status: 400 }
       );
     }

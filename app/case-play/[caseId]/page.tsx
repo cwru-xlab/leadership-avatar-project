@@ -755,7 +755,33 @@ export default function CasePlayPage() {
       flush(true);
       setStreamingText("");
 
-      if (streamErrored || !fullText.trim()) throw new Error("Chat stream failed");
+      if (streamErrored || !fullText.trim()) {
+        // If we spoke any text before the error, log it as a partial message
+        if (fullText.trim()) {
+          const partialMsg: RoleMessage = {
+            role: "assistant",
+            content: fullText,
+            timestamp: Date.now(),
+          };
+          setChatMessages((prev) => ({
+            ...prev,
+            [roleId]: [...(prev[roleId] || []), partialMsg],
+          }));
+          interactionLog.roleInteractions[roleId].messages.push(partialMsg);
+          interactionLog.events.push({
+            type: "receive_message",
+            roleId,
+            roleName: selectedRole.name,
+            timestamp: Date.now(),
+            messageContent: fullText,
+            messageRole: "assistant",
+            // Mark as partial so evaluator knows this was interrupted
+            partial: true,
+          } as any); // Cast needed since partial field may not be in type yet
+          setInteractionLog({ ...interactionLog });
+        }
+        throw new Error("Chat stream failed");
+      }
 
       const assistantMsg: RoleMessage = {
         role: "assistant",
@@ -779,6 +805,10 @@ export default function CasePlayPage() {
       return fullText;
     } catch (err) {
       console.error("Chat error:", err);
+      // Stop the avatar from speaking any queued audio
+      if (interactionModeRef.current === "avatar") {
+        avatarRef.current?.interrupt?.();
+      }
       addToast({ title: "Failed to get response", color: "danger" });
       setStreamingText("");
     } finally {

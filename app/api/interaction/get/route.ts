@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { s3Storage } from "@/lib/s3-client";
+import { getCurrentUser } from "@/lib/auth";
+import { siteConfig } from "@/config/site";
 
 export async function GET(request: NextRequest) {
   try {
+    // Verify authentication and get current user
+    const token = request.cookies.get(siteConfig.auth.cookie.name)?.value;
+    const currentUser = await getCurrentUser(token || "");
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const studentEmail = searchParams.get("studentEmail");
     const caseId = searchParams.get("caseId");
@@ -12,6 +25,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: "studentEmail and caseId are required" },
         { status: 400 }
+      );
+    }
+
+    // Authorization: students can only access their own logs
+    const isPrivileged = currentUser.role === "admin" || currentUser.role === "professor";
+    if (!isPrivileged && studentEmail.toLowerCase() !== currentUser.email.toLowerCase()) {
+      return NextResponse.json(
+        { error: "Forbidden: You can only access your own interaction logs" },
+        { status: 403 }
       );
     }
 

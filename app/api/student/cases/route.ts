@@ -1,14 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { s3Storage } from "@/lib/s3-client";
+import { getCurrentUser } from "@/lib/auth";
+import { siteConfig } from "@/config/site";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const email = searchParams.get("email");
+    // Verify authentication and get current user
+    const token = request.cookies.get(siteConfig.auth.cookie.name)?.value;
+    const currentUser = await getCurrentUser(token || "");
 
-    if (!email) {
+    if (!currentUser) {
       return NextResponse.json(
-        { error: "Email parameter is required" },
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    let email = searchParams.get("email");
+
+    // Authorization: Students can only query their own cases
+    const isPrivileged = currentUser.role === "admin" || currentUser.role === "professor";
+    if (!isPrivileged) {
+      email = currentUser.email; // Override with verified identity
+    } else if (!email) {
+      return NextResponse.json(
+        { error: "Email parameter is required for privileged users" },
         { status: 400 }
       );
     }
