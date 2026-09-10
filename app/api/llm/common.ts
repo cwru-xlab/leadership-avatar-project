@@ -2,6 +2,8 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: 60_000,
+  maxRetries: 1,
 });
 
 export interface ChatMessage {
@@ -156,6 +158,7 @@ export function createSSEHeaders(): Headers {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
     Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Cache-Control",
   });

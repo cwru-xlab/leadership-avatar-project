@@ -3,6 +3,8 @@ import { s3Storage } from "./s3-client";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: 60_000,
+  maxRetries: 2,
 });
 
 export interface SpeechPatternAnalysis {
