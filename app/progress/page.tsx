@@ -10,6 +10,7 @@ import { Sparkles, ArrowRight } from "lucide-react";
 
 import { title } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";
+import { DemoModeBanner } from "@/components/demo-mode-banner";
 
 interface SkillRow {
   skillKey: string;
@@ -40,6 +41,7 @@ export default function ProgressPage() {
   const [totals, setTotals] = useState({ attempts: 0, skillsTracked: 0, avgEma: 0 });
   const [targetScore, setTargetScore] = useState(80);
   const [loading, setLoading] = useState(true);
+  const [demo, setDemo] = useState(false);
 
   useEffect(() => {
     if (!user?.email) return;
@@ -55,6 +57,7 @@ export default function ProgressPage() {
         setAttempts(data.attempts || []);
         setTotals(data.totals || { attempts: 0, skillsTracked: 0, avgEma: 0 });
         setTargetScore(data.targetScore || 80);
+        setDemo(Boolean(data.demo));
       } catch (e) {
         console.error(e);
       } finally {
@@ -78,6 +81,10 @@ export default function ProgressPage() {
           Open learning plan
         </Button>
       </div>
+
+      {demo && (
+        <DemoModeBanner message="Placeholder skill progress — replace with live attempts once DATABASE_URL is set." />
+      )}
 
       {loading ? (
         <p className="text-default-500">Loading progress…</p>

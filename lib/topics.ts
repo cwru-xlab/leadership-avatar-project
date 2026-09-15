@@ -39,9 +39,9 @@ export const TOPIC_META: Record<
 };
 
 export const TOPIC_SUBTYPES: Record<PracticeTopic, string[]> = {
-  interview: ["behavioral", "technical", "leadership"],
-  pitch: ["investor", "executive", "faculty", "community"],
-  courageous_conversation: ["conflict", "feedback", "accountability"],
+  interview: ["Behavioral", "Technical", "Leadership"],
+  pitch: ["Investor", "Executive", "Faculty", "Community"],
+  courageous_conversation: ["Conflict", "Feedback", "Accountability"],
 };
 
 /** Skills scored from chat/transcript (no video analysis). */

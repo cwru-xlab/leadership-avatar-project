@@ -10,6 +10,7 @@ import { addToast } from "@heroui/toast";
 
 import { title } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";
+import { DemoModeBanner } from "@/components/demo-mode-banner";
 
 interface PlanActivity {
   id: string;
@@ -36,6 +37,7 @@ export default function PlanPage() {
   const [plan, setPlan] = useState<PlanPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [demo, setDemo] = useState(false);
 
   const loadPlan = async () => {
     if (!user?.email) return;
@@ -47,6 +49,7 @@ export default function PlanPage() {
       if (!res.ok) throw new Error("Failed to load plan");
       const data = await res.json();
       setPlan(data.plan);
+      setDemo(Boolean(data.demo));
     } catch (e) {
       console.error(e);
       addToast({
@@ -114,6 +117,10 @@ export default function PlanPage() {
           </Button>
         </div>
       </div>
+
+      {demo && (
+        <DemoModeBanner message="Placeholder learning plan — regenerates from real skill data once Postgres is connected." />
+      )}
 
       {loading ? (
         <p className="text-default-500">Loading plan…</p>

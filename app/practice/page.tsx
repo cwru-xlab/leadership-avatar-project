@@ -18,6 +18,7 @@ import { addToast } from "@heroui/toast";
 import { title } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";
 import { TOPIC_META, PRACTICE_TOPICS, type PracticeTopic } from "@/lib/topics";
+import { DemoModeBanner } from "@/components/demo-mode-banner";
 import type { CaseStudy } from "@/types";
 import type { Cohort } from "@/types/cohort";
 
@@ -37,6 +38,7 @@ export default function PracticeHubPage() {
   const router = useRouter();
   const [cases, setCases] = useState<StudentCaseWithCohort[]>([]);
   const [loading, setLoading] = useState(true);
+  const [demo, setDemo] = useState(false);
   const [pendingCohort, setPendingCohort] = useState<Cohort | null>(null);
   const [pendingAccessCode, setPendingAccessCode] = useState<string | null>(null);
   const [joiningCohort, setJoiningCohort] = useState(false);
@@ -87,6 +89,7 @@ export default function PracticeHubPage() {
       if (!response.ok) throw new Error("Failed to fetch scenarios");
       const data = await response.json();
       setCases(data.cases || []);
+      setDemo(Boolean(data.demo));
     } catch (err) {
       console.error(err);
     } finally {
@@ -140,6 +143,10 @@ export default function PracticeHubPage() {
           low-risk environment.
         </p>
       </div>
+
+      {demo && (
+        <DemoModeBanner message="Placeholder scenarios — assigned when env/S3 is missing so you can preview the Practice hub." />
+      )}
 
       {pendingCohort && (
         <Card className="border border-primary/30 bg-primary/5">

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { s3Storage } from "@/lib/s3-client";
+import { getDemoScenario, shouldUseDemoScenarios } from "@/lib/demo-data";
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,9 +14,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (shouldUseDemoScenarios()) {
+      const demo = getDemoScenario(id);
+      if (demo) {
+        return NextResponse.json({
+          success: true,
+          caseStudy: demo,
+          demo: true,
+          message: "Demo scenario (placeholder)",
+        });
+      }
+    }
+
     const caseStudy = await s3Storage.getCase(id);
 
     if (!caseStudy) {
+      const demo = getDemoScenario(id);
+      if (demo && shouldUseDemoScenarios()) {
+        return NextResponse.json({
+          success: true,
+          caseStudy: demo,
+          demo: true,
+        });
+      }
       return NextResponse.json(
         { error: `Case with ID '${id}' not found` },
         { status: 404 }
@@ -29,14 +50,21 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Case get error:", error);
+    const id = new URL(request.url).searchParams.get("id");
+    const demo = id ? getDemoScenario(id) : null;
+    if (demo && shouldUseDemoScenarios()) {
+      return NextResponse.json({
+        success: true,
+        caseStudy: demo,
+        demo: true,
+      });
+    }
 
-    if (error instanceof Error) {
-      if (error.message.includes("credentials")) {
-        return NextResponse.json(
-          { error: "S3 configuration error" },
-          { status: 500 }
-        );
-      }
+    if (error instanceof Error && error.message.includes("credentials")) {
+      return NextResponse.json(
+        { error: "S3 configuration error" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(

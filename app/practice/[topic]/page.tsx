@@ -14,6 +14,7 @@ import {
   isPracticeTopic,
   type PracticeTopic,
 } from "@/lib/topics";
+import { DemoModeBanner } from "@/components/demo-mode-banner";
 import type { CaseStudy } from "@/types";
 
 interface StudentCaseWithCohort extends CaseStudy {
@@ -34,6 +35,7 @@ export default function PracticeTopicPage() {
   const [cases, setCases] = useState<StudentCaseWithCohort[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [demo, setDemo] = useState(false);
 
   useEffect(() => {
     if (!valid) {
@@ -57,6 +59,7 @@ export default function PracticeTopicPage() {
       if (!response.ok) throw new Error("Failed to fetch scenarios");
       const data = await response.json();
       setCases(data.cases || []);
+      setDemo(Boolean(data.demo));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -79,6 +82,8 @@ export default function PracticeTopicPage() {
           <p className="text-default-500 mt-2">{meta.description}</p>
         </div>
       </div>
+
+      {demo && <DemoModeBanner />}
 
       {error && (
         <div className="p-4 bg-danger-50 border border-danger-200 rounded-lg text-danger-700">

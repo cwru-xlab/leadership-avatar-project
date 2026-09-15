@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { SKILL_META, type SkillKey } from "@/lib/topics";
 import { regenerateLearningPlan } from "@/lib/learning-plan";
 import { isDatabaseConfigured } from "@/lib/db-config";
+import { getDemoPlanPayload, shouldUseDemoLearningRecords } from "@/lib/demo-data";
+
+function shouldUseDemoPlan(): boolean {
+  return shouldUseDemoLearningRecords();
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,14 +16,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Email required" }, { status: 400 });
     }
 
-    if (!isDatabaseConfigured()) {
-      return NextResponse.json({
-        success: true,
-        plan: null,
-        offline: true,
-        message:
-          "DATABASE_URL is not set — learning plans require Postgres. You can still browse Practice.",
-      });
+    if (shouldUseDemoPlan()) {
+      return NextResponse.json(getDemoPlanPayload());
     }
 
     const user = await prisma.user.findUnique({
@@ -94,6 +93,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Plan API error:", error);
+    if (shouldUseDemoPlan()) {
+      return NextResponse.json(getDemoPlanPayload());
+    }
     return NextResponse.json(
       { error: "Failed to load learning plan" },
       { status: 500 }

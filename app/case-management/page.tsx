@@ -7,8 +7,8 @@ import { Select, SelectItem } from "@heroui/select";
 import { Plus, RefreshCw } from "lucide-react";
 import { title } from "@/components/primitives";
 import CaseCard from "@/components/case-card";
-import { caseStorage } from "@/lib/case-storage";
 import { PRACTICE_TOPICS, TOPIC_META } from "@/lib/topics";
+import { DemoModeBanner } from "@/components/demo-mode-banner";
 import type { CaseStudy } from "@/types";
 
 export default function CaseManagementPage() {
@@ -17,6 +17,7 @@ export default function CaseManagementPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [topicFilter, setTopicFilter] = useState<string>("all");
+  const [demo, setDemo] = useState(false);
 
   useEffect(() => {
     loadCases();
@@ -26,8 +27,11 @@ export default function CaseManagementPage() {
     try {
       setLoading(true);
       setError(null);
-      const caseList = await caseStorage.list();
-      setCases(caseList);
+      const response = await fetch("/api/case/list");
+      if (!response.ok) throw new Error("Failed to list scenarios");
+      const data = await response.json();
+      setCases(data.cases || []);
+      setDemo(Boolean(data.demo));
     } catch (err) {
       console.error("Failed to load scenarios:", err);
       setError("Failed to load scenarios");
@@ -89,6 +93,10 @@ export default function CaseManagementPage() {
           </Button>
         </div>
       </div>
+
+      {demo && (
+        <DemoModeBanner message="Placeholder scenarios — S3 is not configured. Editing/saving will not persist." />
+      )}
 
       {error && (
         <div className="p-4 bg-danger-50 border border-danger-200 rounded-lg text-danger-700">

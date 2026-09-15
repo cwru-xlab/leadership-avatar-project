@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { SKILL_META, SKILL_TARGET_SCORE, type SkillKey } from "@/lib/topics";
 import { regenerateLearningPlan } from "@/lib/learning-plan";
 import { isDatabaseConfigured } from "@/lib/db-config";
+import { getDemoProgressPayload, shouldUseDemoLearningRecords } from "@/lib/demo-data";
+
+function shouldUseDemoProgress(): boolean {
+  return shouldUseDemoLearningRecords();
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,17 +16,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Email required" }, { status: 400 });
     }
 
-    if (!isDatabaseConfigured()) {
-      return NextResponse.json({
-        success: true,
-        skills: [],
-        attempts: [],
-        targetScore: SKILL_TARGET_SCORE,
-        totals: { attempts: 0, skillsTracked: 0, avgEma: 0 },
-        offline: true,
-        message:
-          "DATABASE_URL is not set — progress is empty until Postgres is connected.",
-      });
+    if (shouldUseDemoProgress()) {
+      return NextResponse.json(getDemoProgressPayload());
     }
 
     const user = await prisma.user.findUnique({
@@ -87,6 +83,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Progress API error:", error);
+    if (shouldUseDemoProgress()) {
+      return NextResponse.json(getDemoProgressPayload());
+    }
     return NextResponse.json(
       { error: "Failed to load progress" },
       { status: 500 }

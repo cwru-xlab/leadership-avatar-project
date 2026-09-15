@@ -60,7 +60,9 @@ You can log in and navigate the app **without** `DATABASE_URL`:
 2. Restart `npm run dev`
 3. Sign in with seed credentials (e.g. `admin@example.com` / `admin123` or `student@case.edu` / `student123`)
 
-In this mode Progress / Plan stay empty, and practice scenarios still need S3 (+ keys) when you open real sessions. When you have Postgres:
+In this mode Progress / Plan / Practice / Scenarios show **placeholder demo data** (yellow “Demo” banner) so you can preview the UI. Live avatar chat and scoring still need API keys. Force placeholders anytime with `FORCE_DEMO_DATA=1` in `.env.local`.
+
+When you have Postgres:
 
 ```bash
 # set DATABASE_URL in .env.local, then:
