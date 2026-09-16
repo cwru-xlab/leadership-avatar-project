@@ -63,9 +63,20 @@ export function classifyUpstreamSessionError(
         "HeyGen rejected this API key. Verify HEYGEN_API_KEY in the server environment.",
     };
   }
+  // 4xx means the request itself was rejected — a bad avatar_id, voice_id or
+  // persona. Reporting that as a transient outage sends people to "try again",
+  // which can never succeed. Only 5xx and transport failures are transient.
+  if (httpStatus >= 400 && httpStatus < 500) {
+    return {
+      code: "HEYGEN_BAD_REQUEST",
+      status: httpStatus,
+      message: message || "HeyGen LiveAvatar rejected the session request.",
+    };
+  }
+
   return {
     code: "HEYGEN_UPSTREAM_ERROR",
-    status: httpStatus >= 400 && httpStatus < 600 ? httpStatus : 502,
+    status: httpStatus >= 500 && httpStatus < 600 ? httpStatus : 502,
     message: message || "HeyGen LiveAvatar request failed.",
   };
 }

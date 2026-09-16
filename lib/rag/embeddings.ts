@@ -3,6 +3,8 @@ import OpenAI from "openai";
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
+  timeout: 30_000,
+  maxRetries: 2,
 });
 
 export interface EmbeddingRequest {

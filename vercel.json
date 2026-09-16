@@ -1,0 +1,50 @@
+{
+  "buildCommand": "prisma generate && next build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 60
+    }
+  },
+  "env": {
+    "DATABASE_URL": "@database-url",
+    "JWT_SECRET": "@jwt-secret",
+    "AWS_ACCESS_KEY_ID": "@aws-access-key-id",
+    "AWS_SECRET_ACCESS_KEY": "@aws-secret-access-key",
+    "AWS_REGION": "@aws-region",
+    "AWS_S3_BUCKET_NAME": "@aws-s3-bucket-name",
+    "OPENAI_API_KEY": "@openai-api-key",
+    "HEYGEN_API_KEY": "@heygen-api-key",
+    "PINECONE_API_KEY": "@pinecone-api-key",
+    "PINECONE_REGION": "@pinecone-region",
+    "PINECONE_INDEX_NAME": "@pinecone-index-name",
+    "EDGE_CONFIG": "@edge-config"
+  },
+  "build": {
+    "env": {
+      "DATABASE_URL": "@database-url"
+    }
+  },
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "github": {
+    "silent": false,
+    "autoAlias": true
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
+    }
+  ]
+}
