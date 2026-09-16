@@ -170,6 +170,7 @@ export default function CasePlayPage() {
   const [partialTranscript, setPartialTranscript] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStartRef = useRef<number>(0);
   const micStreamRef = useRef<MediaStream | null>(null);
 
   // Toggle full-screen mode when entering/leaving playing state
@@ -855,6 +856,7 @@ export default function CasePlayPage() {
         processRecording();
       };
 
+      recordingStartRef.current = Date.now();
       mediaRecorder.start();
       setIsRecording(true);
     } catch (error) {
@@ -870,13 +872,31 @@ export default function CasePlayPage() {
     }
   };
 
+  // A near-silent clip makes gpt-4o-transcribe hallucinate — it invents a phrase
+  // in a random language, which then gets sent to the LLM as a real user turn.
+  // Drop anything too short or too small to contain speech.
+  const MIN_RECORDING_MS = 400;
+  const MIN_AUDIO_BYTES = 2048;
+
   const processRecording = async () => {
     if (audioChunksRef.current.length === 0) return;
+
+    const elapsedMs = Date.now() - recordingStartRef.current;
+    const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+
+    if (elapsedMs < MIN_RECORDING_MS || audioBlob.size < MIN_AUDIO_BYTES) {
+      audioChunksRef.current = [];
+      addToast({
+        title: "Nothing recorded",
+        description: "Hold the mic button while you speak.",
+        color: "warning",
+      });
+      return;
+    }
 
     setIsTranscribing(true);
 
     try {
-      const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
       const formData = new FormData();
       formData.append("audio", audioBlob, "recording.webm");
 
