@@ -40,6 +40,12 @@ import type { CaseStudy, CaseAvatar, InteractionLog, RoleMessage, RoleInteractio
 import InteractiveAvatarWrapper, { InteractiveAvatarRef } from "@/components/HeyGenAvatar/InteractiveAvatar";
 import { HeygenSessionError } from "@/lib/heygen-client";
 import { StreamingAvatarSessionState } from "@/components/HeyGenAvatar/logic";
+import {
+  ATTEMPT_LANGUAGES,
+  DEFAULT_ATTEMPT_LANGUAGE,
+  resolveAttemptLanguage,
+  type AttemptLanguage,
+} from "@/lib/languages";
 
 type PageState = "intro" | "playing";
 type InteractionMode = "text" | "avatar";
@@ -56,6 +62,50 @@ interface InteractionIndexEntry {
   totalTimeSeconds: number;
   evalScore?: number;
   updatedAt: string;
+}
+
+const logSignature = (log: InteractionLog) =>
+  `${log.totalMessages ?? 0}:${log.events.length}:${Object.keys(log.roleInteractions).length}`;
+
+const SENTENCE_END = /[.!?…](?=\s|$)|\n/;
+const MIN_SPEAK_CHARS = 20;
+const MAX_SPEAK_CHARS = 220;
+
+/**
+ * Pulls complete, speakable chunks out of buffer.
+ * Returns the chunks plus whatever tail is not yet safe to speak.
+ */
+function extractSpeakable(buffer: string): { chunks: string[]; rest: string } {
+  const chunks: string[] = [];
+  let rest = buffer;
+
+  for (;;) {
+    const m = rest.match(SENTENCE_END);
+    if (m && m.index !== undefined) {
+      const end = m.index + m[0].length;
+      const candidate = rest.slice(0, end).trim();
+      if (candidate.length >= MIN_SPEAK_CHARS) {
+        chunks.push(candidate);
+        rest = rest.slice(end);
+        continue;
+      }
+      const next = rest.slice(end).match(SENTENCE_END);
+      if (!next) break;
+      const merged = rest.slice(0, end + next.index! + next[0].length).trim();
+      chunks.push(merged);
+      rest = rest.slice(end + next.index! + next[0].length);
+      continue;
+    }
+    if (rest.length > MAX_SPEAK_CHARS) {
+      const cut = rest.lastIndexOf(",", MAX_SPEAK_CHARS);
+      const at = cut > MIN_SPEAK_CHARS ? cut + 1 : MAX_SPEAK_CHARS;
+      chunks.push(rest.slice(0, at).trim());
+      rest = rest.slice(at);
+      continue;
+    }
+    break;
+  }
+  return { chunks, rest };
 }
 
 export default function CasePlayPage() {
@@ -89,12 +139,24 @@ export default function CasePlayPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const autoSaveRef = useRef<NodeJS.Timeout | null>(null);
   const interactionLogRef = useRef<InteractionLog | null>(null);
+  const saveInFlightRef = useRef(false);
+  const lastSavedSigRef = useRef<string>("");
 
   // Interaction mode state (text vs avatar)
   const [interactionMode, setInteractionMode] = useState<InteractionMode>("text");
+
+  // Streaming state
+  const [streamingText, setStreamingText] = useState("");
+  const interactionModeRef = useRef<InteractionMode>("text");
+  useEffect(() => { interactionModeRef.current = interactionMode; }, [interactionMode]);
   /** null = not loaded yet; mirrors GET /api/avatar/status */
   const [heygenAvatarConfigured, setHeygenAvatarConfigured] = useState<boolean | null>(null);
   const avatarRef = useRef<InteractiveAvatarRef>(null);
+  // The language this attempt is conducted in. Constrains transcription, the
+  // role's replies, and the avatar voice, so all three stay consistent.
+  const [attemptLanguage, setAttemptLanguage] = useState<AttemptLanguage>(
+    DEFAULT_ATTEMPT_LANGUAGE,
+  );
   const [avatarConfig, setAvatarConfig] = useState<StartAvatarRequest | null>(null);
   const [avatarConfigLoading, setAvatarConfigLoading] = useState(false);
 
@@ -116,8 +178,16 @@ export default function CasePlayPage() {
   // Push-to-talk state for avatar mode
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [partialTranscript, setPartialTranscript] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStartRef = useRef<number>(0);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  // Level metering, used to reject clips that contain no actual speech.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const meterSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const meterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const peakRmsRef = useRef<number>(0);
 
   // Toggle full-screen mode when entering/leaving playing state
   useEffect(() => {
@@ -258,14 +328,14 @@ export default function CasePlayPage() {
     interactionLogRef.current = interactionLog;
   }, [interactionLog]);
 
-  // Auto-save every 5 seconds for assessed mode
+  // Auto-save every 15 seconds for assessed mode
   useEffect(() => {
     if (pageState === "playing" && mode === "assessed") {
       autoSaveRef.current = setInterval(() => {
         if (interactionLogRef.current) {
-          saveInteraction(interactionLogRef.current);
+          queueAutosave(interactionLogRef.current);
         }
-      }, 5000);
+      }, 15000);
 
       return () => {
         if (autoSaveRef.current) clearInterval(autoSaveRef.current);
@@ -284,6 +354,25 @@ export default function CasePlayPage() {
       if (avatarTimerRef.current) clearInterval(avatarTimerRef.current);
     };
   }, []);
+
+  // Release helper for cached mic stream
+  const releaseMicStream = useCallback(() => {
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
+    // Tear the meter down with the stream: its source node references it, and
+    // browsers cap how many AudioContexts a page may hold open.
+    if (meterTimerRef.current !== null) {
+      clearInterval(meterTimerRef.current);
+      meterTimerRef.current = null;
+    }
+    meterSourceRef.current?.disconnect();
+    meterSourceRef.current = null;
+    void audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+  }, []);
+
+  // Release the mic on unmount so the browser recording indicator clears.
+  useEffect(() => releaseMicStream, [releaseMicStream]);
 
   // Save interaction on page unload (tab close / navigate away)
   useEffect(() => {
@@ -330,7 +419,9 @@ export default function CasePlayPage() {
         avatarName: profile.avatarName,
         knowledgeId: profile.knowledgeId,
         voice: profile.voice,
-        language: profile.language,
+        // The attempt's language wins over the profile's: it is what the
+        // student chose and what the role is being told to speak.
+        language: attemptLanguage.code,
       });
     } catch (err) {
       console.error("Failed to load avatar profile:", err);
@@ -343,6 +434,7 @@ export default function CasePlayPage() {
 
   const saveInteraction = async (log: InteractionLog) => {
     if (log.mode !== "assessed") return;
+    const sig = logSignature(log);
     setSaveState("saving");
     try {
       await fetch("/api/interaction/save", {
@@ -350,12 +442,24 @@ export default function CasePlayPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ log }),
       });
+      lastSavedSigRef.current = sig;
       setSaveState("saved");
       setLastSavedAt(Date.now());
     } catch (err) {
-      console.error("Auto-save failed:", err);
+      console.error("Save failed:", err);
       setSaveState("error");
     }
+  };
+
+  /** Non-blocking autosave: skips when clean or a save is already in flight. */
+  const queueAutosave = (log: InteractionLog) => {
+    if (log.mode !== "assessed") return;
+    if (saveInFlightRef.current) return;
+    if (logSignature(log) === lastSavedSigRef.current) return;
+    saveInFlightRef.current = true;
+    void saveInteraction(log).finally(() => {
+      saveInFlightRef.current = false;
+    });
   };
 
   const handleStart = async (selectedMode: "explore" | "assessed") => {
@@ -374,6 +478,7 @@ export default function CasePlayPage() {
           caseName: caseData.name,
           cohortId,
           mode: selectedMode,
+          language: attemptLanguage.code,
         }),
       });
 
@@ -416,13 +521,14 @@ export default function CasePlayPage() {
       log.updatedAt = new Date().toISOString();
 
       setMode(log.mode as "explore" | "assessed");
+      setAttemptLanguage(resolveAttemptLanguage(log.language));
       setInteractionLog(log);
       setChatMessages(restoredMessages);
       setPageState("playing");
 
       // Immediately save so the resume event is persisted
       if (log.mode === "assessed") {
-        saveInteraction(log);
+        void saveInteraction(log);
       }
 
       addToast({ title: "Session resumed", color: "success" });
@@ -571,6 +677,7 @@ export default function CasePlayPage() {
       stopAvatarTimer();
       avatarRef.current?.stopSession();
       setAvatarGrandfathered(false);
+      releaseMicStream();
     }
 
     setInteractionMode(newMode);
@@ -604,16 +711,20 @@ export default function CasePlayPage() {
     });
 
     try {
-      const roleHistory = interactionLog.roleInteractions[roleId].messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      // Cap prompt growth: keep the most recent turns only. The case background
+      // lives in the system message (server-side) and is unaffected by this window.
+      const HISTORY_TURNS = 10;              // ~10 user+assistant exchanges
+      const allMessages = interactionLog.roleInteractions[roleId].messages;
+      const roleHistory = allMessages
+        .slice(-HISTORY_TURNS * 2)
+        .map((m) => ({ role: m.role, content: m.content }));
 
       const res = await fetch("/api/interaction/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: roleHistory,
+          language: attemptLanguage.code,
           systemPrompt: `Background information about this case study:\n${caseData.backgroundInfo}`,
           roleContext: {
             roleName: selectedRole.name,
@@ -624,40 +735,114 @@ export default function CasePlayPage() {
       });
 
       if (!res.ok) throw new Error("Chat failed");
-      const data = await res.json();
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No stream reader");
+      const decoder = new TextDecoder();
+
+      let sseBuffer = "";
+      let fullText = "";
+      let speakBuffer = "";
+      let streamErrored = false;
+
+      const flush = (final: boolean) => {
+        const { chunks, rest } = extractSpeakable(speakBuffer);
+        speakBuffer = rest;
+        for (const c of chunks) {
+          if (interactionModeRef.current === "avatar") avatarRef.current?.speak(c);
+        }
+        if (final && speakBuffer.trim()) {
+          if (interactionModeRef.current === "avatar") avatarRef.current?.speak(speakBuffer.trim());
+          speakBuffer = "";
+        }
+      };
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          let evt: { type?: string; delta?: string; content?: string };
+          try {
+            evt = JSON.parse(line.slice(6));
+          } catch {
+            continue;
+          }
+          if (evt.type === "content") {
+            const piece = evt.delta ?? "";
+            if (!piece) continue;
+            fullText += piece;
+            speakBuffer += piece;
+            setStreamingText(fullText);
+            flush(false);
+          } else if (evt.type === "error") {
+            streamErrored = true;
+          }
+        }
+      }
+
+      flush(true);
+      setStreamingText("");
+
+      if (streamErrored || !fullText.trim()) {
+        // If we spoke any text before the error, log it as a partial message
+        if (fullText.trim()) {
+          const partialMsg: RoleMessage = {
+            role: "assistant",
+            content: fullText,
+            timestamp: Date.now(),
+          };
+          setChatMessages((prev) => ({
+            ...prev,
+            [roleId]: [...(prev[roleId] || []), partialMsg],
+          }));
+          interactionLog.roleInteractions[roleId].messages.push(partialMsg);
+          interactionLog.events.push({
+            type: "receive_message",
+            roleId,
+            roleName: selectedRole.name,
+            timestamp: Date.now(),
+            messageContent: fullText,
+            messageRole: "assistant",
+            // Mark as partial so evaluator knows this was interrupted
+            partial: true,
+          } as any); // Cast needed since partial field may not be in type yet
+          setInteractionLog({ ...interactionLog });
+        }
+        throw new Error("Chat stream failed");
+      }
 
       const assistantMsg: RoleMessage = {
         role: "assistant",
-        content: data.message,
+        content: fullText,
         timestamp: Date.now(),
       };
-
       setChatMessages((prev) => ({
         ...prev,
         [roleId]: [...(prev[roleId] || []), assistantMsg],
       }));
-
       interactionLog.roleInteractions[roleId].messages.push(assistantMsg);
       interactionLog.events.push({
         type: "receive_message",
         roleId,
         roleName: selectedRole.name,
         timestamp: Date.now(),
-        messageContent: data.message,
+        messageContent: fullText,
         messageRole: "assistant",
       });
-
       setInteractionLog({ ...interactionLog });
-
-      // If in avatar mode, have the avatar speak the response
-      if (interactionMode === "avatar") {
-        avatarRef.current?.speak(data.message);
-      }
-
-      return data.message;
+      return fullText;
     } catch (err) {
       console.error("Chat error:", err);
+      // Stop the avatar from speaking any queued audio
+      if (interactionModeRef.current === "avatar") {
+        avatarRef.current?.interrupt?.();
+      }
       addToast({ title: "Failed to get response", color: "danger" });
+      setStreamingText("");
     } finally {
       setSending(false);
     }
@@ -671,9 +856,67 @@ export default function CasePlayPage() {
   };
 
   // Push-to-talk handlers for avatar mode
+  /** Acquire the mic once and reuse it; re-acquire if tracks were ended externally. */
+  const getMicStream = async (): Promise<MediaStream> => {
+    const existing = micStreamRef.current;
+    const live = existing?.getAudioTracks().some((t) => t.readyState === "live");
+    if (existing && live) return existing;
+    existing?.getTracks().forEach((t) => t.stop());
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micStreamRef.current = stream;
+    return stream;
+  };
+
+  /**
+   * Sample the mic's loudness while recording and remember the loudest moment.
+   * A muted mic, or Chrome bound to the wrong input device, still produces a
+   * long well-formed webm — duration and byte size cannot tell it apart from
+   * speech, but the signal level can.
+   */
+  const startLevelMetering = (stream: MediaStream) => {
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return; // No Web Audio: fall back to the size/duration gate alone.
+
+      const ctx = audioCtxRef.current ?? new AudioCtx();
+      audioCtxRef.current = ctx;
+      if (ctx.state === "suspended") void ctx.resume();
+
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      const source = ctx.createMediaStreamSource(stream);
+      source.connect(analyser);
+      meterSourceRef.current = source;
+
+      const samples = new Float32Array(analyser.fftSize);
+      peakRmsRef.current = 0;
+      meterTimerRef.current = setInterval(() => {
+        analyser.getFloatTimeDomainData(samples);
+        let sumSquares = 0;
+        for (const s of samples) sumSquares += s * s;
+        const rms = Math.sqrt(sumSquares / samples.length);
+        if (rms > peakRmsRef.current) peakRmsRef.current = rms;
+      }, 50);
+    } catch (error) {
+      // Metering is a guard, not a feature — never block recording on it.
+      console.warn("Level metering unavailable:", error);
+    }
+  };
+
+  const stopLevelMetering = () => {
+    if (meterTimerRef.current !== null) {
+      clearInterval(meterTimerRef.current);
+      meterTimerRef.current = null;
+    }
+    meterSourceRef.current?.disconnect();
+    meterSourceRef.current = null;
+  };
+
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await getMicStream();
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: "audio/webm;codecs=opus",
       });
@@ -687,10 +930,13 @@ export default function CasePlayPage() {
       };
 
       mediaRecorder.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop());
+        // Stream is cached and intentionally left live for the next press.
+        stopLevelMetering();
         processRecording();
       };
 
+      recordingStartRef.current = Date.now();
+      startLevelMetering(stream);
       mediaRecorder.start();
       setIsRecording(true);
     } catch (error) {
@@ -706,15 +952,51 @@ export default function CasePlayPage() {
     }
   };
 
+  // A near-silent clip makes gpt-4o-transcribe hallucinate — it invents a phrase
+  // in a random language, which then gets sent to the LLM as a real user turn.
+  // Drop anything too short, too small, or too quiet to contain speech.
+  const MIN_RECORDING_MS = 400;
+  const MIN_AUDIO_BYTES = 2048;
+  // Peak RMS over the clip. Room noise sits near 0.001–0.005; speech peaks well
+  // above 0.05 even from a quiet speaker at arm's length.
+  const MIN_PEAK_RMS = 0.01;
+
   const processRecording = async () => {
     if (audioChunksRef.current.length === 0) return;
+
+    const elapsedMs = Date.now() - recordingStartRef.current;
+    const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+    const peakRms = peakRmsRef.current;
+
+    if (elapsedMs < MIN_RECORDING_MS || audioBlob.size < MIN_AUDIO_BYTES) {
+      audioChunksRef.current = [];
+      addToast({
+        title: "Nothing recorded",
+        description: "Hold the mic button while you speak.",
+        color: "warning",
+      });
+      return;
+    }
+
+    // peakRms is 0 when metering could not run at all; don't reject on that.
+    if (peakRms > 0 && peakRms < MIN_PEAK_RMS) {
+      audioChunksRef.current = [];
+      console.warn(`[mic] discarded silent clip (peak RMS ${peakRms.toFixed(5)})`);
+      addToast({
+        title: "No speech detected",
+        description:
+          "Your microphone picked up silence. Check that the right input device is selected and not muted.",
+        color: "warning",
+      });
+      return;
+    }
 
     setIsTranscribing(true);
 
     try {
-      const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
       const formData = new FormData();
       formData.append("audio", audioBlob, "recording.webm");
+      formData.append("language", attemptLanguage.code);
 
       const response = await fetch("/api/audio/transcribe", {
         method: "POST",
@@ -724,13 +1006,17 @@ export default function CasePlayPage() {
       if (!response.ok) throw new Error("Transcription failed");
 
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
       if (!reader) throw new Error("No reader available");
+      const decoder = new TextDecoder();
 
       let buffer = "";
       let transcribedText = "";
+      let transcriptionFailed = false;
+      let finished = false;
 
-      while (true) {
+      setPartialTranscript("");
+
+      while (!finished) {
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -739,26 +1025,32 @@ export default function CasePlayPage() {
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === "delta") {
-                transcribedText = data.text;
-              } else if (data.type === "done") {
-                transcribedText = data.text;
-                break;
-              } else if (data.type === "error") {
-                throw new Error("Transcription error");
-              }
-            } catch (parseError) {
-              if (parseError instanceof Error && parseError.message === "Transcription error") {
-                throw parseError;
-              }
-              console.error("Error parsing transcription:", parseError);
-            }
+          if (!line.startsWith("data: ")) continue;
+          let data: { type?: string; text?: string; delta?: string };
+          try {
+            data = JSON.parse(line.slice(6));
+          } catch (parseError) {
+            console.error("Error parsing transcription frame:", parseError);
+            continue;
+          }
+          if (data.type === "delta") {
+            transcribedText = data.text ?? transcribedText;
+            setPartialTranscript(transcribedText);   // show it as it arrives
+          } else if (data.type === "done") {
+            transcribedText = data.text ?? transcribedText;
+            setPartialTranscript(transcribedText);
+            finished = true;                          // now actually exits the outer loop
+            break;
+          } else if (data.type === "error") {
+            transcriptionFailed = true;
+            finished = true;
+            break;
           }
         }
       }
+      void reader.cancel().catch(() => {});           // release the body early
+
+      if (transcriptionFailed) throw new Error("Transcription error");
 
       if (transcribedText.trim()) {
         await sendMessageAndGetResponse(transcribedText.trim());
@@ -768,6 +1060,7 @@ export default function CasePlayPage() {
       addToast({ title: "Failed to transcribe audio", color: "danger" });
     } finally {
       setIsTranscribing(false);
+      setPartialTranscript("");
     }
   };
 
@@ -797,6 +1090,8 @@ export default function CasePlayPage() {
         stopAvatarTimer();
         avatarRef.current?.stopSession();
       }
+
+      releaseMicStream();
 
       const res = await fetch("/api/interaction/finish", {
         method: "POST",
@@ -835,6 +1130,7 @@ export default function CasePlayPage() {
         avatarRef.current?.stopSession();
         setAvatarGrandfathered(false);
       }
+      releaseMicStream();
       const log = interactionLogRef.current;
       if (log?.mode === "assessed") {
         await saveInteraction(log);
@@ -998,6 +1294,26 @@ export default function CasePlayPage() {
           </Card>
         )}
 
+        {/* Language is fixed for the whole attempt: it pins transcription, the
+            roles' replies, and the avatar voice together. Resuming an attempt
+            restores its language rather than offering the choice again. */}
+        <div className="flex flex-col items-center gap-2 pt-4">
+          <span className="text-sm text-default-500">Conduct this attempt in</span>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {ATTEMPT_LANGUAGES.map((lang) => (
+              <Button
+                key={lang.code}
+                size="sm"
+                variant={lang.code === attemptLanguage.code ? "solid" : "bordered"}
+                color={lang.code === attemptLanguage.code ? "primary" : "default"}
+                onPress={() => setAttemptLanguage(lang)}
+              >
+                {lang.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-4 justify-center pt-4">
           <Button
             size="lg"
@@ -1039,7 +1355,7 @@ export default function CasePlayPage() {
         </div>
         {mode === "assessed" && (
           <p className="text-xs text-default-500">
-            Progress auto-saves every 5s. You can close this page and continue later.
+            Progress auto-saves every 15s. You can close this page and continue later.
           </p>
         )}
         {mode === "assessed" && (
@@ -1257,6 +1573,11 @@ export default function CasePlayPage() {
             {/* Floating input area */}
             <div className="absolute bottom-0 left-0 right-0 z-10 p-4 bg-gradient-to-t from-black/60 to-transparent">
               <div className="flex flex-col items-center gap-2">
+                {(isRecording || isTranscribing || partialTranscript) && partialTranscript && (
+                  <div className="max-w-lg mb-1 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm">
+                    <p className="text-sm text-white/90 text-center line-clamp-2">{partialTranscript}</p>
+                  </div>
+                )}
                 <Button
                   size="lg"
                   color={isRecording ? "danger" : "primary"}
@@ -1281,7 +1602,7 @@ export default function CasePlayPage() {
                   {isRecording
                     ? "Release to send"
                     : isTranscribing
-                      ? "Transcribing..."
+                      ? (partialTranscript ? "Transcribing..." : "Processing audio...")
                       : sending
                         ? "Getting response..."
                         : "Hold to talk"}
@@ -1408,8 +1729,12 @@ export default function CasePlayPage() {
               ))}
               {sending && (
                 <div className="flex justify-start">
-                  <div className="bg-default-100 p-3 rounded-lg">
-                    <Spinner size="sm" />
+                  <div className="bg-default-100 p-3 rounded-lg max-w-[80%]">
+                    {streamingText ? (
+                      <p className="text-sm whitespace-pre-wrap">{streamingText}</p>
+                    ) : (
+                      <Spinner size="sm" />
+                    )}
                   </div>
                 </div>
               )}

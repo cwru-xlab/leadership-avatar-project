@@ -1457,14 +1457,38 @@ export class S3AvatarStorage {
    * interactions/{studentEmail}/{caseId}/index.json - list of logs for quick lookup
    */
 
+  /**
+   * Sanitize a path segment to prevent path traversal attacks.
+   * Only allows alphanumeric characters, hyphens, and underscores.
+   * Rejects (throws) rather than silently substituting to prevent collisions.
+   */
+  private sanitizePathSegment(segment: string, fieldName: string): string {
+    // Check for path traversal patterns
+    if (segment.includes("..") || segment.includes("/") || segment.includes("\\")) {
+      throw new Error(`Invalid ${fieldName}: contains path traversal characters`);
+    }
+    // Only allow safe characters
+    const safe = segment.replace(/[^a-zA-Z0-9_-]/g, "");
+    if (safe !== segment) {
+      throw new Error(`Invalid ${fieldName}: contains disallowed characters`);
+    }
+    if (!safe) {
+      throw new Error(`Invalid ${fieldName}: cannot be empty after sanitization`);
+    }
+    return safe;
+  }
+
   private getInteractionKey(studentEmail: string, caseId: string, logId: string): string {
     const safeEmail = studentEmail.toLowerCase().replace(/[^a-z0-9@._-]/g, "_");
-    return `${INTERACTIONS_PREFIX}${safeEmail}/${caseId}/${logId}.json`;
+    const safeCaseId = this.sanitizePathSegment(caseId, "caseId");
+    const safeLogId = this.sanitizePathSegment(logId, "logId");
+    return `${INTERACTIONS_PREFIX}${safeEmail}/${safeCaseId}/${safeLogId}.json`;
   }
 
   private getInteractionIndexKey(studentEmail: string, caseId: string): string {
     const safeEmail = studentEmail.toLowerCase().replace(/[^a-z0-9@._-]/g, "_");
-    return `${INTERACTIONS_PREFIX}${safeEmail}/${caseId}/index.json`;
+    const safeCaseId = this.sanitizePathSegment(caseId, "caseId");
+    return `${INTERACTIONS_PREFIX}${safeEmail}/${safeCaseId}/index.json`;
   }
 
   async saveInteractionLog(log: InteractionLog): Promise<void> {

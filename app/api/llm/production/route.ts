@@ -9,6 +9,8 @@ import {
 import { ragService } from "@/lib/rag/rag-service";
 import { applyGuardrails, getBlockedContentResponse } from "@/lib/guardrails";
 
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const body: Pick<LLMRequest, "messages" | "avatarId"> =

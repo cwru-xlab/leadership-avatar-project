@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { createLLMStream, createSSEHeaders } from "../../llm/common";
+import { resolveAttemptLanguage } from "@/lib/languages";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { messages, systemPrompt, roleContext } = body;
+    const { messages, systemPrompt, roleContext, language } = body;
+    const attemptLanguage = resolveAttemptLanguage(language);
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
@@ -17,40 +17,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const styleGuide = `\n\n## Reply Style
+    const styleGuide = `## Reply Style
 - Speak naturally and conversationally, like a real person in a meeting or interview
 - Keep responses short and to the point — 1 to 3 sentences unless more detail is truly needed
 - Avoid bullet points, formal headings, or structured lists in your replies
 - Never start with filler phrases like "Certainly!", "Great question!", or "Of course!"
 - If you don't know something, say so simply and move on`;
 
-    // Build system prompt from role context
-    let fullSystemPrompt = systemPrompt || "You are a helpful assistant.";
+    // ── CACHE PREFIX ──────────────────────────────────────────────────────
+    // Everything below must be byte-identical across every turn of a given
+    // (case, role) pair, or OpenAI's automatic prefix cache will miss.
+    // NEVER interpolate per-turn values (timestamps, turn counts, user names).
+    // Stating the language explicitly keeps a misrecognized turn from pulling
+    // the reply into another language. It is constant for an attempt, so it is
+    // safe inside the cache prefix.
+    const languageRule =
+      `## Language\nConduct this conversation entirely in ${attemptLanguage.name}. ` +
+      `If a message appears to be in another language, treat it as a ` +
+      `speech-to-text error and continue in ${attemptLanguage.name}.`;
+
+    const staticParts: string[] = [styleGuide.trim(), languageRule];
     if (roleContext) {
-      fullSystemPrompt = `You are playing the role of "${roleContext.roleName}" in a case study simulation.\n\n${roleContext.additionalInfo || ""}\n\n${systemPrompt || ""}`.trim();
+      staticParts.push(
+        `You are playing the role of "${roleContext.roleName}" in a case study simulation.`,
+        roleContext.additionalInfo || ""
+      );
     }
-    fullSystemPrompt += styleGuide;
+    staticParts.push(systemPrompt || "You are a helpful assistant.");
+    const fullSystemPrompt = staticParts.filter(Boolean).join("\n\n");
+    // ── END CACHE PREFIX ──────────────────────────────────────────────────
 
     const fullMessages = [
-      { role: "system" as const, content: fullSystemPrompt },
+      { role: "system" as const, content: fullSystemPrompt }, // Must stay at index 0 for caching
       ...messages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
     ];
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1",
-      messages: fullMessages,
-      max_tokens: 1000,
-    });
-
-    const responseContent = completion.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
-
-    return NextResponse.json({
-      success: true,
-      message: responseContent,
-    });
+    const stream = createLLMStream(fullMessages, "gpt-4.1", { maxTokens: 1000 });
+    return new Response(stream, { headers: createSSEHeaders() });
   } catch (error) {
     console.error("Error in interaction chat:", error);
     return NextResponse.json(

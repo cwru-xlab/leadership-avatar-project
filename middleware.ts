@@ -229,21 +229,19 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   /**
-   * PUBLIC ROUTE AND STATIC FILE BYPASS
+   * PUBLIC ROUTE BYPASS
    *
-   * Allows unrestricted access to:
-   * - Public routes (login, auth endpoints)
-   * - Next.js system routes (_next/*)
-   * - Static files (detected by file extensions)
+   * Allows unrestricted access to public routes (login, auth endpoints).
+   * Static files and Next.js system routes are already excluded by the
+   * matcher config at the bottom of this file.
    *
-   * This optimization prevents unnecessary JWT validation for
-   * resources that don't require authentication.
+   * Note: We use prefix matching for routes with dynamic segments.
    */
-  if (
-    PUBLIC_ROUTES.includes(pathname) ||
-    pathname.startsWith("/_next") ||
-    pathname.includes(".") // Skip static files (images, CSS, JS, etc.)
-  ) {
+  const isPublicRoute = PUBLIC_ROUTES.some(route =>
+    pathname === route || pathname.startsWith(route + "/")
+  );
+
+  if (isPublicRoute) {
     return NextResponse.next();
   }
 
@@ -469,12 +467,13 @@ export async function middleware(request: NextRequest) {
  * MIDDLEWARE CONFIGURATION
  *
  * Configures which routes the middleware should process.
- * Uses Next.js matcher configuration to exclude system routes.
+ * Uses Next.js matcher configuration to exclude system routes and static files.
  *
  * Excluded paths:
  * - _next/static: Static assets (CSS, JS, images)
  * - _next/image: Next.js image optimization
  * - favicon.ico: Browser favicon requests
+ * - Files with common static extensions: png, jpg, jpeg, gif, svg, ico, css, js, woff, woff2, ttf, eot
  *
  * This optimization prevents middleware execution for requests
  * that don't require authentication or authorization checks.
@@ -482,11 +481,11 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
+     * Match all request paths except for:
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * - Files ending with static extensions
      */
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    "/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|svg|ico|css|js|woff|woff2|ttf|eot|webp)$).*)",
   ],
 };

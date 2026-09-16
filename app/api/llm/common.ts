@@ -2,6 +2,8 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: 60_000,
+  maxRetries: 1,
 });
 
 export interface ChatMessage {
@@ -12,7 +14,8 @@ export interface ChatMessage {
 export interface LLMStreamResponse {
   type: "start" | "content" | "end" | "error";
   message?: string;
-  content?: string;
+  content?: string;   // full accumulated text (keep for backward compat)
+  delta?: string;     // NEW: just this chunk
   timestamp: string;
   metadata?: {
     model?: string;
@@ -67,9 +70,15 @@ export async function fetchAvatarSystemPrompt(avatarId: string): Promise<string>
   return DEFAULT_SYSTEM_PROMPT;
 }
 
+export interface LLMStreamOptions {
+  maxTokens?: number;
+  promptCacheKey?: string;
+}
+
 export function createLLMStream(
   messages: ChatMessage[],
-  modelName: string = "gpt-4.1"
+  modelName: string = "gpt-4.1",
+  options: LLMStreamOptions = {}
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
 
@@ -99,7 +108,8 @@ export function createLLMStream(
           model: modelName,
           messages: messages,
           stream: true,
-          max_tokens: 500,
+          max_tokens: options.maxTokens ?? 500,
+          stream_options: { include_usage: true },
         });
 
         // Stream the response with accumulated content
@@ -109,12 +119,23 @@ export function createLLMStream(
             accumulatedContent += content;
             const contentMessage: LLMStreamResponse = {
               type: "content",
-              content: accumulatedContent, // Send full accumulated content
+              content: accumulatedContent, // kept for preview/production consumers
+              delta: content,              // NEW
               timestamp: new Date().toISOString(),
             };
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(contentMessage)}\n\n`)
             );
+          }
+
+          // Log usage metrics when available (typically on final chunk)
+          if (chunk.usage) {
+            console.log("[llm] usage", {
+              model: modelName,
+              prompt: chunk.usage.prompt_tokens,
+              cached: chunk.usage.prompt_tokens_details?.cached_tokens ?? 0,
+              completion: chunk.usage.completion_tokens,
+            });
           }
         }
 
@@ -156,6 +177,7 @@ export function createSSEHeaders(): Headers {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
     Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Cache-Control",
   });
