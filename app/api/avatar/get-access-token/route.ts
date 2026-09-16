@@ -77,6 +77,15 @@ export async function POST(request: Request) {
       }
 
       const classified = classifyUpstreamSessionError(res.status, rawMessage);
+      // The client only ever sees the sanitized message, so log the upstream
+      // one — without it a 422 on avatar_id is indistinguishable from an outage.
+      console.error("[heygen] session token rejected", {
+        status: res.status,
+        code: classified.code,
+        avatar_id,
+        voice_id,
+        upstream: rawMessage,
+      });
       return new Response(
         JSON.stringify({
           error: classified.message,

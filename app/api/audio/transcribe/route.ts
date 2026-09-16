@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createSSEHeaders } from "../../llm/common";
+import { resolveAttemptLanguage } from "@/lib/languages";
 
 export const maxDuration = 60;
 
@@ -21,6 +22,9 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const audioFile = formData.get("audio") as File;
+    const attemptLanguage = resolveAttemptLanguage(
+      formData.get("language") as string | null,
+    );
 
     if (!audioFile) {
       return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
@@ -46,9 +50,11 @@ export async function POST(request: NextRequest) {
           const transcriptionStream = await openai.audio.transcriptions.create({
             file: audioFile,
             model: "gpt-4o-transcribe",
-            // Pin the language: without it, silence or noise gets transcribed
-            // as invented phrases in whatever language the model drifts to.
-            language: "en",
+            // Pin the attempt's language: left unset, silence or noise gets
+            // transcribed as invented phrases in whatever language the model
+            // drifts to. It is a strong hint, not a hard guarantee — the
+            // client-side level gate is what keeps silence out of here.
+            language: attemptLanguage.code,
             stream: true,
           });
 

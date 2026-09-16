@@ -40,6 +40,12 @@ import type { CaseStudy, CaseAvatar, InteractionLog, RoleMessage, RoleInteractio
 import InteractiveAvatarWrapper, { InteractiveAvatarRef } from "@/components/HeyGenAvatar/InteractiveAvatar";
 import { HeygenSessionError } from "@/lib/heygen-client";
 import { StreamingAvatarSessionState } from "@/components/HeyGenAvatar/logic";
+import {
+  ATTEMPT_LANGUAGES,
+  DEFAULT_ATTEMPT_LANGUAGE,
+  resolveAttemptLanguage,
+  type AttemptLanguage,
+} from "@/lib/languages";
 
 type PageState = "intro" | "playing";
 type InteractionMode = "text" | "avatar";
@@ -146,6 +152,11 @@ export default function CasePlayPage() {
   /** null = not loaded yet; mirrors GET /api/avatar/status */
   const [heygenAvatarConfigured, setHeygenAvatarConfigured] = useState<boolean | null>(null);
   const avatarRef = useRef<InteractiveAvatarRef>(null);
+  // The language this attempt is conducted in. Constrains transcription, the
+  // role's replies, and the avatar voice, so all three stay consistent.
+  const [attemptLanguage, setAttemptLanguage] = useState<AttemptLanguage>(
+    DEFAULT_ATTEMPT_LANGUAGE,
+  );
   const [avatarConfig, setAvatarConfig] = useState<StartAvatarRequest | null>(null);
   const [avatarConfigLoading, setAvatarConfigLoading] = useState(false);
 
@@ -172,6 +183,11 @@ export default function CasePlayPage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingStartRef = useRef<number>(0);
   const micStreamRef = useRef<MediaStream | null>(null);
+  // Level metering, used to reject clips that contain no actual speech.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const meterSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const meterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const peakRmsRef = useRef<number>(0);
 
   // Toggle full-screen mode when entering/leaving playing state
   useEffect(() => {
@@ -343,6 +359,16 @@ export default function CasePlayPage() {
   const releaseMicStream = useCallback(() => {
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
+    // Tear the meter down with the stream: its source node references it, and
+    // browsers cap how many AudioContexts a page may hold open.
+    if (meterTimerRef.current !== null) {
+      clearInterval(meterTimerRef.current);
+      meterTimerRef.current = null;
+    }
+    meterSourceRef.current?.disconnect();
+    meterSourceRef.current = null;
+    void audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
   }, []);
 
   // Release the mic on unmount so the browser recording indicator clears.
@@ -393,7 +419,9 @@ export default function CasePlayPage() {
         avatarName: profile.avatarName,
         knowledgeId: profile.knowledgeId,
         voice: profile.voice,
-        language: profile.language,
+        // The attempt's language wins over the profile's: it is what the
+        // student chose and what the role is being told to speak.
+        language: attemptLanguage.code,
       });
     } catch (err) {
       console.error("Failed to load avatar profile:", err);
@@ -450,6 +478,7 @@ export default function CasePlayPage() {
           caseName: caseData.name,
           cohortId,
           mode: selectedMode,
+          language: attemptLanguage.code,
         }),
       });
 
@@ -492,6 +521,7 @@ export default function CasePlayPage() {
       log.updatedAt = new Date().toISOString();
 
       setMode(log.mode as "explore" | "assessed");
+      setAttemptLanguage(resolveAttemptLanguage(log.language));
       setInteractionLog(log);
       setChatMessages(restoredMessages);
       setPageState("playing");
@@ -694,6 +724,7 @@ export default function CasePlayPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: roleHistory,
+          language: attemptLanguage.code,
           systemPrompt: `Background information about this case study:\n${caseData.backgroundInfo}`,
           roleContext: {
             roleName: selectedRole.name,
@@ -836,6 +867,53 @@ export default function CasePlayPage() {
     return stream;
   };
 
+  /**
+   * Sample the mic's loudness while recording and remember the loudest moment.
+   * A muted mic, or Chrome bound to the wrong input device, still produces a
+   * long well-formed webm — duration and byte size cannot tell it apart from
+   * speech, but the signal level can.
+   */
+  const startLevelMetering = (stream: MediaStream) => {
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return; // No Web Audio: fall back to the size/duration gate alone.
+
+      const ctx = audioCtxRef.current ?? new AudioCtx();
+      audioCtxRef.current = ctx;
+      if (ctx.state === "suspended") void ctx.resume();
+
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      const source = ctx.createMediaStreamSource(stream);
+      source.connect(analyser);
+      meterSourceRef.current = source;
+
+      const samples = new Float32Array(analyser.fftSize);
+      peakRmsRef.current = 0;
+      meterTimerRef.current = setInterval(() => {
+        analyser.getFloatTimeDomainData(samples);
+        let sumSquares = 0;
+        for (const s of samples) sumSquares += s * s;
+        const rms = Math.sqrt(sumSquares / samples.length);
+        if (rms > peakRmsRef.current) peakRmsRef.current = rms;
+      }, 50);
+    } catch (error) {
+      // Metering is a guard, not a feature — never block recording on it.
+      console.warn("Level metering unavailable:", error);
+    }
+  };
+
+  const stopLevelMetering = () => {
+    if (meterTimerRef.current !== null) {
+      clearInterval(meterTimerRef.current);
+      meterTimerRef.current = null;
+    }
+    meterSourceRef.current?.disconnect();
+    meterSourceRef.current = null;
+  };
+
   const startRecording = async () => {
     try {
       const stream = await getMicStream();
@@ -853,10 +931,12 @@ export default function CasePlayPage() {
 
       mediaRecorder.onstop = () => {
         // Stream is cached and intentionally left live for the next press.
+        stopLevelMetering();
         processRecording();
       };
 
       recordingStartRef.current = Date.now();
+      startLevelMetering(stream);
       mediaRecorder.start();
       setIsRecording(true);
     } catch (error) {
@@ -874,15 +954,19 @@ export default function CasePlayPage() {
 
   // A near-silent clip makes gpt-4o-transcribe hallucinate — it invents a phrase
   // in a random language, which then gets sent to the LLM as a real user turn.
-  // Drop anything too short or too small to contain speech.
+  // Drop anything too short, too small, or too quiet to contain speech.
   const MIN_RECORDING_MS = 400;
   const MIN_AUDIO_BYTES = 2048;
+  // Peak RMS over the clip. Room noise sits near 0.001–0.005; speech peaks well
+  // above 0.05 even from a quiet speaker at arm's length.
+  const MIN_PEAK_RMS = 0.01;
 
   const processRecording = async () => {
     if (audioChunksRef.current.length === 0) return;
 
     const elapsedMs = Date.now() - recordingStartRef.current;
     const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+    const peakRms = peakRmsRef.current;
 
     if (elapsedMs < MIN_RECORDING_MS || audioBlob.size < MIN_AUDIO_BYTES) {
       audioChunksRef.current = [];
@@ -894,11 +978,25 @@ export default function CasePlayPage() {
       return;
     }
 
+    // peakRms is 0 when metering could not run at all; don't reject on that.
+    if (peakRms > 0 && peakRms < MIN_PEAK_RMS) {
+      audioChunksRef.current = [];
+      console.warn(`[mic] discarded silent clip (peak RMS ${peakRms.toFixed(5)})`);
+      addToast({
+        title: "No speech detected",
+        description:
+          "Your microphone picked up silence. Check that the right input device is selected and not muted.",
+        color: "warning",
+      });
+      return;
+    }
+
     setIsTranscribing(true);
 
     try {
       const formData = new FormData();
       formData.append("audio", audioBlob, "recording.webm");
+      formData.append("language", attemptLanguage.code);
 
       const response = await fetch("/api/audio/transcribe", {
         method: "POST",
@@ -1195,6 +1293,26 @@ export default function CasePlayPage() {
             </CardBody>
           </Card>
         )}
+
+        {/* Language is fixed for the whole attempt: it pins transcription, the
+            roles' replies, and the avatar voice together. Resuming an attempt
+            restores its language rather than offering the choice again. */}
+        <div className="flex flex-col items-center gap-2 pt-4">
+          <span className="text-sm text-default-500">Conduct this attempt in</span>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {ATTEMPT_LANGUAGES.map((lang) => (
+              <Button
+                key={lang.code}
+                size="sm"
+                variant={lang.code === attemptLanguage.code ? "solid" : "bordered"}
+                color={lang.code === attemptLanguage.code ? "primary" : "default"}
+                onPress={() => setAttemptLanguage(lang)}
+              >
+                {lang.label}
+              </Button>
+            ))}
+          </div>
+        </div>
 
         <div className="flex gap-4 justify-center pt-4">
           <Button

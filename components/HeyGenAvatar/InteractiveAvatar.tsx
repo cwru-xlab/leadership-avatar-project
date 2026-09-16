@@ -24,13 +24,16 @@ import {
   throwHeygenTokenError,
 } from "@/lib/heygen-client";
 
+// api.liveavatar.com requires UUID avatar/voice ids and rejects legacy HeyGen
+// avatar names (e.g. "Ann_Therapist_public") with a 422. These are Scott Cowen
+// and his default voice, from GET /v1/avatars on this account.
 const DEFAULT_CONFIG: StartAvatarRequest = {
   quality: "low",
-  avatarName: "Ann_Therapist_public",
+  avatarName: "52b24044-7b0c-4211-b113-239443801a5b",
   knowledgeId: undefined,
   voice: {
     rate: 1.1,
-    voiceId: "df6420135ba44094b85874084b45c410",
+    voiceId: "66f105d8-a342-4a5d-9d41-6ffd21674806",
     emotion: undefined,
   },
   language: "en",
