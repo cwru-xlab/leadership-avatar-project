@@ -46,6 +46,9 @@ export async function POST(request: NextRequest) {
           const transcriptionStream = await openai.audio.transcriptions.create({
             file: audioFile,
             model: "gpt-4o-transcribe",
+            // Pin the language: without it, silence or noise gets transcribed
+            // as invented phrases in whatever language the model drifts to.
+            language: "en",
             stream: true,
           });
 
