@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createLLMStream, createSSEHeaders } from "../../llm/common";
+import { resolveAttemptLanguage } from "@/lib/languages";
 
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { messages, systemPrompt, roleContext } = body;
+    const { messages, systemPrompt, roleContext, language } = body;
+    const attemptLanguage = resolveAttemptLanguage(language);
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
@@ -26,7 +28,15 @@ export async function POST(request: NextRequest) {
     // Everything below must be byte-identical across every turn of a given
     // (case, role) pair, or OpenAI's automatic prefix cache will miss.
     // NEVER interpolate per-turn values (timestamps, turn counts, user names).
-    const staticParts: string[] = [styleGuide.trim()];
+    // Stating the language explicitly keeps a misrecognized turn from pulling
+    // the reply into another language. It is constant for an attempt, so it is
+    // safe inside the cache prefix.
+    const languageRule =
+      `## Language\nConduct this conversation entirely in ${attemptLanguage.name}. ` +
+      `If a message appears to be in another language, treat it as a ` +
+      `speech-to-text error and continue in ${attemptLanguage.name}.`;
+
+    const staticParts: string[] = [styleGuide.trim(), languageRule];
     if (roleContext) {
       staticParts.push(
         `You are playing the role of "${roleContext.roleName}" in a case study simulation.`,

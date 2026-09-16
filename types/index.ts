@@ -367,6 +367,8 @@ export interface InteractionLog {
   cohortId: string;
   attemptNumber: number;
   mode: "explore" | "assessed";
+  /** ISO-639-1 code the attempt is conducted in; absent on pre-existing logs. */
+  language?: string;
   status: "in_progress" | "completed";
   roleInteractions: Record<string, RoleInteraction>;
   events: InteractionEvent[];

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveAttemptLanguage } from "@/lib/languages";
 import { s3Storage } from "@/lib/s3-client";
 import type { InteractionLog } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { studentEmail, studentName, caseId, caseName, cohortId, mode } = body;
+    const { studentEmail, studentName, caseId, caseName, cohortId, mode, language } = body;
 
     if (!studentEmail || !caseId || !cohortId || !mode) {
       return NextResponse.json(
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest) {
       cohortId,
       attemptNumber,
       mode,
+      language: resolveAttemptLanguage(language).code,
       status: "in_progress",
       roleInteractions: {},
       events: [
