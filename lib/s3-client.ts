@@ -66,6 +66,10 @@ const COHORT_INDEX_FILE = `${COHORTS_PREFIX}index.json`;
 // Structure: interactions/{studentEmail}/{caseId}/{logId}.json
 const INTERACTIONS_PREFIX = "interactions/";
 
+// Interview resume storage prefix. Resume PDFs are private objects: this app never
+// returns an S3 URL, and access is mediated by authenticated server routes.
+const INTERVIEW_RESUMES_PREFIX = "resumes/";
+
 // Global compression switch for chat sessions
 const ENABLE_CHAT_COMPRESSION =
   process.env.ENABLE_CHAT_COMPRESSION === "false" || true;
@@ -1483,6 +1487,35 @@ export class S3AvatarStorage {
     const safeCaseId = this.sanitizePathSegment(caseId, "caseId");
     const safeLogId = this.sanitizePathSegment(logId, "logId");
     return `${INTERACTIONS_PREFIX}${safeEmail}/${safeCaseId}/${safeLogId}.json`;
+  }
+
+  /**
+   * Store the original resume PDF for an interview attempt.
+   *
+   * `userId` and `resumeId` are generated/verified server-side before reaching
+   * this method. Keeping the object key construction here prevents routes from
+   * accidentally turning a client-provided path into an S3 key.
+   */
+  async saveInterviewResume(
+    userId: string,
+    resumeId: string,
+    file: Uint8Array
+  ): Promise<string> {
+    const safeUserId = this.sanitizePathSegment(userId, "userId");
+    const safeResumeId = this.sanitizePathSegment(resumeId, "resumeId");
+    const key = `${INTERVIEW_RESUMES_PREFIX}${safeUserId}/${safeResumeId}.pdf`;
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: file,
+        ContentType: "application/pdf",
+        ContentDisposition: "attachment",
+      })
+    );
+
+    return key;
   }
 
   private getInteractionIndexKey(studentEmail: string, caseId: string): string {
