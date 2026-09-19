@@ -272,13 +272,13 @@ export default function InterviewPage() {
                         onClick={() => setSelectedInterviewerId(interviewer.avatarId)}
                         className={`group relative min-h-60 overflow-hidden rounded-2xl border text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${selected ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]" : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"}`}
                       >
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#112c39] via-[#112c39]/20 to-transparent" />
                         {interviewer.previewUrl ? (
-                          <img src={interviewer.previewUrl} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                          <img src={interviewer.previewUrl} alt="" className="absolute inset-0 z-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
                         ) : (
-                          <div className="absolute inset-0 bg-[#1d586e]" />
+                          <div className="absolute inset-0 z-0 bg-[#1d586e]" />
                         )}
-                        <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+                        <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#112c39] via-[#112c39]/20 to-transparent" />
+                        <div className="absolute inset-x-0 bottom-0 z-20 p-5 text-white">
                           <div className="mb-3 flex justify-between gap-2"><Chip size="sm" className="bg-white/18 text-white">{interviewer.voice.name}</Chip>{selected && <span className="grid h-6 w-6 place-items-center rounded-full bg-[#79d4b1] text-[#0b3029]"><Check size={15} /></span>}</div>
                           <h3 className="font-serif text-2xl">{interviewer.name}</h3>
                           <p className="mt-1 text-sm text-white/78">Hiring manager · Live session</p>
