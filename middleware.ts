@@ -202,6 +202,9 @@ const STUDENT_ROUTES: string[] = [
   "/api/student/cases",
   "/case-play",
   "/api/interaction",
+  // Interview APIs are student-owned and return the LiveAvatar profiles a
+  // student can launch. Keep this ahead of the generic authenticated fallback.
+  "/api/interview",
   // Endpoints needed by case-play's avatar mode (streaming avatar,
   // avatar profile config, and push-to-talk audio transcription).
   // These endpoints are also used by kiosk flows, so the authorization
