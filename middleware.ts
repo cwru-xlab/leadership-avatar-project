@@ -199,6 +199,7 @@ const KIOSK_ROUTES: string[] = [
 
 const STUDENT_ROUTES: string[] = [
   "/student-cases",
+  "/interview",
   "/api/student/cases",
   "/case-play",
   "/api/interaction",

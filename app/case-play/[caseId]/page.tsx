@@ -46,6 +46,7 @@ import {
   resolveAttemptLanguage,
   type AttemptLanguage,
 } from "@/lib/languages";
+import { extractSpeakable } from "@/lib/interview/speakable";
 
 type PageState = "intro" | "playing";
 type InteractionMode = "text" | "avatar";
@@ -66,47 +67,6 @@ interface InteractionIndexEntry {
 
 const logSignature = (log: InteractionLog) =>
   `${log.totalMessages ?? 0}:${log.events.length}:${Object.keys(log.roleInteractions).length}`;
-
-const SENTENCE_END = /[.!?…](?=\s|$)|\n/;
-const MIN_SPEAK_CHARS = 20;
-const MAX_SPEAK_CHARS = 220;
-
-/**
- * Pulls complete, speakable chunks out of buffer.
- * Returns the chunks plus whatever tail is not yet safe to speak.
- */
-function extractSpeakable(buffer: string): { chunks: string[]; rest: string } {
-  const chunks: string[] = [];
-  let rest = buffer;
-
-  for (;;) {
-    const m = rest.match(SENTENCE_END);
-    if (m && m.index !== undefined) {
-      const end = m.index + m[0].length;
-      const candidate = rest.slice(0, end).trim();
-      if (candidate.length >= MIN_SPEAK_CHARS) {
-        chunks.push(candidate);
-        rest = rest.slice(end);
-        continue;
-      }
-      const next = rest.slice(end).match(SENTENCE_END);
-      if (!next) break;
-      const merged = rest.slice(0, end + next.index! + next[0].length).trim();
-      chunks.push(merged);
-      rest = rest.slice(end + next.index! + next[0].length);
-      continue;
-    }
-    if (rest.length > MAX_SPEAK_CHARS) {
-      const cut = rest.lastIndexOf(",", MAX_SPEAK_CHARS);
-      const at = cut > MIN_SPEAK_CHARS ? cut + 1 : MAX_SPEAK_CHARS;
-      chunks.push(rest.slice(0, at).trim());
-      rest = rest.slice(at);
-      continue;
-    }
-    break;
-  }
-  return { chunks, rest };
-}
 
 export default function CasePlayPage() {
   const params = useParams();
