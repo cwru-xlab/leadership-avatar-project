@@ -39,17 +39,20 @@ import type { StartAvatarRequest } from "@/types";
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  timestamp: number;
 };
 
 interface InterviewSessionShellProps {
   interviewType: InterviewType;
   interviewerName: string;
+  interviewerAvatarId: string;
   avatarConfig: StartAvatarRequest;
   resumeText: string;
   resumeFileName?: string;
+  resumeId: string | null;
   language: string;
   onExit: () => void;
-  onFinish: () => void;
+  onFinish: (reportId: string) => void;
 }
 
 const HISTORY_TURNS = 10;
@@ -123,15 +126,19 @@ function advanceProgress(
 export default function InterviewSessionShell({
   interviewType,
   interviewerName,
+  interviewerAvatarId,
   avatarConfig,
   resumeText,
   resumeFileName,
+  resumeId,
   language,
   onExit,
   onFinish,
 }: InterviewSessionShellProps) {
   const avatarRef = useRef<InteractiveAvatarRef>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
+  const reportIdRef = useRef<string | null>(null);
+  const startingRef = useRef(false);
   const startedAtRef = useRef<number | null>(null);
   const openingSentRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -163,10 +170,70 @@ export default function InterviewSessionShell({
     [progress.stage]
   );
 
-  const appendMessage = useCallback((message: ChatMessage) => {
-    messagesRef.current = [...messagesRef.current, message];
-    setMessages(messagesRef.current);
-  }, []);
+  const appendMessage = useCallback(
+    (message: { role: ChatMessage["role"]; content: string }) => {
+      const stamped: ChatMessage = { ...message, timestamp: Date.now() };
+      messagesRef.current = [...messagesRef.current, stamped];
+      setMessages(messagesRef.current);
+    },
+    []
+  );
+
+  // The row is created on the FIRST REAL TURN, not on mount — sessions where
+  // the avatar never connected or the student bailed instantly leave no row
+  // behind. Only `checkpoint()` may call this; no exit path may.
+  const ensureReport = useCallback(async (): Promise<string | null> => {
+    if (reportIdRef.current) return reportIdRef.current;
+    if (startingRef.current) return null;
+    startingRef.current = true;
+    try {
+      const res = await fetch("/api/interview/session/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          typeSlug: interviewType.slug,
+          interviewerAvatarId,
+          interviewerName,
+          resumeId,
+          resumeText,
+        }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      reportIdRef.current = data.reportId ?? null;
+      return reportIdRef.current;
+    } catch {
+      return null;
+    } finally {
+      startingRef.current = false;
+    }
+  }, [interviewType.slug, interviewerAvatarId, interviewerName, resumeId, resumeText]);
+
+  const checkpoint = useCallback(
+    (nextProgress: InterviewProgress) => {
+      void (async () => {
+        const reportId = await ensureReport();
+        if (!reportId) return;
+        try {
+          await fetch("/api/interview/session/checkpoint", {
+            method: "POST",
+            keepalive: true,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              reportId,
+              turns: messagesRef.current,
+              progress: nextProgress,
+            }),
+          });
+        } catch {
+          // Intentionally silent. A dropped checkpoint costs at most one
+          // exchange and must never interrupt the interview or alarm the
+          // student.
+        }
+      })();
+    },
+    [ensureReport]
+  );
 
   const stopMetering = useCallback(() => {
     if (meterTimerRef.current) {
@@ -205,8 +272,11 @@ export default function InterviewSessionShell({
       const content = candidateMessage.trim();
       if (!content || sending || isPaused) return;
 
-      const userMessage: ChatMessage = { role: "user", content };
-      const messageHistory = [...messagesRef.current, userMessage];
+      const userMessage = { role: "user" as const, content };
+      const messageHistory = [
+        ...messagesRef.current,
+        { ...userMessage, timestamp: Date.now() },
+      ];
       appendMessage(userMessage);
       setInput("");
       setSending(true);
@@ -286,7 +356,9 @@ export default function InterviewSessionShell({
         }
 
         appendMessage({ role: "assistant", content: answer.trim() });
-        setProgress((current) => advanceProgress(current, Boolean(resumeText.trim())));
+        const nextProgress = advanceProgress(progress, Boolean(resumeText.trim()));
+        setProgress(nextProgress);
+        checkpoint(nextProgress);
       } catch (error) {
         console.error("Interview chat failed:", error);
         avatarRef.current?.interrupt();
@@ -300,7 +372,16 @@ export default function InterviewSessionShell({
         setSending(false);
       }
     },
-    [appendMessage, interviewType.slug, isPaused, language, progress, resumeText, sending]
+    [
+      appendMessage,
+      checkpoint,
+      interviewType.slug,
+      isPaused,
+      language,
+      progress,
+      resumeText,
+      sending,
+    ]
   );
 
   const startOpening = useCallback(() => {
