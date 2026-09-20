@@ -44,6 +44,12 @@ export interface InteractiveAvatarRef {
   startSession: () => Promise<void>;
   stopSession: () => void;
   interrupt: () => void;
+  /**
+   * Ping the provider so an in-progress session is not reaped for inactivity.
+   * Callers own the cadence — the session has no idea how long the surrounding
+   * experience intends to run.
+   */
+  keepAlive: () => Promise<void>;
 }
 
 interface InteractiveAvatarWrapperProps {
@@ -97,6 +103,7 @@ const ActiveSession = forwardRef<
     sessionState,
     isStreamReady,
     attachElement,
+    keepAlive,
   } = useStreamingAvatarSession();
   const { repeatMessage } = useTextChat();
   const { interrupt } = useInterrupt();
@@ -147,8 +154,9 @@ const ActiveSession = forwardRef<
       startSession: async () => { await startSession(); },
       stopSession: () => stopAvatar(),
       interrupt: () => interrupt(),
+      keepAlive: async () => { await keepAlive(); },
     }),
-    [repeatMessage, startSession, stopAvatar, interrupt],
+    [repeatMessage, startSession, stopAvatar, interrupt, keepAlive],
   );
 
   useUnmount(() => {
@@ -313,6 +321,9 @@ const InteractiveAvatarWrapper = forwardRef<
       startSession: triggerStart,
       stopSession: handleStop,
       interrupt: () => innerRef.current?.interrupt(),
+      keepAlive: async () => {
+        await innerRef.current?.keepAlive();
+      },
     }),
     [triggerStart, handleStop],
   );

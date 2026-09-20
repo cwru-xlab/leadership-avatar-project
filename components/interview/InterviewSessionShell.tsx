@@ -66,6 +66,8 @@ const HISTORY_TURNS = 10;
 const MIN_RECORDING_MS = 400;
 const MIN_AUDIO_BYTES = 2048;
 const MIN_PEAK_RMS = 0.01;
+// Well inside any provider idle window, and cheap: one request a minute at most.
+const KEEP_ALIVE_INTERVAL_MS = 30_000;
 // Answers, not turns. Below this the report will be thin, and the evaluator
 // prompt explicitly handles a too-short transcript — so warn, do not block.
 const SHORT_INTERVIEW_ANSWERS = 3;
@@ -270,6 +272,19 @@ export default function InterviewSessionShell({
       avatarRef.current?.stopSession();
     };
   }, [releaseMicrophone]);
+
+  // The provider reaps idle sessions, and nothing else in the app pings it —
+  // `keepAlive` existed on the session hook but had no callers, so a session
+  // died well short of the 20-minute interview target. Ping while connected and
+  // unpaused; a paused session is deliberately being abandoned or resumed soon,
+  // and a failed ping is not worth interrupting the interview over.
+  useEffect(() => {
+    if (!avatarReady || isPaused) return;
+    const interval = window.setInterval(() => {
+      void avatarRef.current?.keepAlive().catch(() => {});
+    }, KEEP_ALIVE_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [avatarReady, isPaused]);
 
   // Depends on `avatarReady`, not just `isPaused`: `startedAtRef` is a ref, so
   // setting it in `startOpening` does not re-run this effect. `avatarReady` flips
