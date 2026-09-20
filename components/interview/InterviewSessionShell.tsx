@@ -9,6 +9,13 @@ import {
 } from "react";
 import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
+import {
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from "@heroui/modal";
 import { Spinner } from "@heroui/spinner";
 import { Tooltip } from "@heroui/tooltip";
 import { addToast } from "@heroui/toast";
@@ -59,6 +66,9 @@ const HISTORY_TURNS = 10;
 const MIN_RECORDING_MS = 400;
 const MIN_AUDIO_BYTES = 2048;
 const MIN_PEAK_RMS = 0.01;
+// Answers, not turns. Below this the report will be thin, and the evaluator
+// prompt explicitly handles a too-short transcript — so warn, do not block.
+const SHORT_INTERVIEW_ANSWERS = 3;
 
 function formatElapsed(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
@@ -161,6 +171,8 @@ export default function InterviewSessionShell({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [avatarReady, setAvatarReady] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [exitIntent, setExitIntent] = useState<null | "end" | "leave">(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const stageLabel = useMemo(
     () =>
@@ -565,10 +577,59 @@ export default function InterviewSessionShell({
     }
   }, []);
 
-  const finish = () => {
+  const answeredCount = Math.max(
+    0,
+    messagesRef.current.filter((message) => message.role === "user").length - 1
+  );
+
+  const handleLeave = () => {
     releaseMicrophone();
     avatarRef.current?.stopSession();
-    onFinish();
+    onExit();
+  };
+
+  const handleEnd = async () => {
+    // Read the ref directly — do NOT call ensureReport() here. ensureReport()
+    // CREATES a row, and on this path a null reportId means there were no
+    // real turns to report on: the student connected and pressed End
+    // immediately. Creating a row here would produce an orphan IN_PROGRESS
+    // record, because the finish endpoint 400s on an empty transcript.
+    const reportId = reportIdRef.current;
+    if (!reportId) {
+      // Nothing was ever said. Treat this as a leave, not a submit: no row,
+      // no report.
+      setExitIntent(null);
+      handleLeave();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/interview/session/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reportId,
+          turns: messagesRef.current,
+          progress,
+        }),
+      });
+      // 409 means it was already submitted — still the right destination.
+      if (!res.ok && res.status !== 409) throw new Error("finish-failed");
+      // The avatar session is stopped only AFTER the finish call succeeds, so
+      // a failed submit leaves the student in a live, retryable interview
+      // rather than a dead one.
+      releaseMicrophone();
+      avatarRef.current?.stopSession();
+      onFinish(reportId);
+    } catch {
+      addToast({
+        title: "We couldn't end the interview",
+        description: "Your transcript is safe. Try ending again in a moment.",
+        color: "danger",
+      });
+      setSubmitting(false);
+      setExitIntent(null);
+    }
   };
 
   return (
@@ -581,7 +642,7 @@ export default function InterviewSessionShell({
             aria-label="Leave interview"
             variant="light"
             className="bg-[#07131f]/65 text-white backdrop-blur-md"
-            onPress={onExit}
+            onPress={() => setExitIntent("leave")}
           >
             <ChevronLeft size={20} />
           </Button>
@@ -595,7 +656,7 @@ export default function InterviewSessionShell({
               aria-label="End interview"
               variant="light"
               className="bg-[#07131f]/65 text-white backdrop-blur-md"
-              onPress={finish}
+              onPress={() => setExitIntent("end")}
             >
               <CircleStop size={20} />
             </Button>
@@ -756,6 +817,66 @@ export default function InterviewSessionShell({
           </p>
         </div>
       </aside>
+
+      <Modal
+        isOpen={exitIntent !== null}
+        onClose={() => !submitting && setExitIntent(null)}
+      >
+        <ModalContent>
+          {exitIntent === "end" ? (
+            <>
+              <ModalHeader>End interview and generate your report?</ModalHeader>
+              <ModalBody>
+                <p>
+                  You can&apos;t resume after this. We&apos;ll review your
+                  interview and your report will be ready in under a minute.
+                </p>
+                {answeredCount < SHORT_INTERVIEW_ANSWERS && (
+                  <p className="text-[#b4540f]">
+                    You&apos;ve only answered {answeredCount} question
+                    {answeredCount === 1 ? "" : "s"} — your report will be
+                    limited.
+                  </p>
+                )}
+              </ModalBody>
+              <ModalFooter>
+                <Button
+                  variant="light"
+                  isDisabled={submitting}
+                  onPress={() => setExitIntent(null)}
+                >
+                  Keep going
+                </Button>
+                <Button
+                  color="primary"
+                  isLoading={submitting}
+                  onPress={() => void handleEnd()}
+                >
+                  End and get my report
+                </Button>
+              </ModalFooter>
+            </>
+          ) : (
+            <>
+              <ModalHeader>Leave without a report?</ModalHeader>
+              <ModalBody>
+                <p>
+                  Leaving now ends this session without generating a report.
+                  Nothing you&apos;ve said will be evaluated.
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={() => setExitIntent(null)}>
+                  Keep going
+                </Button>
+                <Button color="danger" onPress={handleLeave}>
+                  Leave without a report
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </main>
   );
 }
