@@ -70,6 +70,7 @@ model User {
   createdCohorts    Cohort[]         @relation("CohortCreator")
   createdCases      Case[]           @relation("CaseCreator")
   auditLogs         AuditLog[]
+  interviewReports  InterviewReport[]
 
   @@index([email])
   @@index([role])
@@ -262,4 +263,59 @@ model AuditLog {
   @@index([action])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+// ============================================================================
+// INTERVIEW EVALUATION & REPORT
+// ============================================================================
+//
+// Individual-ownership model: no cohortId, assignmentId, caseId, or
+// attemptNumber. Interviews are unassigned practice sessions a student starts
+// on their own; each run gets its own report row, unlimited repeats, no
+// unique constraint. Do not model this on Attempt or CaseAssignment.
+
+enum InterviewReportStatus {
+  IN_PROGRESS
+  PENDING
+  READY
+  FAILED
+}
+
+model InterviewReport {
+  id                  String                @id @default(uuid())
+  userId              String
+  typeSlug            String
+  interviewerAvatarId String?
+  interviewerName     String?
+
+  // Resume context snapshot — makes a report reproducible without re-parsing the PDF.
+  // resumeText is a snapshot, NOT a pointer; the PDF itself is never exposed.
+  resumeId            String?
+  resumeText          String?               @db.Text
+
+  // Canonical transcript lives in S3; this is the server-derived key.
+  transcriptKey       String?
+  turnCount           Int                   @default(0)
+
+  status              InterviewReportStatus  @default(IN_PROGRESS)
+
+  // Nullable by design. Visual and Vocal stay null until a real metrics pipeline exists.
+  visualScore         Int?
+  vocalScore          Int?
+  contentScore        Int?
+  behavioralScore     Int?
+
+  reportMarkdown      String?               @db.Text
+  failureReason       String?               @db.Text
+  evalModel           String?
+
+  startedAt           DateTime              @default(now())
+  completedAt         DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, typeSlug])
 }
