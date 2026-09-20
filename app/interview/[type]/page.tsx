@@ -16,7 +16,6 @@ import {
   FileCheck2,
   FileUp,
   LockKeyhole,
-  Sparkles,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -32,7 +31,7 @@ interface InterviewerOption {
   voice: { id: string; name: string };
 }
 
-type SetupStep = "interviewer" | "resume" | "session" | "complete";
+type SetupStep = "interviewer" | "resume" | "session";
 
 const MAX_RESUME_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -170,42 +169,21 @@ export default function InterviewPage() {
       <InterviewSessionShell
         interviewType={interviewType}
         interviewerName={selectedInterviewer.name}
+        interviewerAvatarId={selectedInterviewer.avatarId}
         avatarConfig={avatarConfig}
         resumeText={resumeText}
         resumeFileName={resumeFileName}
+        resumeId={resumeId}
         language="en"
         onExit={() => {
           setStep("resume");
           setFullScreen(false);
         }}
-        onFinish={() => setStep("complete")}
+        onFinish={(reportId) => {
+          setFullScreen(false);
+          router.push(`/interview/${interviewType.slug}/report/${reportId}`);
+        }}
       />
-    );
-  }
-
-  if (step === "complete") {
-    return (
-      <main className="min-h-[100dvh] bg-[#f5f8fa] px-5 py-10 text-[#102331] sm:px-8">
-        <div className="mx-auto max-w-2xl">
-          <div className="mb-10 flex items-center gap-3 text-sm font-semibold tracking-[0.14em] text-[#0a7391]">
-            <Sparkles size={17} /> CASEBRIDGE PRACTICE
-          </div>
-          <Card className="overflow-hidden border border-[#d4e2e9] bg-white shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
-            <div className="h-2 bg-[#53a9ca]" />
-            <CardBody className="items-start gap-5 p-8 sm:p-10">
-              <div className="grid h-14 w-14 place-items-center rounded-full bg-[#e0f3f9] text-[#08718d]"><Check size={28} /></div>
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#0a7391]">Interview complete</p>
-                <h1 className="mt-2 font-serif text-4xl tracking-[-0.03em]">You finished the practice session.</h1>
-              </div>
-              <p className="max-w-xl text-[15px] leading-7 text-[#526c7b]">
-                Your conversation has ended safely. Detailed interview reporting will appear here after the evaluation workflow is connected.
-              </p>
-              <Button color="primary" endContent={<ArrowRight size={17} />} onPress={() => router.push("/student-cases")}>Return to practice</Button>
-            </CardBody>
-          </Card>
-        </div>
-      </main>
     );
   }
 
