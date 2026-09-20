@@ -609,18 +609,39 @@ export default function InterviewSessionShell({
   };
 
   const handleEnd = async () => {
-    // Read the ref directly — do NOT call ensureReport() here. ensureReport()
-    // CREATES a row, and on this path a null reportId means there were no
-    // real turns to report on: the student connected and pressed End
-    // immediately. Creating a row here would produce an orphan IN_PROGRESS
-    // record, because the finish endpoint 400s on an empty transcript.
-    const reportId = reportIdRef.current;
+    // A null reportId has two very different causes, and conflating them
+    // silently discards real interviews:
+    //   1. Nothing was ever said — the student connected and pressed End
+    //      immediately. No row should exist; creating one here would leave an
+    //      orphan IN_PROGRESS record the finish endpoint would reject anyway.
+    //   2. The row was never created because ensureReport() failed earlier
+    //      (a transient error, or checkpoint never got to run). The interview
+    //      DID happen and the student is owed a report.
+    // Only case 1 is a leave. Case 2 creates the row now — it is not an orphan,
+    // there is a transcript behind it.
+    let reportId = reportIdRef.current;
     if (!reportId) {
-      // Nothing was ever said. Treat this as a leave, not a submit: no row,
-      // no report.
-      setExitIntent(null);
-      handleLeave();
-      return;
+      const hasRealTurns = messagesRef.current.some(
+        (message) => message.role === "assistant"
+      );
+      if (!hasRealTurns) {
+        setExitIntent(null);
+        handleLeave();
+        return;
+      }
+      setSubmitting(true);
+      reportId = await ensureReport();
+      if (!reportId) {
+        addToast({
+          title: "We couldn't save this interview",
+          description:
+            "Your answers are still on screen. Try ending again in a moment.",
+          color: "danger",
+        });
+        setSubmitting(false);
+        setExitIntent(null);
+        return;
+      }
     }
     setSubmitting(true);
     try {
