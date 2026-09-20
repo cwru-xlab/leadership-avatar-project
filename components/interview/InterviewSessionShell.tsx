@@ -271,13 +271,18 @@ export default function InterviewSessionShell({
     };
   }, [releaseMicrophone]);
 
+  // Depends on `avatarReady`, not just `isPaused`: `startedAtRef` is a ref, so
+  // setting it in `startOpening` does not re-run this effect. `avatarReady` flips
+  // in the same CONNECTED handler that starts the session, giving the effect a
+  // real dependency to react to — without it the interval is never created and
+  // the elapsed clock sits at 0:00 for the whole interview.
   useEffect(() => {
     if (!startedAtRef.current || isPaused) return;
     const interval = window.setInterval(() => {
       setElapsedSeconds(Math.floor((Date.now() - startedAtRef.current!) / 1000));
     }, 1_000);
     return () => window.clearInterval(interval);
-  }, [isPaused]);
+  }, [isPaused, avatarReady]);
 
   const sendMessage = useCallback(
     async (candidateMessage: string) => {
@@ -633,9 +638,9 @@ export default function InterviewSessionShell({
   };
 
   return (
-    <main className="relative flex min-h-[100dvh] overflow-hidden bg-[#07131f] text-[#f4f8fb]">
+    <main className="relative flex h-[100dvh] overflow-hidden bg-[#07131f] text-[#f4f8fb]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(83,169,222,0.20),transparent_28%),radial-gradient(circle_at_90%_95%,rgba(13,113,142,0.18),transparent_32%)]" />
-      <section className="relative flex min-h-[100dvh] flex-1 flex-col lg:w-[64%]">
+      <section className="relative flex h-full flex-1 flex-col lg:w-[64%]">
         <header className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between gap-3 px-4 py-4 sm:px-7">
           <Button
             isIconOnly
@@ -685,7 +690,7 @@ export default function InterviewSessionShell({
         </div>
       </section>
 
-      <aside className="relative z-10 flex w-full max-w-[570px] flex-col border-l border-white/10 bg-[#0b1c2a]/95 lg:min-h-[100dvh] lg:w-[36%]">
+      <aside className="relative z-10 flex h-full w-full max-w-[570px] flex-col border-l border-white/10 bg-[#0b1c2a]/95 lg:w-[36%]">
         <div className="hidden px-8 pb-5 pt-7 lg:block">
           <InterviewStatus
             interviewerName={interviewerName}
