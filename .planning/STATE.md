@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-21 (08-08 executed — Phase 8 COMPLETE)
+**Updated:** 2026-09-21 (Phase 9 context gathered)
 
 ## Current Position
 
-**Phase:** 8 — Interview Customization — COMPLETE (8 of 8 plans)
-**Current Plan:** Not started
-**Status:** Milestone complete
+**Phase:** 9 — Student-Authored Scenarios
+**Current Plan:** Not started — context gathered, not yet planned
+**Status:** Ready for planning
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -28,8 +28,12 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   `prisma migrate deploy` against the shared `DATABASE_URL`.
 - **`next build` is known-broken** on `/about` prerender (missing `EDGE_CONFIG`),
   unrelated to this phase. Verify with `tsc --noEmit` / `eslint` / `next dev`.
-- **`.planning/` is gitignored** (`/.planning/*` in `.gitignore`, uncommitted).
-  Planning docs exist on disk but are not versioned.
+- **`.planning/` is now TRACKED IN GIT.** The `/.planning/*` line was removed
+  from `.gitignore` on 2026-09-21 so the folder could be pushed for a teammate
+  handoff. Planning docs are versioned from now on and SHOULD be committed.
+  Phase 6-8 plan/summary text saying "`.planning/` is gitignored" is stale.
+- **Teammate handoff:** see `.planning/HANDOFF.md` for local setup, the two
+  unapplied migrations, and the known-issues list.
 
 ## Decisions
 
@@ -498,31 +502,40 @@ flagged for the user, not resolved here) — none block Phase 8 sign-off.
 
 ## Next
 
-Phase 8 (Interview Customization) is fully complete — 8/8 plans, all REQ-17
-through REQ-24 satisfied, static sweep and human walkthrough both passed.
-Ready for `/gsd:plan-phase 9` (Student-Authored Scenarios) or `/gsd:plan-phase
-10` (Video & Audio Metrics), per `ROADMAP.md`'s phase ordering.
+Phase 9 context captured in
+`.planning/phases/09-student-authored-scenarios/09-CONTEXT.md` (commit `e739a2e`).
+Run `/gsd:plan-phase 9`.
 
-Done during Phase 8 planning:
-- REQ-17..REQ-24 added to REQUIREMENTS.md (Phase 8 had no REQ IDs).
-- ROADMAP Phase 8 success criteria amended from 3 to 5 to match the decisions
-  made in discuss-phase (student-selectable length, interviewer personality,
-  customization shown on the report).
+Key Phase 9 decisions:
+- A "scenario" is a CASE-STYLE ROLEPLAY (situation + one or more avatar
+  characters), explicitly NOT a saved interview preset. Lives alongside admin
+  cases in `/case-play`, shown as a separate section.
+- Avatar picker must mirror `/interview/[type]`'s card grid with preview images,
+  NOT the admin form's `<Select>` dropdown. Verbatim user instruction.
+- Guided step-by-step builder; situation + >=1 character + criteria required to
+  save; save then launch from the list (criterion 1's "immediately" preserved by
+  landing on a list where the new scenario is instantly startable).
+- Author writes criteria ON TOP OF a standard behind-the-scenes prompt covering
+  EQ and conversational adequacy, structurally similar to the interview prompt.
+- Private by default, publishable to all students (reusing Phase 7's `published`
+  discovery pattern). Nothing built for staff, but the model must not preclude
+  it. Forking allowed by the model, not necessarily built.
+- Reports SNAPSHOT the scenario at run time (Phase 8 precedent) and survive
+  scenario deletion; a published scenario must be unpublished before deleting.
 
-Findings from research that shaped the Phase 8 plans:
-- `lib/interview/evaluation-runner.ts:70` grades a customized session against the
-  PRESET's defaults, not what the student experienced. 08-04 Task 3 fixes it by
-  reading the persisted customization off the report row.
-- `InterviewSessionShell.tsx`'s `advanceProgress()` hardcodes stage thresholds
-  independent of `targetQuestionCount`; 08-06 Task 3 derives them from the chosen
-  length, with the 9-question `standard` case pinned to today's exact behavior.
-- `InterviewReport` had no customization columns; 08-02 adds nullable ones via a
-  LOCAL-ONLY migration (shared DB untouched, `npm run setup` forbidden).
+Two things the planner must handle:
+- **Phase 9 has no REQ IDs.** REQUIREMENTS.md ends at REQ-24. Generate REQ-25
+  onward or the plan-checker has nothing to verify against — same gap Phase 8 hit.
+- **Real ownership does not exist for cases.** `CaseStudy.createdBy` is a display
+  string, `cohortIds` is the obsolete scoping, and `app/api/case/add|edit|delete`
+  contain NO auth code at all — they are admin-gated only by `middleware.ts:153-155`.
+  Student authoring requires genuine server-side owner enforcement in the routes.
 
-Resolved during Phase 8 execution (was an open item, now settled):
-- The DISTILLED interviewer persona is retained on the InterviewReport row
-  indefinitely (raw pasted text is never stored anywhere). 08-CONTEXT.md said the
-  pasted text should persist "only as long as the session needs it" — the plans
-  satisfy that for the raw text but keep the derived one-line persona inside the
-  owner-only report. Confirmed defensible by the 08-08 human walkthrough, which
-  also confirmed the persona now genuinely plays the named person (post-fix).
+Known dependency: Visual/Vocal stay "Not yet measured" until Phase 10. No Phase 9
+plan may promise real visual or sound-oriented scoring.
+
+Open from Phase 8 (unchanged):
+- Whether to reinforce the interviewer persona inside `lib/interview/prompts.ts`
+  itself, which would mean relaxing that file's diff-empty constraint. User's call.
+- Six uncommitted "CaseBridge -> Leadership Avatar" rename files still in the
+  working tree.
