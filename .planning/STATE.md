@@ -81,6 +81,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 09-student-authored-scenarios]: REQ-32's `REQUIREMENTS.md` checkbox is intentionally left unchecked by 09-03, matching the 09-01 precedent for split requirements — 09-03 builds the evaluation prompt/schema/validator/DTO as pure, unwired libraries only ("no plan artifact promises real visual or sound-oriented scoring" is satisfied), but REQ-32's full text also requires Visual/Vocal to actually *render* as "Not yet measured" on a real report page, which needs 09-04's run/report pipeline and a later report-page plan to exist first.
 - [Phase 09-student-authored-scenarios]: `loadOwnedScenario` (09-02, `lib/scenario/validation.ts`) collapses "scenario doesn't exist," "admin-authored (no ownerId)," and "owned by someone else" into a single `null` return, so every `/api/scenario/*` write/read route emits a byte-identical 404 body — the project-wide 404-never-403 rule enforced structurally rather than by convention. Scenario ids are server-minted as `scn-<slug>-<uuid8>` (never a bare name-slug) because the `cases/` S3 prefix is shared with admin cases and a name collision is otherwise possible.
 - [Phase 09-student-authored-scenarios]: 09-02 and 09-03 executed concurrently in the same working directory (no worktree isolation, shared git index — the hazard first logged in `08-08-SUMMARY.md`). Every commit in both plans was staged with literal file paths and independently verified via `git show --name-only` to contain only that plan's own files; no cross-contamination occurred. This `STATE.md` update was manually reconciled by the 09-02 executor after 09-03's edits landed first, since neither plan's `files_modified` lists `STATE.md` itself and the `gsd-tools state advance-plan`/`record-metric` commands assume a numeric `Current Plan`/`Total Plans in Phase` format this project's hand-maintained `STATE.md` does not use.
+- [Phase 09-student-authored-scenarios]: 09-02's `REQUIREMENTS.md` checkboxes (REQ-25, REQ-26, REQ-27, REQ-29, REQ-30, REQ-34) are intentionally left unchecked despite appearing in 09-02's frontmatter, matching the 09-01/09-03 precedent for split requirements. REQ-29 (server-side ownership) and REQ-30 (private-by-default/publish) are arguably fully true at the API layer today, but REQ-25/26/27 explicitly require the guided builder UI and card-grid avatar picker (09-05, not built yet) and REQ-34's "reports survive deletion" cannot be demonstrated with a real report until 09-04's run/report pipeline exists — so all six stay unchecked until the plan that delivers each requirement's full user-facing behavior completes.
 
 ## Progress
 
@@ -481,6 +482,41 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   alongside 06-01's and 08-02's. `npx tsc --noEmit` and `npx prisma validate`
   both clean; migration SQL confirmed to contain only a new `CREATE TABLE`
   block, zero `ALTER TABLE`/`NOT NULL` additions on any existing table.
+- 09-02 (owner-scoped scenario CRUD API — `app/api/scenario/{add,edit,delete,
+  publish,list,avatars}/route.ts`, `lib/scenario/validation.ts`,
+  `middleware.ts`): complete, wave 2 (ran concurrently with 09-03 in the same
+  working directory; each commit staged only its own literal file paths and
+  `git show --name-only` confirmed no cross-contamination). Commits `01bc9f9`,
+  `3992670`, `fa1e74b`. `validateScenarioInput` enforces REQ-26's minimum bar
+  (situation ≥80 chars, ≥1 character with name/role/profileId, criteria ≥40
+  chars) with all failing fields returned at once, and strips any server-owned
+  key (`ownerId`, `published`, `id`, `createdBy`, `cohortIds`) from its output.
+  `loadOwnedScenario` resolves an S3 case and confirms `ownerId === userId`,
+  collapsing "missing," "admin-authored," and "someone else's" into one `null`
+  → every route returns an identical 404 `{error:"Scenario not found"}`, never
+  403. `add` mints a collision-proof `scn-<slug>-<uuid8>` id server-side and
+  writes `ownerId`/`published:false` itself; `edit` checks ownership before
+  validation and preserves every immutable field explicitly; `publish` toggles
+  the Phase 7 discovery flag with no new access-control semantic; `delete`
+  returns 409 and writes nothing while `published:true`, touching no
+  `ScenarioReport` row; `list` returns `{mine, shared}` with `shared` mapped
+  through an explicit projection dropping `ownerId`/`cohortIds`; `avatars`
+  projects `VideoAudioProfile` down to `{id,name,description,portrait,
+  avatarName}` for the builder's picker, keeping the admin-only
+  `/api/profile/list` surface untouched. `middleware.ts` gained a single
+  `"/api/scenario"` line in `STUDENT_ROUTES`; `ADMIN_ROUTES` byte-unchanged.
+  `npx tsc --noEmit` clean; zero diff under `app/api/case/` and
+  `app/api/profile/`; zero `403`/client-supplied-`ownerId` matches under
+  `app/api/scenario/`. Verified end-to-end against the local dev DB (a
+  temporary dev server on port 3011, since the pre-existing session on port
+  3000 was independently returning 500 on unrelated routes) with real seeded
+  students `alice.johnson@case.edu` and `bob.williams@case.edu`: add → 201
+  with `published:false` and an `scn-` id; 400 on a missing
+  `evaluationPrompt`; cross-user edit/delete/publish all 404 with an identical
+  body; publish true → delete 409; publish false → delete 200; shared
+  projection confirmed to omit `ownerId`/`cohortIds`; logged-in student list
+  200, logged-out list 307-to-login (pre-existing sibling-route behavior,
+  already deferred in `06-08-SUMMARY.md`). All test scenarios cleaned up.
 - 09-03 (scenario evaluation brain — `lib/scenario/prompts.ts`,
   `lib/scenario/evaluation.ts`, `lib/scenario/report-dto.ts`): complete,
   wave 2 (ran concurrently with 09-02 in the same working directory; each
@@ -558,11 +594,12 @@ flagged for the user, not resolved here) — none block Phase 8 sign-off.
 ## Next
 
 Phase 9 is planned (9 plans, `09-01` through `09-09`) and executing. `09-01`
-(data foundation) and `09-03` (scenario evaluation brain) are complete —
-`09-02` (ownership-enforced routes, ran concurrently with 09-03) should be
-checked/completed next, then `09-04` (the run/report pipeline wiring
-`lib/scenario/evaluation.ts` and `lib/scenario/report-dto.ts` into real
-routes). Run `/gsd:execute-phase 9` to continue.
+(data foundation), `09-02` (ownership-enforced CRUD routes), and `09-03`
+(scenario evaluation brain) are all complete — `09-02` and `09-03` ran
+concurrently in the same working directory and both verified clean. `09-04`
+(the run/report pipeline wiring `lib/scenario/evaluation.ts` and
+`lib/scenario/report-dto.ts` into real routes, on top of 09-02's CRUD API) is
+next. Run `/gsd:execute-phase 9` to continue.
 
 Key Phase 9 decisions:
 - A "scenario" is a CASE-STYLE ROLEPLAY (situation + one or more avatar
