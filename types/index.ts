@@ -207,6 +207,12 @@ export interface CaseStudy {
   coverImage?: string;  // URL to cover image stored in S3
   avatars: CaseAvatar[];
   cohortIds: string[];  // Cases are assigned to cohorts (following Alfred's sectionIds pattern)
+  /**
+   * Discovery-layer visibility. `true` means students can find this case in the
+   * /case-play index. Absent or false means draft: hidden from browsing, but still
+   * playable by direct URL so staff can preview. This is NOT an access control.
+   */
+  published?: boolean;
   createdBy: string;
   lastEditedBy: string;
   createdAt: string;
