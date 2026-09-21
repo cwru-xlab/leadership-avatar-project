@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 
-import type { CaseAvatar } from "@/types";
+import { s3Storage } from "@/lib/s3-client";
+import type { CaseAvatar, CaseStudy } from "@/types";
 
 /**
  * REQ-26 minimum-bar validation for a student-authored scenario.
@@ -227,4 +228,26 @@ export function validateScenarioInput(input: unknown): ScenarioValidationResult 
       ...(coverImage ? { coverImage } : {}),
     },
   };
+}
+
+/**
+ * Loads a scenario and confirms `userId` is its owner.
+ *
+ * Returns null for every non-owned case: the scenario does not exist, it has
+ * no `ownerId` (a legacy admin-authored case), or `ownerId` belongs to a
+ * different user. Callers MUST turn a null return into a 404
+ * `{error:"Scenario not found"}` — the same body and status regardless of
+ * which of those three reasons applies. Never 403, never a distinguishing
+ * message; this keeps ownership private per the project-wide 404-never-403
+ * rule.
+ */
+export async function loadOwnedScenario(
+  id: string,
+  userId: string
+): Promise<CaseStudy | null> {
+  const scenario = await s3Storage.getCase(id);
+  if (!scenario || !scenario.ownerId || scenario.ownerId !== userId) {
+    return null;
+  }
+  return scenario;
 }
