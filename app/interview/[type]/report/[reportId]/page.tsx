@@ -7,6 +7,7 @@ import { Spinner } from "@heroui/spinner";
 import { addToast } from "@heroui/toast";
 import { ArrowLeft, CircleAlert, Sparkles } from "lucide-react";
 
+import ReportCustomizationStrip from "@/components/interview/ReportCustomizationStrip";
 import ReportMarkdown from "@/components/interview/ReportMarkdown";
 import ReportScoreCards from "@/components/interview/ReportScoreCards";
 import type { InterviewReportDTO } from "@/lib/interview/report-dto";
@@ -170,6 +171,12 @@ export default function InterviewReportPage() {
       onBack={() => router.push("/")}
       onPracticeAgain={() => router.push(`/interview/${params.type}`)}
     >
+      {report && (report.status === "READY" || report.status === "FAILED") && (
+        <div className="mb-6">
+          <ReportCustomizationStrip typeSlug={report.typeSlug} customization={report.customization} />
+        </div>
+      )}
+
       <ReportScoreCards scores={scores} pending={isPending && !timedOut} />
 
       <div className="mt-6 rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_24px_60px_rgba(20,58,75,0.12)] sm:p-8">
