@@ -27,6 +27,24 @@ export default function InterviewPresetPickerPage() {
   );
   const [customized, setCustomized] = useState(false);
 
+  const handleStart = (slug: string) => {
+    // Handoff contract with app/interview/[type]/page.tsx: that page reads
+    // `interview:customization:{slug}` from sessionStorage ONCE on mount and
+    // removes it immediately, so a mid-wizard refresh falls back cleanly to
+    // preset defaults rather than silently reusing stale settings. Nothing
+    // is written here if the student never opened the Customize panel — the
+    // absence of the key IS the "use preset defaults" signal.
+    if (customized && customization) {
+      try {
+        sessionStorage.setItem(`interview:customization:${slug}`, JSON.stringify(customization));
+      } catch {
+        // Private-mode / storage failures degrade to preset defaults rather
+        // than blocking the start.
+      }
+    }
+    router.push(`/interview/${slug}`);
+  };
+
   return (
     <main className="min-h-[100dvh] bg-[#f5f8fa] text-[#102331]">
       <div className="relative isolate overflow-hidden border-b border-[#d8e6ec] bg-[#eaf5f8]">
@@ -79,7 +97,7 @@ export default function InterviewPresetPickerPage() {
                   <Button
                     color="primary"
                     endContent={<ArrowRight size={16} />}
-                    onPress={() => router.push(`/interview/${interviewType.slug}`)}
+                    onPress={() => handleStart(interviewType.slug)}
                   >
                     Start
                   </Button>
