@@ -45,5 +45,3 @@ requirements/cookies.txt
 /lib/generated/prisma
 
 .env
-
-/.planning/*
