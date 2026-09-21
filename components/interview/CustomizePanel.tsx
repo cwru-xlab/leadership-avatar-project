@@ -83,6 +83,7 @@ export default function CustomizePanel({
 
   const [profileText, setProfileText] = useState("");
   const [distilledPersona, setDistilledPersona] = useState<string | undefined>(undefined);
+  const [personaDisplayName, setPersonaDisplayName] = useState<string | undefined>(undefined);
   const [distilling, setDistilling] = useState(false);
 
   // Selected preset changed: reset the whole panel back to that preset's
@@ -98,6 +99,7 @@ export default function CustomizePanel({
     setPersonalitySlug(DEFAULT_PERSONALITY_SLUG);
     setProfileText("");
     setDistilledPersona(undefined);
+    setPersonaDisplayName(undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interviewType.slug]);
 
@@ -115,9 +117,10 @@ export default function CustomizePanel({
       lengthSlug: lengthSlug || undefined,
       personalitySlug: personalitySlug || undefined,
       distilledPersona: distilledPersona || undefined,
+      personaDisplayName: personaDisplayName || undefined,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openedOnce, industrySlug, roleSlug, difficulty, lengthSlug, personalitySlug, distilledPersona]);
+  }, [openedOnce, industrySlug, roleSlug, difficulty, lengthSlug, personalitySlug, distilledPersona, personaDisplayName]);
 
   const industryOption = CURATED_INDUSTRIES.find((o) => o.slug === industrySlug);
   const roleOption = CURATED_ROLES.find((o) => o.slug === roleSlug);
@@ -144,12 +147,14 @@ export default function CustomizePanel({
       });
       const data = (await response.json().catch(() => ({}))) as {
         persona?: string;
+        displayName?: string;
         error?: string;
       };
       if (!response.ok || !data.persona) {
         throw new Error(data.error || "Could not build a persona from that description.");
       }
       setDistilledPersona(data.persona);
+      setPersonaDisplayName(data.displayName?.trim() || undefined);
     } catch (error) {
       addToast({
         title: "Could not build persona",
@@ -283,6 +288,7 @@ export default function CustomizePanel({
                   className="mt-2"
                   onPress={() => {
                     setDistilledPersona(undefined);
+                    setPersonaDisplayName(undefined);
                     setProfileText("");
                   }}
                 >

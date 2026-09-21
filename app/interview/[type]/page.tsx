@@ -208,7 +208,9 @@ export default function InterviewPage() {
       <InterviewSessionShell
         interviewType={interviewType}
         customization={storedCustomization}
-        interviewerName={selectedInterviewer.name}
+        interviewerName={
+          storedCustomization?.personaDisplayName?.trim() || selectedInterviewer.name
+        }
         interviewerAvatarId={selectedInterviewer.avatarId}
         avatarConfig={avatarConfig}
         resumeText={resumeText}
