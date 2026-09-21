@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createLLMStream, createSSEHeaders } from "../../llm/common";
 import { resolveAttemptLanguage } from "@/lib/languages";
 import {
-  getInterviewType,
   initialProgress,
   type BehavioralCategory,
   type InterviewProgress,
 } from "@/lib/interview/types";
+import {
+  resolveInterviewType,
+  type InterviewCustomizationInput,
+} from "@/lib/interview/customization";
 import {
   buildInterviewSystemPrompt,
   buildProgressBlock,
@@ -24,6 +27,7 @@ interface InterviewRequestInput {
   resumeText?: unknown;
   progress?: unknown;
   startedAt?: unknown;
+  customization?: unknown;
 }
 
 const MAX_MESSAGE_LENGTH = 20_000;
@@ -107,7 +111,12 @@ export async function POST(request: NextRequest) {
       interviewInput && typeof interviewInput.typeSlug === "string"
         ? interviewInput.typeSlug
         : undefined;
-    const interviewType = interview ? getInterviewType(typeSlug) : null;
+    const interviewType = interview
+      ? resolveInterviewType(
+          typeSlug,
+          interviewInput?.customization as InterviewCustomizationInput | undefined
+        )
+      : null;
     if (interview && !interviewType) {
       return NextResponse.json({ error: "Unknown interview type" }, { status: 400 });
     }
@@ -136,7 +145,14 @@ export async function POST(request: NextRequest) {
 
       // `fullSystemPrompt` takes only session-constant inputs. The live progress
       // and clock deliberately ride on the latest user turn so OpenAI can reuse
-      // the system-prefix cache across the entire interview.
+      // the system-prefix cache across the entire interview. This stays
+      // cache-safe under customization because the customization is resolved
+      // once on the picker page, the client resends the identical payload
+      // every turn, and `resolveInterviewType` is pure — so the assembled
+      // prefix is byte-identical for the whole session. Any field not found
+      // in the curated lists silently falls back to the preset default, which
+      // is what keeps a hostile or stale payload from both poisoning the
+      // prompt AND from varying turn-to-turn.
       fullSystemPrompt = buildInterviewSystemPrompt(interviewType, {
         resumeText,
         language: attemptLanguage,
