@@ -3,7 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { prisma } from "@/lib/prisma";
-import { getInterviewType } from "@/lib/interview/types";
+import {
+  resolveInterviewType,
+  resolveCustomizationRecord,
+  type InterviewCustomizationInput,
+} from "@/lib/interview/customization";
 
 export const runtime = "nodejs";
 
@@ -51,9 +55,15 @@ export async function POST(request: NextRequest) {
       interviewerName: rawInterviewerName,
       resumeId: rawResumeId,
       resumeText: rawResumeText,
+      customization,
     } = body as Record<string, unknown>;
 
-    const type = getInterviewType(typeof typeSlug === "string" ? typeSlug : null);
+    // `resolveInterviewType` is the only place field validation happens; the
+    // raw `customization` payload is passed straight through unfiltered.
+    const type = resolveInterviewType(
+      typeof typeSlug === "string" ? typeSlug : null,
+      customization as InterviewCustomizationInput | undefined
+    );
     if (!type) {
       return response({ error: "Unknown interview type" }, 400);
     }
@@ -80,6 +90,11 @@ export async function POST(request: NextRequest) {
         ? truncate(rawResumeText, MAX_RESUME_TEXT_LENGTH)
         : null;
 
+    // The customization snapshot comes off the already-resolved `type`, so the
+    // row records exactly what the prompt used — even when the client sent
+    // garbage that fell back to preset defaults.
+    const customizationRecord = resolveCustomizationRecord(type);
+
     const report = await prisma.interviewReport.create({
       data: {
         userId: currentUser.id,
@@ -89,6 +104,7 @@ export async function POST(request: NextRequest) {
         resumeId,
         resumeText,
         status: "IN_PROGRESS",
+        ...customizationRecord,
       },
       select: { id: true },
     });
@@ -97,6 +113,8 @@ export async function POST(request: NextRequest) {
       userId: currentUser.id,
       reportId: report.id,
       typeSlug: type.slug,
+      difficulty: customizationRecord.difficulty,
+      targetMinutes: customizationRecord.targetMinutes,
     });
 
     return response({ reportId: report.id }, 201);
