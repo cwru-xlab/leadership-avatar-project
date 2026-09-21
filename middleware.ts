@@ -198,11 +198,12 @@ const KIOSK_ROUTES: string[] = [
 ];
 
 const STUDENT_ROUTES: string[] = [
-  "/student-cases",
   "/interview",
   "/api/student/cases",
   "/case-play",
   "/api/interaction",
+  "/reports",
+  "/settings",
   // Interview APIs are student-owned and return the LiveAvatar profiles a
   // student can launch. Keep this ahead of the generic authenticated fallback.
   "/api/interview",
