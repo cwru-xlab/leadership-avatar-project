@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 import InterviewSessionShell from "@/components/interview/InterviewSessionShell";
 import { useLayout } from "@/lib/layout-context";
-import { getInterviewType } from "@/lib/interview/types";
+import { resolveInterviewType } from "@/lib/interview/customization";
+import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import type { StartAvatarRequest } from "@/types";
 
 interface InterviewerOption {
@@ -39,7 +40,37 @@ export default function InterviewPage() {
   const params = useParams<{ type: string }>();
   const router = useRouter();
   const { setFullScreen } = useLayout();
-  const interviewType = useMemo(() => getInterviewType(params.type), [params.type]);
+
+  // Read-once-then-clear handoff from the picker (see app/interview/page.tsx),
+  // guarded by a ref so React strict-mode's double-invoke of the mount effect
+  // cannot read (and clear) the key twice. A parse failure is treated exactly
+  // as absence — the wizard degrades to the preset's own defaults.
+  const handoffReadRef = useRef(false);
+  const [storedCustomization, setStoredCustomization] =
+    useState<InterviewCustomizationInput | null>(null);
+  const [handoffResolved, setHandoffResolved] = useState(false);
+
+  useEffect(() => {
+    if (handoffReadRef.current) return;
+    handoffReadRef.current = true;
+    const key = `interview:customization:${params.type}`;
+    try {
+      const raw = sessionStorage.getItem(key);
+      sessionStorage.removeItem(key);
+      if (raw) {
+        setStoredCustomization(JSON.parse(raw) as InterviewCustomizationInput);
+      }
+    } catch {
+      // Parse failure or storage unavailable: fall back to preset defaults.
+    } finally {
+      setHandoffResolved(true);
+    }
+  }, [params.type]);
+
+  const interviewType = useMemo(
+    () => resolveInterviewType(params.type, storedCustomization),
+    [params.type, storedCustomization]
+  );
   const [step, setStep] = useState<SetupStep>("interviewer");
   const [interviewers, setInterviewers] = useState<InterviewerOption[]>([]);
   const [selectedInterviewerId, setSelectedInterviewerId] = useState<string | null>(null);
@@ -149,6 +180,14 @@ export default function InterviewPage() {
     }
   };
 
+  if (!handoffResolved) {
+    return (
+      <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa]">
+        <Spinner color="primary" />
+      </main>
+    );
+  }
+
   if (!interviewType) {
     return (
       <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa] p-6 text-[#102331]">
@@ -156,7 +195,7 @@ export default function InterviewPage() {
           <CardBody className="items-start gap-4 p-8">
             <CircleAlert className="text-[#0a7391]" size={28} />
             <h1 className="font-serif text-3xl">That interview type is not available.</h1>
-            <p className="text-[#526c7b]">Choose a practice interview from your CaseBridge workspace.</p>
+            <p className="text-[#526c7b]">Choose a practice interview from your Leadership Avatar workspace.</p>
             <Button color="primary" onPress={() => router.push("/")}>Back to practice</Button>
           </CardBody>
         </Card>
@@ -168,6 +207,7 @@ export default function InterviewPage() {
     return (
       <InterviewSessionShell
         interviewType={interviewType}
+        customization={storedCustomization}
         interviewerName={selectedInterviewer.name}
         interviewerAvatarId={selectedInterviewer.avatarId}
         avatarConfig={avatarConfig}
