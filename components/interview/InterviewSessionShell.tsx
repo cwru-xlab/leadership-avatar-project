@@ -37,10 +37,12 @@ import InteractiveAvatarWrapper, {
 import { StreamingAvatarSessionState } from "@/components/HeyGenAvatar/logic";
 import { extractSpeakable } from "@/lib/interview/speakable";
 import {
+  BEHAVIORAL_CATEGORIES,
   initialProgress,
   type InterviewProgress,
   type InterviewType,
 } from "@/lib/interview/types";
+import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import type { StartAvatarRequest } from "@/types";
 
 type ChatMessage = {
@@ -51,6 +53,13 @@ type ChatMessage = {
 
 interface InterviewSessionShellProps {
   interviewType: InterviewType;
+  /**
+   * The raw picker input, resent VERBATIM on session start and every chat
+   * turn (REQ-23). Never re-derived, mutated, or re-resolved here — the
+   * server re-resolves it identically each time, and byte-stability is what
+   * keeps the OpenAI prefix cache hitting turn to turn.
+   */
+  customization?: InterviewCustomizationInput | null;
   interviewerName: string;
   interviewerAvatarId: string;
   avatarConfig: StartAvatarRequest;
@@ -78,9 +87,20 @@ function formatElapsed(totalSeconds: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+/**
+ * Stage thresholds scale with the chosen session length (`targetQuestionCount`)
+ * instead of the old hardcoded ~9-question shape, so a "Quick" session doesn't
+ * march through the same stage lengths as a `standard` one. The time-based
+ * "move to closing" trigger in `buildProgressBlock` remains the real backstop
+ * and needs no change here.
+ *
+ * For the 9-question `standard` length both derived thresholds evaluate to 3,
+ * exactly matching today's shipped, human-validated `general` behavior.
+ */
 function advanceProgress(
   previous: InterviewProgress,
-  hasResume: boolean
+  hasResume: boolean,
+  targetQuestionCount: number
 ): InterviewProgress {
   const next = {
     ...previous,
@@ -88,6 +108,14 @@ function advanceProgress(
     dodgedCategories: [...previous.dodgedCategories],
     followUpsUsed: 0,
   };
+
+  const resumeQuestionCap = hasResume
+    ? Math.max(1, Math.round(targetQuestionCount / 3))
+    : 0;
+  const behavioralCategoryQuota = Math.min(
+    BEHAVIORAL_CATEGORIES.length,
+    Math.max(2, Math.round(targetQuestionCount / 3))
+  );
 
   if (previous.stage === "opening") {
     next.questionsAsked += 1;
@@ -97,25 +125,17 @@ function advanceProgress(
 
   if (previous.stage === "resume") {
     next.questionsAsked += 1;
-    if (next.questionsAsked >= 3) next.stage = "behavioral";
+    if (next.questionsAsked >= resumeQuestionCap) next.stage = "behavioral";
     return next;
   }
 
   if (previous.stage === "behavioral") {
-    const categories = [
-      "conflict/disagreement",
-      "failure/setback",
-      "leadership without authority",
-      "feedback received",
-      "ambiguity",
-      "teamwork",
-    ] as const;
-    const nextCategory = categories.find(
+    const nextCategory = BEHAVIORAL_CATEGORIES.find(
       (category) => !next.categoriesCovered.includes(category)
     );
     if (nextCategory) next.categoriesCovered.push(nextCategory);
     next.questionsAsked += 1;
-    if (next.categoriesCovered.length >= 3) next.stage = "role_specific";
+    if (next.categoriesCovered.length >= behavioralCategoryQuota) next.stage = "role_specific";
     return next;
   }
 
@@ -137,6 +157,7 @@ function advanceProgress(
  */
 export default function InterviewSessionShell({
   interviewType,
+  customization,
   interviewerName,
   interviewerAvatarId,
   avatarConfig,
@@ -206,6 +227,7 @@ export default function InterviewSessionShell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           typeSlug: interviewType.slug,
+          customization,
           interviewerAvatarId,
           interviewerName,
           resumeId,
@@ -221,7 +243,7 @@ export default function InterviewSessionShell({
     } finally {
       startingRef.current = false;
     }
-  }, [interviewType.slug, interviewerAvatarId, interviewerName, resumeId, resumeText]);
+  }, [interviewType.slug, customization, interviewerAvatarId, interviewerName, resumeId, resumeText]);
 
   const checkpoint = useCallback(
     (nextProgress: InterviewProgress) => {
@@ -328,6 +350,11 @@ export default function InterviewSessionShell({
             language,
             interview: {
               typeSlug: interviewType.slug,
+              // REQ-23: resent unchanged on every turn, never re-derived or
+              // mutated here. The server re-resolves this identically each
+              // time, and byte-stability is what keeps the assembled system
+              // prompt session-constant for the OpenAI prefix cache.
+              customization,
               resumeText,
               progress,
               startedAt: startedAtRef.current ?? Date.now(),
@@ -388,7 +415,11 @@ export default function InterviewSessionShell({
         }
 
         appendMessage({ role: "assistant", content: answer.trim() });
-        const nextProgress = advanceProgress(progress, Boolean(resumeText.trim()));
+        const nextProgress = advanceProgress(
+          progress,
+          Boolean(resumeText.trim()),
+          interviewType.targetQuestionCount
+        );
         setProgress(nextProgress);
         checkpoint(nextProgress);
       } catch (error) {
@@ -408,6 +439,7 @@ export default function InterviewSessionShell({
       appendMessage,
       checkpoint,
       interviewType.slug,
+      customization,
       isPaused,
       language,
       progress,
@@ -936,7 +968,7 @@ function InterviewStatus({
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.17em] text-[#75cce4]">CaseBridge practice</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.17em] text-[#75cce4]">Leadership Avatar practice</p>
         <h1 className="mt-1 font-serif text-2xl tracking-[-0.02em] text-white">Interview with {interviewerName}</h1>
         <p className="mt-1.5 text-sm text-[#a7c2d2]">{avatarReady ? `${stageLabel} stage` : "Connecting securely"}</p>
       </div>
