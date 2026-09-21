@@ -213,6 +213,23 @@ export interface CaseStudy {
    * playable by direct URL so staff can preview. This is NOT an access control.
    */
   published?: boolean;
+  /**
+   * Real per-user ownership. Presence marks this object as a STUDENT-AUTHORED
+   * SCENARIO; absence means a legacy admin-authored case study. This single field
+   * is the discriminator `/case-play` uses to split its two sections.
+   *
+   * Set SERVER-SIDE from the session cookie (the authenticated `User.id` Postgres
+   * uuid, as returned by `getCurrentUser` in `lib/auth.ts`) at creation time, is
+   * immutable afterwards, and is NEVER read from a client-supplied request body.
+   *
+   * `createdBy` remains a display-only string with unchanged semantics and is NOT
+   * an ownership model; `cohortIds` is untouched dead weight owned by Phase 11.
+   *
+   * Because this is a plain field on the object (not a relation), a future "fork"
+   * action can copy a scenario and overwrite `ownerId` with no schema change —
+   * REQ-30's "model must not preclude forking" is satisfied by construction.
+   */
+  ownerId?: string;
   createdBy: string;
   lastEditedBy: string;
   createdAt: string;
