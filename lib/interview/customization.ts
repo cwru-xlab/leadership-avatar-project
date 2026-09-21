@@ -34,6 +34,13 @@ export interface InterviewCustomizationInput {
   personalitySlug?: string;
   /** Pre-distilled persona text ONLY — never the student's raw pasted profile. */
   distilledPersona?: string;
+  /**
+   * Display-only name of the person the persona plays, from the distiller.
+   * Never interpolated into the prompt — the persona string already names them.
+   * Used so the session header does not contradict the persona by showing the
+   * avatar's name instead (REQ-22: the interviewer plays the named person).
+   */
+  personaDisplayName?: string;
 }
 
 /**

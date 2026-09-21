@@ -11,6 +11,8 @@ export const maxDuration = 60;
 // plan. Must match its value.
 const MAX_PERSONA_LENGTH = 600;
 const MAX_PROFILE_TEXT_LENGTH = 4000;
+/** Display-only; long enough for a real name, short enough not to break the header. */
+const MAX_DISPLAY_NAME_LENGTH = 60;
 
 function response(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, {
@@ -39,7 +41,17 @@ Output rules:
   that. Begin directly with the descriptive noun phrase (e.g. "Maria Chen, a
   director of engineering who...").
 - One to three sentences, concise enough to read naturally inside a single
-  system-prompt sentence.`;
+  system-prompt sentence.
+- End the persona with an explicit in-character directive naming the person,
+  so the interviewer actually inhabits them rather than treating the
+  description as background colour. For example: "You introduce yourself as
+  Maria Chen when the interview opens, and you stay recognisably her —
+  her seniority, her domain, her manner — for the whole conversation."
+
+Return JSON with exactly two keys:
+- "persona": the sentence described above.
+- "displayName": the person's name exactly as it appears in the pasted text
+  (e.g. "Maria Chen"). If the text names no person, return an empty string.`;
 
 /**
  * One-shot persona distillation (REQ-22).
@@ -80,9 +92,9 @@ export async function POST(request: NextRequest) {
 
     const truncatedInput = profileText.trim().slice(0, MAX_PROFILE_TEXT_LENGTH);
 
-    let persona: string;
+    let distilled: { persona: string; displayName: string };
     try {
-      persona = await distillPersona(truncatedInput);
+      distilled = await distillPersona(truncatedInput);
     } catch (error) {
       console.error(
         "Interview persona distillation failed",
@@ -93,6 +105,8 @@ export async function POST(request: NextRequest) {
         502
       );
     }
+
+    const { persona, displayName } = distilled;
 
     if (!persona) {
       console.error("Interview persona distillation returned empty output");
@@ -106,16 +120,19 @@ export async function POST(request: NextRequest) {
       userId: currentUser.id,
       inputLength: truncatedInput.length,
       outputLength: persona.length,
+      hasDisplayName: displayName.length > 0,
     });
 
-    return response({ persona }, 200);
+    return response({ persona, displayName }, 200);
   } catch (error) {
     console.error("Interview persona distillation request failed:", error);
     return response({ error: "Unable to process that description. Please try again." }, 500);
   }
 }
 
-async function distillPersona(profileText: string): Promise<string> {
+async function distillPersona(
+  profileText: string
+): Promise<{ persona: string; displayName: string }> {
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -131,16 +148,33 @@ async function distillPersona(profileText: string): Promise<string> {
       { role: "system", content: PERSONA_DISTILL_SYSTEM_PROMPT },
       { role: "user", content: profileText },
     ],
-    max_tokens: 300,
+    max_tokens: 400,
+    response_format: { type: "json_object" },
   });
 
   const content = completion.choices[0]?.message?.content;
   if (!content) {
-    return "";
+    return { persona: "", displayName: "" };
   }
 
-  const trimmed = stripWrappingQuotes(content.trim());
-  return trimmed.slice(0, MAX_PERSONA_LENGTH);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return { persona: "", displayName: "" };
+  }
+
+  const record = parsed as { persona?: unknown; displayName?: unknown } | null;
+  const persona =
+    typeof record?.persona === "string"
+      ? stripWrappingQuotes(record.persona.trim()).slice(0, MAX_PERSONA_LENGTH)
+      : "";
+  const displayName =
+    typeof record?.displayName === "string"
+      ? stripWrappingQuotes(record.displayName.trim()).slice(0, MAX_DISPLAY_NAME_LENGTH)
+      : "";
+
+  return { persona, displayName };
 }
 
 function stripWrappingQuotes(text: string): string {
