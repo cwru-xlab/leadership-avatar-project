@@ -2,12 +2,12 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-21 (09-04 executed concurrently with 09-05; both now complete)
+**Updated:** 2026-09-21 (09-06 and 09-08 complete, running concurrently with 09-07)
 
 ## Current Position
 
 **Phase:** 9 — Student-Authored Scenarios
-**Current Plan:** 09-01 through 09-05 complete (5 of 9) — data foundation, scenario CRUD API, evaluation brain, the run/report pipeline, and the guided authoring UI all built; 09-06 next
+**Current Plan:** 09-01 through 09-06 and 09-08 complete (7 of 9) — data foundation, scenario CRUD API, evaluation brain, the run/report pipeline, the guided authoring UI, the two-section publish/list UI, and the scenario report page all built; 09-07 next, 09-09 (static sweep + human validation) after
 **Status:** In progress
 **Branch:** feature/interview-baseline
 
@@ -625,6 +625,45 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   case resolved to `FAILED` with a readable reason, never `PENDING`; a second
   student's finish against the first's `reportId` 404'd. All test scenarios
   and reports cleaned up.
+- 09-06 (publish/list UI — `components/scenario/ScenarioCard.tsx`,
+  `app/case-play/page.tsx`): complete, ran concurrently with 09-07/09-08 in
+  the same working directory; both commits staged only their own literal
+  file paths and `git show --name-only` confirmed no cross-contamination
+  with the sibling agents' untracked `app/case-play/[caseId]/report/` work.
+  Commits `72c3dab`, `02da9cb`. `ScenarioCard` matches `case-card.tsx`'s
+  visual shell; provenance is always visible (owned: "Yours" +
+  "Published"/"Private"; shared: a classmate-attribution chip only, zero
+  action buttons, `ownerId` never rendered); owner-only Edit/Publish/Delete
+  buttons use native `onClick`+`stopPropagation` so an action never also
+  triggers Play, and a `409` from `/api/scenario/delete` surfaces as a
+  distinct "unpublish first" warning toast using the server's own message.
+  `/case-play` rebuilt into two always-labelled sections: "Practice
+  scenarios" (`mine` then `shared` via `GET /api/scenario/list`, its own
+  empty state, a "Create a scenario" CTA in both the header and empty
+  state) and "Case studies" (admin-authored only, filtered to `!ownerId` on
+  top of the untouched `GET /api/case/list?publishedOnly=true`); each
+  section loads and fails independently. `npx tsc --noEmit` clean; all
+  plan-specified greps passed (`ownerId` absent from `ScenarioCard.tsx`,
+  `fork|instructor|staff|cohort` absent — doc comments deliberately avoid
+  those literal substrings per the 09-05 precedent, `409` present in the
+  delete handler, `api/case/list?publishedOnly=true` still the only
+  case-list call, zero diff under `app/api/case/`, `ownerId` present in the
+  section-2 filter). Live browser/two-real-student runtime verification was
+  deferred: an `rm -rf .next` run (recommended by this file's own tsc
+  guidance) transiently broke two sibling agents' already-running dev
+  servers on ports 3014/3015 with turbopack manifest errors, since every
+  `next dev` instance in this one working directory shares a single
+  `.next/` build cache regardless of port — both self-healed within
+  seconds with no data loss, but a subsequent intermittent `500` on the
+  shared server's login route (unrelated to this plan's two files) made
+  further live probing risk disrupting concurrent agents' own verification,
+  so it was not pursued further. **Process finding: never run `rm -rf
+  .next` while a sibling agent's dev server may be running in this working
+  directory.** REQ-30, REQ-31, and REQ-34 marked complete in
+  `REQUIREMENTS.md` (REQ-28 was already complete from 09-05; REQ-29's
+  server-side-ownership text remains unchecked pending no further UI work —
+  it is arguably already fully true at the API layer per 09-02, matching
+  that plan's own noted precedent).
 
 ## Phase 6 Status: COMPLETE
 
@@ -680,8 +719,13 @@ start/finish routes and an owner-scoped report GET, on top of 09-02's CRUD
 API; see `09-04-SUMMARY.md` for its full end-to-end verification (snapshot
 immutability across an edit, report survival across a scenario deletion, a
 forced FAILED path, and cross-student 404 isolation on both finish and
-report GET). `09-06` (publish/list UI linking into `/case-play/new` and
-`/case-play/[caseId]/edit`) is next. Run `/gsd:execute-phase 9` to continue.
+report GET). `09-06` (publish/list UI: `ScenarioCard` + a two-section
+`/case-play` linking into 09-05's `/case-play/new` and
+`/case-play/[caseId]/edit`) is now also complete — see `09-06-SUMMARY.md`
+for its own deferred-live-verification note (a shared-`.next`-cache dev
+server disruption between concurrent agents, self-healed, no code impact).
+09-07/09-08 are next (running concurrently with 09-06 in this same working
+directory). Run `/gsd:execute-phase 9` to continue.
 
 Key Phase 9 decisions:
 - A "scenario" is a CASE-STYLE ROLEPLAY (situation + one or more avatar
