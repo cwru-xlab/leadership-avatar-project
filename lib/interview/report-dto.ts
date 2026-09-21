@@ -7,6 +7,16 @@ import type { InterviewReport } from "@prisma/client";
  * text snapshot, and the owning user id — none of those private columns may
  * ever reach the browser. See `toInterviewReportDTO` for the explicit,
  * field-by-field mapping that enforces this.
+ *
+ * `customization` is derived, student-owned data: what industry, role,
+ * difficulty, length and interviewer persona actually produced this session.
+ * It is safe to return to its owner — the route this DTO backs is already
+ * owner-scoped with a 404-never-403 contract. `interviewerPersona` here is
+ * always the distilled, bounded summary produced at session start, never the
+ * raw pasted third-party profile text, which is never stored. Rows written
+ * before Phase 8 have all six source columns null, so every field in this
+ * block is nullable too; no fallback guessing from `typeSlug` happens here —
+ * that fallback chain belongs in the evaluator and the report page.
  */
 export interface InterviewReportDTO {
   id: string;
@@ -19,6 +29,14 @@ export interface InterviewReportDTO {
     vocal: number | null;
     content: number | null;
     behavioral: number | null;
+  };
+  customization: {
+    industry: string | null;
+    roleTitle: string | null;
+    difficulty: string | null;
+    targetMinutes: number | null;
+    targetQuestionCount: number | null;
+    interviewerPersona: string | null;
   };
   reportMarkdown: string | null;
   failureReason: string | null;
@@ -51,6 +69,14 @@ export function toInterviewReportDTO(row: InterviewReport): InterviewReportDTO {
       vocal: row.vocalScore,
       content: row.contentScore,
       behavioral: row.behavioralScore,
+    },
+    customization: {
+      industry: row.industry,
+      roleTitle: row.roleTitle,
+      difficulty: row.difficulty,
+      targetMinutes: row.targetMinutes,
+      targetQuestionCount: row.targetQuestionCount,
+      interviewerPersona: row.interviewerPersona,
     },
     reportMarkdown: row.reportMarkdown,
     failureReason: row.failureReason,
