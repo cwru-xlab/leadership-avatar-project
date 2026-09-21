@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import PresetCard from "@/components/interview/PresetCard";
+import CustomizePanel from "@/components/interview/CustomizePanel";
 import { listInterviewTypes } from "@/lib/interview/types";
+import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 
 /**
  * The preset picker index — a static sibling of the dynamic
@@ -20,6 +22,10 @@ export default function InterviewPresetPickerPage() {
   const router = useRouter();
   const interviewTypes = listInterviewTypes();
   const [activeSlug, setActiveSlug] = useState<string>(interviewTypes[0]?.slug ?? "");
+  const [customization, setCustomization] = useState<InterviewCustomizationInput | undefined>(
+    undefined
+  );
+  const [customized, setCustomized] = useState(false);
 
   return (
     <main className="min-h-[100dvh] bg-[#f5f8fa] text-[#102331]">
@@ -40,7 +46,9 @@ export default function InterviewPresetPickerPage() {
             Choose the interview that fits what you're preparing for.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-[#4e6977]">
-            Every preset covers your background and behavioral stories. Pick one and start.
+            Every preset covers your background and behavioral stories. Pick one and start, or
+            open Customize to adjust industry, role, difficulty, length or the interviewer's
+            personality first.
           </p>
         </div>
       </div>
@@ -54,8 +62,19 @@ export default function InterviewPresetPickerPage() {
                 key={interviewType.slug}
                 interviewType={interviewType}
                 active={active}
-                onSelect={() => setActiveSlug(interviewType.slug)}
+                onSelect={() => {
+                  setActiveSlug(interviewType.slug);
+                  setCustomized(false);
+                  setCustomization(undefined);
+                }}
               >
+                <CustomizePanel
+                  interviewType={interviewType}
+                  onChange={(input) => {
+                    setCustomized(true);
+                    setCustomization(input);
+                  }}
+                />
                 <div className="mt-4 flex justify-end">
                   <Button
                     color="primary"
