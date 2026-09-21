@@ -126,7 +126,7 @@ export default function MyReportsPage() {
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:px-8">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0a7391]">
           <Sparkles size={14} />
-          CaseBridge Practice
+          Leadership Avatar Practice
         </div>
         <h1 className="mt-3 font-serif text-3xl tracking-[-0.03em] text-[#102331] sm:text-4xl">
           My Reports
