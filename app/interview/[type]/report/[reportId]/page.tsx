@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { addToast } from "@heroui/toast";
-import { CircleAlert, Sparkles } from "lucide-react";
+import { ArrowLeft, CircleAlert, Sparkles } from "lucide-react";
 
 import ReportMarkdown from "@/components/interview/ReportMarkdown";
 import ReportScoreCards from "@/components/interview/ReportScoreCards";
@@ -137,7 +137,7 @@ export default function InterviewReportPage() {
 
   if (needsLogin) {
     return (
-      <ReportShell>
+      <ReportShell onBackToReports={() => router.push("/reports")}>
         <div className="rounded-2xl border border-[#d4e2e9] bg-white p-8 text-center shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
           <p className="font-serif text-2xl text-[#102331]">Please sign in to view this report.</p>
           <Button className="mt-5" color="primary" onPress={() => router.push("/login")}>
@@ -150,11 +150,11 @@ export default function InterviewReportPage() {
 
   if (error) {
     return (
-      <ReportShell>
+      <ReportShell onBackToReports={() => router.push("/reports")}>
         <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#d4e2e9] bg-white p-8 shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
           <CircleAlert className="text-[#0a7391]" size={26} />
           <p className="font-serif text-2xl text-[#102331]">{error}</p>
-          <Button color="primary" onPress={() => router.push("/reports")}>
+          <Button color="primary" onPress={() => router.push("/")}>
             Back to practice
           </Button>
         </div>
@@ -166,7 +166,8 @@ export default function InterviewReportPage() {
     <ReportShell
       interviewerName={report?.interviewerName ?? null}
       completedAt={report?.completedAt ?? null}
-      onBack={() => router.push("/reports")}
+      onBackToReports={() => router.push("/reports")}
+      onBack={() => router.push("/")}
       onPracticeAgain={() => router.push(`/interview/${params.type}`)}
     >
       <ReportScoreCards scores={scores} pending={isPending && !timedOut} />
@@ -223,18 +224,30 @@ function ReportShell({
   children,
   interviewerName,
   completedAt,
+  onBackToReports,
   onBack,
   onPracticeAgain,
 }: {
   children: React.ReactNode;
   interviewerName?: string | null;
   completedAt?: string | null;
+  onBackToReports?: () => void;
   onBack?: () => void;
   onPracticeAgain?: () => void;
 }) {
   return (
     <main className="min-h-[100dvh] bg-[#f5f8fa] text-[#102331]">
       <div className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
+        {onBackToReports && (
+          <button
+            type="button"
+            onClick={onBackToReports}
+            className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-[#58727f] transition-colors hover:text-[#0a7391]"
+          >
+            <ArrowLeft size={16} />
+            Back to my reports
+          </button>
+        )}
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0a7391]">
           <Sparkles size={14} />
           CaseBridge Practice
