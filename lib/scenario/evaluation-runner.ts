@@ -1,0 +1,246 @@
+/**
+ * Shared background scenario evaluation runner.
+ *
+ * The scenario analogue of `lib/interview/evaluation-runner.ts`, which stays
+ * untouched and diff-empty. `runAndPersistScenarioEvaluation` is the single
+ * place that turns a stored scenario transcript into a `READY` or `FAILED`
+ * `ScenarioReport` row. Never throws, and never leaves the row PENDING —
+ * every failure path (missing row, missing transcript, evaluator failure, or
+ * an unexpected exception) is caught and, wherever possible, recorded as a
+ * FAILED row with an operator-readable reason.
+ *
+ * Reads every grading input from the REPORT ROW's run-time snapshot
+ * (REQ-33), never re-fetching the live S3 scenario — re-fetching would grade
+ * against an edited or deleted scenario and break REQ-33/REQ-34.
+ */
+
+import { prisma } from "@/lib/prisma";
+import { s3Storage } from "@/lib/s3-client";
+import {
+  runScenarioEvaluation,
+  type RunScenarioEvaluationInput,
+} from "./evaluation";
+import type { ScenarioEvaluationCharacter } from "./prompts";
+import type { InteractionLog, InteractionEvent } from "@/types";
+
+const MAX_ERROR_MESSAGE_LENGTH = 500;
+
+function truncateErrorMessage(message: string): string {
+  return message.length > MAX_ERROR_MESSAGE_LENGTH
+    ? `${message.slice(0, MAX_ERROR_MESSAGE_LENGTH - 1)}…`
+    : message;
+}
+
+/**
+ * Flattens an `InteractionLog`'s events into speaker-labelled text.
+ * Reproduces the event-walking logic of `buildInteractionText` in
+ * `app/api/interaction/finish/route.ts` (copied here, not imported — that
+ * route is never edited by this feature).
+ */
+function buildScenarioTranscript(log: InteractionLog): string {
+  const events = [...log.events].sort(
+    (a: InteractionEvent, b: InteractionEvent) => a.timestamp - b.timestamp
+  );
+
+  const lines: string[] = [];
+  let currentRole: string | null = null;
+
+  for (const event of events) {
+    const time = new Date(event.timestamp).toLocaleTimeString();
+
+    switch (event.type) {
+      case "start_session":
+        lines.push(`[${time}] Session started`);
+        break;
+      case "enter_role":
+        currentRole = event.roleName || event.roleId || "Unknown";
+        lines.push(`\n[${time}] Student entered conversation with: ${currentRole}`);
+        break;
+      case "exit_role":
+        lines.push(`[${time}] Student left conversation with: ${event.roleName || currentRole}`);
+        currentRole = null;
+        break;
+      case "send_message":
+        lines.push(`[${time}] Student → ${currentRole || "Unknown"}: ${event.messageContent}`);
+        break;
+      case "receive_message":
+        lines.push(`[${time}] ${currentRole || "Unknown"} → Student: ${event.messageContent}`);
+        break;
+      case "end_session":
+        lines.push(`\n[${time}] Session ended`);
+        break;
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Narrows the report row's `avatarsSnapshot` (a Prisma `Json` column) down
+ * to the evaluator's minimal `{name, role}` shape, dropping `profileId`,
+ * `id`, and the character's hidden `additionalInfo` briefing before it ever
+ * reaches the model call.
+ */
+function toEvaluationCharacters(avatarsSnapshot: unknown): ScenarioEvaluationCharacter[] {
+  if (!Array.isArray(avatarsSnapshot)) return [];
+  const characters: ScenarioEvaluationCharacter[] = [];
+  for (const entry of avatarsSnapshot) {
+    if (entry && typeof entry === "object") {
+      const name = (entry as Record<string, unknown>).name;
+      const role = (entry as Record<string, unknown>).role;
+      characters.push({
+        name: typeof name === "string" ? name : "",
+        role: typeof role === "string" ? role : "",
+      });
+    }
+  }
+  return characters;
+}
+
+/**
+ * Load the stored transcript, run the evaluator, and persist the outcome.
+ *
+ * Ownership is baked into the initial `findFirst({id, userId})` WHERE
+ * clause, exactly as the interview runner does, so a mismatched owner
+ * yields `null` (and this function returns silently) rather than a leak.
+ */
+export async function runAndPersistScenarioEvaluation(
+  userId: string,
+  reportId: string
+): Promise<void> {
+  console.info("Scenario evaluation starting", { userId, reportId });
+
+  try {
+    const report = await prisma.scenarioReport.findFirst({
+      where: { id: reportId, userId },
+    });
+
+    if (!report) {
+      console.warn("Scenario evaluation: report not found, skipping", {
+        userId,
+        reportId,
+      });
+      return;
+    }
+
+    await prisma.scenarioReport.update({
+      where: { id: reportId },
+      data: { status: "PENDING" },
+    });
+
+    if (!report.interactionLogId || !report.studentEmail) {
+      await persistFailure(reportId, "No transcript was recorded for this run.");
+      console.error("Scenario evaluation failed: missing transcript pointer", {
+        userId,
+        reportId,
+        status: "FAILED",
+      });
+      return;
+    }
+
+    const log = await s3Storage.getInteractionLog(
+      report.studentEmail,
+      report.caseId,
+      report.interactionLogId
+    );
+
+    if (!log) {
+      await persistFailure(reportId, "No transcript was recorded for this run.");
+      console.error("Scenario evaluation failed: missing interaction log", {
+        userId,
+        reportId,
+        status: "FAILED",
+      });
+      return;
+    }
+
+    const transcript = buildScenarioTranscript(log);
+
+    if (!transcript.trim()) {
+      await persistFailure(reportId, "No transcript was recorded for this run.");
+      console.error("Scenario evaluation failed: empty transcript", {
+        userId,
+        reportId,
+        status: "FAILED",
+      });
+      return;
+    }
+
+    await prisma.scenarioReport.update({
+      where: { id: reportId },
+      data: { turnCount: log.totalMessages },
+    });
+
+    const input: RunScenarioEvaluationInput = {
+      caseName: report.caseName,
+      background: report.backgroundSnapshot,
+      characters: toEvaluationCharacters(report.avatarsSnapshot),
+      authorCriteria: report.criteriaSnapshot,
+      transcript,
+    };
+
+    const result = await runScenarioEvaluation(input);
+
+    await prisma.scenarioReport.update({
+      where: { id: reportId },
+      data: {
+        status: "READY",
+        visualScore: result.visualScore,
+        vocalScore: result.vocalScore,
+        contentScore: result.contentScore,
+        behavioralScore: result.behavioralScore,
+        reportMarkdown: result.reportMarkdown,
+        failureReason: null,
+        evalModel: result.evalModel,
+        completedAt: new Date(),
+      },
+    });
+
+    console.info("Scenario evaluation completed", {
+      userId,
+      reportId,
+      status: "READY",
+    });
+  } catch (error) {
+    // Best-effort FAILED write. A background job must never leave the row
+    // stuck PENDING because of an unhandled throw. Swallow any secondary
+    // error from this write itself.
+    const message = error instanceof Error ? error.message : String(error);
+    try {
+      await persistFailure(reportId, truncateErrorMessage(message));
+    } catch (secondaryError) {
+      console.error("Scenario evaluation: secondary failure writing FAILED status", {
+        userId,
+        reportId,
+        error:
+          secondaryError instanceof Error
+            ? secondaryError.message
+            : String(secondaryError),
+      });
+    }
+    console.error("Scenario evaluation threw unexpectedly", {
+      userId,
+      reportId,
+      status: "FAILED",
+      error: error instanceof Error ? error.constructor.name : typeof error,
+    });
+  }
+}
+
+/**
+ * Flip the row to FAILED with a readable reason. Never clears
+ * `interactionLogId`, `studentEmail`, or the run-time snapshot columns.
+ */
+async function persistFailure(reportId: string, reason: string, model?: string): Promise<void> {
+  // Ownership was already verified by the caller's findFirst({id, userId})
+  // lookup; `update` itself only accepts a unique field (id) in `where`.
+  await prisma.scenarioReport.update({
+    where: { id: reportId },
+    data: {
+      status: "FAILED",
+      failureReason: reason,
+      evalModel: model,
+      completedAt: new Date(),
+    },
+  });
+}
