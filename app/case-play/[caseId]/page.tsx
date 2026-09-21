@@ -1100,6 +1100,36 @@ export default function CasePlayPage() {
 
       releaseMicStream();
 
+      // A resumed scenario run (loaded via the legacy handleResume path,
+      // which never repopulates scenarioReportId) has no report id to
+      // submit against — fall back to the legacy finish rather than
+      // stranding the session.
+      if (isScenario && scenarioReportId) {
+        const res = await fetch("/api/scenario/session/finish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ reportId: scenarioReportId, log: interactionLog }),
+        });
+
+        // 409 ("already submitted") means the run is finished server-side —
+        // still navigate rather than stranding the student on a dead session.
+        if (!res.ok && res.status !== 409) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(
+            typeof data?.error === "string" ? data.error : "Failed to finish"
+          );
+        }
+
+        addToast({
+          title: "Session complete — your report is being prepared.",
+          color: "success",
+        });
+
+        router.push(`/case-play/${caseId}/report/${scenarioReportId}`);
+        return;
+      }
+
       const res = await fetch("/api/interaction/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
