@@ -209,12 +209,12 @@ was decided, they do not add scope.*
   middleware. `CaseStudy.createdBy` (a display string) and `cohortIds` are not an
   ownership model.
 
-- **REQ-30** — [ ] A student's scenarios are private by default and can be deliberately
+- **REQ-30** — [x] A student's scenarios are private by default and can be deliberately
   published to all students, reusing the Phase 7 `published` discovery-flag pattern. No
   staff-facing view is built, and the data model does not preclude one later. The model
   permits a recipient forking their own copy, though the fork action itself need not ship.
 
-- **REQ-31** — [ ] `/case-play` presents student-authored scenarios and admin-authored
+- **REQ-31** — [x] `/case-play` presents student-authored scenarios and admin-authored
   case studies as two separate sections on one page, so provenance is always obvious.
 
 - **REQ-32** — [ ] A scenario run is evaluated: the author's own criteria compose ON TOP
@@ -227,5 +227,5 @@ was decided, they do not add scope.*
   SNAPSHOTS the scenario as it was at run time so a report stays truthful after edits
   (the Phase 8 precedent of persisting resolved config onto the report row).
 
-- **REQ-34** — [ ] Reports survive deletion of their scenario, and a published scenario
+- **REQ-34** — [x] Reports survive deletion of their scenario, and a published scenario
   must be unpublished before it can be deleted. There is no cap on scenarios per student.
