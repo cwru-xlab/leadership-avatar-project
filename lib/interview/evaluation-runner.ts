@@ -67,11 +67,16 @@ export async function runAndPersistEvaluation(
       return;
     }
 
-    const type = getInterviewType(report.typeSlug) ?? DEFAULT_INTERVIEW_TYPE;
+    // A customized session must be graded against the role/industry/difficulty
+    // the student actually experienced, not the preset's own defaults — the
+    // slug alone can no longer identify that. The row's own stored columns win
+    // when present; a pre-Phase-8 row (all six columns null) falls through to
+    // the preset and then the default, reproducing today's exact behavior.
+    const preset = getInterviewType(report.typeSlug) ?? DEFAULT_INTERVIEW_TYPE;
     const roleContext = {
-      roleTitle: type.defaultRoleTitle,
-      industry: type.defaultIndustry,
-      difficulty: type.difficulty,
+      roleTitle: report.roleTitle ?? preset.defaultRoleTitle,
+      industry: report.industry ?? preset.defaultIndustry,
+      difficulty: report.difficulty ?? preset.difficulty,
     };
 
     const outcome = await runInterviewEvaluation({
