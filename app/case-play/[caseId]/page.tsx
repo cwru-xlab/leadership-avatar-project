@@ -82,6 +82,13 @@ export default function CasePlayPage() {
   const [pageState, setPageState] = useState<PageState>("intro");
   const [interactionLog, setInteractionLog] = useState<InteractionLog | null>(null);
   const [mode, setMode] = useState<"explore" | "assessed">("assessed");
+  // `ownerId` is present only on a student-authored scenario (set server-side
+  // in 09-01/09-02); an admin-authored case study never has it. This is the
+  // sole discriminator between the two run pipelines in this file.
+  const isScenario = Boolean(caseData?.ownerId);
+  // Populated by the scenario start route's response; consumed by
+  // handleFinish to know which report to submit against.
+  const [scenarioReportId, setScenarioReportId] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
 
@@ -424,6 +431,46 @@ export default function CasePlayPage() {
 
   const handleStart = async (selectedMode: "explore" | "assessed") => {
     if (!user?.email || !caseData) return;
+
+    if (isScenario) {
+      // A student-authored scenario is always an evaluated run — there is no
+      // cohort-free "explore" concept, since every run produces a report.
+      setMode("assessed");
+      try {
+        const res = await fetch("/api/scenario/session/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            caseId: caseData.id,
+            language: attemptLanguage.code,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const message =
+            typeof data?.error === "string"
+              ? data.error
+              : res.status === 404
+                ? "This scenario is no longer available. It may have been deleted or unpublished."
+                : "Failed to start session";
+          throw new Error(message);
+        }
+
+        setScenarioReportId(data.reportId);
+        setInteractionLog(data.log);
+        setChatMessages({});
+        setPageState("playing");
+      } catch (err) {
+        console.error("Failed to start scenario:", err);
+        addToast({
+          title: err instanceof Error ? err.message : "Failed to start session",
+          color: "danger",
+        });
+      }
+      return;
+    }
 
     setMode(selectedMode);
 
@@ -1274,14 +1321,16 @@ export default function CasePlayPage() {
         </div>
 
         <div className="flex gap-4 justify-center pt-4">
-          <Button
-            size="lg"
-            variant="bordered"
-            startContent={<Eye className="w-5 h-5" />}
-            onPress={() => handleStart("explore")}
-          >
-            Explore System
-          </Button>
+          {!isScenario && (
+            <Button
+              size="lg"
+              variant="bordered"
+              startContent={<Eye className="w-5 h-5" />}
+              onPress={() => handleStart("explore")}
+            >
+              Explore System
+            </Button>
+          )}
           <Button
             size="lg"
             color="primary"
@@ -1292,8 +1341,14 @@ export default function CasePlayPage() {
           </Button>
         </div>
         <p className="text-center text-sm text-default-400">
-          &quot;Explore System&quot; lets you try the case without recording.
-          &quot;Start&quot; begins an assessed attempt.
+          {isScenario ? (
+            "This scenario is always an evaluated run — finishing it produces a report."
+          ) : (
+            <>
+              &quot;Explore System&quot; lets you try the case without recording.
+              &quot;Start&quot; begins an assessed attempt.
+            </>
+          )}
         </p>
       </div>
     );
