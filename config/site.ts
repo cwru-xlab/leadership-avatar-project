@@ -28,13 +28,18 @@ export const siteConfig = {
   ],
   studentNavItems: [
     {
-      label: "My Cases",
-      href: "/student-cases",
+      label: "Practice",
+      href: "/",
       icon: "Briefcase",
     },
     {
+      label: "My Reports",
+      href: "/reports",
+      icon: "History",
+    },
+    {
       label: "Settings",
-      href: "/student-cases/settings",
+      href: "/settings",
       icon: "Settings",
     },
   ],
