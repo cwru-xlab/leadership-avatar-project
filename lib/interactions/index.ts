@@ -28,7 +28,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
       "A structured behavioral interview with an AI interviewer, grounded in your resume.",
     icon: "Briefcase",
     estimatedMinutes: 20,
-    route: "/interview/general",
+    route: "/interview",
     availability: "live",
   },
   {
