@@ -48,20 +48,18 @@ export default function CasePlayIndexPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto py-8 md:py-10 px-4 md:px-6 lg:px-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <Button
-            variant="light"
-            size="sm"
-            startContent={<ArrowLeft className="w-4 h-4" />}
-            onPress={() => router.push("/")}
-            className="mb-2"
-          >
-            Back to Dashboard
-          </Button>
-          <h1 className={title()}>Case Studies</h1>
-        </div>
+    <div className="space-y-8 py-2 md:py-4">
+      <div className="flex flex-col gap-3">
+        <Button
+          variant="light"
+          size="sm"
+          startContent={<ArrowLeft className="w-4 h-4" />}
+          onPress={() => router.push("/")}
+          className="self-start -ml-2 text-default-600 data-[hover=true]:bg-transparent"
+        >
+          Back to Dashboard
+        </Button>
+        <h1 className={title({ fullWidth: true })}>Case Studies</h1>
       </div>
 
       {loading && (
