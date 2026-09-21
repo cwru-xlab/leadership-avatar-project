@@ -1068,7 +1068,7 @@ export default function CasePlayPage() {
         color: "success",
       });
 
-      router.push("/student-cases");
+      router.push("/case-play");
     } catch (err) {
       console.error("Finish error:", err);
       addToast({ title: "Failed to end session", color: "danger" });
@@ -1103,8 +1103,7 @@ export default function CasePlayPage() {
             : "You can open this case again when you are ready.",
         color: "success",
       });
-      const q = cohortId ? `?cohortId=${encodeURIComponent(cohortId)}` : "";
-      router.push(`/student-cases${q}`);
+      router.push("/case-play");
     } catch (err) {
       console.error("Save and exit failed:", err);
       addToast({
@@ -1139,7 +1138,7 @@ export default function CasePlayPage() {
     return (
       <div className="max-w-4xl mx-auto text-center py-12">
         <p className="text-danger text-lg mb-4">Case not found</p>
-        <Button onPress={() => router.push("/student-cases")} startContent={<ArrowLeft className="w-4 h-4" />}>
+        <Button onPress={() => router.push("/case-play")} startContent={<ArrowLeft className="w-4 h-4" />}>
           Back to Cases
         </Button>
       </div>
@@ -1151,7 +1150,7 @@ export default function CasePlayPage() {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
-          <Button isIconOnly variant="light" onPress={() => router.push("/student-cases")}>
+          <Button isIconOnly variant="light" onPress={() => router.push("/case-play")}>
             <ArrowLeft />
           </Button>
           <h1 className={title({ size: "sm" })}>{caseData.name}</h1>

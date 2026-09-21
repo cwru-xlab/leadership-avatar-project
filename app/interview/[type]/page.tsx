@@ -157,7 +157,7 @@ export default function InterviewPage() {
             <CircleAlert className="text-[#0a7391]" size={28} />
             <h1 className="font-serif text-3xl">That interview type is not available.</h1>
             <p className="text-[#526c7b]">Choose a practice interview from your CaseBridge workspace.</p>
-            <Button color="primary" onPress={() => router.push("/student-cases")}>Back to practice</Button>
+            <Button color="primary" onPress={() => router.push("/")}>Back to practice</Button>
           </CardBody>
         </Card>
       </main>
@@ -195,7 +195,7 @@ export default function InterviewPage() {
           <button
             type="button"
             className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[#47616f] transition-colors hover:text-[#0a7391] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
-            onClick={() => router.push("/student-cases")}
+            onClick={() => router.push("/")}
           >
             <ArrowLeft size={16} /> Back to practice
           </button>
