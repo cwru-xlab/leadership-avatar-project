@@ -84,6 +84,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 09-student-authored-scenarios]: 09-02's `REQUIREMENTS.md` checkboxes (REQ-25, REQ-26, REQ-27, REQ-29, REQ-30, REQ-34) are intentionally left unchecked despite appearing in 09-02's frontmatter, matching the 09-01/09-03 precedent for split requirements. REQ-29 (server-side ownership) and REQ-30 (private-by-default/publish) are arguably fully true at the API layer today, but REQ-25/26/27 explicitly require the guided builder UI and card-grid avatar picker (09-05, not built yet) and REQ-34's "reports survive deletion" cannot be demonstrated with a real report until 09-04's run/report pipeline exists — so all six stay unchecked until the plan that delivers each requirement's full user-facing behavior completes.
 - [Phase 09-student-authored-scenarios]: 09-05's `AvatarPickerGrid.tsx` and `ScenarioBuilder.tsx` doc comments deliberately avoid writing the literal substrings the plan's own verification greps check for (`Select`, `api/interview/interviewers`, `generate`) even in prose explaining what the component is NOT — since those greps run project-wide against the whole file text, not just executable code, a comment using the word would otherwise register as a false-positive violation. The edit route (`app/case-play/[caseId]/edit/page.tsx`) resolves ownership via `GET /api/scenario/list`'s owner-scoped `mine` array rather than `/api/case/get`, matching 09-05's plan instruction; this is a UX convenience only since `/api/scenario/edit` independently 404s a non-owner server-side regardless.
 - [Phase 09-student-authored-scenarios]: 09-04's scenario start route deliberately never calls `/api/interaction/start` over HTTP and never relaxes its `cohortId` requirement — it builds its own `InteractionLog` inline with `cohortId: ""` as the file's one and only literal `cohortId` occurrence, so a scenario run has no cohort and none is invented. `runAndPersistScenarioEvaluation` reads every grading input from the `ScenarioReport` row's REQ-33 snapshot and never re-fetches the live S3 scenario, so an edited or deleted scenario can never change what a past run is graded against (REQ-33/REQ-34 enforced structurally, matching 09-01/09-02's precedent). 09-04's `REQUIREMENTS.md` checkboxes for REQ-32/33/34 are intentionally still left unchecked despite appearing in 09-04's frontmatter, matching the 09-01/09-02/09-03 precedent for split requirements — the backend run/report pipeline is fully real and end-to-end verified here, but REQ-32's text also requires Visual/Vocal to render as "Not yet measured" on an actual report *page* (09-07/09-08 own that UI, and both list REQ-32/33/34 in their own frontmatter too), so the checkbox stays open until the plan that delivers the full user-facing behavior completes.
+- [Phase 09-student-authored-scenarios]: 09-08's scenario report page is a wholly separate file from the interview report page — no shared abstraction was extracted between them, matching the plan's instruction to model the new page closely on the existing one (structure/palette/polling discipline) rather than refactor a shared component; the only genuinely shared pieces (`ReportScoreCards`, `ReportMarkdown`) were already generic and are reused completely unchanged. The scenario snapshot strip shows criteria only as a presence dot (never the criteria text), and the FAILED branch deliberately offers no retry control since no `/api/scenario/report/[reportId]/retry` equivalent exists. REQ-32/REQ-33/REQ-34's `REQUIREMENTS.md` checkboxes can now be marked complete from this plan's perspective — this is the last of the three plans (09-04 backend, 09-06 discovery, 09-08 the report surface itself) whose combined completion satisfies each requirement's full user-facing text.
 
 ## Progress
 
@@ -664,6 +665,42 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   server-side-ownership text remains unchecked pending no further UI work —
   it is arguably already fully true at the API layer per 09-02, matching
   that plan's own noted precedent).
+- 09-08 (scenario report page — `app/case-play/[caseId]/report/[reportId]/page.tsx`):
+  complete, ran concurrently with 09-06/09-07 in the same working directory;
+  the one commit staged only its own literal file path and `git show
+  --name-only` confirmed no cross-contamination with the sibling agents'
+  work. Commit `265f1bb`. Built by closely mirroring the interview report
+  page's shell/polling/terminal-state structure without importing from it:
+  fetches `GET /api/scenario/report/[reportId]` on mount, polls every 3s
+  while `PENDING`/`IN_PROGRESS`, stops on `SCENARIO_REPORT_TERMINAL_STATUSES`,
+  gives up after 3 minutes with a manual "Check again" control. Reuses
+  `ReportScoreCards`/`ReportMarkdown` completely unchanged (`git diff --stat
+  components/interview/` empty) — Visual/Vocal always render "Not yet
+  measured," Content/Behavioral numeric or "Not scored." A compact
+  `ScenarioSnapshotStrip` above the score cards (READY/FAILED only) reads
+  exclusively from the DTO's run-time `scenario` snapshot block — name,
+  `{name, role}` character chips, and a criteria-presence dot, labelled "This
+  scenario as it was when you practised" — never a live S3 re-fetch. FAILED
+  shows `failureReason` and states the transcript was kept, with no retry
+  control (none exists for scenarios). `npx tsc --noEmit` clean; zero
+  `api/case/get`/`s3Storage` matches in the new file. Verified end-to-end
+  against the local dev DB with real seeded students `alice.johnson@case.edu`
+  and `bob.williams@case.edu`: a real scenario run resolved to `READY` with
+  numeric content/behavioral, null visual/vocal, and rendered markdown; the
+  snapshot strip stayed byte-for-byte unchanged after editing the live
+  scenario's name/background/characters (REQ-33); the report remained fully
+  readable (200) after the scenario was deleted (REQ-34); a non-owner's GET
+  and a nonexistent report id both returned the byte-identical 404 with no
+  poll loop possible (polling only runs while `PENDING`/`IN_PROGRESS`). All
+  test fixtures cleaned up. A transient port-3014 dev-server 500 mid-run
+  (caused by a sibling agent's `rm -rf .next`, already logged above under
+  09-06) was recovered from by fully restarting the dev server; no data was
+  lost. One out-of-scope discrepancy was found and logged (not fixed) in
+  `.planning/phases/09-student-authored-scenarios/deferred-items.md`: the
+  evaluation runner (09-03/09-04, already complete) scored a real, populated
+  transcript as if it were empty — the report page itself correctly rendered
+  whatever DTO the runner produced. REQ-32, REQ-33, and REQ-34 all now have
+  their full user-facing behavior demonstrated on this page.
 
 ## Phase 6 Status: COMPLETE
 
@@ -724,8 +761,16 @@ report GET). `09-06` (publish/list UI: `ScenarioCard` + a two-section
 `/case-play/[caseId]/edit`) is now also complete — see `09-06-SUMMARY.md`
 for its own deferred-live-verification note (a shared-`.next`-cache dev
 server disruption between concurrent agents, self-healed, no code impact).
-09-07/09-08 are next (running concurrently with 09-06 in this same working
-directory). Run `/gsd:execute-phase 9` to continue.
+`09-08` (scenario report page: `app/case-play/[caseId]/report/[reportId]/
+page.tsx`) is also now complete — see `09-08-SUMMARY.md` for its full
+end-to-end verification (READY report with Visual/Vocal "Not yet measured,"
+snapshot strip unchanged across a live scenario edit, report survival across
+scenario deletion, and identical 404s for a non-owner and a bad id with no
+poll loop). One out-of-scope evaluation-runner discrepancy was found and
+logged, not fixed, in `deferred-items.md`. `09-07` is next (running
+concurrently in this same working directory); `09-09` (static sweep + human
+validation) closes out the phase after. Run `/gsd:execute-phase 9` to
+continue.
 
 Key Phase 9 decisions:
 - A "scenario" is a CASE-STYLE ROLEPLAY (situation + one or more avatar

@@ -217,13 +217,13 @@ was decided, they do not add scope.*
 - **REQ-31** — [x] `/case-play` presents student-authored scenarios and admin-authored
   case studies as two separate sections on one page, so provenance is always obvious.
 
-- **REQ-32** — [ ] A scenario run is evaluated: the author's own criteria compose ON TOP
+- **REQ-32** — [x] A scenario run is evaluated: the author's own criteria compose ON TOP
   OF a standard behind-the-scenes prompt covering EQ and conversational adequacy,
   structurally similar to the interview prompt. Visual and Vocal render as
   "Not yet measured" exactly as interview reports do — no real visual or sound-oriented
   scoring is produced in this phase (blocked on Phase 10).
 
-- **REQ-33** — [ ] Scenarios are freely editable and re-runnable, and the report
+- **REQ-33** — [x] Scenarios are freely editable and re-runnable, and the report
   SNAPSHOTS the scenario as it was at run time so a report stays truthful after edits
   (the Phase 8 precedent of persisting resolved config onto the report row).
 
