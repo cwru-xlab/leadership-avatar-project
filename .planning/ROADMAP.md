@@ -165,9 +165,15 @@ Plans:
 ### Phase 9: Student-Authored Scenarios
 **Goal:** Students create their own practice scenarios rather than only consuming admin-authored cases.
 **Depends on:** Phase 7
+**Requirements:** REQ-25, REQ-26, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-32, REQ-33, REQ-34
 **Success Criteria** (what must be TRUE):
   1. A student can author a scenario and immediately practice against it.
   2. A student's own scenarios are private to them unless deliberately shared.
+
+**Scope note (2026-09-21, from `09-CONTEXT.md`):** a "scenario" here is a CASE-STYLE
+ROLEPLAY (situation + one or more avatar characters) played in `/case-play` — explicitly
+NOT a saved interview preset, which stays deferred. Visual/Vocal cannot score until
+Phase 10 and must render "Not yet measured".
 
 ### Phase 10: Video & Audio Metrics
 **Goal:** Populate `visual_metrics` and `vocal_metrics` so the Visual and Vocal rubric categories score.

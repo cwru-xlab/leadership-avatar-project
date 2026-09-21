@@ -181,3 +181,51 @@ was decided, they do not add scope.*
 
 - **REQ-24** — [x] The report records and displays the customization that produced it
   (preset, industry, role, difficulty, length), so two reports are comparable.
+
+### Phase 9 — Student-Authored Scenarios
+
+*IDs derived from the decisions in
+`.planning/phases/09-student-authored-scenarios/09-CONTEXT.md` — they restate what
+was decided, they do not add scope.*
+
+- **REQ-25** — [ ] A student can author a case-style roleplay scenario: a situation plus
+  one or more avatar characters. A "scenario" is NOT a saved interview preset — that
+  remains deferred.
+
+- **REQ-26** — [ ] Authoring is a guided step-by-step builder (situation -> characters ->
+  criteria), not a single admin-style form and not model-drafted. A scenario cannot be
+  saved without a situation, at least one character, and criteria.
+
+- **REQ-27** — [ ] The character/avatar picker mirrors the interviewer selection UI at
+  `app/interview/[type]/page.tsx` (card grid with avatar preview images), NOT the admin
+  case editor's `<Select>` dropdown.
+
+- **REQ-28** — [ ] Saving is a distinct step and practice launches from the list, but the
+  save lands the student where the new scenario is immediately startable — ROADMAP
+  criterion 1's "immediately" is preserved, not dropped.
+
+- **REQ-29** — [ ] Student scenarios are owned per-user with ownership enforced
+  SERVER-SIDE in the route handlers, not merely displayed and not only gated by
+  middleware. `CaseStudy.createdBy` (a display string) and `cohortIds` are not an
+  ownership model.
+
+- **REQ-30** — [ ] A student's scenarios are private by default and can be deliberately
+  published to all students, reusing the Phase 7 `published` discovery-flag pattern. No
+  staff-facing view is built, and the data model does not preclude one later. The model
+  permits a recipient forking their own copy, though the fork action itself need not ship.
+
+- **REQ-31** — [ ] `/case-play` presents student-authored scenarios and admin-authored
+  case studies as two separate sections on one page, so provenance is always obvious.
+
+- **REQ-32** — [ ] A scenario run is evaluated: the author's own criteria compose ON TOP
+  OF a standard behind-the-scenes prompt covering EQ and conversational adequacy,
+  structurally similar to the interview prompt. Visual and Vocal render as
+  "Not yet measured" exactly as interview reports do — no real visual or sound-oriented
+  scoring is produced in this phase (blocked on Phase 10).
+
+- **REQ-33** — [ ] Scenarios are freely editable and re-runnable, and the report
+  SNAPSHOTS the scenario as it was at run time so a report stays truthful after edits
+  (the Phase 8 precedent of persisting resolved config onto the report row).
+
+- **REQ-34** — [ ] Reports survive deletion of their scenario, and a published scenario
+  must be unpublished before it can be deleted. There is no cap on scenarios per student.
