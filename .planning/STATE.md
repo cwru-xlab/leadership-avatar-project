@@ -2,12 +2,12 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-21 (09-02 and 09-03 executed concurrently)
+**Updated:** 2026-09-21 (09-05 executed concurrently with 09-04)
 
 ## Current Position
 
 **Phase:** 9 — Student-Authored Scenarios
-**Current Plan:** 09-02 and 09-03 complete (3 of 9) — scenario CRUD API and evaluation brain both built, 09-04 next
+**Current Plan:** 09-01, 09-02, 09-03, 09-05 complete (4 of 9) — data foundation, scenario CRUD API, evaluation brain, and the guided authoring UI all built; 09-04 (run/report pipeline) ran concurrently and its own SUMMARY records its status
 **Status:** In progress
 **Branch:** feature/interview-baseline
 
@@ -82,6 +82,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 09-student-authored-scenarios]: `loadOwnedScenario` (09-02, `lib/scenario/validation.ts`) collapses "scenario doesn't exist," "admin-authored (no ownerId)," and "owned by someone else" into a single `null` return, so every `/api/scenario/*` write/read route emits a byte-identical 404 body — the project-wide 404-never-403 rule enforced structurally rather than by convention. Scenario ids are server-minted as `scn-<slug>-<uuid8>` (never a bare name-slug) because the `cases/` S3 prefix is shared with admin cases and a name collision is otherwise possible.
 - [Phase 09-student-authored-scenarios]: 09-02 and 09-03 executed concurrently in the same working directory (no worktree isolation, shared git index — the hazard first logged in `08-08-SUMMARY.md`). Every commit in both plans was staged with literal file paths and independently verified via `git show --name-only` to contain only that plan's own files; no cross-contamination occurred. This `STATE.md` update was manually reconciled by the 09-02 executor after 09-03's edits landed first, since neither plan's `files_modified` lists `STATE.md` itself and the `gsd-tools state advance-plan`/`record-metric` commands assume a numeric `Current Plan`/`Total Plans in Phase` format this project's hand-maintained `STATE.md` does not use.
 - [Phase 09-student-authored-scenarios]: 09-02's `REQUIREMENTS.md` checkboxes (REQ-25, REQ-26, REQ-27, REQ-29, REQ-30, REQ-34) are intentionally left unchecked despite appearing in 09-02's frontmatter, matching the 09-01/09-03 precedent for split requirements. REQ-29 (server-side ownership) and REQ-30 (private-by-default/publish) are arguably fully true at the API layer today, but REQ-25/26/27 explicitly require the guided builder UI and card-grid avatar picker (09-05, not built yet) and REQ-34's "reports survive deletion" cannot be demonstrated with a real report until 09-04's run/report pipeline exists — so all six stay unchecked until the plan that delivers each requirement's full user-facing behavior completes.
+- [Phase 09-student-authored-scenarios]: 09-05's `AvatarPickerGrid.tsx` and `ScenarioBuilder.tsx` doc comments deliberately avoid writing the literal substrings the plan's own verification greps check for (`Select`, `api/interview/interviewers`, `generate`) even in prose explaining what the component is NOT — since those greps run project-wide against the whole file text, not just executable code, a comment using the word would otherwise register as a false-positive violation. The edit route (`app/case-play/[caseId]/edit/page.tsx`) resolves ownership via `GET /api/scenario/list`'s owner-scoped `mine` array rather than `/api/case/get`, matching 09-05's plan instruction; this is a UX convenience only since `/api/scenario/edit` independently 404s a non-owner server-side regardless.
 
 ## Progress
 
@@ -550,6 +551,38 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   `additionalInfo: "SECRET BRIEFING"` proven absent from the DTO's JSON
   output. All three modules are pure libraries with no route wiring — 09-04
   owns wiring them into an actual run/report pipeline.
+- 09-05 (guided authoring UI — `components/scenario/AvatarPickerGrid.tsx`,
+  `components/scenario/ScenarioBuilder.tsx`, `app/case-play/new/page.tsx`,
+  `app/case-play/[caseId]/edit/page.tsx`): complete, wave 3 (ran concurrently
+  with 09-04 in the same working directory; each of this plan's three
+  commits staged only its own literal file paths, including the bracketed
+  edit route, and `git show --name-only` confirmed no cross-contamination
+  with 09-04's untracked `app/api/scenario/session/`,
+  `app/api/scenario/report/`, `lib/scenario/evaluation-runner.ts`). Commits
+  `4a2a9ca`, `05cccd2`, `523c2e1`. `AvatarPickerGrid` ports the interviewer
+  selection grid's exact card layout (image background, gradient overlay,
+  selected/unselected classes, `Check` badge) onto the `/api/scenario/avatars`
+  catalog, with a solid-color fallback for portrait-less profiles and no
+  `<Select>` anywhere; its own doc comments deliberately avoid the literal
+  strings the plan's greps check for, so a code-and-comment-wide grep still
+  passes clean. `ScenarioBuilder` is a four-step gated flow (situation,
+  characters, criteria, review & save) built on the same `SetupStep`-style
+  state machine as `app/interview/[type]/page.tsx`; each step's Continue is
+  disabled until it clears the shared `SCENARIO_LIMITS` bar from
+  `lib/scenario/validation.ts` (imported, never duplicated); Save runs
+  `validateScenarioInput` client-side first, POSTs to `/api/scenario/add` or
+  `/api/scenario/edit`, surfaces field errors on their owning step, and on
+  success routes to `/case-play` — never into a live session. `app/case-play/
+  new/page.tsx` and `app/case-play/[caseId]/edit/page.tsx` are thin route
+  wrappers; the edit route resolves ownership via `/api/scenario/list`'s
+  `mine` array (a UX convenience — `/api/scenario/edit` enforces it
+  server-side regardless) and renders a not-found shell for anything not
+  owned. `npx tsc --noEmit` clean after `rm -rf .next`; zero `<Select`/
+  `ownerId`/`published`/`cohort` matches in `components/scenario/`;
+  `router.push` targets only `/case-play`, never `/case-play/${...}`.
+  Smoke-tested against a fresh dev server on port 3013 (inline local
+  `DATABASE_URL`): both new routes correctly 307-redirect to login when
+  unauthenticated, with no server errors in the log.
 
 ## Phase 6 Status: COMPLETE
 
@@ -594,12 +627,16 @@ flagged for the user, not resolved here) — none block Phase 8 sign-off.
 ## Next
 
 Phase 9 is planned (9 plans, `09-01` through `09-09`) and executing. `09-01`
-(data foundation), `09-02` (ownership-enforced CRUD routes), and `09-03`
-(scenario evaluation brain) are all complete — `09-02` and `09-03` ran
-concurrently in the same working directory and both verified clean. `09-04`
-(the run/report pipeline wiring `lib/scenario/evaluation.ts` and
-`lib/scenario/report-dto.ts` into real routes, on top of 09-02's CRUD API) is
-next. Run `/gsd:execute-phase 9` to continue.
+(data foundation), `09-02` (ownership-enforced CRUD routes), `09-03`
+(scenario evaluation brain), and `09-05` (guided authoring UI: avatar picker
+grid, four-step builder, create/edit routes) are all complete — `09-02`/`09-03`
+and `09-04`/`09-05` each ran as concurrent pairs in the same working
+directory, all verified clean via `git show --name-only` on every commit.
+`09-04` (the run/report pipeline wiring `lib/scenario/evaluation.ts` and
+`lib/scenario/report-dto.ts` into real routes, on top of 09-02's CRUD API)
+ran concurrently with 09-05 — see `09-04-SUMMARY.md` for its own completion
+status. `09-06` (publish/list UI linking into `/case-play/new` and
+`/case-play/[caseId]/edit`) is next. Run `/gsd:execute-phase 9` to continue.
 
 Key Phase 9 decisions:
 - A "scenario" is a CASE-STYLE ROLEPLAY (situation + one or more avatar

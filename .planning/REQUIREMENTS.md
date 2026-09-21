@@ -188,19 +188,19 @@ was decided, they do not add scope.*
 `.planning/phases/09-student-authored-scenarios/09-CONTEXT.md` — they restate what
 was decided, they do not add scope.*
 
-- **REQ-25** — [ ] A student can author a case-style roleplay scenario: a situation plus
+- **REQ-25** — [x] A student can author a case-style roleplay scenario: a situation plus
   one or more avatar characters. A "scenario" is NOT a saved interview preset — that
   remains deferred.
 
-- **REQ-26** — [ ] Authoring is a guided step-by-step builder (situation -> characters ->
+- **REQ-26** — [x] Authoring is a guided step-by-step builder (situation -> characters ->
   criteria), not a single admin-style form and not model-drafted. A scenario cannot be
   saved without a situation, at least one character, and criteria.
 
-- **REQ-27** — [ ] The character/avatar picker mirrors the interviewer selection UI at
+- **REQ-27** — [x] The character/avatar picker mirrors the interviewer selection UI at
   `app/interview/[type]/page.tsx` (card grid with avatar preview images), NOT the admin
   case editor's `<Select>` dropdown.
 
-- **REQ-28** — [ ] Saving is a distinct step and practice launches from the list, but the
+- **REQ-28** — [x] Saving is a distinct step and practice launches from the list, but the
   save lands the student where the new scenario is immediately startable — ROADMAP
   criterion 1's "immediately" is preserved, not dropped.
 
