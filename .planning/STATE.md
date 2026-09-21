@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-21 (Phase 9 context gathered)
+**Updated:** 2026-09-21 (09-01 data foundation executed)
 
 ## Current Position
 
 **Phase:** 9 — Student-Authored Scenarios
-**Current Plan:** Not started — context gathered, not yet planned
-**Status:** Ready for planning
+**Current Plan:** 09-01 complete (1 of 9) — data foundation laid, 09-02 next
+**Status:** In progress
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -75,6 +75,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 08-interview-customization]: advanceProgress derives resumeQuestionCap and behavioralCategoryQuota from targetQuestionCount (Math.round(n/3), clamped), verified bit-for-bit identical to the pre-change function for the 9-question standard length.
 - [Phase 08-interview-customization]: A pasted interviewer persona carries its own display name via a new display-only `personaDisplayName` field, never interpolated into the assembled prompt; the in-character naming directive that makes the model actually introduce itself as that person lives inside the persona string itself, not a new `lib/interview/prompts.ts` field — found and fixed during 08-08's human walkthrough (commit `a0cc711`) after the session header was shown to display the avatar's name instead of the pasted persona's name.
 - [Phase 08-interview-customization]: Non-overlapping `files_modified` between concurrently-executing plans in the same wave does not by itself isolate them from each other — the git index is shared across agents in the same working directory (no worktree isolation), so a bracketed pathspec like `app/interview/[type]/...` can glob-match a sibling agent's staged file. Surfaced in wave 3 (08-06/08-07), independently re-verified clean in 08-08; noted for any future phase running concurrent agents.
+- [Phase 09-student-authored-scenarios]: `CaseStudy.ownerId` added as a plain optional field (not a relation) so a future fork action can copy a scenario and overwrite it with no schema change; `CaseAvatar` deliberately left unchanged (avatars still source from the admin-curated `VideoAudioProfile` catalog via `profileId`, rationale deferred to 09-05). `ScenarioReport` mirrors `InterviewReport` structurally, reuses `InterviewReportStatus` rather than a duplicate enum, and uses a bare-String `caseId` (no FK) so a report survives deletion of its S3 case. REQ-29/REQ-33/REQ-34 are each split across multiple Phase 9 plans (09-01 lays the data foundation only; enforcement/UI/deletion-guard land in 09-02, 09-04, 09-06, 09-08, 09-09) — their `REQUIREMENTS.md` checkboxes are intentionally left unchecked until the plan that actually delivers the end-to-end behavior completes, even though 09-01's frontmatter lists them.
 
 ## Progress
 
@@ -460,6 +461,22 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   4-file scope. Full verbatim per-check and per-step results, and the consolidated
   deferred-items list, in `08-08-SUMMARY.md`.
 
+- 09-01 (data foundation — `types/index.ts`, `prisma/schema.prisma`): complete,
+  wave 1. Commits `06efb43`, `e7e4d57`. Added optional, documented
+  `CaseStudy.ownerId` (server-set, immutable, the sole discriminator `/case-play`
+  will use to split admin cases from student scenarios); `CaseAvatar` untouched.
+  Added `ScenarioReport` — structurally parallel to `InterviewReport`, reusing
+  `InterviewReportStatus` instead of a duplicate enum, with a bare-String
+  `caseId` (no Prisma relation) so a report survives deletion of its S3 case,
+  and a one-time run-time snapshot (`caseName`/`backgroundSnapshot`/
+  `avatarsSnapshot`/`criteriaSnapshot`). `User.scenarioReports` back-relation
+  added. Migration `20260921201213_add_scenario_report` generated and applied
+  to `leadership_avatar_dev` only (inline `DATABASE_URL`, `npm run setup`
+  never run) — this is the third migration in the unapplied handoff queue
+  alongside 06-01's and 08-02's. `npx tsc --noEmit` and `npx prisma validate`
+  both clean; migration SQL confirmed to contain only a new `CREATE TABLE`
+  block, zero `ALTER TABLE`/`NOT NULL` additions on any existing table.
+
 ## Phase 6 Status: COMPLETE
 
 All 8 plans (06-01 through 06-08) executed and verified, including a real
@@ -502,9 +519,9 @@ flagged for the user, not resolved here) — none block Phase 8 sign-off.
 
 ## Next
 
-Phase 9 context captured in
-`.planning/phases/09-student-authored-scenarios/09-CONTEXT.md` (commit `e739a2e`).
-Run `/gsd:plan-phase 9`.
+Phase 9 is planned (9 plans, `09-01` through `09-09`) and executing. `09-01`
+(data foundation) is complete — `09-02` next. Run `/gsd:execute-phase 9` to
+continue.
 
 Key Phase 9 decisions:
 - A "scenario" is a CASE-STYLE ROLEPLAY (situation + one or more avatar
