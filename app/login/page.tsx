@@ -27,7 +27,7 @@ export default function LoginPage() {
       const meResponse = await fetch("/api/auth/me");
       const meData = await meResponse.json();
       if (meData.user?.role === "student") {
-        window.location.href = "/student-cases";
+        window.location.href = "/";
       } else {
         window.location.href = "/";
       }

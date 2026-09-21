@@ -223,7 +223,7 @@ export default function JoinCohortPage() {
           <p className="text-sm text-default-500">
             You can now access the cases assigned to this cohort.
           </p>
-          <Button color="primary" onPress={() => router.push("/student-cases")}>
+          <Button color="primary" onPress={() => router.push("/")}>
             Go to My Cases
           </Button>
         </CardBody>

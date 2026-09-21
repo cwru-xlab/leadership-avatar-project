@@ -154,7 +154,7 @@ export default function InterviewReportPage() {
         <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#d4e2e9] bg-white p-8 shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
           <CircleAlert className="text-[#0a7391]" size={26} />
           <p className="font-serif text-2xl text-[#102331]">{error}</p>
-          <Button color="primary" onPress={() => router.push("/student-cases")}>
+          <Button color="primary" onPress={() => router.push("/reports")}>
             Back to practice
           </Button>
         </div>
@@ -166,7 +166,7 @@ export default function InterviewReportPage() {
     <ReportShell
       interviewerName={report?.interviewerName ?? null}
       completedAt={report?.completedAt ?? null}
-      onBack={() => router.push("/student-cases")}
+      onBack={() => router.push("/reports")}
       onPracticeAgain={() => router.push(`/interview/${params.type}`)}
     >
       <ReportScoreCards scores={scores} pending={isPending && !timedOut} />
