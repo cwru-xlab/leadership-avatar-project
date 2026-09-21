@@ -37,6 +37,8 @@ export interface InterviewType {
   targetQuestionCount: number;
   /** {CASE_BACKGROUND} — omitted for interviews with no scenario attached. */
   caseBackground?: string;
+  /** Picker-card display only — never interpolated into the prompt. */
+  questionAreas?: string[];
 }
 
 /**
@@ -61,10 +63,91 @@ const GENERAL_INTERVIEW: InterviewType = {
   difficulty: "Intermediate",
   targetMinutes: 20,
   targetQuestionCount: 9,
+  questionAreas: ["Your background", "Behavioral stories", "Working with others"],
+};
+
+/**
+ * Technical / engineering interview. Persona probes reasoning and tradeoffs
+ * rather than quizzing on trivia; the role-specific stage stays a short,
+ * generic prompt to walk through a past decision (full case scenarios are
+ * Phase 9's job, not this preset's).
+ */
+const TECHNICAL_INTERVIEW: InterviewType = {
+  slug: "technical",
+  label: "Technical / Engineering Interview",
+  description:
+    "A behavioral interview for engineering roles, with a focus on how you think " +
+    "through technical tradeoffs, not on quizzing you with trivia.",
+  interviewerPersona:
+    "a pragmatic senior engineering manager who cares more about how the candidate " +
+    "thinks through tradeoffs than about quizzing them on trivia. You ask \"why that " +
+    "way\" after every design claim, pushing gently for the reasoning behind decisions " +
+    "rather than just the outcome",
+  defaultRoleTitle: "a software engineering role",
+  defaultIndustry: "technology",
+  difficulty: "Intermediate",
+  targetMinutes: 20,
+  targetQuestionCount: 9,
+  caseBackground:
+    "For the role-specific stage, ask the candidate to walk through a technical " +
+    "decision they owned and defend the tradeoffs they made.",
+  questionAreas: ["Your background", "Behavioral stories", "Technical judgment & tradeoffs"],
+};
+
+/**
+ * Consulting / case-style interview. Persona is Socratic and composed, asking
+ * the candidate to structure their thinking out loud rather than race to an
+ * answer.
+ */
+const CONSULTING_INTERVIEW: InterviewType = {
+  slug: "consulting",
+  label: "Consulting / Case-Style Interview",
+  description:
+    "A behavioral interview styled after a consulting-firm interview, emphasizing " +
+    "structured, Socratic thinking under the interviewer's questioning.",
+  interviewerPersona:
+    "a composed, Socratic consulting-firm interviewer who asks the candidate to " +
+    "structure their thinking out loud. You are patient but exacting, and you " +
+    "reward candidates who lay out a clear framework before diving into details",
+  defaultRoleTitle: "a management consulting associate role",
+  defaultIndustry: "management consulting",
+  difficulty: "Advanced",
+  targetMinutes: 20,
+  targetQuestionCount: 9,
+  caseBackground:
+    "For the role-specific stage, pose a generic business situation and ask the " +
+    "candidate to structure how they would approach it.",
+  questionAreas: ["Your background", "Behavioral stories", "Structured problem solving"],
+};
+
+/**
+ * Early-career / internship interview. Persona is deliberately warm and does
+ * not pressure-test — matches the shorter, lower-stakes shape of a real
+ * internship screen.
+ */
+const EARLY_CAREER_INTERVIEW: InterviewType = {
+  slug: "early-career",
+  label: "Early-Career / Internship Interview",
+  description:
+    "A shorter, lower-pressure behavioral interview styled after an internship or " +
+    "entry-level screening call.",
+  interviewerPersona:
+    "a warm, encouraging early-career recruiter who gives the candidate plenty of " +
+    "room to think and does not pressure-test their answers. You ask clear, " +
+    "supportive follow-ups and are genuinely rooting for the candidate to do well",
+  defaultRoleTitle: "an internship or entry-level rotational role",
+  defaultIndustry: "general / cross-industry",
+  difficulty: "Beginner",
+  targetMinutes: 10,
+  targetQuestionCount: 5,
+  questionAreas: ["Your background", "Behavioral stories", "Motivation & fit"],
 };
 
 export const INTERVIEW_TYPES: Record<string, InterviewType> = {
   [GENERAL_INTERVIEW.slug]: GENERAL_INTERVIEW,
+  [TECHNICAL_INTERVIEW.slug]: TECHNICAL_INTERVIEW,
+  [CONSULTING_INTERVIEW.slug]: CONSULTING_INTERVIEW,
+  [EARLY_CAREER_INTERVIEW.slug]: EARLY_CAREER_INTERVIEW,
 };
 
 export const DEFAULT_INTERVIEW_TYPE = GENERAL_INTERVIEW;
