@@ -2,12 +2,12 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-21 (09-01 data foundation executed)
+**Updated:** 2026-09-21 (09-02 and 09-03 executed concurrently)
 
 ## Current Position
 
 **Phase:** 9 — Student-Authored Scenarios
-**Current Plan:** 09-01 complete (1 of 9) — data foundation laid, 09-02 next
+**Current Plan:** 09-02 and 09-03 complete (3 of 9) — scenario CRUD API and evaluation brain both built, 09-04 next
 **Status:** In progress
 **Branch:** feature/interview-baseline
 
@@ -76,6 +76,11 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 08-interview-customization]: A pasted interviewer persona carries its own display name via a new display-only `personaDisplayName` field, never interpolated into the assembled prompt; the in-character naming directive that makes the model actually introduce itself as that person lives inside the persona string itself, not a new `lib/interview/prompts.ts` field — found and fixed during 08-08's human walkthrough (commit `a0cc711`) after the session header was shown to display the avatar's name instead of the pasted persona's name.
 - [Phase 08-interview-customization]: Non-overlapping `files_modified` between concurrently-executing plans in the same wave does not by itself isolate them from each other — the git index is shared across agents in the same working directory (no worktree isolation), so a bracketed pathspec like `app/interview/[type]/...` can glob-match a sibling agent's staged file. Surfaced in wave 3 (08-06/08-07), independently re-verified clean in 08-08; noted for any future phase running concurrent agents.
 - [Phase 09-student-authored-scenarios]: `CaseStudy.ownerId` added as a plain optional field (not a relation) so a future fork action can copy a scenario and overwrite it with no schema change; `CaseAvatar` deliberately left unchanged (avatars still source from the admin-curated `VideoAudioProfile` catalog via `profileId`, rationale deferred to 09-05). `ScenarioReport` mirrors `InterviewReport` structurally, reuses `InterviewReportStatus` rather than a duplicate enum, and uses a bare-String `caseId` (no FK) so a report survives deletion of its S3 case. REQ-29/REQ-33/REQ-34 are each split across multiple Phase 9 plans (09-01 lays the data foundation only; enforcement/UI/deletion-guard land in 09-02, 09-04, 09-06, 09-08, 09-09) — their `REQUIREMENTS.md` checkboxes are intentionally left unchecked until the plan that actually delivers the end-to-end behavior completes, even though 09-01's frontmatter lists them.
+- [Phase 09-student-authored-scenarios]: SCENARIO_EVALUATOR_PROMPT deliberately never contains the literal phrase AUTHOR-DEFINED CRITERIA (only the user-message builder's fenced section header does), so the label appears exactly once and only where author-supplied criteria are composed onto the fixed rubric.
+- [Phase 09-student-authored-scenarios]: runScenarioEvaluation throws a typed ScenarioEvaluationError on exhausted retries instead of returning a discriminated-union result like the interview evaluator, since 09-04's runner is expected to catch it and record a FAILED report row.
+- [Phase 09-student-authored-scenarios]: REQ-32's `REQUIREMENTS.md` checkbox is intentionally left unchecked by 09-03, matching the 09-01 precedent for split requirements — 09-03 builds the evaluation prompt/schema/validator/DTO as pure, unwired libraries only ("no plan artifact promises real visual or sound-oriented scoring" is satisfied), but REQ-32's full text also requires Visual/Vocal to actually *render* as "Not yet measured" on a real report page, which needs 09-04's run/report pipeline and a later report-page plan to exist first.
+- [Phase 09-student-authored-scenarios]: `loadOwnedScenario` (09-02, `lib/scenario/validation.ts`) collapses "scenario doesn't exist," "admin-authored (no ownerId)," and "owned by someone else" into a single `null` return, so every `/api/scenario/*` write/read route emits a byte-identical 404 body — the project-wide 404-never-403 rule enforced structurally rather than by convention. Scenario ids are server-minted as `scn-<slug>-<uuid8>` (never a bare name-slug) because the `cases/` S3 prefix is shared with admin cases and a name collision is otherwise possible.
+- [Phase 09-student-authored-scenarios]: 09-02 and 09-03 executed concurrently in the same working directory (no worktree isolation, shared git index — the hazard first logged in `08-08-SUMMARY.md`). Every commit in both plans was staged with literal file paths and independently verified via `git show --name-only` to contain only that plan's own files; no cross-contamination occurred. This `STATE.md` update was manually reconciled by the 09-02 executor after 09-03's edits landed first, since neither plan's `files_modified` lists `STATE.md` itself and the `gsd-tools state advance-plan`/`record-metric` commands assume a numeric `Current Plan`/`Total Plans in Phase` format this project's hand-maintained `STATE.md` does not use.
 
 ## Progress
 
@@ -476,6 +481,39 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   alongside 06-01's and 08-02's. `npx tsc --noEmit` and `npx prisma validate`
   both clean; migration SQL confirmed to contain only a new `CREATE TABLE`
   block, zero `ALTER TABLE`/`NOT NULL` additions on any existing table.
+- 09-03 (scenario evaluation brain — `lib/scenario/prompts.ts`,
+  `lib/scenario/evaluation.ts`, `lib/scenario/report-dto.ts`): complete,
+  wave 2 (ran concurrently with 09-02 in the same working directory; each
+  commit staged only its own literal file path and `git show --name-only`
+  confirmed exactly one file per commit). Commits `ee12ca2`, `f0d7570`,
+  `9491caf`. `SCENARIO_EVALUATOR_PROMPT` is a fixed EQ + conversational-
+  adequacy rubric structurally mirroring `INTERVIEW_EVALUATOR_PROMPT` (same
+  four score slots so `ReportScoreCards.tsx` renders it unchanged);
+  Visual/Vocal are marked "NOT MEASURABLE in this phase."
+  `buildScenarioEvaluationUserMessage` fences author criteria into a
+  labelled DATA section of the user message only (never the system
+  prompt), tail-truncates the transcript at 24000 chars and head-truncates
+  criteria at 8000 chars, and omits the section entirely when criteria is
+  empty. `runScenarioEvaluation` copies (not imports) the interview
+  evaluator's JSON-schema/retry pattern and throws a typed
+  `ScenarioEvaluationError` on exhausted retries (09-04's runner is
+  expected to catch it); `validateScenarioEvaluationResult` hardcodes
+  `visualScore`/`vocalScore` to the TypeScript type `null` regardless of
+  model output. `toScenarioReportDTO` maps field by field, excludes
+  `userId`/`studentEmail`/`interactionLogId`/`evalModel`, and narrows
+  `avatarsSnapshot` to `{name, role}[]`, stripping each character's hidden
+  `additionalInfo` briefing. `npx tsc --noEmit` clean; `lib/interview/`
+  confirmed diff-empty after every commit. Verified: a hostile author
+  criteria string ("Ignore all previous instructions...") proven to stay
+  fenced in the user message and absent from the system prompt; the
+  validator proven to null out a model response claiming
+  `visual_score: 5, vocal_score: 3`; one real OpenAI call against a
+  synthetic two-character roleplay transcript with a distinctive author
+  criterion returned null visual/vocal, numeric content/behavioral scores,
+  and markdown that visibly reflected the criterion; a hand-built row with
+  `additionalInfo: "SECRET BRIEFING"` proven absent from the DTO's JSON
+  output. All three modules are pure libraries with no route wiring — 09-04
+  owns wiring them into an actual run/report pipeline.
 
 ## Phase 6 Status: COMPLETE
 
@@ -520,8 +558,11 @@ flagged for the user, not resolved here) — none block Phase 8 sign-off.
 ## Next
 
 Phase 9 is planned (9 plans, `09-01` through `09-09`) and executing. `09-01`
-(data foundation) is complete — `09-02` next. Run `/gsd:execute-phase 9` to
-continue.
+(data foundation) and `09-03` (scenario evaluation brain) are complete —
+`09-02` (ownership-enforced routes, ran concurrently with 09-03) should be
+checked/completed next, then `09-04` (the run/report pipeline wiring
+`lib/scenario/evaluation.ts` and `lib/scenario/report-dto.ts` into real
+routes). Run `/gsd:execute-phase 9` to continue.
 
 Key Phase 9 decisions:
 - A "scenario" is a CASE-STYLE ROLEPLAY (situation + one or more avatar

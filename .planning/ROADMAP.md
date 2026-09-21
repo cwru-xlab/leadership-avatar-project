@@ -175,12 +175,12 @@ ROLEPLAY (situation + one or more avatar characters) played in `/case-play` — 
 NOT a saved interview preset, which stays deferred. Visual/Vocal cannot score until
 Phase 10 and must render "Not yet measured".
 
-**Plans:** 9 plans
+**Plans:** 3/9 plans executed
 
 Plans:
-- [ ] 09-01-PLAN.md — CaseStudy.ownerId + ScenarioReport model + local-only migration
-- [ ] 09-02-PLAN.md — /api/scenario CRUD with server-side ownership, publish, delete guard
-- [ ] 09-03-PLAN.md — standard rubric prompt, schema-constrained evaluator, report DTO
+- [x] 09-01-PLAN.md — CaseStudy.ownerId + ScenarioReport model + local-only migration
+- [x] 09-02-PLAN.md — /api/scenario CRUD with server-side ownership, publish, delete guard
+- [x] 09-03-PLAN.md — standard rubric prompt, schema-constrained evaluator, report DTO
 - [ ] 09-04-PLAN.md — cohort-free run start (snapshot), finish, evaluation runner, report GET
 - [ ] 09-05-PLAN.md — guided builder + avatar card-grid picker + create/edit routes
 - [ ] 09-06-PLAN.md — two-section /case-play with scenario cards and owner actions
@@ -216,6 +216,6 @@ Plans:
 | 6. Evaluation & Student Report | 8/8 | Complete    | 2026-09-21 |
 | 7. Interaction Dashboard | 7/7 | Complete    | 2026-09-21 |
 | 8. Interview Customization | 8/8 | Complete    | 2026-09-21 |
-| 9. Student-Authored Scenarios | 1/9 | In Progress | - |
+| 9. Student-Authored Scenarios | 3/9 | In Progress|  |
 | 10. Video & Audio Metrics | 0/TBD | Not started | - |
 | 11. Cohort & Staff Teardown | 0/TBD | Not started | - |
