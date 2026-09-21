@@ -175,7 +175,7 @@ ROLEPLAY (situation + one or more avatar characters) played in `/case-play` — 
 NOT a saved interview preset, which stays deferred. Visual/Vocal cannot score until
 Phase 10 and must render "Not yet measured".
 
-**Plans:** 5/9 plans executed
+**Plans:** 7/9 plans executed
 
 Plans:
 - [x] 09-01-PLAN.md — CaseStudy.ownerId + ScenarioReport model + local-only migration
@@ -183,9 +183,9 @@ Plans:
 - [x] 09-03-PLAN.md — standard rubric prompt, schema-constrained evaluator, report DTO
 - [x] 09-04-PLAN.md — cohort-free run start (snapshot), finish, evaluation runner, report GET
 - [x] 09-05-PLAN.md — guided builder + avatar card-grid picker + create/edit routes
-- [ ] 09-06-PLAN.md — two-section /case-play with scenario cards and owner actions
+- [x] 09-06-PLAN.md — two-section /case-play with scenario cards and owner actions
 - [ ] 09-07-PLAN.md — case-play player branches onto the scenario start/finish pipeline
-- [ ] 09-08-PLAN.md — scenario report page (Visual/Vocal "Not yet measured", snapshot strip)
+- [x] 09-08-PLAN.md — scenario report page (Visual/Vocal "Not yet measured", snapshot strip)
 - [ ] 09-09-PLAN.md — static constraint sweep + human end-to-end validation
 
 ### Phase 10: Video & Audio Metrics
@@ -216,6 +216,6 @@ Plans:
 | 6. Evaluation & Student Report | 8/8 | Complete    | 2026-09-21 |
 | 7. Interaction Dashboard | 7/7 | Complete    | 2026-09-21 |
 | 8. Interview Customization | 8/8 | Complete    | 2026-09-21 |
-| 9. Student-Authored Scenarios | 5/9 | In Progress|  |
+| 9. Student-Authored Scenarios | 7/9 | In Progress|  |
 | 10. Video & Audio Metrics | 0/TBD | Not started | - |
 | 11. Cohort & Staff Teardown | 0/TBD | Not started | - |
