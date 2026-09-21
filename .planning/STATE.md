@@ -2,12 +2,12 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-21 (09-06 and 09-08 complete, running concurrently with 09-07)
+**Updated:** 2026-09-21 (09-06, 09-07, and 09-08 complete)
 
 ## Current Position
 
 **Phase:** 9 — Student-Authored Scenarios
-**Current Plan:** 09-01 through 09-06 and 09-08 complete (7 of 9) — data foundation, scenario CRUD API, evaluation brain, the run/report pipeline, the guided authoring UI, the two-section publish/list UI, and the scenario report page all built; 09-07 next, 09-09 (static sweep + human validation) after
+**Current Plan:** 09-01 through 09-08 complete (8 of 9) — data foundation, scenario CRUD API, evaluation brain, the run/report pipeline, the guided authoring UI, the two-section publish/list UI, the scenario-aware player, and the scenario report page all built; 09-09 (static sweep + human validation) next
 **Status:** In progress
 **Branch:** feature/interview-baseline
 
@@ -701,6 +701,40 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   transcript as if it were empty — the report page itself correctly rendered
   whatever DTO the runner produced. REQ-32, REQ-33, and REQ-34 all now have
   their full user-facing behavior demonstrated on this page.
+- 09-07 (scenario-aware start/finish in the case player —
+  `app/case-play/[caseId]/page.tsx`): complete, ran concurrently with 09-06/
+  09-08 in the same working directory; both commits staged only the one
+  literal bracketed pathspec and `git show --name-only` confirmed no
+  cross-contamination. Commits `e763d36`, `95a5457`. Added a derived
+  `isScenario` flag (`Boolean(caseData?.ownerId)`) and `scenarioReportId`
+  state; `handleStart` branches to `POST /api/scenario/session/start` with
+  `{caseId, language}` (no `cohortId`) when `isScenario`, setting the same
+  downstream state (`interactionLog`/`chatMessages`/`pageState`) the legacy
+  branch sets so every existing player feature keeps working unchanged; the
+  "Explore System" button is hidden for a scenario (always `assessed`).
+  `handleFinish` branches on `isScenario && scenarioReportId`, POSTs
+  `/api/scenario/session/finish` with `{reportId, log}`, treats `409` as a
+  successful navigation, and routes to `/case-play/{caseId}/report/{reportId}`
+  on success; a resumed scenario run (via the untouched, out-of-scope
+  `handleResume`, which never repopulates `scenarioReportId`) falls back to
+  the legacy finish path rather than losing the session — a documented,
+  deliberate gap, not a bug. Both legacy bodies (admin-case start and finish,
+  including the literal `cohortId` field) are preserved verbatim in their
+  `else` branches. `npx tsc --noEmit` clean. Verified end-to-end against the
+  local dev DB with the real seeded student `student@case.edu` and real
+  OpenAI calls: a real scenario's `/api/scenario/session/start` response
+  carried `cohortId: ""` and a `reportId`; a synthetic transcript submitted
+  via `/api/scenario/session/finish` returned 202, and the report resolved to
+  `READY` with `content: 4, behavioral: 4, visual: null, vocal: null` and
+  markdown quoting the actual conversation; the untouched admin-case
+  `/api/interaction/start`/`finish` pair was independently re-verified to
+  still work (cohort echoed back, 200 background-eval message) and the
+  legacy evaluator confirmed to have written a real `evalScore`/`evalResult`
+  onto the S3 log, proving zero regression to the admin-case path. Two
+  temporary dev-server attempts hit the same shared-`.next` Turbopack
+  corruption already logged under 09-04/09-06 (aggravated by three
+  concurrent `next dev` instances in one working directory); resolved by
+  restarting on a third port. Full detail in `09-07-SUMMARY.md`.
 
 ## Phase 6 Status: COMPLETE
 
@@ -767,10 +801,16 @@ end-to-end verification (READY report with Visual/Vocal "Not yet measured,"
 snapshot strip unchanged across a live scenario edit, report survival across
 scenario deletion, and identical 404s for a non-owner and a bad id with no
 poll loop). One out-of-scope evaluation-runner discrepancy was found and
-logged, not fixed, in `deferred-items.md`. `09-07` is next (running
-concurrently in this same working directory); `09-09` (static sweep + human
-validation) closes out the phase after. Run `/gsd:execute-phase 9` to
-continue.
+logged, not fixed, in `deferred-items.md`. `09-07` (scenario-aware
+start/finish in `app/case-play/[caseId]/page.tsx`, the last piece connecting
+09-04's backend and 09-08's report page into a real end-to-end scenario run)
+is also now complete — see `09-07-SUMMARY.md` for its full end-to-end
+verification (real scenario start with no cohort, real finish resolving to a
+READY report, and an independently-reverified admin-case regression check
+including the legacy evaluator's `evalScore`). All eight of the phase's
+build plans (`09-01` through `09-08`) are complete; `09-09` (static sweep +
+human validation) is the only plan left and closes out the phase. Run
+`/gsd:execute-phase 9` to continue.
 
 Key Phase 9 decisions:
 - A "scenario" is a CASE-STYLE ROLEPLAY (situation + one or more avatar
