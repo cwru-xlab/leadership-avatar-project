@@ -216,6 +216,6 @@ Plans:
 | 6. Evaluation & Student Report | 8/8 | Complete    | 2026-09-21 |
 | 7. Interaction Dashboard | 7/7 | Complete    | 2026-09-21 |
 | 8. Interview Customization | 8/8 | Complete    | 2026-09-21 |
-| 9. Student-Authored Scenarios | 0/TBD | Not started | - |
+| 9. Student-Authored Scenarios | 1/9 | In Progress | - |
 | 10. Video & Audio Metrics | 0/TBD | Not started | - |
 | 11. Cohort & Staff Teardown | 0/TBD | Not started | - |
