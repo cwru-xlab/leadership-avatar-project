@@ -245,6 +245,11 @@ export default function InterviewSessionShell({
   // The row is created on the FIRST REAL TURN, not on mount — sessions where
   // the avatar never connected or the student bailed instantly leave no row
   // behind. Only `checkpoint()` may call this; no exit path may.
+  // Set when the server downgrades a camera-ON request to OFF (missing
+  // consent). Blocks any later capture start so the running session and the
+  // stored report can never disagree about whether the camera was on.
+  const serverForcedCameraOffRef = useRef(false);
+
   const ensureReport = useCallback(async (): Promise<string | null> => {
     if (reportIdRef.current) return reportIdRef.current;
     if (startingRef.current) return null;
@@ -260,18 +265,37 @@ export default function InterviewSessionShell({
           interviewerName,
           resumeId,
           resumeText,
+          // REQ-35: without this the server sees `undefined`, falls back to
+          // "OFF", and the report records a deliberate opt-out that never
+          // happened — even while capture is running and the banner is live.
+          cameraMode,
         }),
       });
       if (!res.ok) return null;
       const data = await res.json();
       reportIdRef.current = data.reportId ?? null;
+
+      // Honor the server's RESOLVED camera mode. If it downgraded us to OFF
+      // (missing consent), stop capturing and say so, rather than letting the
+      // session look measured while the report says otherwise.
+      if (data.cameraMode === "OFF" && cameraMode === "ON") {
+        serverForcedCameraOffRef.current = true;
+        releaseVisualCapture();
+        addToast({
+          title: "Camera analysis is off for this session",
+          description:
+            "We couldn't confirm your consent to video analysis, so Visual won't be scored. You can turn it on in Settings before your next session.",
+          color: "warning",
+        });
+      }
+
       return reportIdRef.current;
     } catch {
       return null;
     } finally {
       startingRef.current = false;
     }
-  }, [interviewType.slug, customization, interviewerAvatarId, interviewerName, resumeId, resumeText]);
+  }, [interviewType.slug, customization, interviewerAvatarId, interviewerName, resumeId, resumeText, cameraMode]);
 
   const checkpoint = useCallback(
     (nextProgress: InterviewProgress) => {
@@ -513,7 +537,11 @@ export default function InterviewSessionShell({
         // camera-on session must not delay the avatar handshake (REQ-49),
         // and MediaPipe's several-MB dynamic import would otherwise compete
         // with the WebRTC setup.
-        if (cameraMode === "ON" && !visualCaptureRef.current) {
+        if (
+          cameraMode === "ON" &&
+          !serverForcedCameraOffRef.current &&
+          !visualCaptureRef.current
+        ) {
           void (async () => {
             const result = await requestCameraStream();
             if (!result.ok) {
