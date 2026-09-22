@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-} from "@heroui/modal";
 import { Button } from "@heroui/button";
+import {
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+} from "@heroui/modal";
 import { addToast } from "@heroui/toast";
+import { useState } from "react";
 
 /**
  * REQ-36: the one-time, in-app explanation of what video/audio analysis
@@ -81,7 +81,7 @@ export default function MetricsConsentDialog({
             <li>Only you can see your reports.</li>
           </ul>
           <p className="mt-3 text-sm">
-            You can practise with your camera off at any time. Visual and
+            You can practice with your camera off at any time. Visual and
             Vocal simply won&apos;t be scored for that session.
           </p>
         </ModalBody>
