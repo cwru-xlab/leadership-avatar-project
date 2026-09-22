@@ -1,9 +1,10 @@
 /**
  * Scenario evaluation prompt assembly.
  *
- * This is the scenario analogue of `lib/interview/prompts.ts`. That file
- * MUST NEVER be edited to serve this feature — it stays diff-empty against
- * every Phase 9 baseline. This file copies its structural pattern (fixed
+ * This is the scenario analogue of `lib/interview/prompts.ts`. Through Phase
+ * 9 that file stayed diff-empty against every baseline; Phase 10 legitimately
+ * owns both evaluator prompts and edits them independently (see 10-06). This
+ * file still copies `lib/interview/prompts.ts`'s structural pattern (fixed
  * system prompt + JSON output contract + missing-data discipline) rather
  * than importing from it, so the two evaluators can evolve independently.
  *
@@ -15,6 +16,8 @@
  * or editing the system prompt, and never by string concatenation onto the
  * rubric text itself. See `buildScenarioEvaluationUserMessage` below.
  */
+
+import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 
 /**
  * Prompt — the post-scenario evaluator. Runs once on the full transcript of
@@ -202,6 +205,10 @@ export interface ScenarioEvaluationUserMessageInput {
   /** Untrusted student-authored text, or null for a legacy case with no evaluationPrompt. */
   authorCriteria: string | null;
   transcript: string;
+  /** Real measured visual metrics for this run, or null when unmeasured. */
+  visualMetrics: VisualMetrics | null;
+  /** Real measured vocal metrics for this run, or null when unmeasured. */
+  vocalMetrics: VocalMetrics | null;
 }
 
 // Keep the transcript's TAIL — a roleplay's resolution lives at the end, and
@@ -237,7 +244,15 @@ function truncateHead(text: string, maxChars: number, marker: string): string {
 export function buildScenarioEvaluationUserMessage(
   input: ScenarioEvaluationUserMessageInput
 ): string {
-  const { caseName, background, characters, authorCriteria, transcript } = input;
+  const {
+    caseName,
+    background,
+    characters,
+    authorCriteria,
+    transcript,
+    visualMetrics,
+    vocalMetrics,
+  } = input;
 
   const characterLines = characters.length
     ? characters.map((c) => `- ${c.name} (${c.role})`).join("\n")
@@ -273,6 +288,16 @@ ${truncatedTranscript}`,
 ${truncatedCriteria}`
     );
   }
+
+  // Metrics lines go OUTSIDE and AFTER the fenced author-criteria section,
+  // never inside it — a metrics block placed inside the untrusted fence
+  // would invite exactly the confusion the injection clause guards against.
+  // The literal string "null" for an absent block keeps the exact same tail
+  // bytes as before Phase 10 for a camera-off or legacy run.
+  sections.push(
+    `visual_metrics: ${visualMetrics ? JSON.stringify(visualMetrics) : "null"}
+vocal_metrics: ${vocalMetrics ? JSON.stringify(vocalMetrics) : "null"}`
+  );
 
   return sections.join("\n\n");
 }
