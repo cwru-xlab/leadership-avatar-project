@@ -43,6 +43,15 @@ import {
   type InterviewType,
 } from "@/lib/interview/types";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
+import {
+  createVisualCapture,
+  requestCameraStream,
+  type VisualCaptureHandle,
+} from "@/lib/metrics/visual-capture";
+import { createVocalCapture, type VocalCaptureHandle } from "@/lib/metrics/vocal-capture";
+import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
+import { SelfViewThumbnail } from "@/components/metrics/SelfViewThumbnail";
+import { FaceDetectionBanner } from "@/components/metrics/FaceDetectionBanner";
 import type { StartAvatarRequest } from "@/types";
 
 type ChatMessage = {
@@ -63,6 +72,12 @@ interface InterviewSessionShellProps {
   interviewerName: string;
   interviewerAvatarId: string;
   avatarConfig: StartAvatarRequest;
+  /**
+   * The camera-mode decision made and LOCKED in the setup wizard (REQ-35).
+   * Deliberately a plain value, never a setter — this component has no
+   * ability to change it, by the prop's type rather than by discipline.
+   */
+  cameraMode: CameraMode;
   resumeText: string;
   resumeFileName?: string;
   resumeId: string | null;
@@ -161,6 +176,7 @@ export default function InterviewSessionShell({
   interviewerName,
   interviewerAvatarId,
   avatarConfig,
+  cameraMode,
   resumeText,
   resumeFileName,
   resumeId,
@@ -182,6 +198,18 @@ export default function InterviewSessionShell({
   const meterTimerRef = useRef<number | null>(null);
   const meterSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+
+  // Phase 10 metrics capture refs (REQ-35/43/49). visualCaptureRef/
+  // cameraStreamRef stay null for the entire session when cameraMode is
+  // "OFF" — the self-view and banner both render nothing in that case.
+  const visualCaptureRef = useRef<VisualCaptureHandle | null>(null);
+  const vocalCaptureRef = useRef<VocalCaptureHandle | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const [faceMissing, setFaceMissing] = useState(false);
+  // Mirrors cameraStreamRef for rendering only — SelfViewThumbnail needs a
+  // reactive value to attach its <video> element to; the ref remains the
+  // source of truth every cleanup/lifecycle path reads and stops tracks on.
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [progress, setProgress] = useState<InterviewProgress>(initialProgress);
@@ -280,6 +308,23 @@ export default function InterviewSessionShell({
     meterSourceRef.current = null;
   }, []);
 
+  // Vocal capture is created once on mount, independent of cameraMode — audio
+  // is always available regardless of the camera decision.
+  useEffect(() => {
+    vocalCaptureRef.current = createVocalCapture();
+  }, []);
+
+  // Stops the visual engine and releases the camera track. Idempotent and
+  // safe to call from multiple exit paths (Leave, End, unmount) — the camera
+  // LED must go out on every one of them.
+  const releaseVisualCapture = useCallback(() => {
+    visualCaptureRef.current?.stop();
+    visualCaptureRef.current = null;
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    setCameraStream(null);
+  }, []);
+
   const releaseMicrophone = useCallback(() => {
     stopMetering();
     micStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -291,9 +336,11 @@ export default function InterviewSessionShell({
   useEffect(() => {
     return () => {
       releaseMicrophone();
+      releaseVisualCapture();
+      vocalCaptureRef.current?.detachStream();
       avatarRef.current?.stopSession();
     };
-  }, [releaseMicrophone]);
+  }, [releaseMicrophone, releaseVisualCapture]);
 
   // The provider reaps idle sessions, and nothing else in the app pings it —
   // `keepAlive` existed on the session hook but had no callers, so a session
@@ -461,9 +508,39 @@ export default function InterviewSessionShell({
       if (state === StreamingAvatarSessionState.CONNECTED) {
         setAvatarReady(true);
         startOpening();
+
+        // Start capture AFTER the avatar has connected, never before — a
+        // camera-on session must not delay the avatar handshake (REQ-49),
+        // and MediaPipe's several-MB dynamic import would otherwise compete
+        // with the WebRTC setup.
+        if (cameraMode === "ON" && !visualCaptureRef.current) {
+          void (async () => {
+            const result = await requestCameraStream();
+            if (!result.ok) {
+              // The wizard's own probe already succeeded — the camera was
+              // seized between steps. The student is already live; do NOT
+              // block. The finish payload's null visual block will resolve
+              // to INSUFFICIENT_DATA server-side (REQ-42).
+              addToast({
+                title: "Your camera stopped responding",
+                description: "Visual won't be measured for this session.",
+                color: "warning",
+              });
+              return;
+            }
+            cameraStreamRef.current = result.stream;
+            setCameraStream(result.stream);
+            const capture = createVisualCapture({
+              stream: result.stream,
+              onFaceStateChange: (detected) => setFaceMissing(!detected),
+            });
+            visualCaptureRef.current = capture;
+            void capture.start();
+          })();
+        }
       }
     },
-    [startOpening]
+    [startOpening, cameraMode]
   );
 
   const getMicrophone = useCallback(async () => {
@@ -474,6 +551,11 @@ export default function InterviewSessionShell({
     existing?.getTracks().forEach((track) => track.stop());
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     micStreamRef.current = stream;
+    // Reuses the SAME audio stream the push-to-talk path already owns — no
+    // second getUserMedia({ audio: true }) call. The vocal engine runs its
+    // own independent AnalyserNode; this does not touch startMetering/
+    // peakRmsRef below.
+    vocalCaptureRef.current?.attachStream(stream);
     return stream;
   }, []);
 
@@ -535,6 +617,11 @@ export default function InterviewSessionShell({
       return;
     }
 
+    // Fire-and-forget, never awaited — the live transcription latency the
+    // student feels must be unchanged. A rejected blob (the two guards
+    // above) is not a spoken turn and must never reach here.
+    vocalCaptureRef.current?.submitSpokenTurn(audio, elapsed);
+
     setIsTranscribing(true);
     setPartialTranscript("");
     try {
@@ -589,6 +676,15 @@ export default function InterviewSessionShell({
     }
   }, [language, sendMessage]);
 
+  // The only path that records a typed turn (REQ-44): the push-to-talk
+  // path submits its own spoken turn inside transcribeRecording and must
+  // never also count as typed.
+  const sendTypedMessage = useCallback(() => {
+    if (!input.trim()) return;
+    vocalCaptureRef.current?.recordTypedTurn();
+    void sendMessage(input);
+  }, [input, sendMessage]);
+
   const startRecording = useCallback(async () => {
     if (sending || isTranscribing || isPaused) return;
     try {
@@ -636,6 +732,8 @@ export default function InterviewSessionShell({
 
   const handleLeave = () => {
     releaseMicrophone();
+    releaseVisualCapture();
+    vocalCaptureRef.current?.detachStream();
     avatarRef.current?.stopSession();
     onExit();
   };
@@ -676,6 +774,24 @@ export default function InterviewSessionShell({
       }
     }
     setSubmitting(true);
+    // Stop/drain BEFORE the finish fetch so the metrics field rides in the
+    // same request. stop() is synchronous; drain() is awaited and bounded at
+    // 8s by design (lib/metrics/vocal-capture.ts) — the existing in-flight
+    // spinner (submitting) already covers this wait so End does not look
+    // frozen. drain() never throws by its own contract, but a defensive
+    // catch keeps a truly unexpected failure from losing the interview.
+    let visual: VisualMetrics | null = null;
+    let vocal: VocalMetrics | null = null;
+    try {
+      visual = visualCaptureRef.current?.stop() ?? null;
+    } catch {
+      visual = null;
+    }
+    try {
+      vocal = (await vocalCaptureRef.current?.drain(8000)) ?? null;
+    } catch {
+      vocal = null;
+    }
     try {
       const res = await fetch("/api/interview/session/finish", {
         method: "POST",
@@ -684,6 +800,7 @@ export default function InterviewSessionShell({
           reportId,
           turns: messagesRef.current,
           progress,
+          metrics: { cameraMode, visual, vocal },
         }),
       });
       // 409 means it was already submitted — still the right destination.
@@ -692,6 +809,8 @@ export default function InterviewSessionShell({
       // a failed submit leaves the student in a live, retryable interview
       // rather than a dead one.
       releaseMicrophone();
+      releaseVisualCapture();
+      vocalCaptureRef.current?.detachStream();
       avatarRef.current?.stopSession();
       onFinish(reportId);
     } catch {
@@ -831,7 +950,7 @@ export default function InterviewSessionShell({
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
-                      void sendMessage(input);
+                      sendTypedMessage();
                     }
                   }}
                   disabled={sending || isTranscribing || !avatarReady}
@@ -846,7 +965,7 @@ export default function InterviewSessionShell({
                   isLoading={sending}
                   isDisabled={!input.trim() || sending || isTranscribing || !avatarReady}
                   className="h-14 w-14 self-end"
-                  onPress={() => void sendMessage(input)}
+                  onPress={sendTypedMessage}
                 >
                   <SendHorizontal size={19} />
                 </Button>
@@ -950,6 +1069,9 @@ export default function InterviewSessionShell({
           )}
         </ModalContent>
       </Modal>
+
+      <SelfViewThumbnail stream={cameraStream} />
+      <FaceDetectionBanner visible={cameraMode === "ON" && faceMissing} />
     </main>
   );
 }
