@@ -1,34 +1,33 @@
 "use client";
 
-import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import InterviewSessionShell from "@/components/interview/InterviewSessionShell";
+import MetricsConsentDialog from "@/components/metrics/MetricsConsentDialog";
+import type { InterviewCustomizationInput } from "@/lib/interview/customization";
+import { resolveInterviewType } from "@/lib/interview/customization";
+import { useLayout } from "@/lib/layout-context";
+import type { CameraMode } from "@/lib/metrics/types";
+import { requestCameraStream } from "@/lib/metrics/visual-capture";
+import type { StartAvatarRequest } from "@/types";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import { addToast } from "@heroui/toast";
 import {
-  ArrowLeft,
-  ArrowRight,
-  Camera,
-  CameraOff,
-  Check,
-  CircleAlert,
-  Clock3,
-  FileCheck2,
-  FileUp,
-  LockKeyhole,
-  UserRound,
-  UsersRound,
+    ArrowLeft,
+    ArrowRight,
+    Camera,
+    CameraOff,
+    Check,
+    CircleAlert,
+    Clock3,
+    FileCheck2,
+    FileUp,
+    LockKeyhole,
+    UsersRound
 } from "lucide-react";
-import InterviewSessionShell from "@/components/interview/InterviewSessionShell";
-import MetricsConsentDialog from "@/components/metrics/MetricsConsentDialog";
-import { useLayout } from "@/lib/layout-context";
-import { resolveInterviewType } from "@/lib/interview/customization";
-import type { InterviewCustomizationInput } from "@/lib/interview/customization";
-import { requestCameraStream } from "@/lib/metrics/visual-capture";
-import type { CameraMode } from "@/lib/metrics/types";
-import type { StartAvatarRequest } from "@/types";
+import { useParams, useRouter } from "next/navigation";
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 interface InterviewerOption {
   avatarId: string;
@@ -436,7 +435,7 @@ export default function InterviewPage() {
                 <div>
                   <p className="text-sm font-semibold text-[#0a7391]">Step 3 of 3</p>
                   <h2 id="camera-heading" className="mt-1 font-serif text-3xl tracking-[-0.03em]">
-                    Practise with your camera on?
+                    Practice with your camera on?
                   </h2>
                   <p className="mt-3 max-w-xl text-[15px] leading-7 text-[#58727f]">
                     This choice is locked once the interview starts — you
@@ -480,7 +479,7 @@ export default function InterviewPage() {
                       <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e0f3f9] text-[#08718d]">
                         <Camera size={19} />
                       </span>
-                      <span className="font-serif text-xl">Practise with my camera on</span>
+                      <span className="font-serif text-xl">Practice with my camera on</span>
                       <span className="text-sm leading-6 text-[#58727f]">
                         Visual and Vocal will be scored.
                       </span>
@@ -497,7 +496,7 @@ export default function InterviewPage() {
                       </span>
                       <span className="font-serif text-xl">Camera off</span>
                       <span className="text-sm leading-6 text-[#58727f]">
-                        I&apos;ll practise without being measured. Visual and
+                        I&apos;ll practice without being measured. Visual and
                         Vocal won&apos;t be scored this time.
                       </span>
                     </button>

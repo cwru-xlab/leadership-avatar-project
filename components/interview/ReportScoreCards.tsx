@@ -1,14 +1,14 @@
 "use client";
 
-import type {
-  CameraMode,
-  VisualMetrics,
-  VisualUnscoredReason,
-  VocalMetrics,
-  VocalUnscoredReason,
-} from "@/lib/metrics/types";
 import { visualBands, vocalBands, type MetricBandRow } from "@/lib/metrics/bands";
 import { isPoorVisualCoverage } from "@/lib/metrics/coverage";
+import type {
+    CameraMode,
+    VisualMetrics,
+    VisualUnscoredReason,
+    VocalMetrics,
+    VocalUnscoredReason,
+} from "@/lib/metrics/types";
 
 interface ReportScores {
   visual: number | null;
@@ -166,7 +166,7 @@ const UNSCORED_COPY: Record<
   },
   camera_off: {
     headline: "Not measured",
-    subLine: "You practised with your camera off, so this category wasn't scored.",
+    subLine: "You practiced with your camera off, so this category wasn't scored.",
   },
   typed_only: {
     headline: "Not measured",
