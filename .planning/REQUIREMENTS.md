@@ -292,13 +292,13 @@ was decided, they do not add scope.*
   different modality, not weak vocal delivery. This is deliberately NOT symmetric with
   the camera case.
 
-- **REQ-45** — [ ] The report distinguishes unscorable categories BY CAUSE, extending
+- **REQ-45** — [x] The report distinguishes unscorable categories BY CAUSE, extending
   the 06-08 distinction: "Not yet measured" (no pipeline existed — legacy rows),
   camera-off / deliberate opt-out, "Insufficient data" (measurement attempted but
   genuinely impossible), and the existing "Not scored" (evaluation ran but produced no
   score). The cause is stored, not re-derived from a null score.
 
-- **REQ-46** — [ ] Visual and Vocal are presented as the 1-5 rubric score plus
+- **REQ-46** — [x] Visual and Vocal are presented as the 1-5 rubric score plus
   QUALITATIVE BANDS ("Eye contact: strong", "Pace: slightly fast"), not raw percentages,
   INSIDE the existing Visual and Vocal rubric cards — no new report section. Coverage is
   disclosed ONLY when it was poor.
@@ -309,7 +309,7 @@ was decided, they do not add scope.*
   "NOT MEASURABLE in this phase" clauses are rewritten while keeping its
   injection-resistance protection against transcript-sourced score injection.
 
-- **REQ-48** — [ ] Reports generated before this phase remain valid with null Visual and
+- **REQ-48** — [x] Reports generated before this phase remain valid with null Visual and
   Vocal scores, rendering as "Not yet measured". No retroactive analysis is performed and
   none is possible, since no media was ever retained.
 

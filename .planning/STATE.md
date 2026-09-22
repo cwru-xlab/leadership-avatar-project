@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-22 (Phase 10 in progress — 10-04 complete)
+**Updated:** 2026-09-22 (Phase 10 in progress — 10-08 complete)
 
 ## Current Position
 
 **Phase:** 10 — Video & Audio Metrics
-**Current Plan:** 10-04 of 11 complete (`app/api/audio/word-metrics/route.ts`,
-`lib/metrics/vocal-capture.ts`). Other Phase 10 plans may be executing
+**Current Plan:** 10-08 of 11 complete (`components/interview/ReportScoreCards.tsx`,
+both report pages' `metrics` prop wiring). Other Phase 10 plans may be executing
 concurrently in sibling agents — check individual `10-NN-SUMMARY.md` files
 on disk for the authoritative per-plan completion state. Next: whichever
 `10-NN-PLAN.md` has no matching `10-NN-SUMMARY.md` yet, via
@@ -16,7 +16,7 @@ on disk for the authoritative per-plan completion state. Next: whichever
 
 **Previous phase:** 9 — Student-Authored Scenarios — COMPLETE
 **Current Plan:** All 9 plans (09-01 through 09-09) complete. Phase 9 signed off: 19-point static constraint sweep (all PASS) plus a human-confirmed 24-step end-to-end walkthrough, with one real defect (avatar picker sourcing the wrong catalog) found and fixed under the checkpoint before final approval.
-**Status:** Phase 10 in progress — 4/11 plans complete (at least; see disk for concurrent siblings)
+**Status:** Phase 10 in progress — 5/11 plans complete (at least; see disk for concurrent siblings)
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -99,6 +99,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 10-video-audio-metrics]: 10-02 added six identical nullable Phase 10 columns to both `InterviewReport` and `ScenarioReport` (`cameraMode`, `visualMetrics`, `vocalMetrics`, `visualUnscoredReason`, `vocalUnscoredReason`, `metricsConsentAt`) plus `User.videoAnalysisConsentAt`, via migration `20260922134512_add_video_audio_metrics` (fourth migration in the unapplied handoff queue after 06-01/08-02/09-01, applied to `leadership_avatar_dev` only). Both report DTOs gained an identically-shaped `metrics` block sourced from one shared `lib/metrics/types.ts` import (no private duplicate shape in either DTO file); a `Json?` column or an unrecognized reason/mode string degrades to `null` via a small local narrowing helper rather than a bare cast, verified against a legacy all-null row, a fully-populated row, and a garbage-JSON row via a throwaway `tsx` script. 10-02's `REQUIREMENTS.md` checkboxes (REQ-36, REQ-38, REQ-45, REQ-47, REQ-48) are intentionally left unchecked despite appearing in 10-02's frontmatter, matching the 10-01 precedent for split requirements — the schema/DTO foundation is fully real here, but each requirement's full user-facing text also needs the capture pipeline, evaluators, and report pages that later Phase 10 plans own before the end-to-end behavior exists. 10-02 ran concurrently with sibling Phase 10 plans in the same working directory (shared git index, no worktree isolation); both commits staged only literal file paths and were independently confirmed via `git show --name-only` to contain no sibling files. An unrelated `tsc --noEmit` failure in a concurrently-in-progress sibling's untracked file (`app/api/audio/word-metrics/route.ts`) was confirmed out of scope (present/absent identically regardless of 10-02's own changes) and logged, not fixed, in `.planning/phases/10-video-audio-metrics/deferred-items.md`.
 - [Phase 10-video-audio-metrics]: 10-03's `lib/metrics/visual-capture.ts` self-hosts `@mediapipe/tasks-vision@1.0.1` (exact pin) and its WASM/model assets under `public/mediapipe/` rather than a CDN, with no `@latest`/`/latest/` reference anywhere; the primary self-host path succeeded so the plan's jsDelivr fallback was never needed. `eye_contact_pct` and `camera_centered_pct` use deliberately different denominators (processed samples vs. detected samples respectively) so an absent face scores down without falsely penalizing framing math that only makes sense when a face is present — documented in-file as intentional, not an inconsistency. `face_detected_samples` is confirmed (by grep and by code inspection) to never gate whether `stop()` returns metrics; only the separate `analyzer_error`/track-liveness/starvation signals from 10-01's `resolveVisualOutcome` do that. 10-03's `REQUIREMENTS.md` checkboxes are intentionally left unchecked for all six plan-frontmatter requirements (REQ-38, REQ-39, REQ-41, REQ-42, REQ-43, REQ-49) despite appearing in its frontmatter, matching the established split-requirement precedent — the capture engine and live affordances are fully real and unit-verified here, but each requirement's full user-facing text also needs this engine wired into an actual session surface, which 10-09/10-10 own. 10-03 ran concurrently with sibling Phase 10 plans in the same working directory; all three commits staged only literal file paths and were independently confirmed via `git show --name-only` to contain no sibling files.
 - [Phase 10-video-audio-metrics]: 10-04's Task 3 MEASURED (not assumed) the two open budget questions with real OpenAI calls and real disfluent speech (macOS `say` + `ffmpeg`, in the exact `audio/webm` container `MediaRecorder` already produces): `/api/audio/word-metrics` latency for 5.5s/14s/58.4s real clips was 1.9s/3.3s/4.8s wall-clock, far under the plan's ~15s-per-turn fallback trigger; `whisper-1` verbose_json DOES retain filler disfluencies as literal word tokens (`um`/`uh`/`like`/`you know`/`I mean` all observed verbatim with real timestamps), so `filler_word_count` is genuinely measurable; a real `runInterviewEvaluation` call against a real READY report's S3 transcript took 13,608ms, well inside the existing 50,000ms budget. **Decision: the primary design is confirmed — no `metricsStatus` fallback column, no second polling axis, no report-page polling change anywhere in Phase 10.** `lib/metrics/vocal-capture.ts`'s `createVocalCapture()` derives WPM/pause-count/filler-count/volume-consistency entirely from real word timings and a real RMS series with turn-scoped denominators (never session wall-clock, never RMS silence for pauses); typed turns are fully inert for every metric numerator (REQ-44). The transient `tsc --noEmit` failure 10-02 logged against this plan's then-in-progress `app/api/audio/word-metrics/route.ts` in `deferred-items.md` is now resolved — the file compiles clean. 10-04 ran concurrently with sibling Phase 10 plans in the same working directory; both commits staged only literal file paths and were independently confirmed via `git show --name-only` to contain no sibling files.
+- [Phase 10-video-audio-metrics]: 10-08's `resolveCardState` in `components/interview/ReportScoreCards.tsx` is the single place the four-plus-one-cause branching happens, keyed strictly on STORED fields (`cameraMode`, `visualUnscored`/`vocalUnscored`) rather than re-derived from score null-ness, so a legacy pre-Phase-10 row (`cameraMode: null`) and a modern camera-off row (`cameraMode: "OFF"`, both scores null) can never be confused; `metrics` defaults to `null` on the component's props so REQ-48 (legacy reports unchanged) is a structural guarantee independent of whether a caller remembers to pass it. Coverage disclosure (`isPoorVisualCoverage`) is appended text on an already-rendered score only, never a gate on whether a score renders and never a second score. Both report pages' one-line `metrics={report?.metrics ?? null}` change required no polling-logic edits, confirmed by an explicit grep. REQ-41/45/46/47/48 are now genuinely complete (this is the plan that delivers the user-facing report-page behavior those earlier split-requirement plans deferred to).
 
 ## Progress
 
@@ -1022,3 +1023,47 @@ Open items carried into Phase 10+:
   plans in the same working directory; both commits staged only literal file
   paths and independently confirmed via `git show --name-only` to contain no
   sibling files.
+- 10-08 (four-cause report score cards — `components/interview/ReportScoreCards.tsx`,
+  `app/interview/[type]/report/[reportId]/page.tsx`,
+  `app/case-play/[caseId]/report/[reportId]/page.tsx`): complete (at least
+  5/11 plans; see disk for concurrent siblings). Commits `3be6016`,
+  `72b541a`, `8b9ac66`. `UnmeasuredCard` (previously unconditional "Not yet
+  measured", never reading its score props) replaced by `DeliveryCard`,
+  driven by a pure `resolveCardState(cameraMode, unscoredReason, score)`
+  function with a fixed resolution order: `not_yet_measured` (legacy,
+  keyed on the STORED `cameraMode` being null, byte-identical copy) →
+  `camera_off` (`CAMERA_OFF_OPTOUT`) → `typed_only` (`TYPED_ONLY`) →
+  `insufficient_data` (`INSUFFICIENT_DATA`) → `not_scored` (the existing
+  06-08 evaluation-produced-nothing state, now reachable for Visual/Vocal
+  too) → `scored`. Scored cards render `visualBands`/`vocalBands` rows
+  beneath the existing score, qualitative words only — grep-verified zero
+  `%` characters and zero `toFixed`/`Math.round` calls in the rendering
+  code. Poor coverage is disclosed via `isPoorVisualCoverage` only when
+  `state === "scored"` and the predicate is true, kept structurally separate
+  from scoring. Both report pages pass `metrics={report?.metrics ?? null}`
+  (one line each; `metrics` defaults to `null` so REQ-48 is structurally
+  guaranteed). `npx tsc --noEmit` clean. Verified genuinely end-to-end
+  without a browser (a `next dev`/Turbopack server was already live on port
+  3000 for sibling agents; per policy a second instance was not started):
+  ran the real `toInterviewReportDTO` mapper on a real fetched READY row for
+  `alice.johnson@case.edu` (a genuine pre-Phase-10 legacy row,
+  `cameraMode: null`) through the real component via `renderToStaticMarkup`
+  — exactly 2 "Not yet measured" occurrences, confirming the legacy path is
+  unchanged end-to-end; ran the same real mapper+component on two synthetic
+  in-memory row objects (never written to the DB) for a camera-off opt-out
+  and a scored `cameraMode: "ON"` row with a real `VisualMetrics` JSON blob,
+  both rendering correctly. A throwaway `renderToStaticMarkup` script
+  covering all 7 plan-specified inputs (including the "no raw `\d+%`
+  anywhere in rendered text" assertion) passed and was deleted. Ran
+  concurrently with sibling Phase 10 plans in the same working directory;
+  the first Task 1 commit attempt absorbed 5 sibling files already staged
+  in the shared index and was recovered non-destructively via
+  `git reset HEAD~1` (nothing discarded) and re-committed with only the
+  intended file — confirmed via `git show --name-only`. Both Task 2
+  commits (bracketed paths) staged with literal quoted pathspecs and each
+  independently confirmed via `git show --name-only` to contain exactly one
+  file. One untracked, pre-existing sibling scratch file
+  (`__verify_consent.mjs`, not created by this plan) was inadvertently
+  deleted during this plan's own throwaway-script cleanup; flagged in
+  `10-08-SUMMARY.md` since it cannot be restored from git (untracked) — no
+  tracked file or commit was affected.
