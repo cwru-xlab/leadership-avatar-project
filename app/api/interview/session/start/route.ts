@@ -8,6 +8,7 @@ import {
   resolveCustomizationRecord,
   type InterviewCustomizationInput,
 } from "@/lib/interview/customization";
+import type { CameraMode } from "@/lib/metrics/types";
 
 export const runtime = "nodejs";
 
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
       resumeId: rawResumeId,
       resumeText: rawResumeText,
       customization,
+      cameraMode: rawCameraMode,
     } = body as Record<string, unknown>;
 
     // `resolveInterviewType` is the only place field validation happens; the
@@ -95,6 +97,34 @@ export async function POST(request: NextRequest) {
     // garbage that fell back to preset defaults.
     const customizationRecord = resolveCustomizationRecord(type);
 
+    // REQ-35: never trust the client's string. Anything other than the two
+    // literal CameraMode values falls back to "OFF", mirroring the
+    // resolveInterviewType precedent of a hostile value silently falling
+    // back rather than throwing.
+    let cameraMode: CameraMode =
+      rawCameraMode === "ON" || rawCameraMode === "OFF" ? rawCameraMode : "OFF";
+
+    const user = await prisma.user.findUnique({
+      where: { id: currentUser.id },
+      select: { videoAnalysisConsentAt: true },
+    });
+    const consentAt = user?.videoAnalysisConsentAt ?? null;
+
+    // REQ-36 enforced in code, not only in UI: a client that skipped the
+    // consent dialog must not be able to start a measured session, the same
+    // discipline the evaluators use for score nulling. The server is the
+    // last line of defence — it never trusts a client-reported "consent
+    // already given".
+    if (cameraMode === "ON" && !consentAt) {
+      console.info("Interview session start: forcing camera OFF (no consent)", {
+        userId: currentUser.id,
+      });
+      cameraMode = "OFF";
+    }
+
+    // cameraMode and metricsConsentAt are written ONCE, here, at creation.
+    // There is no update path anywhere that mutates cameraMode later — that
+    // is REQ-35's lock enforced structurally, not by the UI disabling a toggle.
     const report = await prisma.interviewReport.create({
       data: {
         userId: currentUser.id,
@@ -104,6 +134,8 @@ export async function POST(request: NextRequest) {
         resumeId,
         resumeText,
         status: "IN_PROGRESS",
+        cameraMode,
+        metricsConsentAt: consentAt,
         ...customizationRecord,
       },
       select: { id: true },
@@ -115,6 +147,7 @@ export async function POST(request: NextRequest) {
       typeSlug: type.slug,
       difficulty: customizationRecord.difficulty,
       targetMinutes: customizationRecord.targetMinutes,
+      cameraMode,
     });
 
     return response({ reportId: report.id }, 201);
