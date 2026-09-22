@@ -1785,7 +1785,7 @@ export default function CasePlayPage() {
   const currentRoleMessages = selectedRole ? (chatMessages[selectedRole.id] || []) : [];
 
   return (
-    <div className="flex h-full gap-4 p-4">
+    <div className="relative flex h-full gap-4 p-4">
       {/* Left sidebar - Roles */}
       <div className="w-64 shrink-0 flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -1929,6 +1929,11 @@ export default function CasePlayPage() {
                 />
               </div>
             )}
+
+            {/* Self-view in the bottom-right of the AVATAR panel, the usual
+                video-call convention. In text mode there is no avatar panel,
+                so a page-level fallback renders it instead (see below). */}
+            <SelfViewThumbnail stream={scenarioSelfViewStream} />
 
             {/* Floating header */}
             <div className="absolute top-0 left-0 right-0 z-10 p-3 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
@@ -2243,13 +2248,17 @@ export default function CasePlayPage() {
         </ModalContent>
       </Modal>
 
-      {/* Live capture affordances (REQ-43), scenario runs only. Fixed-position
-          siblings so they overlay without disturbing the player's layout.
-          The banner is non-blocking and folds away the moment the face is
-          picked up again; neither element scores or coaches. */}
+      {/* Live capture affordances (REQ-43), scenario runs only. The self-view
+          normally lives inside the avatar panel (bottom-right, the usual
+          video-call convention); this is the TEXT-mode fallback, since that
+          layout has no avatar panel to anchor to. The banner is non-blocking
+          and folds away the moment the face is picked up again; neither
+          element scores or coaches. */}
       {isScenario && (
         <>
-          <SelfViewThumbnail stream={scenarioSelfViewStream} />
+          {interactionMode !== "avatar" && (
+            <SelfViewThumbnail stream={scenarioSelfViewStream} />
+          )}
           <FaceDetectionBanner visible={cameraMode === "ON" && !faceDetected} />
         </>
       )}
