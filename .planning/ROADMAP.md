@@ -190,10 +190,27 @@ Plans:
 
 ### Phase 10: Video & Audio Metrics
 **Goal:** Populate `visual_metrics` and `vocal_metrics` so the Visual and Vocal rubric categories score.
-**Depends on:** Phase 6
+**Depends on:** Phase 6 — and effectively Phase 9 too, since `10-CONTEXT.md` brought
+scenario reports into scope (the original line predates Phase 9's second report type).
+**Requirements:** REQ-35, REQ-36, REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42, REQ-43, REQ-44, REQ-45, REQ-46, REQ-47, REQ-48, REQ-49
 **Success Criteria** (what must be TRUE):
   1. Eye contact, framing, speech rate and filler counts are measured, not estimated.
   2. Reports generated before this phase remain valid with null scores.
+
+**Plans:** 11 plans
+
+Plans:
+- [ ] 10-01-PLAN.md — shared metric contract, qualitative bands, liveness-vs-performance discriminator
+- [ ] 10-02-PLAN.md — metric/camera-mode/unscored-reason columns on both report models + both DTOs
+- [ ] 10-03-PLAN.md — in-browser visual capture engine + self-view thumbnail + fold-away banner
+- [ ] 10-04-PLAN.md — vocal capture engine, word-timestamp STT route, evaluation-budget measurement
+- [ ] 10-05-PLAN.md — consent record/dialog + camera-mode snapshot on both session-start routes
+- [ ] 10-06-PLAN.md — widen both evaluators, rewrite the scenario prompt's metric clauses, inject real metrics
+- [ ] 10-07-PLAN.md — finish-route metric ingestion + both runners persist scores, metrics and unscored reasons
+- [ ] 10-08-PLAN.md — ReportScoreCards four-state rewrite with qualitative bands, wired into both report pages
+- [ ] 10-09-PLAN.md — interview wizard + session shell camera-mode gate, live affordances, metrics on finish
+- [ ] 10-10-PLAN.md — case-play scenario player camera-mode gate, live affordances, metrics on finish
+- [ ] 10-11-PLAN.md — static constraint sweep + human end-to-end validation (camera/mic/live UI)
 
 ### Phase 11: Cohort & Staff Teardown
 **Goal:** Remove the assignment and monitoring wrapper from the student path. NOT a removal of case functionality — /case-play is the Case Study Scenarios interaction type and stays.
