@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { s3Storage } from "@/lib/s3-client";
 import { resolveAttemptLanguage } from "@/lib/languages";
 import type { InteractionLog } from "@/types";
+import type { CameraMode } from "@/lib/metrics/types";
 
 export const runtime = "nodejs";
 
@@ -41,7 +42,11 @@ export async function POST(request: NextRequest) {
       return response({ error: "Invalid request body" }, 400);
     }
 
-    const { caseId, language } = body as Record<string, unknown>;
+    const {
+      caseId,
+      language,
+      cameraMode: rawCameraMode,
+    } = body as Record<string, unknown>;
 
     if (typeof caseId !== "string" || !caseId) {
       return response({ error: "Scenario not found" }, 404);
@@ -64,8 +69,33 @@ export async function POST(request: NextRequest) {
       return response({ error: "Scenario not found" }, 404);
     }
 
+    // REQ-35: never trust the client's string. Anything other than the two
+    // literal CameraMode values falls back to "OFF", mirroring the
+    // resolveInterviewType precedent of a hostile value silently falling
+    // back rather than throwing.
+    let cameraMode: CameraMode =
+      rawCameraMode === "ON" || rawCameraMode === "OFF" ? rawCameraMode : "OFF";
+
+    const user = await prisma.user.findUnique({
+      where: { id: currentUser.id },
+      select: { videoAnalysisConsentAt: true },
+    });
+    const consentAt = user?.videoAnalysisConsentAt ?? null;
+
+    // REQ-36 enforced in code, not only in UI: a client that skipped the
+    // consent dialog must not be able to start a measured session. The
+    // server is the last line of defence.
+    if (cameraMode === "ON" && !consentAt) {
+      console.info("Scenario session start: forcing camera OFF (no consent)", {
+        userId: currentUser.id,
+      });
+      cameraMode = "OFF";
+    }
+
     // REQ-33: snapshot taken from `scenario` right now, at run start — never
     // updated later even if the author edits or deletes the scenario.
+    // cameraMode/metricsConsentAt extend the same run-time-snapshot principle
+    // to Phase 10, written ONCE here at creation with no later update path.
     const report = await prisma.scenarioReport.create({
       data: {
         userId: currentUser.id,
@@ -75,6 +105,8 @@ export async function POST(request: NextRequest) {
         backgroundSnapshot: scenario.backgroundInfo,
         avatarsSnapshot: scenario.avatars as unknown as object,
         criteriaSnapshot: scenario.evaluationPrompt ?? null,
+        cameraMode,
+        metricsConsentAt: consentAt,
       },
       select: { id: true },
     });
@@ -139,6 +171,7 @@ export async function POST(request: NextRequest) {
       userId: currentUser.id,
       reportId: report.id,
       caseId,
+      cameraMode,
     });
 
     return response({ success: true, reportId: report.id, log }, 201);
