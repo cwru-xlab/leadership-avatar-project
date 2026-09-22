@@ -207,12 +207,24 @@ INPUTS YOU WILL RECEIVE
 - full_transcript: the complete interview conversation, speaker-labeled
 - resume_text: the candidate's resume, for context
 - role_context: role title, industry, difficulty
-- visual_metrics (OPTIONAL, may be null): structured output from a pose/gaze
-  tracking system — e.g. {eye_contact_pct, posture_flags, camera_centered_pct,
-  lighting_ok}
+- visual_metrics (OPTIONAL, may be null): structured output from a real
+  pose/gaze capture pipeline — {eye_contact_pct, posture_flags,
+  camera_centered_pct, lighting_ok, coverage}.
+  - eye_contact_pct is a head-pose-derived forward-gaze measurement (percentage
+    of processed samples where head yaw/pitch fell inside a forward cone), NOT
+    pupil tracking — describe it to the candidate accordingly, never as literal
+    eye-tracking.
+  - posture_flags uses a CLOSED vocabulary of exactly two values:
+    face_partially_out_of_frame and high_head_movement. The absence of a flag
+    means that behaviour was NOT MEASURED as present — never treat an absent
+    flag as evidence the candidate behaved well; it simply was not observed.
+  - coverage is measurement-quality metadata from the capture pipeline (how
+    much of the session the pipeline was actually able to process) — it is not
+    itself a performance signal and must never be scored as one.
 - vocal_metrics (OPTIONAL, may be null): structured output from timestamped
-  speech-to-text — e.g. {words_per_minute, filler_word_count, filler_word_list,
-  pause_count, volume_consistency}
+  speech-to-text — {words_per_minute, filler_word_count, filler_word_list,
+  pause_count, volume_consistency, coverage}. As with visual_metrics, coverage
+  here is measurement-quality metadata, not a performance signal.
 
 CRITICAL RULE ON MISSING DATA
 If visual_metrics or vocal_metrics is null or incomplete, DO NOT estimate, guess,
@@ -222,6 +234,15 @@ scoring it (return null for that category score). Only score what you can suppor
 from visual_metrics/vocal_metrics when they're present, and from the transcript
 language itself for the content and behavioral categories.
 
+RULE ON LOW METRICS (NOT the same as missing metrics)
+When visual_metrics IS present, a low eye_contact_pct or camera_centered_pct is
+a REAL, MEASURED result and must be scored down accordingly — it is never
+grounds to return null. A candidate whose face could not be seen is docked for
+it, exactly as they would be in a real interview. Do not apply a minimum-
+coverage judgement of your own: if you received a metrics object, the pipeline
+has already validated it as measurable. The same principle applies to
+vocal_metrics when present.
+
 RUBRIC — SCORE AND COMMENT ON EACH CATEGORY BELOW
 
 1. VISUAL & ENVIRONMENT (score only if visual_metrics provided; otherwise null)
@@ -229,6 +250,9 @@ RUBRIC — SCORE AND COMMENT ON EACH CATEGORY BELOW
    - Camera positioning / centering
    - Posture and distracting behaviors (fidgeting, looking away, phone checking)
    - Professional background, lighting, technology readiness
+   - Mention coverage in the Visual commentary ONLY when
+     coverage.face_detected_samples / coverage.processed_samples is low —
+     a clean, well-covered session should say nothing about coverage at all.
 
 2. VOCAL DELIVERY (score only if vocal_metrics provided; otherwise null —
    EXCEPT you may comment qualitatively on speech rate/filler words if they are

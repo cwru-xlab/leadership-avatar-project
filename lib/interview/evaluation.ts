@@ -11,6 +11,7 @@
  */
 
 import { INTERVIEW_EVALUATOR_PROMPT } from "./prompts";
+import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 
 // ---------------------------------------------------------------------------
 // JSON schema — must match INTERVIEW_EVALUATOR_PROMPT's declared output shape
@@ -54,8 +55,11 @@ export interface RawEvaluation {
 }
 
 export interface ValidatedEvaluation {
-  visualScore: null; // typed null — Phase 8 widens this
-  vocalScore: null;
+  // Phase 10 supplies real measured metrics; the null-when-absent guarantee
+  // now lives in validateEvaluationResult's metric-gated coercion below,
+  // not in this type.
+  visualScore: number | null;
+  vocalScore: number | null;
   contentScore: number | null;
   behavioralScore: number | null;
   reportMarkdown: string;
@@ -80,14 +84,22 @@ function coerceScore(value: unknown): number | null {
 }
 
 /**
- * Enforces the evaluator prompt's CRITICAL RULE ON MISSING DATA in code,
- * not just in the prompt text. Visual and Vocal scores are ALWAYS null here,
- * discarding whatever the model returned — no metrics pipeline exists yet
- * (deferred to Phase 8). Content and Behavioral scores are coerced to null
- * if they are not a clean 1-5 integer. Throws if the report body is empty,
- * so the caller records FAILED instead of storing a blank report.
+ * Enforces the evaluator prompt's CRITICAL RULE ON MISSING DATA in code, not
+ * just in the prompt text. Visual and Vocal scores are coerced through the
+ * SAME `coerceScore` used for Content/Behavioral, but only when the
+ * corresponding metrics were actually supplied for this session — when they
+ * were not (`opts.hasVisualMetrics`/`hasVocalMetrics` false), the score is
+ * forced null unconditionally, discarding whatever the model returned. The
+ * missing-data rule is still enforced in code, not merely in the prompt; the
+ * condition is now "were metrics supplied" rather than "always". Content and
+ * Behavioral scores are coerced to null if they are not a clean 1-5 integer.
+ * Throws if the report body is empty, so the caller records FAILED instead of
+ * storing a blank report.
  */
-export function validateEvaluationResult(raw: unknown): ValidatedEvaluation {
+export function validateEvaluationResult(
+  raw: unknown,
+  opts: { hasVisualMetrics: boolean; hasVocalMetrics: boolean }
+): ValidatedEvaluation {
   const r = (raw ?? {}) as Partial<RawEvaluation>;
 
   const reportMarkdown =
@@ -97,9 +109,11 @@ export function validateEvaluationResult(raw: unknown): ValidatedEvaluation {
   }
 
   return {
-    // Enforced in code, not just in the prompt. Phase 8 supplies real metrics.
-    visualScore: null,
-    vocalScore: null,
+    // Gated on whether the pipeline actually supplied metrics for this
+    // session. No metrics supplied → always null, no matter what the model
+    // returned, exactly as before Phase 10.
+    visualScore: opts.hasVisualMetrics ? coerceScore(r.visual_score) : null,
+    vocalScore: opts.hasVocalMetrics ? coerceScore(r.vocal_score) : null,
     contentScore: coerceScore(r.content_score),
     behavioralScore: coerceScore(r.behavioral_score),
     reportMarkdown,
@@ -121,6 +135,12 @@ export interface EvaluationInput {
   /** Snapshot of the candidate's extracted resume text. "" when skipped. */
   resumeText: string;
   roleContext: { roleTitle: string; industry: string; difficulty: string };
+  /** Real measured visual metrics for this session, or null when unmeasured
+   * (camera off, legacy pre-Phase-10 row, or a technical failure). */
+  visualMetrics: VisualMetrics | null;
+  /** Real measured vocal metrics for this session, or null when unmeasured
+   * (typed-only turns, legacy pre-Phase-10 row, or a technical failure). */
+  vocalMetrics: VocalMetrics | null;
 }
 
 export interface EvaluationOutcome {
@@ -160,8 +180,11 @@ ${resumeSection}
 role_context:
 ${roleContextJson}
 
-visual_metrics: null
-vocal_metrics: null`;
+visual_metrics: ${input.visualMetrics ? JSON.stringify(input.visualMetrics) : "null"}
+vocal_metrics: ${input.vocalMetrics ? JSON.stringify(input.vocalMetrics) : "null"}`;
+  // The literal string "null" for an absent block keeps today's exact prompt
+  // bytes for a camera-off or legacy run, so an unmeasured session's
+  // evaluation is provably unchanged (REQ-48).
 }
 
 async function attemptEvaluation(
@@ -195,7 +218,10 @@ async function attemptEvaluation(
   }
 
   const parsed = JSON.parse(content) as unknown;
-  return validateEvaluationResult(parsed);
+  return validateEvaluationResult(parsed, {
+    hasVisualMetrics: input.visualMetrics !== null,
+    hasVocalMetrics: input.vocalMetrics !== null,
+  });
 }
 
 /**
