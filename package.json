@@ -38,6 +38,7 @@
     "@heroui/toast": "^2.0.22",
     "@heroui/tooltip": "^2.2.29",
     "@heygen/liveavatar-web-sdk": "^0.0.11",
+    "@mediapipe/tasks-vision": "1.0.1",
     "@mozilla/readability": "^0.6.0",
     "@pinecone-database/pinecone": "^6.1.4",
     "@react-aria/ssr": "3.9.10",
