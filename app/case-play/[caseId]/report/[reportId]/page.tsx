@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { ArrowLeft, CircleAlert, Sparkles } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import ReportMarkdown from "@/components/interview/ReportMarkdown";
 import ReportScoreCards from "@/components/interview/ReportScoreCards";
@@ -215,7 +215,7 @@ function ScenarioSnapshotStrip({
   return (
     <div className="mb-6 rounded-2xl border border-[#d4e2e9] bg-white p-5 shadow-[0_10px_30px_rgba(20,58,75,0.06)]">
       <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#526c7b]">
-        This scenario as it was when you practised
+        This scenario as it was when you practiced
       </p>
       <p className="mt-2 font-serif text-xl text-[#102331]">{scenario.name}</p>
       {scenario.characters.length > 0 && (
