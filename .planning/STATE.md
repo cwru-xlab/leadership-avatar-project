@@ -6,9 +6,13 @@
 
 ## Current Position
 
-**Phase:** 9 — Student-Authored Scenarios — COMPLETE
+**Phase:** 10 — Video & Audio Metrics
+**Current Plan:** Not started — context gathered 2026-09-21, not yet planned. See
+`.planning/phases/10-video-audio-metrics/10-CONTEXT.md`. Run `/gsd:plan-phase 10`.
+
+**Previous phase:** 9 — Student-Authored Scenarios — COMPLETE
 **Current Plan:** All 9 plans (09-01 through 09-09) complete. Phase 9 signed off: 19-point static constraint sweep (all PASS) plus a human-confirmed 24-step end-to-end walkthrough, with one real defect (avatar picker sourcing the wrong catalog) found and fixed under the checkpoint before final approval. Next: `/gsd:plan-phase 10` (Video & Audio Metrics).
-**Status:** Ready for Phase 10 planning
+**Status:** Phase 10 context captured — ready for planning
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -824,11 +828,48 @@ sibling dev server, self-healed, no code impact) — none block Phase 9 sign-off
 
 ## Next
 
+Phase 10 context captured 2026-09-21 in
+`.planning/phases/10-video-audio-metrics/10-CONTEXT.md` (commit `763b288`).
+Run `/gsd:plan-phase 10`.
+
 Phase 9 (Student-Authored Scenarios) is COMPLETE — see "Phase 9 Status:
-COMPLETE" above and `09-09-SUMMARY.md` for full detail. Next up: Phase 10
-(Video & Audio Metrics), which populates the `visual`/`vocal` rubric
-categories that Phases 6, 8, and 9 all render as "Not yet measured." Run
-`/gsd:plan-phase 10` to begin planning.
+COMPLETE" above, `09-09-SUMMARY.md`, and `09-VERIFICATION.md` (goal verifier:
+passed, 10/10 must-haves).
+
+Key Phase 10 decisions (full detail in `10-CONTEXT.md`):
+- Camera is OPTIONAL, chosen BEFORE the session and LOCKED — no mid-session
+  switching in either direction.
+- Video is analyzed IN-FLIGHT and NEVER STORED. Only derived numbers persist.
+  No media in S3. Therefore no retroactive analysis of past sessions is possible
+  (and none is wanted — legacy reports keep null scores permanently).
+- An undetected face while camera mode is ON is POOR PERFORMANCE, not missing
+  data — it scores down, exactly as a real interview would dock it. No coverage
+  threshold gates the Visual score.
+- A denied permission BLOCKS (with an option to switch to camera-off); a
+  deliberate camera-off choice proceeds with notice and is recorded on the report.
+- Typed answers leave Vocal UNMEASURED (different modality), deliberately NOT
+  symmetric with the camera case.
+- BOTH interview and scenario reports light up. Phase 10 therefore also depends
+  on Phase 9, not just Phase 6 as the ROADMAP line says.
+- Live affordances: a non-blocking face-detection banner that folds away, plus a
+  self-view thumbnail. No live scoring or coaching.
+- Presentation: score plus qualitative bands (not raw percentages), inside the
+  existing Visual/Vocal rubric cards, filling in after the report arrives.
+
+Three things the planner must handle:
+- **Phase 10 has NO REQ IDs.** REQUIREMENTS.md ends at REQ-34. Generate REQ-35
+  onward or the plan-checker has nothing to verify against — the third phase in a
+  row to hit this gap.
+- **`lib/scenario/evaluation.ts:75-76` types `visualScore`/`vocalScore` as the
+  literal `null` type**, deliberately, so a real score is a compile error. That
+  Phase 9 guard now blocks Phase 10 and must be widened.
+- **This phase legitimately owns editing `lib/interview/prompts.ts`** if the metric
+  contract is extended. Phases 6-9 enforced that file as diff-empty, but that was a
+  phase-scoped guard, not a permanent rule. Note the evaluator prompt is NOT the
+  session-constant live interviewer prompt — editing it does not affect the prefix
+  cache, and no static check should conflate the two.
+- **Poor performance vs technical failure must not be conflated** — a student
+  leaving frame and the analyzer dying can look identical in the data.
 
 Key Phase 9 decisions carried forward for future phases:
 - A "scenario" is a CASE-STYLE ROLEPLAY (situation + one or more avatar
