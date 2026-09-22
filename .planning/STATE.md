@@ -2,35 +2,26 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-22 (Phase 10 in progress — 10-01..10-09 complete; see disk for concurrent siblings)
+**Updated:** 2026-09-22 (Phase 10 COMPLETE — all 11 plans executed and signed off; Phase 11 in progress in a parallel session)
 
 ## Current Position
 
-**Phase:** 10 — Video & Audio Metrics
-**Current Plan:** 10-06 of 11 complete (`lib/interview/prompts.ts`,
-`lib/interview/evaluation.ts`, `lib/interview/evaluation-runner.ts`,
-`lib/scenario/prompts.ts`, `lib/scenario/evaluation.ts`,
-`lib/scenario/evaluation-runner.ts`); 10-08 also complete
-(`components/interview/ReportScoreCards.tsx`, both report pages' `metrics`
-prop wiring); 10-05 also complete (`app/api/metrics/consent/route.ts`,
-`components/metrics/MetricsConsentDialog.tsx`, `middleware.ts`,
-`app/api/interview/session/start/route.ts`,
-`app/api/scenario/session/start/route.ts` — account-level consent, the
-in-app consent dialog, and a server-enforced write-once `cameraMode`/
-`metricsConsentAt` snapshot on both report rows); 10-07 also complete
-(finish-route metric ingestion + both evaluation runners); 10-09 also
-complete (`app/interview/[type]/page.tsx`'s camera-mode wizard step,
-`components/interview/InterviewSessionShell.tsx`'s capture lifecycle and
-live affordances — the interview surface's REQ-35/36/37/40/43/44/49 wiring).
-Other Phase 10 plans may be executing concurrently in sibling agents — check
-individual `10-NN-SUMMARY.md` files on disk for the authoritative per-plan
-completion state. Next: whichever `10-NN-PLAN.md` has no matching
-`10-NN-SUMMARY.md` yet (10-10 and 10-11 as of this update), via
-`/gsd:execute-phase 10`.
+**Phase:** 11 — Cohort & Staff Teardown
+**Current Plan:** Phase 11 is being planned/executed in a parallel session (see
+`.planning/phases/11-cohort-staff-teardown/` on disk for the authoritative
+current state — this executor does not touch Phase 11 files).
 
-**Previous phase:** 9 — Student-Authored Scenarios — COMPLETE
-**Current Plan:** All 9 plans (09-01 through 09-09) complete. Phase 9 signed off: 19-point static constraint sweep (all PASS) plus a human-confirmed 24-step end-to-end walkthrough, with one real defect (avatar picker sourcing the wrong catalog) found and fixed under the checkpoint before final approval.
-**Status:** Phase 10 in progress — 9/11 plans complete (at least; see disk for concurrent siblings)
+**Previous phase:** 10 — Video & Audio Metrics — COMPLETE
+**Current Plan:** All 11 plans (10-01 through 10-11) complete. Phase 10 signed
+off: 22-point static constraint sweep (all PASS, re-verified twice more after
+two late-landing fix commits), a live re-run of the liveness-vs-performance
+discriminator's seven assertions, and a human-confirmed end-to-end walkthrough
+against two real camera-on interviews, with one real defect (orphaned camera
+streams keeping the indicator light on after End) found from the user's own
+bug report and fixed under the checkpoint (commit `5c7a2bd`, not yet
+re-confirmed on hardware). See "Phase 10 Status: COMPLETE" below and
+`10-11-SUMMARY.md` for full verbatim detail.
+**Status:** Phase 10 COMPLETE (11/11 plans). Phase 11 in progress.
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -852,50 +843,103 @@ per-check/per-step results and the consolidated deferred-items list
 defect from `fee1d6e`; a process finding about `rm -rf .next` against a live
 sibling dev server, self-healed, no code impact) — none block Phase 9 sign-off.
 
+## Phase 10 Status: COMPLETE
+
+All 11 plans (10-01 through 10-11) executed and verified, including a
+22-point static constraint sweep (all PASS against baseline `c2d55b9` — the
+commit before 10-01's first commit, not `main`), a live re-run of the
+liveness-vs-performance discriminator's seven 10-01 assertions (not taken on
+the earlier SUMMARY's trust), and a human-confirmed end-to-end walkthrough
+against two real camera-on interviews conducted with a live HeyGen avatar.
+REQ-35 through REQ-49 all satisfied and ticked in `REQUIREMENTS.md`. Both
+ROADMAP success criteria proven: criterion 1 (eye contact/framing/speech
+rate/filler counts measured, not estimated) by the evaluator's own narrative
+citing real figures (59% eye contact, 232 WPM, 22 fillers over two answers);
+criterion 2 (pre-Phase-10 reports remain valid with null scores) by 10-08's
+`resolveCardState` structural guarantee.
+
+One real defect was found during the human walkthrough, from the user's own
+bug report, and fixed under the checkpoint (commit `5c7a2bd`): a race between
+a HeyGen avatar reconnect's `CONNECTED` event and an in-flight
+`getUserMedia()` call could acquire two camera streams, orphaning the first
+with no reference left to stop it — explaining why the camera indicator light
+stayed on after End (and, per the user, possibly other exits too, since every
+exit path only ever stopped the reachable stream). Fixed with a synchronous
+`visualStartingRef` guard in `InterviewSessionShell.tsx` set before the
+request, plus defensive track-stopping in both the interview shell and
+`app/case-play/[caseId]/page.tsx` for any stream that slips through late.
+**This fix is reasoned from the code and was NOT re-confirmed on real
+hardware before sign-off** — carried forward as an open item.
+
+REQ-49 (no avatar degradation) was signed off on the user's own direct
+judgement after two real sessions ("avatar smoothness was still good
+enough"), not an instrumented measurement — the user explicitly flagged
+capture performance (possible CPU-delegate fallback competing with the live
+WebRTC stream) as a future-phase item, not resolved here. Steps 13-15 of the
+walkthrough (the docked-vs-insufficient-data pair, the phase's hardest
+distinction) were never exercised live — verified only by the seven
+unit-level discriminator assertions. See `10-11-SUMMARY.md` for the full
+verbatim per-check/per-step results and the consolidated deferred-items list
+(camera-light fix hardware re-confirmation, CPU/GPU delegate performance,
+steps 13-15 never run live, the resumed-scenario legacy-finish-path
+carry-forward from 09-07, the fourth unapplied migration in the handoff
+queue, pre-existing eslint/`/about` breakage, the still-open interviewer-
+persona-reinforcement question) — none block Phase 10 sign-off.
+
 ## Next
 
-Phase 10 context captured 2026-09-21 in
-`.planning/phases/10-video-audio-metrics/10-CONTEXT.md` (commit `763b288`).
-Run `/gsd:plan-phase 10`.
+Phase 10 (Video & Audio Metrics) is COMPLETE — see "Phase 10 Status:
+COMPLETE" above and `10-11-SUMMARY.md`.
 
-Phase 9 (Student-Authored Scenarios) is COMPLETE — see "Phase 9 Status:
-COMPLETE" above, `09-09-SUMMARY.md`, and `09-VERIFICATION.md` (goal verifier:
-passed, 10/10 must-haves).
+Phase 11 (Cohort & Staff Teardown) is now current. It is being planned and
+executed in a parallel session; see `.planning/phases/11-cohort-staff-teardown/`
+on disk for its authoritative state (`11-CONTEXT.md`, `11-RESEARCH.md`, and
+per-plan `11-NN-PLAN.md`/`11-NN-SUMMARY.md` files) rather than this section,
+which this executor deliberately does not maintain to avoid colliding with
+that session's own edits.
 
-Key Phase 10 decisions (full detail in `10-CONTEXT.md`):
+Key Phase 10 decisions carried forward for future phases:
 - Camera is OPTIONAL, chosen BEFORE the session and LOCKED — no mid-session
-  switching in either direction.
+  switching in either direction. Locked to the report row once, at creation.
 - Video is analyzed IN-FLIGHT and NEVER STORED. Only derived numbers persist.
-  No media in S3. Therefore no retroactive analysis of past sessions is possible
-  (and none is wanted — legacy reports keep null scores permanently).
+  No media in S3. No retroactive analysis of past sessions is possible or
+  wanted — legacy reports keep null scores permanently.
 - An undetected face while camera mode is ON is POOR PERFORMANCE, not missing
-  data — it scores down, exactly as a real interview would dock it. No coverage
-  threshold gates the Visual score.
+  data — `lib/metrics/coverage.ts`'s `resolveVisualOutcome` never reads
+  `face_detected_samples`; it scores down instead, exactly as a real interview
+  would dock it. No coverage threshold gates the Visual score.
+- The liveness-vs-performance discriminator checks THREE independent
+  technical-failure signatures (analyzer error, track-live-ratio < 0.5,
+  processed/expected ratio < 0.5) plus an absolute 60-sample floor, in a
+  fixed order (opt-out checked first), before ever reaching the scoring path.
 - A denied permission BLOCKS (with an option to switch to camera-off); a
-  deliberate camera-off choice proceeds with notice and is recorded on the report.
-- Typed answers leave Vocal UNMEASURED (different modality), deliberately NOT
-  symmetric with the camera case.
-- BOTH interview and scenario reports light up. Phase 10 therefore also depends
-  on Phase 9, not just Phase 6 as the ROADMAP line says.
-- Live affordances: a non-blocking face-detection banner that folds away, plus a
-  self-view thumbnail. No live scoring or coaching.
-- Presentation: score plus qualitative bands (not raw percentages), inside the
-  existing Visual/Vocal rubric cards, filling in after the report arrives.
-
-Three things the planner must handle:
-- **Phase 10 has NO REQ IDs.** REQUIREMENTS.md ends at REQ-34. Generate REQ-35
-  onward or the plan-checker has nothing to verify against — the third phase in a
-  row to hit this gap.
-- **`lib/scenario/evaluation.ts:75-76` types `visualScore`/`vocalScore` as the
-  literal `null` type**, deliberately, so a real score is a compile error. That
-  Phase 9 guard now blocks Phase 10 and must be widened.
-- **This phase legitimately owns editing `lib/interview/prompts.ts`** if the metric
-  contract is extended. Phases 6-9 enforced that file as diff-empty, but that was a
-  phase-scoped guard, not a permanent rule. Note the evaluator prompt is NOT the
-  session-constant live interviewer prompt — editing it does not affect the prefix
-  cache, and no static check should conflate the two.
-- **Poor performance vs technical failure must not be conflated** — a student
-  leaving frame and the analyzer dying can look identical in the data.
+  deliberate camera-off choice proceeds with notice and is recorded on the
+  report as `CAMERA_OFF_OPTOUT`, distinct from `INSUFFICIENT_DATA`.
+- Typed answers leave Vocal UNMEASURED (`TYPED_ONLY`), deliberately NOT
+  symmetric with the camera case — a modality choice, never a penalty.
+- BOTH interview and scenario reports produce real Visual/Vocal scores,
+  sharing one `lib/metrics/` contract, one `ReportScoreCards.tsx` component,
+  and one qualitative-band vocabulary.
+- Metrics are computed in-flight and delivered at finish (bundled into the
+  existing finish request body), so the single-`status` report-polling model
+  survives unchanged — no second polling axis was added.
+- Camera mode is written ONCE, at report-row creation, in both session-start
+  routes — the structural enforcement of REQ-35's lock; no update path
+  anywhere can mutate it afterward.
+- Presentation: score plus qualitative bands (not raw percentages) inside the
+  existing Visual/Vocal rubric cards — no new report section. The evaluator's
+  own narrative prose, however, does cite raw figures ("59%", "232 WPM"), a
+  mild tension with the decision's spirit left for the user's future call.
+- The posture-flag vocabulary is closed to exactly two values
+  (`face_partially_out_of_frame`, `high_head_movement`); `slouching` and
+  `fidgeting` are deliberately not measured — the capture method cannot
+  honestly defend them.
+- Self-hosted, exactly-pinned MediaPipe assets (`@mediapipe/tasks-vision@1.0.1`)
+  under `public/mediapipe/` — no CDN, no `@latest`.
+- A camera-stream-start guard needs a SYNCHRONOUS in-flight flag, not just a
+  post-await ref check, whenever an external event (an avatar reconnect) can
+  re-invoke the start path while the first request is still pending — the
+  root cause of the 10-11 checkpoint's camera-light defect, fixed in `5c7a2bd`.
 
 Key Phase 9 decisions carried forward for future phases:
 - A "scenario" is a CASE-STYLE ROLEPLAY (situation + one or more avatar
@@ -920,14 +964,24 @@ Key Phase 9 decisions carried forward for future phases:
   server-side in `app/api/scenario/*`), unlike the pre-existing `app/api/case/*`
   routes which remain admin-gated by middleware only — untouched by Phase 9.
 
-Known dependency: Visual/Vocal stay "Not yet measured" until Phase 10 lands.
+This dependency is now RESOLVED: Visual/Vocal produce real scores as of Phase
+10 (see "Phase 10 Status: COMPLETE" above) — removed from the carried-forward
+list.
 
-Open items carried into Phase 10+:
+Open items carried into Phase 11+:
 - Scenario resume via "Unfinished Sessions" falls back to the legacy finish
   pipeline (`handleResume` never repopulates `scenarioReportId`) — see
   "Phase 9 Status: COMPLETE" above.
 - Whether to reinforce the interviewer persona inside `lib/interview/prompts.ts`
   itself, which would mean relaxing that file's diff-empty constraint. User's call.
+- Confirm the Phase 10 camera-light fix (`5c7a2bd`) on real hardware across
+  all exit paths (End, Leave, browser-back, tab close).
+- Revisit Phase 10 capture performance / GPU-vs-CPU MediaPipe delegate
+  selection — the `[visual-capture] engine started` log now reports which
+  delegate is active.
+- Phase 10 walkthrough steps 13-15 (docked-vs-insufficient-data) were never
+  exercised live, only unit-verified — owed if `lib/metrics/coverage.ts` is
+  touched again.
 - Six uncommitted "CaseBridge -> Leadership Avatar" rename files still in the
   working tree.
 
@@ -1213,3 +1267,40 @@ Open items carried into Phase 10+:
   seeded students (including `alice.johnson@case.edu`) all have
   `videoAnalysisConsentAt: null`, the precondition the plan's consent-dialog
   verification step calls for.
+- 10-10 (case-play scenario capture wiring — `app/case-play/[caseId]/page.tsx`):
+  complete, 10/11 plans. Commits `d736f29`, `3942da8`. Added the same locked
+  camera-mode choice/consent gate to the scenario intro screen that 10-09 gave
+  the interview wizard, plus turn-level vocal accounting on both the typed and
+  push-to-talk paths (`recordTypedTurn()`/`submitSpokenTurn()`), both gated on
+  `isScenario` so admin case studies are untouched. Turn-level accounting is
+  required here specifically because `/case-play`'s pre-existing Text/Avatar
+  toggle (unlike camera mode) is NOT locked and may change mid-session — a
+  mixed session scores on its spoken portion only, letting that toggle stay
+  unlocked without corrupting the vocal metric. Metrics submitted on finish as
+  `metrics: { cameraMode, visual, vocal }`; `SelfViewThumbnail`/
+  `FaceDetectionBanner` render as scenario-only fixed overlays. `npx tsc
+  --noEmit` clean; `app/api/interaction/` confirmed diff-empty across Phases 9
+  and 10. This plan took four attempts across infrastructure failures (network
+  errors, a session limit) unrelated to the work itself; see
+  `10-10-SUMMARY.md`'s "Execution note" for the full honest account of an
+  intermediate progress report that overclaimed completion before the actual
+  commits landed — corrected before this final SUMMARY was written.
+- 10-11 (static constraint sweep + human end-to-end validation — phase
+  close-out): complete, 11/11 plans. No new production code committed by
+  Task 1 itself (all 22 static checks passed clean against baseline `c2d55b9`
+  on the first run); one real defect found from the user's own bug report
+  during the Task 2 checkpoint and fixed in commit `5c7a2bd` (orphaned camera
+  streams from a HeyGen-reconnect race left the camera indicator light on
+  after End). All seven of 10-01's liveness-vs-performance discriminator
+  assertions re-run live via a throwaway `tsx` script rather than trusted from
+  the earlier SUMMARY — all seven still pass. `npx tsc --noEmit` re-confirmed
+  clean three times across the plan's execution window as two more commits
+  (`a2ae495`, `6ff03ee`) landed mid-sweep. REQ-35 through REQ-49 all ticked in
+  `REQUIREMENTS.md`; ROADMAP Phase 10 and all 11 plan checkboxes marked
+  complete. REQ-49 signed off on the user's own direct judgement ("avatar
+  smoothness was still good enough") rather than an instrumented measurement,
+  explicitly carried forward as a future performance item. Walkthrough steps
+  13-15 (the docked-vs-insufficient-data pair, the phase's hardest
+  distinction) were never exercised on real hardware — recorded honestly as
+  unit-verified only, not silently claimed as tested. Full verbatim per-check
+  and per-step results in `10-11-SUMMARY.md`.

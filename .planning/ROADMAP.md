@@ -30,7 +30,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 7: Interaction Dashboard** - Self-directed landing page that routes into interactions
 - [x] **Phase 8: Interview Customization** - Preset variants plus industry/role/difficulty/length and interviewer personality
 - [x] **Phase 9: Student-Authored Scenarios** - Students create their own practice scenarios (completed 2026-09-21)
-- [ ] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
+- [x] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
 - [ ] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality)
 
 ## Phase Details
@@ -197,7 +197,7 @@ scenario reports into scope (the original line predates Phase 9's second report 
   1. Eye contact, framing, speech rate and filler counts are measured, not estimated.
   2. Reports generated before this phase remain valid with null scores.
 
-**Plans:** 9/11 plans executed
+**Plans:** 11/11 plans executed
 
 Plans:
 - [x] 10-01-PLAN.md — shared metric contract, qualitative bands, liveness-vs-performance discriminator
@@ -206,11 +206,11 @@ Plans:
 - [x] 10-04-PLAN.md — vocal capture engine, word-timestamp STT route, evaluation-budget measurement
 - [x] 10-05-PLAN.md — consent record/dialog + camera-mode snapshot on both session-start routes
 - [x] 10-06-PLAN.md — widen both evaluators, rewrite the scenario prompt's metric clauses, inject real metrics
-- [ ] 10-07-PLAN.md — finish-route metric ingestion + both runners persist scores, metrics and unscored reasons
+- [x] 10-07-PLAN.md — finish-route metric ingestion + both runners persist scores, metrics and unscored reasons
 - [x] 10-08-PLAN.md — ReportScoreCards four-state rewrite with qualitative bands, wired into both report pages
-- [ ] 10-09-PLAN.md — interview wizard + session shell camera-mode gate, live affordances, metrics on finish
-- [ ] 10-10-PLAN.md — case-play scenario player camera-mode gate, live affordances, metrics on finish
-- [ ] 10-11-PLAN.md — static constraint sweep + human end-to-end validation (camera/mic/live UI)
+- [x] 10-09-PLAN.md — interview wizard + session shell camera-mode gate, live affordances, metrics on finish
+- [x] 10-10-PLAN.md — case-play scenario player camera-mode gate, live affordances, metrics on finish
+- [x] 10-11-PLAN.md — static constraint sweep + human end-to-end validation (camera/mic/live UI)
 
 ### Phase 11: Cohort & Staff Teardown
 **Goal:** Remove the assignment and monitoring wrapper from the student path. NOT a removal of case functionality — /case-play is the Case Study Scenarios interaction type and stays.
@@ -243,5 +243,5 @@ Plans:
 | 7. Interaction Dashboard | 7/7 | Complete    | 2026-09-21 |
 | 8. Interview Customization | 8/8 | Complete    | 2026-09-21 |
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
-| 10. Video & Audio Metrics | 9/11 | In Progress|  |
+| 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 0/7 | Planned     | - |
