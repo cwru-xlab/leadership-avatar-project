@@ -56,6 +56,11 @@ model User {
   // Account status
   isActive      Boolean      @default(true)
   emailVerified Boolean      @default(false)
+
+  // REQ-36: account-level acceptance of video/audio analysis, remembered across
+  // sessions. Distinct from the browser permission dialog, which is not consent
+  // to being ANALYSED. Each report row snapshots this at session start.
+  videoAnalysisConsentAt DateTime?
   
   // Timestamps
   createdAt     DateTime     @default(now())
@@ -306,6 +311,16 @@ model InterviewReport {
   contentScore        Int?
   behavioralScore     Int?
 
+  // Phase 10 video/audio metrics. All nullable: a row written before Phase 10
+  // has every field null, which is exactly the "Not yet measured" legacy state.
+  // Only DERIVED NUMBERS are stored here — never media (REQ-38).
+  cameraMode           String?   // "ON" | "OFF"; null = pre-Phase-10 row
+  visualMetrics        Json?
+  vocalMetrics         Json?
+  visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
+  vocalUnscoredReason  String?   // "TYPED_ONLY" | "INSUFFICIENT_DATA"
+  metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
+
   reportMarkdown      String?               @db.Text
   failureReason       String?               @db.Text
   evalModel           String?
@@ -355,6 +370,16 @@ model ScenarioReport {
   vocalScore         Int?
   contentScore       Int?
   behavioralScore    Int?
+
+  // Phase 10 video/audio metrics. All nullable: a row written before Phase 10
+  // has every field null, which is exactly the "Not yet measured" legacy state.
+  // Only DERIVED NUMBERS are stored here — never media (REQ-38).
+  cameraMode           String?   // "ON" | "OFF"; null = pre-Phase-10 row
+  visualMetrics        Json?
+  vocalMetrics         Json?
+  visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
+  vocalUnscoredReason  String?   // "TYPED_ONLY" | "INSUFFICIENT_DATA"
+  metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
 
   reportMarkdown     String?               @db.Text
   failureReason      String?               @db.Text
