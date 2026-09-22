@@ -2,17 +2,18 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-22 (Phase 10 in progress — 10-01 complete)
+**Updated:** 2026-09-22 (Phase 10 in progress — 10-02 complete)
 
 ## Current Position
 
 **Phase:** 10 — Video & Audio Metrics
-**Current Plan:** 10-01 of 11 complete (`lib/metrics/types.ts`, `lib/metrics/bands.ts`,
-`lib/metrics/coverage.ts`). Next: `10-02-PLAN.md` via `/gsd:execute-phase 10`.
+**Current Plan:** 10-02 of 11 complete (`prisma/schema.prisma` Phase 10 columns +
+migration, `lib/interview/report-dto.ts` and `lib/scenario/report-dto.ts` metrics
+block). Next: `10-03-PLAN.md` via `/gsd:execute-phase 10`.
 
 **Previous phase:** 9 — Student-Authored Scenarios — COMPLETE
 **Current Plan:** All 9 plans (09-01 through 09-09) complete. Phase 9 signed off: 19-point static constraint sweep (all PASS) plus a human-confirmed 24-step end-to-end walkthrough, with one real defect (avatar picker sourcing the wrong catalog) found and fixed under the checkpoint before final approval.
-**Status:** Phase 10 in progress — 1/11 plans complete
+**Status:** Phase 10 in progress — 2/11 plans complete
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -92,6 +93,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 09-student-authored-scenarios]: Checkpoint fix during 09-09's human walkthrough (2026-09-21): the 09-05 avatar picker's data source was reversed. `CaseAvatar` now carries `avatarId`/`voiceId` for student-authored scenario characters, binding directly to the HeyGen LiveAvatar catalog served by `/api/interview/interviewers` (the same account-wide catalog, currently five avatars, shown at `/interview/general`) — mirroring `app/interview/[type]/page.tsx`'s `StartAvatarRequest` construction exactly, with no `VideoAudioProfile` lookup and no `/api/profile/get` call. Admin `VideoAudioProfile` records are no longer the student-facing catalog; `/api/scenario/avatars` (the projection endpoint) was deleted outright. `profileId` is retained on `CaseAvatar` and fully unchanged for legacy admin-authored cases, which still resolve through `/api/profile/get` exactly as before — verified live against the seeded admin case `testing`/`adam-testing-avatar`. REQ-27 and 09-09's static check 13 were corrected to assert the interviewer-catalog reuse rather than forbid it. The 09-09 walkthrough is still mid-checkpoint; no SUMMARY.md was created for this fix.
 - [Phase 10-video-audio-metrics]: `lib/metrics/coverage.ts`'s `resolveVisualOutcome` deliberately never reads `face_detected_samples` anywhere in its decision logic — verified both by grep (the only real usage is inside the separate `isPoorVisualCoverage` disclosure predicate) and by a regression assertion (`face_detected_samples: 0, processed_samples: 600, analyzer_error: false` still returns `{ scored: true, reason: null }`), encoding the phase's governing principle that an undetected face while the camera is ON is a scoreable low Visual score, never a gating condition. Three independent visual technical-failure signatures (analyzer error, track-live-ratio < 0.5, processed/expected ratio < 0.5) plus an absolute 60-sample floor are checked before the scoring path, in a fixed order (opt-out checked first so it can never be misreported as a failure). Vocal outcome is deliberately asymmetric: zero spoken turns or under 30 spoken seconds resolves to `TYPED_ONLY` (a modality outcome, never a penalty), never `INSUFFICIENT_DATA`.
 - [Phase 10-video-audio-metrics]: 10-01's `REQUIREMENTS.md` checkboxes (REQ-39, REQ-40, REQ-41, REQ-42, REQ-46) are intentionally left unchecked despite appearing in 10-01's frontmatter, matching the Phase 9 precedent for split requirements. 10-01 delivers the pure contract/band/discriminator logic in full and verified, but REQ-39/40 require a real capture pipeline (not built until later plans in this phase) and REQ-41/42/46's full text also requires the evaluators, runners, and report pages to actually consume this module before the end-to-end behavior exists — so all five stay unchecked until the plan(s) that deliver each requirement's full user-facing behavior complete.
+- [Phase 10-video-audio-metrics]: 10-02 added six identical nullable Phase 10 columns to both `InterviewReport` and `ScenarioReport` (`cameraMode`, `visualMetrics`, `vocalMetrics`, `visualUnscoredReason`, `vocalUnscoredReason`, `metricsConsentAt`) plus `User.videoAnalysisConsentAt`, via migration `20260922134512_add_video_audio_metrics` (fourth migration in the unapplied handoff queue after 06-01/08-02/09-01, applied to `leadership_avatar_dev` only). Both report DTOs gained an identically-shaped `metrics` block sourced from one shared `lib/metrics/types.ts` import (no private duplicate shape in either DTO file); a `Json?` column or an unrecognized reason/mode string degrades to `null` via a small local narrowing helper rather than a bare cast, verified against a legacy all-null row, a fully-populated row, and a garbage-JSON row via a throwaway `tsx` script. 10-02's `REQUIREMENTS.md` checkboxes (REQ-36, REQ-38, REQ-45, REQ-47, REQ-48) are intentionally left unchecked despite appearing in 10-02's frontmatter, matching the 10-01 precedent for split requirements — the schema/DTO foundation is fully real here, but each requirement's full user-facing text also needs the capture pipeline, evaluators, and report pages that later Phase 10 plans own before the end-to-end behavior exists. 10-02 ran concurrently with sibling Phase 10 plans in the same working directory (shared git index, no worktree isolation); both commits staged only literal file paths and were independently confirmed via `git show --name-only` to contain no sibling files. An unrelated `tsc --noEmit` failure in a concurrently-in-progress sibling's untracked file (`app/api/audio/word-metrics/route.ts`) was confirmed out of scope (present/absent identically regardless of 10-02's own changes) and logged, not fixed, in `.planning/phases/10-video-audio-metrics/deferred-items.md`.
 
 ## Progress
 
@@ -921,3 +923,29 @@ Open items carried into Phase 10+:
   `npx tsc --noEmit` clean throughout; each of the three commits verified via
   `git show --name-only` to touch exactly its own single file. See
   `10-01-SUMMARY.md` for full verbatim assertion results.
+- 10-02 (metrics schema + DTO extension — `prisma/schema.prisma`,
+  `lib/interview/report-dto.ts`, `lib/scenario/report-dto.ts`): complete,
+  2/11 plans. Commits `ee5bf09`, `a7e1685`. Six identical nullable columns
+  (`cameraMode`, `visualMetrics`, `vocalMetrics`, `visualUnscoredReason`,
+  `vocalUnscoredReason`, `metricsConsentAt`) added to both `InterviewReport`
+  and `ScenarioReport`; `User.videoAnalysisConsentAt` added. Migration
+  `20260922134512_add_video_audio_metrics` applied to `leadership_avatar_dev`
+  only (inline `DATABASE_URL`, `npm run setup` never run) — the fourth
+  migration in the unapplied handoff queue after 06-01/08-02/09-01; SQL
+  confirmed to contain only `ADD COLUMN` statements, zero `NOT NULL`/`DROP`/
+  `CREATE TABLE`. Both report DTOs gained an identically-shaped `metrics`
+  block imported from the shared `lib/metrics/types.ts` (no private copy in
+  either file); mappers stay field-by-field, never a row spread, and narrow
+  `Json?`/string columns to `null` on malformed input rather than throwing.
+  `npx prisma validate` and `npx tsc --noEmit` both clean (one unrelated
+  `tsc` failure in a concurrently-in-progress sibling plan's untracked file
+  confirmed out of scope and logged, not fixed, per
+  `10-02-SUMMARY.md`/`deferred-items.md`). Verified via a throwaway `tsx`
+  script: a legacy all-null row maps with every `metrics` field null and no
+  throw, a fully populated row round-trips its metric objects intact, a
+  garbage `visualMetrics`/`vocalMetrics` value degrades to null, and neither
+  DTO's `JSON.stringify` output contains `userId`/`resumeText`/
+  `transcriptKey`/`interactionLogId`/`additionalInfo`. Ran concurrently with
+  sibling Phase 10 plans in the same working directory; both commits staged
+  with literal file paths and independently confirmed via
+  `git show --name-only` to contain no sibling files.
