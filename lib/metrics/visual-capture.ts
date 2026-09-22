@@ -298,6 +298,24 @@ export function createVisualCapture(
     }
     trackLiveSeconds += tickIntervalMs() / 1000;
 
+    // The video element can be transiently unusable even while the track is
+    // live: before the first frame decodes, while a backgrounded tab throttles
+    // decoding, or during a stream renegotiation. `detectForVideo` THROWS on a
+    // zero-dimension or not-yet-decoded frame.
+    //
+    // This is NOT a detect error. Counting it as one would let three transient
+    // startup ticks trip `analyzerError` and mark the whole session
+    // INSUFFICIENT_DATA — excusing it from scoring entirely, which is the exact
+    // misclassification REQ-42 exists to prevent. Skip the tick instead: no
+    // processed sample, no error, no face-state change.
+    if (
+      videoEl.readyState < 2 ||
+      videoEl.videoWidth === 0 ||
+      videoEl.videoHeight === 0
+    ) {
+      return;
+    }
+
     let result: {
       faceLandmarks: Array<Array<{ x: number; y: number }>>;
       facialTransformationMatrixes: Array<{ data: number[] }>;

@@ -11,6 +11,12 @@ import { useEffect, useRef } from "react";
  *
  * Renders nothing when `stream` is null, so a camera-off session renders no
  * DOM at all.
+ *
+ * Positioning is ABSOLUTE, not fixed, so the caller anchors it inside whatever
+ * container it belongs to — in practice the bottom-right of the avatar video
+ * panel, the usual video-call convention. Anchoring it to the viewport instead
+ * stranded it against the page edge and reserved a dead column beside the chat.
+ * The parent must establish a positioning context.
  */
 export interface SelfViewThumbnailProps {
   stream: MediaStream | null;
@@ -37,7 +43,7 @@ export function SelfViewThumbnail({
   return (
     <div
       className={
-        "fixed bottom-4 right-4 z-40 w-44 h-[132px] overflow-hidden rounded-2xl border border-[#d4e2e9] bg-black/80 pointer-events-none shadow-lg relative " +
+        "absolute bottom-4 right-4 z-20 w-40 h-[120px] overflow-hidden rounded-2xl border border-white/20 bg-black/80 pointer-events-none shadow-xl " +
         (className ?? "")
       }
     >

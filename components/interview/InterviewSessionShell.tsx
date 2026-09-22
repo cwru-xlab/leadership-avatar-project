@@ -867,6 +867,11 @@ export default function InterviewSessionShell({
         </div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[#07131f] via-[#07131f]/45 to-transparent" />
+
+        {/* Self-view sits in the bottom-right of the AVATAR panel, the usual
+            video-call convention, rather than against the viewport edge where
+            it reserved an empty column beside the transcript. */}
+        <SelfViewThumbnail stream={cameraStream} />
         <div className="relative z-10 mt-auto px-5 pb-6 pt-36 sm:px-8 lg:hidden">
           <InterviewStatus
             interviewerName={interviewerName}
@@ -1070,7 +1075,6 @@ export default function InterviewSessionShell({
         </ModalContent>
       </Modal>
 
-      <SelfViewThumbnail stream={cameraStream} />
       <FaceDetectionBanner visible={cameraMode === "ON" && faceMissing} />
     </main>
   );
