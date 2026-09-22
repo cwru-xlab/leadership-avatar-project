@@ -8,14 +8,13 @@
  * card. It is deliberately NOT a HeroUI drop-down component, which is what
  * the admin case editor (`app/case-management/[caseId]/page.tsx`) uses.
  *
- * The grid is sourced from `/api/scenario/avatars`, the student-safe
- * projection of the admin-curated `VideoAudioProfile` catalog (09-02), and
- * emits a `profileId` — never a raw LiveAvatar id from the interviewer
- * catalog endpoint. `/case-play`'s existing player already
- * resolves a `CaseAvatar.profileId` through `/api/profile/get`, so this
- * component only needs to change the LAYOUT students see when choosing a
- * character, not the underlying catalog a scenario's characters are defined
- * against.
+ * The grid is sourced from `/api/interview/interviewers` — the SAME
+ * HeyGen-backed LiveAvatar catalog students already see at
+ * `/interview/general`. Admin-created `VideoAudioProfile` records
+ * (formerly served by the now-deleted `/api/scenario/avatars`) are obsolete
+ * as a student-facing catalog. Selection emits a raw LiveAvatar `avatarId`
+ * paired with that avatar's OWN default `voiceId` — never a cross-paired
+ * voice, matching Phase 2's interviewer-selection contract.
  */
 
 import { useEffect, useState } from "react";
@@ -25,43 +24,50 @@ import { Spinner } from "@heroui/spinner";
 import { Button } from "@heroui/button";
 import { Check, CircleAlert } from "lucide-react";
 
-interface ScenarioAvatarOption {
-  id: string;
+interface InterviewerOption {
+  avatarId: string;
   name: string;
-  description?: string;
-  portrait?: string;
-  avatarName: string;
+  previewUrl: string | null;
+  voice: {
+    id: string;
+    name: string;
+  };
+}
+
+interface AvatarSelection {
+  avatarId: string;
+  voiceId: string;
 }
 
 interface AvatarPickerGridProps {
   value: string | null;
-  onChange: (profileId: string) => void;
+  onChange: (selection: AvatarSelection) => void;
 }
 
 export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridProps) {
-  const [avatars, setAvatars] = useState<ScenarioAvatarOption[]>([]);
+  const [interviewers, setInterviewers] = useState<InterviewerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isCurrent = true;
-    const loadAvatars = async () => {
+    const loadInterviewers = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch("/api/scenario/avatars", {
+        const response = await fetch("/api/interview/interviewers", {
           credentials: "include",
           cache: "no-store",
         });
         const data = (await response.json().catch(() => ({}))) as {
-          avatars?: ScenarioAvatarOption[];
+          interviewers?: InterviewerOption[];
           error?: string;
         };
         if (!response.ok) {
           throw new Error(data.error || "Could not load characters right now.");
         }
         if (!isCurrent) return;
-        setAvatars(data.avatars ?? []);
+        setInterviewers(data.interviewers ?? []);
       } catch (err) {
         if (!isCurrent) return;
         setError(
@@ -71,7 +77,7 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
         if (isCurrent) setLoading(false);
       }
     };
-    void loadAvatars();
+    void loadInterviewers();
     return () => {
       isCurrent = false;
     };
@@ -99,7 +105,7 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
     );
   }
 
-  if (avatars.length === 0) {
+  if (interviewers.length === 0) {
     return (
       <div className="grid min-h-40 place-items-center rounded-2xl border border-dashed border-[#d4e2e9] bg-white p-6 text-center text-sm text-[#58727f]">
         No characters are available yet.
@@ -109,23 +115,25 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {avatars.map((avatar) => {
-        const selected = avatar.id === value;
+      {interviewers.map((interviewer) => {
+        const selected = interviewer.avatarId === value;
         return (
           <button
-            key={avatar.id}
+            key={interviewer.avatarId}
             type="button"
             aria-pressed={selected}
-            onClick={() => onChange(avatar.id)}
+            onClick={() =>
+              onChange({ avatarId: interviewer.avatarId, voiceId: interviewer.voice.id })
+            }
             className={`group relative min-h-60 overflow-hidden rounded-2xl border text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${
               selected
                 ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]"
                 : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"
             }`}
           >
-            {avatar.portrait ? (
+            {interviewer.previewUrl ? (
               <img
-                src={avatar.portrait}
+                src={interviewer.previewUrl}
                 alt=""
                 className="absolute inset-0 z-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
               />
@@ -135,20 +143,16 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
             <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#112c39] via-[#112c39]/20 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 z-20 p-5 text-white">
               <div className="mb-3 flex justify-between gap-2">
-                {avatar.description ? (
-                  <Chip size="sm" className="bg-white/18 text-white">
-                    {avatar.description}
-                  </Chip>
-                ) : (
-                  <span />
-                )}
+                <Chip size="sm" className="bg-white/18 text-white">
+                  {interviewer.voice.name}
+                </Chip>
                 {selected && (
                   <span className="grid h-6 w-6 place-items-center rounded-full bg-[#79d4b1] text-[#0b3029]">
                     <Check size={15} />
                   </span>
                 )}
               </div>
-              <h3 className="font-serif text-2xl">{avatar.name}</h3>
+              <h3 className="font-serif text-2xl">{interviewer.name}</h3>
               <p className="mt-1 text-sm text-white/78">Live character</p>
             </div>
           </button>

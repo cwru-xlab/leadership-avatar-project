@@ -367,9 +367,21 @@ export default function CasePlayPage() {
     }
   }, [avatarTotalSeconds, avatarTimeLimitSeconds, avatarLimitExhausted, interactionMode]);
 
-  // Load avatar profile config when role changes or when switching to avatar mode
+  // Load avatar config when role changes or when switching to avatar mode.
+  // Student-authored scenario characters carry a raw HeyGen `avatarId`/
+  // `voiceId` pair and need no lookup; legacy admin cases carry a
+  // `profileId` and resolve through `/api/profile/get` exactly as before.
   useEffect(() => {
-    if (interactionMode === "avatar" && selectedRole?.profileId) {
+    if (interactionMode !== "avatar" || !selectedRole) return;
+    if (selectedRole.avatarId && selectedRole.voiceId) {
+      setAvatarConfigLoading(false);
+      setAvatarConfig({
+        quality: "low",
+        avatarName: selectedRole.avatarId,
+        voice: { voiceId: selectedRole.voiceId, rate: 1.05 },
+        language: attemptLanguage.code,
+      });
+    } else if (selectedRole.profileId) {
       loadAvatarConfig(selectedRole.profileId);
     }
   }, [interactionMode, selectedRole]);
@@ -1200,8 +1212,11 @@ export default function CasePlayPage() {
     }
   };
 
-  // Check if current role has a profile configured for avatar mode
-  const roleHasAvatarProfile = selectedRole?.profileId != null;
+  // Check if current role has an avatar configured for avatar mode — either
+  // a student-scenario avatarId/voiceId pair or a legacy admin profileId.
+  const roleHasAvatarProfile =
+    (selectedRole?.avatarId != null && selectedRole?.voiceId != null) ||
+    selectedRole?.profileId != null;
 
   if (loading) {
     return (

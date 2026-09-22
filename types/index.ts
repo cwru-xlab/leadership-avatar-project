@@ -196,7 +196,22 @@ export interface CaseAvatar {
   name: string;
   role: string;
   additionalInfo: string;
+  /**
+   * Legacy admin-authored case avatar. Resolves through `/api/profile/get`
+   * against the admin-curated `VideoAudioProfile` catalog. Present only on
+   * pre-existing admin cases; new student scenarios do not set this.
+   */
   profileId?: string;
+  /**
+   * Student-authored scenario avatar. A raw HeyGen LiveAvatar id drawn
+   * directly from the same account-wide catalog `/api/interview/interviewers`
+   * exposes (the set also used at `/interview/general`). Always paired with
+   * `voiceId`, that avatar's own default voice — never a cross-paired voice.
+   * `/case-play` builds a `StartAvatarRequest` from these two fields directly,
+   * with no `VideoAudioProfile` lookup.
+   */
+  avatarId?: string;
+  voiceId?: string;
 }
 
 export interface CaseStudy {
