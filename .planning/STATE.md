@@ -711,7 +711,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   `ScenarioSnapshotStrip` above the score cards (READY/FAILED only) reads
   exclusively from the DTO's run-time `scenario` snapshot block — name,
   `{name, role}` character chips, and a criteria-presence dot, labelled "This
-  scenario as it was when you practised" — never a live S3 re-fetch. FAILED
+  scenario as it was when you practiced" — never a live S3 re-fetch. FAILED
   shows `failureReason` and states the transcript was kept, with no retry
   control (none exists for scenarios). `npx tsc --noEmit` clean; zero
   `api/case/get`/`s3Storage` matches in the new file. Verified end-to-end
