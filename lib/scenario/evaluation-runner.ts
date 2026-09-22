@@ -221,12 +221,18 @@ export async function runAndPersistScenarioEvaluation(
       data: { turnCount: log.totalMessages },
     });
 
+    // TODO(10-07): wire the row's real captured visual/vocal metrics through
+    // here. Passing null on both keeps this plan's widened evaluator inputs
+    // compiling and behaviorally identical to today (visual/vocal always
+    // null) until 10-07 lands the real capture-to-evaluator plumbing.
     const input: RunScenarioEvaluationInput = {
       caseName: report.caseName,
       background: report.backgroundSnapshot,
       characters: toEvaluationCharacters(report.avatarsSnapshot),
       authorCriteria: report.criteriaSnapshot,
       transcript,
+      visualMetrics: null,
+      vocalMetrics: null,
     };
 
     const result = await runScenarioEvaluation(input);

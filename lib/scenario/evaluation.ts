@@ -24,6 +24,7 @@ import {
   buildScenarioEvaluationUserMessage,
   type ScenarioEvaluationCharacter,
 } from "./prompts";
+import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 
 // ---------------------------------------------------------------------------
 // JSON schema — must match SCENARIO_EVALUATOR_PROMPT's declared output shape
@@ -67,13 +68,16 @@ export interface RawScenarioEvaluation {
 }
 
 /**
- * `visualScore`/`vocalScore` are typed `null` (not `number | null`) so a
- * regression that tries to pass a model's number through is a compile
- * error, not a runtime surprise.
+ * `visualScore`/`vocalScore` were typed literal `null` (not `number | null`)
+ * through Phase 9, a deliberate compile-time guard that made a stray model
+ * number a compile error rather than a runtime surprise. Plan 10-06 retires
+ * that type-level guard on purpose — the runtime guarantee now lives in
+ * `validateScenarioEvaluationResult`'s metric-gated coercion below, so the
+ * discipline survives the type change.
  */
 export interface ScenarioEvaluationResult {
-  visualScore: null;
-  vocalScore: null;
+  visualScore: number | null;
+  vocalScore: number | null;
   contentScore: number | null;
   behavioralScore: number | null;
   reportMarkdown: string;
@@ -99,18 +103,22 @@ function coerceScore(value: unknown): number | null {
 }
 
 /**
- * Enforces the evaluator prompt's CRITICAL RULE ON MISSING DATA in code,
- * not just in the prompt text. Visual and Vocal scores are ALWAYS null
- * here, discarding whatever the model returned — no metrics pipeline
- * exists yet (deferred to Phase 10; a Phase 6 project decision). Content
- * and Behavioral scores are coerced to null if they are not a clean 1-5
- * integer — "Not scored" is a legitimate, distinct outcome from "Not yet
- * measured" (the distinction 06-08 established and the report page already
- * renders differently). Throws if the report body is empty, so the caller
- * records FAILED instead of storing a blank report.
+ * Enforces the evaluator prompt's CRITICAL RULE ON MISSING DATA in code, not
+ * just in the prompt text. Visual and Vocal scores are coerced through the
+ * SAME `coerceScore` used for Content/Behavioral, but only when the
+ * corresponding metrics were actually supplied for this session
+ * (`opts.hasVisualMetrics`/`hasVocalMetrics`) — when they were not, the score
+ * is forced null unconditionally, discarding whatever the model returned,
+ * exactly as before Phase 10. Content and Behavioral scores are coerced to
+ * null if they are not a clean 1-5 integer — "Not scored" is a legitimate,
+ * distinct outcome from "Not yet measured" (the distinction 06-08 established
+ * and the report page already renders differently). Throws if the report
+ * body is empty, so the caller records FAILED instead of storing a blank
+ * report.
  */
 export function validateScenarioEvaluationResult(
-  raw: unknown
+  raw: unknown,
+  opts: { hasVisualMetrics: boolean; hasVocalMetrics: boolean }
 ): Omit<ScenarioEvaluationResult, "evalModel"> {
   const r = (raw ?? {}) as Partial<RawScenarioEvaluation>;
 
@@ -121,10 +129,11 @@ export function validateScenarioEvaluationResult(
   }
 
   return {
-    // Enforced in code, not just in the prompt. Phase 10 supplies real
-    // visual/vocal metrics; until then this is always null, unconditionally.
-    visualScore: null,
-    vocalScore: null,
+    // Gated on whether the pipeline actually supplied metrics for this
+    // session. No metrics supplied → always null, no matter what the model
+    // returned, exactly as before Phase 10.
+    visualScore: opts.hasVisualMetrics ? coerceScore(r.visual_score) : null,
+    vocalScore: opts.hasVocalMetrics ? coerceScore(r.vocal_score) : null,
     contentScore: coerceScore(r.content_score),
     behavioralScore: coerceScore(r.behavioral_score),
     reportMarkdown,
@@ -153,6 +162,12 @@ export interface RunScenarioEvaluationInput {
   characters: ScenarioEvaluationCharacter[];
   authorCriteria: string | null;
   transcript: string;
+  /** Real measured visual metrics for this run, or null when unmeasured
+   * (camera off, legacy pre-Phase-10 run, or a technical failure). */
+  visualMetrics: VisualMetrics | null;
+  /** Real measured vocal metrics for this run, or null when unmeasured
+   * (typed-only turns, legacy pre-Phase-10 run, or a technical failure). */
+  vocalMetrics: VocalMetrics | null;
 }
 
 const BUDGET_MS = 50_000;
@@ -193,7 +208,10 @@ async function attemptScenarioEvaluation(
   }
 
   const parsed = JSON.parse(content) as unknown;
-  return validateScenarioEvaluationResult(parsed);
+  return validateScenarioEvaluationResult(parsed, {
+    hasVisualMetrics: input.visualMetrics !== null,
+    hasVocalMetrics: input.vocalMetrics !== null,
+  });
 }
 
 /**
