@@ -141,6 +141,9 @@ export function createVisualCapture(
   let stopped = false;
 
   let videoEl: HTMLVideoElement | null = null;
+  // Which TFLite delegate actually initialised. Surfaced for diagnostics only;
+  // it never affects scoring.
+  let delegateInUse: "GPU" | "CPU" | null = null;
   // Using `unknown` for the landmarker instance to avoid importing MediaPipe
   // types at module scope, keeping the dynamic import truly lazy.
   let landmarker: {
@@ -452,9 +455,20 @@ export function createVisualCapture(
 
     try {
       landmarker = (await initLandmarker("GPU")) as typeof landmarker;
-    } catch {
+      delegateInUse = "GPU";
+    } catch (gpuError) {
+      // Record WHY we fell back. CPU inference competes with the live WebRTC
+      // avatar stream for the main thread, which is the contention REQ-49
+      // guards against — so a silent downgrade is exactly the kind of thing
+      // that shows up later as an unexplained stutter. console.info, not
+      // console.error: this is diagnostics, not a failure, and Next's dev
+      // overlay escalates console.error into a visible "Console Error".
+      console.info("[visual-capture] GPU delegate unavailable, using CPU", {
+        reason: gpuError instanceof Error ? gpuError.message : String(gpuError),
+      });
       try {
         landmarker = (await initLandmarker("CPU")) as typeof landmarker;
+        delegateInUse = "CPU";
       } catch {
         analyzerError = true;
         // A failed engine must never look like a student facing away - that
@@ -464,6 +478,13 @@ export function createVisualCapture(
         return;
       }
     }
+
+    // One line, once per session, so a walkthrough can confirm at a glance
+    // which delegate is actually doing the work.
+    console.info("[visual-capture] engine started", {
+      delegate: delegateInUse,
+      tickIntervalMs: tickIntervalMs(),
+    });
 
     intervalId = setInterval(runTick, tickIntervalMs());
   }
