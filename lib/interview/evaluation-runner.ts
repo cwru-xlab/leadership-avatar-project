@@ -79,10 +79,16 @@ export async function runAndPersistEvaluation(
       difficulty: report.difficulty ?? preset.difficulty,
     };
 
+    // TODO(10-07): wire the row's real captured visual/vocal metrics through
+    // here. Passing null on both keeps this plan's widened evaluator inputs
+    // compiling and behaviorally identical to today (visual/vocal always
+    // null) until 10-07 lands the real capture-to-evaluator plumbing.
     const outcome = await runInterviewEvaluation({
       fullTranscript: formatTranscriptForEvaluator(transcript),
       resumeText: report.resumeText ?? "",
       roleContext,
+      visualMetrics: null,
+      vocalMetrics: null,
     });
 
     if (outcome.ok) {
@@ -90,8 +96,8 @@ export async function runAndPersistEvaluation(
         where: { id: reportId },
         data: {
           status: "READY",
-          visualScore: null,
-          vocalScore: null,
+          visualScore: outcome.result.visualScore,
+          vocalScore: outcome.result.vocalScore,
           contentScore: outcome.result.contentScore,
           behavioralScore: outcome.result.behavioralScore,
           reportMarkdown: outcome.result.reportMarkdown,
