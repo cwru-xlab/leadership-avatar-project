@@ -22,6 +22,9 @@ import {
 } from "./evaluation";
 import type { ScenarioEvaluationCharacter } from "./prompts";
 import type { InteractionLog, InteractionEvent } from "@/types";
+import { asVisualMetrics, asVocalMetrics } from "@/lib/metrics/ingest";
+import { resolveVisualOutcome, resolveVocalOutcome } from "@/lib/metrics/coverage";
+import type { CameraMode } from "@/lib/metrics/types";
 
 const MAX_ERROR_MESSAGE_LENGTH = 500;
 
@@ -221,18 +224,30 @@ export async function runAndPersistScenarioEvaluation(
       data: { turnCount: log.totalMessages },
     });
 
-    // TODO(10-07): wire the row's real captured visual/vocal metrics through
-    // here. Passing null on both keeps this plan's widened evaluator inputs
-    // compiling and behaviorally identical to today (visual/vocal always
-    // null) until 10-07 lands the real capture-to-evaluator plumbing.
+    // Parse the row's own stored Json? columns back into the shared types
+    // through the SAME discriminator that validated them on the way in
+    // (lib/metrics/ingest.ts) — never a third private copy. Mirrors
+    // lib/interview/evaluation-runner.ts exactly.
+    const visual = asVisualMetrics(report.visualMetrics);
+    const vocal = asVocalMetrics(report.vocalMetrics);
+
+    // The liveness-vs-performance discriminator (REQ-42, lib/metrics/coverage.ts).
+    // A camera-ON session whose face was never detected is a scoreable LOW
+    // visual score, not an unscored one — only a dead pipeline is unscorable.
+    const cameraMode = (report.cameraMode as CameraMode | null) ?? "OFF";
+    const visualOutcome = resolveVisualOutcome(cameraMode, visual);
+    const vocalOutcome = resolveVocalOutcome(vocal);
+
+    // Metrics reach the evaluator ONLY when the outcome says scored, so a
+    // technical failure can never yield a fabricated score.
     const input: RunScenarioEvaluationInput = {
       caseName: report.caseName,
       background: report.backgroundSnapshot,
       characters: toEvaluationCharacters(report.avatarsSnapshot),
       authorCriteria: report.criteriaSnapshot,
       transcript,
-      visualMetrics: null,
-      vocalMetrics: null,
+      visualMetrics: visualOutcome.scored ? visual : null,
+      vocalMetrics: vocalOutcome.scored ? vocal : null,
     };
 
     const result = await runScenarioEvaluation(input);
@@ -249,6 +264,13 @@ export async function runAndPersistScenarioEvaluation(
         failureReason: null,
         evalModel: result.evalModel,
         completedAt: new Date(),
+        // A legacy row (cameraMode === null) keeps both reason columns null,
+        // so the report page still renders it as "Not yet measured" (REQ-48)
+        // while modern rows carry a STORED, never-re-derived cause (REQ-45).
+        visualUnscoredReason:
+          report.cameraMode === null ? null : visualOutcome.reason,
+        vocalUnscoredReason:
+          report.cameraMode === null ? null : vocalOutcome.reason,
       },
     });
 
@@ -256,6 +278,11 @@ export async function runAndPersistScenarioEvaluation(
       userId,
       reportId,
       status: "READY",
+      cameraMode: report.cameraMode,
+      visualUnscoredReason:
+        report.cameraMode === null ? null : visualOutcome.reason,
+      vocalUnscoredReason:
+        report.cameraMode === null ? null : vocalOutcome.reason,
     });
   } catch (error) {
     // Best-effort FAILED write. A background job must never leave the row
