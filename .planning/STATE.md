@@ -2,17 +2,17 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-21 (Phase 9 complete — 09-09 static sweep + human walkthrough signed off)
+**Updated:** 2026-09-22 (Phase 10 in progress — 10-01 complete)
 
 ## Current Position
 
 **Phase:** 10 — Video & Audio Metrics
-**Current Plan:** Not started — context gathered 2026-09-21, not yet planned. See
-`.planning/phases/10-video-audio-metrics/10-CONTEXT.md`. Run `/gsd:plan-phase 10`.
+**Current Plan:** 10-01 of 11 complete (`lib/metrics/types.ts`, `lib/metrics/bands.ts`,
+`lib/metrics/coverage.ts`). Next: `10-02-PLAN.md` via `/gsd:execute-phase 10`.
 
 **Previous phase:** 9 — Student-Authored Scenarios — COMPLETE
-**Current Plan:** All 9 plans (09-01 through 09-09) complete. Phase 9 signed off: 19-point static constraint sweep (all PASS) plus a human-confirmed 24-step end-to-end walkthrough, with one real defect (avatar picker sourcing the wrong catalog) found and fixed under the checkpoint before final approval. Next: `/gsd:plan-phase 10` (Video & Audio Metrics).
-**Status:** Phase 10 context captured — ready for planning
+**Current Plan:** All 9 plans (09-01 through 09-09) complete. Phase 9 signed off: 19-point static constraint sweep (all PASS) plus a human-confirmed 24-step end-to-end walkthrough, with one real defect (avatar picker sourcing the wrong catalog) found and fixed under the checkpoint before final approval.
+**Status:** Phase 10 in progress — 1/11 plans complete
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -90,6 +90,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 09-student-authored-scenarios]: 09-04's scenario start route deliberately never calls `/api/interaction/start` over HTTP and never relaxes its `cohortId` requirement — it builds its own `InteractionLog` inline with `cohortId: ""` as the file's one and only literal `cohortId` occurrence, so a scenario run has no cohort and none is invented. `runAndPersistScenarioEvaluation` reads every grading input from the `ScenarioReport` row's REQ-33 snapshot and never re-fetches the live S3 scenario, so an edited or deleted scenario can never change what a past run is graded against (REQ-33/REQ-34 enforced structurally, matching 09-01/09-02's precedent). 09-04's `REQUIREMENTS.md` checkboxes for REQ-32/33/34 are intentionally still left unchecked despite appearing in 09-04's frontmatter, matching the 09-01/09-02/09-03 precedent for split requirements — the backend run/report pipeline is fully real and end-to-end verified here, but REQ-32's text also requires Visual/Vocal to render as "Not yet measured" on an actual report *page* (09-07/09-08 own that UI, and both list REQ-32/33/34 in their own frontmatter too), so the checkbox stays open until the plan that delivers the full user-facing behavior completes.
 - [Phase 09-student-authored-scenarios]: 09-08's scenario report page is a wholly separate file from the interview report page — no shared abstraction was extracted between them, matching the plan's instruction to model the new page closely on the existing one (structure/palette/polling discipline) rather than refactor a shared component; the only genuinely shared pieces (`ReportScoreCards`, `ReportMarkdown`) were already generic and are reused completely unchanged. The scenario snapshot strip shows criteria only as a presence dot (never the criteria text), and the FAILED branch deliberately offers no retry control since no `/api/scenario/report/[reportId]/retry` equivalent exists. REQ-32/REQ-33/REQ-34's `REQUIREMENTS.md` checkboxes can now be marked complete from this plan's perspective — this is the last of the three plans (09-04 backend, 09-06 discovery, 09-08 the report surface itself) whose combined completion satisfies each requirement's full user-facing text.
 - [Phase 09-student-authored-scenarios]: Checkpoint fix during 09-09's human walkthrough (2026-09-21): the 09-05 avatar picker's data source was reversed. `CaseAvatar` now carries `avatarId`/`voiceId` for student-authored scenario characters, binding directly to the HeyGen LiveAvatar catalog served by `/api/interview/interviewers` (the same account-wide catalog, currently five avatars, shown at `/interview/general`) — mirroring `app/interview/[type]/page.tsx`'s `StartAvatarRequest` construction exactly, with no `VideoAudioProfile` lookup and no `/api/profile/get` call. Admin `VideoAudioProfile` records are no longer the student-facing catalog; `/api/scenario/avatars` (the projection endpoint) was deleted outright. `profileId` is retained on `CaseAvatar` and fully unchanged for legacy admin-authored cases, which still resolve through `/api/profile/get` exactly as before — verified live against the seeded admin case `testing`/`adam-testing-avatar`. REQ-27 and 09-09's static check 13 were corrected to assert the interviewer-catalog reuse rather than forbid it. The 09-09 walkthrough is still mid-checkpoint; no SUMMARY.md was created for this fix.
+- [Phase 10-video-audio-metrics]: `lib/metrics/coverage.ts`'s `resolveVisualOutcome` deliberately never reads `face_detected_samples` anywhere in its decision logic — verified both by grep (the only real usage is inside the separate `isPoorVisualCoverage` disclosure predicate) and by a regression assertion (`face_detected_samples: 0, processed_samples: 600, analyzer_error: false` still returns `{ scored: true, reason: null }`), encoding the phase's governing principle that an undetected face while the camera is ON is a scoreable low Visual score, never a gating condition. Three independent visual technical-failure signatures (analyzer error, track-live-ratio < 0.5, processed/expected ratio < 0.5) plus an absolute 60-sample floor are checked before the scoring path, in a fixed order (opt-out checked first so it can never be misreported as a failure). Vocal outcome is deliberately asymmetric: zero spoken turns or under 30 spoken seconds resolves to `TYPED_ONLY` (a modality outcome, never a penalty), never `INSUFFICIENT_DATA`.
+- [Phase 10-video-audio-metrics]: 10-01's `REQUIREMENTS.md` checkboxes (REQ-39, REQ-40, REQ-41, REQ-42, REQ-46) are intentionally left unchecked despite appearing in 10-01's frontmatter, matching the Phase 9 precedent for split requirements. 10-01 delivers the pure contract/band/discriminator logic in full and verified, but REQ-39/40 require a real capture pipeline (not built until later plans in this phase) and REQ-41/42/46's full text also requires the evaluators, runners, and report pages to actually consume this module before the end-to-end behavior exists — so all five stay unchecked until the plan(s) that deliver each requirement's full user-facing behavior complete.
 
 ## Progress
 
@@ -904,3 +906,18 @@ Open items carried into Phase 10+:
   itself, which would mean relaxing that file's diff-empty constraint. User's call.
 - Six uncommitted "CaseBridge -> Leadership Avatar" rename files still in the
   working tree.
+
+- 10-01 (shared metric contract, bands, liveness discriminator —
+  `lib/metrics/types.ts`, `lib/metrics/bands.ts`, `lib/metrics/coverage.ts`):
+  complete, 1/11 plans. Commits `fb35bc5`, `65d4d54`, `a739cc6`. Three pure
+  libraries, zero imports from `lib/interview/`, `lib/scenario/`, `react`,
+  `@prisma/client` or `next`. `resolveVisualOutcome` provably never reads
+  `face_detected_samples` in its decision logic (grep-confirmed, plus a
+  regression assertion: a healthy-liveness block with zero detected faces
+  still returns `{ scored: true, reason: null }`); a track-death case a
+  single processed/expected ratio would miss (`track_live_seconds: 20,
+  session_seconds: 600`) correctly returns `INSUFFICIENT_DATA`. Band functions
+  proven total across NaN/-1/Infinity inputs with zero digits in any output.
+  `npx tsc --noEmit` clean throughout; each of the three commits verified via
+  `git show --name-only` to touch exactly its own single file. See
+  `10-01-SUMMARY.md` for full verbatim assertion results.
