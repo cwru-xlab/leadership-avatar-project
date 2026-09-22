@@ -476,7 +476,16 @@ export default function CasePlayPage() {
     let cancelled = false;
     void (async () => {
       const result = await requestCameraStream();
-      if (cancelled) return;
+      if (cancelled) {
+        // The effect was torn down while getUserMedia was in flight. The
+        // stream still opened, so stop it here — returning without stopping
+        // orphans a live camera that no teardown path can reach, leaving the
+        // indicator light on after the session ends.
+        if (result.ok) {
+          result.stream.getTracks().forEach((t) => t.stop());
+        }
+        return;
+      }
       if (!result.ok) {
         // The intro screen's own probe already succeeded — the camera was
         // seized or revoked between screens. The student is already live;
@@ -488,6 +497,10 @@ export default function CasePlayPage() {
           color: "warning",
         });
         return;
+      }
+      // Defence in depth against a second acquisition slipping through.
+      if (scenarioCameraStreamRef.current) {
+        scenarioCameraStreamRef.current.getTracks().forEach((t) => t.stop());
       }
       scenarioCameraStreamRef.current = result.stream;
       setScenarioSelfViewStream(result.stream);
