@@ -150,7 +150,12 @@ export async function POST(request: NextRequest) {
       cameraMode,
     });
 
-    return response({ reportId: report.id }, 201);
+    // Return the RESOLVED mode, not the requested one. The server may have
+    // forced OFF for missing consent above; a client that never learns this
+    // would keep capturing and showing the live banner while the report
+    // records a deliberate opt-out — the exact contradiction a student sees
+    // as "I had my camera on but my report says it was off".
+    return response({ reportId: report.id, cameraMode }, 201);
   } catch (error) {
     console.error("Interview session start failed:", error);
     return response({ error: "Unable to start the interview session." }, 500);
