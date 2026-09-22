@@ -177,7 +177,7 @@ export default function InterviewReportPage() {
         </div>
       )}
 
-      <ReportScoreCards scores={scores} pending={isPending && !timedOut} />
+      <ReportScoreCards scores={scores} pending={isPending && !timedOut} metrics={report?.metrics ?? null} />
 
       <div className="mt-6 rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_24px_60px_rgba(20,58,75,0.12)] sm:p-8">
         {report?.status === "READY" ? (
