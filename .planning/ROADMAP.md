@@ -29,7 +29,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 6: Evaluation & Student Report** - Persist transcripts, evaluate, show the report (completed 2026-09-21)
 - [x] **Phase 7: Interaction Dashboard** - Self-directed landing page that routes into interactions
 - [x] **Phase 8: Interview Customization** - Preset variants plus industry/role/difficulty/length and interviewer personality
-- [ ] **Phase 9: Student-Authored Scenarios** - Students create their own practice scenarios
+- [x] **Phase 9: Student-Authored Scenarios** - Students create their own practice scenarios (completed 2026-09-21)
 - [ ] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
 - [ ] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality)
 
@@ -175,7 +175,7 @@ ROLEPLAY (situation + one or more avatar characters) played in `/case-play` — 
 NOT a saved interview preset, which stays deferred. Visual/Vocal cannot score until
 Phase 10 and must render "Not yet measured".
 
-**Plans:** 8/9 plans executed
+**Plans:** 9/9 plans executed
 
 Plans:
 - [x] 09-01-PLAN.md — CaseStudy.ownerId + ScenarioReport model + local-only migration
@@ -186,7 +186,7 @@ Plans:
 - [x] 09-06-PLAN.md — two-section /case-play with scenario cards and owner actions
 - [x] 09-07-PLAN.md — case-play player branches onto the scenario start/finish pipeline
 - [x] 09-08-PLAN.md — scenario report page (Visual/Vocal "Not yet measured", snapshot strip)
-- [ ] 09-09-PLAN.md — static constraint sweep + human end-to-end validation
+- [x] 09-09-PLAN.md — static constraint sweep + human end-to-end validation (avatar-picker catalog fixed under checkpoint)
 
 ### Phase 10: Video & Audio Metrics
 **Goal:** Populate `visual_metrics` and `vocal_metrics` so the Visual and Vocal rubric categories score.
@@ -216,6 +216,6 @@ Plans:
 | 6. Evaluation & Student Report | 8/8 | Complete    | 2026-09-21 |
 | 7. Interaction Dashboard | 7/7 | Complete    | 2026-09-21 |
 | 8. Interview Customization | 8/8 | Complete    | 2026-09-21 |
-| 9. Student-Authored Scenarios | 7/9 | In Progress|  |
+| 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 0/TBD | Not started | - |
 | 11. Cohort & Staff Teardown | 0/TBD | Not started | - |

@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-21 (09-06, 09-07, and 09-08 complete)
+**Updated:** 2026-09-21 (Phase 9 complete — 09-09 static sweep + human walkthrough signed off)
 
 ## Current Position
 
-**Phase:** 9 — Student-Authored Scenarios
-**Current Plan:** 09-01 through 09-08 complete (8 of 9) — data foundation, scenario CRUD API, evaluation brain, the run/report pipeline, the guided authoring UI, the two-section publish/list UI, the scenario-aware player, and the scenario report page all built; 09-09 (static sweep + human validation) next
-**Status:** In progress
+**Phase:** 9 — Student-Authored Scenarios — COMPLETE
+**Current Plan:** All 9 plans (09-01 through 09-09) complete. Phase 9 signed off: 19-point static constraint sweep (all PASS) plus a human-confirmed 24-step end-to-end walkthrough, with one real defect (avatar picker sourcing the wrong catalog) found and fixed under the checkpoint before final approval. Next: `/gsd:plan-phase 10` (Video & Audio Metrics).
+**Status:** Ready for Phase 10 planning
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -777,48 +777,68 @@ process finding for future concurrent-agent phases, and the open question of
 whether the persona should be reinforced further inside `prompts.ts` itself —
 flagged for the user, not resolved here) — none block Phase 8 sign-off.
 
+## Phase 9 Status: COMPLETE
+
+All 9 plans (09-01 through 09-09) executed and verified, including a real
+static constraint sweep (19/19 PASS) and a human-confirmed end-to-end
+walkthrough of the full student-authored scenario path: author → save →
+immediate practice → run against two real characters → READY report with
+Visual/Vocal "Not yet measured" → snapshot truthfulness after edits →
+cross-student privacy (404, never 403) → publish/unpublish/delete lifecycle
+→ admin case-flow regression. REQ-25 through REQ-34 all satisfied and ticked
+in `REQUIREMENTS.md`. Both ROADMAP success criteria explicitly proven (author
+-then-immediately-practice by steps 8-9; private-until-shared by steps 15-19).
+
+One real defect was found during the human walkthrough and fixed under the
+checkpoint (commits `9bd8e2b`, `63e6998`, `e4311e3`): the character/avatar
+picker was sourcing the obsolete admin-curated `VideoAudioProfile` catalog
+instead of the HeyGen-backed `/api/interview/interviewers` catalog the user
+wanted (the same 5-avatar set `/interview/general` shows). Fixed by giving
+`CaseAvatar` an `avatarId`/`voiceId` pair (with `profileId` now legacy-admin-
+only), re-pointing `AvatarPickerGrid.tsx` at the interviewer catalog, teaching
+`/case-play/[caseId]/page.tsx` to synthesize a `StartAvatarRequest` directly
+for scenario avatars, and deleting the now-dead `app/api/scenario/avatars/route.ts`.
+REQ-27's text and the plan's static check 13 were both corrected (not just
+re-passed) to encode this as the permanent design: admin avatar profiles are
+now obsolete as a student-facing catalog. Live-verified with a real
+`HEYGEN_API_KEY` (5 real avatars returned); the legacy admin-case `profileId`
+path was confirmed unaffected.
+
+Decision recorded: **student-facing avatar catalogs now always source from
+the HeyGen `/api/interview/interviewers` endpoint, never from admin
+`VideoAudioProfile` records** — this pattern should be followed by any future
+phase adding a new student-facing avatar surface.
+
+One open item carried forward (not fixed in this plan, out of its
+verification-only scope): resuming an in-progress scenario run via the
+pre-existing "Unfinished Sessions" list falls back to the legacy finish
+pipeline instead of the scenario one, because `handleResume` (untouched
+since before Phase 9) never repopulates `scenarioReportId`. `handleFinish`'s
+existing fallback prevents the session from being silently dropped, but the
+run is graded through the legacy pipeline rather than producing a
+`ScenarioReport` in that case. See `09-09-SUMMARY.md` for the full verbatim
+per-check/per-step results and the consolidated deferred-items list
+(eslint/`/about` pre-existing breakage; the resolved evaluation-transcript
+defect from `fee1d6e`; a process finding about `rm -rf .next` against a live
+sibling dev server, self-healed, no code impact) — none block Phase 9 sign-off.
+
 ## Next
 
-Phase 9 is planned (9 plans, `09-01` through `09-09`) and executing. `09-01`
-(data foundation), `09-02` (ownership-enforced CRUD routes), `09-03`
-(scenario evaluation brain), `09-04` (run/report pipeline), and `09-05`
-(guided authoring UI: avatar picker grid, four-step builder, create/edit
-routes) are all complete — `09-02`/`09-03` and `09-04`/`09-05` each ran as
-concurrent pairs in the same working directory, all verified clean via
-`git show --name-only` on every commit. `09-04` wired `lib/scenario/
-evaluation.ts` and `lib/scenario/report-dto.ts` into real cohort-free
-start/finish routes and an owner-scoped report GET, on top of 09-02's CRUD
-API; see `09-04-SUMMARY.md` for its full end-to-end verification (snapshot
-immutability across an edit, report survival across a scenario deletion, a
-forced FAILED path, and cross-student 404 isolation on both finish and
-report GET). `09-06` (publish/list UI: `ScenarioCard` + a two-section
-`/case-play` linking into 09-05's `/case-play/new` and
-`/case-play/[caseId]/edit`) is now also complete — see `09-06-SUMMARY.md`
-for its own deferred-live-verification note (a shared-`.next`-cache dev
-server disruption between concurrent agents, self-healed, no code impact).
-`09-08` (scenario report page: `app/case-play/[caseId]/report/[reportId]/
-page.tsx`) is also now complete — see `09-08-SUMMARY.md` for its full
-end-to-end verification (READY report with Visual/Vocal "Not yet measured,"
-snapshot strip unchanged across a live scenario edit, report survival across
-scenario deletion, and identical 404s for a non-owner and a bad id with no
-poll loop). One out-of-scope evaluation-runner discrepancy was found and
-logged, not fixed, in `deferred-items.md`. `09-07` (scenario-aware
-start/finish in `app/case-play/[caseId]/page.tsx`, the last piece connecting
-09-04's backend and 09-08's report page into a real end-to-end scenario run)
-is also now complete — see `09-07-SUMMARY.md` for its full end-to-end
-verification (real scenario start with no cohort, real finish resolving to a
-READY report, and an independently-reverified admin-case regression check
-including the legacy evaluator's `evalScore`). All eight of the phase's
-build plans (`09-01` through `09-08`) are complete; `09-09` (static sweep +
-human validation) is the only plan left and closes out the phase. Run
-`/gsd:execute-phase 9` to continue.
+Phase 9 (Student-Authored Scenarios) is COMPLETE — see "Phase 9 Status:
+COMPLETE" above and `09-09-SUMMARY.md` for full detail. Next up: Phase 10
+(Video & Audio Metrics), which populates the `visual`/`vocal` rubric
+categories that Phases 6, 8, and 9 all render as "Not yet measured." Run
+`/gsd:plan-phase 10` to begin planning.
 
-Key Phase 9 decisions:
+Key Phase 9 decisions carried forward for future phases:
 - A "scenario" is a CASE-STYLE ROLEPLAY (situation + one or more avatar
   characters), explicitly NOT a saved interview preset. Lives alongside admin
   cases in `/case-play`, shown as a separate section.
-- Avatar picker must mirror `/interview/[type]`'s card grid with preview images,
-  NOT the admin form's `<Select>` dropdown. Verbatim user instruction.
+- Student-facing avatar pickers source from the HeyGen `/api/interview/
+  interviewers` catalog (mirroring `/interview/[type]`'s card grid), NOT the
+  admin form's `<Select>` dropdown and NOT admin-curated `VideoAudioProfile`
+  records — the latter are now obsolete as a student-facing avatar source
+  (checkpoint fix, 09-09).
 - Guided step-by-step builder; situation + >=1 character + criteria required to
   save; save then launch from the list (criterion 1's "immediately" preserved by
   landing on a list where the new scenario is instantly startable).
@@ -829,19 +849,16 @@ Key Phase 9 decisions:
   it. Forking allowed by the model, not necessarily built.
 - Reports SNAPSHOT the scenario at run time (Phase 8 precedent) and survive
   scenario deletion; a published scenario must be unpublished before deleting.
+- Real per-user ownership now exists on `CaseStudy` (`ownerId`, enforced
+  server-side in `app/api/scenario/*`), unlike the pre-existing `app/api/case/*`
+  routes which remain admin-gated by middleware only — untouched by Phase 9.
 
-Two things the planner must handle:
-- **Phase 9 has no REQ IDs.** REQUIREMENTS.md ends at REQ-24. Generate REQ-25
-  onward or the plan-checker has nothing to verify against — same gap Phase 8 hit.
-- **Real ownership does not exist for cases.** `CaseStudy.createdBy` is a display
-  string, `cohortIds` is the obsolete scoping, and `app/api/case/add|edit|delete`
-  contain NO auth code at all — they are admin-gated only by `middleware.ts:153-155`.
-  Student authoring requires genuine server-side owner enforcement in the routes.
+Known dependency: Visual/Vocal stay "Not yet measured" until Phase 10 lands.
 
-Known dependency: Visual/Vocal stay "Not yet measured" until Phase 10. No Phase 9
-plan may promise real visual or sound-oriented scoring.
-
-Open from Phase 8 (unchanged):
+Open items carried into Phase 10+:
+- Scenario resume via "Unfinished Sessions" falls back to the legacy finish
+  pipeline (`handleResume` never repopulates `scenarioReportId`) — see
+  "Phase 9 Status: COMPLETE" above.
 - Whether to reinforce the interviewer persona inside `lib/interview/prompts.ts`
   itself, which would mean relaxing that file's diff-empty constraint. User's call.
 - Six uncommitted "CaseBridge -> Leadership Avatar" rename files still in the

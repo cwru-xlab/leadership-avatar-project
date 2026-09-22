@@ -208,7 +208,7 @@ was decided, they do not add scope.*
   save lands the student where the new scenario is immediately startable — ROADMAP
   criterion 1's "immediately" is preserved, not dropped.
 
-- **REQ-29** — [ ] Student scenarios are owned per-user with ownership enforced
+- **REQ-29** — [x] Student scenarios are owned per-user with ownership enforced
   SERVER-SIDE in the route handlers, not merely displayed and not only gated by
   middleware. `CaseStudy.createdBy` (a display string) and `cohortIds` are not an
   ownership model.
