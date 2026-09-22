@@ -2,18 +2,22 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-22 (Phase 10 in progress — 10-02 complete)
+**Updated:** 2026-09-22 (Phase 10 in progress — 10-03 complete)
 
 ## Current Position
 
 **Phase:** 10 — Video & Audio Metrics
-**Current Plan:** 10-02 of 11 complete (`prisma/schema.prisma` Phase 10 columns +
-migration, `lib/interview/report-dto.ts` and `lib/scenario/report-dto.ts` metrics
-block). Next: `10-03-PLAN.md` via `/gsd:execute-phase 10`.
+**Current Plan:** 10-03 of 11 complete (`lib/metrics/visual-capture.ts`,
+`components/metrics/SelfViewThumbnail.tsx`,
+`components/metrics/FaceDetectionBanner.tsx`). Other Phase 10 plans (10-02,
+10-04+) may be executing concurrently in sibling agents — check individual
+`10-NN-SUMMARY.md` files on disk for the authoritative per-plan completion
+state. Next: whichever `10-NN-PLAN.md` has no matching `10-NN-SUMMARY.md` yet,
+via `/gsd:execute-phase 10`.
 
 **Previous phase:** 9 — Student-Authored Scenarios — COMPLETE
 **Current Plan:** All 9 plans (09-01 through 09-09) complete. Phase 9 signed off: 19-point static constraint sweep (all PASS) plus a human-confirmed 24-step end-to-end walkthrough, with one real defect (avatar picker sourcing the wrong catalog) found and fixed under the checkpoint before final approval.
-**Status:** Phase 10 in progress — 2/11 plans complete
+**Status:** Phase 10 in progress — 3/11 plans complete (at least; see disk for concurrent siblings)
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -94,6 +98,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 10-video-audio-metrics]: `lib/metrics/coverage.ts`'s `resolveVisualOutcome` deliberately never reads `face_detected_samples` anywhere in its decision logic — verified both by grep (the only real usage is inside the separate `isPoorVisualCoverage` disclosure predicate) and by a regression assertion (`face_detected_samples: 0, processed_samples: 600, analyzer_error: false` still returns `{ scored: true, reason: null }`), encoding the phase's governing principle that an undetected face while the camera is ON is a scoreable low Visual score, never a gating condition. Three independent visual technical-failure signatures (analyzer error, track-live-ratio < 0.5, processed/expected ratio < 0.5) plus an absolute 60-sample floor are checked before the scoring path, in a fixed order (opt-out checked first so it can never be misreported as a failure). Vocal outcome is deliberately asymmetric: zero spoken turns or under 30 spoken seconds resolves to `TYPED_ONLY` (a modality outcome, never a penalty), never `INSUFFICIENT_DATA`.
 - [Phase 10-video-audio-metrics]: 10-01's `REQUIREMENTS.md` checkboxes (REQ-39, REQ-40, REQ-41, REQ-42, REQ-46) are intentionally left unchecked despite appearing in 10-01's frontmatter, matching the Phase 9 precedent for split requirements. 10-01 delivers the pure contract/band/discriminator logic in full and verified, but REQ-39/40 require a real capture pipeline (not built until later plans in this phase) and REQ-41/42/46's full text also requires the evaluators, runners, and report pages to actually consume this module before the end-to-end behavior exists — so all five stay unchecked until the plan(s) that deliver each requirement's full user-facing behavior complete.
 - [Phase 10-video-audio-metrics]: 10-02 added six identical nullable Phase 10 columns to both `InterviewReport` and `ScenarioReport` (`cameraMode`, `visualMetrics`, `vocalMetrics`, `visualUnscoredReason`, `vocalUnscoredReason`, `metricsConsentAt`) plus `User.videoAnalysisConsentAt`, via migration `20260922134512_add_video_audio_metrics` (fourth migration in the unapplied handoff queue after 06-01/08-02/09-01, applied to `leadership_avatar_dev` only). Both report DTOs gained an identically-shaped `metrics` block sourced from one shared `lib/metrics/types.ts` import (no private duplicate shape in either DTO file); a `Json?` column or an unrecognized reason/mode string degrades to `null` via a small local narrowing helper rather than a bare cast, verified against a legacy all-null row, a fully-populated row, and a garbage-JSON row via a throwaway `tsx` script. 10-02's `REQUIREMENTS.md` checkboxes (REQ-36, REQ-38, REQ-45, REQ-47, REQ-48) are intentionally left unchecked despite appearing in 10-02's frontmatter, matching the 10-01 precedent for split requirements — the schema/DTO foundation is fully real here, but each requirement's full user-facing text also needs the capture pipeline, evaluators, and report pages that later Phase 10 plans own before the end-to-end behavior exists. 10-02 ran concurrently with sibling Phase 10 plans in the same working directory (shared git index, no worktree isolation); both commits staged only literal file paths and were independently confirmed via `git show --name-only` to contain no sibling files. An unrelated `tsc --noEmit` failure in a concurrently-in-progress sibling's untracked file (`app/api/audio/word-metrics/route.ts`) was confirmed out of scope (present/absent identically regardless of 10-02's own changes) and logged, not fixed, in `.planning/phases/10-video-audio-metrics/deferred-items.md`.
+- [Phase 10-video-audio-metrics]: 10-03's `lib/metrics/visual-capture.ts` self-hosts `@mediapipe/tasks-vision@1.0.1` (exact pin) and its WASM/model assets under `public/mediapipe/` rather than a CDN, with no `@latest`/`/latest/` reference anywhere; the primary self-host path succeeded so the plan's jsDelivr fallback was never needed. `eye_contact_pct` and `camera_centered_pct` use deliberately different denominators (processed samples vs. detected samples respectively) so an absent face scores down without falsely penalizing framing math that only makes sense when a face is present — documented in-file as intentional, not an inconsistency. `face_detected_samples` is confirmed (by grep and by code inspection) to never gate whether `stop()` returns metrics; only the separate `analyzer_error`/track-liveness/starvation signals from 10-01's `resolveVisualOutcome` do that. 10-03's `REQUIREMENTS.md` checkboxes are intentionally left unchecked for all six plan-frontmatter requirements (REQ-38, REQ-39, REQ-41, REQ-42, REQ-43, REQ-49) despite appearing in its frontmatter, matching the established split-requirement precedent — the capture engine and live affordances are fully real and unit-verified here, but each requirement's full user-facing text also needs this engine wired into an actual session surface, which 10-09/10-10 own. 10-03 ran concurrently with sibling Phase 10 plans in the same working directory; all three commits staged only literal file paths and were independently confirmed via `git show --name-only` to contain no sibling files.
 
 ## Progress
 
@@ -948,4 +953,42 @@ Open items carried into Phase 10+:
   `transcriptKey`/`interactionLogId`/`additionalInfo`. Ran concurrently with
   sibling Phase 10 plans in the same working directory; both commits staged
   with literal file paths and independently confirmed via
+  `git show --name-only` to contain no sibling files.
+- 10-03 (in-browser visual capture engine + live affordances —
+  `lib/metrics/visual-capture.ts`, `components/metrics/SelfViewThumbnail.tsx`,
+  `components/metrics/FaceDetectionBanner.tsx`): complete, 3/11 plans. Commits
+  `9081d0d`, `c649903`, `b5746d5`. Self-hosted `@mediapipe/tasks-vision@1.0.1`
+  (exact pin) with its WASM runtime and the pinned `float16/1`
+  `face_landmarker.task` model under `public/mediapipe/` (no `@latest`
+  anywhere). `createVisualCapture()` samples at 6Hz via `setInterval` (never
+  `requestAnimationFrame`), reduces every tick to scalar accumulators only,
+  and tracks liveness (`processed_samples`, `track_live_seconds`,
+  `analyzer_error`) structurally separate from detection
+  (`face_detected_samples`) — `face_detected_samples` confirmed by grep to be
+  only ever a numerator/reported count, never a gate on whether metrics are
+  returned. GPU delegate first, one CPU retry, then `analyzer_error: true`
+  with `onFaceStateChange(true)` on total init failure so a dead engine can
+  never look like an absent face. `eye_contact_pct` denominates over
+  processed samples (an absent face scores down, REQ-41); `camera_centered_pct`
+  denominates over detected samples (framing only means something with a
+  face present) — the asymmetry is commented in-file as deliberate.
+  `SelfViewThumbnail`/`FaceDetectionBanner` are pure presentational
+  components with no live scoring; the banner is always mounted and folds
+  via CSS transitions rather than unmounting, confirmed via a throwaway
+  `renderToStaticMarkup` script showing the `role="status"` element present
+  with different classes in both visible/hidden states. `npx tsc --noEmit`
+  clean throughout; zero matches for `MediaRecorder`/`captureStream`/
+  `toDataURL`/`toBlob`/`fetch(`/storage APIs in either file (doc-comment
+  mentions only); `components/HeyGenAvatar/InteractiveAvatar.tsx` and
+  `components/interview/InterviewSessionShell.tsx` both confirmed diff-empty
+  — this plan does not wire the engine into any session surface (10-09/10-10
+  own that). Runtime smoke test used the already-running port-3000 dev
+  server via a throwaway, immediately-deleted API route rather than a second
+  `next dev` instance, since Turbopack refuses to share its `.next` lock
+  directory across two dev processes in this working directory (same class
+  of hazard as `08-08-SUMMARY.md`/`09-06-SUMMARY.md`); a clean 307
+  auth-middleware redirect (not a 500) confirmed the module resolved and
+  compiled without a WASM/module-resolution error. Ran concurrently with
+  sibling Phase 10 plans in the same working directory; all three commits
+  staged with literal file paths and independently confirmed via
   `git show --name-only` to contain no sibling files.

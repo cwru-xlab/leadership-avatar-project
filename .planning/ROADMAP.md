@@ -197,12 +197,12 @@ scenario reports into scope (the original line predates Phase 9's second report 
   1. Eye contact, framing, speech rate and filler counts are measured, not estimated.
   2. Reports generated before this phase remain valid with null scores.
 
-**Plans:** 2/11 plans executed
+**Plans:** 3/11 plans executed
 
 Plans:
 - [x] 10-01-PLAN.md — shared metric contract, qualitative bands, liveness-vs-performance discriminator
 - [x] 10-02-PLAN.md — metric/camera-mode/unscored-reason columns on both report models + both DTOs
-- [ ] 10-03-PLAN.md — in-browser visual capture engine + self-view thumbnail + fold-away banner
+- [x] 10-03-PLAN.md — in-browser visual capture engine + self-view thumbnail + fold-away banner
 - [ ] 10-04-PLAN.md — vocal capture engine, word-timestamp STT route, evaluation-budget measurement
 - [ ] 10-05-PLAN.md — consent record/dialog + camera-mode snapshot on both session-start routes
 - [ ] 10-06-PLAN.md — widen both evaluators, rewrite the scenario prompt's metric clauses, inject real metrics
@@ -234,5 +234,5 @@ Plans:
 | 7. Interaction Dashboard | 7/7 | Complete    | 2026-09-21 |
 | 8. Interview Customization | 8/8 | Complete    | 2026-09-21 |
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
-| 10. Video & Audio Metrics | 2/11 | In Progress|  |
+| 10. Video & Audio Metrics | 3/11 | In Progress|  |
 | 11. Cohort & Staff Teardown | 0/TBD | Not started | - |
