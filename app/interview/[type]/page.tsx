@@ -10,6 +10,8 @@ import { addToast } from "@heroui/toast";
 import {
   ArrowLeft,
   ArrowRight,
+  Camera,
+  CameraOff,
   Check,
   CircleAlert,
   Clock3,
@@ -20,9 +22,12 @@ import {
   UsersRound,
 } from "lucide-react";
 import InterviewSessionShell from "@/components/interview/InterviewSessionShell";
+import MetricsConsentDialog from "@/components/metrics/MetricsConsentDialog";
 import { useLayout } from "@/lib/layout-context";
 import { resolveInterviewType } from "@/lib/interview/customization";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
+import { requestCameraStream } from "@/lib/metrics/visual-capture";
+import type { CameraMode } from "@/lib/metrics/types";
 import type { StartAvatarRequest } from "@/types";
 
 interface InterviewerOption {
@@ -32,9 +37,25 @@ interface InterviewerOption {
   voice: { id: string; name: string };
 }
 
-type SetupStep = "interviewer" | "resume" | "session";
+type SetupStep = "interviewer" | "resume" | "camera" | "session";
+type CameraBlockReason = "DENIED" | "NOT_FOUND" | "UNAVAILABLE";
 
 const MAX_RESUME_SIZE_BYTES = 10 * 1024 * 1024;
+
+const CAMERA_BLOCK_COPY: Record<CameraBlockReason, { heading: string; body: string }> = {
+  DENIED: {
+    heading: "We can't access your camera",
+    body: "Your browser is blocking camera access for this site. Allow it in your browser's site settings, then try again.",
+  },
+  NOT_FOUND: {
+    heading: "We can't access your camera",
+    body: "We couldn't find a camera on this device.",
+  },
+  UNAVAILABLE: {
+    heading: "We can't access your camera",
+    body: "Your camera is in use by another app. Close it and try again.",
+  },
+};
 
 export default function InterviewPage() {
   const params = useParams<{ type: string }>();
@@ -80,6 +101,16 @@ export default function InterviewPage() {
   const [resumeFileName, setResumeFileName] = useState<string | undefined>();
   const [resumeId, setResumeId] = useState<string | null>(null);
   const [uploadingResume, setUploadingResume] = useState(false);
+
+  // Camera-mode decision, made BEFORE the session and LOCKED — see
+  // 10-CONTEXT.md "Camera mode is locked at session start". Default OFF
+  // deliberately: the measured path must be an affirmative choice, and the
+  // server independently forces OFF without consent regardless (10-05).
+  const [cameraMode, setCameraMode] = useState<CameraMode>("OFF");
+  const [consentAccepted, setConsentAccepted] = useState<boolean | null>(null);
+  const [showConsentDialog, setShowConsentDialog] = useState(false);
+  const [cameraBlock, setCameraBlock] = useState<CameraBlockReason | null>(null);
+  const [probing, setProbing] = useState(false);
 
   useEffect(() => {
     let isCurrent = true;
@@ -180,6 +211,66 @@ export default function InterviewPage() {
     }
   };
 
+  // Probe camera access (permission + availability), then immediately stop
+  // the probe's own tracks — this is a check, not the session stream; the
+  // shell requests its own stream once the avatar has connected (10-09
+  // Task 2). Leaving this stream live would hold the camera LED on through
+  // the rest of the wizard.
+  const probeCamera = async () => {
+    setProbing(true);
+    setCameraBlock(null);
+    try {
+      const result = await requestCameraStream();
+      if (result.ok) {
+        result.stream.getTracks().forEach((track) => track.stop());
+        setStep("session");
+        return;
+      }
+      setCameraBlock(result.reason);
+    } finally {
+      setProbing(false);
+    }
+  };
+
+  const beginCameraOnFlow = async () => {
+    setCameraMode("ON");
+    if (consentAccepted) {
+      await probeCamera();
+      return;
+    }
+    try {
+      const res = await fetch("/api/metrics/consent", { cache: "no-store" });
+      const data = (await res.json().catch(() => ({}))) as { acceptedAt?: string | null };
+      if (data.acceptedAt) {
+        setConsentAccepted(true);
+        await probeCamera();
+        return;
+      }
+    } catch {
+      // Treat a failed consent check the same as "not yet accepted" — show
+      // the dialog rather than silently starting a measured session.
+    }
+    setShowConsentDialog(true);
+  };
+
+  const handleConsentAccept = () => {
+    setShowConsentDialog(false);
+    setConsentAccepted(true);
+    void probeCamera();
+  };
+
+  const handleConsentDecline = () => {
+    setShowConsentDialog(false);
+    setCameraMode("OFF");
+    setStep("session");
+  };
+
+  const chooseCameraOff = () => {
+    setCameraMode("OFF");
+    setCameraBlock(null);
+    setStep("session");
+  };
+
   if (!handoffResolved) {
     return (
       <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa]">
@@ -213,6 +304,7 @@ export default function InterviewPage() {
         }
         interviewerAvatarId={selectedInterviewer.avatarId}
         avatarConfig={avatarConfig}
+        cameraMode={cameraMode}
         resumeText={resumeText}
         resumeFileName={resumeFileName}
         resumeId={resumeId}
@@ -260,16 +352,16 @@ export default function InterviewPage() {
         <div className="mb-8 flex items-center gap-2" aria-label="Interview setup progress">
           <ProgressItem active={step === "interviewer"} complete={step !== "interviewer"} number="01" label="Interviewer" />
           <div className="h-px flex-1 bg-[#ccdce3]" />
-          <ProgressItem active={step === "resume"} complete={false} number="02" label="Resume" />
+          <ProgressItem active={step === "resume"} complete={step === "camera"} number="02" label="Resume" />
           <div className="h-px flex-1 bg-[#ccdce3]" />
-          <ProgressItem active={false} complete={false} number="03" label="Practice" />
+          <ProgressItem active={step === "camera"} complete={false} number="03" label="Camera" />
         </div>
 
         {step === "interviewer" && (
           <section aria-labelledby="interviewer-heading">
             <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-[#0a7391]">Step 1 of 2</p>
+                <p className="text-sm font-semibold text-[#0a7391]">Step 1 of 3</p>
                 <h2 id="interviewer-heading" className="mt-1 font-serif text-3xl tracking-[-0.03em]">Choose your interviewer.</h2>
               </div>
               <p className="max-w-md text-sm leading-6 text-[#58727f]">Each interviewer uses a compatible voice profile, so the session starts without a configuration step.</p>
@@ -316,7 +408,7 @@ export default function InterviewPage() {
         {step === "resume" && (
           <section className="mx-auto max-w-3xl" aria-labelledby="resume-heading">
             <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
-              <div className="flex items-start gap-4"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#e0f3f9] text-[#08718d]"><FileUp size={21} /></div><div><p className="text-sm font-semibold text-[#0a7391]">Step 2 of 2</p><h2 id="resume-heading" className="mt-1 font-serif text-3xl tracking-[-0.03em]">Bring your resume into the room.</h2><p className="mt-3 max-w-xl text-[15px] leading-7 text-[#58727f]">Your interviewer will ask grounded follow-ups about your experience. PDFs stay private and are never shown to other students.</p></div></div>
+              <div className="flex items-start gap-4"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#e0f3f9] text-[#08718d]"><FileUp size={21} /></div><div><p className="text-sm font-semibold text-[#0a7391]">Step 2 of 3</p><h2 id="resume-heading" className="mt-1 font-serif text-3xl tracking-[-0.03em]">Bring your resume into the room.</h2><p className="mt-3 max-w-xl text-[15px] leading-7 text-[#58727f]">Your interviewer will ask grounded follow-ups about your experience. PDFs stay private and are never shown to other students.</p></div></div>
 
               {resumeId ? (
                 <div className="mt-7 flex items-center gap-3 rounded-xl border border-[#b7e3d4] bg-[#effaf5] p-4 text-[#185b49]"><FileCheck2 size={20} /><div><p className="font-semibold">{resumeFileName}</p><p className="text-sm">Parsed and ready for this interview.</p></div></div>
@@ -329,11 +421,113 @@ export default function InterviewPage() {
                 </label>
               )}
 
-              <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6"><Button variant="light" onPress={() => setStep("interviewer")}>Back</Button><div className="flex gap-2"><Button variant="flat" onPress={() => { setResumeId(null); setResumeText(""); setResumeFileName(undefined); setStep("session"); }}>Skip for now</Button><Button color="primary" isDisabled={uploadingResume} endContent={<ArrowRight size={17} />} onPress={() => setStep("session")}>Start interview</Button></div></div>
+              <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6"><Button variant="light" onPress={() => setStep("interviewer")}>Back</Button><div className="flex gap-2"><Button variant="flat" onPress={() => { setResumeId(null); setResumeText(""); setResumeFileName(undefined); setStep("camera"); }}>Skip for now</Button><Button color="primary" isDisabled={uploadingResume} endContent={<ArrowRight size={17} />} onPress={() => setStep("camera")}>Continue</Button></div></div>
+            </div>
+          </section>
+        )}
+
+        {step === "camera" && (
+          <section className="mx-auto max-w-3xl" aria-labelledby="camera-heading">
+            <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
+              <div className="flex items-start gap-4">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#e0f3f9] text-[#08718d]">
+                  <Camera size={21} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[#0a7391]">Step 3 of 3</p>
+                  <h2 id="camera-heading" className="mt-1 font-serif text-3xl tracking-[-0.03em]">
+                    Practise with your camera on?
+                  </h2>
+                  <p className="mt-3 max-w-xl text-[15px] leading-7 text-[#58727f]">
+                    This choice is locked once the interview starts — you
+                    can&apos;t switch it part-way, in either direction.
+                  </p>
+                </div>
+              </div>
+
+              {cameraBlock ? (
+                <div className="mt-7 rounded-2xl border border-danger-200 bg-danger-50 p-6 text-danger-900">
+                  <div className="flex items-start gap-3">
+                    <CircleAlert size={22} className="mt-0.5 shrink-0" />
+                    <div>
+                      <h3 className="font-semibold">{CAMERA_BLOCK_COPY[cameraBlock].heading}</h3>
+                      <p className="mt-1 text-sm leading-6">{CAMERA_BLOCK_COPY[cameraBlock].body}</p>
+                    </div>
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <Button
+                      variant="flat"
+                      isLoading={probing}
+                      onPress={() => void probeCamera()}
+                    >
+                      Try again
+                    </Button>
+                    <Button color="primary" onPress={chooseCameraOff}>
+                      Continue with my camera off
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-7 grid gap-4 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      aria-pressed={cameraMode === "ON"}
+                      onClick={() => void beginCameraOnFlow()}
+                      disabled={probing}
+                      className={`flex flex-col items-start gap-3 rounded-2xl border p-5 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${cameraMode === "ON" ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]" : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"} disabled:cursor-not-allowed disabled:opacity-70`}
+                    >
+                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e0f3f9] text-[#08718d]">
+                        <Camera size={19} />
+                      </span>
+                      <span className="font-serif text-xl">Practise with my camera on</span>
+                      <span className="text-sm leading-6 text-[#58727f]">
+                        Visual and Vocal will be scored.
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={cameraMode === "OFF"}
+                      onClick={chooseCameraOff}
+                      disabled={probing}
+                      className={`flex flex-col items-start gap-3 rounded-2xl border p-5 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${cameraMode === "OFF" ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]" : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"} disabled:cursor-not-allowed disabled:opacity-70`}
+                    >
+                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#eef2f4] text-[#526c7b]">
+                        <CameraOff size={19} />
+                      </span>
+                      <span className="font-serif text-xl">Camera off</span>
+                      <span className="text-sm leading-6 text-[#58727f]">
+                        I&apos;ll practise without being measured. Visual and
+                        Vocal won&apos;t be scored this time.
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6">
+                    <Button variant="light" onPress={() => setStep("resume")}>Back</Button>
+                    <Button
+                      color="primary"
+                      isLoading={probing}
+                      endContent={<ArrowRight size={17} />}
+                      onPress={() =>
+                        cameraMode === "ON" ? void beginCameraOnFlow() : chooseCameraOff()
+                      }
+                    >
+                      Start interview
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </section>
         )}
       </div>
+
+      <MetricsConsentDialog
+        open={showConsentDialog}
+        onAccept={handleConsentAccept}
+        onDecline={handleConsentDecline}
+      />
     </main>
   );
 }
