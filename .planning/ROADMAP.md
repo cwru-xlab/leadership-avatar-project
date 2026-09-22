@@ -197,17 +197,17 @@ scenario reports into scope (the original line predates Phase 9's second report 
   1. Eye contact, framing, speech rate and filler counts are measured, not estimated.
   2. Reports generated before this phase remain valid with null scores.
 
-**Plans:** 5/11 plans executed
+**Plans:** 7/11 plans executed
 
 Plans:
 - [x] 10-01-PLAN.md — shared metric contract, qualitative bands, liveness-vs-performance discriminator
 - [x] 10-02-PLAN.md — metric/camera-mode/unscored-reason columns on both report models + both DTOs
 - [x] 10-03-PLAN.md — in-browser visual capture engine + self-view thumbnail + fold-away banner
 - [x] 10-04-PLAN.md — vocal capture engine, word-timestamp STT route, evaluation-budget measurement
-- [ ] 10-05-PLAN.md — consent record/dialog + camera-mode snapshot on both session-start routes
-- [ ] 10-06-PLAN.md — widen both evaluators, rewrite the scenario prompt's metric clauses, inject real metrics
+- [x] 10-05-PLAN.md — consent record/dialog + camera-mode snapshot on both session-start routes
+- [x] 10-06-PLAN.md — widen both evaluators, rewrite the scenario prompt's metric clauses, inject real metrics
 - [ ] 10-07-PLAN.md — finish-route metric ingestion + both runners persist scores, metrics and unscored reasons
-- [ ] 10-08-PLAN.md — ReportScoreCards four-state rewrite with qualitative bands, wired into both report pages
+- [x] 10-08-PLAN.md — ReportScoreCards four-state rewrite with qualitative bands, wired into both report pages
 - [ ] 10-09-PLAN.md — interview wizard + session shell camera-mode gate, live affordances, metrics on finish
 - [ ] 10-10-PLAN.md — case-play scenario player camera-mode gate, live affordances, metrics on finish
 - [ ] 10-11-PLAN.md — static constraint sweep + human end-to-end validation (camera/mic/live UI)
