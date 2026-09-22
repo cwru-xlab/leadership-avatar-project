@@ -1,4 +1,11 @@
 import type { ScenarioReport } from "@prisma/client";
+import type {
+  CameraMode,
+  VisualMetrics,
+  VocalMetrics,
+  VisualUnscoredReason,
+  VocalUnscoredReason,
+} from "@/lib/metrics/types";
 
 /**
  * Client-facing shape of a ScenarioReport row.
@@ -33,6 +40,23 @@ export interface ScenarioReportDTO {
     vocal: number | null;
     content: number | null;
     behavioral: number | null;
+  };
+  /**
+   * Phase 10 derived metrics. `cameraMode === null` marks a pre-Phase-10 row —
+   * the "Not yet measured" legacy state (REQ-48). A non-null `visualUnscored`
+   * or `vocalUnscored` carries the CAUSE of a null score, so the report page
+   * never has to guess it back from the null (REQ-45).
+   *
+   * Safe to return to its owner: these are the student's own derived numbers
+   * and the route this DTO backs is already owner-scoped with a
+   * 404-never-403 contract. No media reference can appear here.
+   */
+  metrics: {
+    cameraMode: CameraMode | null;
+    visual: VisualMetrics | null;
+    vocal: VocalMetrics | null;
+    visualUnscored: VisualUnscoredReason | null;
+    vocalUnscored: VocalUnscoredReason | null;
   };
   scenario: {
     name: string;
@@ -81,6 +105,51 @@ function toScenarioReportCharacters(
 }
 
 /**
+ * The `visualMetrics`/`vocalMetrics` columns are Prisma `Json?`, so they
+ * arrive typed as `Prisma.JsonValue` (effectively `unknown`). This
+ * defensively narrows to the shared shape, keyed on one field that only a
+ * real payload would have. The column is written only by this app's own
+ * metrics pipeline, but a hand-edited or pre-contract row must degrade to
+ * null rather than crash the report page.
+ */
+function asVisualMetrics(value: unknown): VisualMetrics | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const v = value as Partial<VisualMetrics>;
+  return typeof v.eye_contact_pct === "number" && v.coverage ? (value as VisualMetrics) : null;
+}
+
+function asVocalMetrics(value: unknown): VocalMetrics | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const v = value as Partial<VocalMetrics>;
+  return typeof v.words_per_minute === "number" && v.coverage ? (value as VocalMetrics) : null;
+}
+
+const CAMERA_MODES: readonly CameraMode[] = ["ON", "OFF"];
+const VISUAL_UNSCORED_REASONS: readonly VisualUnscoredReason[] = [
+  "CAMERA_OFF_OPTOUT",
+  "INSUFFICIENT_DATA",
+];
+const VOCAL_UNSCORED_REASONS: readonly VocalUnscoredReason[] = ["TYPED_ONLY", "INSUFFICIENT_DATA"];
+
+function asCameraMode(value: string | null): CameraMode | null {
+  return value !== null && (CAMERA_MODES as readonly string[]).includes(value)
+    ? (value as CameraMode)
+    : null;
+}
+
+function asVisualUnscoredReason(value: string | null): VisualUnscoredReason | null {
+  return value !== null && (VISUAL_UNSCORED_REASONS as readonly string[]).includes(value)
+    ? (value as VisualUnscoredReason)
+    : null;
+}
+
+function asVocalUnscoredReason(value: string | null): VocalUnscoredReason | null {
+  return value !== null && (VOCAL_UNSCORED_REASONS as readonly string[]).includes(value)
+    ? (value as VocalUnscoredReason)
+    : null;
+}
+
+/**
  * Maps a Prisma `ScenarioReport` row to the client-facing DTO.
  *
  * This mapping is intentionally explicit, field by field. Never spread the
@@ -100,6 +169,13 @@ export function toScenarioReportDTO(row: ScenarioReport): ScenarioReportDTO {
       vocal: row.vocalScore,
       content: row.contentScore,
       behavioral: row.behavioralScore,
+    },
+    metrics: {
+      cameraMode: asCameraMode(row.cameraMode),
+      visual: asVisualMetrics(row.visualMetrics),
+      vocal: asVocalMetrics(row.vocalMetrics),
+      visualUnscored: asVisualUnscoredReason(row.visualUnscoredReason),
+      vocalUnscored: asVocalUnscoredReason(row.vocalUnscoredReason),
     },
     scenario: {
       name: row.caseName,
