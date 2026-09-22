@@ -210,6 +210,8 @@ const STUDENT_ROUTES: string[] = [
   // Student-owned scenario CRUD, ownership enforced in the route handlers
   // themselves.
   "/api/scenario",
+  // REQ-36 consent endpoint, owner-scoped in the route handler itself.
+  "/api/metrics",
   // Endpoints needed by case-play's avatar mode (streaming avatar,
   // avatar profile config, and push-to-talk audio transcription).
   // These endpoints are also used by kiosk flows, so the authorization
