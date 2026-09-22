@@ -16,6 +16,9 @@ import { s3Storage } from "@/lib/s3-client";
 import { formatTranscriptForEvaluator } from "./transcript";
 import { runInterviewEvaluation } from "./evaluation";
 import { getInterviewType, DEFAULT_INTERVIEW_TYPE } from "./types";
+import { asVisualMetrics, asVocalMetrics } from "@/lib/metrics/ingest";
+import { resolveVisualOutcome, resolveVocalOutcome } from "@/lib/metrics/coverage";
+import type { CameraMode } from "@/lib/metrics/types";
 
 const MAX_ERROR_MESSAGE_LENGTH = 500;
 
@@ -79,19 +82,44 @@ export async function runAndPersistEvaluation(
       difficulty: report.difficulty ?? preset.difficulty,
     };
 
-    // TODO(10-07): wire the row's real captured visual/vocal metrics through
-    // here. Passing null on both keeps this plan's widened evaluator inputs
-    // compiling and behaviorally identical to today (visual/vocal always
-    // null) until 10-07 lands the real capture-to-evaluator plumbing.
+    // Parse the row's own stored Json? columns back into the shared types
+    // through the SAME discriminator that validated them on the way in
+    // (lib/metrics/ingest.ts) — never a third private copy.
+    const visual = asVisualMetrics(report.visualMetrics);
+    const vocal = asVocalMetrics(report.vocalMetrics);
+
+    // The liveness-vs-performance discriminator (REQ-42, lib/metrics/coverage.ts).
+    // A legacy row has a null cameraMode; treating it as camera-off would
+    // resolve to CAMERA_OFF_OPTOUT here, but the report page must render a
+    // legacy row as "Not yet measured" — so the unscored reason is only
+    // ever written below when cameraMode is actually set (see the
+    // report.cameraMode === null guard on the write itself).
+    const cameraMode = (report.cameraMode as CameraMode | null) ?? "OFF";
+    const visualOutcome = resolveVisualOutcome(cameraMode, visual);
+    const vocalOutcome = resolveVocalOutcome(vocal);
+
+    // Metrics are handed to the evaluator ONLY when the outcome says scored.
+    // A technical failure must never send a metrics object the model would
+    // then dutifully score (plan 10-06's prompt/type gate then also agrees,
+    // since visualMetrics === null there forces the score null regardless
+    // of what the model returns).
     const outcome = await runInterviewEvaluation({
       fullTranscript: formatTranscriptForEvaluator(transcript),
       resumeText: report.resumeText ?? "",
       roleContext,
-      visualMetrics: null,
-      vocalMetrics: null,
+      visualMetrics: visualOutcome.scored ? visual : null,
+      vocalMetrics: vocalOutcome.scored ? vocal : null,
     });
 
     if (outcome.ok) {
+      // A legacy row (report.cameraMode === null) keeps both reason columns
+      // null — this is what keeps REQ-48 (legacy reports never change) and
+      // REQ-45 (a stored, never-re-derived cause) from colliding.
+      const visualUnscoredReason =
+        report.cameraMode === null ? null : visualOutcome.reason;
+      const vocalUnscoredReason =
+        report.cameraMode === null ? null : vocalOutcome.reason;
+
       await prisma.interviewReport.update({
         where: { id: reportId },
         data: {
@@ -104,12 +132,17 @@ export async function runAndPersistEvaluation(
           failureReason: null,
           evalModel: outcome.model,
           completedAt: new Date(),
+          visualUnscoredReason,
+          vocalUnscoredReason,
         },
       });
       console.info("Interview evaluation completed", {
         userId,
         reportId,
         status: "READY",
+        cameraMode: report.cameraMode,
+        visualUnscoredReason,
+        vocalUnscoredReason,
       });
       return;
     }
