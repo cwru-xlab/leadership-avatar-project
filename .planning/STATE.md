@@ -2,7 +2,7 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-22 (Phase 10 in progress — 10-05, 10-06, 10-08 complete)
+**Updated:** 2026-09-22 (Phase 10 in progress — 10-01..10-09 complete; see disk for concurrent siblings)
 
 ## Current Position
 
@@ -17,15 +17,20 @@ prop wiring); 10-05 also complete (`app/api/metrics/consent/route.ts`,
 `app/api/interview/session/start/route.ts`,
 `app/api/scenario/session/start/route.ts` — account-level consent, the
 in-app consent dialog, and a server-enforced write-once `cameraMode`/
-`metricsConsentAt` snapshot on both report rows). Other Phase 10 plans may
-be executing concurrently in sibling agents — check individual
-`10-NN-SUMMARY.md` files on disk for the authoritative per-plan completion
-state. Next: whichever `10-NN-PLAN.md` has no matching `10-NN-SUMMARY.md`
-yet, via `/gsd:execute-phase 10`.
+`metricsConsentAt` snapshot on both report rows); 10-07 also complete
+(finish-route metric ingestion + both evaluation runners); 10-09 also
+complete (`app/interview/[type]/page.tsx`'s camera-mode wizard step,
+`components/interview/InterviewSessionShell.tsx`'s capture lifecycle and
+live affordances — the interview surface's REQ-35/36/37/40/43/44/49 wiring).
+Other Phase 10 plans may be executing concurrently in sibling agents — check
+individual `10-NN-SUMMARY.md` files on disk for the authoritative per-plan
+completion state. Next: whichever `10-NN-PLAN.md` has no matching
+`10-NN-SUMMARY.md` yet (10-10 and 10-11 as of this update), via
+`/gsd:execute-phase 10`.
 
 **Previous phase:** 9 — Student-Authored Scenarios — COMPLETE
 **Current Plan:** All 9 plans (09-01 through 09-09) complete. Phase 9 signed off: 19-point static constraint sweep (all PASS) plus a human-confirmed 24-step end-to-end walkthrough, with one real defect (avatar picker sourcing the wrong catalog) found and fixed under the checkpoint before final approval.
-**Status:** Phase 10 in progress — 7/11 plans complete (at least; see disk for concurrent siblings)
+**Status:** Phase 10 in progress — 9/11 plans complete (at least; see disk for concurrent siblings)
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -1163,3 +1168,48 @@ Open items carried into Phase 10+:
   shared index between this plan's `git add` and `git commit` — no files
   were lost, a fresh `add`+`commit` produced a clean single-plan commit,
   confirmed via `git show --name-only`.
+- 10-09 (camera-mode wizard step + session-shell capture wiring —
+  `app/interview/[type]/page.tsx`, `components/interview/InterviewSessionShell.tsx`):
+  complete. Commits `607f747`, `3854499`. Added a locked `camera` `SetupStep`
+  between resume and session: consent-gated (`GET`/`POST /api/metrics/consent`
+  + `MetricsConsentDialog`), permission-probed (`requestCameraStream()`, probe
+  tracks stopped immediately), with a block panel (retry + "Continue with my
+  camera off") for denied/unavailable cameras and a decline-to-camera-off path
+  that still starts the session — `cameraMode` reaches `InterviewSessionShell`
+  as a plain, non-setter prop. The shell now runs the full capture lifecycle:
+  visual capture starts only after `StreamingAvatarSessionState.CONNECTED`
+  (never delaying the avatar handshake, REQ-49), vocal capture attaches to the
+  existing push-to-talk microphone stream with no second `getUserMedia` call,
+  `submitSpokenTurn`/`recordTypedTurn` are fired from the correct call sites
+  (`recordTypedTurn` only from the text-input Enter/Send paths, never from
+  push-to-talk), `SelfViewThumbnail`/`FaceDetectionBanner` render as fixed
+  `pointer-events-none` siblings, and `handleEnd` stops/drains both engines
+  and adds `metrics: { cameraMode, visual, vocal }` to the existing finish
+  request body before the fetch. A single `releaseVisualCapture()` helper
+  runs on every exit path (End success, Leave, unmount) so the camera track
+  is guaranteed to stop. `npx tsc --noEmit` clean throughout; every
+  plan-specified grep passed; `app/case-play/[caseId]/page.tsx` (a
+  concurrently-in-progress sibling file), `components/HeyGenAvatar/
+  InteractiveAvatar.tsx`, `app/api/audio/transcribe/route.ts`, and `prisma/`
+  all confirmed diff-empty against this plan's own commits. REQ-35/36/37/
+  38/40/43/44/49 are intentionally left unchecked in `REQUIREMENTS.md`
+  despite appearing in this plan's frontmatter, extending the established
+  split-requirement precedent — this plan delivers the full interview-session
+  wiring end to end, but each requirement's text also covers the scenario
+  session shell, which is 10-10's still-in-progress sibling plan. **Live
+  browser/end-to-end verification (camera permission prompts, self-view/
+  banner visibility, a real HeyGen avatar session with the camera on) could
+  NOT be performed in this environment** — no browser-automation tool is
+  available to this executor, a second `next dev` instance was refused by
+  Turbopack's directory-level lock (same class of hazard as `10-03`/`10-08`),
+  and the already-running port-3000 dev server was confirmed to point at the
+  SHARED `DATABASE_URL` (not the local dev DB the Phase 10 migration was
+  applied to) — an authenticated `GET /api/metrics/consent` against it
+  returned 500. This is disclosed, not glossed over; the plan's `<verify>`
+  block explicitly calls for this browser walkthrough, and 10-11 (or
+  whichever plan performs the phase-closing sweep) should perform it. What
+  WAS verified: `tsc --noEmit`, every specified grep, all diff-empty checks,
+  and a real `tsx` query against the local dev DB confirming five real
+  seeded students (including `alice.johnson@case.edu`) all have
+  `videoAnalysisConsentAt: null`, the precondition the plan's consent-dialog
+  verification step calls for.
