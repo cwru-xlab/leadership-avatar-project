@@ -58,7 +58,7 @@ import {
   type VisualCaptureHandle,
 } from "@/lib/metrics/visual-capture";
 import { createVocalCapture } from "@/lib/metrics/vocal-capture";
-import type { CameraMode } from "@/lib/metrics/types";
+import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 
 type PageState = "intro" | "playing";
 type InteractionMode = "text" | "avatar";
@@ -413,6 +413,95 @@ export default function CasePlayPage() {
 
   // Release the mic on unmount so the browser recording indicator clears.
   useEffect(() => releaseMicStream, [releaseMicStream]);
+
+  // ---- Scenario-only capture lifecycle (Task 2) ----
+  // Vocal capture is created once per scenario run, independent of
+  // cameraMode — audio accounting exists regardless of the camera choice.
+  // Never created for the admin case-study path.
+  useEffect(() => {
+    if (!isScenario) return;
+    vocalCaptureRef.current = createVocalCapture();
+    return () => {
+      vocalCaptureRef.current?.detachStream();
+      vocalCaptureRef.current = null;
+    };
+  }, [isScenario]);
+
+  /** Stops the visual engine, returns its final scalar metrics, and stops
+   * every camera track. Idempotent and safe from any exit path — the camera
+   * LED must go out every time this runs. */
+  const stopAndReleaseVisualCapture = useCallback((): VisualMetrics | null => {
+    let result: VisualMetrics | null = null;
+    try {
+      result = visualCaptureRef.current?.stop() ?? null;
+    } catch {
+      result = null;
+    }
+    visualCaptureRef.current = null;
+    scenarioCameraStreamRef.current?.getTracks().forEach((t) => t.stop());
+    scenarioCameraStreamRef.current = null;
+    setScenarioSelfViewStream(null);
+    return result;
+  }, []);
+
+  /** Combined release for exit paths that don't need the resulting metrics
+   * (unmount, Save & exit) — mirrors `stopAndReleaseVisualCapture` plus the
+   * vocal engine's stream detach. */
+  const releaseScenarioCapture = useCallback(() => {
+    stopAndReleaseVisualCapture();
+    vocalCaptureRef.current?.detachStream();
+  }, [stopAndReleaseVisualCapture]);
+
+  // Release camera + vocal capture on unmount — a fourth exit path
+  // alongside Finish, Save & exit, and a pageState change away from
+  // "playing" (Finish/Save & exit navigate away entirely, so unmount is
+  // this effect's only real trigger, but it must still fire).
+  useEffect(() => releaseScenarioCapture, [releaseScenarioCapture]);
+
+  // Visual capture starts once the run is live (`pageState === "playing"`),
+  // gated on `isScenario && cameraMode === "ON"`. Deliberately NOT gated on
+  // the avatar connecting: unlike the interview flow (whose avatar is always
+  // present regardless of the text/voice input choice), a case-play run may
+  // stay in text mode the ENTIRE time and never render an avatar at all — a
+  // camera-on run answered entirely by typing must still produce a Visual
+  // score (see 10-10-PLAN.md verify case 2), so this cannot depend on an
+  // avatar-connected signal that a text-only run would never emit. Starting
+  // immediately here also avoids any risk of the two independent connections
+  // (camera getUserMedia vs. the HeyGen WebRTC handshake) contending with
+  // each other, which protects REQ-49 at least as well as sequencing them.
+  useEffect(() => {
+    if (pageState !== "playing") return;
+    if (!isScenario || cameraMode !== "ON") return;
+    if (visualCaptureRef.current) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await requestCameraStream();
+      if (cancelled) return;
+      if (!result.ok) {
+        // The intro screen's own probe already succeeded — the camera was
+        // seized or revoked between screens. The student is already live;
+        // never block a running session. The null visual block resolves to
+        // INSUFFICIENT_DATA server-side (REQ-42).
+        addToast({
+          title: "Your camera stopped responding",
+          description: "Visual won't be measured for this session.",
+          color: "warning",
+        });
+        return;
+      }
+      scenarioCameraStreamRef.current = result.stream;
+      setScenarioSelfViewStream(result.stream);
+      const capture = createVisualCapture({
+        stream: result.stream,
+        onFaceStateChange: (detected) => setFaceDetected(detected),
+      });
+      visualCaptureRef.current = capture;
+      void capture.start();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pageState, isScenario, cameraMode]);
 
   // Save interaction on page unload (tab close / navigate away)
   useEffect(() => {
@@ -1011,10 +1100,17 @@ export default function CasePlayPage() {
     }
   };
 
+  // This is the only path that records a TYPED turn (REQ-44). The
+  // push-to-talk path below records its own SPOKEN turn inside
+  // `processRecording` and must never also count as typed — the two are
+  // mutually exclusive per submission, which is exactly what makes the
+  // turn-level accounting correct across a mid-session Text/Avatar switch
+  // (see the file-level note at `processRecording`).
   const handleSendMessage = async () => {
     if (!currentInput.trim()) return;
     const userMessage = currentInput.trim();
     setCurrentInput("");
+    if (isScenario) vocalCaptureRef.current?.recordTypedTurn();
     await sendMessageAndGetResponse(userMessage);
   };
 
@@ -1027,6 +1123,11 @@ export default function CasePlayPage() {
     existing?.getTracks().forEach((t) => t.stop());
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     micStreamRef.current = stream;
+    // Reuses the SAME audio stream the push-to-talk path already owns — no
+    // second getUserMedia({ audio: true }) call. The vocal engine runs its
+    // own independent AnalyserNode and does not touch startLevelMetering/
+    // peakRmsRef above.
+    if (isScenario) vocalCaptureRef.current?.attachStream(stream);
     return stream;
   };
 
@@ -1154,6 +1255,28 @@ export default function CasePlayPage() {
       return;
     }
 
+    // Q4 (this is the resolution — see 10-10-PLAN.md and 10-CONTEXT.md):
+    // `interactionMode` (text/avatar) is a SEPARATE control from `cameraMode`
+    // and, unlike the camera lock, it CAN be switched mid-run via
+    // `handleSwitchInteractionMode`. Forcing a second locked control just to
+    // make vocal accounting simple was rejected — nobody asked for that, and
+    // it would make the toggle behave inconsistently with itself. Instead,
+    // accounting is TURN-LEVEL with a SESSION-LEVEL verdict: every turn is
+    // tagged spoken or typed the moment it happens (here, and in
+    // `handleSendMessage`'s `recordTypedTurn()`), and `resolveVocalOutcome`
+    // (lib/metrics/coverage.ts, consumed by the evaluation runners from
+    // 10-07) decides from the AGGREGATE at finish — scored if there was
+    // enough real speech, `TYPED_ONLY` if there was not. A mixed session is
+    // therefore scored on its spoken portion only: typed turns contribute
+    // nothing and subtract nothing (REQ-44). Do not "simplify" this to a
+    // session-level flag — that would penalise a student who typed two
+    // answers and spoke the rest.
+    //
+    // Fire-and-forget, never awaited — the live transcription latency the
+    // student feels must be unchanged. A clip rejected by either guard above
+    // is not a spoken turn and must never reach here.
+    if (isScenario) vocalCaptureRef.current?.submitSpokenTurn(audioBlob, elapsedMs);
+
     setIsTranscribing(true);
 
     try {
@@ -1259,13 +1382,40 @@ export default function CasePlayPage() {
       // A resumed scenario run (loaded via the legacy handleResume path,
       // which never repopulates scenarioReportId) has no report id to
       // submit against — fall back to the legacy finish rather than
-      // stranding the session.
+      // stranding the session. This is a pre-existing, documented gap
+      // (09-07-SUMMARY.md, carried in STATE.md): a resumed scenario run
+      // therefore produces no metrics either, since it never reaches this
+      // branch at all. Not fixed here — out of scope for this plan.
       if (isScenario && scenarioReportId) {
+        // Stop/drain BEFORE the finish fetch so the metrics field rides in
+        // the same request. stop() is synchronous; drain() is awaited and
+        // bounded at 8s by design (lib/metrics/vocal-capture.ts). drain()
+        // never throws by its own contract, but a defensive catch keeps a
+        // truly unexpected failure from losing the run — null metrics beat
+        // a lost submission.
+        let visual: VisualMetrics | null = null;
+        let vocal: VocalMetrics | null = null;
+        try {
+          visual = stopAndReleaseVisualCapture();
+        } catch {
+          visual = null;
+        }
+        try {
+          vocal = (await vocalCaptureRef.current?.drain(8000)) ?? null;
+        } catch {
+          vocal = null;
+        }
+        vocalCaptureRef.current?.detachStream();
+
         const res = await fetch("/api/scenario/session/finish", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ reportId: scenarioReportId, log: interactionLog }),
+          body: JSON.stringify({
+            reportId: scenarioReportId,
+            log: interactionLog,
+            metrics: { cameraMode, visual, vocal },
+          }),
         });
 
         // 409 ("already submitted") means the run is finished server-side —
@@ -1324,6 +1474,8 @@ export default function CasePlayPage() {
         setAvatarGrandfathered(false);
       }
       releaseMicStream();
+      // The camera LED must go out on every exit path, not only Finish.
+      if (isScenario) releaseScenarioCapture();
       const log = interactionLogRef.current;
       if (log?.mode === "assessed") {
         await saveInteraction(log);
@@ -2090,6 +2242,17 @@ export default function CasePlayPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Live capture affordances (REQ-43), scenario runs only. Fixed-position
+          siblings so they overlay without disturbing the player's layout.
+          The banner is non-blocking and folds away the moment the face is
+          picked up again; neither element scores or coaches. */}
+      {isScenario && (
+        <>
+          <SelfViewThumbnail stream={scenarioSelfViewStream} />
+          <FaceDetectionBanner visible={cameraMode === "ON" && !faceDetected} />
+        </>
+      )}
     </div>
   );
 }
