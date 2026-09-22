@@ -198,7 +198,11 @@ was decided, they do not add scope.*
 
 - **REQ-27** — [x] The character/avatar picker mirrors the interviewer selection UI at
   `app/interview/[type]/page.tsx` (card grid with avatar preview images), NOT the admin
-  case editor's `<Select>` dropdown.
+  case editor's `<Select>` dropdown. It also mirrors that page's SOURCE: the catalog is
+  the HeyGen-backed LiveAvatar catalog served by `/api/interview/interviewers` (the same
+  set shown at `/interview/general`), not the admin-curated `VideoAudioProfile` catalog.
+  Admin-created avatar profiles are obsolete as the student-facing catalog (checkpoint
+  fix, 2026-09-21).
 
 - **REQ-28** — [x] Saving is a distinct step and practice launches from the list, but the
   save lands the student where the new scenario is immediately startable — ROADMAP
