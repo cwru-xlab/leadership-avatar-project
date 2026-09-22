@@ -6,6 +6,7 @@ import { siteConfig } from "@/config/site";
 import { prisma } from "@/lib/prisma";
 import { s3Storage } from "@/lib/s3-client";
 import { runAndPersistScenarioEvaluation } from "@/lib/scenario/evaluation-runner";
+import { parseMetricsPayload, toMetricsJsonInput } from "@/lib/metrics/ingest";
 import type { InteractionLog } from "@/types";
 
 export const runtime = "nodejs";
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       return response({ error: "Invalid request body" }, 400);
     }
 
-    const { reportId, log: rawLog } = body as Record<string, unknown>;
+    const { reportId, log: rawLog, metrics: rawMetrics } = body as Record<string, unknown>;
 
     if (typeof reportId !== "string" || !reportId) {
       return response({ error: "Report not found" }, 404);
@@ -100,6 +101,26 @@ export async function POST(request: NextRequest) {
         502
       );
     }
+
+    // Strict server-side validation: an absent, malformed, or media-shaped
+    // metrics block degrades to null (never a throw, never a 400) — a
+    // client that fails to send metrics must still be able to finish its
+    // run. The student's locked capture mode is deliberately NOT read from
+    // this payload; it is already fixed on the row from session start
+    // (plan 10-05) and there is no second write path for it here. Unlike the
+    // interview route, this route has no pre-existing PENDING-transition
+    // update (that status flip happens inside the runner itself), so the
+    // metrics are persisted in their own update, awaited here before
+    // `waitUntil` schedules evaluation — guaranteeing the runner's own row
+    // read always sees them.
+    const { visual: visualMetrics, vocal: vocalMetrics } = parseMetricsPayload(rawMetrics);
+    await prisma.scenarioReport.update({
+      where: { id: report.id },
+      data: {
+        visualMetrics: toMetricsJsonInput(visualMetrics),
+        vocalMetrics: toMetricsJsonInput(vocalMetrics),
+      },
+    });
 
     waitUntil(runAndPersistScenarioEvaluation(currentUser.id, report.id));
 

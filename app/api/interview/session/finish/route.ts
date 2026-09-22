@@ -8,6 +8,7 @@ import { s3Storage } from "@/lib/s3-client";
 import { buildInterviewTranscript, normalizeTurns } from "@/lib/interview/transcript";
 import { initialProgress, type InterviewProgress } from "@/lib/interview/types";
 import { runAndPersistEvaluation } from "@/lib/interview/evaluation-runner";
+import { parseMetricsPayload, toMetricsJsonInput } from "@/lib/metrics/ingest";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
       return response({ error: "Invalid request body" }, 400);
     }
 
-    const { reportId, turns: rawTurns, progress: rawProgress } = body as Record<
+    const { reportId, turns: rawTurns, progress: rawProgress, metrics: rawMetrics } = body as Record<
       string,
       unknown
     >;
@@ -131,6 +132,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Strict server-side validation: an absent, malformed, or media-shaped
+    // metrics block degrades to null (never a throw, never a 400) — a
+    // client that fails to send metrics must still be able to finish its
+    // session. The student's locked capture mode is deliberately NOT read from
+    // this payload; it is already fixed on the row from session start
+    // (plan 10-05) and there is no second write path for it here.
+    const { visual: visualMetrics, vocal: vocalMetrics } = parseMetricsPayload(rawMetrics);
+
     await prisma.interviewReport.update({
       where: { id: report.id },
       data: {
@@ -138,6 +147,8 @@ export async function POST(request: NextRequest) {
         transcriptKey,
         turnCount: turns.length,
         failureReason: null,
+        visualMetrics: toMetricsJsonInput(visualMetrics),
+        vocalMetrics: toMetricsJsonInput(vocalMetrics),
       },
     });
 
