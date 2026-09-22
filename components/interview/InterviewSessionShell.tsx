@@ -342,11 +342,20 @@ export default function InterviewSessionShell({
   // safe to call from multiple exit paths (Leave, End, unmount) — the camera
   // LED must go out on every one of them.
   const releaseVisualCapture = useCallback(() => {
-    visualCaptureRef.current?.stop();
-    visualCaptureRef.current = null;
-    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
-    cameraStreamRef.current = null;
-    setCameraStream(null);
+    // try/finally: stopping the ENGINE must never be able to prevent stopping
+    // the TRACKS. The camera LED going out is the part a student actually
+    // sees, and it must not depend on the inference engine shutting down
+    // cleanly first.
+    try {
+      visualCaptureRef.current?.stop();
+    } catch {
+      // Engine teardown is best-effort; the track release below is not.
+    } finally {
+      visualCaptureRef.current = null;
+      cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+      setCameraStream(null);
+    }
   }, []);
 
   const releaseMicrophone = useCallback(() => {
