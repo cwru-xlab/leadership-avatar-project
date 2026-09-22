@@ -218,6 +218,15 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. No user-facing surface depends on cohort membership or staff roles.
   2. Individual users create and own all of their own practice work.
+**Plans:** 7 plans
+Plans:
+- [ ] 11-01-PLAN.md — Delete the staff/assignment page trees + prune nav/dashboard/middleware links
+- [ ] 11-02-PLAN.md — Delete the dead app/api/student-history tree + lib/student-history-service.ts
+- [ ] 11-03-PLAN.md — Caller-map CHECKPOINT: per-route user decision on /api/cohort, /api/codes, /api/student/cases
+- [ ] 11-04-PLAN.md — Relax the /api/interaction/start cohortId guard + audit the neutralized student path
+- [ ] 11-05-PLAN.md — ADMIN/USER mapping helper in lib/auth.ts + middleware role gates
+- [ ] 11-06-PLAN.md — Sweep the remaining isPrivileged and role === "student" call sites onto the helper
+- [ ] 11-07-PLAN.md — Static constraint sweep + human end-to-end walkthrough + phase close
 
 ## Progress
 
@@ -235,4 +244,4 @@ Plans:
 | 8. Interview Customization | 8/8 | Complete    | 2026-09-21 |
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 9/11 | In Progress|  |
-| 11. Cohort & Staff Teardown | 0/TBD | Not started | - |
+| 11. Cohort & Staff Teardown | 0/7 | Planned     | - |
