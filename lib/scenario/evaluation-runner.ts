@@ -32,12 +32,46 @@ function truncateErrorMessage(message: string): string {
 }
 
 /**
+ * Flattens an `InteractionLog`'s per-role message store into speaker-labelled
+ * text. `roleInteractions` is the authoritative record of what was actually
+ * said — it is what both finish routes compute `totalMessages` from — whereas
+ * `events` is an audit trail that is not guaranteed to carry `messageContent`
+ * for every turn.
+ */
+function buildTranscriptFromRoleInteractions(log: InteractionLog): string {
+  const lines: string[] = [];
+
+  const roles = Object.values(log.roleInteractions ?? {}).sort(
+    (a, b) => a.enteredAt - b.enteredAt
+  );
+
+  for (const role of roles) {
+    const messages = role.messages ?? [];
+    if (messages.length === 0) continue;
+
+    const roleName = role.roleName || role.roleId || "Unknown";
+    lines.push(`\n--- Conversation with: ${roleName} ---`);
+
+    for (const message of [...messages].sort((a, b) => a.timestamp - b.timestamp)) {
+      const time = new Date(message.timestamp).toLocaleTimeString();
+      const speaker =
+        message.role === "user" ? `Student → ${roleName}` : `${roleName} → Student`;
+      lines.push(`[${time}] ${speaker}: ${message.content}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
  * Flattens an `InteractionLog`'s events into speaker-labelled text.
  * Reproduces the event-walking logic of `buildInteractionText` in
  * `app/api/interaction/finish/route.ts` (copied here, not imported — that
  * route is never edited by this feature).
+ *
+ * Used only as a fallback: see `buildScenarioTranscript`.
  */
-function buildScenarioTranscript(log: InteractionLog): string {
+function buildTranscriptFromEvents(log: InteractionLog): string {
   const events = [...log.events].sort(
     (a: InteractionEvent, b: InteractionEvent) => a.timestamp - b.timestamp
   );
@@ -73,6 +107,22 @@ function buildScenarioTranscript(log: InteractionLog): string {
   }
 
   return lines.join("\n");
+}
+
+/**
+ * Builds the transcript handed to the evaluator.
+ *
+ * Prefers `roleInteractions` (the authoritative message store) and falls back
+ * to the event trail only when no role carries any message. A run whose events
+ * recorded session boundaries but not message content used to yield a
+ * non-empty—but conversation-free—transcript, which the evaluator then graded
+ * as if the student had said nothing.
+ */
+function buildScenarioTranscript(log: InteractionLog): string {
+  const fromRoles = buildTranscriptFromRoleInteractions(log);
+  if (fromRoles.trim()) return fromRoles;
+
+  return buildTranscriptFromEvents(log);
 }
 
 /**
