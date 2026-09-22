@@ -233,3 +233,87 @@ was decided, they do not add scope.*
 
 - **REQ-34** — [x] Reports survive deletion of their scenario, and a published scenario
   must be unpublished before it can be deleted. There is no cap on scenarios per student.
+
+### Phase 10 — Video & Audio Metrics
+
+*IDs derived from the decisions in
+`.planning/phases/10-video-audio-metrics/10-CONTEXT.md` — they restate what
+was decided, they do not add scope.*
+
+- **REQ-35** — [ ] Camera mode (on/off) is chosen BEFORE the session starts and is
+  LOCKED for its duration in both directions: a student who starts camera-off cannot
+  turn it on mid-run, and a student who starts camera-on cannot switch it off to escape
+  measurement. The chosen mode is persisted on the report row at session start.
+
+- **REQ-36** — [ ] Explicit in-app consent — a short plain-language explanation of what
+  is measured and what is kept — is required before the first measured session. The
+  browser permission dialog alone is NOT treated as informed consent. Acceptance is
+  remembered account-level AND snapshotted onto each report row, so a report stays
+  truthful about consent later.
+
+- **REQ-37** — [ ] A denied permission or an undetectable camera while camera mode is ON
+  BLOCKS the session with an explanation and offers the student the option to switch the
+  setting to camera-off. A deliberate camera-off choice instead proceeds with a notice
+  that Visual/Vocal will not be scored, and the report RECORDS that it was an opt-out —
+  an accident and an intentional choice are two different states.
+
+- **REQ-38** — [ ] Video and audio are analyzed IN-FLIGHT and NEVER STORED. Only derived
+  numbers persist on the report row. No media is written to S3, buffered to disk, or
+  routed through the server as frames.
+
+- **REQ-39** — [ ] Visual metrics are MEASURED from the student's real camera stream —
+  a forward-gaze/eye-contact proxy, camera framing/centering, lighting adequacy, and a
+  restricted set of posture flags the capture method can actually defend — never
+  estimated from transcript text. Any field the method cannot honestly measure is
+  omitted rather than invented.
+
+- **REQ-40** — [ ] Vocal metrics are MEASURED from real audio — words per minute and
+  filler words from word-level speech-to-text timestamps, pause count from inter-word
+  gaps, and volume consistency from an RMS time series — never estimated from
+  transcript text.
+
+- **REQ-41** — [ ] While camera mode is ON, a face that cannot be picked up counts
+  AGAINST the Visual score. It is not an "insufficient data" state, and NO coverage
+  threshold gates the Visual score: low detection produces a low score, not a blank
+  category.
+
+- **REQ-42** — [ ] Genuine technical failure is distinguished from poor performance by
+  pipeline-LIVENESS signals tracked independently of detection outcome (samples actually
+  processed, video-track live time, and an explicit analyzer-error flag). A technical
+  failure yields the "Insufficient data" state and never a fabricated score; a live
+  pipeline with low detection is scored normally, however low. These two causes are
+  never collapsed into one path.
+
+- **REQ-43** — [ ] During a camera-on session the student sees a live, non-blocking
+  face-detection banner that FOLDS AWAY when the face is re-detected, plus a live
+  self-view thumbnail of their own video. There is no live scoring and no live coaching.
+
+- **REQ-44** — [ ] Typed answers leave Vocal UNMEASURED, not penalized — typing is a
+  different modality, not weak vocal delivery. This is deliberately NOT symmetric with
+  the camera case.
+
+- **REQ-45** — [ ] The report distinguishes unscorable categories BY CAUSE, extending
+  the 06-08 distinction: "Not yet measured" (no pipeline existed — legacy rows),
+  camera-off / deliberate opt-out, "Insufficient data" (measurement attempted but
+  genuinely impossible), and the existing "Not scored" (evaluation ran but produced no
+  score). The cause is stored, not re-derived from a null score.
+
+- **REQ-46** — [ ] Visual and Vocal are presented as the 1-5 rubric score plus
+  QUALITATIVE BANDS ("Eye contact: strong", "Pace: slightly fast"), not raw percentages,
+  INSIDE the existing Visual and Vocal rubric cards — no new report section. Coverage is
+  disclosed ONLY when it was poor.
+
+- **REQ-47** — [ ] BOTH interview reports and scenario reports produce real Visual/Vocal
+  scores. The Phase 9 literal-`null` type guards in `lib/scenario/evaluation.ts` and
+  `lib/interview/evaluation.ts` are widened, and `SCENARIO_EVALUATOR_PROMPT`'s
+  "NOT MEASURABLE in this phase" clauses are rewritten while keeping its
+  injection-resistance protection against transcript-sourced score injection.
+
+- **REQ-48** — [ ] Reports generated before this phase remain valid with null Visual and
+  Vocal scores, rendering as "Not yet measured". No retroactive analysis is performed and
+  none is possible, since no media was ever retained.
+
+- **REQ-49** — [ ] A camera-on session does not degrade the live session: inference is
+  throttled well below display frame rate and kept off the conversation's critical path,
+  so the HeyGen avatar stream, push-to-talk audio and interviewer response latency are
+  unaffected compared with a camera-off run.
