@@ -46,7 +46,8 @@ function makeBlankCharacter(): CaseAvatar {
     name: "",
     role: "",
     additionalInfo: "",
-    profileId: undefined,
+    avatarId: undefined,
+    voiceId: undefined,
   };
 }
 
@@ -77,14 +78,14 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
     name.trim().length > 0 ||
     backgroundInfo.trim().length > 0 ||
     evaluationPrompt.trim().length > 0 ||
-    avatars.some((a) => a.name.trim() || a.role.trim() || a.profileId);
+    avatars.some((a) => a.name.trim() || a.role.trim() || a.avatarId);
 
   const situationValid =
     name.trim().length >= SCENARIO_LIMITS.NAME_MIN &&
     backgroundInfo.trim().length >= SCENARIO_LIMITS.BACKGROUND_MIN;
 
   const charactersValid = avatars.some(
-    (a) => a.profileId && a.name.trim() && a.role.trim()
+    (a) => a.avatarId && a.voiceId && a.name.trim() && a.role.trim()
   );
 
   const criteriaValid = evaluationPrompt.trim().length >= SCENARIO_LIMITS.EVALUATION_MIN;
@@ -313,8 +314,10 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
                   </div>
 
                   <AvatarPickerGrid
-                    value={avatar.profileId ?? null}
-                    onChange={(profileId) => updateCharacter(avatar.id, { profileId })}
+                    value={avatar.avatarId ?? null}
+                    onChange={({ avatarId, voiceId }) =>
+                      updateCharacter(avatar.id, { avatarId, voiceId })
+                    }
                   />
 
                   <div className="grid gap-5 sm:grid-cols-2">

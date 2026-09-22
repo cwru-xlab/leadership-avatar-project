@@ -68,8 +68,10 @@ function validateAvatar(
   const candidate = raw as Record<string, unknown>;
   const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
   const role = typeof candidate.role === "string" ? candidate.role.trim() : "";
-  const profileId =
-    typeof candidate.profileId === "string" ? candidate.profileId.trim() : "";
+  const avatarId =
+    typeof candidate.avatarId === "string" ? candidate.avatarId.trim() : "";
+  const voiceId =
+    typeof candidate.voiceId === "string" ? candidate.voiceId.trim() : "";
   const additionalInfo =
     typeof candidate.additionalInfo === "string"
       ? candidate.additionalInfo.trim()
@@ -93,9 +95,9 @@ function validateAvatar(
     hasError = true;
   }
 
-  if (!profileId) {
+  if (!avatarId || !voiceId) {
     errors.push({
-      field: `avatars[${index}].profileId`,
+      field: `avatars[${index}].avatarId`,
       message: "Every character must have a chosen avatar.",
     });
     hasError = true;
@@ -113,7 +115,8 @@ function validateAvatar(
     name,
     role,
     additionalInfo,
-    profileId,
+    avatarId,
+    voiceId,
   };
 }
 
