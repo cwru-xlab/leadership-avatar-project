@@ -27,7 +27,7 @@ coaching, retroactive analysis of past sessions, and the cohort/staff teardown
 
 ### Capture, consent and retention
 
-- **The camera is optional.** A student can practise with it off; Visual simply
+- **The camera is optional.** A student can practice with it off; Visual simply
   goes unscored for that session. Practice is never blocked by not having a camera.
 - **Video is analyzed in-flight and NEVER stored.** Frames are measured as they
   arrive and discarded; only the derived numbers persist. No new media storage
