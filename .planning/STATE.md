@@ -2,17 +2,20 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-23 (Phase 10 COMPLETE — all 11 plans executed and signed off; Phase 11 in progress — 11-01 through 11-06 of 7 complete)
+**Updated:** 2026-09-23 (Phase 11 COMPLETE — all 7 plans executed and signed off, including the 11-07 human walkthrough. All 11 roadmapped phases now complete; no Phase 12 exists yet.)
 
 ## Current Position
 
-**Phase:** 11 — Cohort & Staff Teardown
-**Current Plan:** 11-01, 11-02, 11-03, 11-04, 11-05, 11-06 complete (`11-01-SUMMARY.md`,
-`11-02-SUMMARY.md`, `11-03-SUMMARY.md`, `11-04-SUMMARY.md`, `11-05-SUMMARY.md`,
-`11-06-SUMMARY.md`); 11-03's checkpoint was resolved by the user choosing
-"delete-all" and the deletions applied; 11-07 not yet executed. See
-`.planning/phases/11-cohort-staff-teardown/` on disk for the authoritative
-current state.
+**Phase:** 11 — Cohort & Staff Teardown — COMPLETE
+**Current Plan:** All 7 plans complete (`11-01-SUMMARY.md` through
+`11-07-SUMMARY.md`). 11-03's checkpoint was resolved by the user choosing
+"delete-all" and the deletions applied; 11-07's closing static sweep passed
+(one trivial dangling-reference fix applied), and 11-07's human end-to-end
+walkthrough was completed and explicitly approved by the user, including a
+checkpoint-authorized fix for a real pre-existing (Phase 9) nested-`<button>`
+hydration defect found live in `components/scenario/ScenarioCard.tsx` during
+that walkthrough. See "Phase 11 Status: COMPLETE" below and
+`.planning/phases/11-cohort-staff-teardown/` on disk for full detail.
 
 **Previous phase:** 10 — Video & Audio Metrics — COMPLETE
 **Current Plan:** All 11 plans (10-01 through 10-11) complete. Phase 10 signed
@@ -24,7 +27,8 @@ streams keeping the indicator light on after End) found from the user's own
 bug report and fixed under the checkpoint (commit `5c7a2bd`, not yet
 re-confirmed on hardware). See "Phase 10 Status: COMPLETE" below and
 `10-11-SUMMARY.md` for full verbatim detail.
-**Status:** Phase 10 COMPLETE (11/11 plans). Phase 11 in progress (6/7 plans).
+**Status:** Phase 11 COMPLETE (7/7 plans). All 11 roadmapped phases now
+complete — no Phase 12 exists in `ROADMAP.md` yet.
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -116,6 +120,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 11]: 11-03: Task 1 produced `11-CALLER-MAP.md`, re-verifying all 15 checkpoint-gated routes (`/api/cohort/*` x7, `/api/codes/*` x7, `/api/student/cases`) had zero live callers post-11-01. At the Task 2 checkpoint the user chose "delete-all": all 15 routes deleted, `lib/cohort-storage.ts` deleted (zero importers), both `/api/cohort/join` and `/api/cohort/get` removed from `PUBLIC_ROUTES`, and every dangling `ADMIN_ROUTES`/`STUDENT_ROUTES` entry for the deleted routes pruned — commit `e75e1e6`. `types/cohort.ts` kept untouched per explicit instruction (`lib/s3-client.ts` still imports `Cohort` from it, verified by grep). `app/case-play/[caseId]/page.tsx` was deliberately NOT edited (out of this plan's scope) even though it still calls the now-deleted `GET /api/cohort/get` in an unreachable `useEffect` branch (`cohortId` query param is never set by any surviving caller) — that removal is recorded verbatim in `11-03-SUMMARY.md` under "case-play follow-up (for 11-06)" for 11-06 Task 3 to pick up. `prisma/schema.prisma`, `lib/s3-client.ts`, and `app/kiosk` all confirmed byte-unchanged; `npx tsc --noEmit` clean.
 - [Phase 11]: 11-05: Added `toAppRole`/`isAdminRole`/`AppRole` to `lib/auth.ts` as the single app-layer ADMIN/USER role-mapping source of truth (PROFESSOR->admin, STUDENT->user, KIOSK stays a distinct third branch; Postgres `Role` enum left fully unchanged, all four values intact). All three `middleware.ts` role gates (student, kiosk, admin) now call the helper instead of comparing raw JWT strings, fixing a real pre-existing bug: PROFESSOR previously matched none of `"student"`/`"admin"`/`"kiosk"` and was locked out of every gated surface — now correctly admitted everywhere ADMIN is, documented in-line at all three gate sites as an intentional fix, not a regression. Verified live via `npx next dev`: the plain `import { toAppRole, isAdminRole } from "@/lib/auth"` works with no Edge-runtime bundling error, and an unauthenticated request to `/case-management` still returns the same `307` redirect as before. Task 3 (11-02's deferred `/api/student-history` middleware cleanup) independently re-confirmed as a no-op — no such entry exists — and a consolidated sweep of all 38 remaining `/api/...` route-array entries across `PUBLIC_ROUTES`/`ADMIN_ROUTES`/`KIOSK_ROUTES`/`STUDENT_ROUTES` found zero dangling entries, so no array edits were made. `prisma/schema.prisma`, `app/kiosk`, and `app/api/auth/kiosk-auto-login` all confirmed byte-unchanged; `npx tsc --noEmit` clean.
 - [Phase 11]: 11-06: Swept the last 8 raw role-string comparisons onto `toAppRole`/`isAdminRole` — the 5 duplicated `isPrivileged` blocks collapsed to 3 surviving route handlers (`app/api/interaction/{finish,get,save}/route.ts`; `app/api/cohort/get` and `app/api/student/cases` correctly skipped, deleted in 11-03) and the 3 UI `role === "student"` branches (`app/page.tsx`, `app/login/page.tsx`, `components/auth-navbar.tsx`). Discovered `lib/auth.ts` is server-only (imports `crypto`/`prisma`/`@vercel/edge-config`) and unsafe to import into `"use client"` components, so per the plan's own documented fallback, `toAppRole`/`isAdminRole`/`AppRole` were extracted into a new dependency-free `lib/roles.ts`, with `lib/auth.ts` re-exporting the same three symbols rather than duplicating the mapping — exactly one `function toAppRole` definition exists in the repo, verified by grep, and every existing server-side `@/lib/auth` importer (including `middleware.ts`) keeps working unchanged. Task 3 (the 11-03-flagged case-play dead-effect cleanup) is a confirmed no-op: 11-03's Task 2 checkpoint decision ("delete-all") applied only to the API routes, with no recorded instruction to remove the `/api/cohort/get` `useEffect` in `app/case-play/[caseId]/page.tsx` — that file received zero edits, matching the plan's explicit default. `prisma/schema.prisma` and `app/kiosk`/`app/api/auth/kiosk-auto-login` confirmed byte-unchanged; `npx tsc --noEmit` clean.
+- [Phase 11]: 11-06 amendment (user-authorized follow-up, 2026-09-23): the dead `avatar-time-limit` `useEffect` in `app/case-play/[caseId]/page.tsx` (flagged as a no-op by 11-06 itself) was removed on explicit user instruction ("Remove it now."), commits `e31c4fe`/`dd0824e` — deleted the effect and its nested `/api/interaction/avatar-time` fetch; deliberately kept `cohortId`/`useSearchParams` (still POSTed to `/api/interaction/start`) and `avatarTimeLimitSeconds`/`avatarTotalSeconds` state (still read by the live exhaustion-banner/remaining-time UI, now permanently inert at their null default).
+- [Phase 11]: 11-07 (closing static sweep + human walkthrough, PHASE COMPLETE): the sweep baseline had to be commit `98f4577` (the commit immediately preceding 11-01's first commit) rather than `main`, since `main` trails this branch by 5 phases and would make every locked-constraint diff meaningless — documented as a pattern for future phase-closeout sweeps. All static checks passed (`npx tsc --noEmit` clean; `prisma/schema.prisma`/migrations/kiosk/`lib/s3-client.ts` byte-unchanged; `PROFESSOR` still in the Role enum; exactly one `toAppRole` definition; every middleware route-array entry resolves; no `deleteMany`/`deleteObject`/export-tooling additions), plus a live 404 proof (authenticated as `admin@example.com`, since unauthenticated requests to any non-public route 307-redirect to `/login` before route resolution and are indistinguishable from a real 404) against all 6 deleted pages and all 15 checkpoint-deleted API routes, and a normal-response proof against kept routes. One trivial dangling reference was found and fixed in place (`app/chat/view/[session-id]/page.tsx`'s four `router.push("/users-and-usages")` calls, repointed to `/`, commit `01ebd2e`) — missed by every prior Phase 11 plan since this file was never in any of their scopes. During the human walkthrough (step 3, self-service scenario flow) the user hit and reported a real, pre-existing Phase 9 defect in `components/scenario/ScenarioCard.tsx`: HeroUI's `Card isPressable` renders a native `<button>`, nesting three owner-action `<Button>`s (also native `<button>`s) inside it — illegal HTML, causing a hydration error. This was larger than a one-line dangling reference, so per this plan's own constraint it was surfaced as a finding rather than improvised; the user explicitly authorized the fix with specific requirements (preserve visual appearance, preserve keyboard accessibility, keep child buttons' `stopPropagation`, keep both owned/non-owned variants working). Fixed by replacing `Card isPressable`/`onPress` with a plain `<div role="button" tabIndex={0} onClick onKeyDown>` wrapper (Enter/Space activation added), hand-replicating `isPressable`'s press-scale/tap-highlight affordances via real HeroUI-plugin Tailwind utilities already used elsewhere in the codebase — commit `5780ccd`, confirmed by the user ("works") before the walkthrough's final "approved" sign-off. No headless browser was available in this environment to directly re-trigger the original console warning; verification relied on `npx tsc --noEmit`, a server-rendered nested-button-depth check, and the user's own live confirmation. The user then explicitly approved all eight walkthrough steps. `prisma/schema.prisma`/`prisma/migrations` confirmed empty-diffed against `98f4577` — this phase wrote no schema change and no migration, matching the plan's hard constraint. See `11-07-SUMMARY.md` for the full pass/fail sweep table and both deviations' complete detail.
 
 ## Progress
 
@@ -996,17 +1002,85 @@ carry-forward from 09-07, the fourth unapplied migration in the handoff
 queue, pre-existing eslint/`/about` breakage, the still-open interviewer-
 persona-reinforcement question) — none block Phase 10 sign-off.
 
+## Phase 11 Status: COMPLETE
+
+All 7 plans (11-01 through 11-07) executed and verified, closed out by
+11-07's static constraint sweep (all PASS) and a human-confirmed
+end-to-end walkthrough of all four live flows (interview, admin case-play,
+student-authored scenarios, both report types), plus navigation, admin
+tooling, PROFESSOR-account behavior, and kiosk. Both ROADMAP success
+criteria proven: criterion 1 (no user-facing surface depends on cohort
+membership or staff roles) by the full static sweep plus live 404s on
+every deleted page/route and normal responses on every kept route;
+criterion 2 (individual users create and own all of their own practice
+work) by the user's own live publish/unpublish/run loop on a
+self-authored scenario.
+
+**The 11-03 checkpoint's per-route outcome** (binding for any future
+schema-cleanup phase): the user chose "delete-all" — every one of the 15
+`/api/cohort/*`, `/api/codes/*`, `/api/student/cases` routes was deleted,
+along with `lib/cohort-storage.ts` and both `/api/cohort/join`/
+`/api/cohort/get` entries in `middleware.ts`'s `PUBLIC_ROUTES`.
+`types/cohort.ts` was explicitly KEPT — `lib/s3-client.ts` still imports
+`Cohort` from it and was out of scope for this phase.
+
+**The ADMIN/USER role model exists in APP CODE ONLY.** `lib/roles.ts`
+(re-exported from `lib/auth.ts` for server-side callers) is the single
+`toAppRole`/`isAdminRole` mapping, collapsing the Postgres `Role` enum's
+four values (`ADMIN`, `PROFESSOR`, `STUDENT`, `KIOSK`) down to two at the
+application layer — `PROFESSOR` now maps to admin everywhere `ADMIN` does
+(an intentional fix to a pre-existing lockout bug, not a regression). The
+Postgres `Role` enum itself still carries all four values, byte-unchanged
+throughout the whole phase (verified against baseline `98f4577`, the
+commit immediately preceding 11-01). **A real enum collapse plus data
+backfill is a separate, deliberate future migration — not done here.**
+
+**Orphaned data remains in place, untouched and unexported.** Every
+`Cohort`/`CaseAssignment`/`Attempt` row in Postgres, and every cohort-
+related object in S3, survives exactly as it was before this phase — no
+`deleteMany`, no S3 `deleteObject`, no export/cleanup script was added
+anywhere in the phase diff (verified by grep against every phase commit).
+These rows have zero live (non-seed/non-operator) readers as of 11-02's
+audit, but deleting or exporting them was never in this phase's scope.
+
+**Still-open deferred items for a future phase:**
+- Prisma schema cleanup (dropping the now-dead `Cohort`/`CaseAssignment`/
+  `Attempt`/access-code models and their columns) — gated on the 11-03
+  checkpoint outcome recorded above.
+- The real Postgres `Role` enum collapse (`ADMIN`/`PROFESSOR`/`STUDENT`/
+  `KIOSK` → two values) plus a data backfill migration — today's mapping
+  is app-code-only, per the decision above.
+- An aggregate/anonymous operator usage view (if ever wanted) — no
+  replacement for the deleted `/users-and-usages` admin page was built.
+- Access-code/invite signup (if ever wanted) — `/api/cohort/join` and the
+  `/join/[accessCode]` flow are both fully deleted.
+- Export tooling for the orphaned cohort/assignment/attempt rows and S3
+  objects, if that data is ever needed before a schema cleanup runs.
+
+One real, pre-existing (Phase 9) defect was found and fixed under this
+phase's closing checkpoint, not by the static sweep but by the user's own
+live testing: `components/scenario/ScenarioCard.tsx` nested a native
+`<button>` (HeroUI's `Card isPressable`) inside another native `<button>`
+(the owner Edit/Publish/Delete actions), producing a React hydration
+error. Fixed under explicit user authorization (commit `5780ccd`) with a
+plain, hand-accessible `<div role="button">` wrapper replacing
+`isPressable`. See `11-07-SUMMARY.md` for full detail, including the note
+that no headless browser was available in this environment to directly
+re-trigger the original console warning — verification relied on
+`tsc --noEmit`, a server-rendered nested-button-depth check, and the
+user's own live confirmation ("works") before final sign-off.
+
 ## Next
 
-Phase 10 (Video & Audio Metrics) is COMPLETE — see "Phase 10 Status:
-COMPLETE" above and `10-11-SUMMARY.md`.
+Phase 11 (Cohort & Staff Teardown) is COMPLETE — see "Phase 11 Status:
+COMPLETE" above and `11-07-SUMMARY.md`.
 
-Phase 11 (Cohort & Staff Teardown) is now current. 11-01 (delete staff/
-assignment page trees, see progress entry above and `11-01-SUMMARY.md`) is
-complete; 11-02 through 11-07 remain. See
-`.planning/phases/11-cohort-staff-teardown/` on disk for its authoritative
-state (`11-CONTEXT.md`, `11-RESEARCH.md`, and per-plan
-`11-NN-PLAN.md`/`11-NN-SUMMARY.md` files).
+**All 11 phases in `ROADMAP.md` are now complete. No Phase 12 exists yet.**
+The next step for this project is either defining a new phase/milestone
+(schema cleanup, real Role-enum collapse, and the other deferred items
+listed above are natural candidates) or considering v1.0 shipped as-is.
+This is a decision for the user/product owner, not something to infer from
+`ROADMAP.md` alone.
 
 Key Phase 10 decisions carried forward for future phases:
 - Camera is OPTIONAL, chosen BEFORE the session and LOCKED — no mid-session

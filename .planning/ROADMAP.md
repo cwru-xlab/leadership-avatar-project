@@ -31,7 +31,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 8: Interview Customization** - Preset variants plus industry/role/difficulty/length and interviewer personality
 - [x] **Phase 9: Student-Authored Scenarios** - Students create their own practice scenarios (completed 2026-09-21)
 - [x] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
-- [ ] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality)
+- [x] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality) (completed 2026-09-23)
 
 ## Phase Details
 
@@ -218,15 +218,15 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. No user-facing surface depends on cohort membership or staff roles.
   2. Individual users create and own all of their own practice work.
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans complete
 Plans:
-- [ ] 11-01-PLAN.md — Delete the staff/assignment page trees + prune nav/dashboard/middleware links
-- [ ] 11-02-PLAN.md — Delete the dead app/api/student-history tree + lib/student-history-service.ts
-- [ ] 11-03-PLAN.md — Caller-map CHECKPOINT: per-route user decision on /api/cohort, /api/codes, /api/student/cases
-- [ ] 11-04-PLAN.md — Relax the /api/interaction/start cohortId guard + audit the neutralized student path
-- [ ] 11-05-PLAN.md — ADMIN/USER mapping helper in lib/auth.ts + middleware role gates
-- [ ] 11-06-PLAN.md — Sweep the remaining isPrivileged and role === "student" call sites onto the helper
-- [ ] 11-07-PLAN.md — Static constraint sweep + human end-to-end walkthrough + phase close
+- [x] 11-01-PLAN.md — Delete the staff/assignment page trees + prune nav/dashboard/middleware links
+- [x] 11-02-PLAN.md — Delete the dead app/api/student-history tree + lib/student-history-service.ts
+- [x] 11-03-PLAN.md — Caller-map CHECKPOINT: per-route user decision on /api/cohort, /api/codes, /api/student/cases
+- [x] 11-04-PLAN.md — Relax the /api/interaction/start cohortId guard + audit the neutralized student path
+- [x] 11-05-PLAN.md — ADMIN/USER mapping helper in lib/auth.ts + middleware role gates
+- [x] 11-06-PLAN.md — Sweep the remaining isPrivileged and role === "student" call sites onto the helper
+- [x] 11-07-PLAN.md — Static constraint sweep + human end-to-end walkthrough + phase close
 
 ## Progress
 
@@ -244,4 +244,4 @@ Plans:
 | 8. Interview Customization | 8/8 | Complete    | 2026-09-21 |
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
-| 11. Cohort & Staff Teardown | 6/7 | In Progress|  |
+| 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
