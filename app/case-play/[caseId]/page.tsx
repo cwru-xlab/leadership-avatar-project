@@ -300,33 +300,6 @@ export default function CasePlayPage() {
     };
   }, [isScenario]);
 
-  // Load avatar time limit from cohort
-  useEffect(() => {
-    if (!user?.email || !cohortId || !caseId) return;
-    (async () => {
-      try {
-        const res = await fetch(`/api/cohort/get?id=${encodeURIComponent(cohortId)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const cohort = data.cohort ?? data;
-        const assignment = cohort.assignedCases?.find((a: { caseId: string }) => a.caseId === caseId);
-        const limitMinutes: number | null = assignment?.heygenMinutesLimit ?? null;
-        if (limitMinutes === null) return;
-        const limitSeconds = limitMinutes * 60;
-        setAvatarTimeLimitSeconds(limitSeconds);
-        const timeRes = await fetch(
-          `/api/interaction/avatar-time?studentEmail=${encodeURIComponent(user.email)}&caseId=${encodeURIComponent(caseId)}`
-        );
-        if (timeRes.ok) {
-          const timeData = await timeRes.json();
-          setAvatarTotalSeconds(timeData.usedSeconds ?? 0);
-        }
-      } catch {
-        // non-critical — fail silently
-      }
-    })();
-  }, [user?.email, cohortId, caseId]);
-
   const loadUnfinishedSessions = async () => {
     if (!user?.email) return;
     try {
