@@ -52,8 +52,18 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   from `.gitignore` on 2026-09-21 so the folder could be pushed for a teammate
   handoff. Planning docs are versioned from now on and SHOULD be committed.
   Phase 6-8 plan/summary text saying "`.planning/` is gitignored" is stale.
-- **Teammate handoff:** see `.planning/HANDOFF.md` for local setup, the two
-  unapplied migrations, and the known-issues list.
+- **Teammate handoff:** see `.planning/HANDOFF.md` for local setup and the
+  known-issues list.
+- **Migrations: ALL APPLIED as of 2026-09-23.** `prisma migrate status` against
+  the shared Lightsail database reports every migration applied, including the
+  four that Phase 6/8/9/10 plans recorded as queued for a `npm run setup`
+  handoff (`20260920034855_add_interview_report`,
+  `20260921141342_add_interview_customization`,
+  `20260921201213_add_scenario_report`,
+  `20260922134512_add_video_audio_metrics`). Someone applied them without
+  updating the planning record. Per-plan log entries below still describe them
+  as "unapplied" / "in the handoff queue" — those were accurate when written and
+  are now SUPERSEDED by this line. No migration work is outstanding.
 
 ## Decisions
 
