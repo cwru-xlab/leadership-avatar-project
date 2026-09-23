@@ -2,14 +2,15 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-23 (Phase 10 COMPLETE — all 11 plans executed and signed off; Phase 11 in progress — 11-01, 11-02 of 7 complete)
+**Updated:** 2026-09-23 (Phase 10 COMPLETE — all 11 plans executed and signed off; Phase 11 in progress — 11-01, 11-02, 11-04 of 7 complete)
 
 ## Current Position
 
 **Phase:** 11 — Cohort & Staff Teardown
-**Current Plan:** 11-01, 11-02 complete (`11-01-SUMMARY.md`, `11-02-SUMMARY.md`);
-11-03 through 11-07 not yet executed. See
-`.planning/phases/11-cohort-staff-teardown/` on disk for the authoritative
+**Current Plan:** 11-01, 11-02, 11-04 complete (`11-01-SUMMARY.md`,
+`11-02-SUMMARY.md`, `11-04-SUMMARY.md`); 11-03 is checkpoint-gated and awaiting
+a user decision (see `11-CALLER-MAP.md`); 11-05 through 11-07 not yet executed.
+See `.planning/phases/11-cohort-staff-teardown/` on disk for the authoritative
 current state.
 
 **Previous phase:** 10 — Video & Audio Metrics — COMPLETE
@@ -22,7 +23,7 @@ streams keeping the indicator light on after End) found from the user's own
 bug report and fixed under the checkpoint (commit `5c7a2bd`, not yet
 re-confirmed on hardware). See "Phase 10 Status: COMPLETE" below and
 `10-11-SUMMARY.md` for full verbatim detail.
-**Status:** Phase 10 COMPLETE (11/11 plans). Phase 11 in progress (2/7 plans).
+**Status:** Phase 10 COMPLETE (11/11 plans). Phase 11 in progress (3/7 plans).
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -110,6 +111,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 10-video-audio-metrics]: 10-05's `POST /api/metrics/consent` is deliberately idempotent — a repeat accept returns the account's ORIGINAL `videoAnalysisConsentAt` timestamp untouched, never a refreshed one, since the value's audit meaning is "when they first accepted"; there is no revoke endpoint (out of this phase's scope). Both `/session/start` routes validate an optional `cameraMode` field against the literal `CameraMode` union (any other value, or a missing field, falls back to `"OFF"`, mirroring `resolveInterviewType`'s hostile-value-falls-back-not-throws precedent) and independently re-check `User.videoAnalysisConsentAt` server-side, forcing `"OFF"` whenever `"ON"` is requested without a consent record — the server never trusts a client's claim of prior consent. `cameraMode`/`metricsConsentAt` are written exactly once, inside the same `prisma...Report.create()` call as the existing Phase 8/9 snapshot blocks, with no update path anywhere that can mutate `cameraMode` afterward (REQ-35's lock enforced structurally). `MetricsConsentDialog` posts its own acceptance before calling `onAccept`, so an unrecorded acceptance can never let a measured session start. REQ-35/36/37's `REQUIREMENTS.md` checkboxes are intentionally left unchecked despite appearing in 10-05's frontmatter, matching the established split-requirement precedent — the server-side enforcement (locked write-once cameraMode, idempotent consent, forced-OFF-without-consent) is fully real and verified here, but each requirement's full text also needs the pre-session UI (camera-mode picker, gated dialog flow, permission-denied blocking screen) that 10-09/10-10's session shells own and have not yet built.
 - [Phase 11]: 11-01: All six staff/assignment PAGE trees deleted and unlinked (cohort-management, codes, teacher, student-history, join, users-and-usages) plus orphaned cohort-card.tsx; middleware/nav pruned of dead page prefixes while every /api/cohort, /api/codes, /api/student/cases entry stays untouched pending the 11-03 checkpoint.
 - [Phase 11]: 11-02: `app/api/student-history/**` (10 route files) and `lib/student-history-service.ts` deleted as a discretion call — outside the three checkpoint-gated API groups, sole callers already removed in 11-01, and a repo-wide audit confirmed zero live readers of `prisma.attempt`/`prisma.caseAssignment` outside `prisma/seed.ts`/`scripts/sync-s3-to-db.ts`. `prisma/schema.prisma` and `middleware.ts` both verified byte-unchanged (`middleware.ts` has no `/api/student-history` entry, so no cleanup item exists for 11-05). This plan ran concurrently with 11-04 in the same working directory with no worktree isolation (the documented shared-git-index hazard from 08-08/09-02) — Task 1's staged deletions were absorbed into 11-04's own commit `d3e3345` rather than a dedicated 11-02 commit; content independently verified complete via `git show --name-only` and `ls`/`git diff --stat`, nothing lost.
+- [Phase 11]: 11-04: `/api/interaction/start`'s field-validation guard no longer requires `cohortId` (destructure and `InteractionLog.cohortId` field retained unchanged, shape untouched) — the one real bug the 11-01 page deletions surfaced, since case-play's admin Case Study start flow was hard-400ing on a `cohortId` no surviving page can supply. Task 2 was a read-only audit (zero edits) confirming `app/api/scenario/{add,edit,list,publish}/route.ts` and `app/case-play/[caseId]/page.tsx` are already fully inert with respect to cohorts (Phase 9 work), and that self-service scenario publishing already satisfies "individual users own all their own practice work" end to end. `app/case-play/[caseId]/page.tsx` deliberately received zero edits by design — its dead `avatar-time-limit` cohort-gated effect stays in place unconditionally; any removal is explicitly deferred to 11-06 Task 3. Process note: this plan's commit `d3e3345` absorbed 11-02's concurrently-staged `student-history` deletions due to the shared-git-index hazard (see 11-02's entry above); a subsequent `git reset --soft HEAD~1` meant to isolate that also raced with 11-03's concurrent commit and briefly undid it, immediately corrected by re-committing 11-03's identical content as `a9fe820`. No data lost; full detail in `11-04-SUMMARY.md`.
 
 ## Progress
 
@@ -805,6 +807,36 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   `app/api/cohort/`, `app/api/codes/`, `app/api/student/`, `prisma/seed.ts`,
   `scripts/sync-s3-to-db.ts`, `lib/s3-client.ts`, `app/kiosk` confirmed
   untouched via `git status --short`. See `11-02-SUMMARY.md` for full detail.
+- 11-04 (relax `/api/interaction/start`'s cohortId guard + audit self-service
+  publishing — `app/api/interaction/start/route.ts`): complete, wave 2.
+  Commit `d3e3345`. Dropped `!cohortId` from the required-field guard and its
+  error message; `cohortId` stays in the body destructure and the persisted
+  `InteractionLog` object unchanged, so the request/response shape is
+  byte-identical apart from the relaxed guard — this is the one real bug the
+  11-01 page deletions surfaced, since case-play's admin Case Study start flow
+  was hard-400ing on a `cohortId` no surviving page can supply. Task 2
+  (read-only audit, zero edits): confirmed `app/api/scenario/add/route.ts`
+  always writes `cohortIds: []`, `app/api/scenario/edit/route.ts` carries
+  `cohortIds` forward unchanged, `app/api/scenario/list/route.ts`'s
+  `toSharedProjection` omits both `cohortIds` and `ownerId`, and
+  `app/case-play/[caseId]/page.tsx`'s `cohortId` query-param read and its
+  `avatar-time-limit` effect's `/api/cohort/get` gate are both permanently
+  dead now that no surviving page sets that param — left unconditionally in
+  place by design, with any removal explicitly deferred to 11-06 Task 3.
+  Also confirmed `app/api/scenario/publish/route.ts` (owner-scoped via
+  `loadOwnedScenario`, 404-never-403) and `app/case-play/page.tsx` (admin
+  cases via `publishedOnly=true` filtered to `!c.ownerId`, student scenarios
+  via `/api/scenario/list`) already fully satisfy self-service, owner-scoped
+  publishing with zero cohort/staff involvement, entirely from pre-existing
+  Phase 9 code. `npx tsc --noEmit` clean (only pre-existing, out-of-scope
+  stale-validator noise from sibling plan 11-02's concurrent deletions).
+  `git status --short app/api/scenario app/case-play` empty — no unintended
+  edits. Commit `d3e3345` absorbed sibling 11-02's concurrently-staged
+  `student-history` deletions due to the shared-git-index race (documented in
+  11-02's entry above); a corrective `git reset --soft HEAD~1` also briefly
+  and unintentionally undid concurrently-landing sibling commit 11-03's
+  `11-CALLER-MAP.md` work, immediately restored verbatim as `a9fe820`. No data
+  lost. See `11-04-SUMMARY.md` for full detail.
 
 ## Phase 6 Status: COMPLETE
 
