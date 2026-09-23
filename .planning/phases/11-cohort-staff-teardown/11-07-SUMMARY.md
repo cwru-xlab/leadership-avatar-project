@@ -37,13 +37,13 @@ patterns-established: []
 requirements-completed: []
 
 # Metrics
-duration: "~35min (Task 1 only; Task 2 is a blocking checkpoint awaiting human sign-off)"
+duration: "~90min (Task 1 static sweep + checkpoint-authorized ScenarioCard fix + Task 2/3 close-out)"
 completed: 2026-09-23
 ---
 
 # Phase 11 Plan 07: Closing Static Sweep + Human Walkthrough Summary
 
-**Full static constraint sweep of the six-plan cohort/staff teardown came back clean except for one missed dangling reference (a chat-session admin page still linking to the deleted `/users-and-usages`), fixed in place; all locked constraints (Prisma schema, migrations, kiosk, S3 client, PROFESSOR enum value) proven byte-unchanged; every deleted route/page now 404s and every kept route still responds normally, both verified live against a real authenticated admin session. Partway through the human walkthrough, the user hit and authorized a fix for a real pre-existing (Phase 9, out-of-scope) nested-`<button>` hydration bug in `ScenarioCard.tsx` — fixed under explicit user authorization. The plan is still paused at the mandatory human end-to-end walkthrough checkpoint, awaiting confirmation of that fix and the remaining steps.**
+**Full static constraint sweep of the six-plan cohort/staff teardown came back clean except for one missed dangling reference (a chat-session admin page still linking to the deleted `/users-and-usages`), fixed in place; all locked constraints (Prisma schema, migrations, kiosk, S3 client, PROFESSOR enum value) proven byte-unchanged; every deleted route/page now 404s and every kept route still responds normally, both verified live against a real authenticated admin session. During the human walkthrough, the user hit and authorized a fix for a real pre-existing (Phase 9, out-of-scope) nested-`<button>` hydration bug in `ScenarioCard.tsx`, confirmed it live, then explicitly approved the full eight-step walkthrough. Phase 11 is now COMPLETE.**
 
 ## Performance
 
@@ -146,21 +146,34 @@ All PASS.
 ## Issues Encountered
 
 - The `git diff main` baseline issue (worked around by using `98f4577` instead — documented as a pattern for future phase-closeout sweeps).
-- The nested-`<button>` hydration error in `ScenarioCard.tsx` (see deviation #2) — found by the user during their own walkthrough of step 3, not by the static sweep (a static grep/tsc pass cannot catch invalid-HTML-nesting-via-component-composition; only a real render does). Fixed under explicit user authorization; full browser-level re-verification is still pending the user's own refresh.
+- The nested-`<button>` hydration error in `ScenarioCard.tsx` (see deviation #2) — found by the user during their own walkthrough of step 3, not by the static sweep (a static grep/tsc pass cannot catch invalid-HTML-nesting-via-component-composition; only a real render does). Fixed under explicit user authorization; the user confirmed live in their own browser ("works") that the fix resolved it before giving final sign-off.
+
+## Task 2: Human End-to-End Walkthrough — Result
+
+**APPROVED.** The user completed the full eight-step walkthrough script (interview flow; admin case-play start with no 400; student-authored scenario create/publish/unpublish/run with no staff involvement; both report types; navigation with no dead Cohorts entry; admin tooling; PROFESSOR-account behavior; kiosk), including live re-verification of the `ScenarioCard.tsx` fix mid-walkthrough, and replied "approved" — the explicit sign-off required by this plan's checkpoint protocol before Task 3 could run.
 
 ## User Setup Required
 
-None yet — Task 2 (human end-to-end walkthrough) is still open and in progress. The user hit and authorized a fix for one real defect (see deviation #2 above) partway through; they still need to confirm the fix and complete/confirm the remaining walkthrough steps. See the CHECKPOINT REACHED message returned to the orchestrator for the exact script.
+None. The user completed the walkthrough themselves as required (Claude cannot click through the app on the user's behalf); no further setup is needed.
 
 ## Next Phase Readiness
 
-- All static checks pass. `npx tsc --noEmit` is clean, working tree is clean apart from this plan's own commit, and every locked constraint (Prisma schema/migrations, kiosk, S3 client, PROFESSOR enum, no data-deletion code, no deferred-idea leakage) is proven unchanged.
-- Task 2 (human walkthrough) is a blocking checkpoint. Task 3 (recording phase completion in STATE.md/ROADMAP.md) does not run until the user explicitly signs off.
+- All static checks pass. `npx tsc --noEmit` is clean and every locked constraint (Prisma schema/migrations, kiosk, S3 client, PROFESSOR enum, no data-deletion code, no deferred-idea leakage) is proven unchanged against baseline `98f4577`.
+- Task 2 (human walkthrough) is APPROVED — both ROADMAP success criteria are demonstrably met (see STATE.md's "Phase 11 Status: COMPLETE" section for the full account).
+- Task 3 (recording phase completion) has been executed: `.planning/STATE.md` and `.planning/ROADMAP.md` both reflect Phase 11 COMPLETE, with the 11-03 checkpoint outcome, the app-layer-only ADMIN/USER model note, the untouched-orphaned-data note, and the deferred-items list all recorded verbatim in STATE.md for whatever phase comes next. `.planning/REQUIREMENTS.md` was not touched (Phase 11 carries no REQ IDs, per its own frontmatter).
+- **All 11 phases in `ROADMAP.md` are now complete.** No Phase 12 exists yet — defining one (schema cleanup, the real Role-enum collapse, or another milestone) is a decision for the user, not this plan.
 
 ---
 *Phase: 11-cohort-staff-teardown*
-*In progress — awaiting Task 2 human sign-off*
+*Completed: 2026-09-23*
 
-## Self-Check: PENDING (Task 1 only; full self-check runs after Task 3)
+## Self-Check: PASSED
 - FOUND: `app/chat/view/[session-id]/page.tsx` (fix applied, confirmed via `grep -n "router.push" `)
 - FOUND: commit `01ebd2e`
+- FOUND: `components/scenario/ScenarioCard.tsx` (fix applied — `role="button"` div wrapper present, `isPressable` removed, confirmed via `grep -n "role=\"button\"\|isPressable" components/scenario/ScenarioCard.tsx`)
+- FOUND: commit `5780ccd`
+- FOUND: commit `d6f191e`
+- CONFIRMED: `npx tsc --noEmit` exit 0 as of the final state
+- CONFIRMED: `.planning/STATE.md` contains "## Phase 11 Status: COMPLETE"
+- CONFIRMED: `.planning/ROADMAP.md` line 34 shows `- [x] **Phase 11: Cohort & Staff Teardown**`, and its Progress table row reads `7/7 | Complete | 2026-09-23`
+- CONFIRMED: `git diff --stat .planning/REQUIREMENTS.md` is empty (file untouched)
