@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { s3Storage } from "@/lib/s3-client";
 import { waitUntil } from "@vercel/functions";
 import type { InteractionLog } from "@/types";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isAdminRole } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 
 export const maxDuration = 60;
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
 
     // Authorization: Students can only finish their own logs.
     // Override studentEmail with verified identity for students.
-    const isPrivileged = currentUser.role === "admin" || currentUser.role === "professor";
+    const isPrivileged = isAdminRole(currentUser.role);
     if (!isPrivileged) {
       log.studentEmail = currentUser.email;
     } else if (!log.studentEmail) {

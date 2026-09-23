@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { s3Storage } from "@/lib/s3-client";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isAdminRole } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 
 export async function GET(request: NextRequest) {
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Authorization: students can only access their own logs
-    const isPrivileged = currentUser.role === "admin" || currentUser.role === "professor";
+    const isPrivileged = isAdminRole(currentUser.role);
     if (!isPrivileged && studentEmail.toLowerCase() !== currentUser.email.toLowerCase()) {
       return NextResponse.json(
         { error: "Forbidden: You can only access your own interaction logs" },
