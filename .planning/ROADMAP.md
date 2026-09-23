@@ -218,7 +218,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. No user-facing surface depends on cohort membership or staff roles.
   2. Individual users create and own all of their own practice work.
-**Plans:** 1/7 plans executed
+**Plans:** 2/7 plans executed
 Plans:
 - [ ] 11-01-PLAN.md — Delete the staff/assignment page trees + prune nav/dashboard/middleware links
 - [ ] 11-02-PLAN.md — Delete the dead app/api/student-history tree + lib/student-history-service.ts
@@ -244,4 +244,4 @@ Plans:
 | 8. Interview Customization | 8/8 | Complete    | 2026-09-21 |
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
-| 11. Cohort & Staff Teardown | 1/7 | In Progress|  |
+| 11. Cohort & Staff Teardown | 2/7 | In Progress|  |
