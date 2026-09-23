@@ -31,10 +31,11 @@ key-files:
     - app/login/page.tsx
     - components/auth-navbar.tsx
     - lib/auth.ts
+    - app/case-play/[caseId]/page.tsx
 
 key-decisions:
   - "lib/auth.ts imports crypto/prisma/@vercel/edge-config and cannot be safely imported into 'use client' components, so the plan's documented fallback was taken: toAppRole/isAdminRole/AppRole moved into a new dependency-free lib/roles.ts, with lib/auth.ts re-exporting them unchanged for every existing server-side caller. Exactly one implementation of the mapping exists (verified by grep: one 'function toAppRole' definition in the whole repo)."
-  - "Task 3 (case-play follow-up) is a confirmed no-op: 11-03-SUMMARY.md's Task 2 checkpoint decision was 'delete-all' for the API routes only — no instruction to remove the dead /api/cohort/get useEffect in app/case-play/[caseId]/page.tsx was recorded. Per the plan's explicit default, this file received zero edits."
+  - "Task 3 (case-play follow-up) was originally recorded as a confirmed no-op at 11-06 execution time: 11-03-SUMMARY.md's Task 2 checkpoint decision was 'delete-all' for the API routes only, with no instruction recorded to remove the dead /api/cohort/get useEffect in app/case-play/[caseId]/page.tsx. The plan's explicit default therefore left that file untouched. SUPERSEDED 2026-09-23: the user subsequently and explicitly authorized removal of this dead effect in a follow-up request ('Remove it now.'). See commit e31c4fe, which deletes the useEffect (and its sole-use /api/interaction/avatar-time fetch) while deliberately keeping cohortId/useSearchParams (still consumed by the legacy /api/interaction/start POST body) and the avatarTimeLimitSeconds/avatarTotalSeconds state (still consumed by live UI — the limit-exhaustion banner, remaining-time display, and the avatar session timer)."
 
 requirements-completed: []
 
@@ -60,13 +61,14 @@ completed: 2026-09-23
 - Replaced the duplicated `const isPrivileged = currentUser.role === "admin" || currentUser.role === "professor"` expression in the 3 surviving route handlers (`app/api/interaction/finish/route.ts`, `app/api/interaction/get/route.ts`, `app/api/interaction/save/route.ts`) with `isAdminRole(currentUser.role)`, importing it alongside the existing `getCurrentUser` import from `@/lib/auth`. Pure refactor, zero behavior change, one line plus one import edit per file.
 - Discovered `lib/auth.ts` is server-only (imports `crypto`, `prisma`, `@vercel/edge-config`) and cannot be imported into the three `"use client"` UI files targeted by Task 2. Took the plan's documented fallback: extracted the pure `toAppRole`/`isAdminRole`/`AppRole` logic into a new dependency-free `lib/roles.ts`, then rewrote `lib/auth.ts` to re-export the same three symbols instead of duplicating the mapping — so `middleware.ts` and every other existing server-side importer of `toAppRole`/`isAdminRole` from `@/lib/auth` keeps working unchanged, verified by `npx tsc --noEmit` and by grep confirming exactly one `function toAppRole` definition exists in the whole repo (`lib/roles.ts`).
 - Converted all 3 raw `role === "student"` UI branches to `toAppRole(...) === "user"`, importing from `@/lib/roles` directly in each client component: `app/page.tsx`'s dashboard branch, `app/login/page.tsx`'s post-login redirect, `components/auth-navbar.tsx`'s nav-item selection.
-- Confirmed Task 3's case-play follow-up is a no-op: re-read `11-03-SUMMARY.md`'s Task 2 checkpoint record — the user's verbatim decision ("delete-all") applied only to the 15 checkpoint-gated API routes, with no request to remove the dead `/api/cohort/get` `useEffect` in `app/case-play/[caseId]/page.tsx`. Per the plan's explicit default ("Leaving dead-but-inert code in place is the locked decision's default"), that file received zero edits — `git status --short app/case-play` is empty.
+- Confirmed Task 3's case-play follow-up was a no-op at plan-execution time: re-read `11-03-SUMMARY.md`'s Task 2 checkpoint record — the user's verbatim decision ("delete-all") applied only to the 15 checkpoint-gated API routes, with no request to remove the dead `/api/cohort/get` `useEffect` in `app/case-play/[caseId]/page.tsx`. Per the plan's explicit default ("Leaving dead-but-inert code in place is the locked decision's default"), that file received zero edits at the time.
+- **AMENDMENT (2026-09-23, post-plan):** The user subsequently issued an explicit follow-up instruction ("Remove it now.") authorizing removal of that dead effect. Applied in a separate surgical commit `e31c4fe`: deleted the `useEffect` (~27 lines) that called the deleted `GET /api/cohort/get` route and read `cohort.assignedCases`/`heygenMinutesLimit`, plus the `/api/interaction/avatar-time` fetch nested solely inside it. Deliberately kept: `cohortId`/`useSearchParams` (still passed to `/api/interaction/start`'s POST body on the legacy admin-case path) and the `avatarTimeLimitSeconds`/`avatarTotalSeconds` state (still consumed by live UI — the limit-exhaustion banner, remaining-time display, and the avatar session timer). Verified with `npx tsc --noEmit` (exit 0) and `grep -rn "api/cohort" app components lib` (zero matches).
 
 ## Task Commits
 
 1. **Task 1: Replace the duplicated isPrivileged blocks in route handlers** — `c746772`
 2. **Task 2: Route the three UI role branches through the helper (+ new lib/roles.ts)** — `f146066`
-3. **Task 3: Apply the 11-03 checkpoint's case-play follow-up** — no commit (confirmed no-op)
+3. **Task 3: Apply the 11-03 checkpoint's case-play follow-up** — no commit at plan-execution time (confirmed no-op then); superseded by user-authorized follow-up commit `e31c4fe` on 2026-09-23 (`refactor(11-06): remove dead cohort-derived avatar time limit from case-play`)
 
 ## Verification
 
@@ -88,12 +90,12 @@ completed: 2026-09-23
 - `lib/auth.ts` — re-exports from `lib/roles.ts` instead of defining the mapping locally.
 - `app/api/interaction/finish/route.ts`, `app/api/interaction/get/route.ts`, `app/api/interaction/save/route.ts` — `isPrivileged` now calls `isAdminRole`.
 - `app/page.tsx`, `app/login/page.tsx`, `components/auth-navbar.tsx` — role branch now calls `toAppRole(...) === "user"`.
-- `app/case-play/[caseId]/page.tsx` — **not modified** (Task 3 no-op).
+- `app/case-play/[caseId]/page.tsx` — not modified at plan-execution time (Task 3 no-op); **amended 2026-09-23** per user authorization — removed the dead `/api/cohort/get` avatar-time-limit `useEffect` and its nested `/api/interaction/avatar-time` fetch (commit `e31c4fe`). `cohortId`/`useSearchParams` and the `avatarTimeLimitSeconds`/`avatarTotalSeconds` state were deliberately kept (still live: legacy `/api/interaction/start` call and the limit-exhaustion UI/timer, respectively).
 
 ## Decisions Made
 
 - `lib/roles.ts` extraction (see key-decisions above) — the plan explicitly anticipated this exact scenario and named the fallback module `lib/roles.ts`, which was followed verbatim.
-- Task 3 no-op recorded per the plan's own instruction; no cleanup was improvised.
+- Task 3 no-op recorded per the plan's own instruction at execution time; no cleanup was improvised then. Superseded 2026-09-23 by explicit user authorization ("Remove it now.") — see AMENDMENT above and commit `e31c4fe`.
 
 ## Deviations from Plan
 
@@ -111,7 +113,7 @@ None.
 
 - Every role decision in the app (route handlers, middleware, and UI) now funnels through `toAppRole`/`isAdminRole` — 11-07's static sweep can assert this as a fact rather than discover remaining gaps.
 - `lib/roles.ts` is now available as the safe-for-client import path for any future component that needs the ADMIN/USER mapping; `lib/auth.ts` remains the conventional server-side import path with identical behavior.
-- The case-play dead `/api/cohort/get` effect remains in place, confirmed inert and out of scope for this phase; no outstanding action item for 11-07 on this file.
+- The case-play dead `/api/cohort/get` effect has now been removed (2026-09-23, user-authorized follow-up, commit `e31c4fe`); no outstanding action item for 11-07 on this file.
 
 ---
 *Phase: 11-cohort-staff-teardown*
