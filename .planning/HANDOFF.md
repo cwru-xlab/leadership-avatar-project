@@ -32,11 +32,13 @@ DATABASE_URL="postgresql://<youruser>@localhost:5432/leadership_avatar_dev" npm 
 If you start the dev server without that prefix, you are running the app against
 the **shared** database.
 
-**How you'll notice you got this wrong:** the shared DB does not have the four
-unapplied migrations (§3), so anything Phase 6/8/9/10 added will 500. The fastest
-tell is `GET /api/metrics/consent` returning a 500 — that endpoint only exists
-against a DB carrying the Phase 10 columns. This cost real debugging time during
-Phase 10; the symptom looks like broken code, not a wrong connection string.
+**How you'll notice you got this wrong — HARDER SINCE 2026-09-23.** This used
+to announce itself: the shared DB lacked the Phase 6/8/9/10 migrations, so those
+features 500'd immediately (`GET /api/metrics/consent` was the fast tell). All
+seven migrations are now applied to the shared DB (§3), so that signal is GONE —
+the app will run against shared data perfectly happily and you will not notice
+until you have written test rows into the team's database. Check the connection
+string, do not wait for a symptom.
 
 **Turbopack will refuse a second `next dev`** in this working directory even on a
 different port — all instances share one `.next/` cache and its lock. So you
@@ -160,14 +162,17 @@ Seven migrations exist in `prisma/migrations/`:
 | `20260228044702_init` | pre-GSD | yes |
 | `20260302180438_add_student_dashboard_fields` | pre-GSD | yes |
 | `20260916165041_add_user_and_auth_models` | pre-GSD | yes |
-| `20260920034855_add_interview_report` | 6 | **NO — needs team review** |
-| `20260921141342_add_interview_customization` | 8 | **NO — needs team review** |
-| `20260921201213_add_scenario_report` | 9 | **NO — needs team review** |
-| `20260922134512_add_video_audio_metrics` | 10 | **NO — needs team review** |
+| `20260920034855_add_interview_report` | 6 | yes (applied 2026-09-23) |
+| `20260921141342_add_interview_customization` | 8 | yes (applied 2026-09-23) |
+| `20260921201213_add_scenario_report` | 9 | yes (applied 2026-09-23) |
+| `20260922134512_add_video_audio_metrics` | 10 | yes (applied 2026-09-23) |
 
-**Four** are queued, not two. All were applied to the **local dev DB only**, by
-design, so the team could review the SQL before it touched shared data. Every one
-is additive — zero `NOT NULL` on any pre-existing table, so existing rows are
+**RESOLVED 2026-09-23 — nothing is queued any more.** `prisma migrate status`
+against the shared Lightsail DB reports all seven applied. These four were
+originally held back (applied to the local dev DB only) so the team could review
+the SQL before it touched shared data; that review happened and they were
+applied. The history below is kept because it explains what each one does. Every
+one is additive — zero `NOT NULL` on any pre-existing table, so existing rows are
 unaffected and the app handles the nulls everywhere it reads them:
 
 - `add_interview_report` — creates the `InterviewReport` table (relation to `User`).
@@ -184,9 +189,9 @@ unaffected and the app handles the nulls everywhere it reads them:
 **Apply them in order.** `add_video_audio_metrics` alters `ScenarioReport`, so it
 depends on `add_scenario_report` having run first.
 
-**When the team is ready to apply them**, the intended path is a deliberate
-`prisma migrate deploy` against the shared DB — decided by a human, not run from
-a script or an agent. Pre-Phase-8 rows will simply have nulls and the code
+**Already applied** (2026-09-23) via a deliberate `prisma migrate deploy`
+against the shared DB. If you ever need to apply new migrations there, use that
+same path — decided by a human, not run from a script or an agent. Pre-Phase-8 rows will simply have nulls and the code
 already handles that everywhere it reads them.
 
 ---
