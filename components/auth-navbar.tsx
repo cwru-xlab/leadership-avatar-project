@@ -28,6 +28,7 @@ import { siteConfig } from "@/config/site";
 import { ThemeSwitch } from "@/components/theme-switch";
 import { WeatherheadLogo } from "@/components/kiosk";
 import { useLayout } from "@/lib/layout-context";
+import { toAppRole } from "@/lib/roles";
 
 const iconMap = {
   Home,
@@ -62,7 +63,7 @@ export const AuthNavbar = () => {
   }
 
   const navItems =
-    user?.role === "student"
+    toAppRole(user?.role) === "user"
       ? siteConfig.studentNavItems
       : siteConfig.navItems;
 
