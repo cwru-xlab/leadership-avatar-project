@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Card, CardBody } from "@heroui/card";
 import { Button } from "@heroui/button";
-import { Briefcase, GraduationCap, Video, ArrowRight } from "lucide-react";
+import { Briefcase, Video, ArrowRight } from "lucide-react";
 import { title } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";
 import InteractionDashboard from "@/components/interactions/InteractionDashboard";
@@ -19,13 +19,6 @@ export default function Home() {
       icon: Briefcase,
       href: "/case-management",
       color: "primary" as const,
-    },
-    {
-      title: "Cohorts",
-      description: "Manage student cohorts, send invitations, and track enrollment",
-      icon: GraduationCap,
-      href: "/codes",
-      color: "secondary" as const,
     },
     {
       title: "Avatars",

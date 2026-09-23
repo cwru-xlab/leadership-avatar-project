@@ -67,7 +67,6 @@ const PUBLIC_ROUTES = [
   "/api/cta/submit", // Form submission from mobile users
   "/cta/form", // CTA form page for mobile users
   // Cohort join endpoints (public so students can join without login)
-  "/join", // Join cohort page
   "/api/cohort/join", // Join cohort API
   "/api/cohort/get", // Get cohort info (needed for join page)
 ];
@@ -81,7 +80,6 @@ const PUBLIC_ROUTES = [
  * Page Routes (Admin Dashboard):
  * - /system-settings: System configuration and management
  * - /avatar-management: Avatar creation, editing, and management
- * - /users-and-usages: User management and usage analytics
  * - /kiosk: Kiosk mode interface and controls
  *
  * API Routes (Avatar Management):
@@ -112,7 +110,6 @@ const ADMIN_ROUTES = [
   "/system-settings",
   "/case-management",
   "/avatar-management",
-  "/users-and-usages",
   "/kiosk/main-display",
   "/kiosk/touch-screen",
   "/api/llm/preview",
@@ -153,20 +150,14 @@ const ADMIN_ROUTES = [
   "/api/case/add",
   "/api/case/edit",
   "/api/case/delete",
-  // Student History routes
-  "/student-history",
-  // Cohort management
-  "/cohort-management",
+  // Cohort management (API only — page routes deleted in Phase 11)
   "/api/cohort/add",
   "/api/cohort/edit",
   "/api/cohort/delete",
   "/api/cohort/list",
   "/api/cohort/send-invitations",
-  // Codes management (admin views)
-  "/codes",
+  // Codes management (API only — page routes deleted in Phase 11)
   "/api/codes",
-  // Teacher Class Overview routes
-  "/teacher",
 ];
 
 /**

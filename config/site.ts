@@ -20,11 +20,6 @@ export const siteConfig = {
       href: "/avatar-profiles",
       icon: "Video",
     },
-    {
-      label: "Cohort Management",
-      href: "/codes",
-      icon: "GraduationCap",
-    },
   ],
   studentNavItems: [
     {
