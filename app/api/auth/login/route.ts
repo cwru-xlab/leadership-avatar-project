@@ -15,8 +15,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Email/password login is completely disabled in production
-    if (process.env.NODE_ENV === "production") {
+    // Email/password login is completely disabled in production. Gate on
+    // VERCEL_ENV, not NODE_ENV: Vercel builds every deployment with
+    // NODE_ENV=production, so NODE_ENV would also lock preview deployments,
+    // which have no other way in while CWRU CAS rejects their per-deploy URLs.
+    if (process.env.VERCEL_ENV === "production") {
       return NextResponse.json(
         { error: "Email login is disabled. Please use CWRU SSO." },
         { status: 403 }

@@ -138,8 +138,9 @@ export async function authenticateUser(
   email: string,
   password: string
 ): Promise<User | null> {
-  // Email/password login is completely disabled in production
-  if (process.env.NODE_ENV === "production") {
+  // Email/password login is completely disabled in production. See the matching
+  // gate in app/api/auth/login/route.ts for why this is VERCEL_ENV, not NODE_ENV.
+  if (process.env.VERCEL_ENV === "production") {
     return null;
   }
 

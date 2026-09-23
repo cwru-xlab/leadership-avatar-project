@@ -6,7 +6,11 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { University } from "lucide-react";
 
-const isProduction = process.env.NODE_ENV === "production";
+// Mirrors the server-side gate in app/api/auth/login/route.ts. This is a client
+// component, so it reads NEXT_PUBLIC_VERCEL_ENV (which Vercel exposes to the
+// browser) rather than VERCEL_ENV, which is server-only. Undefined locally,
+// which correctly leaves the email/password form visible in dev.
+const isProduction = process.env.NEXT_PUBLIC_VERCEL_ENV === "production";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
