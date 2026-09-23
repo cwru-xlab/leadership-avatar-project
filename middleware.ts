@@ -33,6 +33,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { siteConfig } from "@/config/site";
+import { toAppRole, isAdminRole } from "@/lib/auth";
 
 // Secret key for JWT verification (in production, use environment variable)
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
@@ -305,10 +306,14 @@ export async function middleware(request: NextRequest) {
     );
 
     if (isStudentRoute) {
+      // Phase 11: PROFESSOR now maps to admin via toAppRole/isAdminRole, so a
+      // professor account is admitted here where it was previously locked out
+      // entirely (it matched neither "student" nor "admin" as a raw JWT
+      // string). This is an intentional bug fix, not a regression.
       const allowed =
-        userRole === "student" ||
-        userRole === "admin" ||
-        (isKioskRoute && userRole === "kiosk");
+        toAppRole(userRole) === "user" ||
+        isAdminRole(userRole) ||
+        (isKioskRoute && toAppRole(userRole) === "kiosk");
 
       if (!allowed) {
         if (pathname.startsWith("/api/")) {
@@ -340,7 +345,10 @@ export async function middleware(request: NextRequest) {
        * Allows access for both kiosk and admin users.
        * Provides appropriate error responses for unauthorized access.
        */
-      if (userRole !== "kiosk" && userRole !== "admin") {
+      // Phase 11: PROFESSOR now passes the admin half via isAdminRole,
+      // consistent with the student-route gate above. KIOSK behavior for an
+      // actual kiosk account is byte-for-byte unchanged.
+      if (toAppRole(userRole) !== "kiosk" && !isAdminRole(userRole)) {
         // User is not kiosk or admin but trying to access kiosk route
 
         /**
@@ -387,7 +395,9 @@ export async function middleware(request: NextRequest) {
        * Checks if the authenticated user has admin privileges.
        * Provides different error responses for API vs page routes.
        */
-      if (userRole !== "admin") {
+      // Phase 11: PROFESSOR now passes this gate via isAdminRole. Same
+      // intentional PROFESSOR admission as the student-route gate above.
+      if (!isAdminRole(userRole)) {
         // User is not admin but trying to access admin route
 
         /**
