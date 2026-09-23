@@ -8,9 +8,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { studentEmail, studentName, caseId, caseName, cohortId, mode, language } = body;
 
-    if (!studentEmail || !caseId || !cohortId || !mode) {
+    // cohortId is retained for request/response shape compatibility but is no
+    // longer required or populated by any caller (Phase 11).
+    if (!studentEmail || !caseId || !mode) {
       return NextResponse.json(
-        { error: "Missing required fields: studentEmail, caseId, cohortId, mode" },
+        { error: "Missing required fields: studentEmail, caseId, mode" },
         { status: 400 }
       );
     }
