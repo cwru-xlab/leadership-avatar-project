@@ -2,15 +2,15 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-23 (Phase 10 COMPLETE — all 11 plans executed and signed off; Phase 11 in progress — 11-01, 11-02, 11-03, 11-04 of 7 complete)
+**Updated:** 2026-09-23 (Phase 10 COMPLETE — all 11 plans executed and signed off; Phase 11 in progress — 11-01, 11-02, 11-03, 11-04, 11-05 of 7 complete)
 
 ## Current Position
 
 **Phase:** 11 — Cohort & Staff Teardown
-**Current Plan:** 11-01, 11-02, 11-03, 11-04 complete (`11-01-SUMMARY.md`,
-`11-02-SUMMARY.md`, `11-03-SUMMARY.md`, `11-04-SUMMARY.md`); 11-03's checkpoint
-was resolved by the user choosing "delete-all" and the deletions applied;
-11-05 through 11-07 not yet executed. See
+**Current Plan:** 11-01, 11-02, 11-03, 11-04, 11-05 complete (`11-01-SUMMARY.md`,
+`11-02-SUMMARY.md`, `11-03-SUMMARY.md`, `11-04-SUMMARY.md`, `11-05-SUMMARY.md`);
+11-03's checkpoint was resolved by the user choosing "delete-all" and the
+deletions applied; 11-06 and 11-07 not yet executed. See
 `.planning/phases/11-cohort-staff-teardown/` on disk for the authoritative
 current state.
 
@@ -24,7 +24,7 @@ streams keeping the indicator light on after End) found from the user's own
 bug report and fixed under the checkpoint (commit `5c7a2bd`, not yet
 re-confirmed on hardware). See "Phase 10 Status: COMPLETE" below and
 `10-11-SUMMARY.md` for full verbatim detail.
-**Status:** Phase 10 COMPLETE (11/11 plans). Phase 11 in progress (4/7 plans).
+**Status:** Phase 10 COMPLETE (11/11 plans). Phase 11 in progress (5/7 plans).
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -114,6 +114,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 11]: 11-02: `app/api/student-history/**` (10 route files) and `lib/student-history-service.ts` deleted as a discretion call — outside the three checkpoint-gated API groups, sole callers already removed in 11-01, and a repo-wide audit confirmed zero live readers of `prisma.attempt`/`prisma.caseAssignment` outside `prisma/seed.ts`/`scripts/sync-s3-to-db.ts`. `prisma/schema.prisma` and `middleware.ts` both verified byte-unchanged (`middleware.ts` has no `/api/student-history` entry, so no cleanup item exists for 11-05). This plan ran concurrently with 11-04 in the same working directory with no worktree isolation (the documented shared-git-index hazard from 08-08/09-02) — Task 1's staged deletions were absorbed into 11-04's own commit `d3e3345` rather than a dedicated 11-02 commit; content independently verified complete via `git show --name-only` and `ls`/`git diff --stat`, nothing lost.
 - [Phase 11]: 11-04: `/api/interaction/start`'s field-validation guard no longer requires `cohortId` (destructure and `InteractionLog.cohortId` field retained unchanged, shape untouched) — the one real bug the 11-01 page deletions surfaced, since case-play's admin Case Study start flow was hard-400ing on a `cohortId` no surviving page can supply. Task 2 was a read-only audit (zero edits) confirming `app/api/scenario/{add,edit,list,publish}/route.ts` and `app/case-play/[caseId]/page.tsx` are already fully inert with respect to cohorts (Phase 9 work), and that self-service scenario publishing already satisfies "individual users own all their own practice work" end to end. `app/case-play/[caseId]/page.tsx` deliberately received zero edits by design — its dead `avatar-time-limit` cohort-gated effect stays in place unconditionally; any removal is explicitly deferred to 11-06 Task 3. Process note: this plan's commit `d3e3345` absorbed 11-02's concurrently-staged `student-history` deletions due to the shared-git-index hazard (see 11-02's entry above); a subsequent `git reset --soft HEAD~1` meant to isolate that also raced with 11-03's concurrent commit and briefly undid it, immediately corrected by re-committing 11-03's identical content as `a9fe820`. No data lost; full detail in `11-04-SUMMARY.md`.
 - [Phase 11]: 11-03: Task 1 produced `11-CALLER-MAP.md`, re-verifying all 15 checkpoint-gated routes (`/api/cohort/*` x7, `/api/codes/*` x7, `/api/student/cases`) had zero live callers post-11-01. At the Task 2 checkpoint the user chose "delete-all": all 15 routes deleted, `lib/cohort-storage.ts` deleted (zero importers), both `/api/cohort/join` and `/api/cohort/get` removed from `PUBLIC_ROUTES`, and every dangling `ADMIN_ROUTES`/`STUDENT_ROUTES` entry for the deleted routes pruned — commit `e75e1e6`. `types/cohort.ts` kept untouched per explicit instruction (`lib/s3-client.ts` still imports `Cohort` from it, verified by grep). `app/case-play/[caseId]/page.tsx` was deliberately NOT edited (out of this plan's scope) even though it still calls the now-deleted `GET /api/cohort/get` in an unreachable `useEffect` branch (`cohortId` query param is never set by any surviving caller) — that removal is recorded verbatim in `11-03-SUMMARY.md` under "case-play follow-up (for 11-06)" for 11-06 Task 3 to pick up. `prisma/schema.prisma`, `lib/s3-client.ts`, and `app/kiosk` all confirmed byte-unchanged; `npx tsc --noEmit` clean.
+- [Phase 11]: 11-05: Added `toAppRole`/`isAdminRole`/`AppRole` to `lib/auth.ts` as the single app-layer ADMIN/USER role-mapping source of truth (PROFESSOR->admin, STUDENT->user, KIOSK stays a distinct third branch; Postgres `Role` enum left fully unchanged, all four values intact). All three `middleware.ts` role gates (student, kiosk, admin) now call the helper instead of comparing raw JWT strings, fixing a real pre-existing bug: PROFESSOR previously matched none of `"student"`/`"admin"`/`"kiosk"` and was locked out of every gated surface — now correctly admitted everywhere ADMIN is, documented in-line at all three gate sites as an intentional fix, not a regression. Verified live via `npx next dev`: the plain `import { toAppRole, isAdminRole } from "@/lib/auth"` works with no Edge-runtime bundling error, and an unauthenticated request to `/case-management` still returns the same `307` redirect as before. Task 3 (11-02's deferred `/api/student-history` middleware cleanup) independently re-confirmed as a no-op — no such entry exists — and a consolidated sweep of all 38 remaining `/api/...` route-array entries across `PUBLIC_ROUTES`/`ADMIN_ROUTES`/`KIOSK_ROUTES`/`STUDENT_ROUTES` found zero dangling entries, so no array edits were made. `prisma/schema.prisma`, `app/kiosk`, and `app/api/auth/kiosk-auto-login` all confirmed byte-unchanged; `npx tsc --noEmit` clean.
 
 ## Progress
 
