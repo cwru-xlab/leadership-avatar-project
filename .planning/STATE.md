@@ -2,15 +2,16 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-23 (Phase 10 COMPLETE — all 11 plans executed and signed off; Phase 11 in progress — 11-01, 11-02, 11-04 of 7 complete)
+**Updated:** 2026-09-23 (Phase 10 COMPLETE — all 11 plans executed and signed off; Phase 11 in progress — 11-01, 11-02, 11-03, 11-04 of 7 complete)
 
 ## Current Position
 
 **Phase:** 11 — Cohort & Staff Teardown
-**Current Plan:** 11-01, 11-02, 11-04 complete (`11-01-SUMMARY.md`,
-`11-02-SUMMARY.md`, `11-04-SUMMARY.md`); 11-03 is checkpoint-gated and awaiting
-a user decision (see `11-CALLER-MAP.md`); 11-05 through 11-07 not yet executed.
-See `.planning/phases/11-cohort-staff-teardown/` on disk for the authoritative
+**Current Plan:** 11-01, 11-02, 11-03, 11-04 complete (`11-01-SUMMARY.md`,
+`11-02-SUMMARY.md`, `11-03-SUMMARY.md`, `11-04-SUMMARY.md`); 11-03's checkpoint
+was resolved by the user choosing "delete-all" and the deletions applied;
+11-05 through 11-07 not yet executed. See
+`.planning/phases/11-cohort-staff-teardown/` on disk for the authoritative
 current state.
 
 **Previous phase:** 10 — Video & Audio Metrics — COMPLETE
@@ -23,7 +24,7 @@ streams keeping the indicator light on after End) found from the user's own
 bug report and fixed under the checkpoint (commit `5c7a2bd`, not yet
 re-confirmed on hardware). See "Phase 10 Status: COMPLETE" below and
 `10-11-SUMMARY.md` for full verbatim detail.
-**Status:** Phase 10 COMPLETE (11/11 plans). Phase 11 in progress (3/7 plans).
+**Status:** Phase 10 COMPLETE (11/11 plans). Phase 11 in progress (4/7 plans).
 **Branch:** feature/interview-baseline
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -112,6 +113,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 11]: 11-01: All six staff/assignment PAGE trees deleted and unlinked (cohort-management, codes, teacher, student-history, join, users-and-usages) plus orphaned cohort-card.tsx; middleware/nav pruned of dead page prefixes while every /api/cohort, /api/codes, /api/student/cases entry stays untouched pending the 11-03 checkpoint.
 - [Phase 11]: 11-02: `app/api/student-history/**` (10 route files) and `lib/student-history-service.ts` deleted as a discretion call — outside the three checkpoint-gated API groups, sole callers already removed in 11-01, and a repo-wide audit confirmed zero live readers of `prisma.attempt`/`prisma.caseAssignment` outside `prisma/seed.ts`/`scripts/sync-s3-to-db.ts`. `prisma/schema.prisma` and `middleware.ts` both verified byte-unchanged (`middleware.ts` has no `/api/student-history` entry, so no cleanup item exists for 11-05). This plan ran concurrently with 11-04 in the same working directory with no worktree isolation (the documented shared-git-index hazard from 08-08/09-02) — Task 1's staged deletions were absorbed into 11-04's own commit `d3e3345` rather than a dedicated 11-02 commit; content independently verified complete via `git show --name-only` and `ls`/`git diff --stat`, nothing lost.
 - [Phase 11]: 11-04: `/api/interaction/start`'s field-validation guard no longer requires `cohortId` (destructure and `InteractionLog.cohortId` field retained unchanged, shape untouched) — the one real bug the 11-01 page deletions surfaced, since case-play's admin Case Study start flow was hard-400ing on a `cohortId` no surviving page can supply. Task 2 was a read-only audit (zero edits) confirming `app/api/scenario/{add,edit,list,publish}/route.ts` and `app/case-play/[caseId]/page.tsx` are already fully inert with respect to cohorts (Phase 9 work), and that self-service scenario publishing already satisfies "individual users own all their own practice work" end to end. `app/case-play/[caseId]/page.tsx` deliberately received zero edits by design — its dead `avatar-time-limit` cohort-gated effect stays in place unconditionally; any removal is explicitly deferred to 11-06 Task 3. Process note: this plan's commit `d3e3345` absorbed 11-02's concurrently-staged `student-history` deletions due to the shared-git-index hazard (see 11-02's entry above); a subsequent `git reset --soft HEAD~1` meant to isolate that also raced with 11-03's concurrent commit and briefly undid it, immediately corrected by re-committing 11-03's identical content as `a9fe820`. No data lost; full detail in `11-04-SUMMARY.md`.
+- [Phase 11]: 11-03: Task 1 produced `11-CALLER-MAP.md`, re-verifying all 15 checkpoint-gated routes (`/api/cohort/*` x7, `/api/codes/*` x7, `/api/student/cases`) had zero live callers post-11-01. At the Task 2 checkpoint the user chose "delete-all": all 15 routes deleted, `lib/cohort-storage.ts` deleted (zero importers), both `/api/cohort/join` and `/api/cohort/get` removed from `PUBLIC_ROUTES`, and every dangling `ADMIN_ROUTES`/`STUDENT_ROUTES` entry for the deleted routes pruned — commit `e75e1e6`. `types/cohort.ts` kept untouched per explicit instruction (`lib/s3-client.ts` still imports `Cohort` from it, verified by grep). `app/case-play/[caseId]/page.tsx` was deliberately NOT edited (out of this plan's scope) even though it still calls the now-deleted `GET /api/cohort/get` in an unreachable `useEffect` branch (`cohortId` query param is never set by any surviving caller) — that removal is recorded verbatim in `11-03-SUMMARY.md` under "case-play follow-up (for 11-06)" for 11-06 Task 3 to pick up. `prisma/schema.prisma`, `lib/s3-client.ts`, and `app/kiosk` all confirmed byte-unchanged; `npx tsc --noEmit` clean.
 
 ## Progress
 
@@ -807,6 +809,32 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   `app/api/cohort/`, `app/api/codes/`, `app/api/student/`, `prisma/seed.ts`,
   `scripts/sync-s3-to-db.ts`, `lib/s3-client.ts`, `app/kiosk` confirmed
   untouched via `git status --short`. See `11-02-SUMMARY.md` for full detail.
+- 11-03 (delete cohort/codes/student-cases API surface — `app/api/cohort/**`,
+  `app/api/codes/**`, `app/api/student/cases/route.ts`, `lib/cohort-storage.ts`,
+  `middleware.ts`): complete, wave 2. Commits `a9fe820` (Task 1, `11-CALLER-MAP.md`),
+  `e75e1e6` (Task 3, route/file deletions), `a09dc25` (Task 3, `middleware.ts` —
+  a staging command that mixed already-`git rm`'d pathspecs with `middleware.ts`
+  aborted early and silently dropped it from `e75e1e6`; caught in Task 4's final
+  `git status` check and committed separately with identical content). Task 1
+  re-verified `11-RESEARCH.md`'s caller map
+  against the post-11-01 tree with a fresh grep per route, confirming all 15
+  checkpoint-gated routes had zero live callers (two — `/api/codes/[codeId]/learner-performance`
+  and `/api/student/cases` — were already dead before Phase 11 began; `/api/cohort/get`
+  had exactly one textual, unreachable reference in `case-play`). At the Task 2
+  checkpoint the user chose "delete-all": all 7 `/api/cohort/*` routes, all 7
+  `/api/codes/*` routes, and `/api/student/cases` deleted; `lib/cohort-storage.ts`
+  deleted (zero importers); `/api/cohort/join` and `/api/cohort/get` removed from
+  `middleware.ts` `PUBLIC_ROUTES`; the 5 now-dangling `ADMIN_ROUTES` cohort entries,
+  the `/api/codes` `ADMIN_ROUTES` prefix entry, and the `/api/student/cases`
+  `STUDENT_ROUTES` entry all pruned. `types/cohort.ts` kept untouched exactly as
+  instructed — `lib/s3-client.ts` is its only remaining importer, verified by grep.
+  `app/case-play/[caseId]/page.tsx` deliberately NOT edited (out of this plan's
+  scope) even though its dead `useEffect` still calls the now-deleted
+  `GET /api/cohort/get`; that removal is recorded verbatim in `11-03-SUMMARY.md`
+  under "case-play follow-up (for 11-06)" for 11-06 Task 3. `prisma/schema.prisma`,
+  `lib/s3-client.ts`, `app/kiosk` confirmed byte-unchanged; `npx tsc --noEmit`
+  clean (after clearing a stale `.next/` type-validator cache still referencing
+  the just-deleted route files). See `11-03-SUMMARY.md` for full detail.
 - 11-04 (relax `/api/interaction/start`'s cohortId guard + audit self-service
   publishing — `app/api/interaction/start/route.ts`): complete, wave 2.
   Commit `d3e3345`. Dropped `!cohortId` from the required-field guard and its
