@@ -123,6 +123,32 @@ function roleToString(role: Role): string {
   return role.toLowerCase();
 }
 
+export type AppRole = "admin" | "user" | "kiosk";
+
+/**
+ * Phase 11: the ADMIN/USER role model, collapsed at the application layer ONLY.
+ * The Postgres `Role` enum still has all four values — this is the single source of
+ * truth for how app code interprets them.
+ *   PROFESSOR -> admin   (professors keep access to the surviving operator tooling)
+ *   STUDENT   -> user
+ *   KIOSK     -> kiosk   (deliberately a distinct third branch; never folded in)
+ */
+export function toAppRole(role: string | Role | null | undefined): AppRole {
+  const normalized = (role ?? "").toString().toLowerCase();
+  if (normalized === "admin" || normalized === "professor") {
+    return "admin";
+  }
+  if (normalized === "kiosk") {
+    return "kiosk";
+  }
+  return "user";
+}
+
+/** True for ADMIN and PROFESSOR. Never true for KIOSK. */
+export function isAdminRole(role: string | Role | null | undefined): boolean {
+  return toAppRole(role) === "admin";
+}
+
 /**
  * Convert Prisma AuthProvider enum to string for JWT
  */
