@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
 import { FlatCompat } from "@eslint/eslintrc";
+import nextPlugin from "@next/eslint-plugin-next";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,14 +45,20 @@ export default defineConfig([
     "!**/react-shim.js",
     "!**/tsup.config.ts",
   ]),
+  // @next/eslint-plugin-next v16 ships `configs.recommended` as a FLAT config
+  // carrying a top-level `name` property. Routing it through FlatCompat
+  // (`compat.extends("plugin:@next/next/recommended")`) hands it to the old
+  // eslintrc validator, which rejects `name` and fails the whole lint run with
+  // `Unexpected top-level property "name"`. Applied directly it just works.
+  // (`configs["recommended-legacy"]` is the one intended for FlatCompat.)
+  nextPlugin.configs.recommended,
   {
     extends: fixupConfigRules(
       compat.extends(
         "plugin:react/recommended",
         "plugin:prettier/recommended",
         "plugin:react-hooks/recommended",
-        "plugin:jsx-a11y/recommended",
-        "plugin:@next/next/recommended"
+        "plugin:jsx-a11y/recommended"
       )
     ),
 
