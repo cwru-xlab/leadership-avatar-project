@@ -276,8 +276,16 @@ export async function validateCWRUTicket(
  */
 export async function createOrUpdateCWRUUser(
   userInfo: CWRUUserInfo,
-  role: string = "student"
+  role: string = "student",
+  options: { adminStatusKnown?: boolean } = {}
 ): Promise<User> {
+  // `adminStatusKnown: false` means the caller could NOT determine admin
+  // status (e.g. the Edge Config lookup threw), as opposed to determining
+  // that the user is not an admin. In that case existing roles are left
+  // exactly as they are — demoting a real admin because a config store was
+  // briefly unreachable would be a persistent write caused by a transient
+  // fault.
+  const { adminStatusKnown = true } = options;
   // Convert role string to enum
   const roleEnum = role.toUpperCase() as keyof typeof Role;
   const prismaRole = Role[roleEnum] || Role.STUDENT;
@@ -292,7 +300,7 @@ export async function createOrUpdateCWRUUser(
   });
 
   let updateRole: Role | undefined;
-  if (existing) {
+  if (existing && adminStatusKnown) {
     if (prismaRole === Role.ADMIN) {
       // Promote to admin if the case ID is on the admin list.
       updateRole = Role.ADMIN;
@@ -302,6 +310,8 @@ export async function createOrUpdateCWRUUser(
     }
     // Otherwise leave existing role alone (preserves PROFESSOR/KIOSK/STUDENT).
   }
+  // When `adminStatusKnown` is false, `updateRole` stays undefined and the
+  // upsert below touches no role at all.
 
   // Upsert user in database
   const dbUser = await prisma.user.upsert({
