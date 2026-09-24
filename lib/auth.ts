@@ -123,6 +123,13 @@ function roleToString(role: Role): string {
   return role.toLowerCase();
 }
 
+// Phase 11: the ADMIN/USER role-mapping helpers live in the dependency-free
+// `lib/roles.ts` (no `crypto`/`prisma`/`@vercel/edge-config`) so they can be
+// imported from client components too. Re-exported here so every existing
+// server-side caller of `@/lib/auth` keeps working unchanged.
+export { toAppRole, isAdminRole } from "./roles";
+export type { AppRole } from "./roles";
+
 /**
  * Convert Prisma AuthProvider enum to string for JWT
  */
@@ -138,8 +145,9 @@ export async function authenticateUser(
   email: string,
   password: string
 ): Promise<User | null> {
-  // Email/password login is completely disabled in production
-  if (process.env.NODE_ENV === "production") {
+  // Email/password login is completely disabled in production. See the matching
+  // gate in app/api/auth/login/route.ts for why this is VERCEL_ENV, not NODE_ENV.
+  if (process.env.VERCEL_ENV === "production") {
     return null;
   }
 

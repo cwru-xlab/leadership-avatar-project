@@ -33,6 +33,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { siteConfig } from "@/config/site";
+import { toAppRole, isAdminRole } from "@/lib/auth";
 
 // Secret key for JWT verification (in production, use environment variable)
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
@@ -66,10 +67,6 @@ const PUBLIC_ROUTES = [
   "/api/cta/validate-session", // Session validation for CTA forms
   "/api/cta/submit", // Form submission from mobile users
   "/cta/form", // CTA form page for mobile users
-  // Cohort join endpoints (public so students can join without login)
-  "/join", // Join cohort page
-  "/api/cohort/join", // Join cohort API
-  "/api/cohort/get", // Get cohort info (needed for join page)
 ];
 
 /**
@@ -81,7 +78,6 @@ const PUBLIC_ROUTES = [
  * Page Routes (Admin Dashboard):
  * - /system-settings: System configuration and management
  * - /avatar-management: Avatar creation, editing, and management
- * - /users-and-usages: User management and usage analytics
  * - /kiosk: Kiosk mode interface and controls
  *
  * API Routes (Avatar Management):
@@ -112,7 +108,6 @@ const ADMIN_ROUTES = [
   "/system-settings",
   "/case-management",
   "/avatar-management",
-  "/users-and-usages",
   "/kiosk/main-display",
   "/kiosk/touch-screen",
   "/api/llm/preview",
@@ -153,20 +148,6 @@ const ADMIN_ROUTES = [
   "/api/case/add",
   "/api/case/edit",
   "/api/case/delete",
-  // Student History routes
-  "/student-history",
-  // Cohort management
-  "/cohort-management",
-  "/api/cohort/add",
-  "/api/cohort/edit",
-  "/api/cohort/delete",
-  "/api/cohort/list",
-  "/api/cohort/send-invitations",
-  // Codes management (admin views)
-  "/codes",
-  "/api/codes",
-  // Teacher Class Overview routes
-  "/teacher",
 ];
 
 /**
@@ -198,10 +179,19 @@ const KIOSK_ROUTES: string[] = [
 ];
 
 const STUDENT_ROUTES: string[] = [
-  "/student-cases",
-  "/api/student/cases",
+  "/interview",
   "/case-play",
   "/api/interaction",
+  "/reports",
+  "/settings",
+  // Interview APIs are student-owned and return the LiveAvatar profiles a
+  // student can launch. Keep this ahead of the generic authenticated fallback.
+  "/api/interview",
+  // Student-owned scenario CRUD, ownership enforced in the route handlers
+  // themselves.
+  "/api/scenario",
+  // REQ-36 consent endpoint, owner-scoped in the route handler itself.
+  "/api/metrics",
   // Endpoints needed by case-play's avatar mode (streaming avatar,
   // avatar profile config, and push-to-talk audio transcription).
   // These endpoints are also used by kiosk flows, so the authorization
@@ -316,10 +306,14 @@ export async function middleware(request: NextRequest) {
     );
 
     if (isStudentRoute) {
+      // Phase 11: PROFESSOR now maps to admin via toAppRole/isAdminRole, so a
+      // professor account is admitted here where it was previously locked out
+      // entirely (it matched neither "student" nor "admin" as a raw JWT
+      // string). This is an intentional bug fix, not a regression.
       const allowed =
-        userRole === "student" ||
-        userRole === "admin" ||
-        (isKioskRoute && userRole === "kiosk");
+        toAppRole(userRole) === "user" ||
+        isAdminRole(userRole) ||
+        (isKioskRoute && toAppRole(userRole) === "kiosk");
 
       if (!allowed) {
         if (pathname.startsWith("/api/")) {
@@ -351,7 +345,10 @@ export async function middleware(request: NextRequest) {
        * Allows access for both kiosk and admin users.
        * Provides appropriate error responses for unauthorized access.
        */
-      if (userRole !== "kiosk" && userRole !== "admin") {
+      // Phase 11: PROFESSOR now passes the admin half via isAdminRole,
+      // consistent with the student-route gate above. KIOSK behavior for an
+      // actual kiosk account is byte-for-byte unchanged.
+      if (toAppRole(userRole) !== "kiosk" && !isAdminRole(userRole)) {
         // User is not kiosk or admin but trying to access kiosk route
 
         /**
@@ -398,7 +395,9 @@ export async function middleware(request: NextRequest) {
        * Checks if the authenticated user has admin privileges.
        * Provides different error responses for API vs page routes.
        */
-      if (userRole !== "admin") {
+      // Phase 11: PROFESSOR now passes this gate via isAdminRole. Same
+      // intentional PROFESSOR admission as the student-route gate above.
+      if (!isAdminRole(userRole)) {
         // User is not admin but trying to access admin route
 
         /**

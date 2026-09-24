@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { s3Storage } from "@/lib/s3-client";
 import type { InteractionLog } from "@/types";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isAdminRole } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 
 export async function POST(request: NextRequest) {
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     // Authorization: Students can only save their own logs.
     // For students, override the studentEmail with the verified identity.
     // For admins/professors, allow them to specify any studentEmail.
-    const isPrivileged = currentUser.role === "admin" || currentUser.role === "professor";
+    const isPrivileged = isAdminRole(currentUser.role);
     if (!isPrivileged) {
       log.studentEmail = currentUser.email;
     } else if (!log.studentEmail) {

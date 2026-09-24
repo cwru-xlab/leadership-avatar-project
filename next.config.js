@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Keep Turbopack rooted on this app (a parent package-lock.json otherwise
+  // makes Next infer the wrong workspace root during builds).
+  turbopack: {
+    root: __dirname,
+  },
   images: {
     remotePatterns: [
       {

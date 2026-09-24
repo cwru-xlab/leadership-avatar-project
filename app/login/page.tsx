@@ -5,8 +5,13 @@ import { Input } from "@heroui/input";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { University } from "lucide-react";
+import { toAppRole } from "@/lib/roles";
 
-const isProduction = process.env.NODE_ENV === "production";
+// Mirrors the server-side gate in app/api/auth/login/route.ts. This is a client
+// component, so it reads NEXT_PUBLIC_VERCEL_ENV (which Vercel exposes to the
+// browser) rather than VERCEL_ENV, which is server-only. Undefined locally,
+// which correctly leaves the email/password form visible in dev.
+const isProduction = process.env.NEXT_PUBLIC_VERCEL_ENV === "production";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -26,8 +31,8 @@ export default function LoginPage() {
       // Login successful, redirect based on role
       const meResponse = await fetch("/api/auth/me");
       const meData = await meResponse.json();
-      if (meData.user?.role === "student") {
-        window.location.href = "/student-cases";
+      if (toAppRole(meData.user?.role) === "user") {
+        window.location.href = "/";
       } else {
         window.location.href = "/";
       }

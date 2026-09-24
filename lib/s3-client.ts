@@ -29,6 +29,7 @@ import { promisify } from "util";
 import type { Avatar, VersionManifest, AvatarVersion } from "./avatar-storage";
 import type { ChatSession, ChatMessage, ChatSessionMetadata, VideoAudioProfile, CaseStudy, InteractionLog } from "@/types";
 import type { Cohort } from "@/types/cohort";
+import type { InterviewTranscript } from "./interview/transcript";
 
 // S3 client configuration - shared between avatar and chat storage
 const s3Client = new S3Client({
@@ -65,6 +66,15 @@ const COHORT_INDEX_FILE = `${COHORTS_PREFIX}index.json`;
 // Interaction log storage prefix
 // Structure: interactions/{studentEmail}/{caseId}/{logId}.json
 const INTERACTIONS_PREFIX = "interactions/";
+
+// Interview resume storage prefix. Resume PDFs are private objects: this app never
+// returns an S3 URL, and access is mediated by authenticated server routes.
+const INTERVIEW_RESUMES_PREFIX = "resumes/";
+
+// Interview transcript storage prefix. Canonical transcript objects; the
+// InterviewReport Postgres row only caches the server-derived key.
+// Structure: interviews/{userId}/{reportId}.json
+const INTERVIEW_TRANSCRIPTS_PREFIX = "interviews/";
 
 // Global compression switch for chat sessions
 const ENABLE_CHAT_COMPRESSION =
@@ -1483,6 +1493,101 @@ export class S3AvatarStorage {
     const safeCaseId = this.sanitizePathSegment(caseId, "caseId");
     const safeLogId = this.sanitizePathSegment(logId, "logId");
     return `${INTERACTIONS_PREFIX}${safeEmail}/${safeCaseId}/${safeLogId}.json`;
+  }
+
+  /**
+   * Store the original resume PDF for an interview attempt.
+   *
+   * `userId` and `resumeId` are generated/verified server-side before reaching
+   * this method. Keeping the object key construction here prevents routes from
+   * accidentally turning a client-provided path into an S3 key.
+   */
+  async saveInterviewResume(
+    userId: string,
+    resumeId: string,
+    file: Uint8Array
+  ): Promise<string> {
+    const safeUserId = this.sanitizePathSegment(userId, "userId");
+    const safeResumeId = this.sanitizePathSegment(resumeId, "resumeId");
+    const key = `${INTERVIEW_RESUMES_PREFIX}${safeUserId}/${safeResumeId}.pdf`;
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: file,
+        ContentType: "application/pdf",
+        ContentDisposition: "attachment",
+      })
+    );
+
+    return key;
+  }
+
+  /**
+   * Write the canonical interview transcript to S3.
+   *
+   * Keys are server-derived from the authenticated userId and a server-
+   * generated reportId — never from client input. If a caller ever accepts
+   * a client-supplied reportId (e.g. on a checkpoint request), it must be
+   * validated as a UUID belonging to that user's own report before reaching
+   * this method; this method itself only sanitizes for path safety, it does
+   * not authorize.
+   *
+   * Not gzipped: these objects are small, and the resume path above does not
+   * compress either.
+   */
+  async saveInterviewTranscript(
+    userId: string,
+    reportId: string,
+    transcript: InterviewTranscript
+  ): Promise<string> {
+    const safeUserId = this.sanitizePathSegment(userId, "userId");
+    const safeReportId = this.sanitizePathSegment(reportId, "reportId");
+    const key = `${INTERVIEW_TRANSCRIPTS_PREFIX}${safeUserId}/${safeReportId}.json`;
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: JSON.stringify(transcript),
+        ContentType: "application/json",
+      })
+    );
+
+    return key;
+  }
+
+  /**
+   * Read the canonical interview transcript back from S3.
+   *
+   * Same server-derived key construction as `saveInterviewTranscript`.
+   * Returns `null` if no transcript has been written yet for this
+   * user/report pair; rethrows any other S3 error.
+   */
+  async getInterviewTranscript(
+    userId: string,
+    reportId: string
+  ): Promise<InterviewTranscript | null> {
+    const safeUserId = this.sanitizePathSegment(userId, "userId");
+    const safeReportId = this.sanitizePathSegment(reportId, "reportId");
+    const key = `${INTERVIEW_TRANSCRIPTS_PREFIX}${safeUserId}/${safeReportId}.json`;
+
+    try {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+      });
+      const response = await s3Client.send(command);
+      if (!response.Body) return null;
+      const content = await response.Body.transformToString();
+      return JSON.parse(content) as InterviewTranscript;
+    } catch (error: any) {
+      if (error.name === "NoSuchKey" || error.$metadata?.httpStatusCode === 404) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   private getInteractionIndexKey(studentEmail: string, caseId: string): string {
