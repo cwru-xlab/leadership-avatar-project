@@ -33,7 +33,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { siteConfig } from "@/config/site";
-import { toAppRole, isAdminRole } from "@/lib/auth";
+// Import from `@/lib/roles`, NOT `@/lib/auth`. Both export these helpers
+// (auth.ts re-exports from roles.ts), but auth.ts also imports `crypto`,
+// `prisma` and `@vercel/edge-config` at module scope — importing it here drags
+// all of that into the Edge middleware bundle and triggers a
+// "Node.js module is loaded ('crypto') which is not supported in the Edge
+// Runtime" build warning. roles.ts is dependency-free for exactly this reason.
+import { toAppRole, isAdminRole } from "@/lib/roles";
 
 // Secret key for JWT verification (in production, use environment variable)
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
