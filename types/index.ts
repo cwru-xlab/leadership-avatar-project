@@ -196,7 +196,22 @@ export interface CaseAvatar {
   name: string;
   role: string;
   additionalInfo: string;
+  /**
+   * Legacy admin-authored case avatar. Resolves through `/api/profile/get`
+   * against the admin-curated `VideoAudioProfile` catalog. Present only on
+   * pre-existing admin cases; new student scenarios do not set this.
+   */
   profileId?: string;
+  /**
+   * Student-authored scenario avatar. A raw HeyGen LiveAvatar id drawn
+   * directly from the same account-wide catalog `/api/interview/interviewers`
+   * exposes (the set also used at `/interview/general`). Always paired with
+   * `voiceId`, that avatar's own default voice — never a cross-paired voice.
+   * `/case-play` builds a `StartAvatarRequest` from these two fields directly,
+   * with no `VideoAudioProfile` lookup.
+   */
+  avatarId?: string;
+  voiceId?: string;
 }
 
 export interface CaseStudy {
@@ -207,6 +222,29 @@ export interface CaseStudy {
   coverImage?: string;  // URL to cover image stored in S3
   avatars: CaseAvatar[];
   cohortIds: string[];  // Cases are assigned to cohorts (following Alfred's sectionIds pattern)
+  /**
+   * Discovery-layer visibility. `true` means students can find this case in the
+   * /case-play index. Absent or false means draft: hidden from browsing, but still
+   * playable by direct URL so staff can preview. This is NOT an access control.
+   */
+  published?: boolean;
+  /**
+   * Real per-user ownership. Presence marks this object as a STUDENT-AUTHORED
+   * SCENARIO; absence means a legacy admin-authored case study. This single field
+   * is the discriminator `/case-play` uses to split its two sections.
+   *
+   * Set SERVER-SIDE from the session cookie (the authenticated `User.id` Postgres
+   * uuid, as returned by `getCurrentUser` in `lib/auth.ts`) at creation time, is
+   * immutable afterwards, and is NEVER read from a client-supplied request body.
+   *
+   * `createdBy` remains a display-only string with unchanged semantics and is NOT
+   * an ownership model; `cohortIds` is untouched dead weight owned by Phase 11.
+   *
+   * Because this is a plain field on the object (not a relation), a future "fork"
+   * action can copy a scenario and overwrite `ownerId` with no schema change —
+   * REQ-30's "model must not preclude forking" is satisfied by construction.
+   */
+  ownerId?: string;
   createdBy: string;
   lastEditedBy: string;
   createdAt: string;

@@ -1,22 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardBody } from "@heroui/card";
 import { Button } from "@heroui/button";
-import { Briefcase, GraduationCap, Video, ArrowRight } from "lucide-react";
+import { Briefcase, Video, ArrowRight } from "lucide-react";
 import { title } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";
+import InteractionDashboard from "@/components/interactions/InteractionDashboard";
+import { toAppRole } from "@/lib/roles";
 
 export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && user?.role === "student") {
-      router.replace("/student-cases");
-    }
-  }, [user, loading, router]);
 
   const navigationCards = [
     {
@@ -25,13 +20,6 @@ export default function Home() {
       icon: Briefcase,
       href: "/case-management",
       color: "primary" as const,
-    },
-    {
-      title: "Cohorts",
-      description: "Manage student cohorts, send invitations, and track enrollment",
-      icon: GraduationCap,
-      href: "/codes",
-      color: "secondary" as const,
     },
     {
       title: "Avatars",
@@ -50,10 +38,14 @@ export default function Home() {
     );
   }
 
+  if (toAppRole(user?.role) === "user") {
+    return <InteractionDashboard />;
+  }
+
   return (
     <section className="flex flex-col items-center gap-8 py-8 md:py-10 max-w-5xl mx-auto px-4">
       <div className="text-center">
-        <h1 className={title()}>CaseBridge</h1>
+        <h1 className={title()}>Leadership Avatar</h1>
         <p className="text-default-500 mt-4 text-lg">
           Welcome back, {user?.name || "User"}
         </p>

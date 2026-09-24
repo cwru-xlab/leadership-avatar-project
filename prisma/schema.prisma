@@ -56,6 +56,11 @@ model User {
   // Account status
   isActive      Boolean      @default(true)
   emailVerified Boolean      @default(false)
+
+  // REQ-36: account-level acceptance of video/audio analysis, remembered across
+  // sessions. Distinct from the browser permission dialog, which is not consent
+  // to being ANALYSED. Each report row snapshots this at session start.
+  videoAnalysisConsentAt DateTime?
   
   // Timestamps
   createdAt     DateTime     @default(now())
@@ -70,6 +75,8 @@ model User {
   createdCohorts    Cohort[]         @relation("CohortCreator")
   createdCases      Case[]           @relation("CaseCreator")
   auditLogs         AuditLog[]
+  interviewReports  InterviewReport[]
+  scenarioReports   ScenarioReport[]
 
   @@index([email])
   @@index([role])
@@ -262,4 +269,136 @@ model AuditLog {
   @@index([action])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+// ============================================================================
+// INTERVIEW EVALUATION & REPORT
+// ============================================================================
+//
+// Individual-ownership model: no cohortId, assignmentId, caseId, or
+// attemptNumber. Interviews are unassigned practice sessions a student starts
+// on their own; each run gets its own report row, unlimited repeats, no
+// unique constraint. Do not model this on Attempt or CaseAssignment.
+
+enum InterviewReportStatus {
+  IN_PROGRESS
+  PENDING
+  READY
+  FAILED
+}
+
+model InterviewReport {
+  id                  String                @id @default(uuid())
+  userId              String
+  typeSlug            String
+  interviewerAvatarId String?
+  interviewerName     String?
+
+  // Resume context snapshot — makes a report reproducible without re-parsing the PDF.
+  // resumeText is a snapshot, NOT a pointer; the PDF itself is never exposed.
+  resumeId            String?
+  resumeText          String?               @db.Text
+
+  // Canonical transcript lives in S3; this is the server-derived key.
+  transcriptKey       String?
+  turnCount           Int                   @default(0)
+
+  status              InterviewReportStatus  @default(IN_PROGRESS)
+
+  // Nullable by design. Visual and Vocal stay null until a real metrics pipeline exists.
+  visualScore         Int?
+  vocalScore          Int?
+  contentScore        Int?
+  behavioralScore     Int?
+
+  // Phase 10 video/audio metrics. All nullable: a row written before Phase 10
+  // has every field null, which is exactly the "Not yet measured" legacy state.
+  // Only DERIVED NUMBERS are stored here — never media (REQ-38).
+  cameraMode           String?   // "ON" | "OFF"; null = pre-Phase-10 row
+  visualMetrics        Json?
+  vocalMetrics         Json?
+  visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
+  vocalUnscoredReason  String?   // "TYPED_ONLY" | "INSUFFICIENT_DATA"
+  metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
+
+  reportMarkdown      String?               @db.Text
+  failureReason       String?               @db.Text
+  evalModel           String?
+
+  // Resolved customization snapshot — what this session actually ran with, not the
+  // preset's defaults. Nullable: rows written before Phase 8 have none.
+  industry            String?
+  roleTitle           String?
+  difficulty          String?
+  targetMinutes       Int?
+  targetQuestionCount Int?
+  interviewerPersona  String?               @db.Text
+
+  startedAt           DateTime              @default(now())
+  completedAt         DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, typeSlug])
+}
+
+model ScenarioReport {
+  id                 String                @id @default(uuid())
+  userId             String
+
+  // The S3 CaseStudy id this run played. Deliberately a bare String and NOT a
+  // Prisma relation — the scenario lives in S3, not Postgres, and REQ-34 requires
+  // this report to survive that scenario's deletion. There is nothing to cascade.
+  caseId             String
+
+  // Pointer back to the S3 InteractionLog this run produced, so the evaluator can
+  // re-read the transcript without a second copy being written.
+  // interactions/{studentEmail}/{caseId}/{logId}.json
+  interactionLogId   String?
+  studentEmail       String?
+
+  status             InterviewReportStatus @default(IN_PROGRESS)
+
+  turnCount          Int                   @default(0)
+
+  // Nullable by design. Visual and Vocal stay null until Phase 10 builds a real
+  // video/audio metrics pipeline. Enforced in code, never trusted from the model.
+  visualScore        Int?
+  vocalScore         Int?
+  contentScore       Int?
+  behavioralScore    Int?
+
+  // Phase 10 video/audio metrics. All nullable: a row written before Phase 10
+  // has every field null, which is exactly the "Not yet measured" legacy state.
+  // Only DERIVED NUMBERS are stored here — never media (REQ-38).
+  cameraMode           String?   // "ON" | "OFF"; null = pre-Phase-10 row
+  visualMetrics        Json?
+  vocalMetrics         Json?
+  visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
+  vocalUnscoredReason  String?   // "TYPED_ONLY" | "INSUFFICIENT_DATA"
+  metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
+
+  reportMarkdown     String?               @db.Text
+  failureReason      String?               @db.Text
+  evalModel          String?
+
+  // REQ-33 run-time snapshot. Written once when the run is recorded; never updated
+  // when the underlying scenario is later edited or deleted.
+  caseName           String
+  backgroundSnapshot String                @db.Text
+  avatarsSnapshot    Json
+  criteriaSnapshot   String?               @db.Text
+
+  startedAt          DateTime              @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, caseId])
 }

@@ -23,6 +23,8 @@ import {
   MicOff,
   RotateCcw,
   DoorOpen,
+  Camera,
+  CameraOff,
 } from "lucide-react";
 import {
   Modal,
@@ -46,10 +48,39 @@ import {
   resolveAttemptLanguage,
   type AttemptLanguage,
 } from "@/lib/languages";
+import { extractSpeakable } from "@/lib/interview/speakable";
+import MetricsConsentDialog from "@/components/metrics/MetricsConsentDialog";
+import SelfViewThumbnail from "@/components/metrics/SelfViewThumbnail";
+import FaceDetectionBanner from "@/components/metrics/FaceDetectionBanner";
+import {
+  requestCameraStream,
+  createVisualCapture,
+  type VisualCaptureHandle,
+} from "@/lib/metrics/visual-capture";
+import { createVocalCapture } from "@/lib/metrics/vocal-capture";
+import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 
 type PageState = "intro" | "playing";
 type InteractionMode = "text" | "avatar";
 type SaveState = "idle" | "saving" | "saved" | "error";
+// Scenario-only camera-mode gate (REQ-35..37). Never used on the legacy
+// admin-case path — see `isScenario` below.
+type CameraBlockReason = "DENIED" | "NOT_FOUND" | "UNAVAILABLE";
+
+const CAMERA_BLOCK_COPY: Record<CameraBlockReason, { heading: string; body: string }> = {
+  DENIED: {
+    heading: "We can't access your camera",
+    body: "Your browser is blocking camera access for this site. Allow it in your browser's site settings, then try again.",
+  },
+  NOT_FOUND: {
+    heading: "We can't access your camera",
+    body: "We couldn't find a camera on this device.",
+  },
+  UNAVAILABLE: {
+    heading: "We can't access your camera",
+    body: "Your camera is in use by another app. Close it and try again.",
+  },
+};
 
 interface InteractionIndexEntry {
   id: string;
@@ -67,47 +98,6 @@ interface InteractionIndexEntry {
 const logSignature = (log: InteractionLog) =>
   `${log.totalMessages ?? 0}:${log.events.length}:${Object.keys(log.roleInteractions).length}`;
 
-const SENTENCE_END = /[.!?…](?=\s|$)|\n/;
-const MIN_SPEAK_CHARS = 20;
-const MAX_SPEAK_CHARS = 220;
-
-/**
- * Pulls complete, speakable chunks out of buffer.
- * Returns the chunks plus whatever tail is not yet safe to speak.
- */
-function extractSpeakable(buffer: string): { chunks: string[]; rest: string } {
-  const chunks: string[] = [];
-  let rest = buffer;
-
-  for (;;) {
-    const m = rest.match(SENTENCE_END);
-    if (m && m.index !== undefined) {
-      const end = m.index + m[0].length;
-      const candidate = rest.slice(0, end).trim();
-      if (candidate.length >= MIN_SPEAK_CHARS) {
-        chunks.push(candidate);
-        rest = rest.slice(end);
-        continue;
-      }
-      const next = rest.slice(end).match(SENTENCE_END);
-      if (!next) break;
-      const merged = rest.slice(0, end + next.index! + next[0].length).trim();
-      chunks.push(merged);
-      rest = rest.slice(end + next.index! + next[0].length);
-      continue;
-    }
-    if (rest.length > MAX_SPEAK_CHARS) {
-      const cut = rest.lastIndexOf(",", MAX_SPEAK_CHARS);
-      const at = cut > MIN_SPEAK_CHARS ? cut + 1 : MAX_SPEAK_CHARS;
-      chunks.push(rest.slice(0, at).trim());
-      rest = rest.slice(at);
-      continue;
-    }
-    break;
-  }
-  return { chunks, rest };
-}
-
 export default function CasePlayPage() {
   const params = useParams();
   const router = useRouter();
@@ -122,8 +112,37 @@ export default function CasePlayPage() {
   const [pageState, setPageState] = useState<PageState>("intro");
   const [interactionLog, setInteractionLog] = useState<InteractionLog | null>(null);
   const [mode, setMode] = useState<"explore" | "assessed">("assessed");
+  // `ownerId` is present only on a student-authored scenario (set server-side
+  // in 09-01/09-02); an admin-authored case study never has it. This is the
+  // sole discriminator between the two run pipelines in this file.
+  const isScenario = Boolean(caseData?.ownerId);
+  // Populated by the scenario start route's response; consumed by
+  // handleFinish to know which report to submit against.
+  const [scenarioReportId, setScenarioReportId] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+
+  // ---- Scenario-only camera-mode gate (REQ-35..37, REQ-43, REQ-47, REQ-49) ----
+  // Camera mode is chosen BEFORE the run and LOCKED for its duration — see
+  // 10-CONTEXT.md "Camera mode is locked at session start". This is a
+  // SEPARATE control from `interactionMode` (text/avatar) below: that toggle
+  // stays freely switchable mid-run, and the two must never be conflated.
+  // Every piece of state below is only ever read/written from inside an
+  // `isScenario` branch; the legacy admin-case path never touches it.
+  const [cameraMode, setCameraMode] = useState<CameraMode>("OFF");
+  const [consentAccepted, setConsentAccepted] = useState<boolean | null>(null);
+  const [showConsentDialog, setShowConsentDialog] = useState(false);
+  const [cameraBlock, setCameraBlock] = useState<CameraBlockReason | null>(null);
+  const [probingCamera, setProbingCamera] = useState(false);
+  const [startingScenario, setStartingScenario] = useState(false);
+  // Live capture engines + affordance state, wired up once the scenario run
+  // is actually playing (Task 2). Declared here alongside the other
+  // scenario-only refs/state for locality.
+  const visualCaptureRef = useRef<VisualCaptureHandle | null>(null);
+  const vocalCaptureRef = useRef<ReturnType<typeof createVocalCapture> | null>(null);
+  const scenarioCameraStreamRef = useRef<MediaStream | null>(null);
+  const [scenarioSelfViewStream, setScenarioSelfViewStream] = useState<MediaStream | null>(null);
+  const [faceDetected, setFaceDetected] = useState(true);
 
   // Unfinished session state
   const [unfinishedSessions, setUnfinishedSessions] = useState<InteractionIndexEntry[]>([]);
@@ -260,32 +279,26 @@ export default function CasePlayPage() {
     }
   }, [user?.email, caseId]);
 
-  // Load avatar time limit from cohort
+  // Scenario-only: load the account's metrics-consent state once, so the
+  // camera choice on the intro screen knows whether the consent dialog is
+  // even necessary. Never runs for an admin case.
   useEffect(() => {
-    if (!user?.email || !cohortId || !caseId) return;
+    if (!isScenario) return;
+    let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/cohort/get?id=${encodeURIComponent(cohortId)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const cohort = data.cohort ?? data;
-        const assignment = cohort.assignedCases?.find((a: { caseId: string }) => a.caseId === caseId);
-        const limitMinutes: number | null = assignment?.heygenMinutesLimit ?? null;
-        if (limitMinutes === null) return;
-        const limitSeconds = limitMinutes * 60;
-        setAvatarTimeLimitSeconds(limitSeconds);
-        const timeRes = await fetch(
-          `/api/interaction/avatar-time?studentEmail=${encodeURIComponent(user.email)}&caseId=${encodeURIComponent(caseId)}`
-        );
-        if (timeRes.ok) {
-          const timeData = await timeRes.json();
-          setAvatarTotalSeconds(timeData.usedSeconds ?? 0);
-        }
+        const res = await fetch("/api/metrics/consent");
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        setConsentAccepted(Boolean(data?.acceptedAt));
       } catch {
-        // non-critical — fail silently
+        if (!cancelled) setConsentAccepted(false);
       }
     })();
-  }, [user?.email, cohortId, caseId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isScenario]);
 
   const loadUnfinishedSessions = async () => {
     if (!user?.email) return;
@@ -374,6 +387,108 @@ export default function CasePlayPage() {
   // Release the mic on unmount so the browser recording indicator clears.
   useEffect(() => releaseMicStream, [releaseMicStream]);
 
+  // ---- Scenario-only capture lifecycle (Task 2) ----
+  // Vocal capture is created once per scenario run, independent of
+  // cameraMode — audio accounting exists regardless of the camera choice.
+  // Never created for the admin case-study path.
+  useEffect(() => {
+    if (!isScenario) return;
+    vocalCaptureRef.current = createVocalCapture();
+    return () => {
+      vocalCaptureRef.current?.detachStream();
+      vocalCaptureRef.current = null;
+    };
+  }, [isScenario]);
+
+  /** Stops the visual engine, returns its final scalar metrics, and stops
+   * every camera track. Idempotent and safe from any exit path — the camera
+   * LED must go out every time this runs. */
+  const stopAndReleaseVisualCapture = useCallback((): VisualMetrics | null => {
+    let result: VisualMetrics | null = null;
+    try {
+      result = visualCaptureRef.current?.stop() ?? null;
+    } catch {
+      result = null;
+    }
+    visualCaptureRef.current = null;
+    scenarioCameraStreamRef.current?.getTracks().forEach((t) => t.stop());
+    scenarioCameraStreamRef.current = null;
+    setScenarioSelfViewStream(null);
+    return result;
+  }, []);
+
+  /** Combined release for exit paths that don't need the resulting metrics
+   * (unmount, Save & exit) — mirrors `stopAndReleaseVisualCapture` plus the
+   * vocal engine's stream detach. */
+  const releaseScenarioCapture = useCallback(() => {
+    stopAndReleaseVisualCapture();
+    vocalCaptureRef.current?.detachStream();
+  }, [stopAndReleaseVisualCapture]);
+
+  // Release camera + vocal capture on unmount — a fourth exit path
+  // alongside Finish, Save & exit, and a pageState change away from
+  // "playing" (Finish/Save & exit navigate away entirely, so unmount is
+  // this effect's only real trigger, but it must still fire).
+  useEffect(() => releaseScenarioCapture, [releaseScenarioCapture]);
+
+  // Visual capture starts once the run is live (`pageState === "playing"`),
+  // gated on `isScenario && cameraMode === "ON"`. Deliberately NOT gated on
+  // the avatar connecting: unlike the interview flow (whose avatar is always
+  // present regardless of the text/voice input choice), a case-play run may
+  // stay in text mode the ENTIRE time and never render an avatar at all — a
+  // camera-on run answered entirely by typing must still produce a Visual
+  // score (see 10-10-PLAN.md verify case 2), so this cannot depend on an
+  // avatar-connected signal that a text-only run would never emit. Starting
+  // immediately here also avoids any risk of the two independent connections
+  // (camera getUserMedia vs. the HeyGen WebRTC handshake) contending with
+  // each other, which protects REQ-49 at least as well as sequencing them.
+  useEffect(() => {
+    if (pageState !== "playing") return;
+    if (!isScenario || cameraMode !== "ON") return;
+    if (visualCaptureRef.current) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await requestCameraStream();
+      if (cancelled) {
+        // The effect was torn down while getUserMedia was in flight. The
+        // stream still opened, so stop it here — returning without stopping
+        // orphans a live camera that no teardown path can reach, leaving the
+        // indicator light on after the session ends.
+        if (result.ok) {
+          result.stream.getTracks().forEach((t) => t.stop());
+        }
+        return;
+      }
+      if (!result.ok) {
+        // The intro screen's own probe already succeeded — the camera was
+        // seized or revoked between screens. The student is already live;
+        // never block a running session. The null visual block resolves to
+        // INSUFFICIENT_DATA server-side (REQ-42).
+        addToast({
+          title: "Your camera stopped responding",
+          description: "Visual won't be measured for this session.",
+          color: "warning",
+        });
+        return;
+      }
+      // Defence in depth against a second acquisition slipping through.
+      if (scenarioCameraStreamRef.current) {
+        scenarioCameraStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      scenarioCameraStreamRef.current = result.stream;
+      setScenarioSelfViewStream(result.stream);
+      const capture = createVisualCapture({
+        stream: result.stream,
+        onFaceStateChange: (detected) => setFaceDetected(detected),
+      });
+      visualCaptureRef.current = capture;
+      void capture.start();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pageState, isScenario, cameraMode]);
+
   // Save interaction on page unload (tab close / navigate away)
   useEffect(() => {
     const handleUnload = () => {
@@ -400,9 +515,21 @@ export default function CasePlayPage() {
     }
   }, [avatarTotalSeconds, avatarTimeLimitSeconds, avatarLimitExhausted, interactionMode]);
 
-  // Load avatar profile config when role changes or when switching to avatar mode
+  // Load avatar config when role changes or when switching to avatar mode.
+  // Student-authored scenario characters carry a raw HeyGen `avatarId`/
+  // `voiceId` pair and need no lookup; legacy admin cases carry a
+  // `profileId` and resolve through `/api/profile/get` exactly as before.
   useEffect(() => {
-    if (interactionMode === "avatar" && selectedRole?.profileId) {
+    if (interactionMode !== "avatar" || !selectedRole) return;
+    if (selectedRole.avatarId && selectedRole.voiceId) {
+      setAvatarConfigLoading(false);
+      setAvatarConfig({
+        quality: "low",
+        avatarName: selectedRole.avatarId,
+        voice: { voiceId: selectedRole.voiceId, rate: 1.05 },
+        language: attemptLanguage.code,
+      });
+    } else if (selectedRole.profileId) {
       loadAvatarConfig(selectedRole.profileId);
     }
   }, [interactionMode, selectedRole]);
@@ -462,8 +589,119 @@ export default function CasePlayPage() {
     });
   };
 
+  /**
+   * Actually calls `/api/scenario/session/start` with a RESOLVED camera
+   * mode (consent/probe decisions already made by the caller) and enters
+   * the playing state on success. Split out from `handleStart` so the
+   * consent dialog's accept/decline handlers and the camera-block panel's
+   * "Continue with my camera off" action can each invoke it directly
+   * without re-running the probe/consent gate they just resolved.
+   */
+  const startScenarioRun = async (resolvedCameraMode: CameraMode) => {
+    if (!user?.email || !caseData) return;
+    setMode("assessed");
+    setStartingScenario(true);
+    try {
+      const res = await fetch("/api/scenario/session/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          caseId: caseData.id,
+          language: attemptLanguage.code,
+          cameraMode: resolvedCameraMode,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message =
+          typeof data?.error === "string"
+            ? data.error
+            : res.status === 404
+              ? "This scenario is no longer available. It may have been deleted or unpublished."
+              : "Failed to start session";
+        throw new Error(message);
+      }
+
+      setCameraMode(resolvedCameraMode);
+      setScenarioReportId(data.reportId);
+      setInteractionLog(data.log);
+      setChatMessages({});
+      setCameraBlock(null);
+      setPageState("playing");
+    } catch (err) {
+      console.error("Failed to start scenario:", err);
+      addToast({
+        title: err instanceof Error ? err.message : "Failed to start session",
+        color: "danger",
+      });
+    } finally {
+      setStartingScenario(false);
+    }
+  };
+
+  /** REQ-36: the account's one-time acceptance recorded before continuing. */
+  const handleConsentAccept = () => {
+    setConsentAccepted(true);
+    setShowConsentDialog(false);
+    // Continue exactly where the gate left off — re-running `handleStart`
+    // now finds `consentAccepted === true` and proceeds to the probe.
+    void handleStart("assessed");
+  };
+
+  /** "Not now" on the consent dialog is a deliberate camera-off choice — it
+   * PROCEEDS with the run, never a dead end (see 10-CONTEXT.md). */
+  const handleConsentDecline = () => {
+    setShowConsentDialog(false);
+    setCameraMode("OFF");
+    void startScenarioRun("OFF");
+  };
+
+  /** REQ-37: retry the same probe the student just failed. */
+  const handleCameraBlockRetry = () => {
+    setCameraBlock(null);
+    void handleStart("assessed");
+  };
+
+  /** REQ-37: a denied/unavailable camera blocks with a working camera-off
+   * continuation, never a dead end. */
+  const handleCameraBlockContinueOff = () => {
+    setCameraBlock(null);
+    setCameraMode("OFF");
+    void startScenarioRun("OFF");
+  };
+
   const handleStart = async (selectedMode: "explore" | "assessed") => {
     if (!user?.email || !caseData) return;
+
+    if (isScenario) {
+      // A student-authored scenario is always an evaluated run — there is no
+      // cohort-free "explore" concept, since every run produces a report.
+      if (cameraMode === "ON") {
+        if (!consentAccepted) {
+          setShowConsentDialog(true);
+          return;
+        }
+        setProbingCamera(true);
+        const probe = await requestCameraStream();
+        setProbingCamera(false);
+        if (!probe.ok) {
+          // REQ-37: blocking is only acceptable BEFORE the run begins, and
+          // only with a working camera-off continuation — see the block
+          // panel rendered on the intro screen below.
+          setCameraBlock(probe.reason);
+          return;
+        }
+        // Stop the probe's tracks immediately — this is only a permission
+        // check. Task 2 re-acquires the camera once the run is actually
+        // live and the avatar has connected.
+        probe.stream.getTracks().forEach((t) => t.stop());
+        setCameraBlock(null);
+      }
+      await startScenarioRun(cameraMode);
+      return;
+    }
 
     setMode(selectedMode);
 
@@ -848,10 +1086,17 @@ export default function CasePlayPage() {
     }
   };
 
+  // This is the only path that records a TYPED turn (REQ-44). The
+  // push-to-talk path below records its own SPOKEN turn inside
+  // `processRecording` and must never also count as typed — the two are
+  // mutually exclusive per submission, which is exactly what makes the
+  // turn-level accounting correct across a mid-session Text/Avatar switch
+  // (see the file-level note at `processRecording`).
   const handleSendMessage = async () => {
     if (!currentInput.trim()) return;
     const userMessage = currentInput.trim();
     setCurrentInput("");
+    if (isScenario) vocalCaptureRef.current?.recordTypedTurn();
     await sendMessageAndGetResponse(userMessage);
   };
 
@@ -864,6 +1109,11 @@ export default function CasePlayPage() {
     existing?.getTracks().forEach((t) => t.stop());
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     micStreamRef.current = stream;
+    // Reuses the SAME audio stream the push-to-talk path already owns — no
+    // second getUserMedia({ audio: true }) call. The vocal engine runs its
+    // own independent AnalyserNode and does not touch startLevelMetering/
+    // peakRmsRef above.
+    if (isScenario) vocalCaptureRef.current?.attachStream(stream);
     return stream;
   };
 
@@ -991,6 +1241,28 @@ export default function CasePlayPage() {
       return;
     }
 
+    // Q4 (this is the resolution — see 10-10-PLAN.md and 10-CONTEXT.md):
+    // `interactionMode` (text/avatar) is a SEPARATE control from `cameraMode`
+    // and, unlike the camera lock, it CAN be switched mid-run via
+    // `handleSwitchInteractionMode`. Forcing a second locked control just to
+    // make vocal accounting simple was rejected — nobody asked for that, and
+    // it would make the toggle behave inconsistently with itself. Instead,
+    // accounting is TURN-LEVEL with a SESSION-LEVEL verdict: every turn is
+    // tagged spoken or typed the moment it happens (here, and in
+    // `handleSendMessage`'s `recordTypedTurn()`), and `resolveVocalOutcome`
+    // (lib/metrics/coverage.ts, consumed by the evaluation runners from
+    // 10-07) decides from the AGGREGATE at finish — scored if there was
+    // enough real speech, `TYPED_ONLY` if there was not. A mixed session is
+    // therefore scored on its spoken portion only: typed turns contribute
+    // nothing and subtract nothing (REQ-44). Do not "simplify" this to a
+    // session-level flag — that would penalise a student who typed two
+    // answers and spoke the rest.
+    //
+    // Fire-and-forget, never awaited — the live transcription latency the
+    // student feels must be unchanged. A clip rejected by either guard above
+    // is not a spoken turn and must never reach here.
+    if (isScenario) vocalCaptureRef.current?.submitSpokenTurn(audioBlob, elapsedMs);
+
     setIsTranscribing(true);
 
     try {
@@ -1093,6 +1365,63 @@ export default function CasePlayPage() {
 
       releaseMicStream();
 
+      // A resumed scenario run (loaded via the legacy handleResume path,
+      // which never repopulates scenarioReportId) has no report id to
+      // submit against — fall back to the legacy finish rather than
+      // stranding the session. This is a pre-existing, documented gap
+      // (09-07-SUMMARY.md, carried in STATE.md): a resumed scenario run
+      // therefore produces no metrics either, since it never reaches this
+      // branch at all. Not fixed here — out of scope for this plan.
+      if (isScenario && scenarioReportId) {
+        // Stop/drain BEFORE the finish fetch so the metrics field rides in
+        // the same request. stop() is synchronous; drain() is awaited and
+        // bounded at 8s by design (lib/metrics/vocal-capture.ts). drain()
+        // never throws by its own contract, but a defensive catch keeps a
+        // truly unexpected failure from losing the run — null metrics beat
+        // a lost submission.
+        let visual: VisualMetrics | null = null;
+        let vocal: VocalMetrics | null = null;
+        try {
+          visual = stopAndReleaseVisualCapture();
+        } catch {
+          visual = null;
+        }
+        try {
+          vocal = (await vocalCaptureRef.current?.drain(8000)) ?? null;
+        } catch {
+          vocal = null;
+        }
+        vocalCaptureRef.current?.detachStream();
+
+        const res = await fetch("/api/scenario/session/finish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            reportId: scenarioReportId,
+            log: interactionLog,
+            metrics: { cameraMode, visual, vocal },
+          }),
+        });
+
+        // 409 ("already submitted") means the run is finished server-side —
+        // still navigate rather than stranding the student on a dead session.
+        if (!res.ok && res.status !== 409) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(
+            typeof data?.error === "string" ? data.error : "Failed to finish"
+          );
+        }
+
+        addToast({
+          title: "Session complete — your report is being prepared.",
+          color: "success",
+        });
+
+        router.push(`/case-play/${caseId}/report/${scenarioReportId}`);
+        return;
+      }
+
       const res = await fetch("/api/interaction/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1108,7 +1437,7 @@ export default function CasePlayPage() {
         color: "success",
       });
 
-      router.push("/student-cases");
+      router.push("/case-play");
     } catch (err) {
       console.error("Finish error:", err);
       addToast({ title: "Failed to end session", color: "danger" });
@@ -1131,6 +1460,8 @@ export default function CasePlayPage() {
         setAvatarGrandfathered(false);
       }
       releaseMicStream();
+      // The camera LED must go out on every exit path, not only Finish.
+      if (isScenario) releaseScenarioCapture();
       const log = interactionLogRef.current;
       if (log?.mode === "assessed") {
         await saveInteraction(log);
@@ -1143,8 +1474,7 @@ export default function CasePlayPage() {
             : "You can open this case again when you are ready.",
         color: "success",
       });
-      const q = cohortId ? `?cohortId=${encodeURIComponent(cohortId)}` : "";
-      router.push(`/student-cases${q}`);
+      router.push("/case-play");
     } catch (err) {
       console.error("Save and exit failed:", err);
       addToast({
@@ -1164,8 +1494,11 @@ export default function CasePlayPage() {
     }
   };
 
-  // Check if current role has a profile configured for avatar mode
-  const roleHasAvatarProfile = selectedRole?.profileId != null;
+  // Check if current role has an avatar configured for avatar mode — either
+  // a student-scenario avatarId/voiceId pair or a legacy admin profileId.
+  const roleHasAvatarProfile =
+    (selectedRole?.avatarId != null && selectedRole?.voiceId != null) ||
+    selectedRole?.profileId != null;
 
   if (loading) {
     return (
@@ -1179,7 +1512,7 @@ export default function CasePlayPage() {
     return (
       <div className="max-w-4xl mx-auto text-center py-12">
         <p className="text-danger text-lg mb-4">Case not found</p>
-        <Button onPress={() => router.push("/student-cases")} startContent={<ArrowLeft className="w-4 h-4" />}>
+        <Button onPress={() => router.push("/case-play")} startContent={<ArrowLeft className="w-4 h-4" />}>
           Back to Cases
         </Button>
       </div>
@@ -1191,7 +1524,7 @@ export default function CasePlayPage() {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
-          <Button isIconOnly variant="light" onPress={() => router.push("/student-cases")}>
+          <Button isIconOnly variant="light" onPress={() => router.push("/case-play")}>
             <ArrowLeft />
           </Button>
           <h1 className={title({ size: "sm" })}>{caseData.name}</h1>
@@ -1294,6 +1627,84 @@ export default function CasePlayPage() {
           </Card>
         )}
 
+        {/* Scenario-only camera-mode gate (REQ-35..37). Never rendered for an
+            admin case study — that path shows nothing new. Chosen BEFORE the
+            run and LOCKED for its duration; there is no mid-session toggle. */}
+        {isScenario && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Camera className="w-5 h-5" />
+                <h2 className="text-xl font-semibold">Camera</h2>
+              </div>
+            </CardHeader>
+            <CardBody className="space-y-3">
+              <p className="text-sm text-default-500">
+                Choose whether to measure your delivery with your camera. This
+                choice is locked once you start and cannot be changed during
+                the run.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant={cameraMode === "ON" ? "solid" : "bordered"}
+                  color={cameraMode === "ON" ? "primary" : "default"}
+                  startContent={<Camera className="w-4 h-4" />}
+                  onPress={() => {
+                    setCameraMode("ON");
+                    setCameraBlock(null);
+                  }}
+                  isDisabled={probingCamera || startingScenario}
+                >
+                  Camera on
+                </Button>
+                <Button
+                  variant={cameraMode === "OFF" ? "solid" : "bordered"}
+                  color={cameraMode === "OFF" ? "primary" : "default"}
+                  startContent={<CameraOff className="w-4 h-4" />}
+                  onPress={() => {
+                    setCameraMode("OFF");
+                    setCameraBlock(null);
+                  }}
+                  isDisabled={probingCamera || startingScenario}
+                >
+                  Camera off
+                </Button>
+              </div>
+              {cameraMode === "ON" && (
+                <p className="text-xs text-default-400">
+                  With your camera on, we measure how you present and how you
+                  speak. Nothing is recorded — only the derived numbers are
+                  kept on your report.
+                </p>
+              )}
+              {cameraBlock && (
+                <div className="rounded-lg border border-danger-200 bg-danger-50 p-4 space-y-3">
+                  <p className="font-medium text-danger-700">
+                    {CAMERA_BLOCK_COPY[cameraBlock].heading}
+                  </p>
+                  <p className="text-sm text-danger-600">
+                    {CAMERA_BLOCK_COPY[cameraBlock].body}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      color="danger"
+                      variant="flat"
+                      onPress={handleCameraBlockRetry}
+                      isLoading={probingCamera}
+                    >
+                      Try again
+                    </Button>
+                    <Button size="sm" variant="light" onPress={handleCameraBlockContinueOff}>
+                      Continue with my camera off
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        )}
+
         {/* Language is fixed for the whole attempt: it pins transcription, the
             roles' replies, and the avatar voice together. Resuming an attempt
             restores its language rather than offering the choice again. */}
@@ -1315,27 +1726,43 @@ export default function CasePlayPage() {
         </div>
 
         <div className="flex gap-4 justify-center pt-4">
-          <Button
-            size="lg"
-            variant="bordered"
-            startContent={<Eye className="w-5 h-5" />}
-            onPress={() => handleStart("explore")}
-          >
-            Explore System
-          </Button>
+          {!isScenario && (
+            <Button
+              size="lg"
+              variant="bordered"
+              startContent={<Eye className="w-5 h-5" />}
+              onPress={() => handleStart("explore")}
+            >
+              Explore System
+            </Button>
+          )}
           <Button
             size="lg"
             color="primary"
             startContent={<Play className="w-5 h-5" />}
             onPress={() => handleStart("assessed")}
+            isLoading={isScenario && (probingCamera || startingScenario)}
           >
             Start
           </Button>
         </div>
         <p className="text-center text-sm text-default-400">
-          &quot;Explore System&quot; lets you try the case without recording.
-          &quot;Start&quot; begins an assessed attempt.
+          {isScenario ? (
+            "This scenario is always an evaluated run — finishing it produces a report."
+          ) : (
+            <>
+              &quot;Explore System&quot; lets you try the case without recording.
+              &quot;Start&quot; begins an assessed attempt.
+            </>
+          )}
         </p>
+        {isScenario && (
+          <MetricsConsentDialog
+            open={showConsentDialog}
+            onAccept={handleConsentAccept}
+            onDecline={handleConsentDecline}
+          />
+        )}
       </div>
     );
   }
@@ -1344,7 +1771,7 @@ export default function CasePlayPage() {
   const currentRoleMessages = selectedRole ? (chatMessages[selectedRole.id] || []) : [];
 
   return (
-    <div className="flex h-full gap-4 p-4">
+    <div className="relative flex h-full gap-4 p-4">
       {/* Left sidebar - Roles */}
       <div className="w-64 shrink-0 flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -1488,6 +1915,11 @@ export default function CasePlayPage() {
                 />
               </div>
             )}
+
+            {/* Self-view in the bottom-right of the AVATAR panel, the usual
+                video-call convention. In text mode there is no avatar panel,
+                so a page-level fallback renders it instead (see below). */}
+            <SelfViewThumbnail stream={scenarioSelfViewStream} />
 
             {/* Floating header */}
             <div className="absolute top-0 left-0 right-0 z-10 p-3 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
@@ -1801,6 +2233,21 @@ export default function CasePlayPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Live capture affordances (REQ-43), scenario runs only. The self-view
+          normally lives inside the avatar panel (bottom-right, the usual
+          video-call convention); this is the TEXT-mode fallback, since that
+          layout has no avatar panel to anchor to. The banner is non-blocking
+          and folds away the moment the face is picked up again; neither
+          element scores or coaches. */}
+      {isScenario && (
+        <>
+          {interactionMode !== "avatar" && (
+            <SelfViewThumbnail stream={scenarioSelfViewStream} />
+          )}
+          <FaceDetectionBanner visible={cameraMode === "ON" && !faceDetected} />
+        </>
+      )}
     </div>
   );
 }

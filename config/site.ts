@@ -1,7 +1,7 @@
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
-  name: "CaseBridge",
+  name: "Leadership Avatar",
   description: "AI Case Study",
   navItems: [
     {
@@ -20,21 +20,21 @@ export const siteConfig = {
       href: "/avatar-profiles",
       icon: "Video",
     },
-    {
-      label: "Cohort Management",
-      href: "/codes",
-      icon: "GraduationCap",
-    },
   ],
   studentNavItems: [
     {
-      label: "My Cases",
-      href: "/student-cases",
+      label: "Practice",
+      href: "/",
       icon: "Briefcase",
     },
     {
+      label: "My Reports",
+      href: "/reports",
+      icon: "History",
+    },
+    {
       label: "Settings",
-      href: "/student-cases/settings",
+      href: "/settings",
       icon: "Settings",
     },
   ],

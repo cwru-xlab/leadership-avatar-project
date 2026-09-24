@@ -45,18 +45,16 @@ export default function CaseCard({ caseStudy, onClick }: CaseCardProps) {
         </div>
       </div>
       
-      <CardBody className="pt-3">
-        <div className="space-y-2">
-          <p className="text-xs text-default-400 font-mono truncate">
-            {caseStudy.id}
-          </p>
-          <p className="text-sm text-default-600 line-clamp-2">
-            {caseStudy.backgroundInfo}
-          </p>
-          <div className="text-xs text-default-400 pt-1">
-            {caseStudy.avatars.length} avatar{caseStudy.avatars.length !== 1 ? "s" : ""}
-          </div>
-        </div>
+      <CardBody className="px-4 py-3.5 gap-2">
+        <p className="text-xs text-default-400 font-mono truncate">
+          {caseStudy.id}
+        </p>
+        <p className="text-sm text-default-600 line-clamp-2 leading-relaxed">
+          {caseStudy.backgroundInfo}
+        </p>
+        <p className="text-xs text-default-400">
+          {caseStudy.avatars.length} avatar{caseStudy.avatars.length !== 1 ? "s" : ""}
+        </p>
       </CardBody>
     </Card>
   );

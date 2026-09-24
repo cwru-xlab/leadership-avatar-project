@@ -107,7 +107,7 @@ export default function ChatViewPage() {
 
       if (data.success) {
         // Redirect back to admin page after successful deletion
-        router.push("/users-and-usages");
+        router.push("/");
       } else {
         alert(data.error || "Failed to delete session");
       }
@@ -163,7 +163,7 @@ export default function ChatViewPage() {
             <div className="flex gap-2 justify-center">
               <Button
                 variant="light"
-                onPress={() => router.push("/users-and-usages")}
+                onPress={() => router.push("/")}
               >
                 <ArrowLeft size={16} />
                 Back to Admin
@@ -189,7 +189,7 @@ export default function ChatViewPage() {
           </p>
           <Button
             variant="light"
-            onPress={() => router.push("/users-and-usages")}
+            onPress={() => router.push("/")}
           >
             <ArrowLeft size={16} />
             Back to Admin
@@ -208,7 +208,7 @@ export default function ChatViewPage() {
             <div className="flex items-center gap-4">
               <Button
                 variant="light"
-                onPress={() => router.push("/users-and-usages")}
+                onPress={() => router.push("/")}
               >
                 <ArrowLeft size={16} />
                 Back to Admin

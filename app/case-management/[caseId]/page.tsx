@@ -14,6 +14,7 @@ import {
   useDisclosure,
 } from "@heroui/modal";
 import { Select, SelectItem } from "@heroui/select";
+import { Switch } from "@heroui/switch";
 import { ArrowLeft, Plus, Save, Trash2, X, Upload, ImageIcon, Sparkles } from "lucide-react";
 import { addToast } from "@heroui/toast";
 import { title as pageTitle } from "@/components/primitives";
@@ -36,6 +37,7 @@ export default function CaseDetailPage() {
   const [evaluationPrompt, setEvaluationPrompt] = useState("");
   const [avatars, setAvatars] = useState<CaseAvatar[]>([]);
   const [coverImage, setCoverImage] = useState<string | undefined>(undefined);
+  const [published, setPublished] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [generatingCover, setGeneratingCover] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +55,7 @@ export default function CaseDetailPage() {
     evaluationPrompt: "",
     avatars: "[]",
     coverImage: undefined as string | undefined,
+    published: false,
   });
 
   const generatedId = useMemo(() => {
@@ -72,9 +75,10 @@ export default function CaseDetailPage() {
       backgroundInfo !== originalValues.backgroundInfo ||
       evaluationPrompt !== originalValues.evaluationPrompt ||
       JSON.stringify(avatars) !== originalValues.avatars ||
-      coverImage !== originalValues.coverImage
+      coverImage !== originalValues.coverImage ||
+      published !== originalValues.published
     );
-  }, [name, backgroundInfo, evaluationPrompt, avatars, coverImage, originalValues]);
+  }, [name, backgroundInfo, evaluationPrompt, avatars, coverImage, published, originalValues]);
 
   useEffect(() => {
     const loadCase = async () => {
@@ -88,12 +92,14 @@ export default function CaseDetailPage() {
             setEvaluationPrompt(caseData.evaluationPrompt || "");
             setAvatars(caseData.avatars);
             setCoverImage(caseData.coverImage);
+            setPublished(caseData.published === true);
             setOriginalValues({
               name: caseData.name,
               backgroundInfo: caseData.backgroundInfo,
               evaluationPrompt: caseData.evaluationPrompt || "",
               avatars: JSON.stringify(caseData.avatars),
               coverImage: caseData.coverImage,
+              published: caseData.published === true,
             });
           } else {
             setErrors({ load: "Case not found" });
@@ -159,6 +165,7 @@ export default function CaseDetailPage() {
           backgroundInfo,
           evaluationPrompt: evaluationPrompt || undefined,
           coverImage,
+          published,
           avatars,
           cohortIds: [],
           createdBy: userName,
@@ -176,6 +183,7 @@ export default function CaseDetailPage() {
           backgroundInfo,
           evaluationPrompt: evaluationPrompt || undefined,
           coverImage,
+          published,
           avatars,
           lastEditedBy: userName,
         });
@@ -434,6 +442,18 @@ export default function CaseDetailPage() {
               label={isNewCase ? "Case ID (Auto-generated)" : "Case ID"}
               value={generatedId}
             />
+          </div>
+
+          <div className="flex justify-between items-center gap-4">
+            <div>
+              <p className="text-sm font-medium">Published</p>
+              <p className="text-xs text-default-400">
+                Published cases appear in the student Case Studies list.
+                Unpublished cases stay hidden from browsing but remain
+                playable by direct link for preview.
+              </p>
+            </div>
+            <Switch isSelected={published} onValueChange={setPublished} />
           </div>
 
           {/* Cover Image */}
