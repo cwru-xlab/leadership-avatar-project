@@ -32,20 +32,44 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get admin users list from Edge Config
-    const adminUsersString = await get("adminUsersCaseIds");
+    // Get admin users list from Edge Config.
+    //
+    // This lookup decides PRIVILEGE, not IDENTITY — the CAS ticket above has
+    // already proven who this person is. So it must never be able to fail the
+    // login itself: if Edge Config is unreachable or misconfigured, every user
+    // signs in as a normal user rather than nobody signing in at all.
+    //
+    // This is not hypothetical. On 2026-09-24 an empty `EDGE_CONFIG`
+    // connection string in production made `get()` throw, the outer catch
+    // turned it into `?error=sso_error`, and SSO was down for everyone.
     let isAdmin = false;
+    let adminStatusKnown = true;
 
-    if (adminUsersString && typeof adminUsersString === "string") {
-      const adminIds = adminUsersString.split(",").map((id) => id.trim());
-      isAdmin = adminIds.includes(validationResult.userInfo.studentId);
+    try {
+      const adminUsersString = await get("adminUsersCaseIds");
+
+      if (adminUsersString && typeof adminUsersString === "string") {
+        const adminIds = adminUsersString.split(",").map((id) => id.trim());
+        isAdmin = adminIds.includes(validationResult.userInfo.studentId);
+      }
+    } catch (adminLookupError) {
+      // Degrade, do not fail. Admin status is UNKNOWN here, not false —
+      // `adminStatusKnown: false` below stops the upsert from demoting a real
+      // admin just because the config store was briefly unreachable.
+      adminStatusKnown = false;
+      console.error(
+        "CWRU SSO: admin list lookup failed, continuing without admin privileges:",
+        adminLookupError
+      );
     }
 
     // Determine role based on admin list
     const role = isAdmin ? "admin" : "user";
 
     // Create or update user based on CWRU data
-    const user = await createOrUpdateCWRUUser(validationResult.userInfo, role);
+    const user = await createOrUpdateCWRUUser(validationResult.userInfo, role, {
+      adminStatusKnown,
+    });
 
     // Create JWT token
     const token = await createToken(user);
@@ -61,7 +85,14 @@ export async function GET(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error("CWRU SSO callback error:", error);
+    // Log the real cause. `sso_error` is deliberately opaque to the browser,
+    // so without this the runtime log is the only way to tell a CAS failure
+    // from a database outage from a misconfigured environment variable.
+    console.error(
+      "CWRU SSO callback error:",
+      error instanceof Error ? `${error.name}: ${error.message}` : error,
+      error instanceof Error ? error.stack : undefined
+    );
     return NextResponse.redirect(
       new URL("/login?error=sso_error", request.url)
     );
