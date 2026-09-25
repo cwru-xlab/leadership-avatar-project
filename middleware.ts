@@ -198,6 +198,9 @@ const STUDENT_ROUTES: string[] = [
   "/api/scenario",
   // REQ-36 consent endpoint, owner-scoped in the route handler itself.
   "/api/metrics",
+  // Student-owned study-plan generation and saved-plan history. Every route
+  // derives ownership from the authenticated JWT in its handler.
+  "/api/study-plans",
   // Endpoints needed by case-play's avatar mode (streaming avatar,
   // avatar profile config, and push-to-talk audio transcription).
   // These endpoints are also used by kiosk flows, so the authorization
