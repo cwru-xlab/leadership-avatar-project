@@ -35,13 +35,15 @@ import InteractiveAvatarWrapper, {
   type InteractiveAvatarRef,
 } from "@/components/HeyGenAvatar/InteractiveAvatar";
 import { StreamingAvatarSessionState } from "@/components/HeyGenAvatar/logic";
-import { extractSpeakable } from "@/lib/interview/speakable";
 import {
-  BEHAVIORAL_CATEGORIES,
   initialProgress,
   type InterviewProgress,
   type InterviewType,
 } from "@/lib/interview/types";
+import {
+  parseInterviewTurn,
+  reduceInterviewProgress,
+} from "@/lib/interview/turn-control";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import {
   createVisualCapture,
@@ -90,6 +92,7 @@ const HISTORY_TURNS = 10;
 const MIN_RECORDING_MS = 400;
 const MIN_AUDIO_BYTES = 2048;
 const MIN_PEAK_RMS = 0.01;
+const MAX_RECORDING_MS = 45_000;
 // Well inside any provider idle window, and cheap: one request a minute at most.
 const KEEP_ALIVE_INTERVAL_MS = 30_000;
 // Answers, not turns. Below this the report will be thin, and the evaluator
@@ -100,67 +103,6 @@ function formatElapsed(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-/**
- * Stage thresholds scale with the chosen session length (`targetQuestionCount`)
- * instead of the old hardcoded ~9-question shape, so a "Quick" session doesn't
- * march through the same stage lengths as a `standard` one. The time-based
- * "move to closing" trigger in `buildProgressBlock` remains the real backstop
- * and needs no change here.
- *
- * For the 9-question `standard` length both derived thresholds evaluate to 3,
- * exactly matching today's shipped, human-validated `general` behavior.
- */
-function advanceProgress(
-  previous: InterviewProgress,
-  hasResume: boolean,
-  targetQuestionCount: number
-): InterviewProgress {
-  const next = {
-    ...previous,
-    categoriesCovered: [...previous.categoriesCovered],
-    dodgedCategories: [...previous.dodgedCategories],
-    followUpsUsed: 0,
-  };
-
-  const resumeQuestionCap = hasResume
-    ? Math.max(1, Math.round(targetQuestionCount / 3))
-    : 0;
-  const behavioralCategoryQuota = Math.min(
-    BEHAVIORAL_CATEGORIES.length,
-    Math.max(2, Math.round(targetQuestionCount / 3))
-  );
-
-  if (previous.stage === "opening") {
-    next.questionsAsked += 1;
-    next.stage = hasResume ? "resume" : "behavioral";
-    return next;
-  }
-
-  if (previous.stage === "resume") {
-    next.questionsAsked += 1;
-    if (next.questionsAsked >= resumeQuestionCap) next.stage = "behavioral";
-    return next;
-  }
-
-  if (previous.stage === "behavioral") {
-    const nextCategory = BEHAVIORAL_CATEGORIES.find(
-      (category) => !next.categoriesCovered.includes(category)
-    );
-    if (nextCategory) next.categoriesCovered.push(nextCategory);
-    next.questionsAsked += 1;
-    if (next.categoriesCovered.length >= behavioralCategoryQuota) next.stage = "role_specific";
-    return next;
-  }
-
-  if (previous.stage === "role_specific") {
-    next.questionsAsked += 1;
-    next.stage = "closing";
-    return next;
-  }
-
-  return next;
 }
 
 /**
@@ -198,6 +140,8 @@ export default function InterviewSessionShell({
   const meterTimerRef = useRef<number | null>(null);
   const meterSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const recordingStartInFlightRef = useRef(false);
+  const recordingTimeoutRef = useRef<number | null>(null);
 
   // Phase 10 metrics capture refs (REQ-35/43/49). visualCaptureRef/
   // cameraStreamRef stay null for the entire session when cameraMode is
@@ -365,6 +309,20 @@ export default function InterviewSessionShell({
   }, []);
 
   const releaseMicrophone = useCallback(() => {
+    if (recordingTimeoutRef.current !== null) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
+    const recorder = mediaRecorderRef.current;
+    mediaRecorderRef.current = null;
+    if (recorder?.state === "recording") {
+      // Leaving or ending an interview discards an unfinished answer rather than
+      // starting a transcription after the student has gone.
+      recorder.onstop = null;
+      recorder.stop();
+    }
+    recordingStartInFlightRef.current = false;
+    setIsRecording(false);
     stopMetering();
     micStreamRef.current?.getTracks().forEach((track) => track.stop());
     micStreamRef.current = null;
@@ -454,18 +412,8 @@ export default function InterviewSessionShell({
 
         const decoder = new TextDecoder();
         let buffer = "";
-        let answer = "";
-        let speakBuffer = "";
+        let rawAnswer = "";
         let streamErrored = false;
-        const flushSpeech = (final: boolean) => {
-          const { chunks, rest } = extractSpeakable(speakBuffer);
-          speakBuffer = rest;
-          chunks.forEach((chunk) => avatarRef.current?.speak(chunk));
-          if (final && speakBuffer.trim()) {
-            avatarRef.current?.speak(speakBuffer.trim());
-            speakBuffer = "";
-          }
-        };
 
         for (;;) {
           const { done, value } = await reader.read();
@@ -482,10 +430,7 @@ export default function InterviewSessionShell({
                 delta?: string;
               };
               if (event.type === "content" && event.delta) {
-                answer += event.delta;
-                speakBuffer += event.delta;
-                setStreamingText(answer);
-                flushSpeech(false);
+                rawAnswer += event.delta;
               } else if (event.type === "error") {
                 streamErrored = true;
               }
@@ -495,17 +440,24 @@ export default function InterviewSessionShell({
           }
         }
 
-        flushSpeech(true);
-        if (streamErrored || !answer.trim()) {
+        const parsedTurn = parseInterviewTurn(rawAnswer);
+        if (parsedTurn.malformed) {
+          console.warn("Interview response had a malformed turn-control marker.");
+        }
+        if (streamErrored || !parsedTurn.content) {
           throw new Error("The interviewer response was interrupted.");
         }
 
-        appendMessage({ role: "assistant", content: answer.trim() });
-        const nextProgress = advanceProgress(
-          progress,
-          Boolean(resumeText.trim()),
-          interviewType.targetQuestionCount
-        );
+        // Sending one complete, clean response to the provider avoids concurrent
+        // sentence chunks being reordered or split around a comma. It also makes
+        // it impossible for hidden controller metadata to reach the avatar.
+        setStreamingText(parsedTurn.content);
+        avatarRef.current?.speak(parsedTurn.content);
+        appendMessage({ role: "assistant", content: parsedTurn.content });
+        const nextProgress = reduceInterviewProgress(progress, parsedTurn.action, {
+          hasResume: Boolean(resumeText.trim()),
+          targetQuestionCount: interviewType.targetQuestionCount,
+        });
         setProgress(nextProgress);
         checkpoint(nextProgress);
       } catch (error) {
@@ -656,7 +608,7 @@ export default function InterviewSessionShell({
     if (elapsed < MIN_RECORDING_MS || audio.size < MIN_AUDIO_BYTES) {
       addToast({
         title: "Nothing recorded",
-        description: "Hold the microphone button while you speak.",
+        description: "Tap the microphone, speak, then tap again to send.",
         color: "warning",
       });
       return;
@@ -739,10 +691,21 @@ export default function InterviewSessionShell({
   }, [input, sendMessage]);
 
   const startRecording = useCallback(async () => {
-    if (sending || isTranscribing || isPaused) return;
+    if (
+      sending ||
+      isTranscribing ||
+      isPaused ||
+      recordingStartInFlightRef.current ||
+      mediaRecorderRef.current?.state === "recording"
+    ) {
+      return;
+    }
+    recordingStartInFlightRef.current = true;
     try {
-      avatarRef.current?.interrupt();
       const stream = await getMicrophone();
+      if (sending || isTranscribing || isPaused) {
+        return;
+      }
       const recorder = new MediaRecorder(stream, {
         mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
           ? "audio/webm;codecs=opus"
@@ -753,14 +716,34 @@ export default function InterviewSessionShell({
         if (event.data.size) chunksRef.current.push(event.data);
       };
       recorder.onstop = () => {
+        if (recordingTimeoutRef.current !== null) {
+          clearTimeout(recordingTimeoutRef.current);
+          recordingTimeoutRef.current = null;
+        }
+        if (mediaRecorderRef.current === recorder) {
+          mediaRecorderRef.current = null;
+        }
         stopMetering();
         void transcribeRecording();
       };
       mediaRecorderRef.current = recorder;
       recordingStartRef.current = Date.now();
+      // Do not cut off the interviewer until a valid recording start has been
+      // claimed. A rejected microphone permission should leave speech alone.
+      avatarRef.current?.interrupt();
       startMetering(stream);
       recorder.start();
       setIsRecording(true);
+      recordingTimeoutRef.current = window.setTimeout(() => {
+        if (mediaRecorderRef.current?.state !== "recording") return;
+        addToast({
+          title: "Recording stopped",
+          description: "Your 45-second answer is being transcribed.",
+          color: "primary",
+        });
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+      }, MAX_RECORDING_MS);
     } catch (error) {
       console.error("Microphone unavailable:", error);
       addToast({
@@ -768,15 +751,29 @@ export default function InterviewSessionShell({
         description: "You can type your answer instead.",
         color: "danger",
       });
+    } finally {
+      recordingStartInFlightRef.current = false;
     }
   }, [getMicrophone, isPaused, isTranscribing, sending, startMetering, stopMetering, transcribeRecording]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
+    const recorder = mediaRecorderRef.current;
+    if (recorder?.state !== "recording") return;
+    if (recordingTimeoutRef.current !== null) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
     }
+    recorder.stop();
+    setIsRecording(false);
   }, []);
+
+  const toggleRecording = useCallback(() => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      stopRecording();
+      return;
+    }
+    void startRecording();
+  }, [startRecording, stopRecording]);
 
   const answeredCount = Math.max(
     0,
@@ -1013,7 +1010,7 @@ export default function InterviewSessionShell({
                   }}
                   disabled={sending || isTranscribing || !avatarReady}
                   rows={2}
-                  placeholder={avatarReady ? "Type your answer, or hold the mic to speak…" : "Connecting to your interviewer…"}
+                  placeholder={avatarReady ? "Type your answer, or tap the mic to record…" : "Connecting to your interviewer…"}
                   className="min-h-14 flex-1 resize-none rounded-xl border border-white/15 bg-[#102a3a] px-3 py-3 text-sm text-white outline-none placeholder:text-[#89aabd] focus:border-[#71c9e7] focus:ring-2 focus:ring-[#71c9e7]/30 disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <Button
@@ -1035,20 +1032,11 @@ export default function InterviewSessionShell({
                   color={isRecording ? "danger" : "default"}
                   className="font-medium text-[#d7eaf3]"
                   isDisabled={sending || isTranscribing || !avatarReady}
-                  onMouseDown={startRecording}
-                  onMouseUp={stopRecording}
-                  onMouseLeave={stopRecording}
-                  onTouchStart={(event) => {
-                    event.preventDefault();
-                    void startRecording();
-                  }}
-                  onTouchEnd={(event) => {
-                    event.preventDefault();
-                    stopRecording();
-                  }}
+                  onPress={toggleRecording}
+                  aria-label={isRecording ? "Stop recording and send answer" : "Start recording answer"}
                   startContent={isRecording ? <MicOff size={15} /> : <Mic size={15} />}
                 >
-                  {isTranscribing ? "Transcribing…" : isRecording ? "Release to send" : "Hold to speak"}
+                  {isTranscribing ? "Transcribing…" : isRecording ? "Tap again to send" : "Tap to record"}
                 </Button>
                 <Button
                   size="sm"
