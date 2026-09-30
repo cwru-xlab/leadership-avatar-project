@@ -67,6 +67,8 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 // admin-case path — see `isScenario` below.
 type CameraBlockReason = "DENIED" | "NOT_FOUND" | "UNAVAILABLE";
 
+const MAX_RECORDING_MS = 45_000;
+
 const CAMERA_BLOCK_COPY: Record<CameraBlockReason, { heading: string; body: string }> = {
   DENIED: {
     heading: "We can't access your camera",
@@ -207,6 +209,8 @@ export default function CasePlayPage() {
   const meterSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const meterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const peakRmsRef = useRef<number>(0);
+  const recordingStartInFlightRef = useRef(false);
+  const recordingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Toggle full-screen mode when entering/leaving playing state
   useEffect(() => {
@@ -370,6 +374,19 @@ export default function CasePlayPage() {
 
   // Release helper for cached mic stream
   const releaseMicStream = useCallback(() => {
+    if (recordingTimeoutRef.current !== null) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
+    const recorder = mediaRecorderRef.current;
+    mediaRecorderRef.current = null;
+    if (recorder?.state === "recording") {
+      // Leaving a scenario should not send a partial answer after the page closes.
+      recorder.onstop = null;
+      recorder.stop();
+    }
+    recordingStartInFlightRef.current = false;
+    setIsRecording(false);
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
     // Tear the meter down with the stream: its source node references it, and
@@ -1165,8 +1182,18 @@ export default function CasePlayPage() {
   };
 
   const startRecording = async () => {
+    if (
+      sending ||
+      isTranscribing ||
+      recordingStartInFlightRef.current ||
+      mediaRecorderRef.current?.state === "recording"
+    ) {
+      return;
+    }
+    recordingStartInFlightRef.current = true;
     try {
       const stream = await getMicStream();
+      if (sending || isTranscribing) return;
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: "audio/webm;codecs=opus",
       });
@@ -1180,26 +1207,50 @@ export default function CasePlayPage() {
       };
 
       mediaRecorder.onstop = () => {
-        // Stream is cached and intentionally left live for the next press.
+        if (recordingTimeoutRef.current !== null) {
+          clearTimeout(recordingTimeoutRef.current);
+          recordingTimeoutRef.current = null;
+        }
+        if (mediaRecorderRef.current === mediaRecorder) {
+          mediaRecorderRef.current = null;
+        }
+        // Stream is cached and intentionally left live for the next recording.
         stopLevelMetering();
-        processRecording();
+        void processRecording();
       };
 
       recordingStartRef.current = Date.now();
+      avatarRef.current?.interrupt();
       startLevelMetering(stream);
       mediaRecorder.start();
       setIsRecording(true);
+      recordingTimeoutRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current?.state !== "recording") return;
+        addToast({
+          title: "Recording stopped",
+          description: "Your 45-second answer is being transcribed.",
+          color: "primary",
+        });
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+      }, MAX_RECORDING_MS);
     } catch (error) {
       console.error("Error starting recording:", error);
       addToast({ title: "Could not access microphone", color: "danger" });
+    } finally {
+      recordingStartInFlightRef.current = false;
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
+    const recorder = mediaRecorderRef.current;
+    if (recorder?.state !== "recording") return;
+    if (recordingTimeoutRef.current !== null) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
     }
+    recorder.stop();
+    setIsRecording(false);
   };
 
   // A near-silent clip makes gpt-4o-transcribe hallucinate — it invents a phrase
@@ -1222,7 +1273,7 @@ export default function CasePlayPage() {
       audioChunksRef.current = [];
       addToast({
         title: "Nothing recorded",
-        description: "Hold the mic button while you speak.",
+        description: "Tap the microphone, speak, then tap again to send.",
         color: "warning",
       });
       return;
@@ -1336,17 +1387,12 @@ export default function CasePlayPage() {
     }
   };
 
-  const handlePushToTalkDown = () => {
-    if (!sending && !isTranscribing) {
-      avatarRef.current?.interrupt();
-      startRecording();
-    }
-  };
-
-  const handlePushToTalkUp = () => {
-    if (isRecording) {
+  const toggleRecording = () => {
+    if (mediaRecorderRef.current?.state === "recording") {
       stopRecording();
+      return;
     }
+    void startRecording();
   };
 
   const handleFinish = async () => {
@@ -2016,11 +2062,8 @@ export default function CasePlayPage() {
                   className={`rounded-full w-14 h-14 transition-all shadow-lg ${isRecording ? "scale-110" : ""}`}
                   isIconOnly
                   isDisabled={sending || isTranscribing}
-                  onMouseDown={handlePushToTalkDown}
-                  onMouseUp={handlePushToTalkUp}
-                  onMouseLeave={handlePushToTalkUp}
-                  onTouchStart={(e: React.TouchEvent) => { e.preventDefault(); handlePushToTalkDown(); }}
-                  onTouchEnd={(e: React.TouchEvent) => { e.preventDefault(); handlePushToTalkUp(); }}
+                  onPress={toggleRecording}
+                  aria-label={isRecording ? "Stop recording and send answer" : "Start recording answer"}
                 >
                   {isRecording ? (
                     <MicOff className="w-5 h-5" />
@@ -2032,12 +2075,12 @@ export default function CasePlayPage() {
                 </Button>
                 <p className="text-xs text-white/60">
                   {isRecording
-                    ? "Release to send"
+                    ? "Tap again to send"
                     : isTranscribing
                       ? (partialTranscript ? "Transcribing..." : "Processing audio...")
                       : sending
                         ? "Getting response..."
-                        : "Hold to talk"}
+                        : "Tap to record"}
                 </p>
               </div>
             </div>

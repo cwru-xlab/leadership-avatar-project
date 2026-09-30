@@ -14,6 +14,7 @@ import {
   buildInterviewSystemPrompt,
   buildProgressBlock,
 } from "@/lib/interview/prompts";
+import { isInterviewIntegrityRequest } from "@/lib/interview/turn-control";
 
 export const maxDuration = 60;
 
@@ -162,6 +163,7 @@ export async function POST(request: NextRequest) {
         content: `${latestUserMessage.message.content.trim()}\n\n${buildProgressBlock(progress, {
           elapsedMinutes: elapsedMinutes(interviewInput.startedAt),
           targetMinutes: interviewType.targetMinutes,
+          redirectMetaRequest: isInterviewIntegrityRequest(latestUserMessage.message.content),
         })}`,
       };
       fullMessages = [{ role: "system", content: fullSystemPrompt }, ...transcript];
@@ -202,7 +204,9 @@ export async function POST(request: NextRequest) {
       ];
     }
 
-    const stream = createLLMStream(fullMessages, "gpt-4.1", { maxTokens: 1000 });
+    const stream = createLLMStream(fullMessages, "gpt-4.1", {
+      maxTokens: interview ? 320 : 1000,
+    });
     return new Response(stream, { headers: createSSEHeaders() });
   } catch (error) {
     console.error("Error in interaction chat:", error);
