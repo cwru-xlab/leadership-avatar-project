@@ -100,7 +100,7 @@
     "globals": "17.4.0",
     "postcss": "8.5.28",
     "prettier": "3.8.1",
-    "prisma": "^6.19.2",
+    "prisma": "^6.19.3",
     "tailwind-variants": "3.2.2",
     "tailwindcss": "4.2.2",
     "typescript": "5.9.3"
