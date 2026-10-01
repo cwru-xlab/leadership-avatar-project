@@ -92,6 +92,22 @@ export const VISUAL_EPISODE_KINDS = [
   "multiple_faces",
   /** Sustained head movement above the steadiness threshold. */
   "high_movement",
+  /**
+   * SCORED body kinds (Phase 12). `minimal_gesturing` and
+   * `excessive_gesturing` are the two ends of ONE curve — REQ-50's
+   * three-band treatment (too still / well-judged / excessive) means both
+   * are reportable findings, the same way monotone volume is a finding, not
+   * just a loud-volume detector with a silent floor.
+   */
+  "excessive_gesturing",
+  "minimal_gesturing",
+  /** Hands lingering near the face — its own distinct signal from general
+   * gesticulation rate, never folded into the gesture-rate curve above. */
+  "hands_near_face",
+  /** Sustained drift away from the student's OWN opening posture baseline.
+   * Baseline-relative by construction — never an absolute-posture judgement
+   * against a fixed ideal. See `lib/metrics/body-thresholds.ts`. */
+  "posture_drift",
 ] as const;
 
 export type VisualEpisodeKind = (typeof VISUAL_EPISODE_KINDS)[number];
@@ -106,6 +122,31 @@ export interface VisualEpisode {
    * condition, so a solid 40-second absence outranks a flickering one. */
   severity: number;
 }
+
+/**
+ * The landmark groups a body-posture reading can be built from, gated on
+ * MediaPipe's per-landmark `visibility` score (see `VisualPostureSignal`
+ * usage sites for the floor). A typical head-and-shoulders webcam frame will
+ * usually clear `shoulder_line`/`forward_head` but not `torso_lean`/
+ * `torso_openness`, since those need the hips (landmarks 23/24) to be in
+ * frame at all:
+ *   - `shoulder_line`     needs pose landmarks 11 (left shoulder) and 12
+ *                         (right shoulder).
+ *   - `forward_head`      needs landmark 0 (nose) plus 7/8 (ears).
+ *   - `torso_lean`        needs hips 23/24 plus the shoulders above.
+ *   - `torso_openness`    needs hips 23/24 plus the shoulders above.
+ * Phase 12 Plan 02 ships this vocabulary only; no producer populates it yet
+ * (see `VISUAL_NOT_MEASURED` below — `body_posture` stays listed there until
+ * plan 12-06 lands the pose pipeline).
+ */
+export const VISUAL_POSTURE_SIGNALS = [
+  "shoulder_line",
+  "forward_head",
+  "torso_lean",
+  "torso_openness",
+] as const;
+
+export type VisualPostureSignal = (typeof VISUAL_POSTURE_SIGNALS)[number];
 
 /**
  * The LIVENESS block for visual capture, tracked entirely independently of
@@ -161,9 +202,87 @@ export interface VisualCoverage {
 }
 
 /**
+ * A SEPARATE, closed vocabulary for descriptive-only visual excursions —
+ * deliberately NOT a widening of `VisualEpisodeKind`. Fidgeting and a phone
+ * in frame are measured and reported, but REQ-52/REQ-54 require they never
+ * be scored and never be rendered inline with the scored `episodes` array.
+ * Keeping the two as genuinely separate TypeScript types, rather than a
+ * shared union with a "descriptive" tag, makes "a fidget episode entered the
+ * scored array" a compile error rather than a runtime discipline to
+ * remember — the same mechanism `VisualCoverage` already uses to keep
+ * liveness structurally separate from detection (see this file's header
+ * comment).
+ */
+export const VISUAL_DESCRIPTIVE_EPISODE_KINDS = [
+  "fidgeting",
+  "phone_visible",
+] as const;
+
+export type VisualDescriptiveEpisodeKind = (typeof VISUAL_DESCRIPTIVE_EPISODE_KINDS)[number];
+
+export interface VisualDescriptiveEpisode {
+  kind: VisualDescriptiveEpisodeKind;
+  /** Seconds elapsed from CAPTURE start — same clock as `VisualEpisode`. */
+  start_s: number;
+  end_s: number;
+  /** 0-1. A DESCRIPTIVE intensity only — e.g. "what fraction of windows in
+   * this run tripped the fidget band." Nothing downstream may multiply this
+   * into a score; it exists purely to let the Observations section say "a
+   * lot" vs "a little" about a run it is already describing, not grading. */
+  severity: number;
+}
+
+/**
+ * Measured-but-never-scored visual observations (REQ-52/REQ-53/REQ-54).
+ *
+ * NOTHING IN THIS INTERFACE MAY BE READ BY ANY BAND OR SCORING FUNCTION.
+ * `visualBands()` and `visualBodyLanguageBands()` in `lib/metrics/bands.ts`
+ * must never access `m.observations` — only `visualObservationRows()` may.
+ * This is enforced by keeping this interface structurally separate from
+ * every scored field on `VisualMetrics`, not by a convention to remember.
+ *
+ * Why: fidgeting overlaps heavily with stimming, ADHD and anxiety
+ * presentations, and a phone sitting on the desk in shot is not misconduct.
+ * Describing either is defensible ("your hands were in motion for 60% of
+ * the session"); deducting a score for either is not, and a student who
+ * challenges it would be right to.
+ */
+export interface VisualDescriptiveObservations {
+  /** 0-100. Percentage of processed samples whose hand motion fell inside
+   * the fidget band (see `FIDGET_MAX_AMPLITUDE`/
+   * `FIDGET_MIN_DIRECTION_CHANGES_PER_S` in `body-thresholds.ts`) — a
+   * DISTINCT low-amplitude, high-frequency pattern from the scored gesture
+   * rate, never "gesticulation above an extra threshold." */
+  fidget_pct: number;
+  /** Total seconds a phone was visible in frame, across the whole session. */
+  phone_visible_seconds: number;
+  /** Absolute shoulder-line tilt in degrees, or `null` when shoulders were
+   * never measurable for this session. An absolute reading, shown ONLY in
+   * the Observations section, never as a grade — the SCORED posture signal
+   * is `posture_drift_mean`/`posture_drift_max_s` below, relative to the
+   * student's own opening baseline. */
+  posture_shoulder_tilt_deg: number | null;
+  /** Absolute forward-head offset, or `null` when never measurable. Same
+   * absolute-vs-drift distinction as `posture_shoulder_tilt_deg`. */
+  posture_forward_head_offset: number | null;
+  /** Descriptive excursions — see `VisualDescriptiveEpisode`. Structurally
+   * unable to enter the scored `VisualMetrics.episodes` array: the two are
+   * different TypeScript types, not two entries in one list. */
+  episodes: VisualDescriptiveEpisode[];
+}
+
+/**
  * The measured visual payload. All fields are REQUIRED: the pipeline either
  * produces the full block or omits it entirely (`visual: null` on
  * `SessionMetricsPayload`) — it never produces a half-block.
+ *
+ * Phase 12 fields below (`gesture_rate_per_min` through `observations`) are
+ * OPTIONAL (`?`) on this interface, unlike the Phase 10 fields above: legacy
+ * stored rows and Phase 10-shaped rows genuinely lack them, and
+ * `lib/metrics/bands.ts` already has an established discipline of OMITTING
+ * rather than defaulting a missing row (see `visualBands`'s "On camera" /
+ * "Others in frame" comments) — these new fields follow that same
+ * discipline rather than breaking it.
  */
 export interface VisualMetrics {
   /**
@@ -233,6 +352,83 @@ export interface VisualMetrics {
   /** Liveness block — see `VisualCoverage`. Tracked independently of the
    * detection fields above. */
   coverage: VisualCoverage;
+
+  // --- Phase 12: scored body-language fields. All optional — see this
+  // interface's header comment for why. Every producer for these fields
+  // ships in a LATER plan (12-06/12-07); this plan is contract-only.
+
+  /** Gestures per minute, derived from hand-landmark displacement crossing
+   * `GESTURE_AMPLITUDE_MIN`. One half of the three-band gesturing curve —
+   * see `GESTURE_RATE_STILL_MAX`/`GESTURE_RATE_EXCESSIVE_MIN` in
+   * `body-thresholds.ts`. */
+  gesture_rate_per_min?: number;
+  /** 0-1. Mean normalized wrist displacement per gesture — the other half of
+   * the gesturing curve, alongside rate. */
+  gesture_amplitude_mean?: number;
+  /** 0-100. Percentage of processed samples where a hand sat above shoulder
+   * height. Descriptive input to the "Gesturing" band, not scored on its
+   * own. */
+  hands_above_shoulder_pct?: number;
+  /** 0-100. Percentage of processed samples where a hand sat within
+   * `HANDS_NEAR_FACE_RADIUS` of the face — its OWN scored signal, distinct
+   * from general gesticulation rate (REQ-50). */
+  hands_near_face_pct?: number;
+  /** 0-1. Mean magnitude of drift away from the session's own opening
+   * posture baseline — SCORED, baseline-relative, never an absolute-posture
+   * judgement. See Pattern 3 in `12-RESEARCH.md`. */
+  posture_drift_mean?: number;
+  /** Longest single sustained posture-drift run, in seconds. */
+  posture_drift_max_s?: number;
+  /** Which landmark groups actually cleared the visibility floor for this
+   * session — the input to the "Measured from" row, rendered
+   * UNCONDITIONALLY (REQ-51's "every posture comment states which signals
+   * were available"), including the empty-array case. */
+  posture_signals_measured?: VisualPostureSignal[];
+  /** Measured-but-never-scored observations — see
+   * `VisualDescriptiveObservations`'s header comment for why this is a
+   * separate type rather than a widened scored field. Read ONLY by
+   * `visualObservationRows()`/`timelineRows()` in `bands.ts`. */
+  observations?: VisualDescriptiveObservations;
+}
+
+/**
+ * Pure. Returns the entries of `VISUAL_NOT_MEASURED` that a session
+ * genuinely could not observe, given what its producers actually attempted
+ * to measure this tick.
+ *
+ * Replaces the unconditional `[...VISUAL_NOT_MEASURED]` spread that
+ * `lib/metrics/visual-capture.ts` currently always emits. A session whose
+ * body was never in frame must still declare `body_posture` unmeasured
+ * rather than silently report a zero — the same failure mode
+ * `VISUAL_NOT_MEASURED`'s own header comment already documents for the
+ * original face-only pipeline (an empty flags array read as "verified
+ * clean"). This function is the mechanism that keeps that honest once more
+ * producers exist: each boolean argument answers "did this session's
+ * capture engine genuinely attempt to measure this category at all," not
+ * "did it find something."
+ *
+ * `background_environment` is ALWAYS returned — its aesthetic half is
+ * permanently out of scope (see 12-CONTEXT.md's Deferred Ideas) and no
+ * producer in this phase or any planned future one measures it.
+ *
+ * This plan (12-02) ships no producer, so every call site today passes all
+ * four flags `false` until 12-06/12-07 land; `VISUAL_NOT_MEASURED` itself
+ * keeps all five entries until the plan that ships each producer removes
+ * the ones it now genuinely measures.
+ */
+export function resolveNotMeasured(measured: {
+  handSignals: boolean;
+  postureSignals: boolean;
+  fidget: boolean;
+  phone: boolean;
+}): VisualNotMeasured[] {
+  const out: VisualNotMeasured[] = [];
+  if (!measured.handSignals) out.push("hand_gestures");
+  if (!measured.postureSignals) out.push("body_posture");
+  if (!measured.fidget) out.push("fidgeting");
+  if (!measured.phone) out.push("phone_checking");
+  out.push("background_environment");
+  return out;
 }
 
 /**
