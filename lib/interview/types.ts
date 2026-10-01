@@ -208,6 +208,20 @@ export interface InterviewProgress {
   dodgedCategories: BehavioralCategory[];
   /** Follow-ups spent on the current question. Prompt 1 caps this at one. */
   followUpsUsed: number;
+  /**
+   * Planned questions asked while in the `behavioral` stage, categorised or
+   * not.
+   *
+   * Exists because stage advancement used to depend ENTIRELY on
+   * `categoriesCovered` reaching a quota, and categories only arrive when the
+   * model labels its marker. A model emitting the uncategorised
+   * `<interview-turn kind="planned" />` therefore parked the interview in
+   * `behavioral` permanently. This counter is the independent escape hatch:
+   * enough questions asked in the stage advances it even when none of them
+   * were labelled. Absent on progress objects persisted before this field
+   * existed — always read it defensively.
+   */
+  behavioralQuestionsAsked: number;
 }
 
 export function initialProgress(): InterviewProgress {
@@ -217,5 +231,6 @@ export function initialProgress(): InterviewProgress {
     categoriesCovered: [],
     dodgedCategories: [],
     followUpsUsed: 0,
+    behavioralQuestionsAsked: 0,
   };
 }
