@@ -11,6 +11,7 @@
  * library like `./evaluation`, which stays free of both.
  */
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { s3Storage } from "@/lib/s3-client";
 import { formatTranscriptForEvaluator } from "./transcript";
@@ -129,6 +130,11 @@ export async function runAndPersistEvaluation(
           contentScore: outcome.result.contentScore,
           behavioralScore: outcome.result.behavioralScore,
           reportMarkdown: outcome.result.reportMarkdown,
+          // Cast rather than widening `StructuredReport` with an index
+          // signature: Prisma's `InputJsonValue` requires one, and adding it to
+          // the shared type would let any stray key through. `structured.ts` is
+          // deliberately Prisma-free, so the coupling lives here.
+          reportStructured: outcome.result.reportStructured as unknown as Prisma.InputJsonValue,
           failureReason: null,
           evalModel: outcome.model,
           completedAt: new Date(),

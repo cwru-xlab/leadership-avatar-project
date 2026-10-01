@@ -1,3 +1,4 @@
+import { asStructuredReport, type StructuredReport } from "@/lib/report/structured";
 import type { ScenarioReport } from "@prisma/client";
 import type {
   CameraMode,
@@ -64,6 +65,9 @@ export interface ScenarioReportDTO {
     characters: ScenarioReportCharacterDTO[];
     criteria: string | null;
   };
+  /** Structured body (see `lib/report/structured.ts`). Null on pre-migration
+   * rows, which fall back to rendering `reportMarkdown`. */
+  reportStructured: StructuredReport | null;
   reportMarkdown: string | null;
   failureReason: string | null;
   startedAt: string; // ISO
@@ -183,6 +187,7 @@ export function toScenarioReportDTO(row: ScenarioReport): ScenarioReportDTO {
       characters: toScenarioReportCharacters(row.avatarsSnapshot),
       criteria: row.criteriaSnapshot,
     },
+    reportStructured: asStructuredReport(row.reportStructured),
     reportMarkdown: row.reportMarkdown,
     failureReason: row.failureReason,
     startedAt: row.startedAt.toISOString(),
