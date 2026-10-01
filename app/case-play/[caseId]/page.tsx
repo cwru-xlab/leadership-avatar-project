@@ -67,7 +67,6 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 // admin-case path — see `isScenario` below.
 type CameraBlockReason = "DENIED" | "NOT_FOUND" | "UNAVAILABLE";
 
-const MAX_RECORDING_MS = 45_000;
 
 const CAMERA_BLOCK_COPY: Record<CameraBlockReason, { heading: string; body: string }> = {
   DENIED: {
@@ -198,6 +197,14 @@ export default function CasePlayPage() {
 
   // Push-to-talk state for avatar mode
   const [isRecording, setIsRecording] = useState(false);
+  /** Mirrors `isRecording` for readers outside React's render cycle — the
+   * async camera-acquisition block creates the visual engine long after this
+   * state was last set and must adopt the current window, not assume silence. */
+  const isRecordingRef = useRef(false);
+  /** Epoch ms at which the run went live. Transcript turns are stamped with
+   * `Date.now()` against this same wall clock, so it is the zero point episode
+   * timestamps must be translated into. */
+  const playStartedAtRef = useRef<number | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [partialTranscript, setPartialTranscript] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -210,7 +217,6 @@ export default function CasePlayPage() {
   const meterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const peakRmsRef = useRef<number>(0);
   const recordingStartInFlightRef = useRef(false);
-  const recordingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Toggle full-screen mode when entering/leaving playing state
   useEffect(() => {
@@ -374,10 +380,6 @@ export default function CasePlayPage() {
 
   // Release helper for cached mic stream
   const releaseMicStream = useCallback(() => {
-    if (recordingTimeoutRef.current !== null) {
-      clearTimeout(recordingTimeoutRef.current);
-      recordingTimeoutRef.current = null;
-    }
     const recorder = mediaRecorderRef.current;
     mediaRecorderRef.current = null;
     if (recorder?.state === "recording") {
@@ -459,6 +461,22 @@ export default function CasePlayPage() {
   // immediately here also avoids any risk of the two independent connections
   // (camera getUserMedia vs. the HeyGen WebRTC handshake) contending with
   // each other, which protects REQ-49 at least as well as sequencing them.
+  // Keeps the visual engine's conversational window locked to the recorder.
+  // An effect on `isRecording` rather than a call beside each
+  // `setIsRecording` — there are three of those, and hand-wiring each is how
+  // the visual window would drift away from the vocal pipeline's turn
+  // accounting.
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+    visualCaptureRef.current?.setSpeaking(isRecording);
+  }, [isRecording]);
+
+  useEffect(() => {
+    if (pageState === "playing" && playStartedAtRef.current === null) {
+      playStartedAtRef.current = Date.now();
+    }
+  }, [pageState]);
+
   useEffect(() => {
     if (pageState !== "playing") return;
     if (!isScenario || cameraMode !== "ON") return;
@@ -496,9 +514,20 @@ export default function CasePlayPage() {
       setScenarioSelfViewStream(result.stream);
       const capture = createVisualCapture({
         stream: result.stream,
+        // MUST be the same zero point the transcript is stamped against —
+        // `log.startedAt`, which `buildScenarioTranscript` renders elapsed
+        // times from. Using a separate page-local clock here would offset
+        // every episode from the sentence it belongs to, plausibly and with
+        // no visible symptom. `playStartedAtRef` is only a fallback for the
+        // case where the log has somehow not landed yet.
+        sessionStartedAtMs:
+          interactionLogRef.current?.startedAt ??
+          playStartedAtRef.current ??
+          Date.now(),
         onFaceStateChange: (detected) => setFaceDetected(detected),
       });
       visualCaptureRef.current = capture;
+      capture.setSpeaking(isRecordingRef.current);
       void capture.start();
     })();
     return () => {
@@ -1207,10 +1236,6 @@ export default function CasePlayPage() {
       };
 
       mediaRecorder.onstop = () => {
-        if (recordingTimeoutRef.current !== null) {
-          clearTimeout(recordingTimeoutRef.current);
-          recordingTimeoutRef.current = null;
-        }
         if (mediaRecorderRef.current === mediaRecorder) {
           mediaRecorderRef.current = null;
         }
@@ -1223,17 +1248,10 @@ export default function CasePlayPage() {
       avatarRef.current?.interrupt();
       startLevelMetering(stream);
       mediaRecorder.start();
+      // Deliberately uncapped — see the matching note in
+      // `components/interview/InterviewSessionShell.tsx`. A long answer is a
+      // conciseness finding for the report, not something to truncate.
       setIsRecording(true);
-      recordingTimeoutRef.current = setTimeout(() => {
-        if (mediaRecorderRef.current?.state !== "recording") return;
-        addToast({
-          title: "Recording stopped",
-          description: "Your 45-second answer is being transcribed.",
-          color: "primary",
-        });
-        mediaRecorderRef.current.stop();
-        setIsRecording(false);
-      }, MAX_RECORDING_MS);
     } catch (error) {
       console.error("Error starting recording:", error);
       addToast({ title: "Could not access microphone", color: "danger" });
@@ -1245,10 +1263,6 @@ export default function CasePlayPage() {
   const stopRecording = () => {
     const recorder = mediaRecorderRef.current;
     if (recorder?.state !== "recording") return;
-    if (recordingTimeoutRef.current !== null) {
-      clearTimeout(recordingTimeoutRef.current);
-      recordingTimeoutRef.current = null;
-    }
     recorder.stop();
     setIsRecording(false);
   };
@@ -1421,7 +1435,7 @@ export default function CasePlayPage() {
       if (isScenario && scenarioReportId) {
         // Stop/drain BEFORE the finish fetch so the metrics field rides in
         // the same request. stop() is synchronous; drain() is awaited and
-        // bounded at 8s by design (lib/metrics/vocal-capture.ts). drain()
+        // bounded by design (lib/metrics/vocal-capture.ts). drain()
         // never throws by its own contract, but a defensive catch keeps a
         // truly unexpected failure from losing the run — null metrics beat
         // a lost submission.
@@ -1433,7 +1447,7 @@ export default function CasePlayPage() {
           visual = null;
         }
         try {
-          vocal = (await vocalCaptureRef.current?.drain(8000)) ?? null;
+          vocal = (await vocalCaptureRef.current?.drain()) ?? null;
         } catch {
           vocal = null;
         }
