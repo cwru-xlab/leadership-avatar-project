@@ -1,4 +1,4 @@
-import type { VisualMetrics, VocalMetrics } from "./types";
+import type { VisualEpisode, VisualMetrics, VocalMetrics } from "./types";
 
 /**
  * Qualitative band mapping for Phase 10 metrics — REQ-46: the report shows
@@ -18,10 +18,19 @@ import type { VisualMetrics, VocalMetrics } from "./types";
  *   camera_centered_pct (Framing):     <40 Often off-frame, 40-65 Inconsistent,
  *                        65-80 Mostly centred, 80-92 Well centred,
  *                        >=92 Consistently centred.
+ *   eye_contact_pct     (Eye contact): whole-session forward gaze.
+ *   attentiveness_pct   (Attention):   listening stretches only.
+ *                        <40 Often looking away, 40-65 Intermittent,
+ *                        65-85 Attentive, >=85 Consistently attentive.
+ *   face_presence_pct   (On camera):   <50 Often absent, 50-75 Intermittent,
+ *                        75-90 Mostly present, 90-97 Consistently present,
+ *                        >=97 Present throughout.
  *   lighting_ok         (Lighting):    true Clear, false Dim or uneven.
- *   posture_flags       (Presence):    empty Steady, out-of-frame flag only
+ *   posture_flags       (Steadiness):  empty Steady, out-of-frame flag only
  *                        "Drifts out of frame", movement flag only
  *                        "Restless", both "Drifts out of frame and restless".
+ *   posture_flags       (Others in frame): multiple_faces_detected present
+ *                        "Another person detected", absent "Just you".
  *   words_per_minute    (Pace):        <100 Slow, 100-125 Measured,
  *                        125-160 Well paced, 160-185 Slightly fast,
  *                        >=185 Fast.
@@ -67,17 +76,60 @@ function bandFraming(pctRaw: number): string {
   return "Consistently centred";
 }
 
+/** Minimum listening samples before an attentiveness figure is worth
+ * reporting. 10 seconds at 6 Hz. Below this there was barely any stretch where
+ * someone else was talking, and a percentage over a handful of samples would
+ * be noise presented as a finding. `eye_contact_pct` needs no such guard — it
+ * spans the whole session, so its denominator is never thin. */
+const MIN_LISTENING_SAMPLES_FOR_BAND = 60;
+
+function bandAttentiveness(pctRaw: number): string {
+  const pct = clampFinite(pctRaw, 0, 100);
+  if (pct < 40) return "Often looking away";
+  if (pct < 65) return "Intermittent";
+  if (pct < 85) return "Attentive";
+  return "Consistently attentive";
+}
+
+function bandOnCamera(pctRaw: number): string {
+  const pct = clampFinite(pctRaw, 0, 100);
+  if (pct < 50) return "Often absent";
+  if (pct < 75) return "Intermittent";
+  if (pct < 90) return "Mostly present";
+  if (pct < 97) return "Consistently present";
+  return "Present throughout";
+}
+
 function bandLighting(ok: boolean): string {
   return ok ? "Clear" : "Dim or uneven";
 }
 
-function bandPresence(flags: string[]): string {
+/**
+ * Steadiness covers ONLY the two flags derived from the primary face's
+ * bounding box. `multiple_faces_detected` is deliberately NOT folded in here
+ * — it describes the room, not the student's steadiness, and jamming it into
+ * this string would make "Steady" mean two unrelated things at once. It gets
+ * its own row via `bandOthersInFrame`.
+ */
+function bandSteadiness(flags: string[]): string {
   const outOfFrame = flags.includes("face_partially_out_of_frame");
   const restless = flags.includes("high_head_movement");
   if (outOfFrame && restless) return "Drifts out of frame and restless";
   if (outOfFrame) return "Drifts out of frame";
   if (restless) return "Restless";
   return "Steady";
+}
+
+/**
+ * Rendered unconditionally, including the negative case. Whether more than one
+ * person was in frame IS measured now, so "Just you" is a real finding rather
+ * than the absence of one — and showing the row every time makes the check
+ * visible instead of leaving the reader to guess whether it happened.
+ */
+function bandOthersInFrame(flags: string[]): string {
+  return flags.includes("multiple_faces_detected")
+    ? "Another person detected"
+    : "Just you";
 }
 
 function bandPace(wpmRaw: number): string {
@@ -134,12 +186,87 @@ function bandVolume(consistencyRaw: number): string {
  * `undefined` or a raw number.
  */
 export function visualBands(m: VisualMetrics): MetricBandRow[] {
-  return [
+  const rows: MetricBandRow[] = [
     { label: "Eye contact", value: bandEyeContact(m.eye_contact_pct) },
-    { label: "Framing", value: bandFraming(m.camera_centered_pct) },
-    { label: "Lighting", value: bandLighting(m.lighting_ok) },
-    { label: "Presence", value: bandPresence(m.posture_flags) },
   ];
+
+  // Attention isolates the LISTENING stretches — whether the student stayed
+  // oriented to the screen while someone else was talking. Reported alongside
+  // the session-wide figure above, not instead of it: a student can hold
+  // steady while delivering an answer and disengage completely while being
+  // asked the next one, and one number cannot show both.
+  const listeningSamples = m.coverage?.listening_samples;
+  const attentionMeasurable =
+    typeof listeningSamples !== "number" ||
+    listeningSamples >= MIN_LISTENING_SAMPLES_FOR_BAND;
+  if (typeof m.attentiveness_pct === "number" && attentionMeasurable) {
+    rows.push({ label: "Attention", value: bandAttentiveness(m.attentiveness_pct) });
+  }
+
+  rows.push({ label: "Framing", value: bandFraming(m.camera_centered_pct) });
+
+  // Rows below are omitted rather than defaulted when their field is absent.
+  // Reports written before these metrics existed are stored as plain `Json?`
+  // and re-narrowed by a cast (`asVisualMetrics`), so a legacy row genuinely
+  // reaches here without them. `clampFinite` would happily turn `undefined`
+  // into 0 and print "Often absent" for a session nobody ever measured —
+  // inventing a finding, which is the failure this whole change exists to
+  // stop. Saying nothing is the only honest option for a row with no data.
+  if (typeof m.face_presence_pct === "number") {
+    rows.push({ label: "On camera", value: bandOnCamera(m.face_presence_pct) });
+  }
+
+  rows.push({ label: "Lighting", value: bandLighting(m.lighting_ok) });
+
+  const flags = Array.isArray(m.posture_flags) ? m.posture_flags : [];
+  rows.push({ label: "Steadiness", value: bandSteadiness(flags) });
+
+  // Legacy rows predate multi-face detection entirely: their empty
+  // `posture_flags` means "never looked for", not "nobody else was there".
+  // Keyed on `not_measured` because its presence is what marks a payload as
+  // having come from the multi-face-aware engine.
+  if (Array.isArray(m.not_measured)) {
+    rows.push({ label: "Others in frame", value: bandOthersInFrame(flags) });
+  }
+
+  return rows;
+}
+
+const EPISODE_LABELS: Record<VisualEpisode["kind"], string> = {
+  off_camera: "Off camera",
+  gaze_away: "Looking away",
+  off_center: "Off centre in frame",
+  multiple_faces: "Another person in frame",
+  high_movement: "Moving around a lot",
+};
+
+/** `m:ss` from a second offset. */
+export function formatTimecode(seconds: number): string {
+  const total = Math.max(0, Math.round(clampFinite(seconds, 0, 86_400)));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
+/**
+ * One episode as a plain-language row. Kept here rather than in a component
+ * for the same reason every other numeric-to-word translation lives in this
+ * file: the report must not invent its own vocabulary for a measurement.
+ *
+ * Times are shifted by `capture_offset_s` so they line up with the session
+ * clock the student experienced (and the transcript is stamped against)
+ * rather than with capture start, which happened somewhere in the middle of
+ * their setup and means nothing to them.
+ */
+export function episodeBand(
+  episode: VisualEpisode,
+  captureOffsetS: number = 0
+): MetricBandRow {
+  const offset = clampFinite(captureOffsetS, 0, 86_400);
+  return {
+    label: `${formatTimecode(episode.start_s + offset)}–${formatTimecode(episode.end_s + offset)}`,
+    value: EPISODE_LABELS[episode.kind] ?? "Unusual activity",
+  };
 }
 
 /**

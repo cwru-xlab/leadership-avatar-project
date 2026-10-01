@@ -23,20 +23,37 @@
 import { Prisma } from "@prisma/client";
 
 import {
+  VISUAL_EPISODE_KINDS,
+  VISUAL_NOT_MEASURED,
   VISUAL_POSTURE_FLAGS,
   type VisualCoverage,
   type VisualMetrics,
+  type VisualEpisode,
+  type VisualEpisodeKind,
+  type VisualNotMeasured,
   type VisualPostureFlag,
+  type VocalTurnMetrics,
   type VocalCoverage,
   type VocalMetrics,
 } from "./types";
 
-/** Hard cap on the serialized payload size. The only strings that
- * legitimately appear in this payload are short posture flags and short
- * filler words — nothing close to this size. A payload approaching it is
- * either a client bug or an attempt to smuggle something media-shaped
- * through this door. */
-const MAX_PAYLOAD_BYTES = 8 * 1024;
+/** Hard cap on the serialized payload size.
+ *
+ * Raised from 8KB once the payload began carrying per-episode and per-turn
+ * rows: 40 episodes plus 60 turn records is ~8-10KB of legitimate content on
+ * its own. This is the ONLY REQ-38 guard that moves — `MEDIA_SHAPED_PATTERN`
+ * and `MAX_STRING_LENGTH` below are the real defence and stay exactly as they
+ * were, because every field added since is numeric or drawn from a closed
+ * string vocabulary. The size cap was always belt-and-braces; the shape
+ * checks are the belt. */
+const MAX_PAYLOAD_BYTES = 64 * 1024;
+
+/** Structural caps on the two variable-length arrays, enforced in addition to
+ * the byte budget above. The byte cap alone would let one array crowd out
+ * everything else; these bound each independently. Mirrors the client-side
+ * caps in `visual-capture.ts` and `vocal-capture.ts`. */
+const MAX_EPISODES = 40;
+const MAX_TURN_METRICS = 60;
 
 /** No legitimate scalar field in this payload should ever produce a string
  * longer than this. Comfortably above the longest real filler-word-list
@@ -100,6 +117,61 @@ function sanitizePostureFlags(value: unknown): VisualPostureFlag[] {
   );
 }
 
+/** Mirrors `sanitizePostureFlags`: filters to the frozen `VISUAL_NOT_MEASURED`
+ * vocabulary so a tampered client cannot inject arbitrary strings into a list
+ * the evaluator prompt treats as authoritative about what was never observed. */
+function sanitizeNotMeasured(value: unknown): VisualNotMeasured[] {
+  if (!Array.isArray(value)) return [];
+  const allowed = new Set<string>(VISUAL_NOT_MEASURED);
+  return value.filter((entry): entry is VisualNotMeasured =>
+    typeof entry === "string" && allowed.has(entry)
+  );
+}
+
+function sanitizeEpisodes(value: unknown): VisualEpisode[] {
+  if (!Array.isArray(value)) return [];
+  const allowed = new Set<string>(VISUAL_EPISODE_KINDS);
+  const out: VisualEpisode[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    if (typeof e.kind !== "string" || !allowed.has(e.kind)) continue;
+    const start = clampNumber(e.start_s, 0, Number.MAX_SAFE_INTEGER);
+    const end = clampNumber(e.end_s, 0, Number.MAX_SAFE_INTEGER);
+    // A backwards interval would render as a nonsense time range on the
+    // report; drop it rather than silently swapping the bounds.
+    if (end < start) continue;
+    out.push({
+      kind: e.kind as VisualEpisodeKind,
+      start_s: start,
+      end_s: end,
+      severity: clampNumber(e.severity, 0, 1),
+    });
+    if (out.length >= MAX_EPISODES) break;
+  }
+  return out;
+}
+
+function sanitizeTurnMetrics(value: unknown): VocalTurnMetrics[] {
+  if (!Array.isArray(value)) return [];
+  const out: VocalTurnMetrics[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const t = entry as Record<string, unknown>;
+    out.push({
+      turn_index: clampNonNegativeInt(t.turn_index),
+      start_s: clampNumber(t.start_s, 0, Number.MAX_SAFE_INTEGER),
+      duration_s: clampNumber(t.duration_s, 0, Number.MAX_SAFE_INTEGER),
+      words_per_minute: clampNumber(t.words_per_minute, 0, 1000),
+      filler_count: clampNonNegativeInt(t.filler_count),
+      pause_count: clampNonNegativeInt(t.pause_count),
+      volume_consistency: clampNumber(t.volume_consistency, 0, 1),
+    });
+    if (out.length >= MAX_TURN_METRICS) break;
+  }
+  return out;
+}
+
 function sanitizeFillerWordList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -116,6 +188,9 @@ function sanitizeVisualCoverage(value: unknown): VisualCoverage | null {
     expected_samples: clampNonNegativeInt(v.expected_samples),
     processed_samples: clampNonNegativeInt(v.processed_samples),
     face_detected_samples: clampNonNegativeInt(v.face_detected_samples),
+    speaking_samples: clampNonNegativeInt(v.speaking_samples),
+    listening_samples: clampNonNegativeInt(v.listening_samples),
+    capture_offset_s: clampNumber(v.capture_offset_s, 0, Number.MAX_SAFE_INTEGER),
     sample_hz: clampNumber(v.sample_hz, 0, 1000),
     analyzer_error: clampBoolean(v.analyzer_error),
   };
@@ -140,9 +215,13 @@ function sanitizeVisualMetrics(value: unknown): VisualMetrics | null {
   if (!coverage) return null;
   return {
     eye_contact_pct: clampNumber(v.eye_contact_pct, 0, 100),
+    attentiveness_pct: clampNumber(v.attentiveness_pct, 0, 100),
     camera_centered_pct: clampNumber(v.camera_centered_pct, 0, 100),
+    face_presence_pct: clampNumber(v.face_presence_pct, 0, 100),
     lighting_ok: clampBoolean(v.lighting_ok),
     posture_flags: sanitizePostureFlags(v.posture_flags),
+    not_measured: sanitizeNotMeasured(v.not_measured),
+    episodes: sanitizeEpisodes(v.episodes),
     coverage,
   };
 }
@@ -158,6 +237,7 @@ function sanitizeVocalMetrics(value: unknown): VocalMetrics | null {
     filler_word_list: sanitizeFillerWordList(v.filler_word_list),
     pause_count: clampNonNegativeInt(v.pause_count),
     volume_consistency: clampNumber(v.volume_consistency, 0, 1),
+    turns: sanitizeTurnMetrics(v.turns),
     coverage,
   };
 }

@@ -27,6 +27,10 @@
 
 import {
   METRICS_SAMPLE_HZ,
+  VISUAL_EPISODE_KINDS,
+  VISUAL_NOT_MEASURED,
+  type VisualEpisode,
+  type VisualEpisodeKind,
   type VisualMetrics,
   type VisualPostureFlag,
 } from "@/lib/metrics/types";
@@ -88,6 +92,15 @@ export async function requestCameraStream(): Promise<CameraRequestResult> {
 
 export interface CreateVisualCaptureOptions {
   stream: MediaStream;
+  /**
+   * Epoch ms of SESSION start (the clock transcript turn timestamps use).
+   * Capture starts later — deferred until the avatar stream connects — so the
+   * two clocks have different zero points. Supplying this lets the engine
+   * emit `coverage.capture_offset_s`, which is what allows an episode to be
+   * matched to the sentence it actually happened during. Omitted, the offset
+   * is reported as 0 and episode times are capture-relative only.
+   */
+  sessionStartedAtMs?: number;
   /** Invoked ONLY on a transition (detected <-> undetected), and only after
    * the new state has persisted for 3 consecutive samples (~0.5s at 6 Hz),
    * so a single blink or momentary miss never flickers the banner. */
@@ -96,6 +109,17 @@ export interface CreateVisualCaptureOptions {
 
 export interface VisualCaptureHandle {
   start(): Promise<void>;
+  /**
+   * Marks whether the student is currently speaking. Routes each subsequent
+   * sample into the speaking or listening bucket; it does NOT pause, resume,
+   * or otherwise change what the engine measures, and costs no extra
+   * inference.
+   *
+   * Call it from the same transitions that drive the push-to-talk recorder,
+   * so the visual windows cannot drift away from the vocal pipeline's own
+   * turn accounting.
+   */
+  setSpeaking(speaking: boolean): void;
   /** Tears down the engine and returns the final scalar metrics. Returns
    * `null` only if `start()` was never called. Does NOT stop the
    * MediaStream's tracks - the caller owns the stream (the self-view
@@ -117,11 +141,236 @@ const LUMA_MAX_OK = 225;
 const OUT_OF_FRAME_RATIO_THRESHOLD = 0.15;
 const HIGH_MOVEMENT_THRESHOLD = 0.04;
 const POSE_UNAVAILABLE_RATIO_THRESHOLD = 0.5;
+/** Share of processed samples that must contain more than one face before the
+ * session is flagged. A brief pass-through (someone crossing the doorway
+ * behind the student) should not flag; a second person seated in frame for a
+ * meaningful stretch should. */
+const MULTIPLE_FACES_RATIO_THRESHOLD = 0.1;
+/** How many faces the landmarker is allowed to return. This is NOT a
+ * measurement of "how many people" — it is the smallest number that lets the
+ * engine answer "was more than one person present" while keeping the per-tick
+ * landmark cost bounded. See `initLandmarker`. */
+const MAX_TRACKED_FACES = 3;
+
+/** Seconds of samples folded into one window before it is closed and pushed.
+ * Short enough to localise an excursion usefully, long enough that a blink or
+ * a single dropped frame cannot create one. */
+const EPISODE_WINDOW_SECONDS = 5;
+/** An excursion must persist at least this long to be reported. Below it,
+ * we are describing noise rather than behaviour. */
+const MIN_EPISODE_SECONDS = 10;
+/** How many consecutive non-tripping windows an episode may absorb without
+ * ending. Without this, a student who glances back at the camera once mid-way
+ * through a two-minute absence produces three episodes instead of one. */
+const EPISODE_GAP_TOLERANCE_WINDOWS = 1;
+/** Hard cap on reported episodes. Over the cap the LONGEST survive: a single
+ * 90-second absence matters more than six 10-second ones. */
+const MAX_EPISODES = 40;
+
+// Per-window trip thresholds. Each is a RATIO within the window, so a window
+// with few processed samples cannot trip on one bad frame.
+const EPISODE_OFF_CAMERA_MAX_DETECTED_RATIO = 0.25;
+const EPISODE_GAZE_AWAY_MAX_FORWARD_RATIO = 0.35;
+const EPISODE_OFF_CENTER_MAX_CENTERED_RATIO = 0.4;
+const EPISODE_MULTI_FACE_MIN_RATIO = 0.5;
 const FACE_STATE_TRANSITION_STREAK = 3;
 const MAX_CONSECUTIVE_DETECT_ERRORS = 3;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+/** Raw per-session sample counts, before any ratio is taken. */
+export interface VisualSampleCounts {
+  processedSamples: number;
+  faceDetectedSamples: number;
+  centeredSamples: number;
+  multipleFacesSamples: number;
+  /** Forward-facing samples across the WHOLE session. */
+  forwardFacingSamples: number;
+  /** Samples taken while the student was NOT speaking, and how many of those
+   * were oriented toward the screen. The attentiveness denominator. */
+  listeningSamples: number;
+  listeningForwardSamples: number;
+}
+
+export interface VisualRates {
+  eyeContactPct: number;
+  attentivenessPct: number;
+  cameraCenteredPct: number;
+  facePresencePct: number;
+  multipleFacesRatio: number;
+}
+
+/**
+ * Turns raw sample counts into the reported percentages. Pure, and exported
+ * so a throwaway verification script can exercise the arithmetic directly —
+ * the same reason `vocal-capture.ts` exports `aggregateTurnWords` and
+ * `computeVolumeConsistency`. Without this the denominators would only be
+ * reachable through a live camera, which is exactly how the
+ * divide-by-face-detected bug survived to production.
+ *
+ * Every rate here divides by ALL processed samples, with one exception: a
+ * sample with nobody in it is a badly framed sample, not a missing one, and
+ * dividing by `faceDetectedSamples` makes a metric structurally unable to fall
+ * for absence.
+ *
+ * `eye_contact_pct` covers the whole session deliberately — engagement is
+ * expected throughout, not only while the student holds the floor.
+ * `attentiveness_pct` is the one window-scoped rate: it isolates the stretches
+ * where someone ELSE was talking, so listening behaviour is visible as its own
+ * number rather than only as part of the session average.
+ */
+export function computeVisualRates(counts: VisualSampleCounts): VisualRates {
+  const processed = Math.max(1, counts.processedSamples);
+  return {
+    eyeContactPct: Math.round(
+      (counts.forwardFacingSamples / processed) * 100
+    ),
+    attentivenessPct: Math.round(
+      (counts.listeningForwardSamples / Math.max(1, counts.listeningSamples)) * 100
+    ),
+    cameraCenteredPct: Math.round((counts.centeredSamples / processed) * 100),
+    facePresencePct: Math.round((counts.faceDetectedSamples / processed) * 100),
+    multipleFacesRatio: counts.multipleFacesSamples / processed,
+  };
+}
+
+/** One closed sampling window's totals. Scalars only — no landmarks, no
+ * frames; nothing here outlives the tick that produced it in any richer form
+ * than these counts. */
+export interface CaptureWindow {
+  startS: number;
+  endS: number;
+  processed: number;
+  detected: number;
+  forward: number;
+  centered: number;
+  multiFace: number;
+  movementMean: number;
+}
+
+/** Whether a single window trips each episode condition. Ratios, never raw
+ * counts, so a window that processed few samples cannot trip on one frame. */
+function windowTrips(w: CaptureWindow, kind: VisualEpisodeKind): boolean {
+  if (w.processed <= 0) return false;
+  switch (kind) {
+    case "off_camera":
+      return w.detected / w.processed < EPISODE_OFF_CAMERA_MAX_DETECTED_RATIO;
+    case "gaze_away":
+      return (
+        w.detected > 0 &&
+        w.forward / w.detected < EPISODE_GAZE_AWAY_MAX_FORWARD_RATIO
+      );
+    case "off_center":
+      return (
+        w.detected > 0 &&
+        w.centered / w.detected < EPISODE_OFF_CENTER_MAX_CENTERED_RATIO
+      );
+    case "multiple_faces":
+      return w.multiFace / w.processed > EPISODE_MULTI_FACE_MIN_RATIO;
+    case "high_movement":
+      return w.movementMean > HIGH_MOVEMENT_THRESHOLD;
+  }
+}
+
+/**
+ * Collapses a session's windows into timestamped excursions. Pure and
+ * exported for direct testing.
+ *
+ * A run absorbs up to `EPISODE_GAP_TOLERANCE_WINDOWS` non-tripping windows
+ * without ending, so one glance back at the camera during a long absence does
+ * not shatter one episode into three. Trailing non-tripping windows are
+ * trimmed back off before the run is measured, so the reported end time is
+ * when the behaviour actually stopped rather than when tolerance ran out.
+ *
+ * `severity` is the fraction of windows inside the run that genuinely tripped
+ * — which is why the gap tolerance matters twice: it keeps the episode whole
+ * AND records how solid it was.
+ */
+export function extractEpisodes(
+  windows: CaptureWindow[],
+  kinds: readonly VisualEpisodeKind[]
+): VisualEpisode[] {
+  const episodes: VisualEpisode[] = [];
+
+  for (const kind of kinds) {
+    const tripped = windows.map((w) => windowTrips(w, kind));
+    let runStart = -1;
+    let gap = 0;
+
+    const closeRun = (endExclusive: number) => {
+      if (runStart < 0) return;
+      // Trim trailing untripped windows absorbed by the gap tolerance.
+      let last = endExclusive - 1;
+      while (last > runStart && !tripped[last]) last -= 1;
+
+      const span = windows.slice(runStart, last + 1);
+      const durationS = span[span.length - 1].endS - span[0].startS;
+      if (durationS >= MIN_EPISODE_SECONDS) {
+        const hits = span.reduce(
+          (n, _w, i) => n + (tripped[runStart + i] ? 1 : 0),
+          0
+        );
+        episodes.push({
+          kind,
+          start_s: Math.round(span[0].startS),
+          end_s: Math.round(span[span.length - 1].endS),
+          severity: Math.round((hits / span.length) * 100) / 100,
+        });
+      }
+      runStart = -1;
+      gap = 0;
+    };
+
+    for (let i = 0; i < windows.length; i++) {
+      if (tripped[i]) {
+        if (runStart < 0) runStart = i;
+        gap = 0;
+      } else if (runStart >= 0) {
+        gap += 1;
+        if (gap > EPISODE_GAP_TOLERANCE_WINDOWS) closeRun(i);
+      }
+    }
+    closeRun(windows.length);
+  }
+
+  // Keep the most significant by DURATION, then restore chronological order so
+  // the report reads as a timeline rather than a ranking.
+  return episodes
+    .sort((a, b) => b.end_s - b.start_s - (a.end_s - a.start_s))
+    .slice(0, MAX_EPISODES)
+    .sort((a, b) => a.start_s - b.start_s);
+}
+
+interface FaceBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  area: number;
+}
+
+/** Normalized bounding box of one face's landmark set, plus its area — the
+ * discriminator `runTick` uses to pick the primary face out of several. */
+function boundsOf(landmarks: Array<{ x: number; y: number }>): FaceBounds {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const point of landmarks) {
+    if (point.x < minX) minX = point.x;
+    if (point.x > maxX) maxX = point.x;
+    if (point.y < minY) minY = point.y;
+    if (point.y > maxY) maxY = point.y;
+  }
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    area: Math.max(0, maxX - minX) * Math.max(0, maxY - minY),
+  };
 }
 
 /**
@@ -135,7 +384,7 @@ function clamp(value: number, min: number, max: number): number {
 export function createVisualCapture(
   options: CreateVisualCaptureOptions
 ): VisualCaptureHandle {
-  const { stream, onFaceStateChange } = options;
+  const { stream, onFaceStateChange, sessionStartedAtMs } = options;
 
   let started = false;
   let stopped = false;
@@ -171,7 +420,29 @@ export function createVisualCapture(
 
   // Detection accumulators.
   let faceDetectedSamples = 0;
+  let multipleFacesSamples = 0;
   let forwardFacingSamples = 0;
+
+  // Conversational window. Defaults to NOT speaking: the session opens with
+  // the avatar greeting the student, so assuming "speaking" would credit the
+  // opening seconds to the wrong bucket.
+  let isSpeaking = false;
+  let speakingSamples = 0;
+  let listeningSamples = 0;
+  let listeningForwardSamples = 0;
+
+  // Rolling window used for episode extraction. Only the closed windows are
+  // retained — a 20-minute session is ~240 rows of 8 numbers.
+  const windows: CaptureWindow[] = [];
+  let windowStartS = 0;
+  let winProcessed = 0;
+  let winDetected = 0;
+  let winForward = 0;
+  let winCentered = 0;
+  let winMultiFace = 0;
+  let winMovementSum = 0;
+  let winMovementSamples = 0;
+  let captureOffsetS = 0;
   let poseUnavailableSamples = 0;
   let centeredSamples = 0;
   let outOfFrameSamples = 0;
@@ -188,6 +459,39 @@ export function createVisualCapture(
 
   function tickIntervalMs(): number {
     return 1000 / METRICS_SAMPLE_HZ;
+  }
+
+  /** Folds the open window into `windows` and resets the per-window counters.
+   * Called on the window boundary and once more at `stop()` so a partial
+   * final window is not silently dropped. */
+  function closeWindow(nowS: number) {
+    if (winProcessed === 0) {
+      windowStartS = nowS;
+      return;
+    }
+    windows.push({
+      startS: windowStartS,
+      endS: nowS,
+      processed: winProcessed,
+      detected: winDetected,
+      forward: winForward,
+      centered: winCentered,
+      multiFace: winMultiFace,
+      movementMean:
+        winMovementSamples > 0 ? winMovementSum / winMovementSamples : 0,
+    });
+    windowStartS = nowS;
+    winProcessed = 0;
+    winDetected = 0;
+    winForward = 0;
+    winCentered = 0;
+    winMultiFace = 0;
+    winMovementSum = 0;
+    winMovementSamples = 0;
+  }
+
+  function elapsedS(): number {
+    return (sessionStartMs() - startedAtMs) / 1000;
   }
 
   function reportFaceState(detected: boolean) {
@@ -284,7 +588,15 @@ export function createVisualCapture(
         delegate,
       },
       runningMode: "VIDEO",
-      numFaces: 1,
+      // More than one, so "another person is in frame" is observable at all.
+      // At `numFaces: 1` the detector returns only the most confident face,
+      // which made a room full of people indistinguishable from an empty one.
+      // The landmark model runs once per tracked face, so this is the main
+      // per-tick cost increase in the engine — bounded deliberately at 3
+      // because the question being answered is "more than one?", not "how
+      // many?". See REQ-49: this pipeline must not compete with the live
+      // avatar stream for the main thread.
+      numFaces: MAX_TRACKED_FACES,
       outputFacialTransformationMatrixes: true,
     });
   }
@@ -335,8 +647,27 @@ export function createVisualCapture(
     }
     consecutiveDetectErrors = 0;
     processedSamples += 1;
+    winProcessed += 1;
 
-    const hasFace = result.faceLandmarks.length > 0;
+    // Window boundary. Checked AFTER the sample is counted so a window always
+    // contains the samples its time range covers.
+    const nowS = elapsedS();
+    if (nowS - windowStartS >= EPISODE_WINDOW_SECONDS) {
+      closeWindow(nowS);
+    }
+
+    // Route into the conversational bucket. Done for every processed sample,
+    // detected or not: being off camera while you are the one speaking is
+    // itself a gaze failure, so the denominator must include it.
+    const speakingNow = isSpeaking;
+    if (speakingNow) {
+      speakingSamples += 1;
+    } else {
+      listeningSamples += 1;
+    }
+
+    const faceCount = result.faceLandmarks.length;
+    const hasFace = faceCount > 0;
     reportFaceState(hasFace);
 
     if (!hasFace) {
@@ -348,11 +679,36 @@ export function createVisualCapture(
     }
 
     faceDetectedSamples += 1;
+    winDetected += 1;
+    if (faceCount > 1) {
+      multipleFacesSamples += 1;
+      winMultiFace += 1;
+    }
+
+    // With `numFaces > 1` the detector's array order is NOT stable between
+    // frames: index 0 is whichever face the tracker emitted first this tick,
+    // not "the student". Every measurement below — gaze, framing, movement,
+    // lighting — must therefore agree on ONE face, chosen by a property that
+    // stays stable frame to frame. Largest bounding-box area is that
+    // property: whoever is sitting at the machine is nearer the camera than
+    // anyone behind them. Picking per-metric, or trusting index 0, would
+    // silently interleave two people's measurements inside one student's
+    // score, and would do it without ever looking wrong.
+    let primaryIndex = 0;
+    let primaryBounds = boundsOf(result.faceLandmarks[0]);
+    for (let i = 1; i < faceCount; i++) {
+      const candidate = boundsOf(result.faceLandmarks[i]);
+      if (candidate.area > primaryBounds.area) {
+        primaryIndex = i;
+        primaryBounds = candidate;
+      }
+    }
 
     // Forward-gaze proxy from the facial transformation matrix (column-major
     // 4x4, flattened). See CONTEXT.md: this is a HEAD-POSE PROXY for eye
-    // contact, not pupil tracking.
-    const matrix = result.facialTransformationMatrixes[0];
+    // contact, not pupil tracking. Indexed by `primaryIndex` so it describes
+    // the same face the framing numbers below describe.
+    const matrix = result.facialTransformationMatrixes[primaryIndex];
     if (matrix?.data && matrix.data.length >= 16) {
       const m = matrix.data;
       const yawRad = Math.atan2(-m[8], m[0]);
@@ -364,23 +720,21 @@ export function createVisualCapture(
         Math.abs(pitchDeg) <= FORWARD_PITCH_LIMIT_DEG
       ) {
         forwardFacingSamples += 1;
+        winForward += 1;
+        // Only the listening half is split out: `eye_contact_pct` is a
+        // whole-session figure, so the speaking half needs no counter of its
+        // own. `speakingSamples` is still tracked, as the audit trail for how
+        // the session divided.
+        if (!speakingNow) {
+          listeningForwardSamples += 1;
+        }
       }
     } else {
       poseUnavailableSamples += 1;
     }
 
-    // Framing from the face landmark bounding box.
-    const landmarks = result.faceLandmarks[0];
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
-    for (const point of landmarks) {
-      if (point.x < minX) minX = point.x;
-      if (point.x > maxX) maxX = point.x;
-      if (point.y < minY) minY = point.y;
-      if (point.y > maxY) maxY = point.y;
-    }
+    // Framing from the primary face's landmark bounding box.
+    const { minX, maxX, minY, maxY } = primaryBounds;
 
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
@@ -391,6 +745,7 @@ export function createVisualCapture(
       centerY <= CENTER_Y_MAX
     ) {
       centeredSamples += 1;
+      winCentered += 1;
     }
     if (
       minX < OUT_OF_FRAME_MARGIN ||
@@ -404,8 +759,11 @@ export function createVisualCapture(
     if (lastCenter) {
       const dx = centerX - lastCenter.x;
       const dy = centerY - lastCenter.y;
-      movementSum += Math.sqrt(dx * dx + dy * dy);
+      const delta = Math.sqrt(dx * dx + dy * dy);
+      movementSum += delta;
       movementSamples += 1;
+      winMovementSum += delta;
+      winMovementSamples += 1;
     }
     lastCenter = { x: centerX, y: centerY };
 
@@ -425,6 +783,13 @@ export function createVisualCapture(
     if (started || stopped) return;
     started = true;
     startedAtMs = sessionStartMs();
+    // Distance between the session clock (which transcript turns are stamped
+    // against) and this engine's clock. Captured once, here, rather than
+    // re-derived later — see `VisualCoverage.capture_offset_s`.
+    captureOffsetS =
+      typeof sessionStartedAtMs === "number"
+        ? Math.max(0, (Date.now() - sessionStartedAtMs) / 1000)
+        : 0;
 
     videoEl = document.createElement("video");
     videoEl.muted = true;
@@ -489,6 +854,10 @@ export function createVisualCapture(
     intervalId = setInterval(runTick, tickIntervalMs());
   }
 
+  function setSpeaking(speaking: boolean): void {
+    isSpeaking = speaking;
+  }
+
   function stop(): VisualMetrics | null {
     if (!started) return null;
     if (stopped) return null;
@@ -523,12 +892,23 @@ export function createVisualCapture(
       analyzerError = true;
     }
 
-    const eyeContactPct = Math.round(
-      (forwardFacingSamples / Math.max(1, processedSamples)) * 100
-    );
-    const cameraCenteredPct = Math.round(
-      (centeredSamples / Math.max(1, faceDetectedSamples)) * 100
-    );
+    // All four ratios come from one pure function so the runtime path and the
+    // verification script cannot drift apart. See `computeVisualRates` for why
+    // every denominator is `processedSamples`.
+    const rates = computeVisualRates({
+      processedSamples,
+      faceDetectedSamples,
+      centeredSamples,
+      multipleFacesSamples,
+      forwardFacingSamples,
+      listeningSamples,
+      listeningForwardSamples,
+    });
+
+    // Fold the partial final window in before extracting, so an excursion
+    // that was still running when the student hit End is not dropped.
+    closeWindow(sessionSeconds);
+    const episodes = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
     const lightingOk =
       lumaSamples > 0 &&
       lumaSum / lumaSamples >= LUMA_MIN_OK &&
@@ -547,23 +927,38 @@ export function createVisualCapture(
     ) {
       postureFlags.push("high_head_movement");
     }
+    if (rates.multipleFacesRatio > MULTIPLE_FACES_RATIO_THRESHOLD) {
+      postureFlags.push("multiple_faces_detected");
+    }
 
     return {
-      eye_contact_pct: eyeContactPct,
-      camera_centered_pct: cameraCenteredPct,
+      eye_contact_pct: rates.eyeContactPct,
+      attentiveness_pct: rates.attentivenessPct,
+      camera_centered_pct: rates.cameraCenteredPct,
+      face_presence_pct: rates.facePresencePct,
       lighting_ok: lightingOk,
       posture_flags: postureFlags,
+      // Emitted unconditionally, not as an afterthought: the evaluator needs
+      // to be TOLD what was never looked at. An empty `posture_flags` alone
+      // reads as "we checked and it was clean", which is exactly how a session
+      // with several people gesturing obscenely earned a commendation for
+      // having no distracting behaviours.
+      not_measured: [...VISUAL_NOT_MEASURED],
+      episodes,
       coverage: {
         session_seconds: sessionSeconds,
         track_live_seconds: trackLiveSeconds,
         expected_samples: expectedSamples,
         processed_samples: processedSamples,
         face_detected_samples: faceDetectedSamples,
+        speaking_samples: speakingSamples,
+        listening_samples: listeningSamples,
+        capture_offset_s: captureOffsetS,
         sample_hz: METRICS_SAMPLE_HZ,
         analyzer_error: analyzerError,
       },
     };
   }
 
-  return { start, stop };
+  return { start, setSpeaking, stop };
 }
