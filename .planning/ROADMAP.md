@@ -246,8 +246,8 @@ report restructure (REQ-53's scored-vs-descriptive distinction gates REQ-52).
 **Plans:** 2/8 plans executed
 
 Plans:
-- [ ] 12-01-PLAN.md — Async stop() teardown + per-tick frame-budget instrumentation
-- [ ] 12-02-PLAN.md — Metric contract: scored body fields, structurally unscorable observations, provisional thresholds
+- [x] 12-01-PLAN.md — Async stop() teardown + per-tick frame-budget instrumentation
+- [x] 12-02-PLAN.md — Metric contract: scored body fields, structurally unscorable observations, provisional thresholds
 - [ ] 12-03-PLAN.md — Web Worker migration of face inference + staggered scheduler (REQ-57 gate)
 - [ ] 12-04-PLAN.md — Report surfacing: Body language subheading, unscored Observations section, kind-tagged Moments, evaluator contract
 - [ ] 12-05-PLAN.md — Vendor pose/hand/object models and run all four staggered in the worker
