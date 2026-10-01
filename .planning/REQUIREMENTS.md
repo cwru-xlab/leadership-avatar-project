@@ -317,3 +317,43 @@ was decided, they do not add scope.*
   throttled well below display frame rate and kept off the conversation's critical path,
   so the HeyGen avatar stream, push-to-talk audio and interviewer response latency are
   unaffected compared with a camera-off run.
+
+### Phase 12 — Embodied Visual Signals
+
+- **REQ-50** — [ ] Hand and arm movement is measured, not inferred. Gesticulation rate,
+  motion amplitude, hands-above-shoulder and hands-near-face are derived from hand
+  landmarks and reported as behaviour. The canned gesture vocabulary cannot identify a
+  specific or offensive gesture and must never be described as doing so.
+
+- **REQ-51** — [ ] Body posture is measured from body landmarks — shoulder-line tilt,
+  forward-head, torso lean and openness — replacing the face-bounding-box proxy that
+  `posture_flags` stands on today.
+
+- **REQ-52** — [ ] Fidgeting is measured and REPORTED BUT NEVER SCORED. It is surfaced as
+  self-awareness information only. Fidgeting overlaps heavily with stimming, ADHD and
+  anxiety presentations, and gesture norms vary culturally; describing it is defensible
+  for a graded assessment, penalising it is not.
+
+- **REQ-53** — [ ] The report visibly distinguishes signals that count toward a score from
+  signals that are descriptive only, so a student cannot read an unscored observation as a
+  deduction. REQ-52 depends on this.
+
+- **REQ-54** — [ ] A phone visible in frame is reported factually — "a phone was visible
+  for 40 seconds" — never as an inference about attention, which the sensor cannot support.
+
+- **REQ-55** — [ ] Every new signal joins the existing episode timeline with timecodes on
+  the session clock, so it can be tied to what was being discussed. No new signal is
+  reported only as a session-wide average.
+
+- **REQ-56** — [ ] `VISUAL_NOT_MEASURED` shrinks to exactly what remains unobservable. An
+  entry leaves that list only when a pipeline that genuinely measures it ships, and the
+  rule that a flag's ABSENCE is never evidence of good behaviour survives unchanged.
+
+- **REQ-57** — [ ] Running four models does not degrade the live session (REQ-49 extended).
+  Per-model sampling is staggered and inference runs off the main thread, so the HeyGen
+  avatar stream, push-to-talk audio and response latency are unaffected compared with a
+  camera-off run.
+
+- **REQ-58** — [ ] No frame, landmark array or media blob leaves the browser or outlives
+  the tick that produced it (REQ-38 unchanged). Every new signal reaches the server as a
+  derived scalar.
