@@ -30,7 +30,12 @@ import {
   DeliveryByAnswerPanel,
   MomentsPanel,
 } from "@/components/metrics/DeliveryTimeline";
-import { visualBands, vocalBands } from "@/lib/metrics/bands";
+import {
+  visualBands,
+  visualBodyLanguageBands,
+  visualObservationRows,
+  vocalBands,
+} from "@/lib/metrics/bands";
 import type { StructuredReport } from "@/lib/report/structured";
 
 interface ReportBodyProps {
@@ -80,7 +85,12 @@ export default function ReportBody({
     return markdown ? <ReportMarkdown markdown={markdown} /> : null;
   }
 
-  const hasMoments = (metrics?.visual?.episodes?.length ?? 0) > 0;
+  // Either episode source is enough for the Moments tab to earn its keep — a
+  // session whose only finding was a visible phone (a descriptive-only
+  // episode) must not silently lose its timeline.
+  const hasMoments =
+    (metrics?.visual?.episodes?.length ?? 0) > 0 ||
+    (metrics?.visual?.observations?.episodes?.length ?? 0) > 0;
   const hasTurns = (metrics?.vocal?.turns?.length ?? 0) > 0;
   // Scenario reports have no rubric-notes section at all. An empty tab is
   // worse than an absent one, so the panel is dropped rather than shown blank.
@@ -190,6 +200,16 @@ export default function ReportBody({
             </section>
           )}
 
+          {/* Legible as its own thing rather than extra rows on the camera
+              list — a pre-Phase-12 report has no scored body-language fields
+              on `metrics.visual`, so this renders nothing new. */}
+          {metrics?.visual && visualBodyLanguageBands(metrics.visual).length > 0 && (
+            <section className="flex flex-col gap-3">
+              <SectionHeading>Body language</SectionHeading>
+              <BandList rows={visualBodyLanguageBands(metrics.visual)} />
+            </section>
+          )}
+
           {metrics?.vocal && (
             <section className="flex flex-col gap-3">
               <SectionHeading>Voice</SectionHeading>
@@ -204,6 +224,24 @@ export default function ReportBody({
             <section className="flex flex-col gap-3">
               <SectionHeading>Answer by answer</SectionHeading>
               <DeliveryByAnswerPanel vocal={metrics?.vocal ?? null} />
+            </section>
+          )}
+
+          {/* LAST section of Delivery, deliberately. These are things the
+              camera recorded that do not affect any score — stated once here,
+              at the section level, never as a per-row tag inside a scored
+              list (a "not scored" chip beside a scored row is exactly the
+              inverted defect this phase exists to avoid). Muted treatment
+              only; no primary-colour panel — that idiom is reserved for
+              "One thing to practice next time". */}
+          {metrics?.visual && visualObservationRows(metrics.visual).length > 0 && (
+            <section className="flex flex-col gap-3 rounded-2xl border border-default-100 p-5">
+              <SectionHeading>Observations</SectionHeading>
+              <p className="text-small text-default-500">
+                Things the camera recorded during the session. These do not
+                affect any score.
+              </p>
+              <BandList rows={visualObservationRows(metrics.visual)} />
             </section>
           )}
         </div>
@@ -251,7 +289,9 @@ export default function ReportBody({
           <section className="flex flex-col gap-3">
             <SectionHeading>Moments to review</SectionHeading>
             <p className="text-small text-default-500">
-              Stretches where something stood out. Times match the session clock.
+              One timeline mixing camera/environment and body-language
+              moments, tagged so you can tell which is which. Times match the
+              session clock.
             </p>
             <MomentsPanel visual={metrics?.visual ?? null} />
           </section>
