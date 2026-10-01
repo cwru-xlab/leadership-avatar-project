@@ -243,10 +243,17 @@ report restructure (REQ-53's scored-vs-descriptive distinction gates REQ-52).
   3. Nothing the pipeline cannot observe is described as absent, and nothing reported
      descriptively is scored.
 
-**Plans:** 0/0 plans executed — not yet planned
+**Plans:** 8 plans
 
 Plans:
-- (none yet — see `12-CONTEXT.md`)
+- [ ] 12-01-PLAN.md — Async stop() teardown + per-tick frame-budget instrumentation
+- [ ] 12-02-PLAN.md — Metric contract: scored body fields, structurally unscorable observations, provisional thresholds
+- [ ] 12-03-PLAN.md — Web Worker migration of face inference + staggered scheduler (REQ-57 gate)
+- [ ] 12-04-PLAN.md — Report surfacing: Body language subheading, unscored Observations section, kind-tagged Moments, evaluator contract
+- [ ] 12-05-PLAN.md — Vendor pose/hand/object models and run all four staggered in the worker
+- [ ] 12-06-PLAN.md — Scored derivations: posture baseline + drift, gesture curve, hands near face, new episodes
+- [ ] 12-07-PLAN.md — Descriptive derivations: fidgeting, phone in frame, absolute posture reading
+- [ ] 12-08-PLAN.md — Threshold tuning from real recordings + end-to-end phase sign-off
 
 ## Progress
 
@@ -265,4 +272,4 @@ Plans:
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
-| 12. Embodied Visual Signals | 0/0 | Not started | — |
+| 12. Embodied Visual Signals | 0/8 | Planned | — |
