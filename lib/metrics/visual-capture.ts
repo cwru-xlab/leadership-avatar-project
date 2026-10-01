@@ -1,5 +1,6 @@
 /**
- * Phase 10 in-browser visual capture engine.
+ * Phase 10 in-browser visual capture engine, moved off the main thread by
+ * plan 12-03.
  *
  * Browser-only module. Every browser API access sits inside a function body
  * (never at module scope) so this file remains import-safe on the server —
@@ -23,6 +24,19 @@
  * it is read; no frame, landmark array, or ImageBitmap is retained past the
  * tick that produced it. Only the final `VisualMetrics` scalar object -
  * returned once, at `stop()` - ever leaves this module.
+ *
+ * WORKER MIGRATION (REQ-57/REQ-58, plan 12-03): inference now prefers running
+ * inside `visual-capture.worker.ts`, reached by transferring a per-tick
+ * `ImageBitmap` and getting back a scalar-only `FaceDetectResult` - see that
+ * file's own header for the full REQ-58 discipline. If the worker cannot be
+ * constructed, or does not reply `ready` within `WORKER_INIT_TIMEOUT_MS`, this
+ * engine falls back to the original synchronous main-thread landmarker path
+ * unchanged (`runMainThreadTick`/`initLandmarker`) - a technical failure to
+ * start the worker must degrade to Phase 10 behaviour, never to
+ * `analyzer_error` (REQ-42's discipline: a technical fallback is not the
+ * student's poor performance). Both paths funnel their result into the same
+ * `applyFaceResult`, so the two paths cannot silently diverge in what they
+ * measure.
  */
 
 import {
@@ -34,6 +48,7 @@ import {
   type VisualMetrics,
   type VisualPostureFlag,
 } from "@/lib/metrics/types";
+import type { FaceDetectResult } from "@/lib/metrics/visual-capture.worker";
 
 /** Reasons `requestCameraStream` can fail to acquire a camera. Plans
  * 10-09/10-10 map these to the REQ-37 block screen; this function itself
@@ -162,6 +177,25 @@ const MAX_TRACKED_FACES = 3;
  * anyway. Mirrors `lib/metrics/vocal-capture.ts`'s `DEFAULT_DRAIN_TIMEOUT_MS`
  * bounded-race pattern: the End button must never hang on a stuck teardown. */
 const DEFAULT_STOP_TIMEOUT_MS = 1500;
+
+/** This plan adds exactly ONE model to the worker. 12-05 extends this union
+ * when it adds pose/hands/object detection. */
+type ModelId = "face";
+
+/** The staggered round-robin schedule, consulted by tick index
+ * (`SCHEDULE[tickCount % SCHEDULE.length]`). Exactly one tenant today, so
+ * face still samples at the full `METRICS_SAMPLE_HZ` and this plan changes no
+ * measurement. 12-05 extends this array; once it holds N models, each
+ * model's effective rate becomes `METRICS_SAMPLE_HZ / N` Hz. Acceptable
+ * because episode windows are `EPISODE_WINDOW_SECONDS` (5s) — per-model
+ * temporal resolution well below `METRICS_SAMPLE_HZ` still localises an
+ * excursion usefully. */
+const SCHEDULE: ModelId[] = ["face"];
+
+/** How long `start()` will wait for the worker's `ready`/`init-error` reply
+ * before giving up and falling back to the main-thread landmarker path. A
+ * worker that never answers must not block session start indefinitely. */
+const WORKER_INIT_TIMEOUT_MS = 2000;
 
 /** Fixed-capacity ring buffer size for per-tick inference cost samples.
  * 100s of ticks at the 6 Hz `METRICS_SAMPLE_HZ` cadence — diagnostics only,
@@ -449,6 +483,21 @@ export function createVisualCapture(
   let lumaCanvas: HTMLCanvasElement | null = null;
   let lumaCtx: CanvasRenderingContext2D | null = null;
 
+  // Worker lifecycle (REQ-57). `usingWorker` is decided once, in `start()`,
+  // and never flips mid-session — a worker that fails to init falls back to
+  // the main-thread path for the WHOLE session, never a partial/dynamic
+  // switch. `faceRequestOutstanding` is the one-outstanding-request
+  // back-pressure gate: a tick that fires while a previous `detect` is still
+  // in flight is a dropped tick, never a queued one and never an error.
+  let worker: Worker | null = null;
+  let usingWorker = false;
+  let faceRequestOutstanding = false;
+  let faceRequestSpeakingNow = false;
+  let faceRequestStartMs = 0;
+  // Resolves the `closed`-reply half of `closeEngine`'s bounded race; null
+  // whenever no close request is currently in flight.
+  let workerClosedResolve: (() => void) | null = null;
+
   // Liveness accumulators.
   const sessionStartMs = () => performance.now();
   let startedAtMs = 0;
@@ -626,101 +675,28 @@ export function createVisualCapture(
     }
   }
 
-  async function initLandmarker(delegate: "GPU" | "CPU") {
-    const { FaceLandmarker, FilesetResolver } = await import(
-      "@mediapipe/tasks-vision"
-    );
-    const resolver = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
-    return FaceLandmarker.createFromOptions(resolver, {
-      baseOptions: {
-        modelAssetPath: "/mediapipe/face_landmarker.task",
-        delegate,
-      },
-      runningMode: "VIDEO",
-      // More than one, so "another person is in frame" is observable at all.
-      // At `numFaces: 1` the detector returns only the most confident face,
-      // which made a room full of people indistinguishable from an empty one.
-      // The landmark model runs once per tracked face, so this is the main
-      // per-tick cost increase in the engine — bounded deliberately at 3
-      // because the question being answered is "more than one?", not "how
-      // many?". See REQ-49: this pipeline must not compete with the live
-      // avatar stream for the main thread.
-      numFaces: MAX_TRACKED_FACES,
-      outputFacialTransformationMatrixes: true,
-    });
-  }
-
-  function runTick() {
-    if (!videoEl || !landmarker) return;
-    tickCount += 1;
-
-    // Dropped-tick detection (REQ-57 diagnostics): if the gap since the last
-    // tick's entry is well beyond the expected interval, the event loop did
-    // not get back to us on time. Measured unconditionally, ahead of every
-    // early return below, so a track going dead or a decode stall is also
-    // visible in the frame-budget report.
-    const tickEntryMs = performance.now();
-    if (
-      lastTickEntryMs !== null &&
-      tickEntryMs - lastTickEntryMs > DROPPED_TICK_GAP_MULTIPLIER * tickIntervalMs()
-    ) {
-      droppedTicks += 1;
-    }
-    lastTickEntryMs = tickEntryMs;
-
-    const track = stream.getVideoTracks()[0];
-    if (!track || track.readyState !== "live") {
-      // Track is dead - do NOT increment processedSamples and do NOT add to
-      // trackLiveSeconds. This is a liveness signal, not a detection miss.
-      return;
-    }
-    trackLiveSeconds += tickIntervalMs() / 1000;
-
-    // The video element can be transiently unusable even while the track is
-    // live: before the first frame decodes, while a backgrounded tab throttles
-    // decoding, or during a stream renegotiation. `detectForVideo` THROWS on a
-    // zero-dimension or not-yet-decoded frame.
-    //
-    // This is NOT a detect error. Counting it as one would let three transient
-    // startup ticks trip `analyzerError` and mark the whole session
-    // INSUFFICIENT_DATA — excusing it from scoring entirely, which is the exact
-    // misclassification REQ-42 exists to prevent. Skip the tick instead: no
-    // processed sample, no error, no face-state change.
-    if (
-      videoEl.readyState < 2 ||
-      videoEl.videoWidth === 0 ||
-      videoEl.videoHeight === 0
-    ) {
-      return;
-    }
-
-    let result: {
-      faceLandmarks: Array<Array<{ x: number; y: number }>>;
-      facialTransformationMatrixes: Array<{ data: number[] }>;
-    };
-    const detectStartMs = performance.now();
-    try {
-      result = landmarker.detectForVideo(videoEl, performance.now());
-    } catch {
-      consecutiveDetectErrors += 1;
-      if (consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
-        analyzerError = true;
-        stopInterval();
-      }
-      return;
-    }
-    // Per-tick inference cost (REQ-57 diagnostics): fixed-capacity ring
-    // buffer, overwrite oldest, never grow.
-    const detectCostMs = performance.now() - detectStartMs;
-    tickCostMsRing[tickCostRingIndex] = detectCostMs;
+  /** Per-tick inference cost (REQ-57 diagnostics): fixed-capacity ring
+   * buffer, overwrite oldest, never grow. Shared by both the worker
+   * round-trip and the main-thread fallback so the frame-budget report
+   * means the same thing either way. */
+  function recordTickCost(ms: number) {
+    tickCostMsRing[tickCostRingIndex] = ms;
     tickCostRingIndex = (tickCostRingIndex + 1) % TICK_COST_SAMPLES;
     tickCostSamplesSeen += 1;
-    consecutiveDetectErrors = 0;
+  }
+
+  /**
+   * Folds one tick's scalar face-detection result into every accumulator -
+   * the single place both the worker path and the main-thread fallback path
+   * converge, so the two can never silently measure something different.
+   * Called exactly once per successfully-processed tick (never on a dropped
+   * tick, never on a detect error) - this is where `processedSamples`/
+   * `winProcessed` actually increment.
+   */
+  function applyFaceResult(result: FaceDetectResult, speakingNow: boolean) {
     processedSamples += 1;
     winProcessed += 1;
 
-    // Window boundary. Checked AFTER the sample is counted so a window always
-    // contains the samples its time range covers.
     const nowS = elapsedS();
     if (nowS - windowStartS >= EPISODE_WINDOW_SECONDS) {
       closeWindow(nowS);
@@ -729,20 +705,18 @@ export function createVisualCapture(
     // Route into the conversational bucket. Done for every processed sample,
     // detected or not: being off camera while you are the one speaking is
     // itself a gaze failure, so the denominator must include it.
-    const speakingNow = isSpeaking;
     if (speakingNow) {
       speakingSamples += 1;
     } else {
       listeningSamples += 1;
     }
 
-    const faceCount = result.faceLandmarks.length;
-    const hasFace = faceCount > 0;
+    const hasFace = result.faceCount > 0;
     reportFaceState(hasFace);
 
     if (!hasFace) {
       lastCenter = null;
-      if (tickCount % LUMA_SAMPLE_EVERY_N_TICKS === 0) {
+      if (videoEl && tickCount % LUMA_SAMPLE_EVERY_N_TICKS === 0) {
         sampleLuma(videoEl, null);
       }
       return;
@@ -750,51 +724,23 @@ export function createVisualCapture(
 
     faceDetectedSamples += 1;
     winDetected += 1;
-    if (faceCount > 1) {
+    if (result.faceCount > 1) {
       multipleFacesSamples += 1;
       winMultiFace += 1;
     }
 
-    // With `numFaces > 1` the detector's array order is NOT stable between
-    // frames: index 0 is whichever face the tracker emitted first this tick,
-    // not "the student". Every measurement below — gaze, framing, movement,
-    // lighting — must therefore agree on ONE face, chosen by a property that
-    // stays stable frame to frame. Largest bounding-box area is that
-    // property: whoever is sitting at the machine is nearer the camera than
-    // anyone behind them. Picking per-metric, or trusting index 0, would
-    // silently interleave two people's measurements inside one student's
-    // score, and would do it without ever looking wrong.
-    let primaryIndex = 0;
-    let primaryBounds = boundsOf(result.faceLandmarks[0]);
-    for (let i = 1; i < faceCount; i++) {
-      const candidate = boundsOf(result.faceLandmarks[i]);
-      if (candidate.area > primaryBounds.area) {
-        primaryIndex = i;
-        primaryBounds = candidate;
-      }
-    }
-
-    // Forward-gaze proxy from the facial transformation matrix (column-major
-    // 4x4, flattened). See CONTEXT.md: this is a HEAD-POSE PROXY for eye
-    // contact, not pupil tracking. Indexed by `primaryIndex` so it describes
-    // the same face the framing numbers below describe.
-    const matrix = result.facialTransformationMatrixes[primaryIndex];
-    if (matrix?.data && matrix.data.length >= 16) {
-      const m = matrix.data;
-      const yawRad = Math.atan2(-m[8], m[0]);
-      const pitchRad = Math.asin(clamp(m[9], -1, 1));
-      const yawDeg = (yawRad * 180) / Math.PI;
-      const pitchDeg = (pitchRad * 180) / Math.PI;
+    // Forward-gaze proxy from the primary face's raw yaw/pitch degrees - a
+    // HEAD-POSE PROXY for eye contact, not pupil tracking (see CONTEXT.md).
+    // The threshold comparison stays here, as a main-thread constant, even
+    // though the matrix decode producing these degrees now happens inside
+    // the worker.
+    if (result.poseAvailable && result.yawDeg !== null && result.pitchDeg !== null) {
       if (
-        Math.abs(yawDeg) <= FORWARD_YAW_LIMIT_DEG &&
-        Math.abs(pitchDeg) <= FORWARD_PITCH_LIMIT_DEG
+        Math.abs(result.yawDeg) <= FORWARD_YAW_LIMIT_DEG &&
+        Math.abs(result.pitchDeg) <= FORWARD_PITCH_LIMIT_DEG
       ) {
         forwardFacingSamples += 1;
         winForward += 1;
-        // Only the listening half is split out: `eye_contact_pct` is a
-        // whole-session figure, so the speaking half needs no counter of its
-        // own. `speakingSamples` is still tracked, as the audit trail for how
-        // the session divided.
         if (!speakingNow) {
           listeningForwardSamples += 1;
         }
@@ -803,11 +749,10 @@ export function createVisualCapture(
       poseUnavailableSamples += 1;
     }
 
-    // Framing from the primary face's landmark bounding box.
-    const { minX, maxX, minY, maxY } = primaryBounds;
+    const primary = result.primary;
+    if (!primary) return;
+    const { minX, maxX, minY, maxY, centerX, centerY } = primary;
 
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
     if (
       centerX >= CENTER_X_MIN &&
       centerX <= CENTER_X_MAX &&
@@ -837,8 +782,299 @@ export function createVisualCapture(
     }
     lastCenter = { x: centerX, y: centerY };
 
-    if (tickCount % LUMA_SAMPLE_EVERY_N_TICKS === 0) {
+    if (videoEl && tickCount % LUMA_SAMPLE_EVERY_N_TICKS === 0) {
       sampleLuma(videoEl, { minX, minY, maxX, maxY });
+    }
+  }
+
+  /** Constructs the worker and waits (bounded by `WORKER_INIT_TIMEOUT_MS`)
+   * for its `ready`/`init-error` reply. Returns `false` on ANY failure -
+   * construction throwing, an `init-error` reply, or a timeout - so `start()`
+   * can fall back to the main-thread path uniformly. Never throws. */
+  async function initWorker(): Promise<boolean> {
+    let candidate: Worker;
+    try {
+      candidate = new Worker(
+        new URL("./visual-capture.worker.ts", import.meta.url),
+        { type: "module" }
+      );
+    } catch (error) {
+      console.info(
+        "[visual-capture] worker construction failed, falling back to main thread",
+        { reason: error instanceof Error ? error.message : String(error) }
+      );
+      return false;
+    }
+
+    const readyResult = await new Promise<
+      { ok: true; delegate: "GPU" | "CPU" } | { ok: false; reason: string }
+    >((resolve) => {
+      const timeoutId = setTimeout(() => {
+        resolve({ ok: false, reason: "timeout" });
+      }, WORKER_INIT_TIMEOUT_MS);
+
+      candidate.onmessage = (event: MessageEvent) => {
+        const msg = event.data;
+        if (msg?.type === "ready") {
+          clearTimeout(timeoutId);
+          resolve({ ok: true, delegate: msg.delegate === "CPU" ? "CPU" : "GPU" });
+        } else if (msg?.type === "init-error") {
+          clearTimeout(timeoutId);
+          resolve({ ok: false, reason: String(msg.reason ?? "init-error") });
+        }
+      };
+      candidate.onerror = (event: ErrorEvent) => {
+        clearTimeout(timeoutId);
+        resolve({ ok: false, reason: event.message || "worker error" });
+      };
+      candidate.postMessage({ type: "init", models: ["face"], delegate: "GPU" });
+    });
+
+    if (!readyResult.ok) {
+      console.info(
+        "[visual-capture] worker init failed, falling back to main thread",
+        { reason: readyResult.reason }
+      );
+      try {
+        candidate.terminate();
+      } catch {
+        // Best-effort.
+      }
+      return false;
+    }
+
+    worker = candidate;
+    delegateInUse = readyResult.delegate;
+    // Swap to the steady-state handler now that init has resolved - detect
+    // replies and the eventual `closed` ack flow through this one handler.
+    worker.onmessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (msg?.type === "detect-result" && msg.model === "face") {
+        faceRequestOutstanding = false;
+        recordTickCost(performance.now() - faceRequestStartMs);
+        consecutiveDetectErrors = 0;
+        applyFaceResult(msg.result as FaceDetectResult, faceRequestSpeakingNow);
+      } else if (msg?.type === "detect-error") {
+        faceRequestOutstanding = false;
+        consecutiveDetectErrors += 1;
+        if (consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
+          analyzerError = true;
+          stopInterval();
+        }
+      } else if (msg?.type === "closed") {
+        workerClosedResolve?.();
+        workerClosedResolve = null;
+      }
+    };
+    return true;
+  }
+
+  /** Posts one `detect` request for the face model, bounded by the
+   * one-outstanding-request back-pressure gate. Fire-and-forget from
+   * `runTick`'s perspective - the reply is handled by the steady-state
+   * `worker.onmessage` handler installed in `initWorker`. */
+  function runWorkerTick() {
+    if (!worker || !videoEl) return;
+    if (faceRequestOutstanding) {
+      // The previous detect has not replied yet. A dropped tick, never a
+      // queued one - queuing would turn a slow frame into unbounded latency
+      // and stamp stale measurements onto a later window.
+      droppedTicks += 1;
+      return;
+    }
+    faceRequestOutstanding = true;
+    faceRequestSpeakingNow = isSpeaking;
+    faceRequestStartMs = performance.now();
+    const timestamp = faceRequestStartMs;
+    const activeWorker = worker;
+    const activeVideoEl = videoEl;
+
+    void (async () => {
+      let bitmap: ImageBitmap;
+      try {
+        bitmap = await createImageBitmap(activeVideoEl);
+      } catch {
+        faceRequestOutstanding = false;
+        consecutiveDetectErrors += 1;
+        if (consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
+          analyzerError = true;
+          stopInterval();
+        }
+        return;
+      }
+      if (!worker || worker !== activeWorker) {
+        // Torn down mid-flight (e.g. stop() raced this request).
+        bitmap.close();
+        faceRequestOutstanding = false;
+        return;
+      }
+      activeWorker.postMessage(
+        { type: "detect", bitmap, model: "face", timestamp },
+        [bitmap]
+      );
+    })();
+  }
+
+  /** The original Phase 10 synchronous detection path, kept verbatim as the
+   * fallback for a session whose worker never came up. Builds the same
+   * `FaceDetectResult` shape the worker would have returned and folds it
+   * through the identical `applyFaceResult`, so a worker session and a
+   * fallback session cannot silently diverge in what they measure. */
+  function runMainThreadTick() {
+    if (!videoEl || !landmarker) return;
+
+    let detectResult: {
+      faceLandmarks: Array<Array<{ x: number; y: number }>>;
+      facialTransformationMatrixes: Array<{ data: number[] }>;
+    };
+    const detectStartMs = performance.now();
+    try {
+      detectResult = landmarker.detectForVideo(videoEl, performance.now());
+    } catch {
+      consecutiveDetectErrors += 1;
+      if (consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
+        analyzerError = true;
+        stopInterval();
+      }
+      return;
+    }
+    recordTickCost(performance.now() - detectStartMs);
+    consecutiveDetectErrors = 0;
+
+    const speakingNow = isSpeaking;
+    const faceCount = detectResult.faceLandmarks.length;
+    if (faceCount === 0) {
+      applyFaceResult(
+        { faceCount: 0, primary: null, yawDeg: null, pitchDeg: null, poseAvailable: false },
+        speakingNow
+      );
+      return;
+    }
+
+    // With `numFaces > 1` the detector's array order is NOT stable between
+    // frames - see the worker's identical comment. Largest bounding-box area
+    // is the stable stand-in for "whoever is at the machine".
+    let primaryIndex = 0;
+    let primaryBounds = boundsOf(detectResult.faceLandmarks[0]);
+    for (let i = 1; i < faceCount; i++) {
+      const candidate = boundsOf(detectResult.faceLandmarks[i]);
+      if (candidate.area > primaryBounds.area) {
+        primaryIndex = i;
+        primaryBounds = candidate;
+      }
+    }
+    const { minX, maxX, minY, maxY } = primaryBounds;
+    const primary = {
+      minX,
+      maxX,
+      minY,
+      maxY,
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2,
+    };
+
+    const matrix = detectResult.facialTransformationMatrixes[primaryIndex];
+    let yawDeg: number | null = null;
+    let pitchDeg: number | null = null;
+    let poseAvailable = false;
+    if (matrix?.data && matrix.data.length >= 16) {
+      const m = matrix.data;
+      yawDeg = (Math.atan2(-m[8], m[0]) * 180) / Math.PI;
+      pitchDeg = (Math.asin(clamp(m[9], -1, 1)) * 180) / Math.PI;
+      poseAvailable = true;
+    }
+
+    applyFaceResult({ faceCount, primary, yawDeg, pitchDeg, poseAvailable }, speakingNow);
+  }
+
+  async function initLandmarker(delegate: "GPU" | "CPU") {
+    const { FaceLandmarker, FilesetResolver } = await import(
+      "@mediapipe/tasks-vision"
+    );
+    const resolver = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
+    return FaceLandmarker.createFromOptions(resolver, {
+      baseOptions: {
+        modelAssetPath: "/mediapipe/face_landmarker.task",
+        delegate,
+      },
+      runningMode: "VIDEO",
+      // More than one, so "another person is in frame" is observable at all.
+      // At `numFaces: 1` the detector returns only the most confident face,
+      // which made a room full of people indistinguishable from an empty one.
+      // The landmark model runs once per tracked face, so this is the main
+      // per-tick cost increase in the engine — bounded deliberately at 3
+      // because the question being answered is "more than one?", not "how
+      // many?". See REQ-49: this pipeline must not compete with the live
+      // avatar stream for the main thread.
+      numFaces: MAX_TRACKED_FACES,
+      outputFacialTransformationMatrixes: true,
+    });
+  }
+
+  /**
+   * One scheduler beat. Shared guards (dropped-tick detection, track
+   * liveness, video-element readiness) run unconditionally before either
+   * path is dispatched, exactly as they did pre-worker — none of this
+   * plan's changes touch WHEN a tick is allowed to run, only HOW the actual
+   * detect happens once it is.
+   */
+  function runTick() {
+    if (!videoEl) return;
+    tickCount += 1;
+
+    // Dropped-tick detection (REQ-57 diagnostics): if the gap since the last
+    // tick's entry is well beyond the expected interval, the event loop did
+    // not get back to us on time. Measured unconditionally, ahead of every
+    // early return below, so a track going dead or a decode stall is also
+    // visible in the frame-budget report.
+    const tickEntryMs = performance.now();
+    if (
+      lastTickEntryMs !== null &&
+      tickEntryMs - lastTickEntryMs > DROPPED_TICK_GAP_MULTIPLIER * tickIntervalMs()
+    ) {
+      droppedTicks += 1;
+    }
+    lastTickEntryMs = tickEntryMs;
+
+    const track = stream.getVideoTracks()[0];
+    if (!track || track.readyState !== "live") {
+      // Track is dead - do NOT increment processedSamples and do NOT add to
+      // trackLiveSeconds. This is a liveness signal, not a detection miss.
+      return;
+    }
+    trackLiveSeconds += tickIntervalMs() / 1000;
+
+    // The video element can be transiently unusable even while the track is
+    // live: before the first frame decodes, while a backgrounded tab throttles
+    // decoding, or during a stream renegotiation. `detectForVideo`
+    // (main-thread path) THROWS on a zero-dimension or not-yet-decoded frame,
+    // and `createImageBitmap` (worker path) would fail identically.
+    //
+    // This is NOT a detect error. Counting it as one would let three transient
+    // startup ticks trip `analyzerError` and mark the whole session
+    // INSUFFICIENT_DATA — excusing it from scoring entirely, which is the exact
+    // misclassification REQ-42 exists to prevent. Skip the tick instead: no
+    // processed sample, no error, no face-state change.
+    if (
+      videoEl.readyState < 2 ||
+      videoEl.videoWidth === 0 ||
+      videoEl.videoHeight === 0
+    ) {
+      return;
+    }
+
+    // Staggered round-robin scheduler (REQ-57): consult which model this
+    // tick belongs to. With `SCHEDULE` holding exactly one tenant today,
+    // this is always "face" and every tick still samples it — unchanged
+    // measurement cadence from pre-12-03. 12-05 extends `SCHEDULE` and this
+    // dispatch to add pose/hands/object.
+    const modelForTick = SCHEDULE[tickCount % SCHEDULE.length];
+    if (modelForTick !== "face") return;
+
+    if (usingWorker) {
+      runWorkerTick();
+    } else {
+      runMainThreadTick();
     }
   }
 
@@ -888,36 +1124,46 @@ export function createVisualCapture(
       // is genuinely dead the per-tick readyState check below will catch it.
     }
 
-    try {
-      landmarker = (await initLandmarker("GPU")) as typeof landmarker;
-      delegateInUse = "GPU";
-    } catch (gpuError) {
-      // Record WHY we fell back. CPU inference competes with the live WebRTC
-      // avatar stream for the main thread, which is the contention REQ-49
-      // guards against — so a silent downgrade is exactly the kind of thing
-      // that shows up later as an unexplained stutter. console.info, not
-      // console.error: this is diagnostics, not a failure, and Next's dev
-      // overlay escalates console.error into a visible "Console Error".
-      console.info("[visual-capture] GPU delegate unavailable, using CPU", {
-        reason: gpuError instanceof Error ? gpuError.message : String(gpuError),
-      });
+    // Prefer the worker (REQ-57). `initWorker` never throws - any failure
+    // (construction, init-error, or a 2s timeout with no reply) resolves
+    // `false` and this session degrades to the original main-thread path,
+    // never to `analyzer_error` (REQ-42's discipline: a technical fallback
+    // must never read as the student's poor performance).
+    usingWorker = await initWorker();
+
+    if (!usingWorker) {
       try {
-        landmarker = (await initLandmarker("CPU")) as typeof landmarker;
-        delegateInUse = "CPU";
-      } catch {
-        analyzerError = true;
-        // A failed engine must never look like a student facing away - that
-        // would misattribute a technical failure as poor performance
-        // (REQ-42). Report "detected" so no banner is left stuck on screen.
-        onFaceStateChange?.(true);
-        return;
+        landmarker = (await initLandmarker("GPU")) as typeof landmarker;
+        delegateInUse = "GPU";
+      } catch (gpuError) {
+        // Record WHY we fell back. CPU inference competes with the live WebRTC
+        // avatar stream for the main thread, which is the contention REQ-49
+        // guards against — so a silent downgrade is exactly the kind of thing
+        // that shows up later as an unexplained stutter. console.info, not
+        // console.error: this is diagnostics, not a failure, and Next's dev
+        // overlay escalates console.error into a visible "Console Error".
+        console.info("[visual-capture] GPU delegate unavailable, using CPU", {
+          reason: gpuError instanceof Error ? gpuError.message : String(gpuError),
+        });
+        try {
+          landmarker = (await initLandmarker("CPU")) as typeof landmarker;
+          delegateInUse = "CPU";
+        } catch {
+          analyzerError = true;
+          // A failed engine must never look like a student facing away - that
+          // would misattribute a technical failure as poor performance
+          // (REQ-42). Report "detected" so no banner is left stuck on screen.
+          onFaceStateChange?.(true);
+          return;
+        }
       }
     }
 
     // One line, once per session, so a walkthrough can confirm at a glance
-    // which delegate is actually doing the work.
+    // which delegate AND which thread is actually doing the work.
     console.info("[visual-capture] engine started", {
       delegate: delegateInUse,
+      thread: usingWorker ? "worker" : "main",
       tickIntervalMs: tickIntervalMs(),
     });
 
