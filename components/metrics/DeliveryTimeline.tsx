@@ -25,8 +25,19 @@
  * measurement.
  */
 
-import { episodeBand, formatTimecode } from "@/lib/metrics/bands";
+import { Chip } from "@heroui/chip";
+
+import { formatTimecode, timelineRows } from "@/lib/metrics/bands";
 import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
+
+/** Plain-language label for each timeline row's kind tag (REQ-55's "tagged
+ * by kind") — never colour-coded by severity, since severity is not a grade
+ * and must not be implied by colour. */
+const GROUP_LABELS: Record<"camera" | "body" | "observation", string> = {
+  camera: "Camera",
+  body: "Body language",
+  observation: "Observation",
+};
 
 /** Rounds to whole percent for display. The underlying value is already a
  * 0-100 figure; this only guards a stored fractional value from rendering as
@@ -35,26 +46,38 @@ function pct(value: number): string {
   return `${Math.round(value)}%`;
 }
 
-/** The episode list on its own — the "Moments" tab's entire content. */
+/**
+ * The episode list on its own — the "Moments" tab's entire content.
+ *
+ * Sources from `timelineRows(visual)` rather than mapping `visual.episodes`
+ * directly, so scored body-language episodes and the descriptive ones
+ * (fidgeting, phone visible) appear in ONE chronological timeline (REQ-55)
+ * while staying distinguishable via a kind tag. `timelineRows` already
+ * applies `capture_offset_s` internally — do not shift again here.
+ */
 export function MomentsPanel({ visual }: { visual: VisualMetrics | null }) {
-  const episodes = Array.isArray(visual?.episodes) ? visual.episodes : [];
-  if (episodes.length === 0) return null;
-  const offsetS = visual?.coverage?.capture_offset_s ?? 0;
+  if (!visual) return null;
+  const rows = timelineRows(visual);
+  if (rows.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-2">
-      {episodes.map((episode, i) => {
-        const row = episodeBand(episode, offsetS);
-        return (
-          <div
-            key={`${episode.kind}-${episode.start_s}-${i}`}
-            className="flex items-baseline justify-between gap-3 border-b border-default-100 pb-2 last:border-0 last:pb-0"
-          >
+      {rows.map((row, i) => (
+        <div
+          key={`${row.group}-${row.label}-${i}`}
+          className="flex items-baseline justify-between gap-3 border-b border-default-100 pb-2 last:border-0 last:pb-0"
+        >
+          <span className="flex items-baseline gap-2">
             <span className="font-mono text-small tabular-nums text-default-500">{row.label}</span>
-            <span className="text-small text-right">{row.value}</span>
-          </div>
-        );
-      })}
+            {/* Muted flat chip, matching the existing timecode idiom — never
+                colour-coded by severity. */}
+            <Chip size="sm" variant="flat" className="text-tiny">
+              {GROUP_LABELS[row.group]}
+            </Chip>
+          </span>
+          <span className="text-small text-right">{row.value}</span>
+        </div>
+      ))}
     </div>
   );
 }
