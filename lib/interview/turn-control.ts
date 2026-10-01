@@ -48,7 +48,11 @@ export function parseInterviewTurn(response: string): ParsedInterviewTurn {
         malformed: true,
       };
     }
-    return { content: response.trim(), action: null, malformed: false };
+    // No marker at all. Previously reported as well-formed, which made it the
+    // ONLY failure mode that logged nothing anywhere — and it is the most
+    // common one, since a reply truncated at the token cap loses its trailing
+    // marker line. Progress silently stopped advancing with no diagnostic.
+    return { content: response.trim(), action: null, malformed: true };
   }
 
   const attributes: Record<string, string> = {};
@@ -56,7 +60,14 @@ export function parseInterviewTurn(response: string): ParsedInterviewTurn {
     attributes[match[1].toLowerCase()] = match[2] ?? match[3] ?? "";
   }
 
-  const content = response.slice(0, marker.index).trim();
+  // Strip every marker, not only the trailing one. Slicing at `marker.index`
+  // alone left an earlier marker embedded in `content` whenever the model
+  // emitted two — and `content` is spoken aloud by the avatar and written to
+  // the transcript, so controller metadata leaked into both.
+  const content = response
+    .slice(0, marker.index)
+    .replace(/<interview-turn\b[^>]*\/?>/gi, "")
+    .trim();
   const kind = attributes.kind;
   const category = attributes.category;
   const categoryRequired = kind === "recovery";
@@ -117,14 +128,31 @@ function nextPlannedProgress(
   }
 
   if (previous.stage === "behavioral") {
-    // A behavioral planned turn must identify its category so a malformed model
-    // response cannot silently mark an unrelated category as covered.
-    if (!action.category) return previous;
-    if (!next.categoriesCovered.includes(action.category)) {
+    // An uncategorised behavioral turn used to `return previous` — discarding
+    // the whole update. That was a deadlock, not a guard: with no resume the
+    // stage goes opening -> behavioral immediately, so the SECOND question is
+    // already behavioral, and the prompt lists the bare
+    // `<interview-turn kind="planned" />` first. A model emitting it had its
+    // progress dropped, the stage never advanced, so the next turn was
+    // behavioral too — forever, with the counter pinned at 1 and the progress
+    // note giving the model no reason to change what it emitted.
+    //
+    // The guard's real intent is narrower than what it did: never mark an
+    // UNRELATED category as covered on a malformed reply. That is preserved
+    // below — an uncategorised turn simply covers no category. What it no
+    // longer does is pretend the question was never asked.
+    if (action.category && !next.categoriesCovered.includes(action.category)) {
       next.categoriesCovered.push(action.category);
     }
     next.questionsAsked += 1;
-    if (next.categoriesCovered.length >= behavioralCategoryQuota) next.stage = "role_specific";
+    next.behavioralQuestionsAsked = (previous.behavioralQuestionsAsked ?? 0) + 1;
+
+    // Two independent ways out, because the first one depends on the model
+    // labelling its markers and the whole point of this block is that it
+    // sometimes does not.
+    const quotaMet = next.categoriesCovered.length >= behavioralCategoryQuota;
+    const askedEnough = next.behavioralQuestionsAsked >= behavioralCategoryQuota;
+    if (quotaMet || askedEnough) next.stage = "role_specific";
     return next;
   }
 

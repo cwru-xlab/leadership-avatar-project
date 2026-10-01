@@ -113,7 +113,14 @@ export function createLLMStream(
         });
 
         // Stream the response with accumulated content
+        let finishReason: string | null = null;
         for await (const chunk of completion) {
+          // Captured because a reply cut off at `max_tokens` loses whatever was
+          // supposed to come last. For the interview that is the turn-control
+          // marker, whose absence silently freezes progress — so a truncation
+          // has to be visible somewhere rather than inferred from a stuck
+          // counter days later.
+          finishReason = chunk.choices[0]?.finish_reason ?? finishReason;
           const content = chunk.choices[0]?.delta?.content;
           if (content) {
             accumulatedContent += content;
@@ -137,6 +144,14 @@ export function createLLMStream(
               completion: chunk.usage.completion_tokens,
             });
           }
+        }
+
+        if (finishReason === "length") {
+          console.warn("[llm] response truncated at max_tokens", {
+            model: modelName,
+            maxTokens: options.maxTokens ?? 500,
+            finalLength: accumulatedContent.length,
+          });
         }
 
         // Send completion message with end timestamp
