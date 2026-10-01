@@ -294,21 +294,20 @@ export default function InterviewSessionShell({
   // safe to call from multiple exit paths (Leave, End, unmount) — the camera
   // LED must go out on every one of them.
   const releaseVisualCapture = useCallback(() => {
-    // try/finally: stopping the ENGINE must never be able to prevent stopping
-    // the TRACKS. The camera LED going out is the part a student actually
-    // sees, and it must not depend on the inference engine shutting down
-    // cleanly first.
-    try {
-      visualCaptureRef.current?.stop();
-    } catch {
-      // Engine teardown is best-effort; the track release below is not.
-    } finally {
-      visualCaptureRef.current = null;
-      visualStartingRef.current = false;
-      cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
-      cameraStreamRef.current = null;
-      setCameraStream(null);
-    }
+    // Capture the handle and release the tracks FIRST, synchronously. The
+    // camera LED going out is the part a student actually sees, and it must
+    // not wait on `stop()`'s now-async (but bounded) engine teardown. The
+    // three callers of this function (unmount, handleLeave, the post-finish
+    // cleanup) discard the metrics entirely, so the engine stop below is
+    // deliberately fire-and-forget.
+    const handle = visualCaptureRef.current;
+    visualCaptureRef.current = null;
+    visualStartingRef.current = false;
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    setCameraStream(null);
+
+    void handle?.stop().catch(() => {});
   }, []);
 
   const releaseMicrophone = useCallback(() => {
@@ -844,16 +843,24 @@ export default function InterviewSessionShell({
     }
     setSubmitting(true);
     // Stop/drain BEFORE the finish fetch so the metrics field rides in the
-    // same request. stop() is synchronous; drain() is awaited and bounded by design (lib/metrics/vocal-capture.ts) — the existing in-flight
-    // spinner (submitting) already covers this wait so End does not look
-    // frozen. drain() never throws by its own contract, but a defensive
-    // catch keeps a truly unexpected failure from losing the interview.
+    // same request. Both stop() and drain() are awaited and bounded by
+    // design (lib/metrics/visual-capture.ts, lib/metrics/vocal-capture.ts) —
+    // the existing in-flight spinner (submitting) already covers this wait so
+    // End does not look frozen. Neither throws by its own contract, but a
+    // defensive catch keeps a truly unexpected failure from losing the
+    // interview.
     let visual: VisualMetrics | null = null;
     let vocal: VocalMetrics | null = null;
     try {
-      visual = visualCaptureRef.current?.stop() ?? null;
+      visual = (await visualCaptureRef.current?.stop()) ?? null;
     } catch {
       visual = null;
+    } finally {
+      // Null the ref immediately so the later releaseVisualCapture() call
+      // (post-finish cleanup) cannot double-stop. stop() is already
+      // idempotent via its own `stopped` flag, so this is belt and braces,
+      // not load-bearing.
+      visualCaptureRef.current = null;
     }
     try {
       vocal = (await vocalCaptureRef.current?.drain()) ?? null;

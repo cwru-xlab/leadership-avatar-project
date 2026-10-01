@@ -1,4 +1,16 @@
-import type { VisualEpisode, VisualMetrics, VocalMetrics } from "./types";
+import {
+  GESTURE_RATE_EXCESSIVE_MIN,
+  GESTURE_RATE_STILL_MAX,
+  HANDS_NEAR_FACE_TRIP_PCT,
+  POSTURE_DRIFT_TRIP,
+} from "./body-thresholds";
+import type {
+  VisualDescriptiveEpisode,
+  VisualEpisode,
+  VisualMetrics,
+  VisualPostureSignal,
+  VocalMetrics,
+} from "./types";
 
 /**
  * Qualitative band mapping for Phase 10 metrics — REQ-46: the report shows
@@ -40,6 +52,16 @@ import type { VisualEpisode, VisualMetrics, VocalMetrics } from "./types";
  *                        >=6 Very frequent (per minute).
  *   volume_consistency  (Volume):      <0.5 Uneven, 0.5-0.7 Variable,
  *                        0.7-0.85 Steady, >=0.85 Very steady.
+ *
+ * Phase 12 (Embodied Visual Signals) extends this file with scored body-
+ * language bands (`visualBodyLanguageBands`) and a deliberately SEPARATE
+ * rendering function for measured-but-never-scored observations
+ * (`visualObservationRows`) — by design, scored and descriptive rendering
+ * now go through two different functions rather than one. `visualBands`
+ * and `visualBodyLanguageBands` must never read `VisualMetrics.observations`;
+ * only `visualObservationRows`/`timelineRows` may. Every provisional
+ * threshold this phase's bands reference lives in `body-thresholds.ts`, not
+ * inline here.
  */
 
 export interface MetricBandRow {
@@ -238,6 +260,37 @@ const EPISODE_LABELS: Record<VisualEpisode["kind"], string> = {
   off_center: "Off centre in frame",
   multiple_faces: "Another person in frame",
   high_movement: "Moving around a lot",
+  excessive_gesturing: "A lot of hand movement",
+  minimal_gesturing: "Very still delivery",
+  hands_near_face: "Hands near face",
+  posture_drift: "Posture shifted from the start of the session",
+};
+
+/** Separate lookup for descriptive episode kinds — deliberately not merged
+ * into `EPISODE_LABELS`, which is keyed on the scored `VisualEpisode["kind"]`
+ * union. Keeping the two lookups apart mirrors the type-level separation
+ * between `VisualEpisodeKind` and `VisualDescriptiveEpisodeKind`. */
+const DESCRIPTIVE_EPISODE_LABELS: Record<VisualDescriptiveEpisode["kind"], string> = {
+  fidgeting: "Hands in motion",
+  phone_visible: "Phone visible",
+};
+
+/** Which display group each episode kind belongs to, for `timelineRows`'s
+ * merged chronological list (REQ-55's "tagged by kind"). Camera/environment
+ * kinds predate this phase; body kinds and descriptive kinds are new. */
+const EPISODE_KIND_GROUP: Record<
+  VisualEpisode["kind"],
+  "camera" | "body"
+> = {
+  off_camera: "camera",
+  gaze_away: "camera",
+  off_center: "camera",
+  multiple_faces: "camera",
+  high_movement: "camera",
+  excessive_gesturing: "body",
+  minimal_gesturing: "body",
+  hands_near_face: "body",
+  posture_drift: "body",
 };
 
 /** `m:ss` from a second offset. */
@@ -267,6 +320,167 @@ export function episodeBand(
     label: `${formatTimecode(episode.start_s + offset)}–${formatTimecode(episode.end_s + offset)}`,
     value: EPISODE_LABELS[episode.kind] ?? "Unusual activity",
   };
+}
+
+/** Plain-language description of which posture signals were available, used
+ * by the unconditional "Measured from" row. */
+const POSTURE_SIGNAL_LABELS: Record<VisualPostureSignal, string> = {
+  shoulder_line: "Shoulder line",
+  forward_head: "Head position",
+  torso_lean: "Torso lean",
+  torso_openness: "Torso openness",
+};
+
+function describeMeasuredFrom(signals: VisualPostureSignal[]): string {
+  if (signals.length === 0) return "Nothing — body not visible in frame";
+  return signals.map((s) => POSTURE_SIGNAL_LABELS[s]).join(" and ");
+}
+
+function bandGesturing(rateRaw: number | undefined, amplitudeRaw: number | undefined): string {
+  const rate = clampFinite(rateRaw ?? 0, 0, 600);
+  if (rate <= GESTURE_RATE_STILL_MAX) return "Very still";
+  if (rate >= GESTURE_RATE_EXCESSIVE_MIN) return "A lot of movement";
+  // Amplitude is read only to keep the signature symmetrical with the
+  // documented two-input shape (rate + amplitude) — the current band split
+  // is rate-driven; a future tuning pass (plan 12-08) may fold amplitude
+  // into the boundary itself.
+  void amplitudeRaw;
+  return "Well judged";
+}
+
+function bandHandsNearFace(pctRaw: number | undefined): string {
+  const pct = clampFinite(pctRaw ?? 0, 0, 100);
+  return pct >= HANDS_NEAR_FACE_TRIP_PCT ? "Frequent" : "Occasional";
+}
+
+function bandPostureDrift(driftMeanRaw: number | undefined, _driftMaxSRaw: number | undefined): string {
+  const drift = clampFinite(driftMeanRaw ?? 0, 0, 1);
+  return drift >= POSTURE_DRIFT_TRIP ? "Shifted from the opening posture" : "Held steady from the opening posture";
+}
+
+/**
+ * The SCORED "Body language" rows — a separate subheading within the visual
+ * bands, grouped apart from the camera/environment rows `visualBands`
+ * renders (REQ-53's report-surfacing decision). Rows are omitted
+ * individually when their backing field is absent, matching `visualBands`'s
+ * own omit-don't-default discipline — this plan ships no producer, so every
+ * row is absent until plans 12-06/12-07 populate the underlying fields.
+ *
+ * "Measured from" is the one row rendered UNCONDITIONALLY whenever
+ * `posture_signals_measured` is present at all, including the empty-array
+ * case — REQ-51's "every posture comment states which signals were
+ * available," deliberately NOT gated on coverage being poor the way
+ * `isPoorVisualCoverage` is.
+ *
+ * Reads ONLY the scored fields on `VisualMetrics` — never `m.observations`.
+ */
+export function visualBodyLanguageBands(m: VisualMetrics): MetricBandRow[] {
+  const rows: MetricBandRow[] = [];
+
+  if (typeof m.gesture_rate_per_min === "number") {
+    rows.push({
+      label: "Gesturing",
+      value: bandGesturing(m.gesture_rate_per_min, m.gesture_amplitude_mean),
+    });
+  }
+
+  if (typeof m.hands_near_face_pct === "number") {
+    rows.push({ label: "Hands near face", value: bandHandsNearFace(m.hands_near_face_pct) });
+  }
+
+  if (typeof m.posture_drift_mean === "number") {
+    rows.push({
+      label: "Posture drift",
+      value: bandPostureDrift(m.posture_drift_mean, m.posture_drift_max_s),
+    });
+  }
+
+  if (Array.isArray(m.posture_signals_measured)) {
+    rows.push({ label: "Measured from", value: describeMeasuredFrom(m.posture_signals_measured) });
+  }
+
+  return rows;
+}
+
+/**
+ * Measured-but-never-scored observation rows (REQ-52/REQ-54). Reads ONLY
+ * `m.observations` and returns `[]` when absent — this is the sole function
+ * in this file permitted to touch that field alongside `timelineRows`.
+ * Rows describe, never judge: no row here may contain a word implying a
+ * grade.
+ */
+export function visualObservationRows(m: VisualMetrics): MetricBandRow[] {
+  const observations = m.observations;
+  if (!observations) return [];
+
+  const rows: MetricBandRow[] = [];
+
+  rows.push({
+    label: "Hand motion",
+    value: `In motion for about ${Math.round(clampFinite(observations.fidget_pct, 0, 100))}% of the session`,
+  });
+
+  rows.push({
+    label: "Phone in frame",
+    value:
+      observations.phone_visible_seconds > 0
+        ? `A phone was visible for about ${Math.round(
+            clampFinite(observations.phone_visible_seconds, 0, Number.MAX_SAFE_INTEGER)
+          )} seconds`
+        : "No phone was visible",
+  });
+
+  if (observations.posture_shoulder_tilt_deg !== null) {
+    rows.push({
+      label: "Shoulder line (absolute)",
+      value: `About ${Math.round(observations.posture_shoulder_tilt_deg)}° of tilt`,
+    });
+  }
+
+  if (observations.posture_forward_head_offset !== null) {
+    rows.push({
+      label: "Head position (absolute)",
+      value: `Offset of about ${observations.posture_forward_head_offset.toFixed(2)}`,
+    });
+  }
+
+  return rows;
+}
+
+/**
+ * Merges the scored `episodes` and `observations.episodes` into ONE
+ * chronological, kind-tagged list (REQ-55's single timeline) — DISPLAY only.
+ * `visualBands`/`visualBodyLanguageBands` still never read `observations`;
+ * this function is the one place both arrays are read together, purely to
+ * interleave them for presentation.
+ */
+export function timelineRows(
+  m: VisualMetrics
+): Array<MetricBandRow & { group: "camera" | "body" | "observation" }> {
+  const offset = m.coverage?.capture_offset_s ?? 0;
+
+  const scoredRows = (m.episodes ?? []).map((episode) => ({
+    ...episodeBand(episode, offset),
+    sortKey: episode.start_s,
+    group: EPISODE_KIND_GROUP[episode.kind],
+  }));
+
+  const descriptiveRows = (m.observations?.episodes ?? []).map((episode) => {
+    const o = clampFinite(offset, 0, 86_400);
+    return {
+      label: `${formatTimecode(episode.start_s + o)}–${formatTimecode(episode.end_s + o)}`,
+      value: DESCRIPTIVE_EPISODE_LABELS[episode.kind] ?? "Unusual activity",
+      sortKey: episode.start_s,
+      group: "observation" as const,
+    };
+  });
+
+  return [...scoredRows, ...descriptiveRows]
+    .sort((a, b) => a.sortKey - b.sortKey)
+    .map(({ sortKey, ...row }) => {
+      void sortKey;
+      return row;
+    });
 }
 
 /**
