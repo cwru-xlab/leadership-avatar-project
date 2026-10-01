@@ -15,12 +15,20 @@ import {
   type VisualSampleCounts,
 } from "../lib/metrics/visual-capture";
 import { resolveVisualOutcome, isPoorVisualCoverage } from "../lib/metrics/coverage";
-import { visualBands, episodeBand } from "../lib/metrics/bands";
+import {
+  visualBands,
+  visualBodyLanguageBands,
+  visualObservationRows,
+  timelineRows,
+  episodeBand,
+} from "../lib/metrics/bands";
 import { parseMetricsPayload } from "../lib/metrics/ingest";
 import {
   VISUAL_EPISODE_KINDS,
   VISUAL_NOT_MEASURED,
+  resolveNotMeasured,
   type VisualCoverage,
+  type VisualDescriptiveObservations,
   type VisualMetrics,
 } from "../lib/metrics/types";
 
@@ -314,6 +322,145 @@ check("episode times are shifted onto the session clock",
 check("zero offset renders capture time unchanged",
   episodeBand({ kind: "multiple_faces", start_s: 0, end_s: 65, severity: 1 }),
   { label: "0:00\u20131:05", value: "Another person in frame" });
+
+console.log("\n9. resolveNotMeasured");
+check("all-false input returns every VISUAL_NOT_MEASURED entry",
+  resolveNotMeasured({ handSignals: false, postureSignals: false, fidget: false, phone: false }),
+  [...VISUAL_NOT_MEASURED]);
+check("all-true input returns exactly background_environment",
+  resolveNotMeasured({ handSignals: true, postureSignals: true, fidget: true, phone: true }),
+  ["background_environment"]);
+check("hand-only input keeps body_posture",
+  resolveNotMeasured({ handSignals: true, postureSignals: false, fidget: true, phone: true })
+    .includes("body_posture"),
+  true);
+
+console.log("\n10. visualBodyLanguageBands (scored)");
+check("still session bands as Very still",
+  bandFor(visualBodyLanguageBands(visual({ gesture_rate_per_min: 0.5 })), "Gesturing"),
+  "Very still");
+check("high-rate session bands as A lot of movement",
+  bandFor(visualBodyLanguageBands(visual({ gesture_rate_per_min: 40 })), "Gesturing"),
+  "A lot of movement");
+check("mid session bands as Well judged",
+  bandFor(visualBodyLanguageBands(visual({ gesture_rate_per_min: 10 })), "Gesturing"),
+  "Well judged");
+check("Measured from row present even with an empty signal array",
+  bandFor(visualBodyLanguageBands(visual({ posture_signals_measured: [] })), "Measured from"),
+  "Nothing — body not visible in frame");
+{
+  // A Phase 10-shaped payload genuinely lacks every Phase 12 field. Rows for
+  // absent fields must be omitted, never defaulted to 0.
+  const phase10Shaped = visual();
+  const rows = visualBodyLanguageBands(phase10Shaped);
+  check("Phase 10-shaped payload yields no body-language rows at all", rows, []);
+}
+
+console.log("\n11. visualObservationRows (descriptive, never scored)");
+check("returns [] when observations absent", visualObservationRows(visual()), []);
+{
+  const observations: VisualDescriptiveObservations = {
+    fidget_pct: 42,
+    phone_visible_seconds: 40,
+    posture_shoulder_tilt_deg: null,
+    posture_forward_head_offset: null,
+    episodes: [],
+  };
+  const rows = visualObservationRows(visual({ observations }));
+  check("phone seconds row present",
+    bandFor(rows, "Phone in frame"),
+    "A phone was visible for about 40 seconds");
+  check("fidget row present",
+    bandFor(rows, "Hand motion"),
+    "In motion for about 42% of the session");
+  check("never a row for a null absolute posture reading",
+    rows.some((r) => r.label === "Shoulder line (absolute)" || r.label === "Head position (absolute)"),
+    false);
+}
+
+console.log("\n12. Structural non-scoring assertions — the point of this plan");
+{
+  const withoutObservations = visual();
+  const withObservations = visual({
+    observations: {
+      fidget_pct: 90,
+      phone_visible_seconds: 120,
+      posture_shoulder_tilt_deg: 12,
+      posture_forward_head_offset: 0.3,
+      episodes: [{ kind: "fidgeting", start_s: 0, end_s: 120, severity: 1 }],
+    },
+  });
+  check("visualBands is byte-identical regardless of observations",
+    visualBands(withObservations), visualBands(withoutObservations));
+  check("visualBodyLanguageBands is byte-identical regardless of observations",
+    visualBodyLanguageBands(withObservations), visualBodyLanguageBands(withoutObservations));
+}
+
+console.log("\n13. timelineRows");
+{
+  const m = visual({
+    episodes: [{ kind: "posture_drift", start_s: 60, end_s: 90, severity: 1 }],
+    observations: {
+      fidget_pct: 0,
+      phone_visible_seconds: 0,
+      posture_shoulder_tilt_deg: null,
+      posture_forward_head_offset: null,
+      episodes: [{ kind: "phone_visible", start_s: 10, end_s: 20, severity: 1 }],
+    },
+  });
+  const rows = timelineRows(m);
+  check("merged list is chronological (earlier-starting descriptive episode first)",
+    rows.map((r) => r.value),
+    ["Phone visible", "Posture shifted from the start of the session"]);
+  check("every row carries a group", rows.every((r) => typeof r.group === "string"), true);
+  check("descriptive episode's group is observation",
+    rows.find((r) => r.value === "Phone visible")?.group, "observation");
+  check("scored body episode's group is body",
+    rows.find((r) => r.value === "Posture shifted from the start of the session")?.group, "body");
+}
+
+console.log("\n14. Ingest — Phase 12 allowlists");
+{
+  const parsed = parseMetricsPayload({
+    cameraMode: "ON",
+    visual: {
+      ...visual(),
+      observations: {
+        fidget_pct: 10,
+        phone_visible_seconds: 5,
+        posture_shoulder_tilt_deg: 3,
+        posture_forward_head_offset: 0.1,
+        episodes: [
+          { kind: "fidgeting", start_s: 0, end_s: 10, severity: 1 },
+          { kind: "telekinesis", start_s: 0, end_s: 10, severity: 1 },
+        ],
+      },
+      posture_signals_measured: ["shoulder_line", "x_ray_vision"],
+    },
+    vocal: null,
+  });
+  check("unknown descriptive episode kind dropped, valid one kept",
+    parsed.visual?.observations?.episodes.length, 1);
+  check("unknown posture_signals_measured entry dropped",
+    parsed.visual?.posture_signals_measured, ["shoulder_line"]);
+}
+check("a media-shaped string inside observations rejects the WHOLE payload",
+  parseMetricsPayload({
+    cameraMode: "ON",
+    visual: {
+      ...visual(),
+      observations: {
+        fidget_pct: 10,
+        phone_visible_seconds: 5,
+        posture_shoulder_tilt_deg: null,
+        posture_forward_head_offset: null,
+        episodes: [],
+        rogue: "https://evil.example/leak",
+      },
+    },
+    vocal: null,
+  }).visual,
+  null);
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);
