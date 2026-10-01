@@ -292,6 +292,25 @@ function windowTrips(w: CaptureWindow, kind: VisualEpisodeKind): boolean {
       return w.multiFace / w.processed > EPISODE_MULTI_FACE_MIN_RATIO;
     case "high_movement":
       return w.movementMean > HIGH_MOVEMENT_THRESHOLD;
+    // The four body-language kinds below were added to the episode vocabulary
+    // by plan 12-02 (the type contract) but their producers do not exist yet:
+    // `CaptureWindow` carries no gesture, hands-near-face or posture-drift
+    // counts until plan 12-05 accumulates them, and the thresholds that decide
+    // these cases are implemented in plan 12-06.
+    //
+    // They return false rather than being omitted so this switch stays
+    // exhaustive over `VisualEpisodeKind`. Omitting them makes the function
+    // implicitly return `undefined`, which TypeScript rejects outright — and a
+    // `default: return false` would have silently swallowed every future kind
+    // added to the vocabulary, which is exactly the failure this file's closed
+    // vocabulary exists to prevent. Returning false here is honest: no window
+    // can currently trip these conditions, so no episode of these kinds is
+    // emitted, so nothing is reported that was not measured.
+    case "excessive_gesturing":
+    case "minimal_gesturing":
+    case "hands_near_face":
+    case "posture_drift":
+      return false;
   }
 }
 
