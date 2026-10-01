@@ -228,9 +228,29 @@ Plans:
 - [x] 11-06-PLAN.md — Sweep the remaining isPrivileged and role === "student" call sites onto the helper
 - [x] 11-07-PLAN.md — Static constraint sweep + human end-to-end walkthrough + phase close
 
+### Phase 12: Embodied Visual Signals
+**Goal:** Make the body measurable. Phase 10's pipeline can only see a face, so hand
+movement, posture, fidgeting and a phone in frame are invisible by construction — a
+session spent waving both arms produced a report that said nothing about it.
+**Depends on:** Phase 10 (metric contract, episode timeline, consent posture) and the
+report restructure (REQ-53's scored-vs-descriptive distinction gates REQ-52).
+**Requirements:** REQ-50, REQ-51, REQ-52, REQ-53, REQ-54, REQ-55, REQ-56, REQ-57, REQ-58
+**Success Criteria** (what must be TRUE):
+  1. Arm movement, posture and a visible phone are measured and tied to timecodes, not
+     inferred from the transcript.
+  2. A camera-on session running four models is indistinguishable from a camera-off run
+     in avatar smoothness and response latency.
+  3. Nothing the pipeline cannot observe is described as absent, and nothing reported
+     descriptively is scored.
+
+**Plans:** 0/0 plans executed — not yet planned
+
+Plans:
+- (none yet — see `12-CONTEXT.md`)
+
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
+**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -245,3 +265,4 @@ Plans:
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
+| 12. Embodied Visual Signals | 0/0 | Not started | — |
