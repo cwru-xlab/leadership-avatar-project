@@ -123,8 +123,14 @@ export interface VisualCaptureHandle {
   /** Tears down the engine and returns the final scalar metrics. Returns
    * `null` only if `start()` was never called. Does NOT stop the
    * MediaStream's tracks - the caller owns the stream (the self-view
-   * thumbnail may still be attached to it). */
-  stop(): VisualMetrics | null;
+   * thumbnail may still be attached to it).
+   *
+   * Returns a bounded promise: it never rejects, and resolves no later than
+   * `timeoutMs` (default `DEFAULT_STOP_TIMEOUT_MS`) even if teardown hangs -
+   * mirrors `lib/metrics/vocal-capture.ts`'s `drain(timeoutMs)`. Interval
+   * teardown and video-element teardown still happen synchronously, before
+   * any await, so no tick can run concurrently with metric assembly. */
+  stop(timeoutMs?: number): Promise<VisualMetrics | null>;
 }
 
 const FORWARD_YAW_LIMIT_DEG = 25;
@@ -151,6 +157,21 @@ const MULTIPLE_FACES_RATIO_THRESHOLD = 0.1;
  * engine answer "was more than one person present" while keeping the per-tick
  * landmark cost bounded. See `initLandmarker`. */
 const MAX_TRACKED_FACES = 3;
+
+/** Bound on how long `stop()` will wait for engine teardown before resolving
+ * anyway. Mirrors `lib/metrics/vocal-capture.ts`'s `DEFAULT_DRAIN_TIMEOUT_MS`
+ * bounded-race pattern: the End button must never hang on a stuck teardown. */
+const DEFAULT_STOP_TIMEOUT_MS = 1500;
+
+/** Fixed-capacity ring buffer size for per-tick inference cost samples.
+ * 100s of ticks at the 6 Hz `METRICS_SAMPLE_HZ` cadence — diagnostics only,
+ * never grows, never included in `VisualMetrics` (REQ-58). */
+const TICK_COST_SAMPLES = 600;
+
+/** A tick's gap from the previous tick beyond this multiple of the expected
+ * interval counts as a dropped tick — the event loop did not get back to us
+ * on time. Diagnostics only. */
+const DROPPED_TICK_GAP_MULTIPLIER = 1.8;
 
 /** Seconds of samples folded into one window before it is closed and pushed.
  * Short enough to localise an excursion usefully, long enough that a blink or
@@ -452,6 +473,15 @@ export function createVisualCapture(
   let lumaSum = 0;
   let lumaSamples = 0;
 
+  // Per-tick inference cost instrumentation (REQ-57 diagnostics only — never
+  // included in `VisualMetrics`, never leaves the browser as a metric field).
+  // Fixed-capacity ring buffer: overwrite oldest, never grow.
+  const tickCostMsRing: number[] = [];
+  let tickCostRingIndex = 0;
+  let tickCostSamplesSeen = 0;
+  let droppedTicks = 0;
+  let lastTickEntryMs: number | null = null;
+
   // Face-state debounce for the banner callback.
   let reportedFaceDetected = true; // assume detected until proven otherwise
   let candidateFaceDetected = true;
@@ -605,6 +635,20 @@ export function createVisualCapture(
     if (!videoEl || !landmarker) return;
     tickCount += 1;
 
+    // Dropped-tick detection (REQ-57 diagnostics): if the gap since the last
+    // tick's entry is well beyond the expected interval, the event loop did
+    // not get back to us on time. Measured unconditionally, ahead of every
+    // early return below, so a track going dead or a decode stall is also
+    // visible in the frame-budget report.
+    const tickEntryMs = performance.now();
+    if (
+      lastTickEntryMs !== null &&
+      tickEntryMs - lastTickEntryMs > DROPPED_TICK_GAP_MULTIPLIER * tickIntervalMs()
+    ) {
+      droppedTicks += 1;
+    }
+    lastTickEntryMs = tickEntryMs;
+
     const track = stream.getVideoTracks()[0];
     if (!track || track.readyState !== "live") {
       // Track is dead - do NOT increment processedSamples and do NOT add to
@@ -635,6 +679,7 @@ export function createVisualCapture(
       faceLandmarks: Array<Array<{ x: number; y: number }>>;
       facialTransformationMatrixes: Array<{ data: number[] }>;
     };
+    const detectStartMs = performance.now();
     try {
       result = landmarker.detectForVideo(videoEl, performance.now());
     } catch {
@@ -645,6 +690,12 @@ export function createVisualCapture(
       }
       return;
     }
+    // Per-tick inference cost (REQ-57 diagnostics): fixed-capacity ring
+    // buffer, overwrite oldest, never grow.
+    const detectCostMs = performance.now() - detectStartMs;
+    tickCostMsRing[tickCostRingIndex] = detectCostMs;
+    tickCostRingIndex = (tickCostRingIndex + 1) % TICK_COST_SAMPLES;
+    tickCostSamplesSeen += 1;
     consecutiveDetectErrors = 0;
     processedSamples += 1;
     winProcessed += 1;
@@ -858,19 +909,35 @@ export function createVisualCapture(
     isSpeaking = speaking;
   }
 
-  function stop(): VisualMetrics | null {
+  /** Closes the landmarker, bounded by `timeoutMs`. Today this has nothing
+   * async to await inside - `landmarker.close()` is synchronous - but the
+   * seam is introduced deliberately now so plan 12-03's Web Worker migration
+   * (where closing becomes a message round-trip) can drop its await in here
+   * without touching any call site a second time. Never throws. */
+  async function closeEngine(timeoutMs: number): Promise<void> {
+    await Promise.race([
+      (async () => {
+        try {
+          landmarker?.close();
+        } catch {
+          // Best-effort teardown.
+        }
+        landmarker = null;
+      })(),
+      new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
+  }
+
+  async function stop(
+    timeoutMs: number = DEFAULT_STOP_TIMEOUT_MS
+  ): Promise<VisualMetrics | null> {
     if (!started) return null;
     if (stopped) return null;
     stopped = true;
 
+    // These two teardown steps stay synchronous and happen before any await,
+    // so no tick can run concurrently with the metric assembly below.
     stopInterval();
-
-    try {
-      landmarker?.close();
-    } catch {
-      // Best-effort teardown.
-    }
-    landmarker = null;
 
     if (videoEl) {
       videoEl.pause();
@@ -880,6 +947,8 @@ export function createVisualCapture(
     }
     lumaCanvas = null;
     lumaCtx = null;
+
+    await closeEngine(timeoutMs);
 
     const sessionSeconds = (sessionStartMs() - startedAtMs) / 1000;
     const expectedSamples = Math.floor(trackLiveSeconds * METRICS_SAMPLE_HZ);
@@ -930,6 +999,42 @@ export function createVisualCapture(
     if (rates.multipleFacesRatio > MULTIPLE_FACES_RATIO_THRESHOLD) {
       postureFlags.push("multiple_faces_detected");
     }
+
+    // Frame-budget report (REQ-57 diagnostics only). Fields are never part
+    // of `VisualMetrics` and never persisted - `models` is a literal that
+    // later plans increment as more MediaPipe runners are added to the tick
+    // loop; everything else here is measured straight off this session's own
+    // ring buffer. Runs once per session, so sorting a copy for p95 is cheap.
+    const filledTickCostSamples = Math.min(
+      tickCostSamplesSeen,
+      TICK_COST_SAMPLES
+    );
+    const tickCostSamplesSorted = tickCostMsRing
+      .slice(0, filledTickCostSamples)
+      .sort((a, b) => a - b);
+    const meanTickMs =
+      filledTickCostSamples > 0
+        ? tickCostSamplesSorted.reduce((sum, ms) => sum + ms, 0) /
+          filledTickCostSamples
+        : 0;
+    const p95Index = Math.max(
+      0,
+      Math.min(
+        filledTickCostSamples - 1,
+        Math.ceil(filledTickCostSamples * 0.95) - 1
+      )
+    );
+    const p95TickMs =
+      filledTickCostSamples > 0 ? tickCostSamplesSorted[p95Index] : 0;
+    console.info("[visual-capture] frame budget", {
+      delegate: delegateInUse,
+      models: 1,
+      meanTickMs: Math.round(meanTickMs * 10) / 10,
+      p95TickMs: Math.round(p95TickMs * 10) / 10,
+      droppedTicks,
+      processedSamples,
+      expectedSamples,
+    });
 
     return {
       eye_contact_pct: rates.eyeContactPct,
