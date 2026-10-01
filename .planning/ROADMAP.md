@@ -243,7 +243,7 @@ report restructure (REQ-53's scored-vs-descriptive distinction gates REQ-52).
   3. Nothing the pipeline cannot observe is described as absent, and nothing reported
      descriptively is scored.
 
-**Plans:** 8 plans
+**Plans:** 2/8 plans executed
 
 Plans:
 - [ ] 12-01-PLAN.md — Async stop() teardown + per-tick frame-budget instrumentation
@@ -272,4 +272,4 @@ Plans:
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
-| 12. Embodied Visual Signals | 0/8 | Planned | — |
+| 12. Embodied Visual Signals | 2/8 | In Progress|  |
