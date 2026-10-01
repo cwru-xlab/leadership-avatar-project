@@ -2,34 +2,26 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-09-23 (Phase 11 COMPLETE — all 7 plans executed and signed off, including the 11-07 human walkthrough. All 11 roadmapped phases now complete; no Phase 12 exists yet.)
+**Updated:** 2026-10-01 (Phase 12 — Embodied Visual Signals — IN PROGRESS. Plans 12-01 and 12-02 complete, running concurrently; 12-03 through 12-08 not yet executed.)
 
 ## Current Position
 
-**Phase:** 11 — Cohort & Staff Teardown — COMPLETE
-**Current Plan:** All 7 plans complete (`11-01-SUMMARY.md` through
-`11-07-SUMMARY.md`). 11-03's checkpoint was resolved by the user choosing
-"delete-all" and the deletions applied; 11-07's closing static sweep passed
-(one trivial dangling-reference fix applied), and 11-07's human end-to-end
-walkthrough was completed and explicitly approved by the user, including a
-checkpoint-authorized fix for a real pre-existing (Phase 9) nested-`<button>`
-hydration defect found live in `components/scenario/ScenarioCard.tsx` during
-that walkthrough. See "Phase 11 Status: COMPLETE" below and
-`.planning/phases/11-cohort-staff-teardown/` on disk for full detail.
+**Phase:** 12 — Embodied Visual Signals — IN PROGRESS
+**Current Plan:** 12-01 (async `stop()` + frame-budget instrumentation) and
+12-02 (type contract extension) both complete — see their entries under
+"Decisions" above and `12-01-SUMMARY.md`/`12-02-SUMMARY.md`. Both ran
+concurrently in the same working directory with no worktree isolation; a
+git-index race absorbed 12-02's `lib/metrics/bands.ts`/`lib/metrics/ingest.ts`
+changes into a 12-01 commit (`53681e8`) — content verified intact, nothing
+lost, documented in both plans' `deferred-items.md`/`SUMMARY.md`. 12-03
+through 12-08 not yet executed.
 
-**Previous phase:** 10 — Video & Audio Metrics — COMPLETE
-**Current Plan:** All 11 plans (10-01 through 10-11) complete. Phase 10 signed
-off: 22-point static constraint sweep (all PASS, re-verified twice more after
-two late-landing fix commits), a live re-run of the liveness-vs-performance
-discriminator's seven assertions, and a human-confirmed end-to-end walkthrough
-against two real camera-on interviews, with one real defect (orphaned camera
-streams keeping the indicator light on after End) found from the user's own
-bug report and fixed under the checkpoint (commit `5c7a2bd`, not yet
-re-confirmed on hardware). See "Phase 10 Status: COMPLETE" below and
-`10-11-SUMMARY.md` for full verbatim detail.
-**Status:** Phase 11 COMPLETE (7/7 plans). All 11 roadmapped phases now
-complete — no Phase 12 exists in `ROADMAP.md` yet.
-**Branch:** feature/interview-baseline
+**Previous phase:** 11 — Cohort & Staff Teardown — COMPLETE. All 7 plans
+executed and signed off, including the 11-07 human walkthrough; see "Phase 11
+Status: COMPLETE" below and `.planning/phases/11-cohort-staff-teardown/` on
+disk for full detail.
+**Status:** Phase 12 IN PROGRESS (2/8 plans complete: 12-01, 12-02).
+**Branch:** feature/visual-analysis-expansion
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
 live session shell) shipped before this project used GSD and were reconstructed
@@ -134,6 +126,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 11]: 11-07 (closing static sweep + human walkthrough, PHASE COMPLETE): the sweep baseline had to be commit `98f4577` (the commit immediately preceding 11-01's first commit) rather than `main`, since `main` trails this branch by 5 phases and would make every locked-constraint diff meaningless — documented as a pattern for future phase-closeout sweeps. All static checks passed (`npx tsc --noEmit` clean; `prisma/schema.prisma`/migrations/kiosk/`lib/s3-client.ts` byte-unchanged; `PROFESSOR` still in the Role enum; exactly one `toAppRole` definition; every middleware route-array entry resolves; no `deleteMany`/`deleteObject`/export-tooling additions), plus a live 404 proof (authenticated as `admin@example.com`, since unauthenticated requests to any non-public route 307-redirect to `/login` before route resolution and are indistinguishable from a real 404) against all 6 deleted pages and all 15 checkpoint-deleted API routes, and a normal-response proof against kept routes. One trivial dangling reference was found and fixed in place (`app/chat/view/[session-id]/page.tsx`'s four `router.push("/users-and-usages")` calls, repointed to `/`, commit `01ebd2e`) — missed by every prior Phase 11 plan since this file was never in any of their scopes. During the human walkthrough (step 3, self-service scenario flow) the user hit and reported a real, pre-existing Phase 9 defect in `components/scenario/ScenarioCard.tsx`: HeroUI's `Card isPressable` renders a native `<button>`, nesting three owner-action `<Button>`s (also native `<button>`s) inside it — illegal HTML, causing a hydration error. This was larger than a one-line dangling reference, so per this plan's own constraint it was surfaced as a finding rather than improvised; the user explicitly authorized the fix with specific requirements (preserve visual appearance, preserve keyboard accessibility, keep child buttons' `stopPropagation`, keep both owned/non-owned variants working). Fixed by replacing `Card isPressable`/`onPress` with a plain `<div role="button" tabIndex={0} onClick onKeyDown>` wrapper (Enter/Space activation added), hand-replicating `isPressable`'s press-scale/tap-highlight affordances via real HeroUI-plugin Tailwind utilities already used elsewhere in the codebase — commit `5780ccd`, confirmed by the user ("works") before the walkthrough's final "approved" sign-off. No headless browser was available in this environment to directly re-trigger the original console warning; verification relied on `npx tsc --noEmit`, a server-rendered nested-button-depth check, and the user's own live confirmation. The user then explicitly approved all eight walkthrough steps. `prisma/schema.prisma`/`prisma/migrations` confirmed empty-diffed against `98f4577` — this phase wrote no schema change and no migration, matching the plan's hard constraint. See `11-07-SUMMARY.md` for the full pass/fail sweep table and both deviations' complete detail.
 
 - [Phase 12-embodied-visual-signals]: 12-02 (type contract extension — `lib/metrics/types.ts`, `lib/metrics/body-thresholds.ts`, `lib/metrics/ingest.ts`, `lib/metrics/bands.ts`): complete. Commits `d348b08`, `53681e8` (content absorbed into a concurrent sibling 12-01 commit — see below), `31532a8`. Added the scored body-language fields (`gesture_rate_per_min`, `gesture_amplitude_mean`, `hands_above_shoulder_pct`, `hands_near_face_pct`, `posture_drift_mean`, `posture_drift_max_s`, `posture_signals_measured`) and a structurally SEPARATE `VisualDescriptiveObservations` type (fidget_pct, phone_visible_seconds, absolute posture readings, descriptive episodes) that `visualBands()`/`visualBodyLanguageBands()` never read — enforced via two genuinely separate TypeScript episode-kind unions (`VisualEpisodeKind` vs the new `VisualDescriptiveEpisodeKind`), verified with a throwaway `@ts-expect-error` compile probe confirming a descriptive episode cannot enter the scored array. Added pure `resolveNotMeasured()` (replacing the unconditional `VISUAL_NOT_MEASURED` spread) and a new `lib/metrics/body-thresholds.ts` holding every provisional numeric threshold this phase needs, labelled PROVISIONAL pending plan 12-08's real-recording tuning pass. `VISUAL_NOT_MEASURED` still carries all five original entries (confirmed by grep) — this plan ships contract only, no producer; 12-06/12-07 remove entries as their pipelines land. `scripts/verify-visual-metrics.ts` gained 18 new passing assertions (sections 9-14) covering `resolveNotMeasured`'s three input shapes, the scored/descriptive rendering split, the structural non-scoring guarantee (`visualBands`/`visualBodyLanguageBands` byte-identical with and without `observations`), `timelineRows`' chronological kind-tagged merge, and the new ingest allowlists. `npx tsc --noEmit` clean across every file this plan owns (confirmed by filtering out the one known, logged, sibling-owned `visual-capture.ts` compile gap — see `deferred-items.md`). 12-02 ran concurrently with sibling 12-01 in the same working directory (shared git index, no worktree isolation); `lib/metrics/bands.ts`/`lib/metrics/ingest.ts` were staged with literal paths and committed, but a sibling commit landed in the narrow window between and absorbed them into `53681e8` ("feat(12-01): await the now-async visual-capture stop()...") — confirmed byte-identical via empty `git diff`, nothing lost, independently corroborated by the sibling's own `deferred-items.md` entry for the same race. Full detail in `12-02-SUMMARY.md`.
+- [Phase 12-embodied-visual-signals]: 12-01 (async `stop()` + frame-budget instrumentation — `lib/metrics/visual-capture.ts`, `components/interview/InterviewSessionShell.tsx`, `app/case-play/[caseId]/page.tsx`): complete. Commits `60eb99c`, `53681e8`. `VisualCaptureHandle.stop(timeoutMs?)` changed from synchronous to a bounded, never-rejecting `Promise<VisualMetrics | null>` (default `DEFAULT_STOP_TIMEOUT_MS = 1500`), mirroring `vocal-capture.ts`'s `drain(timeoutMs)` pattern via a new inline `closeEngine(timeoutMs)` seam — introduced now, ahead of any real async teardown work, specifically so plan 12-03's Web Worker migration can drop a message round-trip into that seam without a second call-site refactor. Interval and video-element teardown stay synchronous and ahead of the first await (ordering constraint verified by reading the diff). Added per-tick `detectForVideo` cost tracking in a fixed-capacity 600-sample ring buffer plus a dropped-tick counter (gap > 1.8x the expected tick interval), surfaced as one `console.info("[visual-capture] frame budget", ...)` line per camera-on session with `{delegate, models: 1, meanTickMs, p95TickMs, droppedTicks, processedSamples, expectedSamples}` — confirmed by grep absent from both the `VisualMetrics` return object and `lib/metrics/types.ts` (diagnostics only, REQ-58). All five real teardown call sites updated: both combined release helpers (`releaseVisualCapture`, `stopAndReleaseVisualCapture`) now capture the handle into a local and null the ref, release camera tracks synchronously FIRST, then fire-and-forget the engine stop (`void handle?.stop().catch(() => {})`) since their combined callers (unmount, Leave, Save&exit, post-finish cleanup) discard the metrics entirely; `handleEnd` and the scenario finish handler now `await` `stop()` for the value they actually submit, with `handleEnd` additionally nulling `visualCaptureRef.current` immediately after as a belt-and-braces (not load-bearing — `stop()` is already idempotent via its own `stopped` flag) guard against a double-stop from the later `releaseVisualCapture()` cleanup call. `npx tsc --noEmit` clean for every file this plan touches; `npx eslint` returned 0 errors (pre-existing style-only warnings, matching the established repo-wide precedent); `npx tsx scripts/verify-visual-metrics.ts` still exits 0 unchanged. REQ-57 deliberately left unchecked in `REQUIREMENTS.md` despite appearing in this plan's frontmatter — matching the established split-requirement precedent, since this plan only lays the single-model async/instrumentation groundwork REQ-57's full text (four models, no session degradation) needs; it stays open until the multi-model/worker plans land. Hit the exact same git-index race documented in 12-02's entry above, from the other side: Task 2's commit (`53681e8`) was staged with only this plan's own two files, but a sibling `git add` for `lib/metrics/bands.ts`/`lib/metrics/ingest.ts` landed in the index in the narrow window before `git commit` ran, and the commit absorbed them — confirmed via `git show --stat`/`git diff` against 12-02's own prior commit that the content is sibling 12-02's legitimate, intact, additive work, not corrupted; no `git reset` attempted per the documented hazard protocol. One pre-existing/sibling-caused `tsc` error (`windowTrips()` non-exhaustive over 12-02's newly-added `VisualEpisodeKind` values) logged, not fixed, in `deferred-items.md` — out of this plan's scope since the real window-trip logic for those kinds needs pose/hand data a later plan introduces. Full detail in `12-01-SUMMARY.md`.
 
 ## Progress
 
@@ -1087,10 +1080,12 @@ user's own live confirmation ("works") before final sign-off.
 Phase 11 (Cohort & Staff Teardown) is COMPLETE — see "Phase 11 Status:
 COMPLETE" above and `11-07-SUMMARY.md`.
 
-**All 11 phases in `ROADMAP.md` are now complete. No Phase 12 exists yet.**
-The next step for this project is either defining a new phase/milestone
-(schema cleanup, real Role-enum collapse, and the other deferred items
-listed above are natural candidates) or considering v1.0 shipped as-is.
+**Phase 12 (Embodied Visual Signals) is now IN PROGRESS** (added
+2026-10-01, superseding the "no Phase 12 exists" note below, which is now
+stale) — 12-01 and 12-02 complete (see "Decisions" above), 12-03 through
+12-08 remain. The schema cleanup / Role-enum collapse / other deferred
+items listed below are still open candidates for a future phase/milestone,
+independent of Phase 12.
 This is a decision for the user/product owner, not something to infer from
 `ROADMAP.md` alone.
 
