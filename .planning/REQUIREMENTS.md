@@ -322,24 +322,33 @@ was decided, they do not add scope.*
 
 - **REQ-50** — [ ] Hand and arm movement is measured, not inferred. Gesticulation rate,
   motion amplitude, hands-above-shoulder and hands-near-face are derived from hand
-  landmarks and reported as behaviour. The canned gesture vocabulary cannot identify a
-  specific or offensive gesture and must never be described as doing so.
+  landmarks and reported as behaviour, on a three-band curve — too still / well-judged /
+  excessive — so both extremes are reportable rather than only excess. Hands-near-face is a
+  distinct signal. Commentary describes the motion and may invite reflection, but must never
+  assert an effect on the interviewer, which nothing here measures. The canned gesture
+  vocabulary cannot identify a specific or offensive gesture and must never be described as
+  doing so.
 
 - **REQ-51** — [ ] Body posture is measured from body landmarks — shoulder-line tilt,
-  forward-head, torso lean and openness — replacing the face-bounding-box proxy that
-  `posture_flags` stands on today.
+  forward-head, torso lean and openness. The SCORE comes from drift against the student's
+  own opening posture, never against a fixed upright ideal; the absolute reading is
+  reported but not graded. A partially visible body is scored on the landmarks that ARE
+  available rather than skipped, and every posture comment states which were measured.
 
 - **REQ-52** — [ ] Fidgeting is measured and REPORTED BUT NEVER SCORED. It is surfaced as
   self-awareness information only. Fidgeting overlaps heavily with stimming, ADHD and
   anxiety presentations, and gesture norms vary culturally; describing it is defensible
   for a graded assessment, penalising it is not.
 
-- **REQ-53** — [ ] The report visibly distinguishes signals that count toward a score from
-  signals that are descriptive only, so a student cannot read an unscored observation as a
-  deduction. REQ-52 depends on this.
+- **REQ-53** — [ ] Descriptive-only signals live in their own report section — not inline
+  with scored rows carrying a marker — so a student cannot read an unscored observation as
+  a deduction. Scored body signals group under their own subheading within the visual
+  bands. REQ-52 and REQ-54 depend on this.
 
 - **REQ-54** — [ ] A phone visible in frame is reported factually — "a phone was visible
   for 40 seconds" — never as an inference about attention, which the sensor cannot support.
+  Descriptive only: it does not affect any score, since a phone sitting on the desk in shot
+  is not misconduct.
 
 - **REQ-55** — [ ] Every new signal joins the existing episode timeline with timecodes on
   the session clock, so it can be tied to what was being discussed. No new signal is
