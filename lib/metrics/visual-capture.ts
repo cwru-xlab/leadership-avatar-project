@@ -1293,6 +1293,7 @@ export function createVisualCapture(
       filledTickCostSamples > 0 ? tickCostSamplesSorted[p95Index] : 0;
     console.info("[visual-capture] frame budget", {
       delegate: delegateInUse,
+      thread: usingWorker ? "worker" : "main",
       models: 1,
       meanTickMs: Math.round(meanTickMs * 10) / 10,
       p95TickMs: Math.round(p95TickMs * 10) / 10,
