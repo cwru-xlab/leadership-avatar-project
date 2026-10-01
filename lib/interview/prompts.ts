@@ -392,6 +392,12 @@ RUBRIC — SCORE AND COMMENT ON EACH CATEGORY BELOW
      missing data
    - Whether anyone else was in frame (multiple_faces_detected): an interview
      is expected to be one person alone
+   - Steadiness in frame (posture_flags): high_head_movement means sustained
+     restless head motion; face_partially_out_of_frame means they repeatedly
+     drifted out of shot. When either flag IS present, say so and tie it to a
+     moment — episodes of kind high_movement carry the timecodes. Never
+     comment on a flag's ABSENCE: an unflagged session means the behaviour was
+     not observed, not that it was verified clean.
    - Lighting
    - Mention coverage in the Visual commentary ONLY when
      coverage.face_detected_samples / coverage.processed_samples is low —
