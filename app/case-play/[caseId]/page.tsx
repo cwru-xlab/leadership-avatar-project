@@ -421,26 +421,31 @@ export default function CasePlayPage() {
 
   /** Stops the visual engine, returns its final scalar metrics, and stops
    * every camera track. Idempotent and safe from any exit path — the camera
-   * LED must go out every time this runs. */
-  const stopAndReleaseVisualCapture = useCallback((): VisualMetrics | null => {
-    let result: VisualMetrics | null = null;
-    try {
-      result = visualCaptureRef.current?.stop() ?? null;
-    } catch {
-      result = null;
-    }
+   * LED must go out every time this runs, and does so synchronously, ahead
+   * of the (now async, but bounded) engine stop awaited below. */
+  const stopAndReleaseVisualCapture = useCallback(async (): Promise<VisualMetrics | null> => {
+    const handle = visualCaptureRef.current;
     visualCaptureRef.current = null;
     scenarioCameraStreamRef.current?.getTracks().forEach((t) => t.stop());
     scenarioCameraStreamRef.current = null;
     setScenarioSelfViewStream(null);
+
+    let result: VisualMetrics | null = null;
+    try {
+      result = (await handle?.stop()) ?? null;
+    } catch {
+      result = null;
+    }
     return result;
   }, []);
 
   /** Combined release for exit paths that don't need the resulting metrics
    * (unmount, Save & exit) — mirrors `stopAndReleaseVisualCapture` plus the
-   * vocal engine's stream detach. */
+   * vocal engine's stream detach. Runs from an unmount cleanup, where a
+   * promise cannot be awaited, so the engine stop is fire-and-forget; the
+   * camera track release inside it is still synchronous and immediate. */
   const releaseScenarioCapture = useCallback(() => {
-    stopAndReleaseVisualCapture();
+    void stopAndReleaseVisualCapture().catch(() => {});
     vocalCaptureRef.current?.detachStream();
   }, [stopAndReleaseVisualCapture]);
 
@@ -1434,15 +1439,15 @@ export default function CasePlayPage() {
       // branch at all. Not fixed here — out of scope for this plan.
       if (isScenario && scenarioReportId) {
         // Stop/drain BEFORE the finish fetch so the metrics field rides in
-        // the same request. stop() is synchronous; drain() is awaited and
-        // bounded by design (lib/metrics/vocal-capture.ts). drain()
-        // never throws by its own contract, but a defensive catch keeps a
-        // truly unexpected failure from losing the run — null metrics beat
-        // a lost submission.
+        // the same request. Both stop() and drain() are awaited and bounded
+        // by design (lib/metrics/visual-capture.ts,
+        // lib/metrics/vocal-capture.ts). Neither throws by its own contract,
+        // but a defensive catch keeps a truly unexpected failure from losing
+        // the run — null metrics beat a lost submission.
         let visual: VisualMetrics | null = null;
         let vocal: VocalMetrics | null = null;
         try {
-          visual = stopAndReleaseVisualCapture();
+          visual = await stopAndReleaseVisualCapture();
         } catch {
           visual = null;
         }
