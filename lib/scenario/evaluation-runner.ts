@@ -14,6 +14,7 @@
  * against an edited or deleted scenario and break REQ-33/REQ-34.
  */
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { s3Storage } from "@/lib/s3-client";
 import {
@@ -41,6 +42,23 @@ function truncateErrorMessage(message: string): string {
  * `events` is an audit trail that is not guaranteed to carry `messageContent`
  * for every turn.
  */
+/**
+ * Elapsed `m:ss` from the run's start.
+ *
+ * Wall-clock times ("3:42:15 PM") were unusable for the one job this stamp
+ * now has: letting the evaluator match a visual episode or a hesitant turn to
+ * what was being said at that moment. Metrics arrive as seconds elapsed, so
+ * the transcript has to speak the same units. `log.startedAt` is the shared
+ * zero point — the same value the client hands the capture engine as
+ * `sessionStartedAtMs`.
+ */
+function elapsedStamp(timestamp: number, startedAt: number): string {
+  const elapsed = Math.max(0, Math.round((timestamp - startedAt) / 1000));
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
 function buildTranscriptFromRoleInteractions(log: InteractionLog): string {
   const lines: string[] = [];
 
@@ -56,7 +74,7 @@ function buildTranscriptFromRoleInteractions(log: InteractionLog): string {
     lines.push(`\n--- Conversation with: ${roleName} ---`);
 
     for (const message of [...messages].sort((a, b) => a.timestamp - b.timestamp)) {
-      const time = new Date(message.timestamp).toLocaleTimeString();
+      const time = elapsedStamp(message.timestamp, log.startedAt);
       const speaker =
         message.role === "user" ? `Student → ${roleName}` : `${roleName} → Student`;
       lines.push(`[${time}] ${speaker}: ${message.content}`);
@@ -83,7 +101,7 @@ function buildTranscriptFromEvents(log: InteractionLog): string {
   let currentRole: string | null = null;
 
   for (const event of events) {
-    const time = new Date(event.timestamp).toLocaleTimeString();
+    const time = elapsedStamp(event.timestamp, log.startedAt);
 
     switch (event.type) {
       case "start_session":
@@ -261,6 +279,11 @@ export async function runAndPersistScenarioEvaluation(
         contentScore: result.contentScore,
         behavioralScore: result.behavioralScore,
         reportMarkdown: result.reportMarkdown,
+        // Cast rather than widening `StructuredReport` with an index
+        // signature: Prisma's `InputJsonValue` requires one, and adding it to
+        // the shared type would let any stray key through. `structured.ts` is
+        // deliberately Prisma-free, so the coupling lives here.
+        reportStructured: result.reportStructured as unknown as Prisma.InputJsonValue,
         failureReason: null,
         evalModel: result.evalModel,
         completedAt: new Date(),

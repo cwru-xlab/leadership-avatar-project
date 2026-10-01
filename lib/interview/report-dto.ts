@@ -1,3 +1,4 @@
+import { asStructuredReport, type StructuredReport } from "@/lib/report/structured";
 import type { InterviewReport } from "@prisma/client";
 import type {
   CameraMode,
@@ -62,6 +63,9 @@ export interface InterviewReportDTO {
     targetQuestionCount: number | null;
     interviewerPersona: string | null;
   };
+  /** Structured body (see `lib/report/structured.ts`). Null on pre-migration
+   * rows, which fall back to rendering `reportMarkdown`. */
+  reportStructured: StructuredReport | null;
   reportMarkdown: string | null;
   failureReason: string | null;
   startedAt: string; // ISO
@@ -154,6 +158,7 @@ export function toInterviewReportDTO(row: InterviewReport): InterviewReportDTO {
       targetQuestionCount: row.targetQuestionCount,
       interviewerPersona: row.interviewerPersona,
     },
+    reportStructured: asStructuredReport(row.reportStructured),
     reportMarkdown: row.reportMarkdown,
     failureReason: row.failureReason,
     startedAt: row.startedAt.toISOString(),
