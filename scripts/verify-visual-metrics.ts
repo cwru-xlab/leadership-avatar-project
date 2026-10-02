@@ -250,6 +250,11 @@ function win(startS: number, over: Partial<CaptureWindow> = {}): CaptureWindow {
     startS, endS: startS + 5,
     processed: 30, detected: 30, forward: 30, centered: 30,
     multiFace: 0, movementMean: 0,
+    // 12-05 fields: zeroed by default in this pre-12-05-scoped fixture.
+    // `windowTrips` does not read any of these yet (see its own comment),
+    // so these defaults cannot change any assertion's outcome below.
+    poseProcessed: 0, driftSum: 0, gestureSum: 0, gestureSamples: 0,
+    nearFaceCount: 0, fidgetCount: 0, phoneCount: 0,
     ...over,
   };
 }
