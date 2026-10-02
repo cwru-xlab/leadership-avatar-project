@@ -580,9 +580,26 @@ export type VisualUnscoredReason = "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA";
  * chose to type instead of speak — a modality choice, never a penalty
  * (REQ-44), deliberately NOT symmetric with the visual opt-out case, since
  * typing has no equivalent "opted out at session start" toggle.
- * `INSUFFICIENT_DATA` means speech was attempted but could not be analyzed.
+ *
+ * BUG FIX (12-08 Task 1 checkpoint, Defect F): `SPEECH_TOO_SHORT` is a
+ * DIFFERENT outcome from `TYPED_ONLY`, split out of what used to be a
+ * single collapsed case. A real session had `spoken_turns > 0` (the
+ * student used the microphone for three answers) but `spoken_seconds` fell
+ * under `MIN_SPOKEN_SECONDS_TO_SCORE` — `resolveVocalOutcome` returned
+ * `TYPED_ONLY` for it anyway, and the score card rendered "You typed your
+ * answers, so there was no speech to measure," a specific false claim about
+ * what the student did, while the SAME report's Voice bands showed real
+ * measured pace/filler/pause/volume figures from the speech that WAS
+ * captured. `TYPED_ONLY` now means EXACTLY what it says — `spoken_turns
+ * === 0` — and `SPEECH_TOO_SHORT` means the student spoke, but not enough
+ * to score reliably. `INSUFFICIENT_DATA` means speech was attempted but
+ * could not be analyzed (a genuine technical failure, neither modality
+ * outcome).
  */
-export type VocalUnscoredReason = "TYPED_ONLY" | "INSUFFICIENT_DATA";
+export type VocalUnscoredReason =
+  | "TYPED_ONLY"
+  | "SPEECH_TOO_SHORT"
+  | "INSUFFICIENT_DATA";
 
 /**
  * Exactly what the client POSTs to a finish route.

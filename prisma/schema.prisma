@@ -319,7 +319,7 @@ model InterviewReport {
   visualMetrics        Json?
   vocalMetrics         Json?
   visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
-  vocalUnscoredReason  String?   // "TYPED_ONLY" | "INSUFFICIENT_DATA"
+  vocalUnscoredReason  String?   // "TYPED_ONLY" | "SPEECH_TOO_SHORT" | "INSUFFICIENT_DATA"
   metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
 
   /// Structured report body — see `lib/report/structured.ts`. Null on every row
@@ -384,7 +384,7 @@ model ScenarioReport {
   visualMetrics        Json?
   vocalMetrics         Json?
   visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
-  vocalUnscoredReason  String?   // "TYPED_ONLY" | "INSUFFICIENT_DATA"
+  vocalUnscoredReason  String?   // "TYPED_ONLY" | "SPEECH_TOO_SHORT" | "INSUFFICIENT_DATA"
   metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
 
   /// Structured report body — see `lib/report/structured.ts`. Null on every row
