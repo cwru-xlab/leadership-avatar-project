@@ -1094,6 +1094,13 @@ export function createVisualCapture(
   let postureDriftSamples = 0;
   let postureDriftStreakStartS: number | null = null;
   let postureDriftMaxS = 0;
+  // TEMPORARY (12-08 Task 1 checkpoint, Defect B investigation — removed in
+  // Task 2). Most recent tick's raw shoulder-landmark diagnostic, surfaced
+  // in the temporary body-signals dump below so a real recording can
+  // confirm whether the ~90-degree still-session reading was the sign/
+  // ordering convention bug (fixed) or something upstream in the
+  // landmarks themselves (not yet confirmed either way).
+  let lastShoulderDebugRaw: PoseDetectResult["shoulderDebugRaw"] = null;
 
   // --- 12-05 hands accumulators.
   let handSamples = 0;
@@ -1459,6 +1466,12 @@ export function createVisualCapture(
   function applyPoseResult(result: PoseDetectResult) {
     poseSamples += 1;
     winPoseProcessed += 1;
+
+    // TEMPORARY (12-08 Task 1 checkpoint, Defect B) — see this variable's
+    // own declaration above.
+    if (result.shoulderDebugRaw) {
+      lastShoulderDebugRaw = result.shoulderDebugRaw;
+    }
 
     if (result.visible.shoulderLine) {
       poseVisibleSamples.shoulder_line += 1;
@@ -2430,6 +2443,13 @@ export function createVisualCapture(
           postureDriftSamples > 0 ? Math.round(postureDriftMaxS * 10) / 10 : null,
         absoluteShoulderTiltDegMean,
         absoluteForwardHeadOffsetMean,
+        // Defect B investigation only — the most recent tick's raw shoulder
+        // landmark coordinates and the raw dx/dy the (now acute-angle) tilt
+        // formula is computed from. If an upright seated user's dx here is
+        // genuinely near zero, the acute-angle fix was not the whole story
+        // and the landmarks themselves need investigating; if dx is a
+        // normal shoulder-width-scale value, the fix was sufficient.
+        shoulderDebugRaw: lastShoulderDebugRaw,
       },
       fidget: {
         fidgetUsable,
