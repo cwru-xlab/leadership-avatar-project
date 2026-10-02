@@ -359,36 +359,14 @@ amended in the same session; see `14-CONTEXT.md`.
      and is student-adjustable before starting; the remaining time is visible
      during the session and can be hidden by the student.
 **Plans:** 15 plans in 8 waves
-
-Plans:
-- [ ] 14-01-PLAN.md — Deck-render spike: PDF→PNG on Vercel; PPTX backend selected at a decision checkpoint
-- [ ] 14-02-PLAN.md — Engine config extensions: avatar-end floor, soft first-turn window, adjustable budget range
-- [ ] 14-03-PLAN.md — Deck intake: magic bytes, reason-plus-fix rejections, per-slide PDF/PPTX text
-- [ ] 14-04-PLAN.md — Evaluator: slide images as vision input, outcome in the one JSON schema, type-declared score cap
-- [ ] 14-05-PLAN.md — Server-authoritative slide cursor: 4 nullable columns, additive local migration, checkpoint ratchet
-- [ ] 14-06-PLAN.md — PPTX→PDF driver, PDF→PNG rasterizer, private deck storage + manifest
-- [ ] 14-07-PLAN.md — Upload / manifest / owner-only slide-image byte routes
-- [ ] 14-08-PLAN.md — `pitch-elevator` record + prompts: 6 dimensions, floor-gated walk-out
-- [ ] 14-09-PLAN.md — `pitch-deck` record + prompts: 9 dimensions, slides channel, ask/fair band, length proposal
-- [ ] 14-10-PLAN.md — Elevator wizard steps + collapsible pitch timer (non-autonomous)
-- [ ] 14-11-PLAN.md — High-water mark in the live turn: ratchet → visible-context slice → tail block
-- [ ] 14-12-PLAN.md — Deck wizard steps: upload with specific errors, the ask, adjustable length
-- [ ] 14-13-PLAN.md — Live deck viewer, thumbnail strip, soft timer; real investor-pitch leak test (non-autonomous)
-- [ ] 14-14-PLAN.md — Report: early-end banner, ask vs settled vs fair, slide timeline + overrun
-- [ ] 14-15-PLAN.md — Phase validation: all 5 criteria + every locked decision signed off (non-autonomous)
-
-**Execution note:** Phase 14 is gated on Phase 13, which is planned but
-unexecuted. Only 14-01, 14-03, 14-06 and 14-07 carry `blocked_by_phase: none`;
-14-01 is the one plan safe to run before Phase 13 lands, and it is the one whose
-outcome the whole deck pipeline depends on. Four plans declare explicit Phase 13
-extensions (most notably `pitch-deck` → `checkpointing: "client-driven"`, which
-Phase 13 withheld from `case-study`); 14-15 Section 4 collects them as the
-Phase 13 revision handoff.
-**Plans:** 15 plans in 8 waves
 **Gate:** every plan except 14-01, 14-03, 14-06 and 14-07 is blocked until Phase 13's
 15 plans have all executed and been signed off. Phase 14 has no REQ IDs; each plan
 names the Success Criteria it serves as `P14-SC1`..`P14-SC5` in its `requirements`
-frontmatter.
+frontmatter. 14-01 is the one plan safe to run before Phase 13 lands, and it is the
+one whose outcome the whole deck pipeline depends on. Four plans declare explicit
+Phase 13 extensions (most notably `pitch-deck` → `checkpointing: "client-driven"`,
+which Phase 13 withheld from `case-study`); 14-15 Section 4 collects them as the
+Phase 13 revision handoff.
 
 Plans:
 - [ ] 14-01-PLAN.md — Deck-rendering spike: prove PDF→PNG on Vercel, select the PPTX conversion backend (decision checkpoint)
