@@ -1572,9 +1572,9 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-02T21:18:57.833Z
-**Stopped At:** Phase 13 context gathered
-**Resume File:** .planning/phases/13-one-on-one-conversation-engine/13-CONTEXT.md
+**Last Date:** 2026-10-02T22:21:25.682Z
+**Stopped At:** Phase 14 context gathered
+**Resume File:** .planning/phases/14-practice-pitches/14-CONTEXT.md
 
 
 ## Accumulated Context
