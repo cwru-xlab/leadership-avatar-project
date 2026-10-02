@@ -471,20 +471,35 @@ function baselineFieldFor(
  * Pure. Establishes a self-calibrated posture baseline from readings taken
  * during the opening `POSTURE_BASELINE_WINDOW_S` of capture — never a fixed
  * upright ideal (12-CONTEXT.md's fairness resolution for wheelchair users,
- * chronic pain, and standing desks). Readings after the window are ignored
+ * chronic pain, and standing desks). Readings outside the window are ignored
  * entirely, matching the per-signal visibility discipline `PoseDetectResult`
  * already enforces: a signal with fewer than `POSTURE_BASELINE_MIN_SAMPLES`
  * usable readings inside the window gets no baseline at all, rather than one
  * built from too little evidence to be fair.
+ *
+ * `anchorTS` (12-08 Task 1 checkpoint, Defect E fix) is the session clock
+ * value the window opens AT — defaults to 0 (capture start) so every
+ * existing caller/test that never anchors explicitly is unaffected. The
+ * caller (`applyPoseResult`) now passes the tS of the FIRST usable pose
+ * reading, not capture start: `start()` sets `startedAtMs` before the video
+ * element loads, the worker initializes, and all four MediaPipe models
+ * (~23.8MB combined) warm up on the GPU — real dead time on the SAME clock
+ * `tS` is measured against. Anchoring to capture start meant that dead time
+ * ate directly into the 20s calibration window before a single pose tick
+ * could land; anchoring to the first usable reading instead gives the
+ * window the full 20 REAL seconds of data the pipeline could actually see.
  *
  * Per-signal baselines are independent — the shoulder line can calibrate
  * while hips never clear the floor (the common head-and-shoulders webcam
  * framing), and vice versa.
  */
 export function computePostureBaseline(
-  readings: PostureReading[]
+  readings: PostureReading[],
+  anchorTS: number = 0
 ): PostureBaseline {
-  const windowed = readings.filter((r) => r.tS <= POSTURE_BASELINE_WINDOW_S);
+  const windowed = readings.filter(
+    (r) => r.tS - anchorTS <= POSTURE_BASELINE_WINDOW_S
+  );
 
   const baseline: PostureBaseline = {
     shoulderTiltDeg: null,
@@ -876,14 +891,32 @@ export function extractEpisodes(
 
 /** Whether a single window trips each DESCRIPTIVE episode condition — never
  * scored, never read by `windowTrips`/`extractEpisodes`. Ratios, never raw
- * counts, matching every scored trip condition's own discipline. */
+ * counts, matching every scored trip condition's own discipline.
+ *
+ * BUG FIX (12-08 Task 1 checkpoint, Defect H): `fidgeting` used to trip on
+ * the per-window AMPLITUDE ratio alone (`w.fidgetCount / w.handsDetected`),
+ * which is only HALF the fidget definition (12-CONTEXT.md/this file's own
+ * `FIDGET_MAX_AMPLITUDE` doc comment) — the "high frequency" half
+ * (`FIDGET_MIN_DIRECTION_CHANGES_PER_S`) was applied only at the SESSION
+ * level, when gating `fidgetSamples` for `fidget_pct` in `stop()`, never
+ * here. A real session produced a `fidgeting` episode on the Moments
+ * timeline while `fidget_pct` simultaneously read 0% in the SAME report —
+ * two derivations silently re-deriving the same gating decision and
+ * disagreeing. `fidgetRateCleared` is now computed exactly ONCE, in
+ * `stop()`, and threaded in here so the window-level episode trip and the
+ * session-level percentage consume the identical decision — a session that
+ * never cleared the direction-change-rate floor can report neither a
+ * `fidgeting` episode NOR a nonzero `fidget_pct`, and one that did can
+ * report both. */
 function descriptiveWindowTrips(
   w: CaptureWindow,
-  kind: VisualDescriptiveEpisodeKind
+  kind: VisualDescriptiveEpisodeKind,
+  opts: { fidgetRateCleared: boolean }
 ): boolean {
   switch (kind) {
     case "fidgeting":
       return (
+        opts.fidgetRateCleared &&
         w.handsDetected > 0 &&
         (w.fidgetCount / w.handsDetected) * 100 > FIDGET_EPISODE_TRIP_PCT
       );
@@ -903,12 +936,20 @@ function descriptiveWindowTrips(
  * is what makes "a fidget episode entered the scored array" a compile error
  * rather than a runtime discipline to remember (see `VisualDescriptiveEpisode`'s
  * own header comment in `types.ts`).
+ *
+ * `opts.fidgetRateCleared` (12-08 Task 1 checkpoint, Defect H) is the SAME
+ * session-wide direction-change-rate decision `stop()` already computes for
+ * `fidget_pct` — see `descriptiveWindowTrips`'s own doc comment for why a
+ * window-level re-derivation of this gate is exactly the bug being fixed.
  */
 export function extractDescriptiveEpisodes(
   windows: CaptureWindow[],
-  kinds: readonly VisualDescriptiveEpisodeKind[]
+  kinds: readonly VisualDescriptiveEpisodeKind[],
+  opts: { fidgetRateCleared: boolean }
 ): VisualDescriptiveEpisode[] {
-  return collapseRuns(windows, kinds, descriptiveWindowTrips);
+  return collapseRuns(windows, kinds, (w, kind) =>
+    descriptiveWindowTrips(w, kind, opts)
+  );
 }
 
 interface FaceBounds {
@@ -1081,15 +1122,33 @@ export function createVisualCapture(
   let poseTorsoOpennessSum = 0;
 
   // --- 12-06 posture baseline/drift. `postureBaselineReadings` only ever
-  // holds readings from inside `POSTURE_BASELINE_WINDOW_S` — see
-  // `applyPoseResult` for where it stops growing and `postureBaseline` gets
-  // computed exactly once. Drift after that point is computed STREAMING, one
+  // holds readings from inside the (anchored) `POSTURE_BASELINE_WINDOW_S` —
+  // see `applyPoseResult` for where it stops growing and `postureBaseline`
+  // gets computed. Drift after that point is computed STREAMING, one
   // reading at a time, and folded straight into the running sums below;
   // individual post-baseline readings are never retained (see
   // `computePostureBaseline`/`computePostureDrift`'s own doc comments for why
-  // only the first-20s window may ever be kept as a raw array).
-  const postureBaselineReadings: PostureReading[] = [];
+  // only the baseline window may ever be kept as a raw array). `let`, not
+  // `const`, because Defect E's retry (below) can reset it and re-collect
+  // from a fresh anchor if the first window comes back empty.
+  let postureBaselineReadings: PostureReading[] = [];
   let postureBaseline: PostureBaseline | null = null;
+  // BUG FIX (12-08 Task 1 checkpoint, Defect E): the calibration window used
+  // to be anchored to capture start (`tS <= POSTURE_BASELINE_WINDOW_S`,
+  // i.e. implicitly anchored at 0) — see `computePostureBaseline`'s own
+  // doc comment for why that ate real calibration time with model-loading
+  // dead time. `null` until the first pose reading with ANY non-null
+  // signal arrives; THAT reading's `tS` becomes the anchor the window opens
+  // relative to.
+  let postureBaselineAnchorTS: number | null = null;
+  // Diagnostic only (12-08 Task 1 checkpoint, Defect E instrumentation,
+  // surfaced in the temporary body-signals dump below): how many times the
+  // anchor was reset because a window closed with zero calibrated signals,
+  // and the tS of the very first non-null pose reading this session ever
+  // saw — the direct test of Defect E's "model-loading ate the window"
+  // hypothesis.
+  let postureBaselineRetries = 0;
+  let firstUsablePoseTS: number | null = null;
   let postureDriftSum = 0;
   let postureDriftSamples = 0;
   let postureDriftStreakStartS: number | null = null;
@@ -1510,21 +1569,49 @@ export function createVisualCapture(
       torsoOpennessRatio: result.torsoOpennessRatio,
     };
 
-    if (tS <= POSTURE_BASELINE_WINDOW_S) {
-      postureBaselineReadings.push(reading);
-      // No drift yet to compute against — the baseline itself isn't
-      // established until the window closes, below.
-      return;
-    }
-
     if (postureBaseline === null) {
-      postureBaseline = computePostureBaseline(postureBaselineReadings);
-    }
-    if (postureBaseline.signals.length === 0) {
-      // Nobody was visible during calibration — there is nothing to drift
-      // AWAY from, and defaulting to a fixed ideal here is exactly what this
-      // design exists to avoid (12-CONTEXT.md).
-      return;
+      const hasAnySignal = POSTURE_SIGNAL_TABLE.some(
+        ({ read }) => read(reading) !== null
+      );
+
+      if (postureBaselineAnchorTS === null) {
+        // BUG FIX (12-08 Task 1 checkpoint, Defect E): the window does not
+        // open until the FIRST usable reading, never at capture start - see
+        // `computePostureBaseline`'s own doc comment for why. Still waiting.
+        if (hasAnySignal) {
+          postureBaselineAnchorTS = tS;
+          if (firstUsablePoseTS === null) firstUsablePoseTS = tS;
+          postureBaselineReadings.push(reading);
+        }
+        return;
+      }
+
+      if (tS - postureBaselineAnchorTS <= POSTURE_BASELINE_WINDOW_S) {
+        postureBaselineReadings.push(reading);
+        // No drift yet to compute against - the baseline itself isn't
+        // established until the window closes, below.
+        return;
+      }
+
+      const candidate = computePostureBaseline(
+        postureBaselineReadings,
+        postureBaselineAnchorTS
+      );
+      if (candidate.signals.length === 0) {
+        // RETRY (12-08 Task 1 checkpoint, Defect E): a window that
+        // calibrated NOTHING must not latch empty for the rest of the
+        // session (the original bug - `postureBaseline` would be set to
+        // this exact empty object and never recomputed). Re-open a fresh
+        // window at the next usable reading instead of giving up for good.
+        postureBaselineReadings = [];
+        postureBaselineAnchorTS = null;
+        postureBaselineRetries += 1;
+        return;
+      }
+      postureBaseline = candidate;
+      // Falls through below to score THIS reading (the one whose tS closed
+      // the window) against the baseline just established - it is a real
+      // post-baseline reading, not part of the window itself.
     }
 
     const { driftMagnitude } = computePostureDrift(reading, postureBaseline);
@@ -2364,10 +2451,12 @@ export function createVisualCapture(
     // call site without duplicating it.
     const fidgetDirectionChangeRatePerS =
       sessionSeconds > 0 ? fidgetDirectionChanges / sessionSeconds : 0;
-    const fidgetSamples =
-      fidgetDirectionChangeRatePerS >= FIDGET_MIN_DIRECTION_CHANGES_PER_S
-        ? fidgetDisplacementSamples
-        : 0;
+    // Named so `extractDescriptiveEpisodes` below can consume the IDENTICAL
+    // decision (12-08 Task 1 checkpoint, Defect H) — see
+    // `descriptiveWindowTrips`'s own doc comment for the bug this fixes.
+    const fidgetRateCleared =
+      fidgetDirectionChangeRatePerS >= FIDGET_MIN_DIRECTION_CHANGES_PER_S;
+    const fidgetSamples = fidgetRateCleared ? fidgetDisplacementSamples : 0;
 
     // The object runner's EFFECTIVE rate this session — see
     // `ObservationCounts.phoneSampleHz`'s own doc comment for why this must
@@ -2411,7 +2500,8 @@ export function createVisualCapture(
           derivedObservations.postureForwardHeadOffset,
         episodes: extractDescriptiveEpisodes(
           windows,
-          VISUAL_DESCRIPTIVE_EPISODE_KINDS
+          VISUAL_DESCRIPTIVE_EPISODE_KINDS,
+          { fidgetRateCleared }
         ),
       };
     }
@@ -2441,8 +2531,39 @@ export function createVisualCapture(
             : null,
         driftMaxS:
           postureDriftSamples > 0 ? Math.round(postureDriftMaxS * 10) / 10 : null,
+        driftSamples: postureDriftSamples,
         absoluteShoulderTiltDegMean,
         absoluteForwardHeadOffsetMean,
+        // Defect E instrumentation only (12-08 Task 1 checkpoint) - direct
+        // test of the "model-loading ate the calibration window" hypothesis.
+        // `firstUsablePoseTS` is the elapsed seconds (on the SAME clock
+        // POSTURE_BASELINE_WINDOW_S is measured against) before the first
+        // pose reading with ANY non-null signal arrived - if this is large
+        // (several seconds+), the OLD capture-start-anchored window was
+        // eating real calibration time on model load/warm-up before a
+        // single pose tick could land. `baselineAnchorTS`/`baselineRetries`
+        // show whether the retry-on-empty-window fix (below) ever had to
+        // fire this session. `baselineEstablished`/`baselineSignals`/
+        // `baselinePerSignalWindowCounts` show the WINNING window's own
+        // per-signal sample counts against `POSTURE_BASELINE_MIN_SAMPLES`
+        // (15) directly, rather than inferring them from the session-wide
+        // `signalsMeasured` count above (a different, looser condition).
+        firstUsablePoseTS:
+          firstUsablePoseTS !== null ? Math.round(firstUsablePoseTS * 100) / 100 : null,
+        baselineAnchorTS:
+          postureBaselineAnchorTS !== null
+            ? Math.round(postureBaselineAnchorTS * 100) / 100
+            : null,
+        baselineRetries: postureBaselineRetries,
+        baselineEstablished: postureBaseline !== null,
+        baselineSignals: postureBaseline?.signals ?? [],
+        baselineSampleCount: postureBaseline?.sampleCount ?? postureBaselineReadings.length,
+        baselinePerSignalWindowCounts: {
+          shoulder_line: postureBaselineReadings.filter((r) => r.shoulderTiltDeg !== null).length,
+          forward_head: postureBaselineReadings.filter((r) => r.forwardHeadOffset !== null).length,
+          torso_lean: postureBaselineReadings.filter((r) => r.torsoLeanDeg !== null).length,
+          torso_openness: postureBaselineReadings.filter((r) => r.torsoOpennessRatio !== null).length,
+        },
         // Defect B investigation only — the most recent tick's raw shoulder
         // landmark coordinates and the raw dx/dy the (now acute-angle) tilt
         // formula is computed from. If an upright seated user's dx here is
