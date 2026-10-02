@@ -232,6 +232,14 @@ Plans:
 **Goal:** Make the body measurable. Phase 10's pipeline can only see a face, so hand
 movement, posture, fidgeting and a phone in frame are invisible by construction — a
 session spent waving both arms produced a report that said nothing about it.
+**Outcome note (12-08):** three of the four landed. Fidgeting was found to be
+unmeasurable at the hands model's achievable ~1.5 Hz sample rate — small, fast
+motion cannot be resolved by a sampler whose observable reversal ceiling is
+~0.75/s, so the readings were aliasing rather than measuring. It was retired to
+permanently not-measured rather than shipped as a number that could not mean
+what it said; REQ-52 is recorded NOT MET for that reason, and the capability
+gap is carried in `deferred-items.md`. The three Success Criteria below are
+unaffected — none of them names fidgeting.
 **Depends on:** Phase 10 (metric contract, episode timeline, consent posture) and the
 report restructure (REQ-53's scored-vs-descriptive distinction gates REQ-52).
 **Requirements:** REQ-50, REQ-51, REQ-52, REQ-53, REQ-54, REQ-55, REQ-56, REQ-57, REQ-58
