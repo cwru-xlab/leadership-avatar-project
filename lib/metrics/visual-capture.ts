@@ -56,9 +56,9 @@ import {
 } from "@/lib/metrics/types";
 import {
   GESTURE_AMPLITUDE_MIN,
-  GESTURE_RATE_EXCESSIVE_MIN,
-  GESTURE_RATE_STILL_MAX,
+  GESTURE_WINDOW_EXCESSIVE_PCT,
   GESTURE_WINDOW_MIN_HAND_SAMPLES,
+  GESTURE_WINDOW_STILL_PCT,
   HANDS_NEAR_FACE_TRIP_PCT,
   PHONE_EPISODE_TRIP_PCT,
   PHONE_MIN_VISIBLE_S,
@@ -750,14 +750,39 @@ function windowTrips(w: CaptureWindow, kind: VisualEpisodeKind): boolean {
     // as the face-driven kinds above (windows close on the face tick's
     // timing — see `closeWindow`), but trip on their OWN sample counts, never
     // `w.processed` (a face-tick count unrelated to hand/pose availability).
-    // All four are RATIOS within the window, matching the discipline every
-    // other case here already follows, so a thin window cannot trip on one
-    // sample.
+    //
+    // BUG FIX (12-08 Task 2, the window-vs-band inconsistency): excessive_gesturing
+    // and minimal_gesturing used to extrapolate a WALL-CLOCK rate
+    // (`gestureSamples / ((endS - startS) / 60)`) and compare it directly
+    // against the SESSION-LEVEL per-minute cutoffs (`GESTURE_RATE_EXCESSIVE_MIN`/
+    // `GESTURE_RATE_STILL_MAX`) — the one place in this function that did NOT
+    // follow the "RATIOS of same-model counts, never raw counts against an
+    // assumed ideal" discipline every sibling case here already follows
+    // (hands_near_face/posture_drift divide by the window's own observed
+    // sample count, never by wall-clock time). At the hands model's real
+    // ~1.5 Hz achievable rate, a 5s window holds only ~7-8 real ticks; just 2-3
+    // of them registering as gesture events (a single emphatic gesture
+    // spanning a couple of ticks — ordinary, not excessive, behaviour) was
+    // enough to extrapolate past 25/min, which is exactly why real sessions
+    // whose SESSION-WIDE rate measured 4, 9, and 12.2/min still tripped
+    // `excessive_gesturing` episodes that read to a student as "told off for
+    // a sensor misread" (12-CONTEXT.md's governing rule). Both cases now
+    // compare a ratio of THIS WINDOW's own `gestureSamples` to its own
+    // `handsDetected` — the window's REAL observed tick count, not an
+    // assumed-ideal wall-clock-derived one — against `GESTURE_WINDOW_EXCESSIVE_PCT`/
+    // `GESTURE_WINDOW_STILL_PCT`, which `body-thresholds.ts` derives from the
+    // SAME tuned per-minute cutoffs via the confirmed real hands achievable
+    // rate (see those constants' own comments), so the window-level trip and
+    // the session-level band represent the identical underlying intensity,
+    // not two independently-guessed numbers. `excessive_gesturing` also
+    // gains the SAME minimum-sample floor `minimal_gesturing` already had —
+    // a window with too few real hand ticks cannot trip on EITHER extreme,
+    // closing the asymmetry where only the "still" side had this guard.
     case "excessive_gesturing": {
-      if (w.gestureSamples <= 0) return false;
-      const windowMinutes = (w.endS - w.startS) / 60;
-      if (windowMinutes <= 0) return false;
-      return w.gestureSamples / windowMinutes > GESTURE_RATE_EXCESSIVE_MIN;
+      if (w.handsDetected < GESTURE_WINDOW_MIN_HAND_SAMPLES) return false;
+      return (
+        (w.gestureSamples / w.handsDetected) * 100 > GESTURE_WINDOW_EXCESSIVE_PCT
+      );
     }
     case "minimal_gesturing": {
       // The hand-sample guard matters: "no hands detected" (handsDetected
@@ -765,9 +790,9 @@ function windowTrips(w: CaptureWindow, kind: VisualEpisodeKind): boolean {
       // still" — conflating them would report stillness for someone sitting
       // outside the frame entirely.
       if (w.handsDetected < GESTURE_WINDOW_MIN_HAND_SAMPLES) return false;
-      const windowMinutes = (w.endS - w.startS) / 60;
-      if (windowMinutes <= 0) return false;
-      return w.gestureSamples / windowMinutes < GESTURE_RATE_STILL_MAX;
+      return (
+        (w.gestureSamples / w.handsDetected) * 100 < GESTURE_WINDOW_STILL_PCT
+      );
     }
     case "hands_near_face":
       return (
@@ -1091,25 +1116,10 @@ export function createVisualCapture(
   // signal arrives; THAT reading's `tS` becomes the anchor the window opens
   // relative to.
   let postureBaselineAnchorTS: number | null = null;
-  // Diagnostic only (12-08 Task 1 checkpoint, Defect E instrumentation,
-  // surfaced in the temporary body-signals dump below): how many times the
-  // anchor was reset because a window closed with zero calibrated signals,
-  // and the tS of the very first non-null pose reading this session ever
-  // saw — the direct test of Defect E's "model-loading ate the window"
-  // hypothesis.
-  let postureBaselineRetries = 0;
-  let firstUsablePoseTS: number | null = null;
   let postureDriftSum = 0;
   let postureDriftSamples = 0;
   let postureDriftStreakStartS: number | null = null;
   let postureDriftMaxS = 0;
-  // TEMPORARY (12-08 Task 1 checkpoint, Defect B investigation — removed in
-  // Task 2). Most recent tick's raw shoulder-landmark diagnostic, surfaced
-  // in the temporary body-signals dump below so a real recording can
-  // confirm whether the ~90-degree still-session reading was the sign/
-  // ordering convention bug (fixed) or something upstream in the
-  // landmarks themselves (not yet confirmed either way).
-  let lastShoulderDebugRaw: PoseDetectResult["shoulderDebugRaw"] = null;
 
   // --- 12-05 hands accumulators.
   let handSamples = 0;
@@ -1466,12 +1476,6 @@ export function createVisualCapture(
     poseSamples += 1;
     winPoseProcessed += 1;
 
-    // TEMPORARY (12-08 Task 1 checkpoint, Defect B) — see this variable's
-    // own declaration above.
-    if (result.shoulderDebugRaw) {
-      lastShoulderDebugRaw = result.shoulderDebugRaw;
-    }
-
     if (result.visible.shoulderLine) {
       poseVisibleSamples.shoulder_line += 1;
       if (result.shoulderTiltDeg !== null) {
@@ -1520,7 +1524,6 @@ export function createVisualCapture(
         // `computePostureBaseline`'s own doc comment for why. Still waiting.
         if (hasAnySignal) {
           postureBaselineAnchorTS = tS;
-          if (firstUsablePoseTS === null) firstUsablePoseTS = tS;
           postureBaselineReadings.push(reading);
         }
         return;
@@ -1545,7 +1548,6 @@ export function createVisualCapture(
         // window at the next usable reading instead of giving up for good.
         postureBaselineReadings = [];
         postureBaselineAnchorTS = null;
-        postureBaselineRetries += 1;
         return;
       }
       postureBaseline = candidate;
@@ -2391,98 +2393,6 @@ export function createVisualCapture(
       };
     }
 
-    // TEMPORARY (12-08 Task 1 checkpoint only — removed in Task 2). Dev-only
-    // raw-reading dump so a real camera-on session can be pasted back as the
-    // provenance for tuning `lib/metrics/body-thresholds.ts`. Nothing below
-    // is persisted, scored, or sent anywhere — it is a console.info of the
-    // exact raw accumulators the scored/descriptive derivations above were
-    // computed from, plus a per-window breakdown (via `startS`/`endS`) so a
-    // sustained stretch (e.g. "waved both arms from 2:10-2:45") can be
-    // correlated against a real timecode.
-    console.info("[visual-capture] body signals", {
-      sessionSeconds: Math.round(sessionSeconds * 10) / 10,
-      gesture: {
-        handSamples,
-        gestureRatePerMin: gestureRates.gestureRatePerMin,
-        gestureAmplitudeMean: gestureRates.gestureAmplitudeMean,
-        handsAboveShoulderPct: gestureRates.handsAboveShoulderPct,
-        handsNearFacePct: gestureRates.handsNearFacePct,
-      },
-      posture: {
-        signalsMeasured: postureSignalsMeasured,
-        driftMean:
-          postureDriftSamples > 0
-            ? Math.round((postureDriftSum / postureDriftSamples) * 1000) / 1000
-            : null,
-        driftMaxS:
-          postureDriftSamples > 0 ? Math.round(postureDriftMaxS * 10) / 10 : null,
-        driftSamples: postureDriftSamples,
-        absoluteShoulderTiltDegMean,
-        absoluteForwardHeadOffsetMean,
-        // Defect E instrumentation only (12-08 Task 1 checkpoint) - direct
-        // test of the "model-loading ate the calibration window" hypothesis.
-        // `firstUsablePoseTS` is the elapsed seconds (on the SAME clock
-        // POSTURE_BASELINE_WINDOW_S is measured against) before the first
-        // pose reading with ANY non-null signal arrived - if this is large
-        // (several seconds+), the OLD capture-start-anchored window was
-        // eating real calibration time on model load/warm-up before a
-        // single pose tick could land. `baselineAnchorTS`/`baselineRetries`
-        // show whether the retry-on-empty-window fix (below) ever had to
-        // fire this session. `baselineEstablished`/`baselineSignals`/
-        // `baselinePerSignalWindowCounts` show the WINNING window's own
-        // per-signal sample counts against `POSTURE_BASELINE_MIN_SAMPLES`
-        // (15) directly, rather than inferring them from the session-wide
-        // `signalsMeasured` count above (a different, looser condition).
-        firstUsablePoseTS:
-          firstUsablePoseTS !== null ? Math.round(firstUsablePoseTS * 100) / 100 : null,
-        baselineAnchorTS:
-          postureBaselineAnchorTS !== null
-            ? Math.round(postureBaselineAnchorTS * 100) / 100
-            : null,
-        baselineRetries: postureBaselineRetries,
-        baselineEstablished: postureBaseline !== null,
-        baselineSignals: postureBaseline?.signals ?? [],
-        baselineSampleCount: postureBaseline?.sampleCount ?? postureBaselineReadings.length,
-        baselinePerSignalWindowCounts: {
-          shoulder_line: postureBaselineReadings.filter((r) => r.shoulderTiltDeg !== null).length,
-          forward_head: postureBaselineReadings.filter((r) => r.forwardHeadOffset !== null).length,
-          torso_lean: postureBaselineReadings.filter((r) => r.torsoLeanDeg !== null).length,
-          torso_openness: postureBaselineReadings.filter((r) => r.torsoOpennessRatio !== null).length,
-        },
-        // Defect B investigation only — the most recent tick's raw shoulder
-        // landmark coordinates and the raw dx/dy the (now acute-angle) tilt
-        // formula is computed from. If an upright seated user's dx here is
-        // genuinely near zero, the acute-angle fix was not the whole story
-        // and the landmarks themselves need investigating; if dx is a
-        // normal shoulder-width-scale value, the fix was sufficient.
-        shoulderDebugRaw: lastShoulderDebugRaw,
-      },
-      // BUG FIX (12-08 Task 1 checkpoint): the `fidget` dump block was
-      // removed when fidgeting was retired to permanently not-measured —
-      // see `VISUAL_NOT_MEASURED`'s own comment in `types.ts`.
-      phone: {
-        phoneUsable,
-        phoneSamples,
-        phoneVisibleSamples,
-        phoneSampleHz: Math.round(phoneSampleHz * 100) / 100,
-        phoneVisibleSeconds:
-          observations !== undefined ? observations.phone_visible_seconds : null,
-      },
-      // One row per 5s window: startS/endS for timecode correlation, plus
-      // the raw per-window counts each episode's window-trip ratio is
-      // computed from.
-      windows: windows.map((w) => ({
-        startS: Math.round(w.startS * 10) / 10,
-        endS: Math.round(w.endS * 10) / 10,
-        gestureSum: w.gestureSum,
-        gestureSamples: w.gestureSamples,
-        handsDetected: w.handsDetected,
-        nearFaceCount: w.nearFaceCount,
-        driftMean: Math.round(w.driftMean * 1000) / 1000,
-        phoneCount: w.phoneCount,
-        phoneProcessed: w.phoneProcessed,
-      })),
-    });
 
     return {
       eye_contact_pct: rates.eyeContactPct,

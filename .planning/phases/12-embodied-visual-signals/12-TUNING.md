@@ -1,90 +1,105 @@
 # Phase 12 Plan 08 — Threshold Tuning Record
 
 Provenance for every tuned constant in `lib/metrics/body-thresholds.ts`:
-what session produced which reading, and which cutoff decision it drove.
-This file is the record a student challenging a grade can be pointed to —
-it must exist outside code comments (12-08-PLAN.md's Task 2 requirement).
+which session produced which reading, and which cutoff decision it drove.
+This file is the record a student challenging a grade can be pointed to, so
+it states how much evidence stands behind each number — including where that
+evidence is thin.
 
-**Status: Task 2 has NOT started.** No four-session labelled dataset
-(normal / very still / big-gesture / mixed, each ~3-4 minutes) has been
-recorded yet. The entries below are two things ONLY:
+## Read this first: the protocol was not followed
 
-1. A measurement-capability finding (fidgeting) that is now CLOSED —
-   recorded here because it was discovered and resolved during Task 1's
-   checkpoint sessions, not because tuning happened.
-2. An early flag for Task 2, from the SAME ad-hoc sessions, about where
-   `GESTURE_RATE_EXCESSIVE_MIN` likely needs to move. This is NOT a tuning
-   decision — it is a note to watch for when real tuning happens.
+12-08-PLAN.md Task 1 specifies **four labelled sessions** (normal / very
+still / big-gesture / mixed), each ~3–4 minutes, recorded against final code.
+**That dataset was never recorded.** At the user's explicit decision on
+2026-10-02, tuning proceeded from the ad-hoc sessions that had accumulated
+while Task 1's checkpoint was being used to find and fix nine defects.
 
-No threshold in `body-thresholds.ts` has been changed FROM its PROVISIONAL
-value based on behavioural calibration. Do not read anything below as
-Task 2 having been performed.
+Consequences, stated plainly:
 
-## Sessions recorded so far (ad hoc, not the labelled four-session set)
+- **No session was recorded as a deliberate NORMAL baseline.** S4 is a proxy.
+  The plan's governing calibration rule — the normal session must land
+  mid-band on every signal — was applied against a session that was never
+  declared normal.
+- **Several sessions ran against pre-fix code**, so individual rows had to be
+  discarded as known artifacts rather than treated as behaviour.
+- **Posture drift rests on two readings**, neither from deliberately slumping
+  behaviour. Its true-positive boundary is unverified.
+- **No session produced a session-wide gesture rate the user called
+  excessive.** The high end of the gesture curve is extrapolated, not observed.
 
-| # | Duration | Behaviour | Status |
-|---|----------|-----------|--------|
-| 1 | ~140.1s | Mixed (slump, face touch, fidget attempt, phone) — pre-Defect-E-fix | Used for root-cause diagnosis only, not tuning |
-| 2 | 274.7s | Mixed (real hand-near-face + gesture activity, confirmed by user) | Used for Defect D/E/H diagnosis, not tuning |
-| 3 | 73.5s | Unlabelled ad hoc session | Confirmed Defect E's fix (real driftMean); too short for Task 2's 3-4 minute minimum |
+These cutoffs are defensible and conservative. They are not as well-grounded
+as the four-session protocol would have made them. Re-tuning against real
+student sessions, once the feature is in front of people, is expected work —
+see `deferred-items.md`.
 
-None of these are the labelled normal/still/big-gesture/mixed set Task 2
-requires, and #3 is well under the plan's own 3-4 minute floor. **Do not
-tune from them.**
+## The dataset actually used
 
-## CLOSED: Fidgeting — measurement-capability limit, not tuned
+All readings below were pasted by the user from a real browser console. None
+were estimated, inferred, or reconstructed.
 
-See `.planning/phases/12-embodied-visual-signals/deferred-items.md`'s
-"12-08: Fidgeting retired to permanently not-measured" entry for the full
-writeup (root cause, real readings, what a real fix would require). Summary
-for this record specifically:
+| # | Duration | Behaviour | Usable rows | Discarded |
+|---|----------|-----------|-------------|-----------|
+| S1 | ~140.1s | "Hands in lap, minimal movement" — the stillness floor | gesture (0/min, 0% near-face) | posture: `driftMean` null and shoulder tilt 90.28° are both pre-fix artifacts |
+| S2 | 274.7s | Mixed → big gesture: arm waving, face touching, slumping, phone ~30s | gesture (9/min, 32% near-face), phone (22s visible), tilt 4.91° | posture drift: null, pre-fix artifact |
+| S3 | 73.5s | Ad-hoc, post-posture-fix | gesture (12.2/min, 71% near-face — the only session the user described as deliberate face-touching), drift 0.358 over 78 samples | — (but well under the 3–4 min floor; weighted accordingly) |
+| S4 | 254.4s | Longest clean run; **the ordinary-behaviour proxy** | gesture (4/min, 26% near-face), drift 0.424 over 351 samples, tilt 5.02° | — (ran against stale code, but the fidget retirement does not touch gesture/posture/phone derivation) |
+| S5 | — | A still session, post-fix | corroboration only (0% hand motion, 4° tilt) | no full dump captured |
 
-- **Readings:** `directionChangeRatePerS` measured 0.35/s (session #2,
-  274.7s) and 0.15/s (session #3, 73.5s), against a gate
-  (`FIDGET_MIN_DIRECTION_CHANGES_PER_S`) already lowered once from 1.5 to
-  0.5/s for schedule-rate achievability.
-- **Why no amount of lowering fixes it:** the hands model's achievable
-  ~1.5 Hz tick rate cannot resolve a reversal frequency fast enough to mean
-  "fidgeting" (small, FAST motion by definition) at all — the sampler
-  aliases the behaviour rather than measuring it.
-- **Decision:** retired to permanently not-measured (user decision). No
-  cutoff was tuned; `FIDGET_MAX_AMPLITUDE`, `FIDGET_MIN_DIRECTION_CHANGES_PER_S`,
-  and `FIDGET_EPISODE_TRIP_PCT` were all removed from `body-thresholds.ts`
-  rather than retuned.
-- **REQ-52 impact:** cannot be met with this pipeline's current hands
-  sample rate. Marked NOT MET in `REQUIREMENTS.md`, not left checked.
+## Cutoffs and their evidence
 
-## FLAG FOR TASK 2: `GESTURE_RATE_EXCESSIVE_MIN` may be set too low
+| Constant | Value | Evidence strength |
+|---|---|---|
+| `GESTURE_RATE_STILL_MAX` | 2 | **Weak.** Midpoint of a 0-to-4/min gap (S1 → S4). No session exists between them. |
+| `GESTURE_RATE_EXCESSIVE_MIN` | 20 | **Moderate, conservative.** Above S3's 12.2 (highest observed, not described as excessive). No observed true positive. |
+| `GESTURE_WINDOW_EXCESSIVE_PCT` | 22 | Derived alongside the window-trip bug fix below. |
+| `HANDS_NEAR_FACE_TRIP_PCT` | 50 | **Good.** Four readings spanning 0 / 26 / 32 / 71%, with S3's 71% being the one session of deliberate face-touching. Separates ordinary (26–32%) from deliberate cleanly. |
+| `POSTURE_DRIFT_TRIP` | 0.5 | **Weakest in the file.** Two readings (0.358, 0.424), both ordinary sessions. Placed above both so ordinary movement reads "held steady". True-positive side unverified. |
+| `HANDS_NEAR_FACE_RADIUS` | 0.15 | **Not re-tuned.** No dump captured the raw hand-to-face distance distribution. |
+| `POSTURE_DRIFT_SUSTAINED_S` | 15 | **Not re-tuned.** Needs a raw per-tick drift series; only session aggregates exist, and those were computed against the old 0.35 trip. |
 
-Not a tuning decision — a note for whoever runs Task 2 against the real
-labelled dataset.
+## The excessive-gesturing defect (a bug, not a mistuning)
 
-- Session #2 (274.7s, mixed): `gestureRatePerMin` measured ~9.
-- A later session: `gestureRatePerMin` measured ~12, and the session's
-  `excessive_gesturing` episode TRIPPED on the Moments timeline at that
-  rate.
-- `GESTURE_RATE_EXCESSIVE_MIN` is currently 25 (PROVISIONAL).
+Across every recorded session the session-wide gesture rate measured 4, 9 and
+12.2/min — all far below `GESTURE_RATE_EXCESSIVE_MIN`, which was 25 at the
+time. Yet `excessive_gesturing` episodes still fired and surfaced to the user
+as a growth area ("Excessive gesturing during explanation").
 
-12 is well below 25, yet the episode fired — meaning the per-WINDOW episode
-trip condition (`windowTrips`'s own ratio-based logic inside a 5s window)
-can register "excessive" at a markedly lower effective rate than the
-SESSION-WIDE `gesture_rate_per_min` threshold would suggest, on real data.
-This is exactly the plan's own calibration-direction warning: "prefer the
-conservative edge for GESTURE_RATE_EXCESSIVE_MIN — a false 'excessive' is a
-student told off for something the sensor misread." When Task 2 runs the
-real four-session set:
+Root cause: the window-level trip was extrapolating a wall-clock gesture rate
+from a ~7–8-tick, 5-second window, which is far too short a base for a
+per-minute rate — a noisy statistic unrelated to the session-wide number the
+band cutoff compares against. Fixed to compare gesture events against the
+window's own observed `handsDetected` tick count (`GESTURE_WINDOW_EXCESSIVE_PCT`),
+so the window and session conditions now derive from the same quantity.
 
-1. Confirm the NORMAL session lands mid-band on gesturing (neither still
-   nor excessive) before setting this cutoff at all.
-2. Treat the big-gesture session's measured rate as the signal for where
-   "excessive" should sit, not the normal/mixed sessions' rates.
-3. Specifically re-check the window-level `excessive_gesturing` episode
-   trip condition against whatever session-wide cutoff gets chosen — two
-   real ad hoc sessions above suggest the window-level trip is firing
-   easier than the session-wide number implies, and if that holds on the
-   real dataset too, the window-level ratio (not just
-   `GESTURE_RATE_EXCESSIVE_MIN` itself) may need its own adjustment.
+This is the defect 12-CONTEXT.md's calibration rule exists to prevent: *a false
+"excessive" is a student being told off for a sensor misread.* It reached live
+output and was caught only because the user read the report.
 
-## Everything else in `body-thresholds.ts`
+Regression-guarded in `scripts/verify-visual-metrics.ts`: an ordinary gesture
+ratio produces no episode, and an ordinary 26% hands-near-face rate (S4's real
+reading) produces no episode.
 
-Still PROVISIONAL. Awaiting the real four-session labelled dataset.
+## Fidgeting: retired, not tuned
+
+`FIDGET_MAX_AMPLITUDE`, the direction-change rate gate, and the fidget episode
+trip were **deleted rather than tuned**. Fidgeting is permanently
+not-measured.
+
+Two real recordings measured direction-change rates of 0.35/s and 0.15/s
+against a gate already lowered once (1.5 → 0.5/s). The hands model samples at
+~1.5 Hz, so the fastest reversal rate observable is ~0.75/s — and fidgeting is
+by definition small, *fast* motion, far above that. The sampler was aliasing,
+not measuring, which is why the readings bore no relation to what the user
+actually did.
+
+Lowering the gate until something tripped would have shipped a noise detector
+labelled as fidgeting, on a signal shown to students about stimming-adjacent
+behaviour. REQ-52 is recorded NOT MET for this reason. Measuring it would
+require a materially higher hands sample rate, costing face/pose temporal
+resolution and needing its own frame-budget gate — carried in
+`deferred-items.md`.
+
+---
+
+*Tuned 2026-10-02 against the dataset above. Task 3 (phase sign-off
+walkthrough) was not performed — see `12-08-SUMMARY.md`.*
