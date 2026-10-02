@@ -616,6 +616,20 @@ function reading(over: Partial<PostureReading> = {}): PostureReading {
   check("post-window readings are ignored", baseline.shoulderTiltDeg, 5);
 }
 {
+  // 12-08 Task 1 checkpoint, Defect E: the calibration window must anchor
+  // to the tS PASSED IN, not to capture start (tS=0) — readings that would
+  // have fallen outside an absolute 0-20s window must still calibrate when
+  // the real anchor (the first usable pose reading) landed later, e.g.
+  // because model loading ate real wall-clock time before ticking began.
+  const delayedReadings = Array.from({ length: 70 }, (_, i) =>
+    reading({ tS: 18 + i * 0.25, shoulderTiltDeg: 5 })
+  );
+  check("readings starting well after tS=0 still calibrate when anchored to their own start",
+    computePostureBaseline(delayedReadings, 18).signals, ["shoulder_line"]);
+  check("the SAME readings calibrate NOTHING under the old implicit tS=0 anchor — proving the anchor parameter is load-bearing",
+    computePostureBaseline(delayedReadings).signals, []);
+}
+{
   // Minimum sample count: 14 usable readings is one short of the floor.
   // POSTURE_BASELINE_MIN_SAMPLES was lowered from 60 to 15 in this plan
   // (12-08 Task 1 checkpoint, Defect A root cause) — pose only receives 1/4
@@ -863,7 +877,7 @@ console.log("\n21. extractDescriptiveEpisodes — the DESCRIPTIVE sibling of ext
     win(0, { handsDetected: 10, fidgetCount: 8 }),
     win(5, { handsDetected: 10, fidgetCount: 8 }),
   ];
-  const descEps = extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS);
+  const descEps = extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS, { fidgetRateCleared: true });
   const fidgetHits = descEps.filter((e) => e.kind === "fidgeting");
   check("exactly one fidgeting episode", fidgetHits.length, 1);
   check("at the expected timecodes", [fidgetHits[0].start_s, fidgetHits[0].end_s], [0, 10]);
@@ -882,7 +896,7 @@ console.log("\n21. extractDescriptiveEpisodes — the DESCRIPTIVE sibling of ext
     win(0, { phoneProcessed: 10, phoneCount: 8 }),
     win(5, { phoneProcessed: 10, phoneCount: 8 }),
   ];
-  const descEps = extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS);
+  const descEps = extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS, { fidgetRateCleared: true });
   const phoneHits = descEps.filter((e) => e.kind === "phone_visible");
   check("exactly one phone_visible episode", phoneHits.length, 1);
   check("at the expected timecodes", [phoneHits[0].start_s, phoneHits[0].end_s], [0, 10]);
@@ -899,7 +913,32 @@ console.log("\n21. extractDescriptiveEpisodes — the DESCRIPTIVE sibling of ext
     win(5, { handsDetected: 0, fidgetCount: 0, phoneProcessed: 0, phoneCount: 0 }),
   ];
   check("no fidgeting/phone_visible episodes from an all-absent session",
-    extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS).length, 0);
+    extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS, { fidgetRateCleared: true }).length, 0);
+}
+{
+  // 12-08 Task 1 checkpoint, Defect H: a real report showed a `fidgeting`
+  // episode on the Moments timeline while `fidget_pct` read 0% in the SAME
+  // report — the episode extractor's per-window AMPLITUDE ratio and the
+  // session-level AMPLITUDE+RATE gate were silently re-deriving the same
+  // "is this genuinely fidgeting" decision and disagreeing.
+  // `fidgetRateCleared: false` (the session never cleared
+  // FIDGET_MIN_DIRECTION_CHANGES_PER_S, which is exactly what `fidget_pct`
+  // being 0% means) must now suppress the episode too, even though the
+  // window's own amplitude ratio alone would have tripped it.
+  const windows = [
+    win(0, { handsDetected: 10, fidgetCount: 8 }),
+    win(5, { handsDetected: 10, fidgetCount: 8 }),
+  ];
+  const withRateCleared = extractDescriptiveEpisodes(
+    windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS, { fidgetRateCleared: true }
+  );
+  const withoutRateCleared = extractDescriptiveEpisodes(
+    windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS, { fidgetRateCleared: false }
+  );
+  check("the SAME windows trip fidgeting when the session-wide rate cleared",
+    withRateCleared.some((e) => e.kind === "fidgeting"), true);
+  check("...and produce NO fidgeting episode when the session-wide rate did not clear — the self-contradiction this fixes",
+    withoutRateCleared.some((e) => e.kind === "fidgeting"), false);
 }
 
 console.log("\n22. Ingest round-trip — Phase 12 payload survives intact");

@@ -10,6 +10,51 @@
  * this phase may define a body-signal threshold inline — if a new numeric
  * cutoff is needed, it is added here, named, and given a one-line rationale,
  * so the whole provisional set stays auditable from one place.
+ *
+ * SCHEDULE RATE AUDIT (12-08 Task 1 checkpoint, Defect D). `visual-capture.ts`'s
+ * `SCHEDULE = ["face", "pose", "face", "hands"]` means NO model actually
+ * samples at the full `METRICS_SAMPLE_HZ` (6 Hz) except face (2/4 share, 3 Hz
+ * effective) — pose and hands each get 1/4 (1.5 Hz effective, confirmed
+ * against two real recordings: `handSamples`/`sessionSeconds` landed at 1.49
+ * and 1.50 Hz). Object detection runs on its own independent
+ * `OBJECT_TICK_INTERVAL_MS` timer, achieved ~0.5 Hz. ANY constant below
+ * expressed in per-second, per-sample, or sample-count terms is only
+ * meaningful if checked against the REAL achieved rate of the model that
+ * feeds it, not the nominal 6 Hz — two separate constants already reached
+ * production assuming the wrong rate (`POSTURE_BASELINE_MIN_SAMPLES`, fixed
+ * in this plan; `FIDGET_MIN_DIRECTION_CHANGES_PER_S`, fixed in this plan).
+ * Audited here so the next `SCHEDULE` change surfaces every one of these
+ * instead of silently killing another signal:
+ *   - `POSTURE_BASELINE_MIN_SAMPLES` (pose, 1.5 Hz) — see its own comment.
+ *   - `FIDGET_MIN_DIRECTION_CHANGES_PER_S` (hands, 1.5 Hz) — see its own
+ *     comment.
+ *   - `GESTURE_RATE_STILL_MAX`/`GESTURE_RATE_EXCESSIVE_MIN` — per SESSION
+ *     MINUTE from `gestureEventCount`, not per hands-tick, so the ceiling is
+ *     the hands rate times 60: ~90/min if literally every hands tick tripped
+ *     a gesture. `GESTURE_RATE_EXCESSIVE_MIN` (25) sits well inside that
+ *     ceiling — achievable.
+ *   - `HANDS_NEAR_FACE_TRIP_PCT`, `FIDGET_EPISODE_TRIP_PCT`,
+ *     `PHONE_EPISODE_TRIP_PCT` — all RATIOS of same-model counts (e.g.
+ *     `handsNearFaceSamples / handsNearFaceEligibleSamples`), not raw
+ *     per-second rates, so they are immune to the underlying tick rate by
+ *     construction — a session can reach 0-100% on any of these regardless
+ *     of how many ticks that rate produces.
+ *   - `GESTURE_WINDOW_MIN_HAND_SAMPLES` (3) — compared against
+ *     `handsDetected` inside a 5s episode window (`EPISODE_WINDOW_SECONDS`).
+ *     At hands' 1.5 Hz, a 5s window's ceiling is ~7.5 ticks — 3 is
+ *     comfortably below it — achievable.
+ *   - `PHONE_MIN_VISIBLE_S` (2) — compared against cumulative VISIBLE
+ *     seconds (already rate-converted via the object runner's own
+ *     achieved Hz in `computeObservations`, not a raw sample count), so it
+ *     is rate-independent by construction.
+ *   - `POSTURE_DRIFT_SUSTAINED_S` (15) — compared against wall-clock
+ *     elapsed seconds (`tS`), not a sample count, so it is rate-independent;
+ *     at pose's 1.5 Hz a 15s streak still gets ~22 ticks to confirm it.
+ *   - `LANDMARK_VISIBILITY_FLOOR`, `GESTURE_AMPLITUDE_MIN`,
+ *     `FIDGET_MAX_AMPLITUDE`, `HANDS_NEAR_FACE_RADIUS`, `PHONE_SCORE_THRESHOLD`,
+ *     all four `POSTURE_*_DRIFT_SCALE*` constants — per-SAMPLE magnitude/
+ *     distance/confidence thresholds, not rates at all; unaffected by tick
+ *     rate by construction.
  */
 
 /** Minimum MediaPipe per-landmark `visibility` score (0-1) before a landmark
@@ -103,8 +148,36 @@ export const FIDGET_MAX_AMPLITUDE = 0.05;
 /** Minimum direction-change frequency (reversals per second) within the
  * low-amplitude band above for motion to count as fidgeting rather than
  * incidental stillness/noise — the "high-frequency" half of the fidget
- * definition. */
-export const FIDGET_MIN_DIRECTION_CHANGES_PER_S = 1.5;
+ * definition.
+ *
+ * BUG FIX (12-08 Task 1 checkpoint, Defect D): this was 1.5, a figure that
+ * only makes sense if hands ticks at the full `METRICS_SAMPLE_HZ` (6 Hz).
+ * It does not: hands is one of four tenants on `SCHEDULE` in
+ * `visual-capture.ts` (`["face", "pose", "face", "hands"]`), so hands
+ * receives only 1/4 of ticks, ~1.5 Hz effective — confirmed against a real
+ * mixed-session recording: `handSamples` was 412 over 274.7s, 1.50/s
+ * exactly. A reversal is detected by comparing each tick's displacement
+ * vector against the PRIOR tick's (a dot-product sign flip) — the
+ * asymptotic ceiling for a long session is therefore bounded by the hands
+ * tick rate itself (1.5/s), reached only if literally every consecutive
+ * tick pair alternated direction, indistinguishable from noise and never
+ * observed in a real recording (the same mixed session measured
+ * `fidgetDirectionChangeRatePerS` at 0.35, with real hand-near-face and
+ * gesture activity the user confirmed happened — the 0% `fidgetPct` this
+ * produced was the sensor, not the behaviour). 1.5 demanded the
+ * theoretical maximum from a session that was never going to produce it,
+ * so `fidgetSamples` (`visual-capture.ts`'s `stop()`) was 0, and
+ * `fidget_pct` was 0, for every session that could ever run.
+ *
+ * 0.5 is comfortably below the 1.5 Hz ceiling rather than at it, giving the
+ * gate room to actually fire on real fidgeting. This is a STRUCTURAL
+ * (achievability) fix only, not the behavioural cutoff Task 2 tunes from
+ * real recordings — the exact value real fidgeting trips at still needs a
+ * session where fidgeting genuinely happened, which this file's PROVISIONAL
+ * banner already calls for. Must be re-derived again if `SCHEDULE` or
+ * `METRICS_SAMPLE_HZ` ever change hands' share, the same discipline
+ * `FACE_SCHEDULE_SHARE` documents for `expectedSamples`. */
+export const FIDGET_MIN_DIRECTION_CHANGES_PER_S = 0.5;
 
 /** `ObjectDetector` confidence score above which a "cell phone" detection
  * counts as a genuine phone-in-frame sample, rather than a false positive
