@@ -353,6 +353,28 @@ amended in the same session; see `14-CONTEXT.md`.
   5. Session length is proposed from slide count within a 20-30 minute envelope
      and is student-adjustable before starting; the remaining time is visible
      during the session and can be hidden by the student.
+**Plans:** 15 plans in 8 waves
+**Gate:** every plan except 14-01, 14-03, 14-06 and 14-07 is blocked until Phase 13's
+15 plans have all executed and been signed off. Phase 14 has no REQ IDs; each plan
+names the Success Criteria it serves as `P14-SC1`..`P14-SC5` in its `requirements`
+frontmatter.
+
+Plans:
+- [ ] 14-01-PLAN.md — Deck-rendering spike: prove PDF→PNG on Vercel, select the PPTX conversion backend (decision checkpoint)
+- [ ] 14-02-PLAN.md — Engine config extensions: avatar-end floor, soft first-turn window, adjustable budget range, pitch instance + snapshot members
+- [ ] 14-03-PLAN.md — Deck intake: magic-byte validation, reason-plus-fix rejections, per-slide PDF and PPTX text
+- [ ] 14-04-PLAN.md — Evaluator extensions: slide images as vision input, outcome composed into the one JSON schema, type-declared score cap
+- [ ] 14-05-PLAN.md — Server-authoritative slide cursor: four nullable columns, additive local migration, checkpoint ratchet, clamped budget (human-verified)
+- [ ] 14-06-PLAN.md — PPTX→PDF conversion driver, PDF→PNG rasterizer, private deck storage and manifest
+- [ ] 14-07-PLAN.md — Deck upload route, manifest route, authenticated owner-only slide-image byte route (human-verified)
+- [ ] 14-08-PLAN.md — `pitch-elevator` type record and prompts: six dimensions, soft 60s window, floor-gated walk-out
+- [ ] 14-09-PLAN.md — `pitch-deck` type record and prompts: nine dimensions, slides channel, ask/fair band, session-length proposal
+- [ ] 14-10-PLAN.md — Elevator wizard steps and collapsible pitch timer, three real sessions judged (human-verified)
+- [ ] 14-11-PLAN.md — High-water mark in the live turn: ratchet, visible-context slice, tail-block delivery, prefix cache preserved
+- [ ] 14-12-PLAN.md — Deck wizard steps: upload with progress and specific errors, the ask, the adjustable length
+- [ ] 14-13-PLAN.md — Live deck viewer, thumbnail strip, soft session timer, real investor pitch leak test (human-verified)
+- [ ] 14-14-PLAN.md — Report surfaces: early-end outcome banner, ask vs settled vs fair, slide timeline and overrun (human-verified)
+- [ ] 14-15-PLAN.md — Phase validation: five criteria and every locked decision signed off; surface-count guard (human-verified)
 
 ### Phase 15: Difficult Conversations
 **Goal:** Ship role-specific difficult conversations in which the avatar fully
