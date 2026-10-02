@@ -10,8 +10,14 @@
  */
 import {
   computeVisualRates,
+  computeGestureRates,
+  computePostureBaseline,
+  computePostureDrift,
   extractEpisodes,
   type CaptureWindow,
+  type GestureCounts,
+  type PostureBaseline,
+  type PostureReading,
   type VisualSampleCounts,
 } from "../lib/metrics/visual-capture";
 import { resolveVisualOutcome, isPoorVisualCoverage } from "../lib/metrics/coverage";
@@ -31,6 +37,7 @@ import {
   type VisualDescriptiveObservations,
   type VisualMetrics,
 } from "../lib/metrics/types";
+import { POSTURE_BASELINE_WINDOW_S } from "../lib/metrics/body-thresholds";
 
 let failures = 0;
 
@@ -506,6 +513,224 @@ check("a media-shaped string inside observations rejects the WHOLE payload",
     vocal: null,
   }).visual,
   null);
+
+console.log("\n15. computePostureBaseline — self-calibration");
+function reading(over: Partial<PostureReading> = {}): PostureReading {
+  return {
+    tS: 1,
+    shoulderTiltDeg: null,
+    forwardHeadOffset: null,
+    torsoLeanDeg: null,
+    torsoOpennessRatio: null,
+    ...over,
+  };
+}
+{
+  // Shoulders calibrate even though hips (torso_lean/torso_openness) are
+  // never visible — the common head-and-shoulders webcam framing.
+  const readings = Array.from({ length: 70 }, (_, i) =>
+    reading({ tS: i * 0.25, shoulderTiltDeg: 5 })
+  );
+  const baseline = computePostureBaseline(readings);
+  check("shoulder_line calibrates alone", baseline.signals, ["shoulder_line"]);
+  check("shoulder_line baseline is the mean", baseline.shoulderTiltDeg, 5);
+  check("torso_lean stays null — never defaulted to upright", baseline.torsoLeanDeg, null);
+}
+{
+  // All-null input: nobody was ever visible during calibration.
+  const readings = Array.from({ length: 70 }, (_, i) => reading({ tS: i * 0.25 }));
+  const baseline = computePostureBaseline(readings);
+  check("all-null input establishes no signals", baseline.signals, []);
+  check("all-null input leaves every field null", [
+    baseline.shoulderTiltDeg, baseline.forwardHeadOffset,
+    baseline.torsoLeanDeg, baseline.torsoOpennessRatio,
+  ], [null, null, null, null]);
+}
+{
+  // Readings after the calibration window must not pollute the baseline.
+  const inWindow = Array.from({ length: 70 }, (_, i) =>
+    reading({ tS: i * 0.25, shoulderTiltDeg: 5 })
+  );
+  const afterWindow = Array.from({ length: 1000 }, () =>
+    reading({ tS: POSTURE_BASELINE_WINDOW_S + 5, shoulderTiltDeg: 100 })
+  );
+  const baseline = computePostureBaseline([...inWindow, ...afterWindow]);
+  check("post-window readings are ignored", baseline.shoulderTiltDeg, 5);
+}
+{
+  // Minimum sample count: 59 usable readings is one short of the floor.
+  const tooFew = Array.from({ length: 59 }, (_, i) =>
+    reading({ tS: i * 0.25, shoulderTiltDeg: 5 })
+  );
+  check("below the minimum sample count, no baseline",
+    computePostureBaseline(tooFew).signals, []);
+  const justEnough = Array.from({ length: 60 }, (_, i) =>
+    reading({ tS: i * 0.25, shoulderTiltDeg: 5 })
+  );
+  check("at the minimum sample count, baseline establishes",
+    computePostureBaseline(justEnough).signals, ["shoulder_line"]);
+}
+
+console.log("\n16. computePostureDrift — baseline-relative, never absolute");
+function baselineFixture(over: Partial<PostureBaseline> = {}): PostureBaseline {
+  return {
+    shoulderTiltDeg: null,
+    forwardHeadOffset: null,
+    torsoLeanDeg: null,
+    torsoOpennessRatio: null,
+    signals: [],
+    sampleCount: 60,
+    ...over,
+  };
+}
+{
+  const baseline = baselineFixture({ shoulderTiltDeg: 10, signals: ["shoulder_line"] });
+  check("identical reading drifts 0",
+    computePostureDrift(reading({ shoulderTiltDeg: 10 }), baseline).driftMagnitude, 0);
+  check("a large shoulder-tilt change drifts near 1 (clamped)",
+    computePostureDrift(reading({ shoulderTiltDeg: 10 + 1000 }), baseline).driftMagnitude, 1);
+  const noBaselineSignal = computePostureDrift(
+    reading({ shoulderTiltDeg: 10, forwardHeadOffset: 5 }),
+    baseline
+  );
+  check("a signal with no baseline contributes nothing",
+    noBaselineSignal.perSignal.forward_head, undefined);
+  check("...and does not move the overall magnitude",
+    noBaselineSignal.driftMagnitude, 0);
+  const noSharedSignal = computePostureDrift(
+    reading({ shoulderTiltDeg: null, forwardHeadOffset: 5 }),
+    baseline
+  );
+  check("no shared signal yields null, never a defaulted 0",
+    noSharedSignal.driftMagnitude, null);
+}
+{
+  // THE FAIRNESS ASSERTION: two students with very different ABSOLUTE
+  // postures but identical deltas from their OWN opening baseline must
+  // produce the SAME drift. This is "the score comes from the student's own
+  // opening posture" made into a test, not left as a comment.
+  const studentA = computePostureDrift(
+    reading({ shoulderTiltDeg: 5 }),
+    baselineFixture({ shoulderTiltDeg: 0, signals: ["shoulder_line"] })
+  );
+  const studentB = computePostureDrift(
+    reading({ shoulderTiltDeg: 45 }),
+    baselineFixture({ shoulderTiltDeg: 40, signals: ["shoulder_line"] })
+  );
+  check("same delta from two very different baselines yields the same drift",
+    studentA.driftMagnitude, studentB.driftMagnitude);
+  check("...and it is a real, non-null, non-zero number",
+    typeof studentA.driftMagnitude === "number" && studentA.driftMagnitude > 0, true);
+}
+
+console.log("\n17. computeGestureRates");
+function gestureCounts(over: Partial<GestureCounts> = {}): GestureCounts {
+  return {
+    handSamples: 0,
+    gestureDisplacementSum: 0,
+    gestureEventCount: 0,
+    handsAboveShoulderSamples: 0,
+    handsNearFaceSamples: 0,
+    handsNearFaceEligibleSamples: 0,
+    sessionSeconds: 600,
+    ...over,
+  };
+}
+check("zero hand samples yields all zeroes",
+  computeGestureRates(gestureCounts()),
+  { gestureRatePerMin: 0, gestureAmplitudeMean: 0, handsAboveShoulderPct: 0, handsNearFacePct: 0 });
+{
+  // Rate divides by SESSION MINUTES, never hand-detected samples — doubling
+  // handSamples at a fixed event count must not move the rate.
+  const low = computeGestureRates(gestureCounts({
+    handSamples: 100, gestureEventCount: 30, gestureDisplacementSum: 10,
+  }));
+  const high = computeGestureRates(gestureCounts({
+    handSamples: 200, gestureEventCount: 30, gestureDisplacementSum: 10,
+  }));
+  check("rate is unaffected by hand-sample count", low.gestureRatePerMin, high.gestureRatePerMin);
+  check("rate is events over session minutes (30 events / 10 min)", low.gestureRatePerMin, 3);
+}
+check("handsNearFacePct divides by face-AND-hand-eligible samples, not handSamples",
+  computeGestureRates(gestureCounts({
+    handSamples: 1000, handsNearFaceSamples: 25, handsNearFaceEligibleSamples: 50,
+  })).handsNearFacePct,
+  50);
+
+console.log("\n18. New episode kinds extract through the existing machinery");
+{
+  // Two 5s windows (10s total, meeting MIN_EPISODE_SECONDS) tripping
+  // excessive_gesturing.
+  const windows = [
+    win(0, { gestureSamples: 10 }),
+    win(5, { gestureSamples: 10 }),
+  ];
+  const eps = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
+  const hit = eps.filter((e) => e.kind === "excessive_gesturing");
+  check("exactly one excessive_gesturing episode", hit.length, 1);
+  check("at the expected timecodes", [hit[0].start_s, hit[0].end_s], [0, 10]);
+}
+{
+  const windows = [
+    win(0, { handsDetected: 10, gestureSamples: 0 }),
+    win(5, { handsDetected: 10, gestureSamples: 0 }),
+  ];
+  const eps = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
+  const hit = eps.filter((e) => e.kind === "minimal_gesturing");
+  check("exactly one minimal_gesturing episode", hit.length, 1);
+  check("at the expected timecodes", [hit[0].start_s, hit[0].end_s], [0, 10]);
+}
+{
+  // Zero hand samples must NOT read as stillness — absence and stillness
+  // are different findings.
+  const windows = [
+    win(0, { handsDetected: 0, gestureSamples: 0 }),
+    win(5, { handsDetected: 0, gestureSamples: 0 }),
+  ];
+  check("zero hand samples produces NO minimal_gesturing episode",
+    extractEpisodes(windows, VISUAL_EPISODE_KINDS)
+      .filter((e) => e.kind === "minimal_gesturing").length,
+    0);
+}
+{
+  const windows = [
+    win(0, { handsDetected: 10, nearFaceCount: 5 }),
+    win(5, { handsDetected: 10, nearFaceCount: 5 }),
+  ];
+  const eps = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
+  const hit = eps.filter((e) => e.kind === "hands_near_face");
+  check("exactly one hands_near_face episode", hit.length, 1);
+  check("at the expected timecodes", [hit[0].start_s, hit[0].end_s], [0, 10]);
+}
+{
+  const windows = [
+    win(0, { poseProcessed: 10, driftMean: 0.9 }),
+    win(5, { poseProcessed: 10, driftMean: 0.9 }),
+  ];
+  const eps = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
+  const hit = eps.filter((e) => e.kind === "posture_drift");
+  check("exactly one posture_drift episode", hit.length, 1);
+  check("at the expected timecodes", [hit[0].start_s, hit[0].end_s], [0, 10]);
+}
+{
+  // Below MIN_EPISODE_SECONDS — a single 5s tripped window is noise, not
+  // behaviour, for the new kinds too.
+  const windows = [win(0, { gestureSamples: 10 }), win(5)];
+  check("a single tripped window is dropped (below MIN_EPISODE_SECONDS)",
+    extractEpisodes(windows, VISUAL_EPISODE_KINDS)
+      .filter((e) => e.kind === "excessive_gesturing").length,
+    0);
+}
+
+console.log("\n19. resolveNotMeasured wiring (12-06: hands/posture are now conditional)");
+check("a session with no usable pose still lists body_posture",
+  resolveNotMeasured({ handSignals: true, postureSignals: false, fidget: true, phone: true })
+    .includes("body_posture"),
+  true);
+check("a session with usable pose AND hands lists neither",
+  resolveNotMeasured({ handSignals: true, postureSignals: true, fidget: true, phone: true })
+    .some((e) => e === "body_posture" || e === "hand_gestures"),
+  false);
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);
