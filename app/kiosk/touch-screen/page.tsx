@@ -54,6 +54,8 @@ import { type ConversationStarter, type ChatMessage } from "@/types";
 
 type KioskState = "grid" | "selected" | "chatting";
 
+const MAX_RECORDING_MS = 45_000;
+
 export default function TouchScreen() {
   const [avatars, setAvatars] = useState<CachedAvatar[]>([]);
   const [state, setState] = useState<KioskState>("grid");
@@ -93,6 +95,22 @@ export default function TouchScreen() {
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStartInFlightRef = useRef(false);
+  const recordingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimeoutRef.current !== null) {
+        clearTimeout(recordingTimeoutRef.current);
+      }
+      const recorder = mediaRecorderRef.current;
+      mediaRecorderRef.current = null;
+      if (recorder?.state === "recording") {
+        recorder.onstop = null;
+        recorder.stop();
+      }
+    };
+  }, []);
 
   // Timeout management for auto-return to grid
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -593,9 +611,32 @@ export default function TouchScreen() {
     }
   };
 
+  const interruptAvatar = async () => {
+    const sessionId = localStorage.getItem("kioskHeygenSessionId");
+    if (sessionId) {
+      await fetch("/api/avatar/interrupt", {
+        method: "POST",
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+    }
+  };
+
   const startRecording = async () => {
+    if (
+      isAIResponding ||
+      isTranscribing ||
+      recordingStartInFlightRef.current ||
+      mediaRecorderRef.current?.state === "recording"
+    ) {
+      return;
+    }
+    recordingStartInFlightRef.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (isAIResponding || isTranscribing) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: "audio/webm;codecs=opus",
       });
@@ -619,13 +660,28 @@ export default function TouchScreen() {
       };
 
       mediaRecorder.onstop = () => {
+        if (recordingTimeoutRef.current !== null) {
+          clearTimeout(recordingTimeoutRef.current);
+          recordingTimeoutRef.current = null;
+        }
+        if (mediaRecorderRef.current === mediaRecorder) {
+          mediaRecorderRef.current = null;
+        }
         stream.getTracks().forEach((track) => track.stop());
-        processRecording(newMessages, recordingMessageIndex);
+        void processRecording(newMessages, recordingMessageIndex);
       };
 
+      // Only interrupt after the recorder has been successfully constructed.
+      void interruptAvatar();
       mediaRecorder.start();
       setIsRecording(true);
       setRecordingStatus("Recording...");
+      recordingTimeoutRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current?.state !== "recording") return;
+        setRecordingStatus("Recording stopped; transcribing...");
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+      }, MAX_RECORDING_MS);
 
       // Update state and display
       setChatMessages(newMessages);
@@ -633,14 +689,20 @@ export default function TouchScreen() {
     } catch (error) {
       console.error("Error starting recording:", error);
       setRecordingStatus("Error accessing microphone");
+    } finally {
+      recordingStartInFlightRef.current = false;
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
+    const recorder = mediaRecorderRef.current;
+    if (recorder?.state !== "recording") return;
+    if (recordingTimeoutRef.current !== null) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
     }
+    recorder.stop();
+    setIsRecording(false);
   };
 
   const processRecording = async (
@@ -820,48 +882,14 @@ export default function TouchScreen() {
     setShowChatHistory(false);
   };
 
-  const handleMouseDown = () => {
-    // Reset timeout on user interaction
+  const toggleRecording = () => {
+    // A recording is an interaction too, so it extends the kiosk session.
     resetTimeout();
-
-    if (!isAIResponding && !isTranscribing) {
-      interruptAvatar();
-      startRecording();
-    }
-  };
-
-  const handleMouseUp = () => {
-    if (isRecording) {
+    if (mediaRecorderRef.current?.state === "recording") {
       stopRecording();
+      return;
     }
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    e.preventDefault();
-    // Reset timeout on user interaction
-    resetTimeout();
-
-    if (!isAIResponding && !isTranscribing) {
-      interruptAvatar();
-      startRecording();
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    e.preventDefault();
-    if (isRecording) {
-      stopRecording();
-    }
-  };
-
-  const interruptAvatar = async () => {
-    const sessionId = localStorage.getItem("kioskHeygenSessionId");
-    if (sessionId) {
-      await fetch("/api/avatar/interrupt", {
-        method: "POST",
-        body: JSON.stringify({ session_id: sessionId }),
-      });
-    }
+    void startRecording();
   };
 
   const toggleChatHistory = () => {
@@ -1385,7 +1413,7 @@ export default function TouchScreen() {
               </p>
             </div>
 
-            {/* Hold to Talk Button */}
+            {/* Tap to record button */}
             <div className="flex flex-col items-center gap-1">
               <Button
                 className={`w-48 h-48 rounded-full transition-all duration-300 shadow-lg ${
@@ -1398,11 +1426,8 @@ export default function TouchScreen() {
                 isIconOnly
                 size="lg"
                 isDisabled={isAIResponding || isTranscribing}
-                onMouseDown={handleMouseDown}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd}
+                onPress={toggleRecording}
+                aria-label={isRecording ? "Stop recording and send message" : "Start recording message"}
               >
                 {isRecording ? (
                   <Spinner size="lg" color="white" variant="wave" />
@@ -1415,7 +1440,7 @@ export default function TouchScreen() {
                 )}
               </Button>
               <p className="text-4xl font-medium text-gray-800">
-                <strong>Hold</strong> to talk
+                {isRecording ? "Tap again to send" : "Tap to record"}
               </p>
             </div>
           </div>
