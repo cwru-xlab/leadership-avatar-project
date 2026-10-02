@@ -13,8 +13,8 @@ interface LiveAvatarRecord {
   id: string;
   name: string;
   preview_url?: string;
-  availability?: string;
   status?: string;
+  is_expired?: boolean;
   default_voice?: LiveAvatarVoice | null;
 }
 
@@ -96,7 +96,10 @@ export async function GET() {
       .filter(
         (avatar) =>
           avatar.status === "ACTIVE" &&
-          avatar.availability === "usable" &&
+          // `/v1/avatars` does not return an `availability` field; liveness is
+          // carried by `status` plus `is_expired`. Requiring `availability`
+          // silently filtered out every avatar and surfaced as a 503.
+          avatar.is_expired !== true &&
           Boolean(avatar.id) &&
           Boolean(avatar.name) &&
           Boolean(avatar.default_voice?.id) &&
