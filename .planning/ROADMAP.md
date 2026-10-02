@@ -36,7 +36,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 9: Student-Authored Scenarios** - Students create their own practice scenarios (completed 2026-09-21)
 - [x] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
 - [x] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality) (completed 2026-09-23)
-- [ ] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (7/8 plans; fidgeting retired as unmeasurable)
+- [ ] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (7/9 plans; fidgeting retired as unmeasurable; sign-off failed on item 7, 12-09 closes it)
 - [ ] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record
 - [ ] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
 - [ ] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios
@@ -260,7 +260,7 @@ report restructure (REQ-53's scored-vs-descriptive distinction gates REQ-52).
   3. Nothing the pipeline cannot observe is described as absent, and nothing reported
      descriptively is scored.
 
-**Plans:** 7/8 plans executed
+**Plans:** 7/9 plans executed
 
 Plans:
 - [x] 12-01-PLAN.md — Async stop() teardown + per-tick frame-budget instrumentation
@@ -270,7 +270,12 @@ Plans:
 - [x] 12-05-PLAN.md — Vendor pose/hand/object models and run all four staggered in the worker
 - [x] 12-06-PLAN.md — Scored derivations: posture baseline + drift, gesture curve, hands near face, new episodes
 - [x] 12-07-PLAN.md — Descriptive derivations: fidgeting, phone in frame, absolute posture reading
-- [x] 12-08-PLAN.md — Threshold tuning from real recordings + end-to-end phase sign-off
+- [~] 12-08-PLAN.md — Threshold tuning from real recordings + end-to-end phase sign-off
+      (tuning complete; Task 3 sign-off RUN 2026-10-02 and FAILED on item 7 —
+      an off-camera session reported "Posture drift: Held steady" and credited
+      posture it never observed. Items 1-6 and criterion 2 passed; the frame
+      budget came in at meanTickMs 35.6 against a 166.7ms interval.)
+- [ ] 12-09-PLAN.md — Posture-coverage gate + unreadable posture band + item-7 re-run
 
 ### Phase 13: One-on-One Conversation Engine
 **Goal:** Generalize the interview pipeline into a parameterized one-on-one
@@ -456,7 +461,7 @@ engine lands they can be planned and executed in any order, or in parallel.
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
-| 12. Embodied Visual Signals | 7/8 | In Progress|  |
+| 12. Embodied Visual Signals | 7/9 | In Progress|  |
 | 13. One-on-One Conversation Engine | 0/0 | Not planned |  |
 | 14. Practice Pitches | 0/15 | Planned     |  |
 | 15. Difficult Conversations | 0/0 | Not planned |  |
