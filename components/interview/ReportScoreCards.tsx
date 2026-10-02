@@ -111,15 +111,20 @@ export default function ReportScoreCards({
 }
 
 /**
- * The six possible causes for a Visual/Vocal card's content. "scored" is the
- * only state that renders a number; every other state renders cause-specific
- * copy, never a score.
+ * The seven possible causes for a Visual/Vocal card's content. "scored" is
+ * the only state that renders a number; every other state renders
+ * cause-specific copy, never a score.
+ *
+ * `speech_too_short` (12-08 Task 1 checkpoint, Defect F) is deliberately
+ * distinct from `typed_only` — see `VocalUnscoredReason`'s own doc comment
+ * in lib/metrics/types.ts for the bug this split fixes.
  */
 type DeliveryCardState =
   | "scored"
   | "not_yet_measured"
   | "camera_off"
   | "typed_only"
+  | "speech_too_short"
   | "insufficient_data"
   | "not_scored";
 
@@ -128,7 +133,7 @@ type DeliveryCardState =
  * order matters — see `10-08-PLAN.md` for the reasoning behind each step;
  * do not reorder without re-checking every state it would then misclassify.
  */
-function resolveCardState(
+export function resolveCardState(
   cameraMode: CameraMode | null,
   unscoredReason: VisualUnscoredReason | VocalUnscoredReason | null,
   score: number | null,
@@ -148,6 +153,12 @@ function resolveCardState(
   //    modality choice, not a camera opt-out.
   if (unscoredReason === "TYPED_ONLY") {
     return "typed_only";
+  }
+  // 3b. The student DID speak, just not enough to score reliably (12-08
+  //     Task 1 checkpoint, Defect F). Must NOT collapse into `typed_only` —
+  //     that copy asserts the student typed, which would be false here.
+  if (unscoredReason === "SPEECH_TOO_SHORT") {
+    return "speech_too_short";
   }
   // 4. A genuine technical failure — measurement was attempted but could not
   //    be performed.
@@ -178,6 +189,14 @@ const UNSCORED_COPY: Record<
   typed_only: {
     headline: "Not measured",
     subLine: "You typed your answers, so there was no speech to measure.",
+  },
+  // 12-08 Task 1 checkpoint, Defect F: a session where the student spoke,
+  // just not long enough to score reliably — must NOT reuse typed_only's
+  // copy, which would assert something false about what the student did.
+  speech_too_short: {
+    headline: "Not enough speech to score",
+    subLine:
+      "You spoke, but not enough in this session to score reliably — see the measurements below for what we could capture.",
   },
   insufficient_data: {
     headline: "Insufficient data",

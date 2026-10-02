@@ -1322,7 +1322,11 @@ export default function CasePlayPage() {
     // `handleSendMessage`'s `recordTypedTurn()`), and `resolveVocalOutcome`
     // (lib/metrics/coverage.ts, consumed by the evaluation runners from
     // 10-07) decides from the AGGREGATE at finish — scored if there was
-    // enough real speech, `TYPED_ONLY` if there was not. A mixed session is
+    // enough real speech, `TYPED_ONLY` if the student never spoke at all,
+    // `SPEECH_TOO_SHORT` if they spoke but not enough to score reliably
+    // (12-08 Task 1 checkpoint, Defect F split these two apart — they used
+    // to collapse into one `TYPED_ONLY` reason, which told a student who
+    // DID speak that they had typed). A mixed session is
     // therefore scored on its spoken portion only: typed turns contribute
     // nothing and subtract nothing (REQ-44). Do not "simplify" this to a
     // session-level flag — that would penalise a student who typed two
