@@ -270,5 +270,72 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
     false);
 }
 
+{
+  // 12-08 Task 1 checkpoint, Defect G: the EXACT real-run failure — a
+  // HEDGED effect claim ("may have distracted from") in `overall_summary`,
+  // a field the first version of this validator never scanned at all.
+  const defectG = asStructuredReport({
+    ...FULL,
+    overall_summary:
+      "Gesture use was at times excessive — was that intentional? Hand movements near his face may have distracted from his responses.",
+  }) as StructuredReport;
+  const violations = findBodySignalWordingViolations(defectG);
+  check("overall_summary is scanned at all",
+    violations.some((v) => v.field === "overall_summary"), true);
+  check("the hedged effect claim is caught by the structural stem rule, not an exact phrase",
+    violations.some((v) => v.reason === "effect-claim-stem"), true);
+
+  const { report: sanitized, strippedCount } = sanitizeBodySignalWording(defectG);
+  check("the hedged clause is stripped", strippedCount > 0, true);
+  check("the measurement half survives — only the effect claim is removed",
+    (sanitized.overall_summary ?? "").includes("Gesture use was at times excessive"), true);
+  check("the hedged effect claim never survives",
+    (sanitized.overall_summary ?? "").includes("distracted"), false);
+}
+{
+  // Other hedged phrasings of the same claim, never on the exact-phrase
+  // list, must all be caught by the same structural rule.
+  for (const hedge of [
+    "Hand movements near his face might have distracted the interviewer.",
+    "His posture could obscure how engaged he seemed.",
+    "His posture may undermine how confident he came across.",
+  ]) {
+    const report = asStructuredReport({
+      ...FULL,
+      category_notes: { ...FULL.category_notes, visual: hedge },
+    }) as StructuredReport;
+    check(`structural rule catches: "${hedge}"`,
+      findBodySignalWordingViolations(report).some((v) => v.reason === "effect-claim-stem"),
+      true);
+  }
+}
+{
+  // A legitimate, unrelated use of an effect-claim stem word must NOT be
+  // flagged when the sentence mentions no body signal at all.
+  const benign = asStructuredReport({
+    ...FULL,
+    overall_summary: "The concrete examples reinforced the overall narrative well.",
+  }) as StructuredReport;
+  check("an unrelated 'reinforce' with no body-signal keyword is not flagged",
+    findBodySignalWordingViolations(benign).length, 0);
+}
+{
+  // growth_areas[].suggestion is advisory, not a finding — it must NOT be
+  // held to the question-mark rule, even though it mentions a body signal.
+  const withAdvisorySuggestion = asStructuredReport({
+    ...FULL,
+    growth_areas: [
+      {
+        title: "Hand position",
+        detail: "Your hand moved toward your face a few times — was that intentional?",
+        suggestion: "Notice when your hand moves toward your face.",
+        timecodes: ["1:30"],
+      },
+    ],
+  }) as StructuredReport;
+  check("an advisory suggestion without a question mark is not flagged",
+    findBodySignalWordingViolations(withAdvisorySuggestion).length, 0);
+}
+
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);
