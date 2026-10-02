@@ -41,9 +41,13 @@
 
 import {
   METRICS_SAMPLE_HZ,
+  VISUAL_DESCRIPTIVE_EPISODE_KINDS,
   VISUAL_EPISODE_KINDS,
   VISUAL_POSTURE_SIGNALS,
   resolveNotMeasured,
+  type VisualDescriptiveEpisode,
+  type VisualDescriptiveEpisodeKind,
+  type VisualDescriptiveObservations,
   type VisualEpisode,
   type VisualEpisodeKind,
   type VisualMetrics,
@@ -51,12 +55,16 @@ import {
   type VisualPostureSignal,
 } from "@/lib/metrics/types";
 import {
+  FIDGET_EPISODE_TRIP_PCT,
   FIDGET_MAX_AMPLITUDE,
+  FIDGET_MIN_DIRECTION_CHANGES_PER_S,
   GESTURE_AMPLITUDE_MIN,
   GESTURE_RATE_EXCESSIVE_MIN,
   GESTURE_RATE_STILL_MAX,
   GESTURE_WINDOW_MIN_HAND_SAMPLES,
   HANDS_NEAR_FACE_TRIP_PCT,
+  PHONE_EPISODE_TRIP_PCT,
+  PHONE_MIN_VISIBLE_S,
   POSTURE_BASELINE_MIN_SAMPLES,
   POSTURE_BASELINE_WINDOW_S,
   POSTURE_DRIFT_TRIP,
@@ -601,6 +609,97 @@ export function computeGestureRates(counts: GestureCounts): {
   };
 }
 
+/**
+ * Raw material for `computeObservations` (12-07's measured-but-never-scored
+ * half). `fidgetSamples` and `phoneSampleHz` arrive PRE-GATED by the caller
+ * (`stop()`), not derived inside this function — see those two fields' own
+ * doc comments for why.
+ */
+export interface ObservationCounts {
+  /** HAND-DETECTED samples (not every hand-model tick — contrast
+   * `GestureCounts.handSamples`, which deliberately means the opposite thing
+   * for the scored rate it denominates). `fidgetPct`'s denominator: the
+   * signal is about hands that WERE visible, and because this value is
+   * descriptive rather than scored, the "must not divide by a detection
+   * count" rule that protects `gesture_rate_per_min`/`hands_above_shoulder_pct`
+   * from the absence-reads-as-clean defect does not apply here — there is no
+   * score to protect. If a future session shows `fidgeting` and
+   * `excessive_gesturing`/`minimal_gesturing` tripping together on nearly
+   * every session, that is the warning sign this counter and the gesture
+   * accumulators have started measuring the same motion (see
+   * `FIDGET_MAX_AMPLITUDE`'s own doc comment) — they must stay independent. */
+  handSamples: number;
+  /** Count of samples that cleared BOTH halves of the fidget definition —
+   * low amplitude (`FIDGET_MAX_AMPLITUDE`) AND a high-enough direction-change
+   * RATE (`FIDGET_MIN_DIRECTION_CHANGES_PER_S`) — pre-gated by the caller
+   * from the session's direction-change-reversal count and elapsed seconds.
+   * `computeObservations` itself does no rate arithmetic; it only turns this
+   * already-gated count into a percentage, so the rate-gating logic stays
+   * testable at the `stop()` call site without duplicating it here. */
+  fidgetSamples: number;
+  /** Total object-model ticks this session (phone present or not) — the
+   * `phoneSampleHz` numerator's own source, kept here for parity with
+   * `phoneVisibleSamples`, not read directly by `computeObservations`. */
+  phoneSamples: number;
+  phoneVisibleSamples: number;
+  /** The object runner's EFFECTIVE rate this session (ticks per second it
+   * ACTUALLY achieved — `phoneSamples / sessionSeconds` — never the nominal
+   * configured interval). A session with dropped object ticks has a real
+   * effective rate below the nominal one; converting visible-sample counts
+   * to seconds with the wrong (higher) rate would UNDERSTATE how long a
+   * phone was actually visible. */
+  phoneSampleHz: number;
+  /** Session-mean ABSOLUTE shoulder-line tilt, or `null` when the signal was
+   * never measurable — the SAME raw angles 12-06 collects for drift, just
+   * never baseline-relative. This is the absolute reading REQ-51 requires to
+   * be produced and shown, but never graded. */
+  absoluteShoulderTiltDegMean: number | null;
+  /** Session-mean ABSOLUTE forward-head offset, or `null` when never
+   * measurable. Same absolute-vs-drift distinction as the shoulder field. */
+  absoluteForwardHeadOffsetMean: number | null;
+}
+
+/**
+ * Pure. Turns raw observation counts into the reported descriptive values —
+ * the measured-but-NEVER-SCORED half of this phase (REQ-52/REQ-54/REQ-55).
+ * Exported for direct testing, same discipline as `computeVisualRates`/
+ * `computeGestureRates`.
+ *
+ * `fidgetPct` and `phoneVisibleSeconds` are genuinely DERIVED here (a
+ * percentage, a unit conversion); `postureShoulderTiltDeg`/
+ * `postureForwardHeadOffset` are PASSED THROUGH unchanged — the caller
+ * already computed the session means, and this function's job is only to
+ * bundle all four descriptive values behind one pure, testable seam so
+ * `stop()`'s assembly code and `scripts/verify-visual-metrics.ts` exercise
+ * the identical arithmetic.
+ */
+export function computeObservations(counts: ObservationCounts): {
+  fidgetPct: number;
+  phoneVisibleSeconds: number;
+  postureShoulderTiltDeg: number | null;
+  postureForwardHeadOffset: number | null;
+} {
+  const handSamples = Math.max(1, counts.handSamples);
+  const fidgetPct = Math.round((counts.fidgetSamples / handSamples) * 100);
+
+  // A single false-positive object-detection frame must not become "a phone
+  // was visible" — below PHONE_MIN_VISIBLE_S, report 0 rather than a
+  // fractional-second reading nobody could act on.
+  let phoneVisibleSeconds = 0;
+  if (counts.phoneSampleHz > 0) {
+    const rawSeconds = counts.phoneVisibleSamples / counts.phoneSampleHz;
+    phoneVisibleSeconds =
+      rawSeconds >= PHONE_MIN_VISIBLE_S ? Math.round(rawSeconds) : 0;
+  }
+
+  return {
+    fidgetPct,
+    phoneVisibleSeconds,
+    postureShoulderTiltDeg: counts.absoluteShoulderTiltDegMean,
+    postureForwardHeadOffset: counts.absoluteForwardHeadOffsetMean,
+  };
+}
+
 /** One closed sampling window's totals. Scalars only — no landmarks, no
  * frames; nothing here outlives the tick that produced it in any richer form
  * than these counts.
@@ -628,6 +727,12 @@ export interface CaptureWindow {
   nearFaceCount: number;
   fidgetCount: number;
   phoneCount: number;
+  /** Total object-model ticks (phone present or not) that landed in this
+   * window — 12-07's denominator for `phone_visible`'s window-trip ratio.
+   * Distinct from `phoneCount` (the VISIBLE subset) for the same reason
+   * `handsDetected` is distinct from `gestureSamples`: a window with few
+   * processed object ticks must not trip on one frame. */
+  phoneProcessed: number;
 }
 
 /** Whether a single window trips each episode condition. Ratios, never raw
@@ -685,8 +790,13 @@ function windowTrips(w: CaptureWindow, kind: VisualEpisodeKind): boolean {
 }
 
 /**
- * Collapses a session's windows into timestamped excursions. Pure and
- * exported for direct testing.
+ * Collapses a session's windows into timestamped excursions for ONE kind
+ * vocabulary, given that vocabulary's own trip predicate. Pure, generic, and
+ * the shared inner engine behind both `extractEpisodes` (scored) and
+ * `extractDescriptiveEpisodes` (12-07, never scored) — the two PUBLIC
+ * functions stay structurally distinct (different kind types, different trip
+ * predicates) so a descriptive episode cannot silently enter the scored
+ * array; only this run-collapsing arithmetic is shared.
  *
  * A run absorbs up to `EPISODE_GAP_TOLERANCE_WINDOWS` non-tripping windows
  * without ending, so one glance back at the camera during a long absence does
@@ -698,14 +808,15 @@ function windowTrips(w: CaptureWindow, kind: VisualEpisodeKind): boolean {
  * — which is why the gap tolerance matters twice: it keeps the episode whole
  * AND records how solid it was.
  */
-export function extractEpisodes(
+function collapseRuns<K extends string>(
   windows: CaptureWindow[],
-  kinds: readonly VisualEpisodeKind[]
-): VisualEpisode[] {
-  const episodes: VisualEpisode[] = [];
+  kinds: readonly K[],
+  trips: (w: CaptureWindow, kind: K) => boolean
+): Array<{ kind: K; start_s: number; end_s: number; severity: number }> {
+  const episodes: Array<{ kind: K; start_s: number; end_s: number; severity: number }> = [];
 
   for (const kind of kinds) {
-    const tripped = windows.map((w) => windowTrips(w, kind));
+    const tripped = windows.map((w) => trips(w, kind));
     let runStart = -1;
     let gap = 0;
 
@@ -751,6 +862,53 @@ export function extractEpisodes(
     .sort((a, b) => b.end_s - b.start_s - (a.end_s - a.start_s))
     .slice(0, MAX_EPISODES)
     .sort((a, b) => a.start_s - b.start_s);
+}
+
+/** Pure and exported for direct testing — see `collapseRuns`'s own doc
+ * comment for the shared engine both this and `extractDescriptiveEpisodes`
+ * ride on. */
+export function extractEpisodes(
+  windows: CaptureWindow[],
+  kinds: readonly VisualEpisodeKind[]
+): VisualEpisode[] {
+  return collapseRuns(windows, kinds, windowTrips);
+}
+
+/** Whether a single window trips each DESCRIPTIVE episode condition — never
+ * scored, never read by `windowTrips`/`extractEpisodes`. Ratios, never raw
+ * counts, matching every scored trip condition's own discipline. */
+function descriptiveWindowTrips(
+  w: CaptureWindow,
+  kind: VisualDescriptiveEpisodeKind
+): boolean {
+  switch (kind) {
+    case "fidgeting":
+      return (
+        w.handsDetected > 0 &&
+        (w.fidgetCount / w.handsDetected) * 100 > FIDGET_EPISODE_TRIP_PCT
+      );
+    case "phone_visible":
+      return (
+        w.phoneProcessed > 0 &&
+        (w.phoneCount / w.phoneProcessed) * 100 > PHONE_EPISODE_TRIP_PCT
+      );
+  }
+}
+
+/**
+ * Pure and exported for direct testing. The DESCRIPTIVE sibling of
+ * `extractEpisodes` — same `collapseRuns` engine, a completely separate kind
+ * vocabulary and trip predicate, and a different TypeScript return type
+ * (`VisualDescriptiveEpisode[]`, not `VisualEpisode[]`). That type distinction
+ * is what makes "a fidget episode entered the scored array" a compile error
+ * rather than a runtime discipline to remember (see `VisualDescriptiveEpisode`'s
+ * own header comment in `types.ts`).
+ */
+export function extractDescriptiveEpisodes(
+  windows: CaptureWindow[],
+  kinds: readonly VisualDescriptiveEpisodeKind[]
+): VisualDescriptiveEpisode[] {
+  return collapseRuns(windows, kinds, descriptiveWindowTrips);
 }
 
 interface FaceBounds {
@@ -893,6 +1051,7 @@ export function createVisualCapture(
   let winNearFaceCount = 0;
   let winFidgetCount = 0;
   let winPhoneCount = 0;
+  let winPhoneProcessed = 0;
   let captureOffsetS = 0;
   let poseUnavailableSamples = 0;
   let centeredSamples = 0;
@@ -1058,6 +1217,7 @@ export function createVisualCapture(
       nearFaceCount: winNearFaceCount,
       fidgetCount: winFidgetCount,
       phoneCount: winPhoneCount,
+      phoneProcessed: winPhoneProcessed,
     });
     windowStartS = nowS;
     winProcessed = 0;
@@ -1076,6 +1236,7 @@ export function createVisualCapture(
     winNearFaceCount = 0;
     winFidgetCount = 0;
     winPhoneCount = 0;
+    winPhoneProcessed = 0;
   }
 
   function elapsedS(): number {
@@ -1479,9 +1640,11 @@ export function createVisualCapture(
   }
 
   /** Folds one tick's scalar phone-detection result into the 12-05
-   * accumulators. */
+   * accumulators (plus 12-07's per-window processed tally, needed as the
+   * `phone_visible` descriptive episode's own denominator). */
   function applyObjectResult(result: ObjectDetectResult) {
     phoneSamples += 1;
+    winPhoneProcessed += 1;
     if (result.phonePresent) {
       phoneVisibleSamples += 1;
       winPhoneCount += 1;
@@ -2159,6 +2322,87 @@ export function createVisualCapture(
       (signal) => poseVisibleSamples[signal] >= POSTURE_BASELINE_MIN_SAMPLES
     );
 
+    // 12-07: measured-but-NEVER-SCORED observations — fidgeting, a phone in
+    // frame, and the absolute (never baseline-relative) posture reading.
+    // Assembled entirely separately from every field above: NO field in
+    // `observations` below may be derived from, or feed back into, any
+    // scored field in this return object, and nothing above this point reads
+    // `observations` either. See `VisualDescriptiveObservations`'s header
+    // comment in `types.ts` for why that separation is enforced at the type
+    // level, not just by this comment.
+    //
+    // `fidgetUsable` mirrors `handsUsable` exactly, not a separate
+    // computation: fidgeting is read from the SAME worker-only hands
+    // pipeline (12-05) with no main-thread fallback, so `handSamples === 0`
+    // means fidgeting was never observable this session either — never a
+    // flattering 0%.
+    const fidgetUsable = handsUsable;
+    // Object (phone) detection has no main-thread fallback (12-05) either —
+    // `phoneSamples === 0` means the worker never ran this model this
+    // session (never that a phone was genuinely absent the whole time), and
+    // must declare `phone_checking` unmeasured rather than report a clean 0.
+    const phoneUsable = phoneSamples > 0;
+
+    // Session-wide direction-change RATE (reversals/second) gates whether
+    // the low-amplitude samples this session genuinely read as "fidgeting"
+    // vs. a few incidental slow drifts. This rate-gating decision is made
+    // HERE, not inside `computeObservations`, so that function stays a pure
+    // percentage calculation and this arithmetic stays testable at this one
+    // call site without duplicating it.
+    const fidgetDirectionChangeRatePerS =
+      sessionSeconds > 0 ? fidgetDirectionChanges / sessionSeconds : 0;
+    const fidgetSamples =
+      fidgetDirectionChangeRatePerS >= FIDGET_MIN_DIRECTION_CHANGES_PER_S
+        ? fidgetDisplacementSamples
+        : 0;
+
+    // The object runner's EFFECTIVE rate this session — see
+    // `ObservationCounts.phoneSampleHz`'s own doc comment for why this must
+    // be the ACHIEVED rate, not the nominal `OBJECT_TICK_INTERVAL_MS`.
+    const phoneSampleHz = sessionSeconds > 0 ? phoneSamples / sessionSeconds : 0;
+
+    const absoluteShoulderTiltDegMean =
+      poseVisibleSamples.shoulder_line > 0
+        ? poseShoulderTiltSum / poseVisibleSamples.shoulder_line
+        : null;
+    const absoluteForwardHeadOffsetMean =
+      poseVisibleSamples.forward_head > 0
+        ? poseForwardHeadOffsetSum / poseVisibleSamples.forward_head
+        : null;
+
+    // Omit the whole `observations` key when NOTHING descriptive was
+    // measurable this session — an object with every field at a flattering
+    // default would read as "we looked and found nothing," exactly the
+    // failure `VISUAL_NOT_MEASURED`'s own header comment warns about.
+    let observations: VisualDescriptiveObservations | undefined;
+    if (
+      fidgetUsable ||
+      phoneUsable ||
+      absoluteShoulderTiltDegMean !== null ||
+      absoluteForwardHeadOffsetMean !== null
+    ) {
+      const derivedObservations = computeObservations({
+        handSamples: handsDetectedSamples,
+        fidgetSamples,
+        phoneSamples,
+        phoneVisibleSamples,
+        phoneSampleHz,
+        absoluteShoulderTiltDegMean,
+        absoluteForwardHeadOffsetMean,
+      });
+      observations = {
+        fidget_pct: derivedObservations.fidgetPct,
+        phone_visible_seconds: derivedObservations.phoneVisibleSeconds,
+        posture_shoulder_tilt_deg: derivedObservations.postureShoulderTiltDeg,
+        posture_forward_head_offset:
+          derivedObservations.postureForwardHeadOffset,
+        episodes: extractDescriptiveEpisodes(
+          windows,
+          VISUAL_DESCRIPTIVE_EPISODE_KINDS
+        ),
+      };
+    }
+
     return {
       eye_contact_pct: rates.eyeContactPct,
       attentiveness_pct: rates.attentivenessPct,
@@ -2172,18 +2416,18 @@ export function createVisualCapture(
       // with several people gesturing obscenely earned a commendation for
       // having no distracting behaviours.
       //
-      // 12-06: `fidget`/`phone` stay `false` here — 12-07 supplies their real
-      // per-session usability. `handSignals`/`postureSignals` are real: a
-      // session is allowed to declare hand_gestures/body_posture unmeasured
-      // even though this pipeline generally supports measuring them — that
-      // is the honest outcome when a body was never genuinely usable this
-      // particular session, not a standing claim that the capability does
-      // not exist.
+      // 12-07: all four booleans are now real per-session usability, none a
+      // standing placeholder. A session is allowed to declare any of
+      // hand_gestures/body_posture/fidgeting/phone_checking unmeasured even
+      // though this pipeline generally supports measuring all four — that is
+      // the honest outcome when a signal was never genuinely usable this
+      // particular session (body never in frame, worker never started), not
+      // a standing claim that the capability does not exist.
       not_measured: resolveNotMeasured({
         handSignals: handsUsable,
         postureSignals: postureSignalsMeasured.length > 0,
-        fidget: false,
-        phone: false,
+        fidget: fidgetUsable,
+        phone: phoneUsable,
       }),
       episodes,
       coverage: {
@@ -2220,6 +2464,10 @@ export function createVisualCapture(
             posture_drift_max_s: Math.round(postureDriftMaxS * 10) / 10,
           }
         : {}),
+      // 12-07: measured-but-never-scored observations, omitted entirely
+      // (never emitted half-populated) when nothing descriptive was
+      // measurable at all this session — see the assembly above.
+      ...(observations ? { observations } : {}),
     };
   }
 
