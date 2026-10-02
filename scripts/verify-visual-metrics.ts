@@ -159,6 +159,41 @@ check("dead track is insufficient data",
 check("poor-coverage disclosure still independent of scoring",
   isPoorVisualCoverage(visual({ coverage: coverage({ face_detected_samples: 720 }) })), true);
 
+console.log("\n2b. Four-model schedule-aware coverage (12-05 starvation regression)");
+// A live checkpoint caught a real, deterministic production bug here:
+// `processedSamples` only ever counts FACE ticks, but once pose/hands/object
+// share the tick stream, `expected_samples` must be scaled to face's OWN
+// schedule share, not the raw (all-model) tick count — otherwise a
+// perfectly healthy face capture rate is structurally pinned below
+// PROCESSED_RATIO_FLOOR (0.5) and every camera-on session reports an empty
+// Visual block. This was only reachable through a live camera before this
+// test existed; see `lib/metrics/visual-capture.ts`'s `expectedSamples`
+// comment for the fix itself.
+check("a healthy four-model session (expected scaled to face's own schedule share) is still scored",
+  resolveVisualOutcome("ON", visual({
+    coverage: coverage({
+      track_live_seconds: 600,
+      expected_samples: 1800,
+      processed_samples: 1790,
+      face_detected_samples: 1790,
+    }),
+  })),
+  { scored: true, reason: null });
+check("the UNSCALED pre-fix accounting would have wrongly starved this same healthy session",
+  resolveVisualOutcome("ON", visual({
+    coverage: coverage({
+      track_live_seconds: 600,
+      // Pre-fix: expected_samples came from the WHOLE tick stream
+      // (trackLiveSeconds * METRICS_SAMPLE_HZ) with no schedule-share
+      // scaling. Reproduced here literally as a historical marker of the
+      // bug's shape, NOT current production behaviour.
+      expected_samples: 3600,
+      processed_samples: 1790,
+      face_detected_samples: 1790,
+    }),
+  })),
+  { scored: false, reason: "INSUFFICIENT_DATA" });
+
 console.log("\n3. Band rendering");
 check("multi-face flag surfaces on its own row",
   visualBands(visual({ posture_flags: ["multiple_faces_detected"] }))
