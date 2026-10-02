@@ -58,36 +58,54 @@ export type VisualPostureFlag = (typeof VISUAL_POSTURE_FLAGS)[number];
  *
  * Saying nothing was not enough; the payload has to say "this was never
  * looked at". Every entry here is something the evaluator prompts forbid
- * commenting on, scoring, or describing as absent. Entries leave this list
- * only when a pipeline that genuinely measures them lands.
+ * commenting on, scoring, or describing as absent.
+ *
+ * As of plan 12-07, this is down to the one entry with genuinely NO producer
+ * anywhere in this phase: `background_environment`'s aesthetic half (judging
+ * a background as "unprofessional" is largely a judgement about someone's
+ * housing — permanently out of scope, see 12-CONTEXT.md's Deferred Ideas).
+ * Every other entry this pipeline ever declared has now graduated into one of
+ * two OTHER categories, neither of which belongs in this constant:
+ *   - measured AND scored (`hand_gestures`, `body_posture` — 12-06)
+ *   - measured but NEVER scored (`fidgeting`, `phone_checking` — 12-07,
+ *     `VisualDescriptiveObservations`)
+ * Both of those categories still have real per-session failure modes — a
+ * body that was never in frame, a worker that never started — so
+ * `resolveNotMeasured` still decides per-session whether any of the four
+ * conditional entries belongs in a given payload's list. The absence-is-not-
+ * evidence rule this constant exists to enforce therefore does not shrink
+ * along with the array: it just moved from "permanently declared" to
+ * "declared whenever this session's own data could not clear the floor."
+ * Entries leave this list only when a producer exists for the WHOLE phase;
+ * they still appear per-session via `VISUAL_NOT_MEASURED_VOCABULARY` /
+ * `resolveNotMeasured` whenever that session's own data falls short.
  */
-export const VISUAL_NOT_MEASURED = [
-  "fidgeting",
-  "phone_checking",
-  "background_environment",
-] as const;
+export const VISUAL_NOT_MEASURED = ["background_environment"] as const;
 
 /**
  * The full closed vocabulary `VisualMetrics.not_measured` may ever contain —
- * `VISUAL_NOT_MEASURED`'s permanently-unmeasurable entries, plus
- * `hand_gestures`/`body_posture`, which plan 12-06 moved from "permanently
- * unmeasurable" to "per-session conditional" now that real producers for
- * both ship. `resolveNotMeasured` below decides, per session, whether either
- * conditional entry belongs in the list — based on whether THIS session's
- * data actually cleared the usability floor, never a standing declaration
- * that the pipeline cannot measure the capability at all.
+ * `VISUAL_NOT_MEASURED`'s one permanently-unmeasurable entry, plus the four
+ * entries that are per-session conditional now that real producers exist for
+ * all of them: `hand_gestures`/`body_posture` (scored, 12-06) and
+ * `fidgeting`/`phone_checking` (measured but never scored, 12-07).
+ * `resolveNotMeasured` below decides, per session, whether each conditional
+ * entry belongs in the list — based on whether THIS session's data actually
+ * cleared the usability floor, never a standing declaration that the
+ * pipeline cannot measure the capability at all.
  *
  * This is the vocabulary `lib/metrics/ingest.ts`'s server-side allowlist must
  * validate against, NOT the narrower `VISUAL_NOT_MEASURED` — allowlisting
- * against the narrower constant would silently drop a genuine
- * `body_posture`/`hand_gestures` entry from a real payload, which is the same
- * "absence reads as a clean bill of health" failure this file's header
- * comment already warns about, just relocated to the ingest boundary.
+ * against the narrower constant would silently drop a genuine per-session
+ * entry from a real payload, which is the same "absence reads as a clean
+ * bill of health" failure this file's header comment already warns about,
+ * just relocated to the ingest boundary.
  */
 export const VISUAL_NOT_MEASURED_VOCABULARY = [
   ...VISUAL_NOT_MEASURED,
   "hand_gestures",
   "body_posture",
+  "fidgeting",
+  "phone_checking",
 ] as const;
 
 export type VisualNotMeasured = (typeof VISUAL_NOT_MEASURED_VOCABULARY)[number];
@@ -428,14 +446,18 @@ export interface VisualMetrics {
  * original face-only pipeline (an empty flags array read as "verified
  * clean").
  *
- * `handSignals`/`postureSignals` answer a DIFFERENT question than
- * `fidget`/`phone` do, and that asymmetry is deliberate: hand and posture
- * producers now ship unconditionally (12-06), so the question for them is
- * "did THIS session's data clear the usability floor" (e.g.
- * `posture_signals_measured.length > 0`) — never "did the pipeline attempt
- * to run," which would be true almost every session and would mask a body
- * that was simply never in frame. `fidget`/`phone` still answer the older
- * "does a producer exist at all" question until 12-07 ships theirs.
+ * All four booleans now answer the SAME question as of plan 12-07: "did THIS
+ * session's data clear the usability floor" — never "does a producer exist
+ * for the capability at all," which would be true almost every session and
+ * would mask a body (or a worker that never started) that was simply never
+ * usable this time. `handSignals`/`postureSignals` are driven by
+ * `handsUsable`/`posture_signals_measured.length > 0`; `fidget` by the same
+ * `handsUsable` (fidgeting piggybacks on the identical worker-only hands
+ * pipeline — no hands data this session means no fidget data either, never a
+ * flattering 0%); `phone` by whether the object-detection pipeline actually
+ * produced any samples this session (`phoneSamples > 0`) — object detection
+ * has no main-thread fallback (12-05), so a worker that failed to start must
+ * declare `phone_checking` unmeasured, never report "no phone detected."
  *
  * `background_environment` is ALWAYS returned — its aesthetic half is
  * permanently out of scope (see 12-CONTEXT.md's Deferred Ideas) and no

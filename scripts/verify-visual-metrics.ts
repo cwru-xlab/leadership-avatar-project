@@ -297,6 +297,7 @@ function win(startS: number, over: Partial<CaptureWindow> = {}): CaptureWindow {
     // new body kinds too.
     poseProcessed: 0, driftMean: 0, gestureSum: 0, gestureSamples: 0,
     handsDetected: 0, nearFaceCount: 0, fidgetCount: 0, phoneCount: 0,
+    phoneProcessed: 0,
     ...over,
   };
 }
@@ -371,14 +372,15 @@ check("zero offset renders capture time unchanged",
   { label: "0:00\u20131:05", value: "Another person in frame" });
 
 console.log("\n9. resolveNotMeasured");
-// 12-06: `VISUAL_NOT_MEASURED` itself now holds only the three PERMANENTLY
-// unmeasurable entries (fidgeting/phone_checking/background_environment) —
-// hand_gestures/body_posture moved to being per-session conditional now that
-// real producers ship, so an all-false input returns the full VOCABULARY
-// (five entries), not the narrower `VISUAL_NOT_MEASURED` constant.
+// 12-07: `VISUAL_NOT_MEASURED` itself now holds only the ONE permanently
+// unmeasurable entry (background_environment) — hand_gestures/body_posture
+// (12-06) and fidgeting/phone_checking (12-07) are now ALL per-session
+// conditional, so an all-false input returns the full five-entry VOCABULARY,
+// not the narrower `VISUAL_NOT_MEASURED` constant (which by itself is just
+// `["background_environment"]` as of this plan).
 check("all-false input returns the full not-measured vocabulary",
   resolveNotMeasured({ handSignals: false, postureSignals: false, fidget: false, phone: false }),
-  ["hand_gestures", "body_posture", ...VISUAL_NOT_MEASURED]);
+  ["hand_gestures", "body_posture", "fidgeting", "phone_checking", ...VISUAL_NOT_MEASURED]);
 check("all-true input returns exactly background_environment",
   resolveNotMeasured({ handSignals: true, postureSignals: true, fidget: true, phone: true }),
   ["background_environment"]);

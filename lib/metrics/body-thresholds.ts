@@ -124,3 +124,19 @@ export const POSTURE_TORSO_OPENNESS_DRIFT_SCALE = 0.3;
  * read identically to a window where hands were visible and genuinely still
  * — two different findings that must not collapse into one. */
 export const GESTURE_WINDOW_MIN_HAND_SAMPLES = 3;
+
+// --- 12-07: descriptive (never-scored) episode window-trip ratios. Both are
+// RATIOS within a window, matching every other trip condition's discipline —
+// a window with few samples cannot trip on one frame. Descriptive only: a
+// `fidgeting`/`phone_visible` episode trip can never move a score (see
+// `VisualDescriptiveObservations`'s header comment in `types.ts`).
+
+/** Window ratio of fidget-band samples to hand-DETECTED samples above which a
+ * `fidgeting` descriptive episode trips. Deliberately a guess pending
+ * real-session tuning (see file header) — 50% means at least half of this
+ * window's hand-detected samples fell inside the low-amplitude fidget band. */
+export const FIDGET_EPISODE_TRIP_PCT = 50;
+
+/** Window ratio of phone-visible samples to phone-model-processed samples
+ * above which a `phone_visible` descriptive episode trips. */
+export const PHONE_EPISODE_TRIP_PCT = 50;
