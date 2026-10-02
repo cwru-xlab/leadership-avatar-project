@@ -92,7 +92,6 @@ const HISTORY_TURNS = 10;
 const MIN_RECORDING_MS = 400;
 const MIN_AUDIO_BYTES = 2048;
 const MIN_PEAK_RMS = 0.01;
-const MAX_RECORDING_MS = 45_000;
 // Well inside any provider idle window, and cheap: one request a minute at most.
 const KEEP_ALIVE_INTERVAL_MS = 30_000;
 // Answers, not turns. Below this the report will be thin, and the evaluator
@@ -141,7 +140,6 @@ export default function InterviewSessionShell({
   const meterSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const recordingStartInFlightRef = useRef(false);
-  const recordingTimeoutRef = useRef<number | null>(null);
 
   // Phase 10 metrics capture refs (REQ-35/43/49). visualCaptureRef/
   // cameraStreamRef stay null for the entire session when cameraMode is
@@ -162,6 +160,11 @@ export default function InterviewSessionShell({
   const [partialTranscript, setPartialTranscript] = useState("");
   const [sending, setSending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  /** Mirrors `isRecording` for readers that run outside React's render cycle
+   * — specifically the async camera-acquisition block, which creates the
+   * visual engine long after this state was last set and must adopt the
+   * current window rather than assume silence. */
+  const isRecordingRef = useRef(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [avatarReady, setAvatarReady] = useState(false);
@@ -291,28 +294,23 @@ export default function InterviewSessionShell({
   // safe to call from multiple exit paths (Leave, End, unmount) — the camera
   // LED must go out on every one of them.
   const releaseVisualCapture = useCallback(() => {
-    // try/finally: stopping the ENGINE must never be able to prevent stopping
-    // the TRACKS. The camera LED going out is the part a student actually
-    // sees, and it must not depend on the inference engine shutting down
-    // cleanly first.
-    try {
-      visualCaptureRef.current?.stop();
-    } catch {
-      // Engine teardown is best-effort; the track release below is not.
-    } finally {
-      visualCaptureRef.current = null;
-      visualStartingRef.current = false;
-      cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
-      cameraStreamRef.current = null;
-      setCameraStream(null);
-    }
+    // Capture the handle and release the tracks FIRST, synchronously. The
+    // camera LED going out is the part a student actually sees, and it must
+    // not wait on `stop()`'s now-async (but bounded) engine teardown. The
+    // three callers of this function (unmount, handleLeave, the post-finish
+    // cleanup) discard the metrics entirely, so the engine stop below is
+    // deliberately fire-and-forget.
+    const handle = visualCaptureRef.current;
+    visualCaptureRef.current = null;
+    visualStartingRef.current = false;
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    setCameraStream(null);
+
+    void handle?.stop().catch(() => {});
   }, []);
 
   const releaseMicrophone = useCallback(() => {
-    if (recordingTimeoutRef.current !== null) {
-      clearTimeout(recordingTimeoutRef.current);
-      recordingTimeoutRef.current = null;
-    }
     const recorder = mediaRecorderRef.current;
     mediaRecorderRef.current = null;
     if (recorder?.state === "recording") {
@@ -364,6 +362,20 @@ export default function InterviewSessionShell({
     }, 1_000);
     return () => window.clearInterval(interval);
   }, [isPaused, avatarReady]);
+
+  // Keeps the visual engine's conversational window locked to the recorder.
+  //
+  // Deliberately an effect on `isRecording` rather than a call beside each
+  // `setIsRecording`: there are several of those (manual stop, the toggle, the
+  // error paths), and hand-wiring each is precisely how the visual window
+  // would eventually drift away from the vocal pipeline's turn accounting.
+  // Driving it from the state itself makes them impossible to
+  // disagree. Safe before capture exists — the ref is simply null then, and
+  // the engine defaults to "not speaking".
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+    visualCaptureRef.current?.setSpeaking(isRecording);
+  }, [isRecording]);
 
   const sendMessage = useCallback(
     async (candidateMessage: string) => {
@@ -442,7 +454,15 @@ export default function InterviewSessionShell({
 
         const parsedTurn = parseInterviewTurn(rawAnswer);
         if (parsedTurn.malformed) {
-          console.warn("Interview response had a malformed turn-control marker.");
+          // Progress is entirely model-driven: no marker means no advance,
+          // with no other symptom until someone notices the counter has not
+          // moved all session. Log enough to tell WHICH failure it was.
+          console.warn("[interview] turn-control marker unusable", {
+            stage: progress.stage,
+            questionsAsked: progress.questionsAsked,
+            hasMarker: /<interview-turn\b/i.test(rawAnswer),
+            tail: rawAnswer.slice(-120),
+          });
         }
         if (streamErrored || !parsedTurn.content) {
           throw new Error("The interviewer response was interrupted.");
@@ -537,9 +557,18 @@ export default function InterviewSessionShell({
             setCameraStream(result.stream);
             const capture = createVisualCapture({
               stream: result.stream,
+              // Transcript turns are stamped against this same clock, so
+              // handing it to the engine is what lets an episode be matched
+              // to the sentence it happened during. Capture starts later than
+              // the session — it waits for the avatar to connect — and the
+              // engine records that distance as `coverage.capture_offset_s`.
+              sessionStartedAtMs: startedAtRef.current ?? Date.now(),
               onFaceStateChange: (detected) => setFaceMissing(!detected),
             });
             visualCaptureRef.current = capture;
+            // The recorder may already be live by the time capture starts;
+            // adopt the current state rather than assuming silence.
+            capture.setSpeaking(isRecordingRef.current);
             void capture.start();
           })();
         }
@@ -716,10 +745,6 @@ export default function InterviewSessionShell({
         if (event.data.size) chunksRef.current.push(event.data);
       };
       recorder.onstop = () => {
-        if (recordingTimeoutRef.current !== null) {
-          clearTimeout(recordingTimeoutRef.current);
-          recordingTimeoutRef.current = null;
-        }
         if (mediaRecorderRef.current === recorder) {
           mediaRecorderRef.current = null;
         }
@@ -733,17 +758,14 @@ export default function InterviewSessionShell({
       avatarRef.current?.interrupt();
       startMetering(stream);
       recorder.start();
+      // Deliberately uncapped. A 45-second ceiling used to force-submit the
+      // turn mid-sentence, with the toast arriving only AFTER the cut. None of
+      // the real limits bind anywhere near it — OpenAI's 25MB file cap is
+      // ~100 minutes of Opus, and the transcription call's own timeout is the
+      // practical wall. An answer that runs long is a conciseness finding the
+      // report can make from `VocalTurnMetrics.duration_s`; truncating it
+      // teaches the student nothing about why.
       setIsRecording(true);
-      recordingTimeoutRef.current = window.setTimeout(() => {
-        if (mediaRecorderRef.current?.state !== "recording") return;
-        addToast({
-          title: "Recording stopped",
-          description: "Your 45-second answer is being transcribed.",
-          color: "primary",
-        });
-        mediaRecorderRef.current.stop();
-        setIsRecording(false);
-      }, MAX_RECORDING_MS);
     } catch (error) {
       console.error("Microphone unavailable:", error);
       addToast({
@@ -759,10 +781,6 @@ export default function InterviewSessionShell({
   const stopRecording = useCallback(() => {
     const recorder = mediaRecorderRef.current;
     if (recorder?.state !== "recording") return;
-    if (recordingTimeoutRef.current !== null) {
-      clearTimeout(recordingTimeoutRef.current);
-      recordingTimeoutRef.current = null;
-    }
     recorder.stop();
     setIsRecording(false);
   }, []);
@@ -825,20 +843,27 @@ export default function InterviewSessionShell({
     }
     setSubmitting(true);
     // Stop/drain BEFORE the finish fetch so the metrics field rides in the
-    // same request. stop() is synchronous; drain() is awaited and bounded at
-    // 8s by design (lib/metrics/vocal-capture.ts) — the existing in-flight
-    // spinner (submitting) already covers this wait so End does not look
-    // frozen. drain() never throws by its own contract, but a defensive
-    // catch keeps a truly unexpected failure from losing the interview.
+    // same request. Both stop() and drain() are awaited and bounded by
+    // design (lib/metrics/visual-capture.ts, lib/metrics/vocal-capture.ts) —
+    // the existing in-flight spinner (submitting) already covers this wait so
+    // End does not look frozen. Neither throws by its own contract, but a
+    // defensive catch keeps a truly unexpected failure from losing the
+    // interview.
     let visual: VisualMetrics | null = null;
     let vocal: VocalMetrics | null = null;
     try {
-      visual = visualCaptureRef.current?.stop() ?? null;
+      visual = (await visualCaptureRef.current?.stop()) ?? null;
     } catch {
       visual = null;
+    } finally {
+      // Null the ref immediately so the later releaseVisualCapture() call
+      // (post-finish cleanup) cannot double-stop. stop() is already
+      // idempotent via its own `stopped` flag, so this is belt and braces,
+      // not load-bearing.
+      visualCaptureRef.current = null;
     }
     try {
-      vocal = (await vocalCaptureRef.current?.drain(8000)) ?? null;
+      vocal = (await vocalCaptureRef.current?.drain()) ?? null;
     } catch {
       vocal = null;
     }

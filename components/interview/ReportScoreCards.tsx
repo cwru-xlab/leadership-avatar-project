@@ -17,7 +17,7 @@ interface ReportScores {
   behavioral: number | null;
 }
 
-interface ReportScoreCardsProps {
+export interface ReportScoreCardsProps {
   scores: ReportScores;
   pending?: boolean;
   metrics?: {
@@ -58,6 +58,13 @@ const SCORE_LABELS: Record<number, string> = {
  * character and no rounding-function call may appear anywhere below.
  * `lib/metrics/bands.ts` owns every numeric-to-word translation; this
  * component only renders the words it returns.
+ *
+ * This is NOT in tension with the written report body, which DOES quote raw
+ * figures ("eye contact 65%") — that is deliberate, because concrete numbers
+ * are what make the feedback credible to a student who wants to argue with
+ * it. The split is: CARDS are the at-a-glance summary and stay qualitative;
+ * the NARRATIVE carries the specifics. Do not "fix" the apparent
+ * inconsistency by threading raw values into this component.
  */
 export default function ReportScoreCards({
   scores,
@@ -104,15 +111,20 @@ export default function ReportScoreCards({
 }
 
 /**
- * The six possible causes for a Visual/Vocal card's content. "scored" is the
- * only state that renders a number; every other state renders cause-specific
- * copy, never a score.
+ * The seven possible causes for a Visual/Vocal card's content. "scored" is
+ * the only state that renders a number; every other state renders
+ * cause-specific copy, never a score.
+ *
+ * `speech_too_short` (12-08 Task 1 checkpoint, Defect F) is deliberately
+ * distinct from `typed_only` — see `VocalUnscoredReason`'s own doc comment
+ * in lib/metrics/types.ts for the bug this split fixes.
  */
 type DeliveryCardState =
   | "scored"
   | "not_yet_measured"
   | "camera_off"
   | "typed_only"
+  | "speech_too_short"
   | "insufficient_data"
   | "not_scored";
 
@@ -121,7 +133,7 @@ type DeliveryCardState =
  * order matters — see `10-08-PLAN.md` for the reasoning behind each step;
  * do not reorder without re-checking every state it would then misclassify.
  */
-function resolveCardState(
+export function resolveCardState(
   cameraMode: CameraMode | null,
   unscoredReason: VisualUnscoredReason | VocalUnscoredReason | null,
   score: number | null,
@@ -141,6 +153,12 @@ function resolveCardState(
   //    modality choice, not a camera opt-out.
   if (unscoredReason === "TYPED_ONLY") {
     return "typed_only";
+  }
+  // 3b. The student DID speak, just not enough to score reliably (12-08
+  //     Task 1 checkpoint, Defect F). Must NOT collapse into `typed_only` —
+  //     that copy asserts the student typed, which would be false here.
+  if (unscoredReason === "SPEECH_TOO_SHORT") {
+    return "speech_too_short";
   }
   // 4. A genuine technical failure — measurement was attempted but could not
   //    be performed.
@@ -172,6 +190,14 @@ const UNSCORED_COPY: Record<
     headline: "Not measured",
     subLine: "You typed your answers, so there was no speech to measure.",
   },
+  // 12-08 Task 1 checkpoint, Defect F: a session where the student spoke,
+  // just not long enough to score reliably — must NOT reuse typed_only's
+  // copy, which would assert something false about what the student did.
+  speech_too_short: {
+    headline: "Not enough speech to score",
+    subLine:
+      "You spoke, but not enough in this session to score reliably — see the measurements below for what we could capture.",
+  },
   insufficient_data: {
     headline: "Insufficient data",
     subLine:
@@ -183,16 +209,44 @@ const UNSCORED_COPY: Record<
   },
 };
 
+/**
+ * The one card chrome. Every state renders through this — scored, unscored and
+ * pending alike — because three hand-rolled copies of the same markup is how
+ * they drifted out of alignment in the first place.
+ *
+ * Two details carry the row's visual consistency:
+ *
+ * - NO `justify-between`. The grid stretches all four cards to the tallest,
+ *   and `justify-between` then pushed the body of every SHORT card to the
+ *   bottom — so a card with four band rows showed its score just under the
+ *   title while its neighbours showed theirs an inch lower. Content starts at
+ *   the top and the extra space falls below, where it is invisible.
+ * - The title reserves two lines. "Vocal Delivery" fits on one and
+ *   "Behavioral & Mindset" needs two; without a floor, the bodies beneath them
+ *   start at different heights and the scores still fail to line up.
+ */
 function CardShell({
   title,
+  muted = false,
   children,
 }: {
   title: string;
+  muted?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-full min-h-[132px] flex-col justify-between rounded-2xl border border-[#d4e2e9] bg-white p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#526c7b]">{title}</p>
+    <div
+      className={`flex h-full min-h-[132px] flex-col rounded-2xl border p-5 ${
+        muted ? "border-[#e3ebee] bg-[#f5f8fa]" : "border-[#d4e2e9] bg-white"
+      }`}
+    >
+      <p
+        className={`flex min-h-8 items-start text-xs font-semibold uppercase leading-[1.35] tracking-[0.1em] ${
+          muted ? "text-[#8298a3]" : "text-[#526c7b]"
+        }`}
+      >
+        {title}
+      </p>
       {children}
     </div>
   );
@@ -240,13 +294,12 @@ function DeliveryCard({
   if (state !== "scored") {
     const copy = UNSCORED_COPY[state];
     return (
-      <div className="flex h-full min-h-[132px] flex-col justify-between rounded-2xl border border-[#e3ebee] bg-[#f5f8fa] p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8298a3]">{title}</p>
+      <CardShell title={title} muted>
         <div className="mt-4">
-          <p className="text-lg font-semibold text-[#8298a3]">{copy.headline}</p>
+          <p className="text-lg font-semibold leading-snug text-[#8298a3]">{copy.headline}</p>
           <p className="mt-1 text-xs text-[#8298a3]">{copy.subLine}</p>
         </div>
-      </div>
+      </CardShell>
     );
   }
 
@@ -297,13 +350,12 @@ function ScoredCard({
 
   if (score === null) {
     return (
-      <div className="flex h-full min-h-[132px] flex-col justify-between rounded-2xl border border-[#e3ebee] bg-[#f5f8fa] p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8298a3]">{title}</p>
+      <CardShell title={title} muted>
         <div className="mt-4">
-          <p className="text-lg font-semibold text-[#8298a3]">Not scored</p>
+          <p className="text-lg font-semibold leading-snug text-[#8298a3]">Not scored</p>
           <p className="mt-1 text-xs text-[#8298a3]">The transcript didn&apos;t support a score.</p>
         </div>
-      </div>
+      </CardShell>
     );
   }
 

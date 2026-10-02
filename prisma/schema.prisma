@@ -319,9 +319,14 @@ model InterviewReport {
   visualMetrics        Json?
   vocalMetrics         Json?
   visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
-  vocalUnscoredReason  String?   // "TYPED_ONLY" | "INSUFFICIENT_DATA"
+  vocalUnscoredReason  String?   // "TYPED_ONLY" | "SPEECH_TOO_SHORT" | "INSUFFICIENT_DATA"
   metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
 
+  /// Structured report body — see `lib/report/structured.ts`. Null on every row
+  /// written before the evaluator returned structured output; those rows still
+  /// render from `reportMarkdown`, which is now COMPOSED from this rather than
+  /// returned by the model.
+  reportStructured    Json?
   reportMarkdown      String?               @db.Text
   failureReason       String?               @db.Text
   evalModel           String?
@@ -379,9 +384,14 @@ model ScenarioReport {
   visualMetrics        Json?
   vocalMetrics         Json?
   visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
-  vocalUnscoredReason  String?   // "TYPED_ONLY" | "INSUFFICIENT_DATA"
+  vocalUnscoredReason  String?   // "TYPED_ONLY" | "SPEECH_TOO_SHORT" | "INSUFFICIENT_DATA"
   metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
 
+  /// Structured report body — see `lib/report/structured.ts`. Null on every row
+  /// written before the evaluator returned structured output; those rows still
+  /// render from `reportMarkdown`, which is now COMPOSED from this rather than
+  /// returned by the model.
+  reportStructured   Json?
   reportMarkdown     String?               @db.Text
   failureReason      String?               @db.Text
   evalModel          String?

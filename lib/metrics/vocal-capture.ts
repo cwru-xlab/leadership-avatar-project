@@ -40,6 +40,7 @@
 import {
   FILLER_WORD_LEXICON,
   type VocalMetrics,
+  type VocalTurnMetrics,
 } from "@/lib/metrics/types";
 import type { WordTiming } from "@/app/api/audio/word-metrics/route";
 
@@ -49,15 +50,26 @@ const RMS_MAX_SAMPLES = 12_000; // ~20 minutes at 100ms polling, plain numbers o
 const RMS_SPEECH_FLOOR = 0.01;
 const RMS_MIN_ABOVE_FLOOR_SAMPLES = 20;
 const PAUSE_GAP_SECONDS = 1.5;
-const DEFAULT_DRAIN_TIMEOUT_MS = 8000;
+/** How long `drain()` waits for outstanding word-metrics calls when the student
+ * ends the session. Raised from 8s once the recording cap was removed: a long
+ * FINAL turn is still transcribing when End is pressed, and abandoning it drops
+ * that turn from `analyzed_turns` and from the per-turn breakdown. Bounded at
+ * 15s rather than matched to the request timeout — this blocks the End button,
+ * so waiting the full transcription budget would be a worse trade than losing
+ * one turn's metrics. */
+const DEFAULT_DRAIN_TIMEOUT_MS = 15_000;
 const FILLER_LIST_CAP = 12;
+/** Hard cap on retained per-turn rows. Over the cap the LONGEST turns
+ * survive: a 90-second answer carries more signal about delivery than a
+ * three-word acknowledgement. */
+const TURN_METRICS_CAP = 60;
 
 export interface VocalCaptureHandle {
   /** Begins/refreshes RMS metering against a live microphone stream. */
   attachStream(stream: MediaStream): void;
-  /** Marks the start of a spoken turn. Currently a no-op hook reserved for a
-   * future per-turn RMS window; kept in the public shape per the plan's
-   * contract so callers have a stable place to mark turn boundaries. */
+  /** Marks the start of a spoken turn. Stamps the turn's position on the
+   * session clock and opens its RMS window, so delivery can be reported per
+   * turn rather than only as a session average. */
   beginTurnRecording(): void;
   /** Fire-and-forget word-timing analysis for one spoken turn's audio. Never
    * awaited by the caller — see the file-level latency-design comment. */
@@ -192,6 +204,13 @@ export function createVocalCapture(): VocalCaptureHandle {
 
   // Turn/coverage state.
   let spokenTurns = 0;
+  /** Capture-clock ms at which the engine was constructed; per-turn
+   * `start_s` values are relative to this, matching `VisualEpisode`. */
+  const captureStartMs = performance.now();
+  /** Set by `beginTurnRecording`, consumed by the next `submitSpokenTurn`. */
+  let pendingTurnStartS: number | null = null;
+  let pendingTurnRmsIndex = 0;
+  const turnMetrics: VocalTurnMetrics[] = [];
   let typedTurns = 0;
   let analysedTurns = 0;
   let spokenSecondsTotal = 0;
@@ -258,8 +277,13 @@ export function createVocalCapture(): VocalCaptureHandle {
   }
 
   function beginTurnRecording(): void {
-    // Reserved hook — no per-turn RMS windowing is needed for the
-    // session-level `volume_consistency` aggregate this plan computes.
+    // Two stamps, both consumed by the next `submitSpokenTurn`:
+    //  - where this turn sits on the session clock, so an episode or a
+    //    hesitant stretch can be tied back to what was being discussed;
+    //  - where the RMS buffer stood, so `computeVolumeConsistency` can be run
+    //    over THIS turn's slice instead of the whole session's.
+    pendingTurnStartS = (performance.now() - captureStartMs) / 1000;
+    pendingTurnRmsIndex = rmsSamples.length;
   }
 
   function submitSpokenTurn(audio: Blob, elapsedMs: number): void {
@@ -267,6 +291,18 @@ export function createVocalCapture(): VocalCaptureHandle {
     spokenTurns += 1;
     const elapsedSec = elapsedMs / 1000;
     spokenSecondsTotal += elapsedSec;
+
+    // Snapshot the turn's identity NOW, into the closure. The response below
+    // is fire-and-forget, so by the time it resolves `beginTurnRecording` may
+    // already have stamped the NEXT turn — reading the pending fields inside
+    // the callback would attribute this turn's delivery to the wrong moment.
+    const turnIndex = spokenTurns - 1;
+    const turnStartS =
+      pendingTurnStartS ?? (performance.now() - captureStartMs) / 1000 - elapsedSec;
+    const turnVolumeConsistency = computeVolumeConsistency(
+      rmsSamples.slice(pendingTurnRmsIndex)
+    );
+    pendingTurnStartS = null;
 
     const formData = new FormData();
     formData.append("audio", audio, "turn.webm");
@@ -284,6 +320,24 @@ export function createVocalCapture(): VocalCaptureHandle {
           durationSec: number;
         };
         const agg = aggregateTurnWords(data.words, data.durationSec);
+
+        // Retain the per-turn row BEFORE folding into session totals. Every
+        // number here was already computed and then discarded; keeping it is
+        // what lets the report contrast a fluent answer with a hesitant one
+        // instead of averaging both into "Pace: Well paced".
+        turnMetrics.push({
+          turn_index: turnIndex,
+          start_s: Math.round(turnStartS * 10) / 10,
+          duration_s: Math.round(agg.durationSec * 10) / 10,
+          words_per_minute:
+            agg.durationSec > 0
+              ? Math.round(agg.wordCount / (agg.durationSec / 60))
+              : 0,
+          filler_count: agg.fillerCount,
+          pause_count: agg.pauseCount,
+          volume_consistency: Math.round(turnVolumeConsistency * 100) / 100,
+        });
+
         analysedTurns += 1;
         totalAnalysedWords += agg.wordCount;
         totalAnalysedSpokenSeconds += agg.durationSec;
@@ -353,6 +407,12 @@ export function createVocalCapture(): VocalCaptureHandle {
       filler_word_list: Array.from(fillerListSeen),
       pause_count: pauseCountTotal,
       volume_consistency: volumeConsistency,
+      // Longest-first for the cap, then chronological so the report reads as
+      // a progression through the conversation rather than a ranking.
+      turns: [...turnMetrics]
+        .sort((a, b) => b.duration_s - a.duration_s)
+        .slice(0, TURN_METRICS_CAP)
+        .sort((a, b) => a.turn_index - b.turn_index),
       coverage: {
         spoken_turns: spokenTurns,
         typed_turns: typedTurns,

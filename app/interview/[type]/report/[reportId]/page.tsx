@@ -8,8 +8,8 @@ import { addToast } from "@heroui/toast";
 import { ArrowLeft, CircleAlert, Sparkles } from "lucide-react";
 
 import ReportCustomizationStrip from "@/components/interview/ReportCustomizationStrip";
-import ReportMarkdown from "@/components/interview/ReportMarkdown";
 import ReportScoreCards from "@/components/interview/ReportScoreCards";
+import ReportBody from "@/components/report/ReportBody";
 import type { InterviewReportDTO } from "@/lib/interview/report-dto";
 import { REPORT_TERMINAL_STATUSES } from "@/lib/interview/report-dto";
 
@@ -177,11 +177,21 @@ export default function InterviewReportPage() {
         </div>
       )}
 
-      <ReportScoreCards scores={scores} pending={isPending && !timedOut} metrics={report?.metrics ?? null} />
+      {/* The score cards live inside the Overview tab once the report is
+          READY. Until then they render on their own, so a pending session
+          still shows its four placeholder cards above the skeleton. */}
+      {report?.status !== "READY" && (
+        <ReportScoreCards scores={scores} pending={isPending && !timedOut} metrics={report?.metrics ?? null} />
+      )}
 
       <div className="mt-6 rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_24px_60px_rgba(20,58,75,0.12)] sm:p-8">
         {report?.status === "READY" ? (
-          <ReportMarkdown markdown={report.reportMarkdown ?? ""} />
+          <ReportBody
+            structured={report.reportStructured}
+            markdown={report.reportMarkdown}
+            scores={scores}
+            metrics={report.metrics ?? null}
+          />
         ) : report?.status === "FAILED" ? (
           <div className="flex flex-col items-start gap-3">
             <CircleAlert className="text-[#c2410c]" size={26} />

@@ -29,9 +29,15 @@ const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // OpenAI's file size limit
 const MIN_AUDIO_BYTES = 2048; // mirrors InterviewSessionShell's MIN_AUDIO_BYTES guard
 const MAX_RETURNED_WORDS = 4000;
 
+// 30s was sized for turns that could not exceed 45 seconds. With the recording
+// cap removed a genuinely long answer takes longer to transcribe, and a
+// timeout here is WORSE than the old truncation: the turn still happened, it
+// just silently never reaches `analyzed_turns`, so the student's vocal metrics
+// quietly lose their longest answer. 50s keeps the call inside the function's
+// own 60s budget (`maxDuration` below) rather than racing past it.
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  timeout: 30_000,
+  timeout: 50_000,
   maxRetries: 1,
 });
 

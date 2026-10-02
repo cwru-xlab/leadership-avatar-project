@@ -317,3 +317,64 @@ was decided, they do not add scope.*
   throttled well below display frame rate and kept off the conversation's critical path,
   so the HeyGen avatar stream, push-to-talk audio and interviewer response latency are
   unaffected compared with a camera-off run.
+
+### Phase 12 — Embodied Visual Signals
+
+- **REQ-50** — [x] Hand and arm movement is measured, not inferred. Gesticulation rate,
+  motion amplitude, hands-above-shoulder and hands-near-face are derived from hand
+  landmarks and reported as behaviour, on a three-band curve — too still / well-judged /
+  excessive — so both extremes are reportable rather than only excess. Hands-near-face is a
+  distinct signal. Commentary describes the motion and may invite reflection, but must never
+  assert an effect on the interviewer, which nothing here measures. The canned gesture
+  vocabulary cannot identify a specific or offensive gesture and must never be described as
+  doing so.
+
+- **REQ-51** — [ ] Body posture is measured from body landmarks — shoulder-line tilt,
+  forward-head, torso lean and openness. The SCORE comes from drift against the student's
+  own opening posture, never against a fixed upright ideal; the absolute reading is
+  reported but not graded. A partially visible body is scored on the landmarks that ARE
+  available rather than skipped, and every posture comment states which were measured.
+
+- **REQ-52** — [ ] **NOT MET** (12-08 Task 1 checkpoint, deliberate — this is not a gap
+  pending more work, it is a measurement-capability limit this pipeline cannot clear at
+  its current hands model sample rate). Fidgeting was intended to be measured and
+  REPORTED BUT NEVER SCORED, surfaced as self-awareness information. Two real recordings
+  measured a direction-change rate of 0.35/s and 0.15/s against a gate already lowered
+  once (1.5 -> 0.5/s). The hands model's achievable ~1.5 Hz sample rate cannot resolve a
+  reversal frequency fast enough to mean "fidgeting" at all (small, FAST motion by
+  definition) — the sampler was aliasing the behaviour, not measuring it, and no further
+  threshold lowering fixes an aliasing problem; it would only ship a noise detector
+  wearing a fidget label on a signal shown to students about stimming-adjacent behaviour.
+  User decision: retire `fidgeting` to permanently not-measured for this phase rather than
+  continue tuning an unfixable threshold. See
+  `.planning/phases/12-embodied-visual-signals/deferred-items.md` ("12-08: Fidgeting
+  retired...") and `12-TUNING.md` for the full readings and what a real fix would require
+  (a materially higher hands sample rate — a new, scoped piece of work with its own
+  frame-budget analysis, not a threshold retune).
+
+- **REQ-53** — [ ] Descriptive-only signals live in their own report section — not inline
+  with scored rows carrying a marker — so a student cannot read an unscored observation as
+  a deduction. Scored body signals group under their own subheading within the visual
+  bands. REQ-52 and REQ-54 depend on this.
+
+- **REQ-54** — [x] A phone visible in frame is reported factually — "a phone was visible
+  for 40 seconds" — never as an inference about attention, which the sensor cannot support.
+  Descriptive only: it does not affect any score, since a phone sitting on the desk in shot
+  is not misconduct.
+
+- **REQ-55** — [x] Every new signal joins the existing episode timeline with timecodes on
+  the session clock, so it can be tied to what was being discussed. No new signal is
+  reported only as a session-wide average.
+
+- **REQ-56** — [x] `VISUAL_NOT_MEASURED` shrinks to exactly what remains unobservable. An
+  entry leaves that list only when a pipeline that genuinely measures it ships, and the
+  rule that a flag's ABSENCE is never evidence of good behaviour survives unchanged.
+
+- **REQ-57** — [x] Running four models does not degrade the live session (REQ-49 extended).
+  Per-model sampling is staggered and inference runs off the main thread, so the HeyGen
+  avatar stream, push-to-talk audio and response latency are unaffected compared with a
+  camera-off run.
+
+- **REQ-58** — [x] No frame, landmark array or media blob leaves the browser or outlives
+  the tick that produced it (REQ-38 unchanged). Every new signal reaches the server as a
+  derived scalar.

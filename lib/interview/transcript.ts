@@ -125,7 +125,22 @@ export function formatTranscriptForEvaluator(
   return transcript.turns
     .map((turn) => {
       const speaker = turn.role === "assistant" ? "Interviewer" : "Candidate";
-      return `${speaker}: ${turn.content}`;
+      // Elapsed time from session start, so the evaluator can join a visual
+      // episode or a hesitant turn to WHAT WAS BEING SAID at that moment —
+      // the difference between "eye contact dropped" and "eye contact
+      // dropped while you described the Q3 launch".
+      //
+      // Both clocks are the client's `Date.now()`: turn timestamps and
+      // `startedAt` alike. Metrics arrive in capture time and carry
+      // `coverage.capture_offset_s` to convert into this one.
+      const elapsed = Math.max(
+        0,
+        Math.round((turn.timestamp - transcript.startedAt) / 1000)
+      );
+      const mins = Math.floor(elapsed / 60);
+      const secs = elapsed % 60;
+      const stamp = `${mins}:${String(secs).padStart(2, "0")}`;
+      return `[${stamp}] ${speaker}: ${turn.content}`;
     })
     .join("\n\n");
 }
