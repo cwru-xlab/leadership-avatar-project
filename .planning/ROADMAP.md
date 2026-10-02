@@ -261,7 +261,7 @@ Plans:
 - [x] 12-05-PLAN.md — Vendor pose/hand/object models and run all four staggered in the worker
 - [x] 12-06-PLAN.md — Scored derivations: posture baseline + drift, gesture curve, hands near face, new episodes
 - [x] 12-07-PLAN.md — Descriptive derivations: fidgeting, phone in frame, absolute posture reading
-- [ ] 12-08-PLAN.md — Threshold tuning from real recordings + end-to-end phase sign-off
+- [x] 12-08-PLAN.md — Threshold tuning from real recordings + end-to-end phase sign-off
 
 ## Progress
 
