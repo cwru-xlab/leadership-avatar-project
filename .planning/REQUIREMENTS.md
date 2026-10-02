@@ -320,7 +320,7 @@ was decided, they do not add scope.*
 
 ### Phase 12 — Embodied Visual Signals
 
-- **REQ-50** — [ ] Hand and arm movement is measured, not inferred. Gesticulation rate,
+- **REQ-50** — [x] Hand and arm movement is measured, not inferred. Gesticulation rate,
   motion amplitude, hands-above-shoulder and hands-near-face are derived from hand
   landmarks and reported as behaviour, on a three-band curve — too still / well-judged /
   excessive — so both extremes are reportable rather than only excess. Hands-near-face is a
