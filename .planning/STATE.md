@@ -1570,9 +1570,48 @@ Open items carried into Phase 11+:
   `[Phase 12-embodied-visual-signals]` Decisions entry above and
   `12-07-SUMMARY.md` for full detail.
 
+## Session
+
+**Last Date:** 2026-10-02T21:18:57.833Z
+**Stopped At:** Phase 13 context gathered
+**Resume File:** .planning/phases/13-one-on-one-conversation-engine/13-CONTEXT.md
+
+
 ## Accumulated Context
 
 ### Roadmap Evolution
+
+### Phase 13 context (2026-10-02, `/gsd:discuss-phase 13`)
+
+Four areas discussed; all decisions in
+`.planning/phases/13-one-on-one-conversation-engine/13-CONTEXT.md`. The ones
+that bind other phases:
+
+- **One unified `InteractionReport` table**, existing `InterviewReport` and
+  `ScenarioReport` rows backfilled into it and the old tables dropped. Per-type
+  input becomes one JSON `inputSnapshot`; scores become a JSON map keyed by
+  dimension. Migration follows the `HANDOFF.md §3` human-run path — local dev
+  only, SQL handed over, a human runs `prisma migrate deploy` against the shared
+  DB. Phase 13 does not close until that happens.
+- **Legacy reports must render identically at their existing URLs** — the
+  acceptance test for the backfill.
+- **Phase 13 builds the primitives Phases 14-16 need** before anything uses
+  them: avatar-initiated termination with a recorded reason, a per-turn
+  visible-context slice (Phase 14's no-peeking-ahead slide rule generalized), a
+  type-declared outcome record, and an explicit time budget. The user chose this
+  over letting Phase 14 extend the engine.
+- **One `/practice/[type]` tree**; `/interview/*` and `/case-play/*` become
+  permanent redirects. Phase 13 is otherwise an INVISIBLE refactor —
+  pixel-identical session shell and report page, the changed URL being the only
+  sanctioned visible difference, and the two experiences' current divergences
+  preserved rather than converged.
+- **Four shared rubric dimensions plus type-declared extras**; Visual and Vocal
+  are never type-optional, which is how Phase 13's criterion 4 holds
+  structurally. `lib/report/structured.ts:109`'s hardcoded
+  `required: ["visual","vocal","content","behavioral"]` becomes type-derived.
+- Config is TypeScript records in code, in two layers: built-in TYPE (code) +
+  student-authored INSTANCE (S3 data), resolved into one session config.
+
 
 - **2026-10-02 — Phases 13, 14, 15 and 16 added** from the user's PDF brief
   "Practice Pitch | Difficult Conversations | Networking Practice Initial Plan
