@@ -55,9 +55,6 @@ import {
   type VisualPostureSignal,
 } from "@/lib/metrics/types";
 import {
-  FIDGET_EPISODE_TRIP_PCT,
-  FIDGET_MAX_AMPLITUDE,
-  FIDGET_MIN_DIRECTION_CHANGES_PER_S,
   GESTURE_AMPLITUDE_MIN,
   GESTURE_RATE_EXCESSIVE_MIN,
   GESTURE_RATE_STILL_MAX,
@@ -573,8 +570,10 @@ export interface GestureCounts {
    * reason `camera_centered_pct` already documents. */
   handSamples: number;
   /** Sum of normalised wrist displacement across ticks whose delta cleared
-   * `GESTURE_AMPLITUDE_MIN` — the gesture band only; the low-amplitude band
-   * belongs to fidgeting and is tracked by a completely separate counter. */
+   * `GESTURE_AMPLITUDE_MIN` — the gesture band only. (The low-amplitude
+   * band below this threshold used to feed a separate fidget counter,
+   * removed in 12-08 when fidgeting was retired to permanently
+   * not-measured — see `VISUAL_NOT_MEASURED`'s own comment in types.ts.) */
   gestureDisplacementSum: number;
   /** Count of ticks whose displacement cleared `GESTURE_AMPLITUDE_MIN`. */
   gestureEventCount: number;
@@ -626,32 +625,15 @@ export function computeGestureRates(counts: GestureCounts): {
 
 /**
  * Raw material for `computeObservations` (12-07's measured-but-never-scored
- * half). `fidgetSamples` and `phoneSampleHz` arrive PRE-GATED by the caller
- * (`stop()`), not derived inside this function — see those two fields' own
- * doc comments for why.
+ * half). `phoneSampleHz` arrives PRE-COMPUTED by the caller (`stop()`), not
+ * derived inside this function — see that field's own doc comment for why.
+ *
+ * BUG FIX (12-08 Task 1 checkpoint): `handSamples`/`fidgetSamples` were
+ * removed when fidgeting was retired to permanently not-measured — see
+ * `VisualDescriptiveObservations`'s own comment in `types.ts`. Neither
+ * field had any other reader.
  */
 export interface ObservationCounts {
-  /** HAND-DETECTED samples (not every hand-model tick — contrast
-   * `GestureCounts.handSamples`, which deliberately means the opposite thing
-   * for the scored rate it denominates). `fidgetPct`'s denominator: the
-   * signal is about hands that WERE visible, and because this value is
-   * descriptive rather than scored, the "must not divide by a detection
-   * count" rule that protects `gesture_rate_per_min`/`hands_above_shoulder_pct`
-   * from the absence-reads-as-clean defect does not apply here — there is no
-   * score to protect. If a future session shows `fidgeting` and
-   * `excessive_gesturing`/`minimal_gesturing` tripping together on nearly
-   * every session, that is the warning sign this counter and the gesture
-   * accumulators have started measuring the same motion (see
-   * `FIDGET_MAX_AMPLITUDE`'s own doc comment) — they must stay independent. */
-  handSamples: number;
-  /** Count of samples that cleared BOTH halves of the fidget definition —
-   * low amplitude (`FIDGET_MAX_AMPLITUDE`) AND a high-enough direction-change
-   * RATE (`FIDGET_MIN_DIRECTION_CHANGES_PER_S`) — pre-gated by the caller
-   * from the session's direction-change-reversal count and elapsed seconds.
-   * `computeObservations` itself does no rate arithmetic; it only turns this
-   * already-gated count into a percentage, so the rate-gating logic stays
-   * testable at the `stop()` call site without duplicating it here. */
-  fidgetSamples: number;
   /** Total object-model ticks this session (phone present or not) — the
    * `phoneSampleHz` numerator's own source, kept here for parity with
    * `phoneVisibleSamples`, not read directly by `computeObservations`. */
@@ -676,27 +658,22 @@ export interface ObservationCounts {
 
 /**
  * Pure. Turns raw observation counts into the reported descriptive values —
- * the measured-but-NEVER-SCORED half of this phase (REQ-52/REQ-54/REQ-55).
+ * the measured-but-NEVER-SCORED half of this phase (REQ-54/REQ-55).
  * Exported for direct testing, same discipline as `computeVisualRates`/
  * `computeGestureRates`.
  *
- * `fidgetPct` and `phoneVisibleSeconds` are genuinely DERIVED here (a
- * percentage, a unit conversion); `postureShoulderTiltDeg`/
- * `postureForwardHeadOffset` are PASSED THROUGH unchanged — the caller
- * already computed the session means, and this function's job is only to
- * bundle all four descriptive values behind one pure, testable seam so
- * `stop()`'s assembly code and `scripts/verify-visual-metrics.ts` exercise
- * the identical arithmetic.
+ * `phoneVisibleSeconds` is genuinely DERIVED here (a unit conversion);
+ * `postureShoulderTiltDeg`/`postureForwardHeadOffset` are PASSED THROUGH
+ * unchanged — the caller already computed the session means, and this
+ * function's job is only to bundle the three descriptive values behind one
+ * pure, testable seam so `stop()`'s assembly code and
+ * `scripts/verify-visual-metrics.ts` exercise the identical arithmetic.
  */
 export function computeObservations(counts: ObservationCounts): {
-  fidgetPct: number;
   phoneVisibleSeconds: number;
   postureShoulderTiltDeg: number | null;
   postureForwardHeadOffset: number | null;
 } {
-  const handSamples = Math.max(1, counts.handSamples);
-  const fidgetPct = Math.round((counts.fidgetSamples / handSamples) * 100);
-
   // A single false-positive object-detection frame must not become "a phone
   // was visible" — below PHONE_MIN_VISIBLE_S, report 0 rather than a
   // fractional-second reading nobody could act on.
@@ -708,7 +685,6 @@ export function computeObservations(counts: ObservationCounts): {
   }
 
   return {
-    fidgetPct,
     phoneVisibleSeconds,
     postureShoulderTiltDeg: counts.absoluteShoulderTiltDegMean,
     postureForwardHeadOffset: counts.absoluteForwardHeadOffsetMean,
@@ -740,7 +716,6 @@ export interface CaptureWindow {
   gestureSamples: number;
   handsDetected: number;
   nearFaceCount: number;
-  fidgetCount: number;
   phoneCount: number;
   /** Total object-model ticks (phone present or not) that landed in this
    * window — 12-07's denominator for `phone_visible`'s window-trip ratio.
@@ -893,33 +868,17 @@ export function extractEpisodes(
  * scored, never read by `windowTrips`/`extractEpisodes`. Ratios, never raw
  * counts, matching every scored trip condition's own discipline.
  *
- * BUG FIX (12-08 Task 1 checkpoint, Defect H): `fidgeting` used to trip on
- * the per-window AMPLITUDE ratio alone (`w.fidgetCount / w.handsDetected`),
- * which is only HALF the fidget definition (12-CONTEXT.md/this file's own
- * `FIDGET_MAX_AMPLITUDE` doc comment) — the "high frequency" half
- * (`FIDGET_MIN_DIRECTION_CHANGES_PER_S`) was applied only at the SESSION
- * level, when gating `fidgetSamples` for `fidget_pct` in `stop()`, never
- * here. A real session produced a `fidgeting` episode on the Moments
- * timeline while `fidget_pct` simultaneously read 0% in the SAME report —
- * two derivations silently re-deriving the same gating decision and
- * disagreeing. `fidgetRateCleared` is now computed exactly ONCE, in
- * `stop()`, and threaded in here so the window-level episode trip and the
- * session-level percentage consume the identical decision — a session that
- * never cleared the direction-change-rate floor can report neither a
- * `fidgeting` episode NOR a nonzero `fidget_pct`, and one that did can
- * report both. */
+ * BUG FIX (12-08 Task 1 checkpoint): `fidgeting` (and the Defect H fix that
+ * unified its window-level trip with the session-level `fidget_pct` gate)
+ * was removed entirely when fidgeting was retired to permanently
+ * not-measured — see `VisualDescriptiveObservations`'s own comment in
+ * `types.ts`. `phone_visible` is the only remaining descriptive episode
+ * kind, so this function no longer needs an options parameter at all. */
 function descriptiveWindowTrips(
   w: CaptureWindow,
-  kind: VisualDescriptiveEpisodeKind,
-  opts: { fidgetRateCleared: boolean }
+  kind: VisualDescriptiveEpisodeKind
 ): boolean {
   switch (kind) {
-    case "fidgeting":
-      return (
-        opts.fidgetRateCleared &&
-        w.handsDetected > 0 &&
-        (w.fidgetCount / w.handsDetected) * 100 > FIDGET_EPISODE_TRIP_PCT
-      );
     case "phone_visible":
       return (
         w.phoneProcessed > 0 &&
@@ -933,23 +892,15 @@ function descriptiveWindowTrips(
  * `extractEpisodes` — same `collapseRuns` engine, a completely separate kind
  * vocabulary and trip predicate, and a different TypeScript return type
  * (`VisualDescriptiveEpisode[]`, not `VisualEpisode[]`). That type distinction
- * is what makes "a fidget episode entered the scored array" a compile error
- * rather than a runtime discipline to remember (see `VisualDescriptiveEpisode`'s
- * own header comment in `types.ts`).
- *
- * `opts.fidgetRateCleared` (12-08 Task 1 checkpoint, Defect H) is the SAME
- * session-wide direction-change-rate decision `stop()` already computes for
- * `fidget_pct` — see `descriptiveWindowTrips`'s own doc comment for why a
- * window-level re-derivation of this gate is exactly the bug being fixed.
+ * is what makes "a descriptive episode entered the scored array" a compile
+ * error rather than a runtime discipline to remember (see
+ * `VisualDescriptiveEpisode`'s own header comment in `types.ts`).
  */
 export function extractDescriptiveEpisodes(
   windows: CaptureWindow[],
-  kinds: readonly VisualDescriptiveEpisodeKind[],
-  opts: { fidgetRateCleared: boolean }
+  kinds: readonly VisualDescriptiveEpisodeKind[]
 ): VisualDescriptiveEpisode[] {
-  return collapseRuns(windows, kinds, (w, kind) =>
-    descriptiveWindowTrips(w, kind, opts)
-  );
+  return collapseRuns(windows, kinds, descriptiveWindowTrips);
 }
 
 interface FaceBounds {
@@ -1090,7 +1041,6 @@ export function createVisualCapture(
   let winGestureSamples = 0;
   let winHandsDetected = 0;
   let winNearFaceCount = 0;
-  let winFidgetCount = 0;
   let winPhoneCount = 0;
   let winPhoneProcessed = 0;
   let captureOffsetS = 0;
@@ -1179,23 +1129,15 @@ export function createVisualCapture(
   let gestureDisplacementSum = 0;
   let gestureEventCount = 0;
 
-  // Fidget raw material — a SEPARATE displacement/direction-change counter
-  // pair, tracked from its OWN independent position history
-  // (`lastFidgetWristPositions`), not derived from the gesture accumulator
-  // above. Fidgeting is a distinct low-amplitude, high-frequency band; if
-  // this counter were computed FROM `gestureDisplacementSum` the two signals
-  // would correlate 1:1 and fidget motion would quietly inflate the scored
-  // gesture rate (see `body-thresholds.ts`'s `FIDGET_MAX_AMPLITUDE` comment
-  // and 12-RESEARCH.md Pitfall 5).
-  let lastFidgetWristPositions: Array<{
-    x: number;
-    y: number;
-    dx: number;
-    dy: number;
-  }> = [];
-  let fidgetDisplacementSum = 0;
-  let fidgetDisplacementSamples = 0;
-  let fidgetDirectionChanges = 0;
+  // BUG FIX (12-08 Task 1 checkpoint): the fidget raw-material accumulator
+  // pair (a separate displacement/direction-change counter, its own
+  // independent position history) was removed entirely when fidgeting was
+  // retired to permanently not-measured — see `VisualDescriptiveObservations`'s
+  // own comment in `types.ts` for the Nyquist-style reason (the hands model's
+  // ~1.5 Hz achievable rate cannot observe a reversal rate fast enough to
+  // mean "fidgeting" at all; two real recordings measured 0.35/s and 0.15/s
+  // against a gate already lowered once to 0.5/s). Nothing else read these
+  // accumulators.
 
   // --- 12-05 object (phone) accumulators.
   let phoneSamples = 0;
@@ -1281,7 +1223,6 @@ export function createVisualCapture(
       gestureSamples: winGestureSamples,
       handsDetected: winHandsDetected,
       nearFaceCount: winNearFaceCount,
-      fidgetCount: winFidgetCount,
       phoneCount: winPhoneCount,
       phoneProcessed: winPhoneProcessed,
     });
@@ -1300,7 +1241,6 @@ export function createVisualCapture(
     winGestureSamples = 0;
     winHandsDetected = 0;
     winNearFaceCount = 0;
-    winFidgetCount = 0;
     winPhoneCount = 0;
     winPhoneProcessed = 0;
   }
@@ -1674,6 +1614,11 @@ export function createVisualCapture(
       handsAboveShoulderSamples += 1;
     }
 
+    // BUG FIX (12-08 Task 1 checkpoint): the fidget displacement/direction-
+    // change tracking that used to run alongside the gesture-amplitude loop
+    // below was removed entirely when fidgeting was retired to permanently
+    // not-measured — see `VisualDescriptiveObservations`'s own comment in
+    // `types.ts`.
     result.primary.forEach((hand, index) => {
       const prevGesture = lastGestureWristPositions[index];
       if (prevGesture) {
@@ -1681,9 +1626,7 @@ export function createVisualCapture(
         const dy = hand.wristY - prevGesture.y;
         const delta = Math.hypot(dx, dy);
         // Only displacements clearing GESTURE_AMPLITUDE_MIN count as a
-        // gesture event — the low-amplitude band belongs to fidgeting
-        // (tracked completely independently below from its OWN position
-        // history), never "gesticulation above an extra threshold".
+        // gesture event.
         if (delta >= GESTURE_AMPLITUDE_MIN) {
           gestureDisplacementSum += delta;
           gestureEventCount += 1;
@@ -1692,48 +1635,10 @@ export function createVisualCapture(
         }
       }
       lastGestureWristPositions[index] = { x: hand.wristX, y: hand.wristY };
-
-      const prevFidget = lastFidgetWristPositions[index];
-      if (prevFidget) {
-        const dx = hand.wristX - prevFidget.x;
-        const dy = hand.wristY - prevFidget.y;
-        const delta = Math.hypot(dx, dy);
-        fidgetDisplacementSum += delta;
-        fidgetDisplacementSamples += 1;
-        // A reversal: this tick's displacement vector points materially
-        // opposite the previous one (negative dot product). The "high
-        // frequency" half of the fidget definition is a rate of reversals,
-        // not a single one — 12-06 applies
-        // `FIDGET_MIN_DIRECTION_CHANGES_PER_S` to this raw count.
-        if (prevFidget.dx !== 0 || prevFidget.dy !== 0) {
-          const dot = dx * prevFidget.dx + dy * prevFidget.dy;
-          if (dot < 0) {
-            fidgetDirectionChanges += 1;
-          }
-        }
-        // Per-window tally of samples whose displacement falls under the
-        // fidget amplitude ceiling — raw material for 12-06's windowed
-        // trip condition, not a trip decision itself.
-        if (delta > 0 && delta < FIDGET_MAX_AMPLITUDE) {
-          winFidgetCount += 1;
-        }
-        lastFidgetWristPositions[index] = { x: hand.wristX, y: hand.wristY, dx, dy };
-      } else {
-        lastFidgetWristPositions[index] = {
-          x: hand.wristX,
-          y: hand.wristY,
-          dx: 0,
-          dy: 0,
-        };
-      }
     });
     // Trim stale slots so a hand that left frame does not leave a fossil
     // position behind to be compared against a future, unrelated hand.
     lastGestureWristPositions = lastGestureWristPositions.slice(
-      0,
-      result.primary.length
-    );
-    lastFidgetWristPositions = lastFidgetWristPositions.slice(
       0,
       result.primary.length
     );
@@ -2422,8 +2327,8 @@ export function createVisualCapture(
       (signal) => poseVisibleSamples[signal] >= POSTURE_BASELINE_MIN_SAMPLES
     );
 
-    // 12-07: measured-but-NEVER-SCORED observations — fidgeting, a phone in
-    // frame, and the absolute (never baseline-relative) posture reading.
+    // 12-07: measured-but-NEVER-SCORED observations — a phone in frame,
+    // and the absolute (never baseline-relative) posture reading.
     // Assembled entirely separately from every field above: NO field in
     // `observations` below may be derived from, or feed back into, any
     // scored field in this return object, and nothing above this point reads
@@ -2431,32 +2336,17 @@ export function createVisualCapture(
     // comment in `types.ts` for why that separation is enforced at the type
     // level, not just by this comment.
     //
-    // `fidgetUsable` mirrors `handsUsable` exactly, not a separate
-    // computation: fidgeting is read from the SAME worker-only hands
-    // pipeline (12-05) with no main-thread fallback, so `handSamples === 0`
-    // means fidgeting was never observable this session either — never a
-    // flattering 0%.
-    const fidgetUsable = handsUsable;
+    // BUG FIX (12-08 Task 1 checkpoint): `fidgetUsable`/the direction-change
+    // rate gate/`fidgetSamples` were removed entirely when fidgeting was
+    // retired to permanently not-measured (see `VISUAL_NOT_MEASURED`'s own
+    // comment in `types.ts`) — it is no longer a per-session usability
+    // question, so there is nothing to compute here.
+    //
     // Object (phone) detection has no main-thread fallback (12-05) either —
     // `phoneSamples === 0` means the worker never ran this model this
     // session (never that a phone was genuinely absent the whole time), and
     // must declare `phone_checking` unmeasured rather than report a clean 0.
     const phoneUsable = phoneSamples > 0;
-
-    // Session-wide direction-change RATE (reversals/second) gates whether
-    // the low-amplitude samples this session genuinely read as "fidgeting"
-    // vs. a few incidental slow drifts. This rate-gating decision is made
-    // HERE, not inside `computeObservations`, so that function stays a pure
-    // percentage calculation and this arithmetic stays testable at this one
-    // call site without duplicating it.
-    const fidgetDirectionChangeRatePerS =
-      sessionSeconds > 0 ? fidgetDirectionChanges / sessionSeconds : 0;
-    // Named so `extractDescriptiveEpisodes` below can consume the IDENTICAL
-    // decision (12-08 Task 1 checkpoint, Defect H) — see
-    // `descriptiveWindowTrips`'s own doc comment for the bug this fixes.
-    const fidgetRateCleared =
-      fidgetDirectionChangeRatePerS >= FIDGET_MIN_DIRECTION_CHANGES_PER_S;
-    const fidgetSamples = fidgetRateCleared ? fidgetDisplacementSamples : 0;
 
     // The object runner's EFFECTIVE rate this session — see
     // `ObservationCounts.phoneSampleHz`'s own doc comment for why this must
@@ -2478,14 +2368,11 @@ export function createVisualCapture(
     // failure `VISUAL_NOT_MEASURED`'s own header comment warns about.
     let observations: VisualDescriptiveObservations | undefined;
     if (
-      fidgetUsable ||
       phoneUsable ||
       absoluteShoulderTiltDegMean !== null ||
       absoluteForwardHeadOffsetMean !== null
     ) {
       const derivedObservations = computeObservations({
-        handSamples: handsDetectedSamples,
-        fidgetSamples,
         phoneSamples,
         phoneVisibleSamples,
         phoneSampleHz,
@@ -2493,15 +2380,13 @@ export function createVisualCapture(
         absoluteForwardHeadOffsetMean,
       });
       observations = {
-        fidget_pct: derivedObservations.fidgetPct,
         phone_visible_seconds: derivedObservations.phoneVisibleSeconds,
         posture_shoulder_tilt_deg: derivedObservations.postureShoulderTiltDeg,
         posture_forward_head_offset:
           derivedObservations.postureForwardHeadOffset,
         episodes: extractDescriptiveEpisodes(
           windows,
-          VISUAL_DESCRIPTIVE_EPISODE_KINDS,
-          { fidgetRateCleared }
+          VISUAL_DESCRIPTIVE_EPISODE_KINDS
         ),
       };
     }
@@ -2572,12 +2457,9 @@ export function createVisualCapture(
         // normal shoulder-width-scale value, the fix was sufficient.
         shoulderDebugRaw: lastShoulderDebugRaw,
       },
-      fidget: {
-        fidgetUsable,
-        directionChangeRatePerS: Math.round(fidgetDirectionChangeRatePerS * 100) / 100,
-        fidgetPct:
-          observations !== undefined ? observations.fidget_pct : null,
-      },
+      // BUG FIX (12-08 Task 1 checkpoint): the `fidget` dump block was
+      // removed when fidgeting was retired to permanently not-measured —
+      // see `VISUAL_NOT_MEASURED`'s own comment in `types.ts`.
       phone: {
         phoneUsable,
         phoneSamples,
@@ -2596,7 +2478,6 @@ export function createVisualCapture(
         gestureSamples: w.gestureSamples,
         handsDetected: w.handsDetected,
         nearFaceCount: w.nearFaceCount,
-        fidgetCount: w.fidgetCount,
         driftMean: Math.round(w.driftMean * 1000) / 1000,
         phoneCount: w.phoneCount,
         phoneProcessed: w.phoneProcessed,
@@ -2616,17 +2497,19 @@ export function createVisualCapture(
       // with several people gesturing obscenely earned a commendation for
       // having no distracting behaviours.
       //
-      // 12-07: all four booleans are now real per-session usability, none a
-      // standing placeholder. A session is allowed to declare any of
-      // hand_gestures/body_posture/fidgeting/phone_checking unmeasured even
-      // though this pipeline generally supports measuring all four — that is
-      // the honest outcome when a signal was never genuinely usable this
-      // particular session (body never in frame, worker never started), not
-      // a standing claim that the capability does not exist.
+      // 12-07: both remaining booleans are real per-session usability, not
+      // a standing placeholder. A session is allowed to declare either of
+      // hand_gestures/body_posture unmeasured even though this pipeline
+      // generally supports measuring both — that is the honest outcome when
+      // a signal was never genuinely usable this particular session (body
+      // never in frame), not a standing claim that the capability does not
+      // exist. `fidgeting` is NOT decided here (12-08 Task 1 checkpoint) —
+      // it is unconditional inside `resolveNotMeasured` itself, a standing
+      // statement that this pipeline cannot resolve it at all, see
+      // `VISUAL_NOT_MEASURED`'s own comment in `types.ts`.
       not_measured: resolveNotMeasured({
         handSignals: handsUsable,
         postureSignals: postureSignalsMeasured.length > 0,
-        fidget: fidgetUsable,
         phone: phoneUsable,
       }),
       episodes,

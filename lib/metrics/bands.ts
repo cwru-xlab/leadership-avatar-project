@@ -271,7 +271,6 @@ const EPISODE_LABELS: Record<VisualEpisode["kind"], string> = {
  * union. Keeping the two lookups apart mirrors the type-level separation
  * between `VisualEpisodeKind` and `VisualDescriptiveEpisodeKind`. */
 const DESCRIPTIVE_EPISODE_LABELS: Record<VisualDescriptiveEpisode["kind"], string> = {
-  fidgeting: "Hands in motion",
   phone_visible: "Phone visible",
 };
 
@@ -429,22 +428,21 @@ export function visualBodyLanguageBands(m: VisualMetrics): MetricBandRow[] {
 }
 
 /**
- * Measured-but-never-scored observation rows (REQ-52/REQ-54). Reads ONLY
+ * Measured-but-never-scored observation rows (REQ-54). Reads ONLY
  * `m.observations` and returns `[]` when absent — this is the sole function
  * in this file permitted to touch that field alongside `timelineRows`.
  * Rows describe, never judge: no row here may contain a word implying a
  * grade.
+ *
+ * BUG FIX (12-08 Task 1 checkpoint): the "Hand motion" row (`fidget_pct`)
+ * was removed when fidgeting was retired to permanently not-measured — see
+ * `VisualDescriptiveObservations`'s own comment in `types.ts` for why.
  */
 export function visualObservationRows(m: VisualMetrics): MetricBandRow[] {
   const observations = m.observations;
   if (!observations) return [];
 
   const rows: MetricBandRow[] = [];
-
-  rows.push({
-    label: "Hand motion",
-    value: `In motion for about ${Math.round(clampFinite(observations.fidget_pct, 0, 100))}% of the session`,
-  });
 
   rows.push({
     label: "Phone in frame",

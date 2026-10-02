@@ -60,38 +60,58 @@ export type VisualPostureFlag = (typeof VISUAL_POSTURE_FLAGS)[number];
  * looked at". Every entry here is something the evaluator prompts forbid
  * commenting on, scoring, or describing as absent.
  *
- * As of plan 12-07, this is down to the one entry with genuinely NO producer
- * anywhere in this phase: `background_environment`'s aesthetic half (judging
- * a background as "unprofessional" is largely a judgement about someone's
- * housing — permanently out of scope, see 12-CONTEXT.md's Deferred Ideas).
- * Every other entry this pipeline ever declared has now graduated into one of
- * two OTHER categories, neither of which belongs in this constant:
+ * As of plan 12-08, this holds the two entries with genuinely NO producer
+ * anywhere in this phase:
+ *   - `background_environment`'s aesthetic half (judging a background as
+ *     "unprofessional" is largely a judgement about someone's housing —
+ *     permanently out of scope, see 12-CONTEXT.md's Deferred Ideas).
+ *   - `fidgeting` (12-08 Task 1 checkpoint, retired after real sessions —
+ *     RE-ADDED here, not merely left conditional, by deliberate user
+ *     decision). Two real recordings measured `directionChangeRatePerS` at
+ *     0.35 and 0.15 against a gate that was already lowered once to
+ *     0.5/s; the hands model samples at the schedule's achievable ~1.5 Hz,
+ *     so the fastest reversal rate this pipeline can even OBSERVE is
+ *     ~0.75/s. Real fidgeting is a small, FAST motion — materially above
+ *     that ceiling — so the sampler was not measuring fidget frequency at
+ *     all, it was aliasing it: the measured rate reflects the sample
+ *     interval, not the behaviour. Lowering the gate further would not fix
+ *     this — it would ship a noise detector wearing a fidget label on a
+ *     signal shown to students about stimming-adjacent behaviour. See
+ *     `.planning/phases/12-embodied-visual-signals/deferred-items.md` for
+ *     what a real fix would require (materially higher hands sample rate,
+ *     which costs face/pose temporal resolution and needs its own
+ *     frame-budget gate) and `12-TUNING.md` for the full readings.
+ *
+ * Every OTHER entry this pipeline ever declared has graduated into one of
+ * two categories that do NOT belong in this constant:
  *   - measured AND scored (`hand_gestures`, `body_posture` — 12-06)
- *   - measured but NEVER scored (`fidgeting`, `phone_checking` — 12-07,
+ *   - measured but NEVER scored (`phone_checking` — 12-07,
  *     `VisualDescriptiveObservations`)
- * Both of those categories still have real per-session failure modes — a
- * body that was never in frame, a worker that never started — so
- * `resolveNotMeasured` still decides per-session whether any of the four
- * conditional entries belongs in a given payload's list. The absence-is-not-
- * evidence rule this constant exists to enforce therefore does not shrink
- * along with the array: it just moved from "permanently declared" to
- * "declared whenever this session's own data could not clear the floor."
- * Entries leave this list only when a producer exists for the WHOLE phase;
- * they still appear per-session via `VISUAL_NOT_MEASURED_VOCABULARY` /
- * `resolveNotMeasured` whenever that session's own data falls short.
+ * Those categories still have real per-session failure modes — a body that
+ * was never in frame, a worker that never started — so `resolveNotMeasured`
+ * still decides per-session whether either of its two remaining
+ * conditional entries belongs in a given payload's list. `fidgeting` is
+ * NOT one of those two: it is unconditional, every session, for the
+ * duration of this phase — a standing statement that this pipeline cannot
+ * resolve it at the hands model's achievable rate, never a per-session
+ * usability check.
  */
-export const VISUAL_NOT_MEASURED = ["background_environment"] as const;
+export const VISUAL_NOT_MEASURED = ["background_environment", "fidgeting"] as const;
 
 /**
  * The full closed vocabulary `VisualMetrics.not_measured` may ever contain —
- * `VISUAL_NOT_MEASURED`'s one permanently-unmeasurable entry, plus the four
- * entries that are per-session conditional now that real producers exist for
- * all of them: `hand_gestures`/`body_posture` (scored, 12-06) and
- * `fidgeting`/`phone_checking` (measured but never scored, 12-07).
+ * `VISUAL_NOT_MEASURED`'s two permanently-unmeasurable entries
+ * (`background_environment`, and `fidgeting` as of 12-08), plus the two
+ * entries that are still per-session conditional now that real producers
+ * exist for them: `hand_gestures`/`body_posture` (scored, 12-06) and
+ * `phone_checking` (measured but never scored, 12-07).
  * `resolveNotMeasured` below decides, per session, whether each conditional
  * entry belongs in the list — based on whether THIS session's data actually
  * cleared the usability floor, never a standing declaration that the
- * pipeline cannot measure the capability at all.
+ * pipeline cannot measure the capability at all. `fidgeting` is NOT decided
+ * per session — it is always in `VISUAL_NOT_MEASURED` now (see that
+ * constant's own comment for why), so it reaches this vocabulary via the
+ * spread below, not as an explicit conditional entry.
  *
  * This is the vocabulary `lib/metrics/ingest.ts`'s server-side allowlist must
  * validate against, NOT the narrower `VISUAL_NOT_MEASURED` — allowlisting
@@ -104,7 +124,6 @@ export const VISUAL_NOT_MEASURED_VOCABULARY = [
   ...VISUAL_NOT_MEASURED,
   "hand_gestures",
   "body_posture",
-  "fidgeting",
   "phone_checking",
 ] as const;
 
@@ -245,20 +264,22 @@ export interface VisualCoverage {
 
 /**
  * A SEPARATE, closed vocabulary for descriptive-only visual excursions —
- * deliberately NOT a widening of `VisualEpisodeKind`. Fidgeting and a phone
- * in frame are measured and reported, but REQ-52/REQ-54 require they never
- * be scored and never be rendered inline with the scored `episodes` array.
- * Keeping the two as genuinely separate TypeScript types, rather than a
- * shared union with a "descriptive" tag, makes "a fidget episode entered the
- * scored array" a compile error rather than a runtime discipline to
- * remember — the same mechanism `VisualCoverage` already uses to keep
- * liveness structurally separate from detection (see this file's header
- * comment).
+ * deliberately NOT a widening of `VisualEpisodeKind`. A phone in frame is
+ * measured and reported, but REQ-54 requires it never be scored and never
+ * be rendered inline with the scored `episodes` array. Keeping this as a
+ * genuinely separate TypeScript type, rather than a shared union with a
+ * "descriptive" tag, makes "a descriptive episode entered the scored
+ * array" a compile error rather than a runtime discipline to remember —
+ * the same mechanism `VisualCoverage` already uses to keep liveness
+ * structurally separate from detection (see this file's header comment).
+ *
+ * BUG FIX (12-08 Task 1 checkpoint): `fidgeting` was removed from this
+ * vocabulary when fidgeting was retired to permanently not-measured — see
+ * `VISUAL_NOT_MEASURED`'s own comment for why. `phone_visible` is the only
+ * remaining kind; the type stays a tuple/union (not simplified to a single
+ * literal) so a future descriptive signal can extend it the same way.
  */
-export const VISUAL_DESCRIPTIVE_EPISODE_KINDS = [
-  "fidgeting",
-  "phone_visible",
-] as const;
+export const VISUAL_DESCRIPTIVE_EPISODE_KINDS = ["phone_visible"] as const;
 
 export type VisualDescriptiveEpisodeKind = (typeof VISUAL_DESCRIPTIVE_EPISODE_KINDS)[number];
 
@@ -268,14 +289,15 @@ export interface VisualDescriptiveEpisode {
   start_s: number;
   end_s: number;
   /** 0-1. A DESCRIPTIVE intensity only — e.g. "what fraction of windows in
-   * this run tripped the fidget band." Nothing downstream may multiply this
-   * into a score; it exists purely to let the Observations section say "a
-   * lot" vs "a little" about a run it is already describing, not grading. */
+   * this run tripped the phone-visible band." Nothing downstream may
+   * multiply this into a score; it exists purely to let the Observations
+   * section say "a lot" vs "a little" about a run it is already
+   * describing, not grading. */
   severity: number;
 }
 
 /**
- * Measured-but-never-scored visual observations (REQ-52/REQ-53/REQ-54).
+ * Measured-but-never-scored visual observations (REQ-53/REQ-54).
  *
  * NOTHING IN THIS INTERFACE MAY BE READ BY ANY BAND OR SCORING FUNCTION.
  * `visualBands()` and `visualBodyLanguageBands()` in `lib/metrics/bands.ts`
@@ -283,19 +305,17 @@ export interface VisualDescriptiveEpisode {
  * This is enforced by keeping this interface structurally separate from
  * every scored field on `VisualMetrics`, not by a convention to remember.
  *
- * Why: fidgeting overlaps heavily with stimming, ADHD and anxiety
- * presentations, and a phone sitting on the desk in shot is not misconduct.
- * Describing either is defensible ("your hands were in motion for 60% of
- * the session"); deducting a score for either is not, and a student who
- * challenges it would be right to.
+ * Why: a phone sitting on the desk in shot is not misconduct. Describing it
+ * is defensible ("a phone was visible for 40 seconds"); deducting a score
+ * for it is not, and a student who challenges it would be right to.
+ *
+ * BUG FIX (12-08 Task 1 checkpoint): `fidget_pct` was removed from this
+ * interface when fidgeting was retired to permanently not-measured (see
+ * `VISUAL_NOT_MEASURED`'s own comment) — REQ-52, which this field existed
+ * to satisfy, can no longer be met and has been marked not-met in
+ * REQUIREMENTS.md rather than left silently checked.
  */
 export interface VisualDescriptiveObservations {
-  /** 0-100. Percentage of processed samples whose hand motion fell inside
-   * the fidget band (see `FIDGET_MAX_AMPLITUDE`/
-   * `FIDGET_MIN_DIRECTION_CHANGES_PER_S` in `body-thresholds.ts`) — a
-   * DISTINCT low-amplitude, high-frequency pattern from the scored gesture
-   * rate, never "gesticulation above an extra threshold." */
-  fidget_pct: number;
   /** Total seconds a phone was visible in frame, across the whole session. */
   phone_visible_seconds: number;
   /** Absolute shoulder-line tilt in degrees, or `null` when shoulders were
@@ -446,35 +466,39 @@ export interface VisualMetrics {
  * original face-only pipeline (an empty flags array read as "verified
  * clean").
  *
- * All four booleans now answer the SAME question as of plan 12-07: "did THIS
- * session's data clear the usability floor" — never "does a producer exist
- * for the capability at all," which would be true almost every session and
- * would mask a body (or a worker that never started) that was simply never
- * usable this time. `handSignals`/`postureSignals` are driven by
- * `handsUsable`/`posture_signals_measured.length > 0`; `fidget` by the same
- * `handsUsable` (fidgeting piggybacks on the identical worker-only hands
- * pipeline — no hands data this session means no fidget data either, never a
- * flattering 0%); `phone` by whether the object-detection pipeline actually
- * produced any samples this session (`phoneSamples > 0`) — object detection
- * has no main-thread fallback (12-05), so a worker that failed to start must
- * declare `phone_checking` unmeasured, never report "no phone detected."
+ * Both remaining booleans answer the SAME question as of plan 12-07: "did
+ * THIS session's data clear the usability floor" — never "does a producer
+ * exist for the capability at all," which would be true almost every
+ * session and would mask a body (or a worker that never started) that was
+ * simply never usable this time. `handSignals`/`postureSignals` are driven
+ * by `handsUsable`/`posture_signals_measured.length > 0`; `phone` by
+ * whether the object-detection pipeline actually produced any samples this
+ * session (`phoneSamples > 0`) — object detection has no main-thread
+ * fallback (12-05), so a worker that failed to start must declare
+ * `phone_checking` unmeasured, never report "no phone detected."
  *
- * `background_environment` is ALWAYS returned — its aesthetic half is
- * permanently out of scope (see 12-CONTEXT.md's Deferred Ideas) and no
- * producer in this phase or any planned future one measures it.
+ * BUG FIX (12-08 Task 1 checkpoint): the `fidget` input parameter was
+ * removed when fidgeting was retired to permanently not-measured (see
+ * `VISUAL_NOT_MEASURED`'s own comment) — it is no longer a per-session
+ * usability decision, so there is nothing for a caller to pass in. It
+ * reaches the output unconditionally via the `background_environment`
+ * pattern below, not via a boolean input.
+ *
+ * `background_environment` AND `fidgeting` are ALWAYS returned — neither
+ * has a producer in this phase or any planned future one (see each
+ * constant's own comment in `VISUAL_NOT_MEASURED` for why).
  */
 export function resolveNotMeasured(measured: {
   handSignals: boolean;
   postureSignals: boolean;
-  fidget: boolean;
   phone: boolean;
 }): VisualNotMeasured[] {
   const out: VisualNotMeasured[] = [];
   if (!measured.handSignals) out.push("hand_gestures");
   if (!measured.postureSignals) out.push("body_posture");
-  if (!measured.fidget) out.push("fidgeting");
   if (!measured.phone) out.push("phone_checking");
   out.push("background_environment");
+  out.push("fidgeting");
   return out;
 }
 

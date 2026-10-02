@@ -300,7 +300,7 @@ function win(startS: number, over: Partial<CaptureWindow> = {}): CaptureWindow {
     // the camera/environment kinds above cannot accidentally trip one of the
     // new body kinds too.
     poseProcessed: 0, driftMean: 0, gestureSum: 0, gestureSamples: 0,
-    handsDetected: 0, nearFaceCount: 0, fidgetCount: 0, phoneCount: 0,
+    handsDetected: 0, nearFaceCount: 0, phoneCount: 0,
     phoneProcessed: 0,
     ...over,
   };
@@ -376,20 +376,21 @@ check("zero offset renders capture time unchanged",
   { label: "0:00\u20131:05", value: "Another person in frame" });
 
 console.log("\n9. resolveNotMeasured");
-// 12-07: `VISUAL_NOT_MEASURED` itself now holds only the ONE permanently
-// unmeasurable entry (background_environment) — hand_gestures/body_posture
-// (12-06) and fidgeting/phone_checking (12-07) are now ALL per-session
-// conditional, so an all-false input returns the full five-entry VOCABULARY,
-// not the narrower `VISUAL_NOT_MEASURED` constant (which by itself is just
-// `["background_environment"]` as of this plan).
+// 12-08 Task 1 checkpoint: `fidgeting` is now PERMANENTLY in
+// `VISUAL_NOT_MEASURED` (retired, not per-session conditional — see that
+// constant's own comment in types.ts) and `resolveNotMeasured` no longer
+// takes a `fidget` input at all; it appends "fidgeting" unconditionally,
+// the same way it already does for "background_environment".
+// hand_gestures/body_posture (12-06) and phone_checking (12-07) are the two
+// remaining per-session conditional entries.
 check("all-false input returns the full not-measured vocabulary",
-  resolveNotMeasured({ handSignals: false, postureSignals: false, fidget: false, phone: false }),
-  ["hand_gestures", "body_posture", "fidgeting", "phone_checking", ...VISUAL_NOT_MEASURED]);
-check("all-true input returns exactly background_environment",
-  resolveNotMeasured({ handSignals: true, postureSignals: true, fidget: true, phone: true }),
-  ["background_environment"]);
+  resolveNotMeasured({ handSignals: false, postureSignals: false, phone: false }),
+  ["hand_gestures", "body_posture", "phone_checking", ...VISUAL_NOT_MEASURED]);
+check("all-true input returns exactly the two permanent entries",
+  resolveNotMeasured({ handSignals: true, postureSignals: true, phone: true }),
+  ["background_environment", "fidgeting"]);
 check("hand-only input keeps body_posture",
-  resolveNotMeasured({ handSignals: true, postureSignals: false, fidget: true, phone: true })
+  resolveNotMeasured({ handSignals: true, postureSignals: false, phone: true })
     .includes("body_posture"),
   true);
 
@@ -444,8 +445,10 @@ check("posture_drift_mean absent (even with posture_signals_measured present) yi
 console.log("\n11. visualObservationRows (descriptive, never scored)");
 check("returns [] when observations absent", visualObservationRows(visual()), []);
 {
+  // 12-08 Task 1 checkpoint: `fidget_pct`/"Hand motion" removed — fidgeting
+  // was retired to permanently not-measured, see
+  // `VisualDescriptiveObservations`'s own comment in types.ts.
   const observations: VisualDescriptiveObservations = {
-    fidget_pct: 42,
     phone_visible_seconds: 40,
     posture_shoulder_tilt_deg: null,
     posture_forward_head_offset: null,
@@ -455,9 +458,9 @@ check("returns [] when observations absent", visualObservationRows(visual()), []
   check("phone seconds row present",
     bandFor(rows, "Phone in frame"),
     "A phone was visible for about 40 seconds");
-  check("fidget row present",
-    bandFor(rows, "Hand motion"),
-    "In motion for about 42% of the session");
+  check("no Hand motion row exists anymore",
+    rows.some((r) => r.label === "Hand motion"),
+    false);
   check("never a row for a null absolute posture reading",
     rows.some((r) => r.label === "Shoulder line (absolute)" || r.label === "Head position (absolute)"),
     false);
@@ -468,11 +471,10 @@ console.log("\n12. Structural non-scoring assertions — the point of this plan"
   const withoutObservations = visual();
   const withObservations = visual({
     observations: {
-      fidget_pct: 90,
       phone_visible_seconds: 120,
       posture_shoulder_tilt_deg: 12,
       posture_forward_head_offset: 0.3,
-      episodes: [{ kind: "fidgeting", start_s: 0, end_s: 120, severity: 1 }],
+      episodes: [{ kind: "phone_visible", start_s: 0, end_s: 120, severity: 1 }],
     },
   });
   check("visualBands is byte-identical regardless of observations",
@@ -481,25 +483,25 @@ console.log("\n12. Structural non-scoring assertions — the point of this plan"
     visualBodyLanguageBands(withObservations), visualBodyLanguageBands(withoutObservations));
 }
 {
-  // 12-07: the same proof, but with a 90%-fidget / 300-second-phone payload —
-  // the literal scenario this plan's objective names as the thing that must
-  // never move a band or a scorability decision.
+  // 12-07: the same proof, but with a 300-second-phone payload — the
+  // literal scenario this plan's objective names as the thing that must
+  // never move a band or a scorability decision. (12-08 Task 1 checkpoint:
+  // the fidget half of this scenario was removed — fidgeting was retired
+  // to permanently not-measured.)
   const withoutObservations = visual();
   const withExtremeObservations = visual({
     observations: {
-      fidget_pct: 95,
       phone_visible_seconds: 300,
       posture_shoulder_tilt_deg: 20,
       posture_forward_head_offset: 0.4,
       episodes: [
-        { kind: "fidgeting", start_s: 0, end_s: 300, severity: 1 },
         { kind: "phone_visible", start_s: 0, end_s: 300, severity: 1 },
       ],
     },
   });
-  check("a 90%-fidget/300s-phone payload does not change visualBands",
+  check("a 300s-phone payload does not change visualBands",
     visualBands(withExtremeObservations), visualBands(withoutObservations));
-  check("a 90%-fidget/300s-phone payload does not change visualBodyLanguageBands",
+  check("a 300s-phone payload does not change visualBodyLanguageBands",
     visualBodyLanguageBands(withExtremeObservations), visualBodyLanguageBands(withoutObservations));
   check("...nor the scorability decision",
     resolveVisualOutcome("ON", withExtremeObservations),
@@ -511,7 +513,6 @@ console.log("\n13. timelineRows");
   const m = visual({
     episodes: [{ kind: "posture_drift", start_s: 60, end_s: 90, severity: 1 }],
     observations: {
-      fidget_pct: 0,
       phone_visible_seconds: 0,
       posture_shoulder_tilt_deg: null,
       posture_forward_head_offset: null,
@@ -536,12 +537,11 @@ console.log("\n14. Ingest — Phase 12 allowlists");
     visual: {
       ...visual(),
       observations: {
-        fidget_pct: 10,
         phone_visible_seconds: 5,
         posture_shoulder_tilt_deg: 3,
         posture_forward_head_offset: 0.1,
         episodes: [
-          { kind: "fidgeting", start_s: 0, end_s: 10, severity: 1 },
+          { kind: "phone_visible", start_s: 0, end_s: 10, severity: 1 },
           { kind: "telekinesis", start_s: 0, end_s: 10, severity: 1 },
         ],
       },
@@ -560,7 +560,6 @@ check("a media-shaped string inside observations rejects the WHOLE payload",
     visual: {
       ...visual(),
       observations: {
-        fidget_pct: 10,
         phone_visible_seconds: 5,
         posture_shoulder_tilt_deg: null,
         posture_forward_head_offset: null,
@@ -801,19 +800,24 @@ console.log("\n18. New episode kinds extract through the existing machinery");
 
 console.log("\n19. resolveNotMeasured wiring (12-06: hands/posture are now conditional)");
 check("a session with no usable pose still lists body_posture",
-  resolveNotMeasured({ handSignals: true, postureSignals: false, fidget: true, phone: true })
+  resolveNotMeasured({ handSignals: true, postureSignals: false, phone: true })
     .includes("body_posture"),
   true);
 check("a session with usable pose AND hands lists neither",
-  resolveNotMeasured({ handSignals: true, postureSignals: true, fidget: true, phone: true })
+  resolveNotMeasured({ handSignals: true, postureSignals: true, phone: true })
     .some((e) => e === "body_posture" || e === "hand_gestures"),
   false);
+check("fidgeting is ALWAYS present regardless of input — permanently retired, not per-session (12-08)",
+  resolveNotMeasured({ handSignals: true, postureSignals: true, phone: true })
+    .includes("fidgeting"),
+  true);
 
 console.log("\n20. computeObservations — the measured-but-never-scored half (12-07)");
+// 12-08 Task 1 checkpoint: `handSamples`/`fidgetSamples` removed from
+// `ObservationCounts` — fidgeting was retired to permanently not-measured,
+// see `VisualDescriptiveObservations`'s own comment in types.ts.
 function obsCounts(over: Partial<ObservationCounts> = {}): ObservationCounts {
   return {
-    handSamples: 0,
-    fidgetSamples: 0,
     phoneSamples: 0,
     phoneVisibleSamples: 0,
     phoneSampleHz: 0,
@@ -821,17 +825,6 @@ function obsCounts(over: Partial<ObservationCounts> = {}): ObservationCounts {
     absoluteForwardHeadOffsetMean: null,
     ...over,
   };
-}
-{
-  // fidget_pct divides by HAND-DETECTED samples — doubling handSamples at a
-  // fixed fidgetSamples count must HALVE the percentage, the opposite of
-  // computeGestureRates' deliberate denominator-independence, because this
-  // signal is descriptive and the absence-is-poor-performance rule that
-  // protects the scored rate does not apply to it.
-  const low = computeObservations(obsCounts({ handSamples: 100, fidgetSamples: 40 }));
-  const high = computeObservations(obsCounts({ handSamples: 200, fidgetSamples: 40 }));
-  check("fidget_pct at 40/100 hand-detected samples", low.fidgetPct, 40);
-  check("fidget_pct at 40/200 hand-detected samples is half", high.fidgetPct, 20);
 }
 {
   // phone seconds convert via the RUNNER'S EFFECTIVE rate, never the nominal
@@ -871,74 +864,38 @@ function obsCounts(over: Partial<ObservationCounts> = {}): ObservationCounts {
 }
 
 console.log("\n21. extractDescriptiveEpisodes — the DESCRIPTIVE sibling of extractEpisodes");
-{
-  // Two 5s windows (10s total) tripping `fidgeting`.
-  const windows = [
-    win(0, { handsDetected: 10, fidgetCount: 8 }),
-    win(5, { handsDetected: 10, fidgetCount: 8 }),
-  ];
-  const descEps = extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS, { fidgetRateCleared: true });
-  const fidgetHits = descEps.filter((e) => e.kind === "fidgeting");
-  check("exactly one fidgeting episode", fidgetHits.length, 1);
-  check("at the expected timecodes", [fidgetHits[0].start_s, fidgetHits[0].end_s], [0, 10]);
-
-  // The SAME windows run through the SCORED extractor must produce NONE of
-  // the descriptive kinds — they are not even in VISUAL_EPISODE_KINDS'
-  // vocabulary, so this also proves the two kind unions stay genuinely
-  // disjoint at the type level, not just by convention.
-  const scoredEps = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
-  check("the scored extractor over the SAME windows produces no fidgeting episode",
-    scoredEps.some((e) => (e.kind as string) === "fidgeting"), false);
-}
+// 12-08 Task 1 checkpoint: the `fidgeting` kind (and Defect H's unified-gate
+// fix, which only existed to reconcile it with the now-removed `fidget_pct`)
+// was deleted entirely when fidgeting was retired to permanently
+// not-measured. `phone_visible` is the only remaining descriptive kind.
 {
   // Two 5s windows tripping `phone_visible`.
   const windows = [
     win(0, { phoneProcessed: 10, phoneCount: 8 }),
     win(5, { phoneProcessed: 10, phoneCount: 8 }),
   ];
-  const descEps = extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS, { fidgetRateCleared: true });
+  const descEps = extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS);
   const phoneHits = descEps.filter((e) => e.kind === "phone_visible");
   check("exactly one phone_visible episode", phoneHits.length, 1);
   check("at the expected timecodes", [phoneHits[0].start_s, phoneHits[0].end_s], [0, 10]);
 
+  // The SAME windows run through the SCORED extractor must produce NONE of
+  // the descriptive kinds — they are not even in VISUAL_EPISODE_KINDS'
+  // vocabulary, so this also proves the two kind unions stay genuinely
+  // disjoint at the type level, not just by convention.
   const scoredEps = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
   check("the scored extractor over the SAME windows produces no phone_visible episode",
     scoredEps.some((e) => (e.kind as string) === "phone_visible"), false);
 }
 {
-  // Zero hand-detected / zero phone-processed samples must not trip either
-  // descriptive kind — absence is not evidence here either.
+  // Zero phone-processed samples must not trip `phone_visible` — absence is
+  // not evidence here either.
   const windows = [
-    win(0, { handsDetected: 0, fidgetCount: 0, phoneProcessed: 0, phoneCount: 0 }),
-    win(5, { handsDetected: 0, fidgetCount: 0, phoneProcessed: 0, phoneCount: 0 }),
+    win(0, { phoneProcessed: 0, phoneCount: 0 }),
+    win(5, { phoneProcessed: 0, phoneCount: 0 }),
   ];
-  check("no fidgeting/phone_visible episodes from an all-absent session",
-    extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS, { fidgetRateCleared: true }).length, 0);
-}
-{
-  // 12-08 Task 1 checkpoint, Defect H: a real report showed a `fidgeting`
-  // episode on the Moments timeline while `fidget_pct` read 0% in the SAME
-  // report — the episode extractor's per-window AMPLITUDE ratio and the
-  // session-level AMPLITUDE+RATE gate were silently re-deriving the same
-  // "is this genuinely fidgeting" decision and disagreeing.
-  // `fidgetRateCleared: false` (the session never cleared
-  // FIDGET_MIN_DIRECTION_CHANGES_PER_S, which is exactly what `fidget_pct`
-  // being 0% means) must now suppress the episode too, even though the
-  // window's own amplitude ratio alone would have tripped it.
-  const windows = [
-    win(0, { handsDetected: 10, fidgetCount: 8 }),
-    win(5, { handsDetected: 10, fidgetCount: 8 }),
-  ];
-  const withRateCleared = extractDescriptiveEpisodes(
-    windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS, { fidgetRateCleared: true }
-  );
-  const withoutRateCleared = extractDescriptiveEpisodes(
-    windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS, { fidgetRateCleared: false }
-  );
-  check("the SAME windows trip fidgeting when the session-wide rate cleared",
-    withRateCleared.some((e) => e.kind === "fidgeting"), true);
-  check("...and produce NO fidgeting episode when the session-wide rate did not clear — the self-contradiction this fixes",
-    withoutRateCleared.some((e) => e.kind === "fidgeting"), false);
+  check("no phone_visible episode from an all-absent session",
+    extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS).length, 0);
 }
 
 console.log("\n22. Ingest round-trip — Phase 12 payload survives intact");
@@ -954,7 +911,6 @@ console.log("\n22. Ingest round-trip — Phase 12 payload survives intact");
     posture_signals_measured: ["shoulder_line", "forward_head"],
     episodes: [{ kind: "posture_drift", start_s: 10, end_s: 40, severity: 0.8 }],
     observations: {
-      fidget_pct: 22,
       phone_visible_seconds: 14,
       posture_shoulder_tilt_deg: 3.5,
       posture_forward_head_offset: 0.08,
@@ -971,7 +927,6 @@ check("a media-shaped string inside observations still rejects the WHOLE payload
     visual: {
       ...visual(),
       observations: {
-        fidget_pct: 10,
         phone_visible_seconds: 5,
         posture_shoulder_tilt_deg: null,
         posture_forward_head_offset: null,
