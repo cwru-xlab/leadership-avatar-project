@@ -336,26 +336,52 @@ function describeMeasuredFrom(signals: VisualPostureSignal[]): string {
   return signals.map((s) => POSTURE_SIGNAL_LABELS[s]).join(" and ");
 }
 
-function bandGesturing(rateRaw: number | undefined, amplitudeRaw: number | undefined): string {
-  const rate = clampFinite(rateRaw ?? 0, 0, 600);
-  if (rate <= GESTURE_RATE_STILL_MAX) return "Very still";
-  if (rate >= GESTURE_RATE_EXCESSIVE_MIN) return "A lot of movement";
+// Band functions below take DEFINED numbers, never `number | undefined` with
+// an internal `?? 0` fallback. Each is called ONLY behind the `typeof ===
+// "number"` guards in `visualBodyLanguageBands` below, which already
+// implement the omit-don't-default discipline (a genuinely absent field
+// means no row at all, never a defaulted-to-0 verdict). Requiring a defined
+// number at the TYPE level, rather than defending against `undefined`
+// inside the function, means a future edit that accidentally called one of
+// these with an absent reading is a compile error, not a silently-favourable
+// band (12-08 Task 1 checkpoint, Defect A pattern (a) — "a default-on-
+// missing that can produce a favourable verdict from absent data").
+
+function bandGesturing(rate: number, amplitude: number | undefined): string {
+  const clamped = clampFinite(rate, 0, 600);
+  if (clamped <= GESTURE_RATE_STILL_MAX) return "Very still";
+  if (clamped >= GESTURE_RATE_EXCESSIVE_MIN) return "A lot of movement";
   // Amplitude is read only to keep the signature symmetrical with the
   // documented two-input shape (rate + amplitude) — the current band split
   // is rate-driven; a future tuning pass (plan 12-08) may fold amplitude
-  // into the boundary itself.
-  void amplitudeRaw;
+  // into the boundary itself. It never decides the verdict, so letting it
+  // arrive as `undefined` (a genuinely independent-absence field per the
+  // evaluator contract) cannot default into a favourable band — contrast
+  // `rate` above, which the "DEFINED numbers" discipline comment covers.
+  void amplitude;
   return "Well judged";
 }
 
-function bandHandsNearFace(pctRaw: number | undefined): string {
-  const pct = clampFinite(pctRaw ?? 0, 0, 100);
-  return pct >= HANDS_NEAR_FACE_TRIP_PCT ? "Frequent" : "Occasional";
+/**
+ * BUG FIX (12-08 Task 1 checkpoint, Defect A): the two-bucket ladder this
+ * replaced (`pct >= TRIP ? "Frequent" : "Occasional"`) had no bucket for a
+ * genuine, measured 0% — a still session with hands never once near the
+ * face rendered as "Occasional," a positive claim manufactured from the
+ * absence of any occurrence. `pct === 0` now gets its own band distinct
+ * from both "Occasional" (it happened sometimes, below the trip threshold)
+ * and "Frequent." `pct` arrives already rounded to an integer percentage by
+ * `computeGestureRates`, so `=== 0` means literally zero qualifying samples,
+ * not a small value rounded down.
+ */
+function bandHandsNearFace(pct: number): string {
+  const clamped = clampFinite(pct, 0, 100);
+  if (clamped <= 0) return "Not noticeably";
+  return clamped >= HANDS_NEAR_FACE_TRIP_PCT ? "Frequent" : "Occasional";
 }
 
-function bandPostureDrift(driftMeanRaw: number | undefined, _driftMaxSRaw: number | undefined): string {
-  const drift = clampFinite(driftMeanRaw ?? 0, 0, 1);
-  return drift >= POSTURE_DRIFT_TRIP ? "Shifted from the opening posture" : "Held steady from the opening posture";
+function bandPostureDrift(drift: number, _driftMaxS: number | undefined): string {
+  const clamped = clampFinite(drift, 0, 1);
+  return clamped >= POSTURE_DRIFT_TRIP ? "Shifted from the opening posture" : "Held steady from the opening posture";
 }
 
 /**
