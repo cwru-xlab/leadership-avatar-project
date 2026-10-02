@@ -51,7 +51,7 @@ function pct(value: number): string {
  *
  * Sources from `timelineRows(visual)` rather than mapping `visual.episodes`
  * directly, so scored body-language episodes and the descriptive ones
- * (fidgeting, phone visible) appear in ONE chronological timeline (REQ-55)
+ * (phone visible) appear in ONE chronological timeline (REQ-55)
  * while staying distinguishable via a kind tag. `timelineRows` already
  * applies `capture_offset_s` internally — do not shift again here.
  */

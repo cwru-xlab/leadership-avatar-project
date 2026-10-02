@@ -335,10 +335,22 @@ was decided, they do not add scope.*
   reported but not graded. A partially visible body is scored on the landmarks that ARE
   available rather than skipped, and every posture comment states which were measured.
 
-- **REQ-52** — [x] Fidgeting is measured and REPORTED BUT NEVER SCORED. It is surfaced as
-  self-awareness information only. Fidgeting overlaps heavily with stimming, ADHD and
-  anxiety presentations, and gesture norms vary culturally; describing it is defensible
-  for a graded assessment, penalising it is not.
+- **REQ-52** — [ ] **NOT MET** (12-08 Task 1 checkpoint, deliberate — this is not a gap
+  pending more work, it is a measurement-capability limit this pipeline cannot clear at
+  its current hands model sample rate). Fidgeting was intended to be measured and
+  REPORTED BUT NEVER SCORED, surfaced as self-awareness information. Two real recordings
+  measured a direction-change rate of 0.35/s and 0.15/s against a gate already lowered
+  once (1.5 -> 0.5/s). The hands model's achievable ~1.5 Hz sample rate cannot resolve a
+  reversal frequency fast enough to mean "fidgeting" at all (small, FAST motion by
+  definition) — the sampler was aliasing the behaviour, not measuring it, and no further
+  threshold lowering fixes an aliasing problem; it would only ship a noise detector
+  wearing a fidget label on a signal shown to students about stimming-adjacent behaviour.
+  User decision: retire `fidgeting` to permanently not-measured for this phase rather than
+  continue tuning an unfixable threshold. See
+  `.planning/phases/12-embodied-visual-signals/deferred-items.md` ("12-08: Fidgeting
+  retired...") and `12-TUNING.md` for the full readings and what a real fix would require
+  (a materially higher hands sample rate — a new, scoped piece of work with its own
+  frame-budget analysis, not a threshold retune).
 
 - **REQ-53** — [ ] Descriptive-only signals live in their own report section — not inline
   with scored rows carrying a marker — so a student cannot read an unscored observation as

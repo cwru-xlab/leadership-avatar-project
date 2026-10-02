@@ -235,7 +235,9 @@ function sanitizeObservations(value: unknown): VisualDescriptiveObservations | n
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
   return {
-    fidget_pct: clampNumber(v.fidget_pct, 0, 100),
+    // BUG FIX (12-08 Task 1 checkpoint): `fidget_pct` removed — fidgeting
+    // was retired to permanently not-measured, see
+    // `VisualDescriptiveObservations`'s own comment in `types.ts`.
     phone_visible_seconds: clampNumber(v.phone_visible_seconds, 0, Number.MAX_SAFE_INTEGER),
     posture_shoulder_tilt_deg: sanitizeNullableNumber(
       v.posture_shoulder_tilt_deg,

@@ -438,7 +438,13 @@ is worse than saying nothing. not_measured is computed fresh per session: an
 entry's presence means THIS session's pipeline could not observe that
 behaviour, not that no session ever could — the absence-is-not-evidence rule
 above is unchanged regardless of what another session's not_measured list
-contained.
+contained. "fidgeting" specifically is now ALWAYS present in not_measured,
+every session, with no exception: the hands model's achievable sample rate
+cannot resolve a reversal frequency fast enough to mean "fidgeting" at all
+(a measurement-capability limit, not a per-session gap), so this pipeline
+will never again report a fidget percentage or a fidgeting episode. Treat it
+exactly like any other permanent not_measured entry — never comment on it,
+never describe its absence.
 
 HARD RULE ON observations
 Everything inside visual_metrics.observations is MEASURED but NEVER SCORED.
@@ -448,19 +454,16 @@ inference about the candidate. Concretely: "a phone was visible for about 40
 seconds" is an allowed, factual description of what the sensor saw. "You were
 distracted" or "you were checking your phone" are FORBIDDEN — the sensor saw
 an object in frame, not attention, and a phone sitting on the desk in shot is
-not misconduct. Fidgeting (observations.fidget_pct) may be described as
-self-awareness information — "your hands were in motion for much of the
-session" — and must NEVER be graded: it overlaps heavily with stimming, ADHD,
-and anxiety presentations, and grading it is not defensible. This is a HARD
-rule, equal in force to the HARD RULE ON not_measured above, and the two are
-structurally different: not_measured means never observed at all;
-observations means observed but intentionally excluded from scoring.
+not misconduct. This is a HARD rule, equal in force to the HARD RULE ON
+not_measured above, and the two are structurally different: not_measured
+means never observed at all; observations means observed but intentionally
+excluded from scoring.
 
 WHERE observations may appear. Everything in observations belongs ONLY in the
 report's own separate Observations section, which is rendered for you from the
-data - you do not write it. You must NOT mention a phone, a fidget percentage,
-or an absolute posture reading anywhere in the scored visual narrative, in a
-strength, or in a growth area.
+data - you do not write it. You must NOT mention a phone or an absolute
+posture reading anywhere in the scored visual narrative, in a strength, or in
+a growth area.
 
 In particular, do NOT write a sentence that reports an observation and then
 disclaims it in the same breath. "A phone was visible (71 seconds), but that is
