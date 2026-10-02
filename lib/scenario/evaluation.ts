@@ -32,6 +32,7 @@ import {
   STRUCTURED_REPORT_REQUIRED,
   type StructuredReport,
 } from "@/lib/report/structured";
+import { sanitizeBodySignalWording } from "@/lib/report/body-signal-validator";
 
 // ---------------------------------------------------------------------------
 // JSON schema — must match SCENARIO_EVALUATOR_PROMPT's declared output shape
@@ -141,9 +142,22 @@ export function validateScenarioEvaluationResult(
   // The emptiness check moved here from `report_markdown` when the model
   // stopped emitting prose. It still drives the FAILED path: a response with
   // no summary and no sections at all must not be stored as a blank report.
-  const reportStructured = parseStructuredReport(raw);
-  if (!reportStructured) {
+  const parsedReport = parseStructuredReport(raw);
+  if (!parsedReport) {
     throw new ScenarioEvaluationError("Evaluator returned an empty report body");
+  }
+
+  // Code-side backstop for the describe-then-ask body-signal wording rules
+  // (12-08 Task 3 pre-sign-off, Defect C) -- see
+  // `sanitizeBodySignalWording`'s own doc comment for why stripping, not a
+  // retry, is the enforcement mechanism. Never silent: logged below
+  // whenever anything was actually stripped.
+  const { report: reportStructured, strippedCount } =
+    sanitizeBodySignalWording(parsedReport);
+  if (strippedCount > 0) {
+    console.warn("Scenario evaluator body-signal wording violation stripped", {
+      strippedCount,
+    });
   }
 
   // Gated on whether the pipeline actually supplied metrics for this session.
