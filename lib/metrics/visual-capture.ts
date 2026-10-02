@@ -43,12 +43,20 @@ import {
   METRICS_SAMPLE_HZ,
   VISUAL_EPISODE_KINDS,
   VISUAL_NOT_MEASURED,
+  VISUAL_POSTURE_SIGNALS,
   type VisualEpisode,
   type VisualEpisodeKind,
   type VisualMetrics,
   type VisualPostureFlag,
+  type VisualPostureSignal,
 } from "@/lib/metrics/types";
-import type { FaceDetectResult } from "@/lib/metrics/visual-capture.worker";
+import { FIDGET_MAX_AMPLITUDE } from "@/lib/metrics/body-thresholds";
+import type {
+  FaceDetectResult,
+  HandsDetectResult,
+  ObjectDetectResult,
+  PoseDetectResult,
+} from "@/lib/metrics/visual-capture.worker";
 
 /** Reasons `requestCameraStream` can fail to acquire a camera. Plans
  * 10-09/10-10 map these to the REQ-37 block screen; this function itself
@@ -178,19 +186,31 @@ const MAX_TRACKED_FACES = 3;
  * bounded-race pattern: the End button must never hang on a stuck teardown. */
 const DEFAULT_STOP_TIMEOUT_MS = 1500;
 
-/** This plan adds exactly ONE model to the worker. 12-05 extends this union
- * when it adds pose/hands/object detection. */
-type ModelId = "face";
+/** Four models share the worker as of 12-05: face, pose, hands, and object
+ * (phone) detection. */
+type ModelId = "face" | "pose" | "hands" | "object";
 
-/** The staggered round-robin schedule, consulted by tick index
- * (`SCHEDULE[tickCount % SCHEDULE.length]`). Exactly one tenant today, so
- * face still samples at the full `METRICS_SAMPLE_HZ` and this plan changes no
- * measurement. 12-05 extends this array; once it holds N models, each
- * model's effective rate becomes `METRICS_SAMPLE_HZ / N` Hz. Acceptable
- * because episode windows are `EPISODE_WINDOW_SECONDS` (5s) — per-model
- * temporal resolution well below `METRICS_SAMPLE_HZ` still localises an
- * excursion usefully. */
-const SCHEDULE: ModelId[] = ["face"];
+/** All four tenants, deduplicated from `SCHEDULE` rather than hand-kept in
+ * sync with it — this is what gets sent to the worker's `init` message and
+ * what every per-model accumulator record below is keyed by. */
+const ALL_MODELS: ModelId[] = ["face", "pose", "hands", "object"];
+
+/**
+ * The staggered round-robin schedule, consulted by tick index
+ * (`SCHEDULE[tickCount % SCHEDULE.length]`). At `METRICS_SAMPLE_HZ` (6 Hz)
+ * this gives:
+ *   - face:   3 ticks of 6  -> 3 Hz   (every existing Phase 10 metric
+ *             depends on face and must not degrade — see 12-03-SUMMARY.md's
+ *             "Headroom for 12-05" note)
+ *   - pose:   1 tick of 6   -> 1 Hz   (posture drift is a multi-second signal)
+ *   - hands:  1 tick of 6   -> 1 Hz   (gesture rate is a per-minute signal)
+ *   - object: 1 tick of 6   -> 1 Hz   (phone visibility is a seconds-resolution
+ *             figure; ample for "was a phone visible", never frame-exact)
+ * This is a TUNABLE this plan deliberately does not optimise — see
+ * 12-05-PLAN.md Task 3 and the Task 4 budget checkpoint, which may turn this
+ * knob before 12-06/12-07 build derivations on top of it.
+ */
+const SCHEDULE: ModelId[] = ["face", "pose", "face", "hands", "face", "object"];
 
 /** How long `start()` will wait for the worker's `ready`/`init-error` reply
  * before giving up and falling back to the main-thread landmarker path. A
@@ -293,7 +313,17 @@ export function computeVisualRates(counts: VisualSampleCounts): VisualRates {
 
 /** One closed sampling window's totals. Scalars only — no landmarks, no
  * frames; nothing here outlives the tick that produced it in any richer form
- * than these counts. */
+ * than these counts.
+ *
+ * The body-language fields below are new in 12-05. `driftSum` is a
+ * deliberate PLACEHOLDER, left at 0 until 12-06 computes real posture-drift
+ * magnitude against a session baseline — this plan has no baseline yet. The
+ * rest (`poseProcessed`, `gestureSum`, `gestureSamples`, `nearFaceCount`,
+ * `fidgetCount`, `phoneCount`) are genuinely populated per window this plan;
+ * `windowTrips` itself is intentionally left untouched (see its own
+ * comment) — these fields exist so 12-06/12-07 can read real per-window
+ * totals the day their threshold logic lands, without a second pass through
+ * raw per-tick data. */
 export interface CaptureWindow {
   startS: number;
   endS: number;
@@ -303,6 +333,13 @@ export interface CaptureWindow {
   centered: number;
   multiFace: number;
   movementMean: number;
+  poseProcessed: number;
+  driftSum: number;
+  gestureSum: number;
+  gestureSamples: number;
+  nearFaceCount: number;
+  fidgetCount: number;
+  phoneCount: number;
 }
 
 /** Whether a single window trips each episode condition. Ratios, never raw
@@ -486,14 +523,28 @@ export function createVisualCapture(
   // Worker lifecycle (REQ-57). `usingWorker` is decided once, in `start()`,
   // and never flips mid-session — a worker that fails to init falls back to
   // the main-thread path for the WHOLE session, never a partial/dynamic
-  // switch. `faceRequestOutstanding` is the one-outstanding-request
-  // back-pressure gate: a tick that fires while a previous `detect` is still
-  // in flight is a dropped tick, never a queued one and never an error.
+  // switch. A worker failure degrades the WHOLE session to the original
+  // Phase 10 face-only main-thread path; pose/hands/object have no
+  // main-thread equivalent (12-05 introduced them worker-only), so a
+  // fallback session simply does not collect those three signals — never
+  // `analyzer_error` (REQ-42's discipline: a technical fallback is not a
+  // measurement failure).
   let worker: Worker | null = null;
   let usingWorker = false;
-  let faceRequestOutstanding = false;
-  let faceRequestSpeakingNow = false;
-  let faceRequestStartMs = 0;
+  /** Per-model one-outstanding-request back-pressure state: a tick that
+   * fires while that model's previous `detect` is still in flight is a
+   * dropped tick for THAT model, never a queued one and never an error. */
+  interface ModelRequestState {
+    outstanding: boolean;
+    speakingNow: boolean;
+    startMs: number;
+  }
+  const requestState: Record<ModelId, ModelRequestState> = {
+    face: { outstanding: false, speakingNow: false, startMs: 0 },
+    pose: { outstanding: false, speakingNow: false, startMs: 0 },
+    hands: { outstanding: false, speakingNow: false, startMs: 0 },
+    object: { outstanding: false, speakingNow: false, startMs: 0 },
+  };
   // Resolves the `closed`-reply half of `closeEngine`'s bounded race; null
   // whenever no close request is currently in flight.
   let workerClosedResolve: (() => void) | null = null;
@@ -531,6 +582,12 @@ export function createVisualCapture(
   let winMultiFace = 0;
   let winMovementSum = 0;
   let winMovementSamples = 0;
+  let winPoseProcessed = 0;
+  let winGestureSum = 0;
+  let winGestureSamples = 0;
+  let winNearFaceCount = 0;
+  let winFidgetCount = 0;
+  let winPhoneCount = 0;
   let captureOffsetS = 0;
   let poseUnavailableSamples = 0;
   let centeredSamples = 0;
@@ -540,6 +597,88 @@ export function createVisualCapture(
   let lastCenter: { x: number; y: number } | null = null;
   let lumaSum = 0;
   let lumaSamples = 0;
+
+  // --- 12-05 pose accumulators (raw material only; derivation is 12-06's
+  // job). `poseVisibleSamples` mirrors `VISUAL_POSTURE_SIGNALS`'s four
+  // landmark groups; the sum fields below are accumulated ONLY on ticks
+  // where the corresponding group cleared the visibility floor, so a mean
+  // computed from them (sum / visibleSamples) is never diluted by a null
+  // reading pretending to be a zero.
+  let poseSamples = 0;
+  const poseVisibleSamples: Record<VisualPostureSignal, number> = {
+    shoulder_line: 0,
+    forward_head: 0,
+    torso_lean: 0,
+    torso_openness: 0,
+  };
+  let poseShoulderTiltSum = 0;
+  let poseForwardHeadOffsetSum = 0;
+  let poseTorsoLeanSum = 0;
+  let poseTorsoOpennessSum = 0;
+
+  // --- 12-05 hands accumulators.
+  let handSamples = 0;
+  let handsDetectedSamples = 0;
+  let handsAboveShoulderSamples = 0;
+  let handsNearFaceSamples = 0;
+  // Gesture-amplitude raw material — tracked the same way `lastCenter`/
+  // `movementSum` already track face motion, one slot per selected hand
+  // index (at most two). Hand identity is NOT guaranteed stable across ticks
+  // (see the worker's own selection-rule comment); this is the same accepted
+  // risk, applied to displacement rather than detection.
+  let lastGestureWristPositions: Array<{ x: number; y: number }> = [];
+  let gestureDisplacementSum = 0;
+  let gestureDisplacementSamples = 0;
+
+  // Fidget raw material — a SEPARATE displacement/direction-change counter
+  // pair, tracked from its OWN independent position history
+  // (`lastFidgetWristPositions`), not derived from the gesture accumulator
+  // above. Fidgeting is a distinct low-amplitude, high-frequency band; if
+  // this counter were computed FROM `gestureDisplacementSum` the two signals
+  // would correlate 1:1 and fidget motion would quietly inflate the scored
+  // gesture rate (see `body-thresholds.ts`'s `FIDGET_MAX_AMPLITUDE` comment
+  // and 12-RESEARCH.md Pitfall 5).
+  let lastFidgetWristPositions: Array<{
+    x: number;
+    y: number;
+    dx: number;
+    dy: number;
+  }> = [];
+  let fidgetDisplacementSum = 0;
+  let fidgetDisplacementSamples = 0;
+  let fidgetDirectionChanges = 0;
+
+  // --- 12-05 object (phone) accumulators.
+  let phoneSamples = 0;
+  let phoneVisibleSamples = 0;
+
+  // --- 12-05 per-model diagnostics (frame-budget log only — never part of
+  // `VisualMetrics`). Separate from the existing overall `tickCostMsRing`
+  // (fed by every model) so the budget line can show WHICH model is
+  // expensive, not just the total.
+  const modelTickCostSum: Record<ModelId, number> = {
+    face: 0,
+    pose: 0,
+    hands: 0,
+    object: 0,
+  };
+  const modelTickCostCount: Record<ModelId, number> = {
+    face: 0,
+    pose: 0,
+    hands: 0,
+    object: 0,
+  };
+  const modelDroppedTicks: Record<ModelId, number> = {
+    face: 0,
+    pose: 0,
+    hands: 0,
+    object: 0,
+  };
+
+  function recordModelTickCost(model: ModelId, ms: number) {
+    modelTickCostSum[model] += ms;
+    modelTickCostCount[model] += 1;
+  }
 
   // Per-tick inference cost instrumentation (REQ-57 diagnostics only — never
   // included in `VisualMetrics`, never leaves the browser as a metric field).
@@ -584,6 +723,16 @@ export function createVisualCapture(
       multiFace: winMultiFace,
       movementMean:
         winMovementSamples > 0 ? winMovementSum / winMovementSamples : 0,
+      poseProcessed: winPoseProcessed,
+      // Placeholder — see this field's doc comment on `CaptureWindow`. 12-06
+      // computes real drift magnitude against a session baseline this plan
+      // does not have.
+      driftSum: 0,
+      gestureSum: winGestureSum,
+      gestureSamples: winGestureSamples,
+      nearFaceCount: winNearFaceCount,
+      fidgetCount: winFidgetCount,
+      phoneCount: winPhoneCount,
     });
     windowStartS = nowS;
     winProcessed = 0;
@@ -593,6 +742,12 @@ export function createVisualCapture(
     winMultiFace = 0;
     winMovementSum = 0;
     winMovementSamples = 0;
+    winPoseProcessed = 0;
+    winGestureSum = 0;
+    winGestureSamples = 0;
+    winNearFaceCount = 0;
+    winFidgetCount = 0;
+    winPhoneCount = 0;
   }
 
   function elapsedS(): number {
@@ -808,6 +963,142 @@ export function createVisualCapture(
     }
   }
 
+  /**
+   * Folds one tick's scalar pose-detection result into the 12-05
+   * accumulators. Raw material only — no threshold is applied here; 12-06
+   * decides what counts as "drifted" against a session baseline this plan
+   * does not compute. Per-signal sums are accumulated ONLY on visible ticks
+   * (see `poseVisibleSamples`'s doc comment above), so a later mean is never
+   * diluted by a null reading.
+   */
+  function applyPoseResult(result: PoseDetectResult) {
+    poseSamples += 1;
+    winPoseProcessed += 1;
+
+    if (result.visible.shoulderLine) {
+      poseVisibleSamples.shoulder_line += 1;
+      if (result.shoulderTiltDeg !== null) {
+        poseShoulderTiltSum += result.shoulderTiltDeg;
+      }
+    }
+    if (result.visible.forwardHead) {
+      poseVisibleSamples.forward_head += 1;
+      if (result.forwardHeadOffset !== null) {
+        poseForwardHeadOffsetSum += result.forwardHeadOffset;
+      }
+    }
+    if (result.visible.torsoLean) {
+      poseVisibleSamples.torso_lean += 1;
+      if (result.torsoLeanDeg !== null) {
+        poseTorsoLeanSum += result.torsoLeanDeg;
+      }
+    }
+    if (result.visible.torsoOpenness) {
+      poseVisibleSamples.torso_openness += 1;
+      if (result.torsoOpennessRatio !== null) {
+        poseTorsoOpennessSum += result.torsoOpennessRatio;
+      }
+    }
+  }
+
+  /**
+   * Folds one tick's scalar hands-detection result into the 12-05
+   * accumulators. Maintains TWO independent position histories over the same
+   * wrist readings — `lastGestureWristPositions` (unfiltered displacement,
+   * the gesture-amplitude raw material) and `lastFidgetWristPositions`
+   * (displacement PLUS direction-reversal counting, the fidget raw
+   * material) — deliberately kept as separate variables so neither can be
+   * derived from the other (see the fidget accumulator's doc comment above).
+   */
+  function applyHandsResult(result: HandsDetectResult) {
+    handSamples += 1;
+
+    if (result.handCount > 0) {
+      handsDetectedSamples += 1;
+    }
+
+    const anyAboveShoulder = result.primary.some(
+      (hand) => hand.aboveShoulder === true
+    );
+    if (anyAboveShoulder) {
+      handsAboveShoulderSamples += 1;
+    }
+
+    const anyNearFace = result.primary.some((hand) => hand.nearFace === true);
+    if (anyNearFace) {
+      handsNearFaceSamples += 1;
+      winNearFaceCount += 1;
+    }
+
+    result.primary.forEach((hand, index) => {
+      const prevGesture = lastGestureWristPositions[index];
+      if (prevGesture) {
+        const dx = hand.wristX - prevGesture.x;
+        const dy = hand.wristY - prevGesture.y;
+        const delta = Math.hypot(dx, dy);
+        gestureDisplacementSum += delta;
+        gestureDisplacementSamples += 1;
+        winGestureSum += delta;
+        winGestureSamples += 1;
+      }
+      lastGestureWristPositions[index] = { x: hand.wristX, y: hand.wristY };
+
+      const prevFidget = lastFidgetWristPositions[index];
+      if (prevFidget) {
+        const dx = hand.wristX - prevFidget.x;
+        const dy = hand.wristY - prevFidget.y;
+        const delta = Math.hypot(dx, dy);
+        fidgetDisplacementSum += delta;
+        fidgetDisplacementSamples += 1;
+        // A reversal: this tick's displacement vector points materially
+        // opposite the previous one (negative dot product). The "high
+        // frequency" half of the fidget definition is a rate of reversals,
+        // not a single one — 12-06 applies
+        // `FIDGET_MIN_DIRECTION_CHANGES_PER_S` to this raw count.
+        if (prevFidget.dx !== 0 || prevFidget.dy !== 0) {
+          const dot = dx * prevFidget.dx + dy * prevFidget.dy;
+          if (dot < 0) {
+            fidgetDirectionChanges += 1;
+          }
+        }
+        // Per-window tally of samples whose displacement falls under the
+        // fidget amplitude ceiling — raw material for 12-06's windowed
+        // trip condition, not a trip decision itself.
+        if (delta > 0 && delta < FIDGET_MAX_AMPLITUDE) {
+          winFidgetCount += 1;
+        }
+        lastFidgetWristPositions[index] = { x: hand.wristX, y: hand.wristY, dx, dy };
+      } else {
+        lastFidgetWristPositions[index] = {
+          x: hand.wristX,
+          y: hand.wristY,
+          dx: 0,
+          dy: 0,
+        };
+      }
+    });
+    // Trim stale slots so a hand that left frame does not leave a fossil
+    // position behind to be compared against a future, unrelated hand.
+    lastGestureWristPositions = lastGestureWristPositions.slice(
+      0,
+      result.primary.length
+    );
+    lastFidgetWristPositions = lastFidgetWristPositions.slice(
+      0,
+      result.primary.length
+    );
+  }
+
+  /** Folds one tick's scalar phone-detection result into the 12-05
+   * accumulators. */
+  function applyObjectResult(result: ObjectDetectResult) {
+    phoneSamples += 1;
+    if (result.phonePresent) {
+      phoneVisibleSamples += 1;
+      winPhoneCount += 1;
+    }
+  }
+
   /** Constructs the worker and waits (bounded by `WORKER_INIT_TIMEOUT_MS`)
    * for its `ready`/`init-error` reply. Returns `false` on ANY failure -
    * construction throwing, an `init-error` reply, or a timeout - so `start()`
@@ -848,7 +1139,7 @@ export function createVisualCapture(
         clearTimeout(timeoutId);
         resolve({ ok: false, reason: event.message || "worker error" });
       };
-      candidate.postMessage({ type: "init", models: ["face"], delegate: "GPU" });
+      candidate.postMessage({ type: "init", models: ALL_MODELS, delegate: "GPU" });
     });
 
     if (!readyResult.ok) {
@@ -870,17 +1161,38 @@ export function createVisualCapture(
     // replies and the eventual `closed` ack flow through this one handler.
     worker.onmessage = (event: MessageEvent) => {
       const msg = event.data;
-      if (msg?.type === "detect-result" && msg.model === "face") {
-        faceRequestOutstanding = false;
-        recordTickCost(performance.now() - faceRequestStartMs);
-        consecutiveDetectErrors = 0;
-        applyFaceResult(msg.result as FaceDetectResult, faceRequestSpeakingNow);
+      if (msg?.type === "detect-result") {
+        const model = msg.model as ModelId;
+        const state = requestState[model];
+        state.outstanding = false;
+        const cost = performance.now() - state.startMs;
+        // Overall ring buffer (fed by every model) backs the existing
+        // session-wide meanTickMs/p95TickMs fields; the per-model sum/count
+        // below backs the NEW per-model breakdown in the frame-budget log.
+        recordTickCost(cost);
+        recordModelTickCost(model, cost);
+        if (model === "face") {
+          consecutiveDetectErrors = 0;
+          applyFaceResult(msg.result as FaceDetectResult, state.speakingNow);
+        } else if (model === "pose") {
+          applyPoseResult(msg.result as PoseDetectResult);
+        } else if (model === "hands") {
+          applyHandsResult(msg.result as HandsDetectResult);
+        } else if (model === "object") {
+          applyObjectResult(msg.result as ObjectDetectResult);
+        }
       } else if (msg?.type === "detect-error") {
-        faceRequestOutstanding = false;
-        consecutiveDetectErrors += 1;
-        if (consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
-          analyzerError = true;
-          stopInterval();
+        const model = msg.model as ModelId;
+        requestState[model].outstanding = false;
+        // A technical hiccup on a brand-new 12-05 signal must not escalate
+        // to `analyzerError`, which exists to gate FACE-based scorability
+        // (REQ-42) - only the face model's own error streak can trip it.
+        if (model === "face") {
+          consecutiveDetectErrors += 1;
+          if (consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
+            analyzerError = true;
+            stopInterval();
+          }
         }
       } else if (msg?.type === "closed") {
         workerClosedResolve?.();
@@ -890,23 +1202,25 @@ export function createVisualCapture(
     return true;
   }
 
-  /** Posts one `detect` request for the face model, bounded by the
-   * one-outstanding-request back-pressure gate. Fire-and-forget from
-   * `runTick`'s perspective - the reply is handled by the steady-state
+  /** Posts one `detect` request for the given model, bounded by that
+   * model's own one-outstanding-request back-pressure gate. Fire-and-forget
+   * from `runTick`'s perspective - the reply is handled by the steady-state
    * `worker.onmessage` handler installed in `initWorker`. */
-  function runWorkerTick() {
+  function runWorkerTick(model: ModelId) {
     if (!worker || !videoEl) return;
-    if (faceRequestOutstanding) {
-      // The previous detect has not replied yet. A dropped tick, never a
-      // queued one - queuing would turn a slow frame into unbounded latency
-      // and stamp stale measurements onto a later window.
+    const state = requestState[model];
+    if (state.outstanding) {
+      // The previous detect for THIS model has not replied yet. A dropped
+      // tick, never a queued one - queuing would turn a slow frame into
+      // unbounded latency and stamp stale measurements onto a later window.
       droppedTicks += 1;
+      modelDroppedTicks[model] += 1;
       return;
     }
-    faceRequestOutstanding = true;
-    faceRequestSpeakingNow = isSpeaking;
-    faceRequestStartMs = performance.now();
-    const timestamp = faceRequestStartMs;
+    state.outstanding = true;
+    state.speakingNow = isSpeaking;
+    state.startMs = performance.now();
+    const timestamp = state.startMs;
     const activeWorker = worker;
     const activeVideoEl = videoEl;
 
@@ -916,22 +1230,24 @@ export function createVisualCapture(
       try {
         bitmap = await createImageBitmap(activeVideoEl);
       } catch {
-        faceRequestOutstanding = false;
-        consecutiveDetectErrors += 1;
-        if (consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
-          analyzerError = true;
-          stopInterval();
+        state.outstanding = false;
+        if (model === "face") {
+          consecutiveDetectErrors += 1;
+          if (consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
+            analyzerError = true;
+            stopInterval();
+          }
         }
         return;
       }
       if (!worker || worker !== activeWorker) {
         // Torn down mid-flight (e.g. stop() raced this request).
         bitmap.close();
-        faceRequestOutstanding = false;
+        state.outstanding = false;
         return;
       }
       activeWorker.postMessage(
-        { type: "detect", bitmap, model: "face", timestamp },
+        { type: "detect", bitmap, model, timestamp },
         [bitmap]
       );
       recordDispatchCost(performance.now() - dispatchStartMs);
@@ -1087,16 +1403,23 @@ export function createVisualCapture(
     }
 
     // Staggered round-robin scheduler (REQ-57): consult which model this
-    // tick belongs to. With `SCHEDULE` holding exactly one tenant today,
-    // this is always "face" and every tick still samples it — unchanged
-    // measurement cadence from pre-12-03. 12-05 extends `SCHEDULE` and this
-    // dispatch to add pose/hands/object.
+    // tick belongs to. `SCHEDULE` holds four tenants as of 12-05 — face at
+    // 3 Hz, pose/hands/object at 1 Hz each (see `SCHEDULE`'s own doc
+    // comment for the rate table and rationale).
     const modelForTick = SCHEDULE[tickCount % SCHEDULE.length];
-    if (modelForTick !== "face") return;
 
     if (usingWorker) {
-      runWorkerTick();
-    } else {
+      runWorkerTick(modelForTick);
+      return;
+    }
+
+    // No main-thread fallback exists for pose/hands/object — they are
+    // worker-only signals introduced by 12-05. A worker that failed to
+    // start degrades this session to the original Phase 10 face-only path;
+    // the other three signals simply are not collected this session, never
+    // `analyzer_error` (REQ-42: a technical fallback is not a measurement
+    // failure).
+    if (modelForTick === "face") {
       runMainThreadTick();
     }
   }
@@ -1289,10 +1612,10 @@ export function createVisualCapture(
     }
 
     // Frame-budget report (REQ-57 diagnostics only). Fields are never part
-    // of `VisualMetrics` and never persisted - `models` is a literal that
-    // later plans increment as more MediaPipe runners are added to the tick
-    // loop; everything else here is measured straight off this session's own
-    // ring buffer. Runs once per session, so sorting a copy for p95 is cheap.
+    // of `VisualMetrics` and never persisted - `models` reflects however
+    // many tenants `ALL_MODELS` actually holds; everything else here is
+    // measured straight off this session's own ring buffers. Runs once per
+    // session, so sorting a copy for p95 is cheap.
     const filledTickCostSamples = Math.min(
       tickCostSamplesSeen,
       TICK_COST_SAMPLES
@@ -1330,6 +1653,24 @@ export function createVisualCapture(
     const dispatchP95Ms =
       filledDispatchSamples > 0 ? dispatchSorted[dispatchP95Index] : 0;
 
+    // Per-model mean tick cost and dropped-tick count (12-05) - so the
+    // checkpoint can see WHICH model is expensive, not only the session
+    // total. `face` only ever reflects main-thread-blocking cost when
+    // `!usingWorker` (pose/hands/object stay at 0/0 on that path, since they
+    // never ran this session at all).
+    const modelTickCostMeanMs: Record<ModelId, number> = {
+      face: 0,
+      pose: 0,
+      hands: 0,
+      object: 0,
+    };
+    for (const model of ALL_MODELS) {
+      modelTickCostMeanMs[model] =
+        modelTickCostCount[model] > 0
+          ? Math.round((modelTickCostSum[model] / modelTickCostCount[model]) * 10) / 10
+          : 0;
+    }
+
     console.info("[visual-capture] frame budget", {
       delegate: delegateInUse,
       thread: usingWorker ? "worker" : "main",
@@ -1337,7 +1678,7 @@ export function createVisualCapture(
       // quantities on the two paths. Without this a healthy-looking number
       // read off the wrong path would approve a worker that never ran.
       tickCostKind: usingWorker ? "worker-roundtrip" : "main-thread-blocking",
-      models: 1,
+      models: ALL_MODELS.length,
       meanTickMs: Math.round(meanTickMs * 10) / 10,
       p95TickMs: Math.round(p95TickMs * 10) / 10,
       // Worker path only: the share of the above that is actually on this
@@ -1346,6 +1687,9 @@ export function createVisualCapture(
       dispatchP95Ms: usingWorker ? Math.round(dispatchP95Ms * 10) / 10 : null,
       tickIntervalMs: tickIntervalMs(),
       droppedTicks,
+      // 12-05: per-model breakdown of the above two figures.
+      modelTickCostMeanMs,
+      modelDroppedTicks: { ...modelDroppedTicks },
       processedSamples,
       expectedSamples,
     });
