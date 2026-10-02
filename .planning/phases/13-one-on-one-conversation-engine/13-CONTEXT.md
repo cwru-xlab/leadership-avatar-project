@@ -85,7 +85,7 @@ part of the session pipeline and are not this phase's target.
   only what exists today and let Phase 14 extend the engine — means the first new
   type edits engine code, which is the failure mode this phase exists to prevent.
 - **Config lives as TypeScript records in code**, following
-  `lib/interview/types.ts` and `lib/interactions/registry.ts`. Type-checked and
+  `lib/interview/types.ts` and `lib/interactions/index.ts`. Type-checked and
   reviewable in git. Rejected: S3 JSON (nothing type-checks it) and Postgres rows
   (needs a migration and an editing surface that has no staff role to own it
   after Phase 11).
@@ -157,7 +157,7 @@ part of the session pipeline and are not this phase's target.
   engine's checkpoint is simply unused by it — subject to the
   no-visible-convergence rule above.
 - The `/reports` list page's cross-type presentation, and the dashboard tile
-  wiring in `lib/interactions/registry.ts`.
+  wiring in `lib/interactions/index.ts`.
 - Status enum naming (`InterviewReportStatus` is shared by both tables today) and
   whether it is renamed under the unified table.
 - Whether `transcriptKey` (S3, interview) and `interactionLogId` (S3, scenario)
