@@ -130,22 +130,6 @@ export interface PoseDetectResult {
   shoulderMidX: number | null;
   shoulderMidY: number | null;
   shoulderWidth: number | null;
-  /** TEMPORARY (12-08 Task 1 checkpoint, Defect B investigation — removed in
-   * Task 2). Raw landmark coordinates and the raw (non-acute, non-absolute)
-   * dx/dy the shoulder-tilt angle is computed from. A still-session reading
-   * of ~90° for an upright seated user cannot come from the acute-angle
-   * convention fix alone unless dx is genuinely near zero at the source —
-   * this field lets the next recorded session answer that definitively
-   * rather than guessing from the degree figure alone. `null` exactly when
-   * `shoulderLine` was not visible this tick. */
-  shoulderDebugRaw: {
-    lx: number;
-    ly: number;
-    rx: number;
-    ry: number;
-    dx: number;
-    dy: number;
-  } | null;
 }
 
 /**
@@ -526,7 +510,6 @@ function detectPose(bitmap: ImageBitmap, timestamp: number): PoseDetectResult {
     shoulderMidX: null,
     shoulderMidY: null,
     shoulderWidth: null,
-    shoulderDebugRaw: null,
   };
 
   if (!poseLandmarker) {
@@ -576,7 +559,6 @@ function detectPose(bitmap: ImageBitmap, timestamp: number): PoseDetectResult {
   let shoulderMidY: number | null = null;
   let shoulderWidth: number | null = null;
   let shoulderTiltDeg: number | null = null;
-  let shoulderDebugRaw: PoseDetectResult["shoulderDebugRaw"] = null;
   if (shoulderLineVisible) {
     const l = landmarks[POSE_LANDMARK.LEFT_SHOULDER];
     const r = landmarks[POSE_LANDMARK.RIGHT_SHOULDER];
@@ -585,22 +567,16 @@ function detectPose(bitmap: ImageBitmap, timestamp: number): PoseDetectResult {
     shoulderWidth = Math.hypot(r.x - l.x, r.y - l.y);
     const dx = r.x - l.x;
     const dy = r.y - l.y;
-    // FIX (12-08 Task 1 checkpoint, Defect B, partial): the previous
-    // `atan2(dy, dx)` is sign- and ordering-dependent — a level shoulder
-    // line can land at 0 OR 180 depending on which landmark is "left" in
-    // image space (mirroring), and averaging signed angles near +-180
-    // across frames is meaningless. The acute-angle form below is 0 for
-    // level shoulders and 90 for vertical, independent of landmark
-    // ordering or mirroring, matching what the "tilt" label claims to
-    // measure. NOT CONFIRMED SUFFICIENT: a real still-session recording
-    // measured ~90 deg under the OLD formula, which requires dx to already
-    // be near zero at the landmark level — this fix alone cannot explain
-    // or guarantee correcting that if the true cause is e.g. a rotated
-    // coordinate frame rather than sign/ordering. `shoulderDebugRaw` below
-    // carries the raw values so the next recorded session can confirm
-    // which it was.
+    // FIX (12-08 Task 1 checkpoint, Defect B — CONFIRMED by two real
+    // readings, 4.9deg and 6.3deg for upright seated users, 12-08 Task 2):
+    // the previous `atan2(dy, dx)` is sign- and ordering-dependent — a
+    // level shoulder line can land at 0 OR 180 depending on which landmark
+    // is "left" in image space (mirroring), and averaging signed angles
+    // near +-180 across frames is meaningless. The acute-angle form below
+    // is 0 for level shoulders and 90 for vertical, independent of
+    // landmark ordering or mirroring, matching what the "tilt" label
+    // claims to measure.
     shoulderTiltDeg = (Math.atan2(Math.abs(dy), Math.abs(dx)) * 180) / Math.PI;
-    shoulderDebugRaw = { lx: l.x, ly: l.y, rx: r.x, ry: r.y, dx, dy };
   }
 
   let forwardHeadOffset: number | null = null;
@@ -663,7 +639,6 @@ function detectPose(bitmap: ImageBitmap, timestamp: number): PoseDetectResult {
     shoulderMidX,
     shoulderMidY,
     shoulderWidth,
-    shoulderDebugRaw,
   };
 }
 

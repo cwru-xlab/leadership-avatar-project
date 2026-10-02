@@ -736,15 +736,36 @@ check("handsNearFacePct divides by face-AND-hand-eligible samples, not handSampl
 console.log("\n18. New episode kinds extract through the existing machinery");
 {
   // Two 5s windows (10s total, meeting MIN_EPISODE_SECONDS) tripping
-  // excessive_gesturing.
+  // excessive_gesturing. 12-08 made this trip a RATIO of gesture events to
+  // hand-visible ticks (gated on GESTURE_WINDOW_MIN_HAND_SAMPLES), not an
+  // absolute event count — so the fixture must supply `handsDetected`, the
+  // way the minimal_gesturing fixtures below always have. 5/10 = 50%, well
+  // clear of GESTURE_WINDOW_EXCESSIVE_PCT.
   const windows = [
-    win(0, { gestureSamples: 10 }),
-    win(5, { gestureSamples: 10 }),
+    win(0, { handsDetected: 10, gestureSamples: 5 }),
+    win(5, { handsDetected: 10, gestureSamples: 5 }),
   ];
   const eps = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
   const hit = eps.filter((e) => e.kind === "excessive_gesturing");
   check("exactly one excessive_gesturing episode", hit.length, 1);
   check("at the expected timecodes", [hit[0].start_s, hit[0].end_s], [0, 10]);
+}
+{
+  // The regression this trip was retuned for: across every recorded session
+  // the SESSION-wide gesture rate was 4-12/min, far under
+  // GESTURE_RATE_EXCESSIVE_MIN, yet excessive_gesturing episodes still fired
+  // and surfaced as a growth area. A student gesturing ordinarily must not be
+  // told they gestured excessively (12-CONTEXT.md: "a false excessive is a
+  // student being told off for a sensor misread"). 2/10 = 20%, just under the
+  // cutoff, must stay silent.
+  const windows = [
+    win(0, { handsDetected: 10, gestureSamples: 2 }),
+    win(5, { handsDetected: 10, gestureSamples: 2 }),
+  ];
+  check("ordinary gesturing produces NO excessive_gesturing episode",
+    extractEpisodes(windows, VISUAL_EPISODE_KINDS)
+      .filter((e) => e.kind === "excessive_gesturing").length,
+    0);
 }
 {
   const windows = [
@@ -769,14 +790,29 @@ console.log("\n18. New episode kinds extract through the existing machinery");
     0);
 }
 {
+  // 7/10 = 70%, clear of the 12-08-tuned HANDS_NEAR_FACE_TRIP_PCT. The old
+  // fixture used 5/10 and sat exactly ON the retuned cutoff, which a strict
+  // `>` comparison correctly does not trip.
   const windows = [
-    win(0, { handsDetected: 10, nearFaceCount: 5 }),
-    win(5, { handsDetected: 10, nearFaceCount: 5 }),
+    win(0, { handsDetected: 10, nearFaceCount: 7 }),
+    win(5, { handsDetected: 10, nearFaceCount: 7 }),
   ];
   const eps = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
   const hit = eps.filter((e) => e.kind === "hands_near_face");
   check("exactly one hands_near_face episode", hit.length, 1);
   check("at the expected timecodes", [hit[0].start_s, hit[0].end_s], [0, 10]);
+}
+{
+  // Anchored on a real recording: session S4 measured handsNearFacePct 26 and
+  // was ordinary behaviour, not deliberate face-touching. It must stay silent.
+  const windows = [
+    win(0, { handsDetected: 100, nearFaceCount: 26 }),
+    win(5, { handsDetected: 100, nearFaceCount: 26 }),
+  ];
+  check("an ordinary hands-near-face rate produces NO episode",
+    extractEpisodes(windows, VISUAL_EPISODE_KINDS)
+      .filter((e) => e.kind === "hands_near_face").length,
+    0);
 }
 {
   const windows = [
