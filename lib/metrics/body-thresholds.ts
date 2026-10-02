@@ -25,12 +25,35 @@ export const LANDMARK_VISIBILITY_FLOOR = 0.5;
  * proper hasn't really started." */
 export const POSTURE_BASELINE_WINDOW_S = 20;
 
-/** Minimum number of processed samples inside the calibration window before
- * a baseline is considered trustworthy enough to score drift against. At
- * `METRICS_SAMPLE_HZ = 6`, 60 samples is 10 real seconds of the 20s window —
- * below this, the window was too sparse (e.g. the student was mostly out of
- * frame at session start) to anchor a fair baseline. */
-export const POSTURE_BASELINE_MIN_SAMPLES = 60;
+/** Minimum number of PROCESSED POSE samples inside the calibration window
+ * before a baseline is considered trustworthy enough to score drift
+ * against.
+ *
+ * BUG FIX (12-08 Task 1 checkpoint, Defect A root cause): this was 60, a
+ * figure that only makes sense if pose ticks at the full `METRICS_SAMPLE_HZ`
+ * (6 Hz) — "60 samples is 10 real seconds of the 20s window." It does not:
+ * pose is one of four tenants on `SCHEDULE` in `visual-capture.ts`
+ * (`["face", "pose", "face", "hands"]`), so pose receives only 1/4 of ticks,
+ * ~1.5 Hz effective. Over the 20s window that is AT MOST ~30 pose ticks
+ * total — 60 was structurally unreachable, so the posture baseline could
+ * never establish and `posture_drift_mean`/`posture_drift_max_s` could
+ * never be emitted for ANY session, regardless of behaviour. Confirmed
+ * against a real still-session recording: `handSamples` (hands shares the
+ * same 1/4 schedule slot) was 209 over a 140.1s session, 1.49/s, matching
+ * the 1.5 Hz derivation; that session's `postureDriftSamples` was 0 and
+ * `posture_signals_measured` still listed two signals (session-wide
+ * visibility, a separate count from this one), consistent with the
+ * baseline-can-never-establish diagnosis, not a behavioural absence.
+ *
+ * 15 is half of the ~30-tick ceiling pose can realistically reach in the
+ * 20s window at its real 1/4 schedule share — "at least half the window's
+ * worth of pose's own achievable tick rate landed," the schedule-aware
+ * equivalent of the original comment's intent. This is a STRUCTURAL
+ * (achievability) fix, not a behavioural cutoff Task 2 tunes from
+ * recordings — it must be re-derived again if `SCHEDULE` or
+ * `METRICS_SAMPLE_HZ` ever change pose's share, the same discipline
+ * `FACE_SCHEDULE_SHARE` already documents for `expectedSamples`. */
+export const POSTURE_BASELINE_MIN_SAMPLES = 15;
 
 /** Magnitude of drift (normalized units, same scale as the baseline angle
  * comparison) that counts as "tripped" for a `posture_drift` episode window.

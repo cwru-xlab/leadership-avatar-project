@@ -406,6 +406,33 @@ check("mid session bands as Well judged",
 check("Measured from row present even with an empty signal array",
   bandFor(visualBodyLanguageBands(visual({ posture_signals_measured: [] })), "Measured from"),
   "Nothing — body not visible in frame");
+// 12-08 Task 1 checkpoint, Defect A: a true 0% hands-near-face reading must
+// get its own band, never fall into "Occasional" — a positive claim
+// manufactured from an absence of occurrences (a real still session with
+// hands detected but never near the face reported exactly this).
+check("a genuine 0% hands-near-face reading bands as Not noticeably, not Occasional",
+  bandFor(visualBodyLanguageBands(visual({ hands_near_face_pct: 0 })), "Hands near face"),
+  "Not noticeably");
+check("a nonzero below-trip reading still bands as Occasional",
+  bandFor(visualBodyLanguageBands(visual({ hands_near_face_pct: 5 })), "Hands near face"),
+  "Occasional");
+check("at/above the trip threshold bands as Frequent",
+  bandFor(visualBodyLanguageBands(visual({ hands_near_face_pct: 50 })), "Hands near face"),
+  "Frequent");
+// 12-08 Task 1 checkpoint, Defect A: posture_drift_mean genuinely ABSENT
+// (the baseline never established — see POSTURE_BASELINE_MIN_SAMPLES's own
+// fix) must never produce a "Posture drift" row at all, let alone a "Held
+// steady" verdict manufactured from the absence. The real still session
+// this caught had posture_signals_measured non-empty (two signals had
+// enough SESSION-WIDE visible samples) while posture_drift_mean was
+// genuinely absent (the baseline window itself never reached
+// POSTURE_BASELINE_MIN_SAMPLES) — reproduced here exactly as that
+// combination, not just an all-absent payload.
+check("posture_drift_mean absent (even with posture_signals_measured present) yields no Posture drift row anywhere",
+  visualBodyLanguageBands(
+    visual({ posture_signals_measured: ["shoulder_line", "forward_head"] })
+  ).some((r) => r.label === "Posture drift" || r.value.includes("steady") || r.value.includes("Shifted")),
+  false);
 {
   // A Phase 10-shaped payload genuinely lacks every Phase 12 field. Rows for
   // absent fields must be omitted, never defaulted to 0.
@@ -589,13 +616,18 @@ function reading(over: Partial<PostureReading> = {}): PostureReading {
   check("post-window readings are ignored", baseline.shoulderTiltDeg, 5);
 }
 {
-  // Minimum sample count: 59 usable readings is one short of the floor.
-  const tooFew = Array.from({ length: 59 }, (_, i) =>
+  // Minimum sample count: 14 usable readings is one short of the floor.
+  // POSTURE_BASELINE_MIN_SAMPLES was lowered from 60 to 15 in this plan
+  // (12-08 Task 1 checkpoint, Defect A root cause) — pose only receives 1/4
+  // of SCHEDULE's ticks (~1.5 Hz effective), so 60 samples inside the 20s
+  // POSTURE_BASELINE_WINDOW_S was structurally unreachable and the baseline
+  // could never establish for ANY session, regardless of behaviour.
+  const tooFew = Array.from({ length: 14 }, (_, i) =>
     reading({ tS: i * 0.25, shoulderTiltDeg: 5 })
   );
   check("below the minimum sample count, no baseline",
     computePostureBaseline(tooFew).signals, []);
-  const justEnough = Array.from({ length: 60 }, (_, i) =>
+  const justEnough = Array.from({ length: 15 }, (_, i) =>
     reading({ tS: i * 0.25, shoulderTiltDeg: 5 })
   );
   check("at the minimum sample count, baseline establishes",
