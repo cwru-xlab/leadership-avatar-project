@@ -358,7 +358,7 @@ was decided, they do not add scope.*
   entry leaves that list only when a pipeline that genuinely measures it ships, and the
   rule that a flag's ABSENCE is never evidence of good behaviour survives unchanged.
 
-- **REQ-57** — [x] Running four models does not degrade the live session (REQ-49 extended).
+- **REQ-57** — [ ] Running four models does not degrade the live session (REQ-49 extended).
   Per-model sampling is staggered and inference runs off the main thread, so the HeyGen
   avatar stream, push-to-talk audio and response latency are unaffected compared with a
   camera-off run.
