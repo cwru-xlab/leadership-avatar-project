@@ -17,6 +17,7 @@ import {
   STRUCTURED_REPORT_REQUIRED,
   type StructuredReport,
 } from "@/lib/report/structured";
+import { sanitizeBodySignalWording } from "@/lib/report/body-signal-validator";
 import { INTERVIEW_EVALUATOR_PROMPT } from "./prompts";
 import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 
@@ -121,9 +122,24 @@ export function validateEvaluationResult(
   // The emptiness check moved here from `report_markdown` when the model
   // stopped emitting prose. It still drives the FAILED path: a response with
   // no summary and no sections at all must not be stored as a blank report.
-  const reportStructured = parseStructuredReport(raw);
-  if (!reportStructured) {
+  const parsedReport = parseStructuredReport(raw);
+  if (!parsedReport) {
     throw new Error("Evaluator returned an empty report body");
+  }
+
+  // Code-side backstop for the describe-then-ask body-signal wording rules
+  // (12-08 Task 3 pre-sign-off, Defect C) -- a prompt-only escalation
+  // (12-04, commit 0ae1f40) already failed to stop a live run from
+  // asserting an effect on the viewer and omitting the required question
+  // mark. See `sanitizeBodySignalWording`'s own doc comment for the
+  // strip-vs-retry tradeoff. Never silent: logged below whenever anything
+  // was actually stripped.
+  const { report: reportStructured, strippedCount } =
+    sanitizeBodySignalWording(parsedReport);
+  if (strippedCount > 0) {
+    console.warn("Interview evaluator body-signal wording violation stripped", {
+      strippedCount,
+    });
   }
 
   const visualScore = opts.hasVisualMetrics ? coerceScore(r.visual_score) : null;

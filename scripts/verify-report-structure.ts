@@ -10,6 +10,7 @@
  * consumer scans for.
  */
 import { validateEvaluationResult } from "../lib/interview/evaluation";
+import { validateScenarioEvaluationResult } from "../lib/scenario/evaluation";
 import {
   composeReportMarkdown,
   parseStructuredReport,
@@ -20,6 +21,10 @@ import {
   extractBehavioralSignals,
   extractBehavioralFeedback,
 } from "../lib/study-plan/generate";
+import {
+  findBodySignalWordingViolations,
+  sanitizeBodySignalWording,
+} from "../lib/report/body-signal-validator";
 
 let failures = 0;
 
@@ -152,6 +157,117 @@ console.log("\n4. Study-plan consumer");
   check("and a pre-migration row still works off markdown alone",
     extractBehavioralSignals({ reportStructured: null, reportMarkdown: md }).sort(),
     ["Empathy: Developing", "Ownership: Strong"]);
+}
+
+console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defect C)");
+{
+  // The exact real-run failure: no question mark, and an effect-on-viewer
+  // claim, in the same sentence.
+  const realFailure = asStructuredReport({
+    ...FULL,
+    category_notes: {
+      ...FULL.category_notes,
+      visual:
+        "Remained very still throughout the session, with no visible hand movement or gesturing, which can seem flat over video.",
+    },
+  }) as StructuredReport;
+  const violations = findBodySignalWordingViolations(realFailure);
+  check("detects both the missing question mark and the forbidden phrase",
+    violations.length > 0, true);
+  check("flags category_notes.visual specifically",
+    violations.some((v) => v.field === "category_notes.visual"), true);
+
+  const { report: sanitized, strippedCount } = sanitizeBodySignalWording(realFailure);
+  check("stripping removes the violating sentence", strippedCount > 0, true);
+  check("the forbidden phrase never survives sanitization",
+    (sanitized.category_notes.visual ?? "").includes("can seem flat over video"), false);
+  check("sanitizing never mutates the input report",
+    realFailure.category_notes.visual?.includes("can seem flat over video"), true);
+}
+{
+  // The other two real-run failures from commit 0ae1f40's own fix: an
+  // effect-on-viewer claim and an internal-state inference, each its own
+  // sentence this time.
+  const growthAreaFailure = asStructuredReport({
+    ...FULL,
+    growth_areas: [
+      {
+        title: "Hand position",
+        detail:
+          "Your hand covered part of your mouth for a stretch around 1:30, which can obscure facial expressions. It also happened again near 2:10, or signal uncertainty.",
+        suggestion: "Notice when your hand moves toward your face.",
+        timecodes: ["1:30", "2:10"],
+      },
+    ],
+  }) as StructuredReport;
+  const violations = findBodySignalWordingViolations(growthAreaFailure);
+  check("catches both forbidden phrases in growth_areas[].detail",
+    violations.filter((v) => v.reason === "forbidden-phrase").length, 2);
+
+  const { report: sanitized, strippedCount } = sanitizeBodySignalWording(growthAreaFailure);
+  check("both violating sentences are stripped", strippedCount, 2);
+  check("neither forbidden phrase survives",
+    /can obscure|signal uncertainty/i.test(sanitized.growth_areas[0]?.detail ?? ""), false);
+}
+{
+  // A compliant body finding (ends in "?", no forbidden phrase) must pass
+  // through completely unchanged — the validator must not false-positive
+  // on ordinary describe-then-ask wording.
+  const compliant = asStructuredReport({
+    ...FULL,
+    category_notes: {
+      ...FULL.category_notes,
+      visual:
+        "Gestured broadly from 2:10 to 2:45 — was that intentional emphasis?",
+    },
+  }) as StructuredReport;
+  check("a compliant body finding has no violations",
+    findBodySignalWordingViolations(compliant).length, 0);
+  const { report: sanitized, strippedCount } = sanitizeBodySignalWording(compliant);
+  check("and sanitization leaves it byte-identical",
+    sanitized.category_notes.visual, compliant.category_notes.visual);
+  check("with nothing stripped", strippedCount, 0);
+}
+{
+  // Non-body-signal narrative text must never trip the question-mark rule —
+  // only sentences that actually mention a body-signal keyword are subject
+  // to it.
+  const nonBodyFinding = asStructuredReport({
+    ...FULL,
+    category_notes: {
+      ...FULL.category_notes,
+      content: "Answers were well structured and concrete throughout.",
+    },
+  }) as StructuredReport;
+  check("non-body narrative without a question mark is not flagged",
+    findBodySignalWordingViolations(nonBodyFinding).length, 0);
+}
+{
+  // Both evaluator modules' own validate* functions must apply the
+  // sanitizer, not just the pure function in isolation — this is the actual
+  // enforcement path a live evaluation runs through.
+  const withViolation = {
+    ...FULL,
+    category_notes: {
+      ...FULL.category_notes,
+      visual: "Remained still, which can seem flat over video.",
+    },
+  };
+  const interviewResult = validateEvaluationResult(withViolation, {
+    hasVisualMetrics: true,
+    hasVocalMetrics: true,
+  });
+  check("validateEvaluationResult strips the violation before returning it",
+    (interviewResult.reportStructured.category_notes.visual ?? "").includes("can seem flat over video"),
+    false);
+
+  const scenarioResult = validateScenarioEvaluationResult(withViolation, {
+    hasVisualMetrics: true,
+    hasVocalMetrics: true,
+  });
+  check("validateScenarioEvaluationResult strips the violation before returning it",
+    (scenarioResult.reportStructured.category_notes.visual ?? "").includes("can seem flat over video"),
+    false);
 }
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
