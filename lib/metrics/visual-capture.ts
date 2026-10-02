@@ -547,6 +547,13 @@ export function createVisualCapture(
   const tickCostMsRing: number[] = [];
   let tickCostRingIndex = 0;
   let tickCostSamplesSeen = 0;
+  // Main-thread dispatch cost, worker path only: the `createImageBitmap` +
+  // `postMessage` segment that genuinely occupies THIS thread. REQ-57 is a
+  // claim about main-thread contention with the HeyGen stream, so on the
+  // worker path this - not the round-trip - is the number that bears on it.
+  const dispatchMsRing: number[] = [];
+  let dispatchRingIndex = 0;
+  let dispatchSamplesSeen = 0;
   let droppedTicks = 0;
   let lastTickEntryMs: number | null = null;
 
@@ -676,13 +683,27 @@ export function createVisualCapture(
   }
 
   /** Per-tick inference cost (REQ-57 diagnostics): fixed-capacity ring
-   * buffer, overwrite oldest, never grow. Shared by both the worker
-   * round-trip and the main-thread fallback so the frame-budget report
-   * means the same thing either way. */
+   * buffer, overwrite oldest, never grow.
+   *
+   * CAUTION: this does NOT mean the same thing on both paths, and the
+   * frame-budget report says which via `tickCostKind`. On the worker path it
+   * is round-trip wall-clock, most of which is NOT main-thread time; on the
+   * main-thread fallback it is synchronous blocking of this thread. Reading a
+   * worker round-trip as if it were blocking overstates the cost by roughly
+   * the whole inference; reading a fallback blocking cost as if it were a
+   * round-trip understates main-thread contention to zero. Compare
+   * `dispatchMeanMs` for the worker path's real main-thread share. */
   function recordTickCost(ms: number) {
     tickCostMsRing[tickCostRingIndex] = ms;
     tickCostRingIndex = (tickCostRingIndex + 1) % TICK_COST_SAMPLES;
     tickCostSamplesSeen += 1;
+  }
+
+  /** Main-thread dispatch cost for one worker tick (REQ-57). */
+  function recordDispatchCost(ms: number) {
+    dispatchMsRing[dispatchRingIndex] = ms;
+    dispatchRingIndex = (dispatchRingIndex + 1) % TICK_COST_SAMPLES;
+    dispatchSamplesSeen += 1;
   }
 
   /**
@@ -890,6 +911,7 @@ export function createVisualCapture(
     const activeVideoEl = videoEl;
 
     void (async () => {
+      const dispatchStartMs = performance.now();
       let bitmap: ImageBitmap;
       try {
         bitmap = await createImageBitmap(activeVideoEl);
@@ -912,6 +934,7 @@ export function createVisualCapture(
         { type: "detect", bitmap, model: "face", timestamp },
         [bitmap]
       );
+      recordDispatchCost(performance.now() - dispatchStartMs);
     })();
   }
 
@@ -1291,12 +1314,37 @@ export function createVisualCapture(
     );
     const p95TickMs =
       filledTickCostSamples > 0 ? tickCostSamplesSorted[p95Index] : 0;
+    // Main-thread dispatch stats (worker path only).
+    const filledDispatchSamples = Math.min(dispatchSamplesSeen, TICK_COST_SAMPLES);
+    const dispatchSorted = dispatchMsRing
+      .slice(0, filledDispatchSamples)
+      .sort((a, b) => a - b);
+    const dispatchMeanMs =
+      filledDispatchSamples > 0
+        ? dispatchSorted.reduce((sum, ms) => sum + ms, 0) / filledDispatchSamples
+        : 0;
+    const dispatchP95Index = Math.max(
+      0,
+      Math.min(filledDispatchSamples - 1, Math.ceil(filledDispatchSamples * 0.95) - 1)
+    );
+    const dispatchP95Ms =
+      filledDispatchSamples > 0 ? dispatchSorted[dispatchP95Index] : 0;
+
     console.info("[visual-capture] frame budget", {
       delegate: delegateInUse,
       thread: usingWorker ? "worker" : "main",
+      // Disambiguates `meanTickMs`/`p95TickMs`, which measure different
+      // quantities on the two paths. Without this a healthy-looking number
+      // read off the wrong path would approve a worker that never ran.
+      tickCostKind: usingWorker ? "worker-roundtrip" : "main-thread-blocking",
       models: 1,
       meanTickMs: Math.round(meanTickMs * 10) / 10,
       p95TickMs: Math.round(p95TickMs * 10) / 10,
+      // Worker path only: the share of the above that is actually on this
+      // thread, and so the figure REQ-57 turns on.
+      dispatchMeanMs: usingWorker ? Math.round(dispatchMeanMs * 10) / 10 : null,
+      dispatchP95Ms: usingWorker ? Math.round(dispatchP95Ms * 10) / 10 : null,
+      tickIntervalMs: tickIntervalMs(),
       droppedTicks,
       processedSamples,
       expectedSamples,
