@@ -2403,6 +2403,65 @@ export function createVisualCapture(
       };
     }
 
+    // TEMPORARY (12-08 Task 1 checkpoint only — removed in Task 2). Dev-only
+    // raw-reading dump so a real camera-on session can be pasted back as the
+    // provenance for tuning `lib/metrics/body-thresholds.ts`. Nothing below
+    // is persisted, scored, or sent anywhere — it is a console.info of the
+    // exact raw accumulators the scored/descriptive derivations above were
+    // computed from, plus a per-window breakdown (via `startS`/`endS`) so a
+    // sustained stretch (e.g. "waved both arms from 2:10-2:45") can be
+    // correlated against a real timecode.
+    console.info("[visual-capture] body signals", {
+      sessionSeconds: Math.round(sessionSeconds * 10) / 10,
+      gesture: {
+        handSamples,
+        gestureRatePerMin: gestureRates.gestureRatePerMin,
+        gestureAmplitudeMean: gestureRates.gestureAmplitudeMean,
+        handsAboveShoulderPct: gestureRates.handsAboveShoulderPct,
+        handsNearFacePct: gestureRates.handsNearFacePct,
+      },
+      posture: {
+        signalsMeasured: postureSignalsMeasured,
+        driftMean:
+          postureDriftSamples > 0
+            ? Math.round((postureDriftSum / postureDriftSamples) * 1000) / 1000
+            : null,
+        driftMaxS:
+          postureDriftSamples > 0 ? Math.round(postureDriftMaxS * 10) / 10 : null,
+        absoluteShoulderTiltDegMean,
+        absoluteForwardHeadOffsetMean,
+      },
+      fidget: {
+        fidgetUsable,
+        directionChangeRatePerS: Math.round(fidgetDirectionChangeRatePerS * 100) / 100,
+        fidgetPct:
+          observations !== undefined ? observations.fidget_pct : null,
+      },
+      phone: {
+        phoneUsable,
+        phoneSamples,
+        phoneVisibleSamples,
+        phoneSampleHz: Math.round(phoneSampleHz * 100) / 100,
+        phoneVisibleSeconds:
+          observations !== undefined ? observations.phone_visible_seconds : null,
+      },
+      // One row per 5s window: startS/endS for timecode correlation, plus
+      // the raw per-window counts each episode's window-trip ratio is
+      // computed from.
+      windows: windows.map((w) => ({
+        startS: Math.round(w.startS * 10) / 10,
+        endS: Math.round(w.endS * 10) / 10,
+        gestureSum: w.gestureSum,
+        gestureSamples: w.gestureSamples,
+        handsDetected: w.handsDetected,
+        nearFaceCount: w.nearFaceCount,
+        fidgetCount: w.fidgetCount,
+        driftMean: Math.round(w.driftMean * 1000) / 1000,
+        phoneCount: w.phoneCount,
+        phoneProcessed: w.phoneProcessed,
+      })),
+    });
+
     return {
       eye_contact_pct: rates.eyeContactPct,
       attentiveness_pct: rates.attentivenessPct,
