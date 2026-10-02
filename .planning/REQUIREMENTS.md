@@ -378,3 +378,86 @@ was decided, they do not add scope.*
 - **REQ-58** — [x] No frame, landmark array or media blob leaves the browser or outlives
   the tick that produced it (REQ-38 unchanged). Every new signal reaches the server as a
   derived scalar.
+
+### Phase 13 — One-on-One Conversation Engine
+
+**Derived 2026-10-02** from Phase 13's four ROADMAP success criteria and the
+locked decisions in
+`.planning/phases/13-one-on-one-conversation-engine/13-CONTEXT.md`. They restate
+what was decided; they add no scope.
+
+- **REQ-59** — [ ] One engine serves every one-on-one interaction type. Exactly one
+  session-start, one checkpoint, one finish, one report-GET and one evaluation runner
+  exist for all types. The per-type trees that exist today —
+  `app/api/interview/session/*`, `app/api/scenario/session/*`,
+  `lib/interview/evaluation{,-runner}.ts`, `lib/scenario/evaluation{,-runner}.ts`,
+  `lib/interview/report-dto.ts`, `lib/scenario/report-dto.ts` — are collapsed into
+  the engine, not left standing beside it.
+
+- **REQ-60** — [ ] An interaction type is a TypeScript config record plus prompts.
+  Adding one touches no engine module, no route, no evaluator and no report page.
+  Config lives in code (type-checked, reviewable in git), not S3 or Postgres.
+
+- **REQ-61** — [ ] A session resolves from two layers: a built-in TYPE (code record —
+  rubric dimensions, prompts, limits, primitives) plus an optional student-authored
+  INSTANCE (S3 data — role, situation, avatar, criteria). Phase 9's `CaseStudy`
+  scenarios are instances under this model, not a separate pipeline.
+
+- **REQ-62** — [ ] `terminationPolicy` is an engine primitive: a type declares who may
+  end a session, including an AVATAR-INITIATED end, and the reason is recorded on the
+  report. Nothing but the student can end a session today. Built in Phase 13 even
+  though Phase 14 is its first consumer.
+
+- **REQ-63** — [ ] A per-turn VISIBLE-CONTEXT slice is an engine primitive: a type
+  controls what the avatar may see on a given turn, as distinct from everything the
+  session knows. Modelled generally, not as slide bookkeeping.
+
+- **REQ-64** — [ ] A type-declared OUTCOME record (JSON) persists structured session
+  results, and an explicit TIME BUDGET is an engine concept carried in the existing
+  per-turn tail block, never in the system prompt.
+
+- **REQ-65** — [ ] One `InteractionReport` table replaces `InterviewReport` and
+  `ScenarioReport`. Per-type input is one JSON `inputSnapshot` typed in TypeScript;
+  scores are a JSON map keyed by dimension. The old tables are dropped, not kept
+  beside it.
+
+- **REQ-66** — [ ] Every existing report is backfilled into `InteractionReport` and
+  renders identically at its existing URL — scores, metrics, body-language section,
+  Moments and snapshot strip intact. This is the acceptance test for the backfill.
+
+- **REQ-67** — [ ] The Phase 13 migration is applied to the LOCAL dev database only.
+  The SQL is handed over for human review and a human runs `prisma migrate deploy`
+  against the shared Lightsail DB (`HANDOFF.md §3` precedent). No agent applies it.
+  Phase 13 does not close until a human has run it.
+
+- **REQ-68** — [ ] All engine-backed sessions live under one `/practice/[type]` tree —
+  session at `/practice/[type]/[instanceId?]`, report at
+  `/practice/[type]/report/[reportId]`. `/interview/*` and `/case-play/*` session and
+  report paths become permanent redirects so existing deep links keep resolving.
+
+- **REQ-69** — [ ] Phase 13 is an INVISIBLE refactor. The shared session shell and
+  report page reproduce today's interview and case-play appearance exactly; the changed
+  URL is the only sanctioned visible difference. The two experiences' existing
+  divergences (scenario has no checkpoint; report chrome differs) are PRESERVED, not
+  converged. A divergence that cannot be preserved is a CHECKPOINT, not an executor
+  judgment call.
+
+- **REQ-70** — [ ] One generic pre-session wizard owns step machinery, progress,
+  back/forward, the camera-mode consent gate and launch. A type declares its steps; a
+  step needing custom UI supplies its own component. The consent gate exists once, not
+  once per type.
+
+- **REQ-71** — [ ] Rubric dimensions are four shared (Visual, Vocal, Content,
+  Behavioral) plus type-declared extras. The evaluator's JSON schema becomes
+  type-derived — `lib/report/structured.ts`'s hardcoded
+  `required: ["visual","vocal","content","behavioral"]` keeps those four always
+  present and appends the type's extras.
+
+- **REQ-72** — [ ] Visual and Vocal are never type-optional. Every engine-backed type
+  carries them with the full four-state handling from Phases 10 and 12 (scored /
+  `CAMERA_OFF_OPTOUT` / `TYPED_ONLY` or `SPEECH_TOO_SHORT` / `INSUFFICIENT_DATA`). A
+  type never wires metrics, so it can never forget to.
+
+- **REQ-73** — [ ] The assembled system prompt stays session-constant so the OpenAI
+  prefix cache still hits (REQ-20 unchanged), and per-turn state stays in the tail
+  block. Unification must not move per-turn data into the system prompt.

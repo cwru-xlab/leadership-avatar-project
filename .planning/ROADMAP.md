@@ -284,6 +284,8 @@ all exist twice already (interview and scenario) and must not exist five times.
 last pieces the engine has to carry for every type), Phase 8 (persona
 distillation and the session-constant prompt resolver), Phase 10 (metric
 ingestion).
+**Requirements:** REQ-59, REQ-60, REQ-61, REQ-62, REQ-63, REQ-64, REQ-65, REQ-66,
+REQ-67, REQ-68, REQ-69, REQ-70, REQ-71, REQ-72, REQ-73
 **Source:** derived from the user's brief —
 `.planning/one-on-one-interactions-brief.md` — whose premise is that any
 one-on-one interaction is configurable through parameterized requests without
