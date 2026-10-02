@@ -11,11 +11,14 @@
 import {
   computeVisualRates,
   computeGestureRates,
+  computeObservations,
   computePostureBaseline,
   computePostureDrift,
+  extractDescriptiveEpisodes,
   extractEpisodes,
   type CaptureWindow,
   type GestureCounts,
+  type ObservationCounts,
   type PostureBaseline,
   type PostureReading,
   type VisualSampleCounts,
@@ -30,6 +33,7 @@ import {
 } from "../lib/metrics/bands";
 import { parseMetricsPayload } from "../lib/metrics/ingest";
 import {
+  VISUAL_DESCRIPTIVE_EPISODE_KINDS,
   VISUAL_EPISODE_KINDS,
   VISUAL_NOT_MEASURED,
   resolveNotMeasured,
@@ -37,7 +41,7 @@ import {
   type VisualDescriptiveObservations,
   type VisualMetrics,
 } from "../lib/metrics/types";
-import { POSTURE_BASELINE_WINDOW_S } from "../lib/metrics/body-thresholds";
+import { PHONE_MIN_VISIBLE_S, POSTURE_BASELINE_WINDOW_S } from "../lib/metrics/body-thresholds";
 
 let failures = 0;
 
@@ -449,6 +453,31 @@ console.log("\n12. Structural non-scoring assertions — the point of this plan"
   check("visualBodyLanguageBands is byte-identical regardless of observations",
     visualBodyLanguageBands(withObservations), visualBodyLanguageBands(withoutObservations));
 }
+{
+  // 12-07: the same proof, but with a 90%-fidget / 300-second-phone payload —
+  // the literal scenario this plan's objective names as the thing that must
+  // never move a band or a scorability decision.
+  const withoutObservations = visual();
+  const withExtremeObservations = visual({
+    observations: {
+      fidget_pct: 95,
+      phone_visible_seconds: 300,
+      posture_shoulder_tilt_deg: 20,
+      posture_forward_head_offset: 0.4,
+      episodes: [
+        { kind: "fidgeting", start_s: 0, end_s: 300, severity: 1 },
+        { kind: "phone_visible", start_s: 0, end_s: 300, severity: 1 },
+      ],
+    },
+  });
+  check("a 90%-fidget/300s-phone payload does not change visualBands",
+    visualBands(withExtremeObservations), visualBands(withoutObservations));
+  check("a 90%-fidget/300s-phone payload does not change visualBodyLanguageBands",
+    visualBodyLanguageBands(withExtremeObservations), visualBodyLanguageBands(withoutObservations));
+  check("...nor the scorability decision",
+    resolveVisualOutcome("ON", withExtremeObservations),
+    resolveVisualOutcome("ON", withoutObservations));
+}
 
 console.log("\n13. timelineRows");
 {
@@ -733,6 +762,184 @@ check("a session with usable pose AND hands lists neither",
   resolveNotMeasured({ handSignals: true, postureSignals: true, fidget: true, phone: true })
     .some((e) => e === "body_posture" || e === "hand_gestures"),
   false);
+
+console.log("\n20. computeObservations — the measured-but-never-scored half (12-07)");
+function obsCounts(over: Partial<ObservationCounts> = {}): ObservationCounts {
+  return {
+    handSamples: 0,
+    fidgetSamples: 0,
+    phoneSamples: 0,
+    phoneVisibleSamples: 0,
+    phoneSampleHz: 0,
+    absoluteShoulderTiltDegMean: null,
+    absoluteForwardHeadOffsetMean: null,
+    ...over,
+  };
+}
+{
+  // fidget_pct divides by HAND-DETECTED samples — doubling handSamples at a
+  // fixed fidgetSamples count must HALVE the percentage, the opposite of
+  // computeGestureRates' deliberate denominator-independence, because this
+  // signal is descriptive and the absence-is-poor-performance rule that
+  // protects the scored rate does not apply to it.
+  const low = computeObservations(obsCounts({ handSamples: 100, fidgetSamples: 40 }));
+  const high = computeObservations(obsCounts({ handSamples: 200, fidgetSamples: 40 }));
+  check("fidget_pct at 40/100 hand-detected samples", low.fidgetPct, 40);
+  check("fidget_pct at 40/200 hand-detected samples is half", high.fidgetPct, 20);
+}
+{
+  // phone seconds convert via the RUNNER'S EFFECTIVE rate, never the nominal
+  // 6 Hz — the same 60 visible samples means a very different duration
+  // depending on how fast the object runner actually ticked this session.
+  const atEffectiveHalfHz = computeObservations(
+    obsCounts({ phoneSamples: 60, phoneVisibleSamples: 30, phoneSampleHz: 0.5 })
+  );
+  const atNominalSixHz = computeObservations(
+    obsCounts({ phoneSamples: 60, phoneVisibleSamples: 30, phoneSampleHz: 6 })
+  );
+  check("30 visible samples at 0.5 Hz effective is 60 seconds", atEffectiveHalfHz.phoneVisibleSeconds, 60);
+  check("the SAME 30 visible samples at a 6 Hz rate is only 5 seconds",
+    atNominalSixHz.phoneVisibleSeconds, 5);
+  check("...proving the nominal 6 Hz would have been wrong for the first session",
+    atEffectiveHalfHz.phoneVisibleSeconds !== atNominalSixHz.phoneVisibleSeconds, true);
+}
+{
+  // Below PHONE_MIN_VISIBLE_S — a single false-positive frame must not read
+  // as "a phone was visible."
+  const belowFloor = computeObservations(
+    obsCounts({ phoneSamples: 10, phoneVisibleSamples: 1, phoneSampleHz: 5 })
+  );
+  check(`below ${PHONE_MIN_VISIBLE_S}s floor reports 0`, belowFloor.phoneVisibleSeconds, 0);
+  check("zero effective rate (no object ticks at all) also reports 0",
+    computeObservations(obsCounts({ phoneVisibleSamples: 5, phoneSampleHz: 0 })).phoneVisibleSeconds, 0);
+}
+{
+  // A never-measurable posture angle stays null and is never defaulted to a
+  // flattering 0 — a straight pass-through, not a computation.
+  const r = computeObservations(obsCounts({
+    absoluteShoulderTiltDegMean: null,
+    absoluteForwardHeadOffsetMean: 0.12,
+  }));
+  check("null absolute shoulder tilt stays null, never 0", r.postureShoulderTiltDeg, null);
+  check("a real absolute forward-head mean passes through unchanged", r.postureForwardHeadOffset, 0.12);
+}
+
+console.log("\n21. extractDescriptiveEpisodes — the DESCRIPTIVE sibling of extractEpisodes");
+{
+  // Two 5s windows (10s total) tripping `fidgeting`.
+  const windows = [
+    win(0, { handsDetected: 10, fidgetCount: 8 }),
+    win(5, { handsDetected: 10, fidgetCount: 8 }),
+  ];
+  const descEps = extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS);
+  const fidgetHits = descEps.filter((e) => e.kind === "fidgeting");
+  check("exactly one fidgeting episode", fidgetHits.length, 1);
+  check("at the expected timecodes", [fidgetHits[0].start_s, fidgetHits[0].end_s], [0, 10]);
+
+  // The SAME windows run through the SCORED extractor must produce NONE of
+  // the descriptive kinds — they are not even in VISUAL_EPISODE_KINDS'
+  // vocabulary, so this also proves the two kind unions stay genuinely
+  // disjoint at the type level, not just by convention.
+  const scoredEps = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
+  check("the scored extractor over the SAME windows produces no fidgeting episode",
+    scoredEps.some((e) => (e.kind as string) === "fidgeting"), false);
+}
+{
+  // Two 5s windows tripping `phone_visible`.
+  const windows = [
+    win(0, { phoneProcessed: 10, phoneCount: 8 }),
+    win(5, { phoneProcessed: 10, phoneCount: 8 }),
+  ];
+  const descEps = extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS);
+  const phoneHits = descEps.filter((e) => e.kind === "phone_visible");
+  check("exactly one phone_visible episode", phoneHits.length, 1);
+  check("at the expected timecodes", [phoneHits[0].start_s, phoneHits[0].end_s], [0, 10]);
+
+  const scoredEps = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
+  check("the scored extractor over the SAME windows produces no phone_visible episode",
+    scoredEps.some((e) => (e.kind as string) === "phone_visible"), false);
+}
+{
+  // Zero hand-detected / zero phone-processed samples must not trip either
+  // descriptive kind — absence is not evidence here either.
+  const windows = [
+    win(0, { handsDetected: 0, fidgetCount: 0, phoneProcessed: 0, phoneCount: 0 }),
+    win(5, { handsDetected: 0, fidgetCount: 0, phoneProcessed: 0, phoneCount: 0 }),
+  ];
+  check("no fidgeting/phone_visible episodes from an all-absent session",
+    extractDescriptiveEpisodes(windows, VISUAL_DESCRIPTIVE_EPISODE_KINDS).length, 0);
+}
+
+console.log("\n22. Ingest round-trip — Phase 12 payload survives intact");
+{
+  const fullVisual = visual({
+    not_measured: ["background_environment"],
+    gesture_rate_per_min: 12,
+    gesture_amplitude_mean: 0.2,
+    hands_above_shoulder_pct: 30,
+    hands_near_face_pct: 10,
+    posture_drift_mean: 0.15,
+    posture_drift_max_s: 8,
+    posture_signals_measured: ["shoulder_line", "forward_head"],
+    episodes: [{ kind: "posture_drift", start_s: 10, end_s: 40, severity: 0.8 }],
+    observations: {
+      fidget_pct: 22,
+      phone_visible_seconds: 14,
+      posture_shoulder_tilt_deg: 3.5,
+      posture_forward_head_offset: 0.08,
+      episodes: [{ kind: "phone_visible", start_s: 5, end_s: 19, severity: 0.6 }],
+    },
+  });
+  const parsed = parseMetricsPayload({ cameraMode: "ON", visual: fullVisual, vocal: null });
+  check("full Phase 12 payload's scored fields survive ingest intact",
+    parsed.visual, fullVisual);
+}
+check("a media-shaped string inside observations still rejects the WHOLE payload (REQ-58)",
+  parseMetricsPayload({
+    cameraMode: "ON",
+    visual: {
+      ...visual(),
+      observations: {
+        fidget_pct: 10,
+        phone_visible_seconds: 5,
+        posture_shoulder_tilt_deg: null,
+        posture_forward_head_offset: null,
+        episodes: [],
+        leak: "data:image/png;base64,AAAA",
+      },
+    },
+    vocal: null,
+  }).visual,
+  null);
+
+console.log("\n23. Legacy Phase 10 payload — byte-identical regression");
+{
+  // A genuinely Phase-10-shaped payload (no Phase 12 field present at all,
+  // including no `observations`) must produce IDENTICAL output from every
+  // consumer this plan touches — the regression that matters most to
+  // existing stored reports.
+  const legacyVisual: VisualMetrics = {
+    eye_contact_pct: 82,
+    attentiveness_pct: 77,
+    camera_centered_pct: 91,
+    face_presence_pct: 96,
+    lighting_ok: true,
+    posture_flags: ["high_head_movement"],
+    not_measured: [...VISUAL_NOT_MEASURED],
+    episodes: [{ kind: "gaze_away", start_s: 12, end_s: 30, severity: 0.5 }],
+    coverage: coverage(),
+  };
+  const parsed = parseMetricsPayload({ cameraMode: "ON", visual: legacyVisual, vocal: null });
+  check("legacy payload round-trips through ingest unchanged", parsed.visual, legacyVisual);
+  check("legacy payload's visualBands is unaffected by this plan",
+    visualBands(legacyVisual), visualBands(legacyVisual));
+  check("legacy payload yields no body-language rows",
+    visualBodyLanguageBands(legacyVisual), []);
+  check("legacy payload yields no observation rows",
+    visualObservationRows(legacyVisual), []);
+  check("legacy payload's scorability is unaffected by this plan",
+    resolveVisualOutcome("ON", legacyVisual), { scored: true, reason: null });
+}
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);
