@@ -199,28 +199,84 @@ const ALL_MODELS: ModelId[] = ["face", "pose", "hands", "object"];
  * The staggered round-robin schedule, consulted by tick index
  * (`SCHEDULE[tickCount % SCHEDULE.length]`). At `METRICS_SAMPLE_HZ` (6 Hz)
  * this gives:
- *   - face:   3 ticks of 6  -> 3 Hz   (every existing Phase 10 metric
- *             depends on face and must not degrade — see 12-03-SUMMARY.md's
- *             "Headroom for 12-05" note)
- *   - pose:   1 tick of 6   -> 1 Hz   (posture drift is a multi-second signal)
- *   - hands:  1 tick of 6   -> 1 Hz   (gesture rate is a per-minute signal)
- *   - object: 1 tick of 6   -> 1 Hz   (phone visibility is a seconds-resolution
- *             figure; ample for "was a phone visible", never frame-exact)
- * This is a TUNABLE this plan deliberately does not optimise — see
- * 12-05-PLAN.md Task 3 and the Task 4 budget checkpoint, which may turn this
- * knob before 12-06/12-07 build derivations on top of it.
+ *   - face:  2 ticks of 4  -> 3 Hz   (every existing Phase 10 metric
+ *            depends on face and must not degrade — see 12-03-SUMMARY.md's
+ *            "Headroom for 12-05" note; 50% share, same absolute 3 Hz as the
+ *            very first 12-05 cut, just expressed over a shorter cycle)
+ *   - pose:  1 tick of 4   -> 1.5 Hz (posture drift is a multi-second signal;
+ *            the extra headroom freed up below is spent here and on hands)
+ *   - hands: 1 tick of 4   -> 1.5 Hz (gesture rate is a per-minute signal)
+ *
+ * Object (phone) detection is DELIBERATELY NOT in this rotation — see
+ * `OBJECT_TICK_INTERVAL_MS` below for why and where it runs instead. The
+ * first live Task 4 checkpoint measured `efficientdet_lite0` at a 126.5ms
+ * mean round-trip, 76% of a single 166.67ms tick budget, the single most
+ * expensive model by a wide margin. Because the worker is ONE JS thread, a
+ * detect call that long blocks that thread from handling ANY other model's
+ * reply while it runs — this is why that run's drops were spread across
+ * every model (27 face / 8 pose / 8 hands / 9 object out of 52), not
+ * confined to object's own slot. Pulling it out of the 6 Hz interleave and
+ * giving it its own slow, independent cadence removes that blocking source
+ * entirely, and frees the remaining four-of-four ticks for face/pose/hands —
+ * raising pose and hands from 1 Hz to 1.5 Hz as a bonus, with face held at
+ * its original 3 Hz exactly (never reduced below its pre-fix share — Phase
+ * 10's existing metrics depend on it, and it was already the single largest
+ * drop contributor even before this fix).
+ *
+ * This remains a TUNABLE this plan deliberately does not fully optimise —
+ * see 12-05-PLAN.md Task 3 and the Task 4 budget checkpoint, which the
+ * second live run re-verifies. If the re-run still shows an elevated drop
+ * rate, the NEXT lever to try (before touching object further) is reverting
+ * pose/hands to their original 1 Hz by reintroducing idle ticks rather than
+ * running them back-to-back — e.g. `["face","pose","face","hands","face","face"]`
+ * — since 1.5 Hz for both was this fix's one speculative addition on top of
+ * the proven removal of object from the hot path.
  */
-const SCHEDULE: ModelId[] = ["face", "pose", "face", "hands", "face", "object"];
+const SCHEDULE: ModelId[] = ["face", "pose", "face", "hands"];
+
+/**
+ * Object (phone) detection's OWN independent cadence, decoupled from the
+ * main `SCHEDULE` round-robin above (see that constant's doc comment for
+ * why). 2000ms (0.5 Hz) comfortably exceeds the resolution this signal
+ * actually needs: `PHONE_MIN_VISIBLE_S` (`body-thresholds.ts`) already
+ * requires 2 continuous seconds of visibility before a phone episode is
+ * reported at all, so sampling once every 2 seconds cannot miss a
+ * reportable episode, and "was a phone visible" was never a frame-exact
+ * question. Uses the SAME one-outstanding-request back-pressure discipline
+ * as every other model (`requestState.object`), just on its own timer
+ * instead of a `SCHEDULE` slot.
+ */
+const OBJECT_TICK_INTERVAL_MS = 2000;
+
+/**
+ * `SCHEDULE`'s face share, computed rather than hand-kept in sync, so a
+ * future edit to `SCHEDULE` cannot silently re-break the schedule-aware
+ * `expectedSamples` calculation in `stop()` below. See that calculation's
+ * own comment for why this denominator must be schedule-aware at all.
+ */
+const FACE_SCHEDULE_SHARE =
+  SCHEDULE.filter((model) => model === "face").length / SCHEDULE.length;
 
 /** How long `start()` will wait for the worker's `ready`/`init-error` reply
  * before giving up and falling back to the main-thread landmarker path. A
  * worker that never answers must not block session start indefinitely. */
 const WORKER_INIT_TIMEOUT_MS = 2000;
 
-/** Fixed-capacity ring buffer size for per-tick inference cost samples.
- * 100s of ticks at the 6 Hz `METRICS_SAMPLE_HZ` cadence — diagnostics only,
- * never grows, never included in `VisualMetrics` (REQ-58). */
-const TICK_COST_SAMPLES = 600;
+// DEFECT 2 FIX (12-05 live checkpoint, re-run 1): inference-cost tracking
+// used to be a FIXED-CAPACITY ring buffer (600 samples, ~100s at 6 Hz) that
+// silently overwrote its oldest entries once a session ran longer than that
+// window. That was invisible with one stationary tenant (12-03), but once
+// the first GPU call for pose/hands/object paid a one-time shader-compile
+// warm-up cost, the ring's "last ~600 ticks" window evicted those expensive
+// early ticks while the (unbounded) per-model sums still included them -
+// producing a session-wide meanTickMs LOWER than every single per-model
+// mean, which is numerically impossible for a true session average. The
+// fix: the overall and per-model accumulators are now the same shape
+// (unbounded running arrays), so a session-wide figure can never silently
+// sample a different, more recent window than the per-model breakdown next
+// to it. A real interview session produces at most a few thousand samples -
+// keeping them all is not a meaningful memory concern, and it removes this
+// whole class of bug outright rather than just enlarging the window.
 
 /** A tick's gap from the previous tick beyond this multiple of the expected
  * interval counts as a dropped tick — the event loop did not get back to us
@@ -517,6 +573,9 @@ export function createVisualCapture(
     close: () => void;
   } | null = null;
   let intervalId: ReturnType<typeof setInterval> | null = null;
+  // Object (phone) detection's own independent timer — see
+  // `OBJECT_TICK_INTERVAL_MS`'s doc comment.
+  let objectIntervalId: ReturnType<typeof setInterval> | null = null;
   let lumaCanvas: HTMLCanvasElement | null = null;
   let lumaCtx: CanvasRenderingContext2D | null = null;
 
@@ -653,9 +712,11 @@ export function createVisualCapture(
   let phoneVisibleSamples = 0;
 
   // --- 12-05 per-model diagnostics (frame-budget log only — never part of
-  // `VisualMetrics`). Separate from the existing overall `tickCostMsRing`
-  // (fed by every model) so the budget line can show WHICH model is
-  // expensive, not just the total.
+  // `VisualMetrics`). Additional breakdown alongside the overall
+  // `tickCostSamplesMs` (fed by every model) so the budget line can show
+  // WHICH model is expensive, not just the total — see the DEFECT 2 FIX
+  // comment above `recordTickCost` for why both are now the same
+  // unbounded shape.
   const modelTickCostSum: Record<ModelId, number> = {
     face: 0,
     pose: 0,
@@ -681,18 +742,16 @@ export function createVisualCapture(
   }
 
   // Per-tick inference cost instrumentation (REQ-57 diagnostics only — never
-  // included in `VisualMetrics`, never leaves the browser as a metric field).
-  // Fixed-capacity ring buffer: overwrite oldest, never grow.
-  const tickCostMsRing: number[] = [];
-  let tickCostRingIndex = 0;
-  let tickCostSamplesSeen = 0;
+  // included in `VisualMetrics`, never leaves the browser as a metric
+  // field). Plain growable array, session-scoped — see the DEFECT 2 FIX
+  // comment above `recordTickCost` for why this is no longer a fixed-size
+  // ring.
+  const tickCostSamplesMs: number[] = [];
   // Main-thread dispatch cost, worker path only: the `createImageBitmap` +
   // `postMessage` segment that genuinely occupies THIS thread. REQ-57 is a
   // claim about main-thread contention with the HeyGen stream, so on the
   // worker path this - not the round-trip - is the number that bears on it.
-  const dispatchMsRing: number[] = [];
-  let dispatchRingIndex = 0;
-  let dispatchSamplesSeen = 0;
+  const dispatchSamplesMs: number[] = [];
   let droppedTicks = 0;
   let lastTickEntryMs: number | null = null;
 
@@ -849,16 +908,12 @@ export function createVisualCapture(
    * round-trip understates main-thread contention to zero. Compare
    * `dispatchMeanMs` for the worker path's real main-thread share. */
   function recordTickCost(ms: number) {
-    tickCostMsRing[tickCostRingIndex] = ms;
-    tickCostRingIndex = (tickCostRingIndex + 1) % TICK_COST_SAMPLES;
-    tickCostSamplesSeen += 1;
+    tickCostSamplesMs.push(ms);
   }
 
   /** Main-thread dispatch cost for one worker tick (REQ-57). */
   function recordDispatchCost(ms: number) {
-    dispatchMsRing[dispatchRingIndex] = ms;
-    dispatchRingIndex = (dispatchRingIndex + 1) % TICK_COST_SAMPLES;
-    dispatchSamplesSeen += 1;
+    dispatchSamplesMs.push(ms);
   }
 
   /**
@@ -1403,9 +1458,10 @@ export function createVisualCapture(
     }
 
     // Staggered round-robin scheduler (REQ-57): consult which model this
-    // tick belongs to. `SCHEDULE` holds four tenants as of 12-05 — face at
-    // 3 Hz, pose/hands/object at 1 Hz each (see `SCHEDULE`'s own doc
-    // comment for the rate table and rationale).
+    // tick belongs to. `SCHEDULE` holds THREE tenants as of this checkpoint's
+    // fix — face at 3 Hz, pose/hands at 1.5 Hz each; object runs on its own
+    // separate, slower `OBJECT_TICK_INTERVAL_MS` timer (see `runObjectTick`
+    // and `SCHEDULE`'s own doc comment for why it was pulled out).
     const modelForTick = SCHEDULE[tickCount % SCHEDULE.length];
 
     if (usingWorker) {
@@ -1424,10 +1480,38 @@ export function createVisualCapture(
     }
   }
 
+  /**
+   * Object (phone) detection's own slow, independent beat — see
+   * `OBJECT_TICK_INTERVAL_MS`'s doc comment for why this is a separate timer
+   * rather than a `SCHEDULE` slot. Deliberately does NOT touch
+   * `trackLiveSeconds`, `droppedTicks`' gap-detection, or `tickCount` — those
+   * belong to the main `SCHEDULE` beat and must not be double-counted by a
+   * second timer running at a different rate. No main-thread fallback exists
+   * for object (12-05 introduced it worker-only), so a non-worker session
+   * simply never calls `runWorkerTick` here.
+   */
+  function runObjectTick() {
+    if (!videoEl || !usingWorker) return;
+    const track = stream.getVideoTracks()[0];
+    if (!track || track.readyState !== "live") return;
+    if (
+      videoEl.readyState < 2 ||
+      videoEl.videoWidth === 0 ||
+      videoEl.videoHeight === 0
+    ) {
+      return;
+    }
+    runWorkerTick("object");
+  }
+
   function stopInterval() {
     if (intervalId !== null) {
       clearInterval(intervalId);
       intervalId = null;
+    }
+    if (objectIntervalId !== null) {
+      clearInterval(objectIntervalId);
+      objectIntervalId = null;
     }
   }
 
@@ -1514,6 +1598,7 @@ export function createVisualCapture(
     });
 
     intervalId = setInterval(runTick, tickIntervalMs());
+    objectIntervalId = setInterval(runObjectTick, OBJECT_TICK_INTERVAL_MS);
   }
 
   function setSpeaking(speaking: boolean): void {
@@ -1562,7 +1647,26 @@ export function createVisualCapture(
     await closeEngine(timeoutMs);
 
     const sessionSeconds = (sessionStartMs() - startedAtMs) / 1000;
-    const expectedSamples = Math.floor(trackLiveSeconds * METRICS_SAMPLE_HZ);
+    // DEFECT 1 FIX (12-05 live checkpoint, re-run 1): `processedSamples`
+    // increments ONLY inside `applyFaceResult` — it has only ever counted
+    // FACE ticks, on both the pre-12-05 single-tenant schedule and today's
+    // four-tenant one. Before this fix, `expectedSamples` assumed EVERY
+    // tick belonged to that same count (`trackLiveSeconds * METRICS_SAMPLE_HZ`),
+    // which was correct when face owned 100% of the schedule and silently
+    // wrong the moment it did not: with face holding `FACE_SCHEDULE_SHARE`
+    // of `SCHEDULE`, the processed/expected ratio was structurally pinned at
+    // ~`FACE_SCHEDULE_SHARE` before a single frame was ever dropped, tripped
+    // `coverage.ts`'s `PROCESSED_RATIO_FLOOR` (0.5) on every real camera-on
+    // session, and reported the whole Visual block as `INSUFFICIENT_DATA`.
+    // The fix is schedule-aware accounting, not the floor — `coverage.ts`'s
+    // starvation guard is real (REQ-42) and must keep catching a genuinely
+    // wedged worker; it simply needs to be told what a healthy denominator
+    // looks like for face's OWN share of the tick stream. `FACE_SCHEDULE_SHARE`
+    // is derived from `SCHEDULE` itself (see that constant's definition), so
+    // a future change to the schedule cannot silently re-break this again.
+    const expectedSamples = Math.floor(
+      trackLiveSeconds * METRICS_SAMPLE_HZ * FACE_SCHEDULE_SHARE
+    );
 
     if (
       poseUnavailableSamples > 0 &&
@@ -1616,42 +1720,39 @@ export function createVisualCapture(
     // many tenants `ALL_MODELS` actually holds; everything else here is
     // measured straight off this session's own ring buffers. Runs once per
     // session, so sorting a copy for p95 is cheap.
-    const filledTickCostSamples = Math.min(
-      tickCostSamplesSeen,
-      TICK_COST_SAMPLES
-    );
-    const tickCostSamplesSorted = tickCostMsRing
-      .slice(0, filledTickCostSamples)
-      .sort((a, b) => a - b);
+    // DEFECT 2 FIX: both figures below are now computed over the FULL,
+    // unbounded session array (see `tickCostSamplesMs`'s doc comment) —
+    // the same shape as `modelTickCostSum`/`modelTickCostCount` just below,
+    // so the overall and per-model breakdowns can never silently disagree
+    // because they sampled two different windows of the same session.
+    const tickCostSamplesSorted = [...tickCostSamplesMs].sort((a, b) => a - b);
     const meanTickMs =
-      filledTickCostSamples > 0
+      tickCostSamplesSorted.length > 0
         ? tickCostSamplesSorted.reduce((sum, ms) => sum + ms, 0) /
-          filledTickCostSamples
+          tickCostSamplesSorted.length
         : 0;
     const p95Index = Math.max(
       0,
       Math.min(
-        filledTickCostSamples - 1,
-        Math.ceil(filledTickCostSamples * 0.95) - 1
+        tickCostSamplesSorted.length - 1,
+        Math.ceil(tickCostSamplesSorted.length * 0.95) - 1
       )
     );
     const p95TickMs =
-      filledTickCostSamples > 0 ? tickCostSamplesSorted[p95Index] : 0;
-    // Main-thread dispatch stats (worker path only).
-    const filledDispatchSamples = Math.min(dispatchSamplesSeen, TICK_COST_SAMPLES);
-    const dispatchSorted = dispatchMsRing
-      .slice(0, filledDispatchSamples)
-      .sort((a, b) => a - b);
+      tickCostSamplesSorted.length > 0 ? tickCostSamplesSorted[p95Index] : 0;
+    // Main-thread dispatch stats (worker path only). Same unbounded-array
+    // treatment as the tick-cost figures above.
+    const dispatchSorted = [...dispatchSamplesMs].sort((a, b) => a - b);
     const dispatchMeanMs =
-      filledDispatchSamples > 0
-        ? dispatchSorted.reduce((sum, ms) => sum + ms, 0) / filledDispatchSamples
+      dispatchSorted.length > 0
+        ? dispatchSorted.reduce((sum, ms) => sum + ms, 0) / dispatchSorted.length
         : 0;
     const dispatchP95Index = Math.max(
       0,
-      Math.min(filledDispatchSamples - 1, Math.ceil(filledDispatchSamples * 0.95) - 1)
+      Math.min(dispatchSorted.length - 1, Math.ceil(dispatchSorted.length * 0.95) - 1)
     );
     const dispatchP95Ms =
-      filledDispatchSamples > 0 ? dispatchSorted[dispatchP95Index] : 0;
+      dispatchSorted.length > 0 ? dispatchSorted[dispatchP95Index] : 0;
 
     // Per-model mean tick cost and dropped-tick count (12-05) - so the
     // checkpoint can see WHICH model is expensive, not only the session
