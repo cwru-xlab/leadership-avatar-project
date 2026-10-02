@@ -2,7 +2,7 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-10-01 (Phase 12 — Embodied Visual Signals — IN PROGRESS. Plans 12-01 through 12-07 complete; 12-03's REQ-57 human gate approved. 12-08 not yet complete.)
+**Updated:** 2026-10-02 (Phases 13-16 added to the v1.0 roadmap from the user's one-on-one interactions brief — see "Roadmap Evolution" at the end of this file. Phase 12 — Embodied Visual Signals — is still the current position and remains IN PROGRESS: plans 12-01 through 12-07 complete, 12-03's REQ-57 human gate approved, 12-08 not yet complete.)
 
 ## Current Position
 
@@ -1569,3 +1569,41 @@ Open items carried into Phase 11+:
   open live-camera items from 12-05/12-06. See the
   `[Phase 12-embodied-visual-signals]` Decisions entry above and
   `12-07-SUMMARY.md` for full detail.
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+- **2026-10-02 — Phases 13, 14, 15 and 16 added** from the user's PDF brief
+  "Practice Pitch | Difficult Conversations | Networking Practice Initial Plan
+  Prompts", extracted and preserved at
+  `.planning/one-on-one-interactions-brief.md` (the source of record for all
+  four phases):
+  - **Phase 13: One-on-One Conversation Engine** — parameterize the interview
+    pipeline so a new one-on-one interaction type is a config record plus
+    prompts, not a duplicated route tree. The brief's own premise.
+  - **Phase 14: Practice Pitches** — elevator pitch (strict 30-60s, concision
+    and audience-tailoring drive avatar engagement, a tedious pitch can end the
+    conversation as a recorded failure) plus investor pitch deck (live
+    click-through, avatar sees only slides already shown, deck structure graded
+    alongside delivery, terms negotiation, 20-30 min from slide count).
+  - **Phase 15: Difficult Conversations** — role-assuming avatars, seeded
+    catalog plus student-authored scenarios publishable to all users.
+  - **Phase 16: Networking Practice** — persona from pasted LinkedIn/written/AI
+    text, or a default character.
+
+  Two decisions were taken at add-phase time, both the user's:
+  1. **Four phases, not one.** An engine phase first, then the three features.
+     Chosen over a three-phase (one per feature) and a single-phase split.
+  2. **All three deck formats in scope** for Phase 14's first pass — PDF, PPTX
+     and Google Slides — chosen over a PDF-only first pass. Google Slides
+     implies a Drive OAuth scope, token storage and a Drive API read; it is the
+     largest single piece of Phase 14 and was deliberately not deferred.
+
+  Phases 14, 15 and 16 depend only on Phase 13, not on each other, so the
+  execution order after 13 is the user's choice.
+
+  These four phases open the three `route: null`, `coming-soon` placeholders
+  that have sat in `lib/interactions/registry.ts` since Phase 7. Nothing about
+  Phase 12's remaining work (12-08) changed; Phase 12 is still the current
+  position.

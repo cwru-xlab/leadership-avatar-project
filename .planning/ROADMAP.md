@@ -9,6 +9,10 @@ performance report afterward. Phases 1-5 shipped the live interview itself;
 Phase 6 makes the interview produce a durable, evaluated report. Later phases
 open the launcher, add real video/audio metrics, and retire the
 cohort/staff-oversight model the codebase inherited from its case-study origins.
+Phases 13-16 generalize the one-on-one pipeline into a configurable engine and
+then open the three interaction types that have sat as `coming-soon`
+placeholders since Phase 7: practice pitches, difficult conversations and
+networking practice.
 
 **Note on provenance:** this roadmap was reconstructed on 2026-09-19 during a
 mid-project handoff. Phases 1-5 are recorded from the shipped code on
@@ -32,6 +36,11 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 9: Student-Authored Scenarios** - Students create their own practice scenarios (completed 2026-09-21)
 - [x] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
 - [x] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality) (completed 2026-09-23)
+- [ ] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (7/8 plans; fidgeting retired as unmeasurable)
+- [ ] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record
+- [ ] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
+- [ ] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios
+- [ ] **Phase 16: Networking Practice** - Practice against a described real person or a default character
 
 ## Phase Details
 
@@ -263,9 +272,102 @@ Plans:
 - [x] 12-07-PLAN.md — Descriptive derivations: fidgeting, phone in frame, absolute posture reading
 - [x] 12-08-PLAN.md — Threshold tuning from real recordings + end-to-end phase sign-off
 
+### Phase 13: One-on-One Conversation Engine
+**Goal:** Generalize the interview pipeline into a parameterized one-on-one
+conversation engine, so that a new one-on-one interaction type is a
+configuration record plus prompts rather than a duplicated route tree. Today
+`pitches`, `difficult-conversations` and `networking` sit in
+`lib/interactions/registry.ts` as `route: null`, `coming-soon` placeholders;
+the session start/checkpoint/finish routes, the evaluator and the report page
+all exist twice already (interview and scenario) and must not exist five times.
+**Depends on:** Phase 12 (the body-metric contract and worker scheduler are the
+last pieces the engine has to carry for every type), Phase 8 (persona
+distillation and the session-constant prompt resolver), Phase 10 (metric
+ingestion).
+**Source:** derived from the user's brief —
+`.planning/one-on-one-interactions-brief.md` — whose premise is that any
+one-on-one interaction is configurable through parameterized requests without
+rebuilding infrastructure per type.
+**Success Criteria** (what must be TRUE):
+  1. A new one-on-one interaction type ships as a config record plus prompts — no
+     new session route, finish route, evaluator module or report page per type.
+  2. The existing interview and case-play experiences run on the shared engine
+     with no behavior regression: same prompts, same OpenAI prefix-cache hit,
+     same metric ingestion.
+  3. Per-type rubric dimensions are declared in config, and the report page
+     renders them without knowing which interaction produced them.
+  4. Visual, vocal and body metrics from Phases 10 and 12 reach every
+     engine-backed interaction without per-type wiring.
+
+### Phase 14: Practice Pitches
+**Goal:** Ship the Practice Pitches interaction with its two sublayers — a strict
+30-60 second elevator pitch judged on concision and on tailoring to the specific
+listener, and a timed investor pitch-deck session where the student clicks
+through an uploaded deck while the avatar sees only the slides shown so far and
+negotiates terms.
+**Depends on:** Phase 13
+**Scope note (2026-10-02, user decision):** deck upload accepts PDF, PowerPoint
+and Google Slides. Google Slides means a Drive OAuth scope, token storage and a
+Drive API read — the largest single piece of this phase, and deliberately in
+scope rather than deferred.
+**Success Criteria** (what must be TRUE):
+  1. The elevator pitch enforces a 30-60 second window; avatar engagement follows
+     from concision and from whether the student found common ground first, and a
+     tedious pitch can end the conversation early as a recorded failure rather
+     than a neutral finish.
+  2. A deck uploaded as PDF, PPTX or Google Slides becomes per-slide text plus
+     rendered slide images stored privately, and a malformed or wrong-format deck
+     is rejected with an actionable error instead of a broken session.
+  3. The student advances slides live, and the avatar's context contains only
+     slides at or before the current one — never content from a slide not yet
+     shown.
+  4. The report scores deck structure and text density alongside vocal delivery,
+     and the negotiation outcome (price and equity) is recorded against the
+     student's stated ask.
+  5. Session length is pre-selected from slide count within a 20-30 minute
+     envelope, and the remaining time is visible to the student during the
+     session.
+
+### Phase 15: Difficult Conversations
+**Goal:** Ship role-specific difficult conversations in which the avatar fully
+assumes a stated role — confronting a low performer, firing someone, asking a
+manager for a raise, challenging a professor over a grade — with a seeded
+catalog plus student-authored scenarios that can be published to all users.
+**Depends on:** Phase 13 (and reuses Phase 9's ownership/publish posture for
+student-authored content).
+**Success Criteria** (what must be TRUE):
+  1. A seeded catalog of role-specific conversations is playable, and the avatar
+     holds its role for the whole session instead of drifting into a coaching or
+     narrator voice.
+  2. A student can author their own difficult-conversation scenario and practice
+     it immediately; it stays private until they deliberately publish it.
+  3. A published scenario is playable by any user, and the authoring student
+     remains its owner.
+  4. The report judges how the conversation was handled — clarity, empathy,
+     holding the line — not merely that the student reached the end of it.
+
+### Phase 16: Networking Practice
+**Goal:** Ship networking practice against a person the student brings in —
+pasted LinkedIn text, their own written description, or AI-generated text —
+distilled into an avatar persona, or picked from a set of default characters.
+**Depends on:** Phase 13 (and reuses Phase 8's one-shot persona distillation
+endpoint rather than adding a second distillation path).
+**Success Criteria** (what must be TRUE):
+  1. A student can paste a description of a real person and practice against a
+     persona distilled from it, through the existing distillation path.
+  2. A curated set of default characters is playable with no input at all.
+  3. Pasted third-party text is stored privately and never appears in another
+     student's session.
+  4. The report judges rapport-building and the clarity of the student's
+     self-introduction, not interview-style answer quality.
+
+
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12
+**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 16)
+
+Phases 14, 15 and 16 each depend only on Phase 13, not on each other — once the
+engine lands they can be planned and executed in any order, or in parallel.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -281,3 +383,7 @@ Plans:
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
 | 12. Embodied Visual Signals | 7/8 | In Progress|  |
+| 13. One-on-One Conversation Engine | 0/0 | Not planned |  |
+| 14. Practice Pitches | 0/0 | Not planned |  |
+| 15. Difficult Conversations | 0/0 | Not planned |  |
+| 16. Networking Practice | 0/0 | Not planned |  |
