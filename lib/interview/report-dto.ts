@@ -1,3 +1,4 @@
+import { asStructuredReport, type StructuredReport } from "@/lib/report/structured";
 import type { InterviewReport } from "@prisma/client";
 import type {
   CameraMode,
@@ -62,6 +63,9 @@ export interface InterviewReportDTO {
     targetQuestionCount: number | null;
     interviewerPersona: string | null;
   };
+  /** Structured body (see `lib/report/structured.ts`). Null on pre-migration
+   * rows, which fall back to rendering `reportMarkdown`. */
+  reportStructured: StructuredReport | null;
   reportMarkdown: string | null;
   failureReason: string | null;
   startedAt: string; // ISO
@@ -98,7 +102,18 @@ const VISUAL_UNSCORED_REASONS: readonly VisualUnscoredReason[] = [
   "CAMERA_OFF_OPTOUT",
   "INSUFFICIENT_DATA",
 ];
-const VOCAL_UNSCORED_REASONS: readonly VocalUnscoredReason[] = ["TYPED_ONLY", "INSUFFICIENT_DATA"];
+// 12-08 Task 1 checkpoint, Defect F: "SPEECH_TOO_SHORT" added alongside the
+// original two — see `VocalUnscoredReason`'s own doc comment in
+// lib/metrics/types.ts for why collapsing it into "TYPED_ONLY" was the bug.
+// A reason value this allowlist does not recognize is dropped to null on
+// read (REQ-45's "stored, never re-derived" discipline means an OLD row
+// cannot retroactively gain this new reason, but a NEW row must not be
+// silently dropped at this boundary either).
+const VOCAL_UNSCORED_REASONS: readonly VocalUnscoredReason[] = [
+  "TYPED_ONLY",
+  "SPEECH_TOO_SHORT",
+  "INSUFFICIENT_DATA",
+];
 
 function asCameraMode(value: string | null): CameraMode | null {
   return value !== null && (CAMERA_MODES as readonly string[]).includes(value)
@@ -154,6 +169,7 @@ export function toInterviewReportDTO(row: InterviewReport): InterviewReportDTO {
       targetQuestionCount: row.targetQuestionCount,
       interviewerPersona: row.interviewerPersona,
     },
+    reportStructured: asStructuredReport(row.reportStructured),
     reportMarkdown: row.reportMarkdown,
     failureReason: row.failureReason,
     startedAt: row.startedAt.toISOString(),

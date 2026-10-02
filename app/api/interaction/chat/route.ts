@@ -86,6 +86,15 @@ function normalizeProgress(value: unknown): InterviewProgress {
       Number.isFinite(progress.followUpsUsed)
         ? Math.max(0, Math.min(1, Math.floor(progress.followUpsUsed)))
         : fallback.followUpsUsed,
+    // Absent on any session that started before this field existed, and on
+    // every resumed checkpoint written before it — defaults to 0, which is
+    // the safe direction: the stage advances a little later rather than
+    // skipping ahead on a value that was never tracked.
+    behavioralQuestionsAsked:
+      typeof progress.behavioralQuestionsAsked === "number" &&
+      Number.isFinite(progress.behavioralQuestionsAsked)
+        ? Math.max(0, Math.min(20, Math.floor(progress.behavioralQuestionsAsked)))
+        : fallback.behavioralQuestionsAsked,
   };
 }
 
@@ -205,7 +214,12 @@ export async function POST(request: NextRequest) {
     }
 
     const stream = createLLMStream(fullMessages, "gpt-4.1", {
-      maxTokens: interview ? 320 : 1000,
+      // 320 was tight for an interviewer question PLUS the mandatory
+      // turn-control marker line. A reply that hit the cap lost the marker,
+      // and a missing marker stops progress advancing — so the cap was
+      // silently breaking the interview state machine. 520 leaves real
+      // headroom; the prompt still constrains the model to short turns.
+      maxTokens: interview ? 520 : 1000,
     });
     return new Response(stream, { headers: createSSEHeaders() });
   } catch (error) {

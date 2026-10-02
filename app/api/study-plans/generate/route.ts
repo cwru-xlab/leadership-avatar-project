@@ -8,7 +8,7 @@ import {
   hasStudyPlanDraftSecret,
 } from "@/lib/study-plan/draft-token";
 import {
-  extractBehavioralFeedback,
+  extractBehavioralSignals,
   generateStudyPlan,
   type AnonymousBehavioralReport,
 } from "@/lib/study-plan/generate";
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       reportNumber: index + 1,
       contentScore: row.contentScore,
       behavioralScore: row.behavioralScore,
-      behavioralFeedbackSignals: extractBehavioralFeedback(row.reportMarkdown || ""),
+      behavioralFeedbackSignals: extractBehavioralSignals(row),
     }));
 
     // Refuse to silently omit older reports. The model source contains only the

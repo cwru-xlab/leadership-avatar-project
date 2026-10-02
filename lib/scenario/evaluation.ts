@@ -25,11 +25,21 @@ import {
   type ScenarioEvaluationCharacter,
 } from "./prompts";
 import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
+import {
+  composeReportMarkdown,
+  parseStructuredReport,
+  STRUCTURED_REPORT_PROPERTIES,
+  STRUCTURED_REPORT_REQUIRED,
+  type StructuredReport,
+} from "@/lib/report/structured";
+import { sanitizeBodySignalWording } from "@/lib/report/body-signal-validator";
 
 // ---------------------------------------------------------------------------
 // JSON schema — must match SCENARIO_EVALUATOR_PROMPT's declared output shape
-// exactly: {visual_score, vocal_score, content_score, behavioral_score,
-// report_markdown}.
+// exactly: the four scores plus the structured report body declared in
+// `lib/report/structured.ts`. `report_markdown` is deliberately NOT requested
+// — it is composed from the structured fields after validation, so the prose
+// and the data can never disagree.
 // ---------------------------------------------------------------------------
 
 export const SCENARIO_EVALUATION_JSON_SCHEMA = {
@@ -43,14 +53,14 @@ export const SCENARIO_EVALUATION_JSON_SCHEMA = {
       "vocal_score",
       "content_score",
       "behavioral_score",
-      "report_markdown",
+      ...STRUCTURED_REPORT_REQUIRED,
     ],
     properties: {
       visual_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
       vocal_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
       content_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
       behavioral_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
-      report_markdown: { type: "string" },
+      ...STRUCTURED_REPORT_PROPERTIES,
     },
   },
 } as const;
@@ -64,7 +74,10 @@ export interface RawScenarioEvaluation {
   vocal_score: unknown;
   content_score: unknown;
   behavioral_score: unknown;
-  report_markdown: unknown;
+  /** The structured body lives at the top level alongside the scores, so the
+   * raw response is indexed loosely here and narrowed by
+   * `parseStructuredReport`. */
+  [key: string]: unknown;
 }
 
 /**
@@ -80,7 +93,11 @@ export interface ScenarioEvaluationResult {
   vocalScore: number | null;
   contentScore: number | null;
   behavioralScore: number | null;
+  /** Composed from `reportStructured`, never returned by the model. Retained
+   * because pre-migration rows have nothing else and
+   * `lib/study-plan/generate.ts` regex-scans it. */
   reportMarkdown: string;
+  reportStructured: StructuredReport;
   evalModel: string;
 }
 
@@ -122,21 +139,54 @@ export function validateScenarioEvaluationResult(
 ): Omit<ScenarioEvaluationResult, "evalModel"> {
   const r = (raw ?? {}) as Partial<RawScenarioEvaluation>;
 
-  const reportMarkdown =
-    typeof r.report_markdown === "string" ? r.report_markdown.trim() : "";
-  if (!reportMarkdown) {
+  // The emptiness check moved here from `report_markdown` when the model
+  // stopped emitting prose. It still drives the FAILED path: a response with
+  // no summary and no sections at all must not be stored as a blank report.
+  const parsedReport = parseStructuredReport(raw);
+  if (!parsedReport) {
     throw new ScenarioEvaluationError("Evaluator returned an empty report body");
   }
 
+  // Code-side backstop for the describe-then-ask body-signal wording rules
+  // (12-08 Task 3 pre-sign-off, Defect C) -- see
+  // `sanitizeBodySignalWording`'s own doc comment for why stripping, not a
+  // retry, is the enforcement mechanism. Never silent: logged below
+  // whenever anything was actually stripped.
+  const { report: reportStructured, strippedCount } =
+    sanitizeBodySignalWording(parsedReport);
+  if (strippedCount > 0) {
+    console.warn("Scenario evaluator body-signal wording violation stripped", {
+      strippedCount,
+    });
+  }
+
+  // Gated on whether the pipeline actually supplied metrics for this session.
+  // No metrics supplied → always null, no matter what the model returned,
+  // exactly as before Phase 10.
+  const visualScore = opts.hasVisualMetrics ? coerceScore(r.visual_score) : null;
+  const vocalScore = opts.hasVocalMetrics ? coerceScore(r.vocal_score) : null;
+  const contentScore = coerceScore(r.content_score);
+  const behavioralScore = coerceScore(r.behavioral_score);
+
+  // Composed AFTER coercion so the table in the markdown shows the scores that
+  // were actually stored, not the ones the model claimed.
+  const reportMarkdown = composeReportMarkdown(reportStructured, {
+    title: "Scenario Performance Report",
+    scores: {
+      visual: visualScore,
+      vocal: vocalScore,
+      content: contentScore,
+      behavioral: behavioralScore,
+    },
+  });
+
   return {
-    // Gated on whether the pipeline actually supplied metrics for this
-    // session. No metrics supplied → always null, no matter what the model
-    // returned, exactly as before Phase 10.
-    visualScore: opts.hasVisualMetrics ? coerceScore(r.visual_score) : null,
-    vocalScore: opts.hasVocalMetrics ? coerceScore(r.vocal_score) : null,
-    contentScore: coerceScore(r.content_score),
-    behavioralScore: coerceScore(r.behavioral_score),
+    visualScore,
+    vocalScore,
+    contentScore,
+    behavioralScore,
     reportMarkdown,
+    reportStructured,
   };
 }
 

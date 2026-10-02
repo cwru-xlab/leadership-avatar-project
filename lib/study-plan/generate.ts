@@ -1,3 +1,4 @@
+import { asStructuredReport } from "@/lib/report/structured";
 import {
   STUDY_PLAN_JSON_SCHEMA,
   validateStudyPlanContent,
@@ -91,6 +92,34 @@ function normalizeLabel(value: string): string {
  * Returns only strings like "Ownership: Strong". The detailed narrative after
  * a dash is intentionally discarded, even when it would be useful feedback.
  */
+/**
+ * Preferred entry point: reads the structured rubric notes directly when the
+ * report has them, and falls back to scanning composed markdown for rows
+ * written before the evaluator returned structured output.
+ *
+ * Both paths funnel through the SAME fixed vocabulary below, so a model that
+ * invents a label or rating still cannot smuggle free text into a study plan.
+ * The structured path simply skips a lossy round-trip through prose.
+ */
+export function extractBehavioralSignals(source: {
+  reportStructured?: unknown;
+  reportMarkdown?: string | null;
+}): string[] {
+  const structured = asStructuredReport(source.reportStructured);
+  if (structured && structured.rubric_notes.length > 0) {
+    const output = new Set<string>();
+    for (const { item, note } of structured.rubric_notes) {
+      const label = SAFE_RUBRIC_LABELS.get(normalizeLabel(item));
+      // The note reads "Strong — took responsibility for..."; only the rating
+      // before the dash is eligible, matching the legacy regex's behaviour.
+      const rating = SAFE_RATINGS.get(normalizeLabel(note.split(/[—–-]/)[0]));
+      if (label && rating) output.add(`${label}: ${rating}`);
+    }
+    if (output.size > 0) return [...output].slice(0, SAFE_RUBRIC_LABELS.size);
+  }
+  return extractBehavioralFeedback(source.reportMarkdown || "");
+}
+
 export function extractBehavioralFeedback(reportMarkdown: string): string[] {
   const output = new Set<string>();
 
