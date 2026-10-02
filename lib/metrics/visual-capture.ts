@@ -42,15 +42,29 @@
 import {
   METRICS_SAMPLE_HZ,
   VISUAL_EPISODE_KINDS,
-  VISUAL_NOT_MEASURED,
   VISUAL_POSTURE_SIGNALS,
+  resolveNotMeasured,
   type VisualEpisode,
   type VisualEpisodeKind,
   type VisualMetrics,
   type VisualPostureFlag,
   type VisualPostureSignal,
 } from "@/lib/metrics/types";
-import { FIDGET_MAX_AMPLITUDE } from "@/lib/metrics/body-thresholds";
+import {
+  FIDGET_MAX_AMPLITUDE,
+  GESTURE_AMPLITUDE_MIN,
+  GESTURE_RATE_EXCESSIVE_MIN,
+  GESTURE_RATE_STILL_MAX,
+  GESTURE_WINDOW_MIN_HAND_SAMPLES,
+  HANDS_NEAR_FACE_TRIP_PCT,
+  POSTURE_BASELINE_MIN_SAMPLES,
+  POSTURE_BASELINE_WINDOW_S,
+  POSTURE_DRIFT_TRIP,
+  POSTURE_FORWARD_HEAD_DRIFT_SCALE,
+  POSTURE_SHOULDER_TILT_DRIFT_SCALE_DEG,
+  POSTURE_TORSO_LEAN_DRIFT_SCALE_DEG,
+  POSTURE_TORSO_OPENNESS_DRIFT_SCALE,
+} from "@/lib/metrics/body-thresholds";
 import type {
   FaceDetectResult,
   HandsDetectResult,
@@ -367,19 +381,236 @@ export function computeVisualRates(counts: VisualSampleCounts): VisualRates {
   };
 }
 
+/** One posture reading, at one tick, in capture-relative seconds. Every
+ * numeric field is `null` exactly when that landmark group was not visible on
+ * this tick — never a substituted or extrapolated value (mirrors
+ * `PoseDetectResult`'s own discipline in `visual-capture.worker.ts`). */
+export interface PostureReading {
+  tS: number;
+  shoulderTiltDeg: number | null;
+  forwardHeadOffset: number | null;
+  torsoLeanDeg: number | null;
+  torsoOpennessRatio: number | null;
+}
+
+/**
+ * A session's self-calibrated posture baseline — one mean per signal that
+ * cleared both the per-signal visibility floor AND `POSTURE_BASELINE_MIN_SAMPLES`
+ * inside the first `POSTURE_BASELINE_WINDOW_S` of capture. A signal absent
+ * from `signals` has NO baseline and contributes nothing to drift; it is
+ * never defaulted to an upright/neutral value, which would smuggle a fixed
+ * ideal back into a design built specifically to avoid one (12-CONTEXT.md).
+ */
+export interface PostureBaseline {
+  shoulderTiltDeg: number | null;
+  forwardHeadOffset: number | null;
+  torsoLeanDeg: number | null;
+  torsoOpennessRatio: number | null;
+  /** Which signals actually cleared the floor to get a baseline. */
+  signals: VisualPostureSignal[];
+  /** Total readings considered within the calibration window, regardless of
+   * per-signal visibility — diagnostic only. */
+  sampleCount: number;
+}
+
+/** One signal's reading alongside its drift-scale normaliser and the
+ * `PostureBaseline` field it corresponds to — small table driving both
+ * `computePostureBaseline` and `computePostureDrift` so the two can never
+ * silently enumerate the four signals differently. */
+const POSTURE_SIGNAL_TABLE: Array<{
+  signal: VisualPostureSignal;
+  read: (r: PostureReading) => number | null;
+  scale: number;
+}> = [
+  {
+    signal: "shoulder_line",
+    read: (r) => r.shoulderTiltDeg,
+    scale: POSTURE_SHOULDER_TILT_DRIFT_SCALE_DEG,
+  },
+  {
+    signal: "forward_head",
+    read: (r) => r.forwardHeadOffset,
+    scale: POSTURE_FORWARD_HEAD_DRIFT_SCALE,
+  },
+  {
+    signal: "torso_lean",
+    read: (r) => r.torsoLeanDeg,
+    scale: POSTURE_TORSO_LEAN_DRIFT_SCALE_DEG,
+  },
+  {
+    signal: "torso_openness",
+    read: (r) => r.torsoOpennessRatio,
+    scale: POSTURE_TORSO_OPENNESS_DRIFT_SCALE,
+  },
+];
+
+function baselineFieldFor(
+  signal: VisualPostureSignal
+): keyof Omit<PostureBaseline, "signals" | "sampleCount"> {
+  switch (signal) {
+    case "shoulder_line":
+      return "shoulderTiltDeg";
+    case "forward_head":
+      return "forwardHeadOffset";
+    case "torso_lean":
+      return "torsoLeanDeg";
+    case "torso_openness":
+      return "torsoOpennessRatio";
+  }
+}
+
+/**
+ * Pure. Establishes a self-calibrated posture baseline from readings taken
+ * during the opening `POSTURE_BASELINE_WINDOW_S` of capture — never a fixed
+ * upright ideal (12-CONTEXT.md's fairness resolution for wheelchair users,
+ * chronic pain, and standing desks). Readings after the window are ignored
+ * entirely, matching the per-signal visibility discipline `PoseDetectResult`
+ * already enforces: a signal with fewer than `POSTURE_BASELINE_MIN_SAMPLES`
+ * usable readings inside the window gets no baseline at all, rather than one
+ * built from too little evidence to be fair.
+ *
+ * Per-signal baselines are independent — the shoulder line can calibrate
+ * while hips never clear the floor (the common head-and-shoulders webcam
+ * framing), and vice versa.
+ */
+export function computePostureBaseline(
+  readings: PostureReading[]
+): PostureBaseline {
+  const windowed = readings.filter((r) => r.tS <= POSTURE_BASELINE_WINDOW_S);
+
+  const baseline: PostureBaseline = {
+    shoulderTiltDeg: null,
+    forwardHeadOffset: null,
+    torsoLeanDeg: null,
+    torsoOpennessRatio: null,
+    signals: [],
+    sampleCount: windowed.length,
+  };
+
+  for (const { signal, read } of POSTURE_SIGNAL_TABLE) {
+    const values = windowed
+      .map(read)
+      .filter((v): v is number => v !== null);
+    if (values.length < POSTURE_BASELINE_MIN_SAMPLES) continue;
+    const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
+    baseline[baselineFieldFor(signal)] = mean;
+    baseline.signals.push(signal);
+  }
+
+  return baseline;
+}
+
+/**
+ * Pure. Drift is `abs(current - baseline)` per signal, normalised to 0-1 by
+ * that signal's scale constant in `body-thresholds.ts`, clamped, then
+ * averaged across only the signals that HAVE a baseline. A signal absent from
+ * `baseline.signals` contributes nothing — not a 0 — and when no signal is
+ * shared between the reading and the baseline, `driftMagnitude` is `null`,
+ * never a defaulted 0: a clean `clampFinite`-style fallback here would print
+ * a flattering posture reading for a student nobody ever actually measured.
+ *
+ * **The fairness property this exists to prove:** two readings with wildly
+ * different ABSOLUTE values but identical deltas from their OWN baselines
+ * produce the SAME drift — see `scripts/verify-visual-metrics.ts`.
+ */
+export function computePostureDrift(
+  reading: PostureReading,
+  baseline: PostureBaseline
+): {
+  driftMagnitude: number | null;
+  perSignal: Partial<Record<VisualPostureSignal, number>>;
+} {
+  const perSignal: Partial<Record<VisualPostureSignal, number>> = {};
+
+  for (const { signal, read, scale } of POSTURE_SIGNAL_TABLE) {
+    if (!baseline.signals.includes(signal)) continue;
+    const current = read(reading);
+    if (current === null) continue;
+    const baselineValue = baseline[baselineFieldFor(signal)];
+    if (baselineValue === null) continue;
+    perSignal[signal] = clamp(Math.abs(current - baselineValue) / scale, 0, 1);
+  }
+
+  const values = Object.values(perSignal) as number[];
+  if (values.length === 0) {
+    return { driftMagnitude: null, perSignal };
+  }
+  return {
+    driftMagnitude: values.reduce((sum, v) => sum + v, 0) / values.length,
+    perSignal,
+  };
+}
+
+/** Raw gesture/hand material one session accumulates, handed to
+ * `computeGestureRates`. */
+export interface GestureCounts {
+  /** Every tick the hands model ran this session, hand detected or not —
+   * the denominator for `handsAboveShoulderPct`, deliberately NOT
+   * `handsDetectedSamples`, for the same "must not divide by detected"
+   * reason `camera_centered_pct` already documents. */
+  handSamples: number;
+  /** Sum of normalised wrist displacement across ticks whose delta cleared
+   * `GESTURE_AMPLITUDE_MIN` — the gesture band only; the low-amplitude band
+   * belongs to fidgeting and is tracked by a completely separate counter. */
+  gestureDisplacementSum: number;
+  /** Count of ticks whose displacement cleared `GESTURE_AMPLITUDE_MIN`. */
+  gestureEventCount: number;
+  handsAboveShoulderSamples: number;
+  handsNearFaceSamples: number;
+  /** Hand-detected samples where a face box was ALSO available this tick —
+   * the signal is undefined without both halves, so this (not `handSamples`)
+   * is `handsNearFacePct`'s denominator. Documented here explicitly so the
+   * different-denominator choice reads as deliberate, not an inconsistency. */
+  handsNearFaceEligibleSamples: number;
+  sessionSeconds: number;
+}
+
+/**
+ * Pure. Turns raw gesture/hand counts into the reported rates.
+ *
+ * `gestureRatePerMin` divides by SESSION MINUTES, never by hand-detected
+ * samples — dividing by a detection count would make the rate structurally
+ * unable to fall for absence, the identical defect `camera_centered_pct`'s own
+ * doc comment warns about and that already shipped once in this pipeline.
+ */
+export function computeGestureRates(counts: GestureCounts): {
+  gestureRatePerMin: number;
+  gestureAmplitudeMean: number;
+  handsAboveShoulderPct: number;
+  handsNearFacePct: number;
+} {
+  const minutes = Math.max(1 / 60, counts.sessionSeconds / 60);
+  const handSamples = Math.max(1, counts.handSamples);
+  return {
+    gestureRatePerMin:
+      Math.round((counts.gestureEventCount / minutes) * 10) / 10,
+    gestureAmplitudeMean:
+      counts.gestureEventCount > 0
+        ? Math.round(
+            (counts.gestureDisplacementSum / counts.gestureEventCount) * 1000
+          ) / 1000
+        : 0,
+    handsAboveShoulderPct: Math.round(
+      (counts.handsAboveShoulderSamples / handSamples) * 100
+    ),
+    handsNearFacePct: Math.round(
+      (counts.handsNearFaceSamples /
+        Math.max(1, counts.handsNearFaceEligibleSamples)) *
+        100
+    ),
+  };
+}
+
 /** One closed sampling window's totals. Scalars only — no landmarks, no
  * frames; nothing here outlives the tick that produced it in any richer form
  * than these counts.
  *
- * The body-language fields below are new in 12-05. `driftSum` is a
- * deliberate PLACEHOLDER, left at 0 until 12-06 computes real posture-drift
- * magnitude against a session baseline — this plan has no baseline yet. The
- * rest (`poseProcessed`, `gestureSum`, `gestureSamples`, `nearFaceCount`,
- * `fidgetCount`, `phoneCount`) are genuinely populated per window this plan;
- * `windowTrips` itself is intentionally left untouched (see its own
- * comment) — these fields exist so 12-06/12-07 can read real per-window
- * totals the day their threshold logic lands, without a second pass through
- * raw per-tick data. */
+ * `driftMean` holds this window's mean posture-drift magnitude (0-1), fed by
+ * `computePostureDrift` — see that function's own doc comment. `gestureSum`/
+ * `gestureSamples` are the gesture band only (amplitude above
+ * `GESTURE_AMPLITUDE_MIN`); `handsDetected` is the raw hand-detected sample
+ * count this window, independent of amplitude, needed so `minimal_gesturing`
+ * can tell "hands visible and still" apart from "nobody there to judge". */
 export interface CaptureWindow {
   startS: number;
   endS: number;
@@ -390,9 +621,10 @@ export interface CaptureWindow {
   multiFace: number;
   movementMean: number;
   poseProcessed: number;
-  driftSum: number;
+  driftMean: number;
   gestureSum: number;
   gestureSamples: number;
+  handsDetected: number;
   nearFaceCount: number;
   fidgetCount: number;
   phoneCount: number;
@@ -419,25 +651,36 @@ function windowTrips(w: CaptureWindow, kind: VisualEpisodeKind): boolean {
       return w.multiFace / w.processed > EPISODE_MULTI_FACE_MIN_RATIO;
     case "high_movement":
       return w.movementMean > HIGH_MOVEMENT_THRESHOLD;
-    // The four body-language kinds below were added to the episode vocabulary
-    // by plan 12-02 (the type contract) but their producers do not exist yet:
-    // `CaptureWindow` carries no gesture, hands-near-face or posture-drift
-    // counts until plan 12-05 accumulates them, and the thresholds that decide
-    // these cases are implemented in plan 12-06.
-    //
-    // They return false rather than being omitted so this switch stays
-    // exhaustive over `VisualEpisodeKind`. Omitting them makes the function
-    // implicitly return `undefined`, which TypeScript rejects outright — and a
-    // `default: return false` would have silently swallowed every future kind
-    // added to the vocabulary, which is exactly the failure this file's closed
-    // vocabulary exists to prevent. Returning false here is honest: no window
-    // can currently trip these conditions, so no episode of these kinds is
-    // emitted, so nothing is reported that was not measured.
-    case "excessive_gesturing":
-    case "minimal_gesturing":
+    // The four body-language kinds below ride on the SAME window boundaries
+    // as the face-driven kinds above (windows close on the face tick's
+    // timing — see `closeWindow`), but trip on their OWN sample counts, never
+    // `w.processed` (a face-tick count unrelated to hand/pose availability).
+    // All four are RATIOS within the window, matching the discipline every
+    // other case here already follows, so a thin window cannot trip on one
+    // sample.
+    case "excessive_gesturing": {
+      if (w.gestureSamples <= 0) return false;
+      const windowMinutes = (w.endS - w.startS) / 60;
+      if (windowMinutes <= 0) return false;
+      return w.gestureSamples / windowMinutes > GESTURE_RATE_EXCESSIVE_MIN;
+    }
+    case "minimal_gesturing": {
+      // The hand-sample guard matters: "no hands detected" (handsDetected
+      // below the floor) is NOT the same finding as "hands visible and
+      // still" — conflating them would report stillness for someone sitting
+      // outside the frame entirely.
+      if (w.handsDetected < GESTURE_WINDOW_MIN_HAND_SAMPLES) return false;
+      const windowMinutes = (w.endS - w.startS) / 60;
+      if (windowMinutes <= 0) return false;
+      return w.gestureSamples / windowMinutes < GESTURE_RATE_STILL_MAX;
+    }
     case "hands_near_face":
+      return (
+        w.handsDetected > 0 &&
+        (w.nearFaceCount / w.handsDetected) * 100 > HANDS_NEAR_FACE_TRIP_PCT
+      );
     case "posture_drift":
-      return false;
+      return w.poseProcessed > 0 && w.driftMean > POSTURE_DRIFT_TRIP;
   }
 }
 
@@ -642,8 +885,11 @@ export function createVisualCapture(
   let winMovementSum = 0;
   let winMovementSamples = 0;
   let winPoseProcessed = 0;
+  let winPostureDriftSum = 0;
+  let winPostureDriftSamples = 0;
   let winGestureSum = 0;
   let winGestureSamples = 0;
+  let winHandsDetected = 0;
   let winNearFaceCount = 0;
   let winFidgetCount = 0;
   let winPhoneCount = 0;
@@ -675,11 +921,30 @@ export function createVisualCapture(
   let poseTorsoLeanSum = 0;
   let poseTorsoOpennessSum = 0;
 
+  // --- 12-06 posture baseline/drift. `postureBaselineReadings` only ever
+  // holds readings from inside `POSTURE_BASELINE_WINDOW_S` — see
+  // `applyPoseResult` for where it stops growing and `postureBaseline` gets
+  // computed exactly once. Drift after that point is computed STREAMING, one
+  // reading at a time, and folded straight into the running sums below;
+  // individual post-baseline readings are never retained (see
+  // `computePostureBaseline`/`computePostureDrift`'s own doc comments for why
+  // only the first-20s window may ever be kept as a raw array).
+  const postureBaselineReadings: PostureReading[] = [];
+  let postureBaseline: PostureBaseline | null = null;
+  let postureDriftSum = 0;
+  let postureDriftSamples = 0;
+  let postureDriftStreakStartS: number | null = null;
+  let postureDriftMaxS = 0;
+
   // --- 12-05 hands accumulators.
   let handSamples = 0;
   let handsDetectedSamples = 0;
   let handsAboveShoulderSamples = 0;
   let handsNearFaceSamples = 0;
+  // 12-06: hand-detected samples where a face box was ALSO available this
+  // tick — the denominator `handsNearFacePct` needs (see `GestureCounts`'s
+  // own doc comment for why this must differ from `handSamples`).
+  let handsNearFaceEligibleSamples = 0;
   // Gesture-amplitude raw material — tracked the same way `lastCenter`/
   // `movementSum` already track face motion, one slot per selected hand
   // index (at most two). Hand identity is NOT guaranteed stable across ticks
@@ -687,7 +952,7 @@ export function createVisualCapture(
   // risk, applied to displacement rather than detection.
   let lastGestureWristPositions: Array<{ x: number; y: number }> = [];
   let gestureDisplacementSum = 0;
-  let gestureDisplacementSamples = 0;
+  let gestureEventCount = 0;
 
   // Fidget raw material — a SEPARATE displacement/direction-change counter
   // pair, tracked from its OWN independent position history
@@ -783,12 +1048,13 @@ export function createVisualCapture(
       movementMean:
         winMovementSamples > 0 ? winMovementSum / winMovementSamples : 0,
       poseProcessed: winPoseProcessed,
-      // Placeholder — see this field's doc comment on `CaptureWindow`. 12-06
-      // computes real drift magnitude against a session baseline this plan
-      // does not have.
-      driftSum: 0,
+      driftMean:
+        winPostureDriftSamples > 0
+          ? winPostureDriftSum / winPostureDriftSamples
+          : 0,
       gestureSum: winGestureSum,
       gestureSamples: winGestureSamples,
+      handsDetected: winHandsDetected,
       nearFaceCount: winNearFaceCount,
       fidgetCount: winFidgetCount,
       phoneCount: winPhoneCount,
@@ -802,8 +1068,11 @@ export function createVisualCapture(
     winMovementSum = 0;
     winMovementSamples = 0;
     winPoseProcessed = 0;
+    winPostureDriftSum = 0;
+    winPostureDriftSamples = 0;
     winGestureSum = 0;
     winGestureSamples = 0;
+    winHandsDetected = 0;
     winNearFaceCount = 0;
     winFidgetCount = 0;
     winPhoneCount = 0;
@@ -1019,10 +1288,10 @@ export function createVisualCapture(
   }
 
   /**
-   * Folds one tick's scalar pose-detection result into the 12-05
-   * accumulators. Raw material only — no threshold is applied here; 12-06
-   * decides what counts as "drifted" against a session baseline this plan
-   * does not compute. Per-signal sums are accumulated ONLY on visible ticks
+   * Folds one tick's scalar pose-detection result into the accumulators,
+   * then — 12-06 — feeds the SAME reading into baseline calibration (while
+   * the opening window is still open) or streaming drift (once it is
+   * closed). Per-signal absolute sums are accumulated ONLY on visible ticks
    * (see `poseVisibleSamples`'s doc comment above), so a later mean is never
    * diluted by a null reading.
    */
@@ -1054,6 +1323,51 @@ export function createVisualCapture(
         poseTorsoOpennessSum += result.torsoOpennessRatio;
       }
     }
+
+    // 12-06 posture baseline/drift. `PoseDetectResult`'s own discipline
+    // (null exactly when not visible) carries straight through to
+    // `PostureReading` with no further gating needed here.
+    const tS = elapsedS();
+    const reading: PostureReading = {
+      tS,
+      shoulderTiltDeg: result.shoulderTiltDeg,
+      forwardHeadOffset: result.forwardHeadOffset,
+      torsoLeanDeg: result.torsoLeanDeg,
+      torsoOpennessRatio: result.torsoOpennessRatio,
+    };
+
+    if (tS <= POSTURE_BASELINE_WINDOW_S) {
+      postureBaselineReadings.push(reading);
+      // No drift yet to compute against — the baseline itself isn't
+      // established until the window closes, below.
+      return;
+    }
+
+    if (postureBaseline === null) {
+      postureBaseline = computePostureBaseline(postureBaselineReadings);
+    }
+    if (postureBaseline.signals.length === 0) {
+      // Nobody was visible during calibration — there is nothing to drift
+      // AWAY from, and defaulting to a fixed ideal here is exactly what this
+      // design exists to avoid (12-CONTEXT.md).
+      return;
+    }
+
+    const { driftMagnitude } = computePostureDrift(reading, postureBaseline);
+    if (driftMagnitude === null) return;
+
+    postureDriftSum += driftMagnitude;
+    postureDriftSamples += 1;
+    winPostureDriftSum += driftMagnitude;
+    winPostureDriftSamples += 1;
+
+    if (driftMagnitude > POSTURE_DRIFT_TRIP) {
+      if (postureDriftStreakStartS === null) postureDriftStreakStartS = tS;
+      const streakLenS = tS - postureDriftStreakStartS;
+      if (streakLenS > postureDriftMaxS) postureDriftMaxS = streakLenS;
+    } else {
+      postureDriftStreakStartS = null;
+    }
   }
 
   /**
@@ -1070,6 +1384,26 @@ export function createVisualCapture(
 
     if (result.handCount > 0) {
       handsDetectedSamples += 1;
+      winHandsDetected += 1;
+
+      // `hand.nearFace` is null exactly when no face box was available this
+      // tick (see `HandsDetectResult`'s own doc comment) — checking any
+      // entry tells us whether THIS tick is eligible for the
+      // `handsNearFacePct` denominator at all, independent of whether a hand
+      // actually sat near the face.
+      const faceAvailable = result.primary.some(
+        (hand) => hand.nearFace !== null
+      );
+      if (faceAvailable) {
+        handsNearFaceEligibleSamples += 1;
+        const anyNearFace = result.primary.some(
+          (hand) => hand.nearFace === true
+        );
+        if (anyNearFace) {
+          handsNearFaceSamples += 1;
+          winNearFaceCount += 1;
+        }
+      }
     }
 
     const anyAboveShoulder = result.primary.some(
@@ -1079,22 +1413,22 @@ export function createVisualCapture(
       handsAboveShoulderSamples += 1;
     }
 
-    const anyNearFace = result.primary.some((hand) => hand.nearFace === true);
-    if (anyNearFace) {
-      handsNearFaceSamples += 1;
-      winNearFaceCount += 1;
-    }
-
     result.primary.forEach((hand, index) => {
       const prevGesture = lastGestureWristPositions[index];
       if (prevGesture) {
         const dx = hand.wristX - prevGesture.x;
         const dy = hand.wristY - prevGesture.y;
         const delta = Math.hypot(dx, dy);
-        gestureDisplacementSum += delta;
-        gestureDisplacementSamples += 1;
-        winGestureSum += delta;
-        winGestureSamples += 1;
+        // Only displacements clearing GESTURE_AMPLITUDE_MIN count as a
+        // gesture event — the low-amplitude band belongs to fidgeting
+        // (tracked completely independently below from its OWN position
+        // history), never "gesticulation above an extra threshold".
+        if (delta >= GESTURE_AMPLITUDE_MIN) {
+          gestureDisplacementSum += delta;
+          gestureEventCount += 1;
+          winGestureSum += delta;
+          winGestureSamples += 1;
+        }
       }
       lastGestureWristPositions[index] = { x: hand.wristX, y: hand.wristY };
 
@@ -1795,6 +2129,36 @@ export function createVisualCapture(
       expectedSamples,
     });
 
+    // 12-06: gesture/hands derivation — one pure function so the runtime
+    // path and the verification script cannot drift apart, same discipline
+    // as `computeVisualRates` above. `handsUsable` gates whether ANY of the
+    // four fields below are emitted at all: `handSamples` only increments
+    // inside `applyHandsResult`, which only ever runs on the worker path
+    // (hands has no main-thread fallback — 12-05), so `handSamples === 0`
+    // means the hands pipeline never ran this session, not merely that no
+    // hand was ever seen.
+    const handsUsable = handSamples > 0;
+    const gestureRates = computeGestureRates({
+      handSamples,
+      gestureDisplacementSum,
+      gestureEventCount,
+      handsAboveShoulderSamples,
+      handsNearFaceSamples,
+      handsNearFaceEligibleSamples,
+      sessionSeconds,
+    });
+
+    // 12-06: posture-signal usability — which landmark groups cleared the
+    // visibility floor OFTEN ENOUGH, across the WHOLE session, to be worth
+    // reporting at all. Deliberately a session-wide count
+    // (`poseVisibleSamples`), not the baseline-window-only count inside
+    // `postureBaseline.signals` — a signal can fail to calibrate in the
+    // opening 20s (POSTURE_BASELINE_WINDOW_S) yet still be reportable in the
+    // "Measured from" row if the student came into frame shortly after.
+    const postureSignalsMeasured = VISUAL_POSTURE_SIGNALS.filter(
+      (signal) => poseVisibleSamples[signal] >= POSTURE_BASELINE_MIN_SAMPLES
+    );
+
     return {
       eye_contact_pct: rates.eyeContactPct,
       attentiveness_pct: rates.attentivenessPct,
@@ -1807,7 +2171,20 @@ export function createVisualCapture(
       // reads as "we checked and it was clean", which is exactly how a session
       // with several people gesturing obscenely earned a commendation for
       // having no distracting behaviours.
-      not_measured: [...VISUAL_NOT_MEASURED],
+      //
+      // 12-06: `fidget`/`phone` stay `false` here — 12-07 supplies their real
+      // per-session usability. `handSignals`/`postureSignals` are real: a
+      // session is allowed to declare hand_gestures/body_posture unmeasured
+      // even though this pipeline generally supports measuring them — that
+      // is the honest outcome when a body was never genuinely usable this
+      // particular session, not a standing claim that the capability does
+      // not exist.
+      not_measured: resolveNotMeasured({
+        handSignals: handsUsable,
+        postureSignals: postureSignalsMeasured.length > 0,
+        fidget: false,
+        phone: false,
+      }),
       episodes,
       coverage: {
         session_seconds: sessionSeconds,
@@ -1821,6 +2198,28 @@ export function createVisualCapture(
         sample_hz: METRICS_SAMPLE_HZ,
         analyzer_error: analyzerError,
       },
+      ...(handsUsable
+        ? {
+            gesture_rate_per_min: gestureRates.gestureRatePerMin,
+            gesture_amplitude_mean: gestureRates.gestureAmplitudeMean,
+            hands_above_shoulder_pct: gestureRates.handsAboveShoulderPct,
+            hands_near_face_pct: gestureRates.handsNearFacePct,
+          }
+        : {}),
+      // Always present, including the empty-array case — REQ-51's "every
+      // posture comment states which signals were available."
+      posture_signals_measured: postureSignalsMeasured,
+      // Omitted entirely (rather than emitted as 0) when no signal ever
+      // calibrated against a baseline — a never-visible body must not read
+      // as a flattering zero drift.
+      ...(postureDriftSamples > 0
+        ? {
+            posture_drift_mean:
+              Math.round((postureDriftSum / postureDriftSamples) * 1000) /
+              1000,
+            posture_drift_max_s: Math.round(postureDriftMaxS * 10) / 10,
+          }
+        : {}),
     };
   }
 

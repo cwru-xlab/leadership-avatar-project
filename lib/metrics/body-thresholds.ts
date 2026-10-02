@@ -92,3 +92,35 @@ export const PHONE_SCORE_THRESHOLD = 0.5;
  * reported at all — filters out a single-frame misdetection from becoming a
  * reportable "a phone was visible for..." observation. */
 export const PHONE_MIN_VISIBLE_S = 2;
+
+// --- 12-06: posture-drift normalisation scales and the gesture-window
+// stillness guard. Per-signal drift is `abs(current - baseline)`, divided by
+// one of the four scales below to land on a comparable 0-1 range before the
+// four signals are averaged — without a shared 0-1 range, a 20-degree
+// shoulder-tilt drift and a 0.2 forward-head-offset drift could not be
+// averaged against each other meaningfully. All four are guesses pending
+// real-session tuning (see file header), chosen as "roughly the drift a
+// visibly slumped student would show," not derived from data.
+
+/** Degrees of shoulder-line tilt change from baseline that counts as a full
+ * (1.0) drift unit. */
+export const POSTURE_SHOULDER_TILT_DRIFT_SCALE_DEG = 15;
+
+/** Change in the (shoulder-width-normalised) forward-head offset from
+ * baseline that counts as a full (1.0) drift unit. */
+export const POSTURE_FORWARD_HEAD_DRIFT_SCALE = 0.3;
+
+/** Degrees of torso-lean change from baseline that counts as a full (1.0)
+ * drift unit. */
+export const POSTURE_TORSO_LEAN_DRIFT_SCALE_DEG = 20;
+
+/** Change in the shoulder/hip torso-openness ratio from baseline that counts
+ * as a full (1.0) drift unit. */
+export const POSTURE_TORSO_OPENNESS_DRIFT_SCALE = 0.3;
+
+/** Minimum hand-DETECTED samples a 5-second episode window must contain
+ * before `minimal_gesturing` is allowed to trip. Without this floor, a
+ * window where the student was simply out of frame (zero hand samples) would
+ * read identically to a window where hands were visible and genuinely still
+ * — two different findings that must not collapse into one. */
+export const GESTURE_WINDOW_MIN_HAND_SAMPLES = 3;

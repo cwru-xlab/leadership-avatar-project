@@ -62,14 +62,35 @@ export type VisualPostureFlag = (typeof VISUAL_POSTURE_FLAGS)[number];
  * only when a pipeline that genuinely measures them lands.
  */
 export const VISUAL_NOT_MEASURED = [
-  "hand_gestures",
-  "body_posture",
   "fidgeting",
   "phone_checking",
   "background_environment",
 ] as const;
 
-export type VisualNotMeasured = (typeof VISUAL_NOT_MEASURED)[number];
+/**
+ * The full closed vocabulary `VisualMetrics.not_measured` may ever contain —
+ * `VISUAL_NOT_MEASURED`'s permanently-unmeasurable entries, plus
+ * `hand_gestures`/`body_posture`, which plan 12-06 moved from "permanently
+ * unmeasurable" to "per-session conditional" now that real producers for
+ * both ship. `resolveNotMeasured` below decides, per session, whether either
+ * conditional entry belongs in the list — based on whether THIS session's
+ * data actually cleared the usability floor, never a standing declaration
+ * that the pipeline cannot measure the capability at all.
+ *
+ * This is the vocabulary `lib/metrics/ingest.ts`'s server-side allowlist must
+ * validate against, NOT the narrower `VISUAL_NOT_MEASURED` — allowlisting
+ * against the narrower constant would silently drop a genuine
+ * `body_posture`/`hand_gestures` entry from a real payload, which is the same
+ * "absence reads as a clean bill of health" failure this file's header
+ * comment already warns about, just relocated to the ingest boundary.
+ */
+export const VISUAL_NOT_MEASURED_VOCABULARY = [
+  ...VISUAL_NOT_MEASURED,
+  "hand_gestures",
+  "body_posture",
+] as const;
+
+export type VisualNotMeasured = (typeof VISUAL_NOT_MEASURED_VOCABULARY)[number];
 
 /**
  * The closed vocabulary of visual excursions the engine may report.
@@ -135,9 +156,12 @@ export interface VisualEpisode {
  *   - `forward_head`      needs landmark 0 (nose) plus 7/8 (ears).
  *   - `torso_lean`        needs hips 23/24 plus the shoulders above.
  *   - `torso_openness`    needs hips 23/24 plus the shoulders above.
- * Phase 12 Plan 02 ships this vocabulary only; no producer populates it yet
- * (see `VISUAL_NOT_MEASURED` below — `body_posture` stays listed there until
- * plan 12-06 lands the pose pipeline).
+ * Phase 12 Plan 02 shipped this vocabulary; plan 12-06 lands the producer that
+ * populates it (`lib/metrics/visual-capture.ts`'s posture-baseline/drift
+ * derivation). `body_posture` is no longer a permanent `VISUAL_NOT_MEASURED`
+ * entry as of that plan — whether it appears in a given session's
+ * `not_measured` list is now decided per-session by `resolveNotMeasured`,
+ * based on whether this array came back non-empty.
  */
 export const VISUAL_POSTURE_SIGNALS = [
   "shoulder_line",
@@ -392,29 +416,30 @@ export interface VisualMetrics {
 }
 
 /**
- * Pure. Returns the entries of `VISUAL_NOT_MEASURED` that a session
- * genuinely could not observe, given what its producers actually attempted
- * to measure this tick.
+ * Pure. Returns the entries of `VISUAL_NOT_MEASURED_VOCABULARY` that a
+ * session genuinely could not observe, given what its producers actually
+ * attempted to measure and what they actually found usable this session.
  *
  * Replaces the unconditional `[...VISUAL_NOT_MEASURED]` spread that
- * `lib/metrics/visual-capture.ts` currently always emits. A session whose
+ * `lib/metrics/visual-capture.ts` used before plan 12-06. A session whose
  * body was never in frame must still declare `body_posture` unmeasured
  * rather than silently report a zero — the same failure mode
  * `VISUAL_NOT_MEASURED`'s own header comment already documents for the
  * original face-only pipeline (an empty flags array read as "verified
- * clean"). This function is the mechanism that keeps that honest once more
- * producers exist: each boolean argument answers "did this session's
- * capture engine genuinely attempt to measure this category at all," not
- * "did it find something."
+ * clean").
+ *
+ * `handSignals`/`postureSignals` answer a DIFFERENT question than
+ * `fidget`/`phone` do, and that asymmetry is deliberate: hand and posture
+ * producers now ship unconditionally (12-06), so the question for them is
+ * "did THIS session's data clear the usability floor" (e.g.
+ * `posture_signals_measured.length > 0`) — never "did the pipeline attempt
+ * to run," which would be true almost every session and would mask a body
+ * that was simply never in frame. `fidget`/`phone` still answer the older
+ * "does a producer exist at all" question until 12-07 ships theirs.
  *
  * `background_environment` is ALWAYS returned — its aesthetic half is
  * permanently out of scope (see 12-CONTEXT.md's Deferred Ideas) and no
  * producer in this phase or any planned future one measures it.
- *
- * This plan (12-02) ships no producer, so every call site today passes all
- * four flags `false` until 12-06/12-07 land; `VISUAL_NOT_MEASURED` itself
- * keeps all five entries until the plan that ships each producer removes
- * the ones it now genuinely measures.
  */
 export function resolveNotMeasured(measured: {
   handSignals: boolean;

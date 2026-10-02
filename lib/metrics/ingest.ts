@@ -25,7 +25,7 @@ import { Prisma } from "@prisma/client";
 import {
   VISUAL_DESCRIPTIVE_EPISODE_KINDS,
   VISUAL_EPISODE_KINDS,
-  VISUAL_NOT_MEASURED,
+  VISUAL_NOT_MEASURED_VOCABULARY,
   VISUAL_POSTURE_FLAGS,
   VISUAL_POSTURE_SIGNALS,
   type VisualCoverage,
@@ -131,12 +131,18 @@ function sanitizePostureFlags(value: unknown): VisualPostureFlag[] {
   );
 }
 
-/** Mirrors `sanitizePostureFlags`: filters to the frozen `VISUAL_NOT_MEASURED`
- * vocabulary so a tampered client cannot inject arbitrary strings into a list
- * the evaluator prompt treats as authoritative about what was never observed. */
+/** Mirrors `sanitizePostureFlags`: filters to the full
+ * `VISUAL_NOT_MEASURED_VOCABULARY` — NOT the narrower `VISUAL_NOT_MEASURED` —
+ * so a tampered client cannot inject arbitrary strings into a list the
+ * evaluator prompt treats as authoritative about what was never observed.
+ * Allowlisting against the narrower constant would silently drop a genuine
+ * `body_posture`/`hand_gestures` entry that `resolveNotMeasured` legitimately
+ * emitted, which is exactly the "absence reads as clean" failure this list
+ * exists to prevent — just relocated to this boundary instead of the capture
+ * engine. See `VISUAL_NOT_MEASURED_VOCABULARY`'s own doc comment. */
 function sanitizeNotMeasured(value: unknown): VisualNotMeasured[] {
   if (!Array.isArray(value)) return [];
-  const allowed = new Set<string>(VISUAL_NOT_MEASURED);
+  const allowed = new Set<string>(VISUAL_NOT_MEASURED_VOCABULARY);
   return value.filter((entry): entry is VisualNotMeasured =>
     typeof entry === "string" && allowed.has(entry)
   );
