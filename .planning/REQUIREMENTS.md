@@ -335,7 +335,7 @@ was decided, they do not add scope.*
   reported but not graded. A partially visible body is scored on the landmarks that ARE
   available rather than skipped, and every posture comment states which were measured.
 
-- **REQ-52** — [ ] Fidgeting is measured and REPORTED BUT NEVER SCORED. It is surfaced as
+- **REQ-52** — [x] Fidgeting is measured and REPORTED BUT NEVER SCORED. It is surfaced as
   self-awareness information only. Fidgeting overlaps heavily with stimming, ADHD and
   anxiety presentations, and gesture norms vary culturally; describing it is defensible
   for a graded assessment, penalising it is not.
@@ -345,16 +345,16 @@ was decided, they do not add scope.*
   a deduction. Scored body signals group under their own subheading within the visual
   bands. REQ-52 and REQ-54 depend on this.
 
-- **REQ-54** — [ ] A phone visible in frame is reported factually — "a phone was visible
+- **REQ-54** — [x] A phone visible in frame is reported factually — "a phone was visible
   for 40 seconds" — never as an inference about attention, which the sensor cannot support.
   Descriptive only: it does not affect any score, since a phone sitting on the desk in shot
   is not misconduct.
 
-- **REQ-55** — [ ] Every new signal joins the existing episode timeline with timecodes on
+- **REQ-55** — [x] Every new signal joins the existing episode timeline with timecodes on
   the session clock, so it can be tied to what was being discussed. No new signal is
   reported only as a session-wide average.
 
-- **REQ-56** — [ ] `VISUAL_NOT_MEASURED` shrinks to exactly what remains unobservable. An
+- **REQ-56** — [x] `VISUAL_NOT_MEASURED` shrinks to exactly what remains unobservable. An
   entry leaves that list only when a pipeline that genuinely measures it ships, and the
   rule that a flag's ABSENCE is never evidence of good behaviour survives unchanged.
 
@@ -363,6 +363,6 @@ was decided, they do not add scope.*
   avatar stream, push-to-talk audio and response latency are unaffected compared with a
   camera-off run.
 
-- **REQ-58** — [ ] No frame, landmark array or media blob leaves the browser or outlives
+- **REQ-58** — [x] No frame, landmark array or media blob leaves the browser or outlives
   the tick that produced it (REQ-38 unchanged). Every new signal reaches the server as a
   derived scalar.
