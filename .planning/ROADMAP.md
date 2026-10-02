@@ -300,6 +300,24 @@ rebuilding infrastructure per type.
      renders them without knowing which interaction produced them.
   4. Visual, vocal and body metrics from Phases 10 and 12 reach every
      engine-backed interaction without per-type wiring.
+**Plans:** 15 plans in 12 waves
+
+Plans:
+- [ ] 13-01-PLAN.md — Engine config layer: TYPE records + INSTANCE resolver
+- [ ] 13-02-PLAN.md — `InteractionReport` model, additive CREATE TABLE migration, unified DTO
+- [ ] 13-03-PLAN.md — Engine primitives: terminationPolicy, visible-context slice, outcome record, time budget
+- [ ] 13-04-PLAN.md — Backfill script, local backfill run, row-for-row verification, REQ-67 human handoff
+- [ ] 13-05-PLAN.md — Type-derived rubric schema, one evaluator, one evaluation runner
+- [ ] 13-06-PLAN.md — Generalize the chat/turn endpoint onto engine config (prefix cache preserved)
+- [ ] 13-07-PLAN.md — One session lifecycle: start/checkpoint/finish, legacy routes delegate
+- [ ] 13-08-PLAN.md — One report GET/retry/list, legacy report routes delegate
+- [ ] 13-09-PLAN.md — One generic pre-session wizard with a single camera consent gate
+- [ ] 13-10-PLAN.md — One generic session shell, `/practice/[type]` switched onto it
+- [ ] 13-11-PLAN.md — Case-study type on the engine; case-play becomes a dispatcher, legacy branch untouched
+- [ ] 13-12-PLAN.md — One report page rendering config-declared rubric dimensions
+- [ ] 13-13-PLAN.md — Permanent redirects, link rewiring, deletion of the per-type trees
+- [ ] 13-14-PLAN.md — REQ-66 acceptance test: pre-Phase-13 reports at their OLD URLs (non-autonomous)
+- [ ] 13-15-PLAN.md — DROP TABLE migration as its own declinable step + human handoff
 
 ### Phase 14: Practice Pitches
 **Goal:** Ship the Practice Pitches interaction with its two sublayers — a strict
