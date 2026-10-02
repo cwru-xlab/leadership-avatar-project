@@ -326,27 +326,33 @@ listener, and a timed investor pitch-deck session where the student clicks
 through an uploaded deck while the avatar sees only the slides shown so far and
 negotiates terms.
 **Depends on:** Phase 13
-**Scope note (2026-10-02, user decision):** deck upload accepts PDF, PowerPoint
-and Google Slides. Google Slides means a Drive OAuth scope, token storage and a
-Drive API read — the largest single piece of this phase, and deliberately in
-scope rather than deferred.
+**Scope note (2026-10-02, SUPERSEDED):** the original note recorded PDF,
+PowerPoint and Google Slides all in scope, with the Drive OAuth scope, token
+storage and Drive API read called out as the largest single piece of the phase.
+**Scope note (2026-10-02, amended during `/gsd:discuss-phase 14`):** Google
+Slides is CUT — permanently, not deferred. Deck upload accepts **PDF and PPTX
+only**; no Drive OAuth scope, no stored Drive tokens, no Drive API read. A
+student with a Slides deck exports to PDF. Criteria 2, 3 and 5 below were
+amended in the same session; see `14-CONTEXT.md`.
 **Success Criteria** (what must be TRUE):
   1. The elevator pitch enforces a 30-60 second window; avatar engagement follows
      from concision and from whether the student found common ground first, and a
      tedious pitch can end the conversation early as a recorded failure rather
      than a neutral finish.
-  2. A deck uploaded as PDF, PPTX or Google Slides becomes per-slide text plus
-     rendered slide images stored privately, and a malformed or wrong-format deck
-     is rejected with an actionable error instead of a broken session.
+  2. A deck uploaded as PDF or PPTX becomes per-slide text plus server-rendered
+     slide images stored privately, and a file that is not a readable deck is
+     rejected with a reason and a fix instead of a broken session.
   3. The student advances slides live, and the avatar's context contains only
-     slides at or before the current one — never content from a slide not yet
-     shown.
-  4. The report scores deck structure and text density alongside vocal delivery,
-     and the negotiation outcome (price and equity) is recorded against the
-     student's stated ask.
-  5. Session length is pre-selected from slide count within a 20-30 minute
-     envelope, and the remaining time is visible to the student during the
-     session.
+     slides the student has actually shown — never content from a slide not yet
+     reached, and navigating backward does not un-show what the avatar already
+     saw.
+  4. The report scores deck structure, text density and the appearance of the
+     rendered slides alongside vocal delivery, and the negotiation outcome is
+     recorded as the student's ask versus the settled terms versus the scenario's
+     fair-value band.
+  5. Session length is proposed from slide count within a 20-30 minute envelope
+     and is student-adjustable before starting; the remaining time is visible
+     during the session and can be hidden by the student.
 
 ### Phase 15: Difficult Conversations
 **Goal:** Ship role-specific difficult conversations in which the avatar fully
