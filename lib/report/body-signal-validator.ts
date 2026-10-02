@@ -12,9 +12,16 @@
  * ORIGINAL (looser) rule text. A second live run (12-08 Task 1 checkpoint,
  * Defect C) violated the STRENGTHENED rule text anyway ("...with no visible
  * hand movement or gesturing, which can seem flat over video" — no question
- * mark, an effect-on-viewer claim). Escalating the prompt a second time has
- * no track record of working; this module is the enforcement mechanism that
- * does not depend on the model choosing to comply.
+ * mark, an effect-on-viewer claim). A THIRD live run (12-08 Task 1
+ * checkpoint, Defect G) violated the CODE backstop itself: "gesture use was
+ * at times excessive and hand movements near his face may have distracted
+ * from his responses" landed in `overall_summary`, a field the first
+ * version of this module never scanned, with a HEDGED effect claim ("may
+ * have distracted from") that was not on the exact-phrase list either.
+ * Escalating the prompt has no track record of working, and an
+ * exact-phrase blocklist alone cannot keep up with hedged rephrasings of
+ * the same claim — see `EFFECT_CLAIM_STEMS` below for the structural rule
+ * added in response, and `fieldsOf` for the widened field coverage.
  *
  * Pure functions only — no network calls, no `next/server`, nothing. Both
  * evaluator modules (`lib/interview/evaluation.ts`, `lib/scenario/evaluation.ts`)
@@ -27,10 +34,11 @@ import type { StructuredReport } from "./structured";
 /** Substrings (lowercase-matched) whose presence in ANY narrative field means
  * a body finding is describing an effect on the interviewer/viewer or
  * inferring an internal state — neither of which any sensor in this pipeline
- * measures. This is a FINITE, CURATED blocklist of phrasings real evaluator
- * runs actually produced, not an attempt at exhaustive semantic detection —
- * see this file's header for why a blocklist is the chosen tradeoff. Append
- * new observed failures here as they are found. */
+ * measures. This is a FINITE, CURATED blocklist of EXACT phrasings real
+ * evaluator runs actually produced — kept for precision on known incidents,
+ * but NOT the primary defense against new phrasings of the same claim; see
+ * `EFFECT_CLAIM_STEMS` below for that. Append new observed failures here as
+ * they are found. */
 const FORBIDDEN_PHRASES: string[] = [
   "can seem flat over video",
   "which can obscure facial expressions",
@@ -41,6 +49,42 @@ const FORBIDDEN_PHRASES: string[] = [
   "you were distracted",
   "checking your phone",
   "checking a phone",
+];
+
+/**
+ * STRUCTURAL rule, preferred over growing `FORBIDDEN_PHRASES` for every new
+ * hedged rephrasing (12-08 Task 1 checkpoint, Defect G: "may have
+ * distracted from his responses" was not on the exact-phrase list, but
+ * hedging an effect claim with "may have"/"might"/"could" does not make it
+ * a measurement). These are VERB STEMS for claiming an effect on the
+ * interviewer/viewer or the candidate's own internal state — matched as
+ * substrings so tense and hedging ("distracted" / "may have distracted" /
+ * "could distract") all match the same stem — combined with
+ * `mentionsBodySignal` so a legitimate, unrelated use of a word like
+ * "reinforce" (e.g. praising how examples reinforced an argument) is never
+ * flagged on its own. Still a curated list, not true semantic parsing —
+ * the tradeoff this file's header already states — but one layer more
+ * general than matching whole sentences verbatim. */
+const EFFECT_CLAIM_STEMS: string[] = [
+  "distract",
+  "obscur",
+  "pull attention",
+  "pull away",
+  "undermine",
+  "disrupt",
+  "reinforce",
+  "come across",
+  "read as",
+  "convey",
+  "project engagement",
+  "project confidence",
+  "signal uncertainty",
+  "signal engagement",
+  "signal confidence",
+  "seem flat",
+  "seem disengaged",
+  "seem unprofessional",
+  "seem unprepared",
 ];
 
 /** Keywords (lowercase-matched substrings) that mark a sentence as a body
@@ -80,7 +124,8 @@ function splitSentences(text: string): string[] {
 
 export type BodySignalViolationReason =
   | "missing-question-mark"
-  | "forbidden-phrase";
+  | "forbidden-phrase"
+  | "effect-claim-stem";
 
 export interface BodySignalViolation {
   field: string;
@@ -89,14 +134,40 @@ export interface BodySignalViolation {
   phrase?: string;
 }
 
-function sentenceViolation(sentence: string): BodySignalViolation | null {
+function sentenceViolation(
+  sentence: string,
+  opts: { checkQuestionMark: boolean }
+): BodySignalViolation | null {
   const lower = sentence.toLowerCase();
   for (const phrase of FORBIDDEN_PHRASES) {
     if (lower.includes(phrase)) {
       return { field: "", sentence, reason: "forbidden-phrase", phrase };
     }
   }
-  if (mentionsBodySignal(sentence) && !sentence.trim().endsWith("?")) {
+  // Structural rule (12-08 Task 1 checkpoint, Defect G): an effect-claim verb
+  // stem ANYWHERE in a sentence that also mentions a body signal is a
+  // violation regardless of hedging ("may have distracted" / "could
+  // distract" / "distracted" all match the same stem). Gated on
+  // `mentionsBodySignal` so an unrelated, legitimate use of e.g. "reinforce"
+  // is never flagged on its own.
+  if (mentionsBodySignal(sentence)) {
+    for (const stem of EFFECT_CLAIM_STEMS) {
+      if (lower.includes(stem)) {
+        return { field: "", sentence, reason: "effect-claim-stem", phrase: stem };
+      }
+    }
+  }
+  // The question-mark rule is specific to a FINDING (describe-then-ask);
+  // `opts.checkQuestionMark` is false for fields that are inherently
+  // imperative/advisory rather than a finding (e.g. `growth_areas[].suggestion`
+  // — "Notice when your hand moves toward your face" is correct advice, not
+  // a finding missing its question mark). The forbidden-phrase/effect-claim
+  // checks above still apply to those fields unconditionally.
+  if (
+    opts.checkQuestionMark &&
+    mentionsBodySignal(sentence) &&
+    !sentence.trim().endsWith("?")
+  ) {
     return { field: "", sentence, reason: "missing-question-mark" };
   }
   return null;
@@ -104,15 +175,45 @@ function sentenceViolation(sentence: string): BodySignalViolation | null {
 
 /** One narrative text field this validator inspects, with a getter/setter so
  * `findBodySignalWordingViolations`/`sanitizeBodySignalWording` can share one
- * field-enumeration instead of hand-listing fields twice. */
+ * field-enumeration instead of hand-listing fields twice.
+ *
+ * `checkQuestionMark` (12-08 Task 1 checkpoint, Defect G) defaults to true —
+ * most fields are findings subject to the full describe-then-ask contract.
+ * Set false for fields that are inherently advisory rather than a finding
+ * (currently only `growth_areas[].suggestion`); the forbidden-phrase and
+ * effect-claim-stem checks still apply regardless. */
 interface FieldRef {
   field: string;
   get: () => string | null;
   set: (value: string | null) => void;
+  checkQuestionMark: boolean;
 }
 
 function fieldsOf(report: StructuredReport): FieldRef[] {
   const refs: FieldRef[] = [];
+
+  // BUG FIX (12-08 Task 1 checkpoint, Defect G): a real evaluator run put an
+  // effect claim in `overall_summary` — a field the first version of this
+  // module never scanned at all. Every narrative field the evaluator
+  // prompts actually let the model write free-form prose into is covered
+  // below, not only the ones an earlier incident happened to hit.
+  refs.push({
+    field: "overall_summary",
+    get: () => report.overall_summary,
+    set: (v) => {
+      report.overall_summary = v ?? "";
+    },
+    checkQuestionMark: true,
+  });
+
+  refs.push({
+    field: "practice_next",
+    get: () => report.practice_next,
+    set: (v) => {
+      report.practice_next = v ?? "";
+    },
+    checkQuestionMark: true,
+  });
 
   report.strengths.forEach((s, i) => {
     refs.push({
@@ -121,6 +222,7 @@ function fieldsOf(report: StructuredReport): FieldRef[] {
       set: (v) => {
         s.detail = v ?? "";
       },
+      checkQuestionMark: true,
     });
   });
 
@@ -131,6 +233,17 @@ function fieldsOf(report: StructuredReport): FieldRef[] {
       set: (v) => {
         g.detail = v ?? "";
       },
+      checkQuestionMark: true,
+    });
+    // Advisory, not a finding (12-08 Task 1 checkpoint, Defect G) — see
+    // `FieldRef.checkQuestionMark`'s own doc comment.
+    refs.push({
+      field: `growth_areas[${i}].suggestion`,
+      get: () => g.suggestion,
+      set: (v) => {
+        g.suggestion = v ?? "";
+      },
+      checkQuestionMark: false,
     });
   });
 
@@ -140,6 +253,7 @@ function fieldsOf(report: StructuredReport): FieldRef[] {
     set: (v) => {
       report.category_notes.visual = v;
     },
+    checkQuestionMark: true,
   });
   refs.push({
     field: "category_notes.behavioral",
@@ -147,6 +261,26 @@ function fieldsOf(report: StructuredReport): FieldRef[] {
     set: (v) => {
       report.category_notes.behavioral = v;
     },
+    checkQuestionMark: true,
+  });
+  // vocal/content are unlikely to carry a body-signal finding, but scanned
+  // anyway — the whole point of this fix is to stop assuming which field
+  // the next violation will land in.
+  refs.push({
+    field: "category_notes.vocal",
+    get: () => report.category_notes.vocal,
+    set: (v) => {
+      report.category_notes.vocal = v;
+    },
+    checkQuestionMark: true,
+  });
+  refs.push({
+    field: "category_notes.content",
+    get: () => report.category_notes.content,
+    set: (v) => {
+      report.category_notes.content = v;
+    },
+    checkQuestionMark: true,
   });
 
   report.rubric_notes.forEach((r, i) => {
@@ -156,6 +290,7 @@ function fieldsOf(report: StructuredReport): FieldRef[] {
       set: (v) => {
         r.note = v ?? "";
       },
+      checkQuestionMark: true,
     });
   });
 
@@ -176,7 +311,9 @@ export function findBodySignalWordingViolations(
     const text = ref.get();
     if (!text) continue;
     for (const sentence of splitSentences(text)) {
-      const violation = sentenceViolation(sentence);
+      const violation = sentenceViolation(sentence, {
+        checkQuestionMark: ref.checkQuestionMark,
+      });
       if (violation) {
         violations.push({ ...violation, field: ref.field });
       }
@@ -217,7 +354,7 @@ export function sanitizeBodySignalWording(report: StructuredReport): {
     if (!text) continue;
     const kept: string[] = [];
     for (const sentence of splitSentences(text)) {
-      if (sentenceViolation(sentence)) {
+      if (sentenceViolation(sentence, { checkQuestionMark: ref.checkQuestionMark })) {
         strippedCount += 1;
       } else {
         kept.push(sentence);
