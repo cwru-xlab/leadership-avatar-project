@@ -1572,9 +1572,9 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-02T23:07:10.804Z
-**Stopped At:** Phase 14 planned — 15 plans in 8 waves, verified (1 warning patched); gated on Phase 13
-**Resume File:** .planning/phases/14-practice-pitches/14-01-PLAN.md
+**Last Date:** 2026-10-02T23:34:57.874Z
+**Stopped At:** Phase 12 sign-off run — items 1-6 + criterion 2 PASSED, item 7 FAILED; 12-09 planned to close it
+**Resume File:** .planning/phases/12-embodied-visual-signals/12-09-PLAN.md
 
 
 ## Accumulated Context
