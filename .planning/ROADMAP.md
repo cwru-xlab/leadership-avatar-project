@@ -410,6 +410,38 @@ student-authored content).
      remains its owner.
   4. The report judges how the conversation was handled — clarity, empathy,
      holding the line — not merely that the student reached the end of it.
+**Plans:** 11 plans in 6 waves
+**Gate:** every plan except 15-02, 15-03, 15-04 and 15-05 is blocked until Phase 13's
+15 plans have all executed and been signed off. Those four are the Phase-13-independent
+layer — the S3 record type and its validator, the authored-text structural injection
+defense and the pre-publish check, the seeded catalog, and the five authoring routes —
+and none of them imports `lib/engine/`. Phase 15 has no REQ IDs; each plan names the
+Success Criteria it serves as `P15-SC1`..`P15-SC4` in its `requirements` frontmatter.
+Four plans declare explicit Phase 13 extensions (the `InstanceConfig` and `InputSnapshot`
+union members, the seeded-first instance resolver, a tail-block in-character reminder
+fragment, a session-shell panel slot, and outcome surfacing on the one report DTO);
+15-11 Section 4 collects them as the Phase 13 revision handoff. Phase 14's
+`avatarEndFloor` (14-02) and `ReportChrome` extras slot (14-14) are **CONSUMED, not
+re-declared** — because Phases 14 and 15 may execute in either order, 15-01 and 15-09
+each carry a conditional: consume the field/slot if Phase 14 landed, otherwise add it in
+Phase 14's exact declared shape so whichever phase lands second consumes it rather than
+adding a parallel mechanism. Research Gap 1 is resolved in 15-01: the termination marker
+gains **no** `source` attribute; an assistant-emitted marker always means
+`source: "avatar"`, and the student's decisive in-character close is an explicit confirm
+action distinguished from the out-of-band End-session control by its reason code.
+
+Plans:
+- [ ] 15-01-PLAN.md — Engine extensions: instance + snapshot union members, avatar-end floor consumed, termination `source` resolved
+- [ ] 15-02-PLAN.md — New S3 record type, one validator, owner-scoped store, published-is-discovery-only play path
+- [ ] 15-03-PLAN.md — Structural injection defense (delimited, instruction-hierarchy authored text) + the two-thing fail-closed pre-publish check
+- [ ] 15-04-PLAN.md — Seven seeded conversations as code records, with live-catalog avatar assignment
+- [ ] 15-05-PLAN.md — Five authoring routes; the check re-runs on every publish-visible save
+- [ ] 15-06-PLAN.md — The `difficult-conversation` type record and prompts: anti-drift prohibition, per-turn tail reminder, eight dimensions, unscored outcome
+- [ ] 15-07-PLAN.md — Three-section catalog and six-field builder with honest publish verdicts (human-verified)
+- [ ] 15-08-PLAN.md — Briefing and difficulty steps, always-visible End-session control and support note, in-character close confirm (human-verified)
+- [ ] 15-09-PLAN.md — Report surfaces: eight dimensions, unscored outcome record, avatar-end banner, in-role reaction (human-verified)
+- [ ] 15-10-PLAN.md — Adversarial drift probe and approach-vs-result harnesses (human-verified)
+- [ ] 15-11-PLAN.md — Phase validation: four criteria and every locked decision signed off; surface-count guard (human-verified)
 
 ### Phase 16: Networking Practice
 **Goal:** Ship networking practice against a person the student brings in —
@@ -457,5 +489,5 @@ engine lands they can be planned and executed in any order, or in parallel.
 | 12. Embodied Visual Signals | 7/10 | In Progress|  |
 | 13. One-on-One Conversation Engine | 0/0 | Not planned |  |
 | 14. Practice Pitches | 0/15 | Planned     |  |
-| 15. Difficult Conversations | 0/0 | Not planned |  |
+| 15. Difficult Conversations | 0/11 | Planned     |  |
 | 16. Networking Practice | 0/0 | Not planned |  |
