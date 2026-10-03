@@ -352,10 +352,21 @@ was decided, they do not add scope.*
   (a materially higher hands sample rate — a new, scoped piece of work with its own
   frame-budget analysis, not a threshold retune).
 
-- **REQ-53** — [ ] Descriptive-only signals live in their own report section — not inline
-  with scored rows carrying a marker — so a student cannot read an unscored observation as
-  a deduction. Scored body signals group under their own subheading within the visual
-  bands. REQ-52 and REQ-54 depend on this.
+- **REQ-53** — [x] **MET (12-10 Task 4 item 1, 2026-10-03).** Descriptive-only signals
+  live in their own report section — not inline with scored rows carrying a marker — so a
+  student cannot read an unscored observation as a deduction. Scored body signals group
+  under their own subheading within the visual bands. REQ-52 and REQ-54 depend on this.
+  The section-separation clause shipped at 12-04. What held this open through 12-08 and
+  12-09 was the honesty clause tracked under it via ROADMAP criterion 3 — "nothing the
+  pipeline cannot observe is described as absent" — which failed twice on a real
+  off-camera session (a false "Held steady", then a false "Shifted from the opening
+  posture" with timecodes). After 12-10's frame-bounds landmark gating that session now
+  reports the body as unreadable, gives no posture verdict, produces no Moments rows for
+  unobserved signals, and no longer credits gesturing on an arm it could not properly
+  see. 12-10 Task 4 item 3's false NEGATIVE does not bear on this requirement: in that
+  session the body WAS observable and was honestly declared measured, so it is a
+  sensitivity failure on an observed signal, not an unobservable signal described as
+  absent. See `12-10-SUMMARY.md`.
 
 - **REQ-54** — [x] A phone visible in frame is reported factually — "a phone was visible
   for 40 seconds" — never as an inference about attention, which the sensor cannot support.

@@ -36,7 +36,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 9: Student-Authored Scenarios** - Students create their own practice scenarios (completed 2026-09-21)
 - [x] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
 - [x] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality) (completed 2026-09-23)
-- [ ] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (7/10 plans; fidgeting retired as unmeasurable; sign-off item 7 has now defeated two attempts — 12-10 carries it)
+- [ ] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (8/10 plans; fidgeting retired as unmeasurable; sign-off item 1/7 PASSED at 12-10 after defeating two attempts — criterion 3 holds. Posture drift's true positive and the phone threshold are still open and need a follow-up plan)
 - [ ] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record
 - [ ] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
 - [ ] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios
@@ -260,7 +260,7 @@ report restructure (REQ-53's scored-vs-descriptive distinction gates REQ-52).
   3. Nothing the pipeline cannot observe is described as absent, and nothing reported
      descriptively is scored.
 
-**Plans:** 7/10 plans executed
+**Plans:** 8/10 plans executed
 
 Plans:
 - [x] 12-01-PLAN.md — Async stop() teardown + per-tick frame-budget instrumentation
@@ -283,7 +283,29 @@ Plans:
       down — `isVisible` trusts MediaPipe's PREDICTED visibility score and never
       checks whether a landmark is inside the frame, so an extrapolated skeleton
       built off one visible arm cleared both gates. Gap carried by 12-10.)
-- [ ] 12-10-PLAN.md — Frame-bounds landmark gating, measured-first, item-1 third attempt
+- [x] 12-10-PLAN.md — Frame-bounds landmark gating, measured-first, item-1 third attempt
+      (DELIVERED `307c96d`/`69ed830`. **Sign-off item 1 PASSES at last** — the
+      off-camera session that defeated 12-08 and 12-09 now correctly reports the
+      body as unreadable, so criterion 3 holds against it and REQ-53 is met.
+      Item 2 passes, so a partially visible body is still scored. `isVisible`
+      now requires in-frame coordinates AND the visibility floor, and
+      `POSTURE_COVERAGE_MIN_RATIO` moved 0.25 -> 0.60 from two real dumped
+      sessions; both halves were confirmed load-bearing. The plan's own fix was
+      falsified in its simple form by its own Task 2 readings, and the readings
+      exposed that 12-09's hands coverage gate had been entirely inert.
+      CARRIED FORWARD: item 3 — a fully-in-frame deliberate slump still reported
+      "Held steady", a false NEGATIVE on correctly-observed signals, so
+      `POSTURE_DRIFT_TRIP`'s true-positive side has now been tested once and
+      failed; and item 4 — phone confidence, never run, its dump removed unused.
+      Both need a raw dump first and are handed to a follow-up plan. REQ-51
+      stays open on the drift-scoring clause. See `12-10-SUMMARY.md` and
+      `12-TUNING.md`.)
+
+**Phase 12 is NOT complete.** Two gaps remain and both are measurement-blocked
+rather than analysis-blocked: the posture-drift true positive (item 3) and
+`PHONE_SCORE_THRESHOLD` (item 4). A follow-up plan (12-11) must capture a raw
+per-tick drift series on a deliberate-slump session and re-add the phone dump
+before either constant is touched. 12-03 also remains unexecuted.
 
 ### Phase 13: One-on-One Conversation Engine
 **Goal:** Generalize the interview pipeline into a parameterized one-on-one
@@ -521,7 +543,7 @@ engine lands they can be planned and executed in any order, or in parallel.
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
-| 12. Embodied Visual Signals | 7/10 | In Progress|  |
+| 12. Embodied Visual Signals | 8/10 | In Progress|  |
 | 13. One-on-One Conversation Engine | 0/0 | Not planned |  |
 | 14. Practice Pitches | 0/15 | Planned     |  |
 | 15. Difficult Conversations | 0/11 | Planned     |  |

@@ -230,9 +230,136 @@ removing the dump loses nothing that was ever observed — but it also means
 and the dump must be re-added if that reading is ever wanted. Stated explicitly
 so this removal is not mistaken for "the dump was used and is finished with".
 
+## POSTURE_DRIFT_TRIP has ZERO valid supporting evidence (12-10 Task 4, 2026-10-03)
+
+**Standing instruction: do not re-tune this cutoff from anything currently in
+this file. Nothing in it supports the value.**
+
+The ledger for `POSTURE_DRIFT_TRIP` (0.5), stated completely:
+
+| Evidence | What it was | What it is worth |
+|---|---|---|
+| S3 `driftMean` 0.358 | ordinary session, not deliberate slumping | sets only "ordinary movement should not trip"; predates the 12-10 gating, so may be contaminated by extrapolated landmarks |
+| S4 `driftMean` 0.424 | the ordinary-behaviour PROXY, never declared normal | same |
+| 12-09's one observed trip | off-camera session, face detected ~1% | a **FALSE POSITIVE** on an extrapolated skeleton — see the section above |
+| 12-10 Task 4 item 3 | fully-in-frame session, user "slumped a lot" | a **FALSE NEGATIVE** — see below |
+
+So the cutoff has two readings from sessions nobody characterised, one observed
+trip that was noise, and one observed non-trip that should have tripped. **It has
+never been observed to respond correctly to the behaviour it grades.** The
+true-positive side is not merely unproven; it has now been tested once and
+failed.
+
+### The item-3 reading: a genuine hard slump reported "Held steady"
+
+Run by the user on 2026-10-03 as 12-10 Task 4 item 3, the first real test of the
+true-positive side. **FAIL.**
+
+The user sat fully in frame, started upright, and in their words "slumped a lot".
+The report said **"Posture drift: Held steady from the opening posture"**,
+measured from "Shoulder line and Head position". Their own observation: "because
+of the camera framing, it struggles to track this."
+
+The session's framing context, which is what makes this reading usable:
+
+- Framing **Well centred** (83% of the time), On camera **Present throughout**,
+  face always in frame, Lighting Clear, Steadiness Steady, Others in frame Just
+  you. Eye contact 54% ("major stretches, e.g. 1:10-1:57, spent looking away
+  while responding"), Attention Attentive.
+
+**The 12-10 frame-bounds gating is NOT what suppressed this.** Both
+`shoulder_line` and `forward_head` cleared the new 0.60
+`POSTURE_COVERAGE_MIN_RATIO` and were honestly reported as measured. The gating
+behaved correctly. This is a false negative on signals that were correctly
+observed — a different layer from everything above, and the opposite failure
+direction from 12-08's and 12-09's.
+
+**No numbers were captured.** No drift magnitude, no baseline values, no
+per-signal deltas, no per-tick series — for this session or any other. The gap
+this file has recorded since 12-08 ("needs a raw per-tick drift series; only
+session aggregates exist") is still open and is now the blocking gap for both
+`POSTURE_DRIFT_TRIP` and `POSTURE_DRIFT_SUSTAINED_S`.
+
+### Hypothesis for the item-3 failure — UNVERIFIED, from reading the code only
+
+Recorded so the follow-up plan has a starting point. **It is not a measurement
+and nothing may be changed on its authority.** Lowering a cutoff to make this
+hypothesis's symptom disappear is precisely the guess-first move that produced
+the three preceding failures.
+
+`computePostureDrift` (`lib/metrics/visual-capture.ts:556-582`) aggregates the
+per-signal normalized deltas as an arithmetic **MEAN**:
+`values.reduce((sum, v) => sum + v, 0) / values.length`, each delta being
+`clamp(abs(current - baseline) / scale, 0, 1)` with
+`POSTURE_SHOULDER_TILT_DRIFT_SCALE_DEG = 15` and
+`POSTURE_FORWARD_HEAD_DRIFT_SCALE = 0.3`.
+
+A slump is forward-head-dominant, but `shoulderTiltDeg`
+(`visual-capture.worker.ts:597`, `atan2(abs(dy), abs(dx))` across the shoulders)
+is the acute angle of the shoulder line to HORIZONTAL — a left-right tilt, 0 for
+level shoulders, measured at 4.9 deg and 6.3 deg for upright seated users at
+12-08. A vertical slump barely moves it. The item-3 session measured exactly
+those two signals, so a large forward-head delta is averaged against a near-zero
+shoulder-tilt delta, roughly halving the magnitude before the 0.5 trip is
+consulted. Forward-head alone would need to reach ~1.0 — a 0.3 change in
+normalized offset — to trip unaided.
+
+If that holds, this is a **design issue in the aggregation** (a mean dilutes a
+genuine single-signal change), **not a mis-set threshold**, and moving
+`POSTURE_DRIFT_TRIP` would treat the symptom while making every other signal
+twitchier.
+
+Two further observations from the same code reading, which the follow-up must
+test rather than assume:
+
+1. **The dilution is double.** The scored row never sees a per-tick magnitude.
+   `posture_drift_mean` (`visual-capture.ts:2648`) is the SESSION-WIDE mean of
+   every post-baseline tick's already-averaged drift, and `bandPostureDrift`
+   (`bands.ts:409`) compares that against the same 0.5. The quantity must exceed
+   0.5 after averaging across signals AND across the whole session, so a slump
+   developing partway through is further diluted by the upright opening — which
+   the item-3 session had by design. `posture_drift_max_s`, the sustained-streak
+   metric, is computed (`visual-capture.ts:1711`) but the band does not use it;
+   the episode path uses a per-window mean (`visual-capture.ts:947`).
+2. **The forward-head channel may not be able to see a slump at all.**
+   `forwardHeadOffset` is `hypot(nose.x - shoulderMidX, nose.y - shoulderMidY) /
+   shoulderWidth` — a 2D DISTANCE from the shoulder midpoint, not an anterior
+   displacement. True forward-head translation runs along the camera axis and is
+   largely invisible to a frontal webcam; what the metric registers in a slump is
+   the head dropping TOWARD the shoulder line, which REDUCES the distance. "Forward
+   head" is a misnomer for the measured quantity, and its available magnitude is
+   bounded by the upright offset itself. This matches the user's own read about
+   camera framing, and it means the follow-up should establish whether the signal
+   is MEASURABLE from this geometry before concluding it is merely mis-aggregated.
+
+### What the next reading must be
+
+A deliberate-slump session, fully in frame, dumped raw: per-signal deltas per
+tick, the baseline values the deltas are taken against, the session mean, and the
+streak length. That single capture is the prerequisite for touching
+`POSTURE_DRIFT_TRIP`, `POSTURE_DRIFT_SUSTAINED_S`, the
+`POSTURE_*_DRIFT_SCALE*` constants, or the aggregation. None of them may be
+changed before it exists.
+
+## PHONE_SCORE_THRESHOLD remains undecided — the reading was never taken
+
+Closing the loop on the section above about the removed dump. 12-10 Task 4 item 4
+was the second scheduled attempt to capture it and **it did not run either**: the
+dump was removed in that same plan's Task 3, as Task 3 required, so by the time
+item 4 came up there was nothing to read. The item was deferred to the follow-up
+plan rather than re-adding the dump mid-plan.
+
+Net position: `PHONE_SCORE_THRESHOLD` has **no dataset of any kind** behind it,
+across 12-07, 12-09 and 12-10. The only phone observation anywhere in this file
+is S2's "phone ~30s visible", a behaviour note with no confidence scores attached.
+The dump must be re-added before the constant is touched.
+
 ---
 
 *Tuned 2026-10-02 against the dataset above. The 12-08 Task 3 sign-off
 walkthrough was performed on 2026-10-02 and FAILED on item 7 — see
 `12-08-SUMMARY.md` and `12-09-SUMMARY.md`. The 12-09 re-run also failed; the gap
-is carried by `12-10-PLAN.md`, whose Task 2 readings are recorded above.*
+was carried by `12-10-PLAN.md`, whose Task 2 readings are recorded above and
+whose Task 4 re-run on 2026-10-03 PASSED item 1 at last. Items 3 (posture-drift
+true positive) and 4 (phone confidence) are carried forward — see the two
+sections immediately above.*
