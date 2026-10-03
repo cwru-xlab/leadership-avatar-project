@@ -2,57 +2,77 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-10-03 (12-10 Tasks 1-3 shipped and committed; the plan is PAUSED at its Task 4 BLOCKING sign-off checkpoint awaiting the user's live re-run — see "Current Position" immediately below for the four items to run and report. Phases 13-16 were separately added to the v1.0 roadmap from the user's one-on-one interactions brief — see "Roadmap Evolution" at the end of this file.)
+**Updated:** 2026-10-03 (12-10 DELIVERED and closed — its Task 4 sign-off re-run PASSED the item that had defeated 12-08 and 12-09. Phase 12 is NOT complete: two measurement-blocked gaps remain and need a follow-up plan. Phases 13-16 were separately added to the v1.0 roadmap from the user's one-on-one interactions brief — see "Roadmap Evolution" at the end of this file.)
 
 ## Current Position
 
 **Phase:** 12 — Embodied Visual Signals — IN PROGRESS
-**Current Plan:** 12-10 (frame-bounds landmark gating), Tasks 1-3 of 4
-complete and committed (`307c96d`, `69ed830`); **PAUSED at Task 4's BLOCKING
-human-verify checkpoint** — the sign-off re-run that has now defeated two
-previous attempts. 12-01 through 12-09 complete — 12-01 through 12-07 shipped
-the capture engine, type contract, worker migration, report surfacing, and
-both the scored/descriptive derived signals (see their own `SUMMARY.md` files
-and this file's "Decisions" entries). 12-08 tuned every threshold from five
-real recorded sessions (PROVISIONAL count now 0) but deviated from its own
-four-session protocol at the user's decision, and its Task 3 sign-off
-walkthrough was not performed. 12-09 added a proportional posture/hands
-coverage gate but its Task 3 human re-run **FAILED** on a real off-camera
-session, because `isVisible` tested only MediaPipe's PREDICTED visibility
-score and never whether a landmark's coordinates were inside the frame.
+**Current Plan:** none in flight. **12-10 is DELIVERED and closed**
+(`307c96d`, `69ed830`, docs `9595ba2`, `9994209`); see `12-10-SUMMARY.md`.
+12-01 through 12-09 are as previously recorded — 12-01 through 12-07 shipped the
+capture engine, type contract, worker migration, report surfacing and both the
+scored and descriptive derived signals; 12-08 tuned every threshold from five
+real sessions (PROVISIONAL count 0) but deviated from its own four-session
+protocol and failed its sign-off on item 7; 12-09's coverage gate did not close
+it. **12-03 remains unexecuted.**
 
-**12-10 Task 2 produced the readings and Task 3 acted on them.** The user ran
-two real sessions on 2026-10-03; both aggregates are transcribed in
-`12-TUNING.md`. They falsified the plan's own hypothesis in its simple form:
-a per-tick in-frame test ALONE would not have fixed this, because the
-off-camera session's `forward_head` is in frame on 43% of ticks and clears
-12-09's 0.25 ratio. The decisive quantity is the session-wide in-frame share
-over TOTAL pose ticks (off-camera session max 43.4%; genuine half-in-frame
-session 75.4% on the one readable signal). Task 3 therefore shipped both
-halves: `isVisible` now requires in-frame coordinates AND the visibility
-floor, and `POSTURE_COVERAGE_MIN_RATIO` moved 0.25 -> 0.60, set from that
-two-session separation. Each half was confirmed load-bearing by reverting it
-alone and observing the replay assertions fail. Two further findings: 12-09's
-hands coverage gate was **inert** (fed the count of ticks the model RAN, ~100%
-of expected on any live session, not detections — now `handsDetectedSamples`
-after out-of-frame wrists are dropped), and the genuine half-in-frame session's
-own report was over-claiming "Shoulder line and Head position" with the
-shoulders out of frame on 94% of ticks. REQ-51/REQ-53 remain NOT MET until
-Task 4 passes.
+**What 12-10 settled.** `isVisible` now requires in-frame normalized coordinates
+AND the visibility floor — MediaPipe's `visibility` is a model PREDICTION, not an
+observation — extracted to a new `lib/metrics/landmark-visibility.ts` so the
+verify script can assert the predicate from Node. `POSTURE_COVERAGE_MIN_RATIO`
+moved 0.25 -> 0.60, set from two sessions the user dumped rather than reasoned,
+and recorded as not well-characterised. Out-of-frame wrists are dropped in
+`detectHands`. Both halves were confirmed load-bearing by reverting each alone.
 
-**Next action:** the user must run 12-10 Task 4's four sign-off items and
-report pass/fail for each — (1) item 1, the blocker, third attempt: off camera
-with one arm in shot, which must report the body was not visible enough to read
-and must NOT give a posture verdict of either previous wording; (2) partial
-visibility still scores, half in frame, with "Measured from" naming exactly
-the signals genuinely visible; (3) the posture-drift true positive, still
-unproven — fully in frame, slump hard; (4) phone confidence. **Note a change
-from the plan's text for item 4: the phone-confidence dev dump was REMOVED in
-Task 3 as that task required, and its readings were never captured at any
-point, so item 4 cannot be run as written** — it needs the dump re-added
-first, or deferring. See `12-TUNING.md`'s "The phone-confidence dump (12-09)
-was removed UNUSED" section. Once Task 4 is reported, write
-`12-10-SUMMARY.md` and close the plan.
+**Task 4 sign-off, run by the user 2026-10-03.** Item 1 **PASS** — first time in
+three attempts: the off-camera session with one arm in shot now reports the body
+as unreadable, with no posture verdict in either previous wording. Item 2
+**PASS** — a partially visible body is still scored on what was in frame, so the
+0.60 ratio did not overcorrect. Item 3 **FAIL, recorded as a finding** — a
+fully-in-frame session in which the user "slumped a lot" still reported "Posture
+drift: Held steady from the opening posture". Item 4 **NOT RUN** — its dump was
+removed in Task 3 and its readings were never captured.
+
+**Two defects the plan did not anticipate, both found in the readings, not the
+code.** 12-09's hands coverage gate was completely **inert** (fed `handSamples`,
+the count of ticks the hands model RAN, ~100% of expected on any live session,
+rather than detections — now `handsDetectedSamples`), which is why the
+off-camera session kept reporting "Gesturing: Well judged" after 12-09 claimed to
+have closed that path. And `LANDMARK_VISIBILITY_FLOOR` is near-inert: the
+per-tick visible flags are indistinguishable between a 0%-face session and a
+genuine one. The plan's own fix was also falsified in its simple form by its own
+Task 2 readings — a per-tick in-frame test ALONE would have left the off-camera
+session's `forward_head` in frame on 43.4% of ticks, clearing 12-09's 0.25 ratio,
+and item 1 would have failed a third time. The measure-first sequencing is what
+caught that.
+
+**Requirements.** REQ-53 is now **MET** — item 1 was its sole outstanding
+blocker and ROADMAP criterion 3 holds against the exact session that defeated two
+attempts. REQ-51 remains **NOT MET**: its partial-visibility and "Measured from"
+clauses are satisfied, but its drift-scoring clause is not — `POSTURE_DRIFT_TRIP`
+has now produced one false positive (12-09, on an extrapolated skeleton) and one
+false negative (item 3, on a real slump) and has never been observed to respond
+correctly to the behaviour it grades. REQ-52 stays NOT MET by deliberate decision.
+
+**Next action: plan 12-11.** Two gaps, both measurement-blocked rather than
+analysis-blocked, which is why they belong in one measure-first plan:
+  1. **The posture-drift true positive.** Capture a raw per-tick drift series on
+     a deliberate-slump session — per-signal deltas, the baselines, the session
+     mean, the streak — BEFORE changing anything. An unverified hypothesis is
+     recorded in `12-10-SUMMARY.md` and `12-TUNING.md`: `computePostureDrift`
+     averages the per-signal deltas, `shoulder_line` measures left-right TILT
+     which a vertical slump barely moves, and the scored row then averages again
+     across the whole session — so a single-signal change is diluted twice. The
+     forward-head channel may also be a 2D distance that cannot see sagittal
+     movement from a frontal webcam at all. **Nothing may be changed on that
+     hypothesis's authority.** `POSTURE_DRIFT_TRIP` must not be lowered to make
+     the symptom disappear.
+  2. **`PHONE_SCORE_THRESHOLD`.** Re-add the removed phone dump and take the
+     ~30s reading. It has no dataset of any kind behind it across 12-07, 12-09
+     and 12-10.
+  A fully-in-frame gesturing session would also bound `POSTURE_COVERAGE_MIN_RATIO`
+  from above and set `HANDS_COVERAGE_MIN_RATIO` from a positive reading — it is
+  the same capture as gap 1 and should be collected together.
 
 **Previous phase:** 11 — Cohort & Staff Teardown — COMPLETE. All 7 plans
 executed and signed off, including the 11-07 human walkthrough; see "Phase 11
@@ -97,6 +117,12 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   are now SUPERSEDED by this line. No migration work is outstanding.
 
 ## Decisions
+
+- [Phase 12-embodied-visual-signals / 12-10]: `isVisible` means OBSERVED IN FRAME, not model-confident. MediaPipe's `visibility` is a predicted probability and was shown to be near-useless as a gate (98-99% "visible" on a session with the face detected 0% of the time), so a landmark must now clear the visibility floor AND have in-frame normalized coordinates. Extracted to `lib/metrics/landmark-visibility.ts` so the predicate is assertable from Node.
+- [Phase 12-embodied-visual-signals / 12-10]: `POSTURE_COVERAGE_MIN_RATIO` 0.25 -> 0.60, set from two real dumped sessions and documented as NOT well-characterised — any cutoff from ~0.44 to ~0.75 produces identical verdicts on the only two readings that exist, and there is no fully-in-frame reading to bound the band from above.
+- [Phase 12-embodied-visual-signals / 12-10]: `HANDS_COVERAGE_MIN_RATIO` deliberately RETAINED at 0.25 rather than raised to match posture. Hands legitimately leave frame all session (lap, below the laptop edge) while shoulders do not, so no positive reading bounds it from above; raising it blind risked silencing gesturing for most real sessions.
+- [Phase 12-embodied-visual-signals / 12-10]: Measure-first sequencing is now proven, not just preferred. The plan's own stated fix was falsified by its own Task 2 readings before being shipped; had Task 1's dump been skipped, the phase would have shipped a confident, well-reasoned, wrong fix for the third consecutive time.
+- [Phase 12-embodied-visual-signals / 12-10]: `POSTURE_DRIFT_TRIP` and `computePostureDrift`'s aggregation were deliberately NOT touched despite a plausible code-reading hypothesis for the item-3 false negative, because zero measurements exist. No posture-drift constant may be changed before a raw per-tick drift series is captured on a deliberate-slump session.
 
 - **Individual-only product model.** Cohorts, assignments, and staff/admin
   oversight are being removed. New schema must not carry `cohortId`, assignment
@@ -1579,8 +1605,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-03T14:42:55.334Z
-**Stopped At:** 12-10 Task 3 complete (69ed830); PAUSED at Task 4 BLOCKING sign-off checkpoint
+**Last Date:** 2026-10-03T23:51:26Z
+**Stopped At:** Completed 12-10-PLAN.md — DELIVERED, item 1 sign-off PASSED; phase 12 still open on items 3 and 4 (needs plan 12-11)
 **Resume File:** None
 
 
