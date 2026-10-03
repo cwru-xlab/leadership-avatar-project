@@ -464,6 +464,41 @@ networking SETTING (conference, coffee chat, …) is deferred, not built. See
      student's session.
   4. The report judges rapport-building and the clarity of the student's
      self-introduction, not interview-style answer quality.
+**Plans:** 11 plans in 6 waves
+**Gate:** every plan except 16-01 is blocked until Phase 13's 15 plans have all
+executed and been signed off. 16-01 — the AI person-generation route — is the one
+plan safe to run before Phase 13 lands: it touches no engine file and its only
+external dependency, `/api/interview/persona/distill`, already shipped in Phase 8,
+so generate → edit → distill can be proven end to end today. Phase 16 has no REQ
+IDs; each plan names the Success Criteria it serves as `P16-SC1`..`P16-SC4` in its
+`requirements` frontmatter. Phase 16 declares two Phase 13 extensions — a
+`kind:"networking-persona"` member on `InstanceConfig` (deliberately with NO
+`published` field) and a `kind:"networking"` member on `InputSnapshot` — both landed
+by 16-03, which also reconciles Phase 14's `avatarEndFloor` (14-02): whichever phase
+executes first adds the field, the other reuses it, and 16-03 fails loudly if the
+field exists without 14-02's enforcement. 16-11 Section 4 collects the extension list
+as the Phase 13 revision handoff. **Decision 7's never-publishable requirement is
+enforced by ABSENCE** — no `published` field, no publish route — guarded mechanically
+by 16-11's surface-count script so a later reviewer cannot add parity with
+`CaseStudy`. **The attestation is a new append-only `NetworkingAttestation` table**
+(user + timestamp + wording version, single-use), not a `User` column: the research's
+store-it-on-the-instance recommendation cannot gate the distill call because the
+instance is created FROM the distilled persona. 16-02 carries the one additive
+migration, applied to the LOCAL dev DB only with a declinable human handoff for the
+shared Lightsail DB.
+
+Plans:
+- [ ] 16-01-PLAN.md — AI person-generation route and prompt; generate → edit → distill proven against the Phase 8 route (safe before Phase 13; human-verified)
+- [ ] 16-02-PLAN.md — Attestation store: append-only table, additive local-only migration, versioned wording registry, single-use consume primitive (human-verified)
+- [ ] 16-03-PLAN.md — Engine config extensions: networking-persona instance member with no publishable concept, networking snapshot member, avatar-end-floor reconciliation
+- [ ] 16-04-PLAN.md — Owner-scoped persona store and three routes; cross-student 404; no publish surface
+- [ ] 16-05-PLAN.md — Shared distiller extraction, attestation route, and the gated networking distill route: consume before any model call
+- [ ] 16-06-PLAN.md — Five named fictional characters as code records, varied by seniority and field (human-verified)
+- [ ] 16-07-PLAN.md — The `networking` TYPE record and prompts: seven dimensions, hidden-goal visible-context slice, outcome record, floor-gated walk-away
+- [ ] 16-08-PLAN.md — Wizard steps: person choice with three bring-in modes and the attestation, the required goal, the reused avatar picker (human-verified)
+- [ ] 16-09-PLAN.md — Hidden-goal leak test: sentinel absent from every outbound payload on real turns, present in the evaluation context (human-verified)
+- [ ] 16-10-PLAN.md — Report surfaces: the ask/outcome/common-ground panel and the early-end feedback line (human-verified)
+- [ ] 16-11-PLAN.md — Phase validation: tile flip, surface-count and never-publishable guards, four criteria and every locked decision signed off (human-verified)
 
 
 ## Progress
