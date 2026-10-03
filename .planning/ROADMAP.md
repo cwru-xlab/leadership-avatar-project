@@ -465,29 +465,6 @@ networking SETTING (conference, coffee chat, …) is deferred, not built. See
   4. The report judges rapport-building and the clarity of the student's
      self-introduction, not interview-style answer quality.
 **Plans:** 11 plans in 6 waves
-**Gate:** every plan except 16-01 is blocked until Phase 13's 15 plans have all executed
-and been signed off; 16-03 additionally coordinates with Phase 14's 14-02 over
-`avatarEndFloor` (whichever phase lands first adds the field, never both). Phase 16 has no
-REQ IDs; each plan names the Success Criteria it serves as `P16-SC1`..`P16-SC4` in its
-`requirements` frontmatter. 16-01 (the AI person-generation route) is the one plan safe to
-run before Phase 13 lands — it touches no engine file and proves generate → edit → distill
-against the already-built Phase 8 distill route. 16-03 declares Phase 16's Phase 13
-extensions (`InstanceConfig` gains a `networking-persona` member, `InputSnapshot` gains a
-`networking` member); 16-11 Section 4 collects them as the Phase 13 revision handoff.
-
-Plans:
-- [ ] 16-01-PLAN.md — AI person-generation route: hint → editable description → existing distiller (pre-Phase-13 safe)
-- [ ] 16-02-PLAN.md — Attestation store: wording-versioned record + additive local migration + human handoff
-- [ ] 16-03-PLAN.md — Engine config extensions: `networking-persona` instance, `networking` input snapshot, avatar-end floor
-- [ ] 16-04-PLAN.md — Owner-scoped persona store and routes, deliberately with no publish affordance
-- [ ] 16-05-PLAN.md — Server-enforced attestation gate on the distill path, without breaking the Phase 8 interview caller
-- [ ] 16-06-PLAN.md — Four to six named default characters as code records, spanning seniority and field
-- [ ] 16-07-PLAN.md — `networking` type record and prompts: seven dimensions, hidden goal, outcome record
-- [ ] 16-08-PLAN.md — Wizard steps: character-or-bring-your-own, required goal, attestation checkbox
-- [ ] 16-09-PLAN.md — Hidden-goal leak test on real turns, plus floor-gated walk-away (human-verified)
-- [ ] 16-10-PLAN.md — Report surfaces: the three extra dimensions and the outcome panel
-- [ ] 16-11-PLAN.md — Dashboard tile flip + phase validation: four criteria, every locked decision, surface-count guard (human-verified)
-**Plans:** 11 plans in 6 waves
 **Gate:** every plan except 16-01 is blocked until Phase 13's 15 plans have all
 executed and been signed off. 16-01 — the AI person-generation route — is the one
 plan safe to run before Phase 13 lands: it touches no engine file and its only
