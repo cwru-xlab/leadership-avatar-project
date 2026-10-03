@@ -59,11 +59,13 @@ import {
   GESTURE_WINDOW_EXCESSIVE_PCT,
   GESTURE_WINDOW_MIN_HAND_SAMPLES,
   GESTURE_WINDOW_STILL_PCT,
+  HANDS_COVERAGE_MIN_RATIO,
   HANDS_NEAR_FACE_TRIP_PCT,
   PHONE_EPISODE_TRIP_PCT,
   PHONE_MIN_VISIBLE_S,
   POSTURE_BASELINE_MIN_SAMPLES,
   POSTURE_BASELINE_WINDOW_S,
+  POSTURE_COVERAGE_MIN_RATIO,
   POSTURE_DRIFT_TRIP,
   POSTURE_FORWARD_HEAD_DRIFT_SCALE,
   POSTURE_SHOULDER_TILT_DRIFT_SCALE_DEG,
@@ -275,6 +277,24 @@ const OBJECT_TICK_INTERVAL_MS = 2000;
  */
 const FACE_SCHEDULE_SHARE =
   SCHEDULE.filter((model) => model === "face").length / SCHEDULE.length;
+
+/**
+ * `SCHEDULE`'s pose share, same derivation and same rationale as
+ * `FACE_SCHEDULE_SHARE` above — this is the denominator `POSTURE_COVERAGE_MIN_RATIO`
+ * (`body-thresholds.ts`) needs to tell a brief in-frame glimpse apart from a
+ * genuinely usable session (12-09, item-7 sign-off fix). See that
+ * constant's own comment for the full reasoning.
+ */
+const POSE_SCHEDULE_SHARE =
+  SCHEDULE.filter((model) => model === "pose").length / SCHEDULE.length;
+
+/**
+ * `SCHEDULE`'s hands share, same derivation as `POSE_SCHEDULE_SHARE` above —
+ * the denominator `HANDS_COVERAGE_MIN_RATIO` needs (12-09, the sibling fix
+ * for `gesture_rate_per_min`/`hands_near_face_pct`).
+ */
+const HANDS_SCHEDULE_SHARE =
+  SCHEDULE.filter((model) => model === "hands").length / SCHEDULE.length;
 
 /** How long `start()` will wait for the worker's `ready`/`init-error` reply
  * before giving up and falling back to the main-thread landmarker path. A
@@ -559,6 +579,66 @@ export function computePostureDrift(
     driftMagnitude: values.reduce((sum, v) => sum + v, 0) / values.length,
     perSignal,
   };
+}
+
+/**
+ * Pure. Decides, per posture signal, whether SESSION-WIDE visibility was
+ * enough to report that signal as measured at all — the mechanism behind
+ * `posture_signals_measured` and (via REQ-51's "Measured from" row) which
+ * landmarks a partially-visible body is honestly scored on.
+ *
+ * BUG FIX (12-09, item-7 sign-off failure): a signal used to clear this gate
+ * on `poseVisibleSamples[signal] >= POSTURE_BASELINE_MIN_SAMPLES` alone — an
+ * ABSOLUTE floor of 15 that a brief few-second in-frame glimpse can clear in
+ * an otherwise entirely off-camera session, exactly what happened in the
+ * failing sign-off session. A signal must now ALSO clear
+ * `POSTURE_COVERAGE_MIN_RATIO` of ITS OWN schedule-aware expected sample
+ * count (`expectedPoseSamples`) — see that constant's own comment in
+ * `body-thresholds.ts` for the reasoning and which side it is biased toward.
+ * Both conditions are required; neither alone is sufficient (REQ-51 requires
+ * a partially-visible body still score what IS available, so the ratio
+ * cannot be tightened into a second absolute floor that would skip it).
+ *
+ * Exported and pure for the same reason `computePostureBaseline`/
+ * `computePostureDrift` are — `stop()`'s assembly code and
+ * `scripts/verify-visual-metrics.ts` must exercise the identical arithmetic,
+ * so a regression here is a test failure, not something only a human
+ * reading a live report would catch.
+ */
+export function computePostureSignalsMeasured(
+  poseVisibleSamples: Record<VisualPostureSignal, number>,
+  expectedPoseSamples: number
+): VisualPostureSignal[] {
+  return VISUAL_POSTURE_SIGNALS.filter(
+    (signal) =>
+      poseVisibleSamples[signal] >= POSTURE_BASELINE_MIN_SAMPLES &&
+      poseVisibleSamples[signal] >= expectedPoseSamples * POSTURE_COVERAGE_MIN_RATIO
+  );
+}
+
+/**
+ * Pure. The hands sibling of `computePostureSignalsMeasured` above — decides
+ * whether `gesture_rate_per_min`/`gesture_amplitude_mean`/
+ * `hands_above_shoulder_pct`/`hands_near_face_pct` may be reported at all
+ * this session.
+ *
+ * BUG FIX (12-09, sibling of the item-7 fix): this gate used to be
+ * `handSamples > 0` alone — the identical absolute-floor-of-a-glimpse defect
+ * `computePostureSignalsMeasured` closes for posture, which is why the same
+ * failing session also reported "Gesturing: Very still" and "Hands near
+ * face: Frequent" while off camera. `HANDS_COVERAGE_MIN_RATIO` is the
+ * proportional sibling of `POSTURE_COVERAGE_MIN_RATIO` — see its own comment
+ * in `body-thresholds.ts`. The `> 0` check is kept as a defensive floor
+ * (handles `expectedHandsSamples === 0` degenerate sessions), not the sole
+ * gate.
+ */
+export function computeHandsUsable(
+  handSamples: number,
+  expectedHandsSamples: number
+): boolean {
+  return (
+    handSamples > 0 && handSamples >= expectedHandsSamples * HANDS_COVERAGE_MIN_RATIO
+  );
 }
 
 /** Raw gesture/hand material one session accumulates, handed to
@@ -2171,6 +2251,17 @@ export function createVisualCapture(
     const expectedSamples = Math.floor(
       trackLiveSeconds * METRICS_SAMPLE_HZ * FACE_SCHEDULE_SHARE
     );
+    // 12-09: the SAME schedule-aware pattern, applied to pose's and hands'
+    // own shares — `POSTURE_COVERAGE_MIN_RATIO`/`HANDS_COVERAGE_MIN_RATIO`
+    // (body-thresholds.ts) need a real per-model expected-sample denominator,
+    // not `expectedSamples` above (which is face's own share and would be
+    // the wrong number for a model running at a different schedule share).
+    const expectedPoseSamples = Math.floor(
+      trackLiveSeconds * METRICS_SAMPLE_HZ * POSE_SCHEDULE_SHARE
+    );
+    const expectedHandsSamples = Math.floor(
+      trackLiveSeconds * METRICS_SAMPLE_HZ * HANDS_SCHEDULE_SHARE
+    );
 
     if (
       poseUnavailableSamples > 0 &&
@@ -2196,7 +2287,10 @@ export function createVisualCapture(
     // Fold the partial final window in before extracting, so an excursion
     // that was still running when the student hit End is not dropped.
     closeWindow(sessionSeconds);
-    const episodes = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
+    // Filtered below (12-09 Task 1 item 5), once `postureSignalsMeasured`/
+    // `handsUsable` are known, against the session-wide unreadable signals
+    // those gates identify.
+    const rawEpisodes = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
     const lightingOk =
       lumaSamples > 0 &&
       lumaSum / lumaSamples >= LUMA_MIN_OK &&
@@ -2307,7 +2401,14 @@ export function createVisualCapture(
     // (hands has no main-thread fallback — 12-05), so `handSamples === 0`
     // means the hands pipeline never ran this session, not merely that no
     // hand was ever seen.
-    const handsUsable = handSamples > 0;
+    //
+    // BUG FIX (12-09, sibling of the item-7 fix): `handSamples > 0` ALONE
+    // used to be the whole gate — an absolute floor a brief in-frame glimpse
+    // clears identically to the posture defect this plan closes. Now routed
+    // through `computeHandsUsable`, which ALSO requires `handSamples` to
+    // clear `HANDS_COVERAGE_MIN_RATIO` of this session's own schedule-aware
+    // `expectedHandsSamples` — see that function's own comment.
+    const handsUsable = computeHandsUsable(handSamples, expectedHandsSamples);
     const gestureRates = computeGestureRates({
       handSamples,
       gestureDisplacementSum,
@@ -2325,9 +2426,46 @@ export function createVisualCapture(
     // `postureBaseline.signals` — a signal can fail to calibrate in the
     // opening 20s (POSTURE_BASELINE_WINDOW_S) yet still be reportable in the
     // "Measured from" row if the student came into frame shortly after.
-    const postureSignalsMeasured = VISUAL_POSTURE_SIGNALS.filter(
-      (signal) => poseVisibleSamples[signal] >= POSTURE_BASELINE_MIN_SAMPLES
+    //
+    // BUG FIX (12-09, item-7 sign-off failure): `poseVisibleSamples[signal]
+    // >= POSTURE_BASELINE_MIN_SAMPLES` used to be the WHOLE condition — an
+    // absolute floor of 15 that a brief few-second in-frame glimpse clears
+    // even across an otherwise entirely off-camera ~165s session (6% real
+    // visibility in the failing sign-off session). Routed through
+    // `computePostureSignalsMeasured`, which now ALSO requires each signal
+    // to clear `POSTURE_COVERAGE_MIN_RATIO` of `expectedPoseSamples` — see
+    // that function's own comment and `12-09-PLAN.md`'s
+    // `<observed_failure>`/`<constraint_do_not_overcorrect>` for why both
+    // conditions, not either alone, are required.
+    const postureSignalsMeasured = computePostureSignalsMeasured(
+      poseVisibleSamples,
+      expectedPoseSamples
     );
+
+    // 12-09 Task 1 item 5: an unreadable signal must produce silence, not a
+    // finding. `windowTrips` decides per-window, from that window's OWN
+    // sample counts — it has no visibility into the SESSION-WIDE coverage
+    // gates above, so the exact brief glimpse that (pre-fix) could clear
+    // `postureSignalsMeasured`/`handsUsable` could, independently, also
+    // produce one or two genuinely-tripping windows long enough to clear
+    // `MIN_EPISODE_SECONDS` and surface as a Moments row / Growth Area —
+    // the identical class of defect as Task 1's producer/renderer fix, one
+    // level down. A body-language episode backed by a signal the
+    // session-wide gate just declared unreadable is filtered out here,
+    // after both gates are known, rather than threading them into
+    // `windowTrips` itself (which stays a pure per-window function with no
+    // session-level state, same discipline as every other kind it judges).
+    const episodes = rawEpisodes.filter((e) => {
+      if (e.kind === "posture_drift") return postureSignalsMeasured.length > 0;
+      if (
+        e.kind === "excessive_gesturing" ||
+        e.kind === "minimal_gesturing" ||
+        e.kind === "hands_near_face"
+      ) {
+        return handsUsable;
+      }
+      return true;
+    });
 
     // 12-07: measured-but-NEVER-SCORED observations — a phone in frame,
     // and the absolute (never baseline-relative) posture reading.

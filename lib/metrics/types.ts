@@ -199,6 +199,14 @@ export interface VisualEpisode {
  * entry as of that plan — whether it appears in a given session's
  * `not_measured` list is now decided per-session by `resolveNotMeasured`,
  * based on whether this array came back non-empty.
+ *
+ * 12-09: "non-empty" is no longer decided by an absolute per-signal sample
+ * floor alone — `computePostureSignalsMeasured` (`visual-capture.ts`) also
+ * requires each signal to clear a proportional SESSION-WIDE coverage ratio
+ * (`POSTURE_COVERAGE_MIN_RATIO`, `body-thresholds.ts`), closing a real
+ * sign-off failure where a brief in-frame glimpse in an otherwise
+ * off-camera session cleared the old absolute floor alone and reported
+ * posture as measured for the whole session.
  */
 export const VISUAL_POSTURE_SIGNALS = [
   "shoulder_line",

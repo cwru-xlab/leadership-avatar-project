@@ -46,6 +46,10 @@
  * Audited here so the next `SCHEDULE` change surfaces every remaining one
  * of these instead of silently killing or miscalibrating another signal:
  *   - `POSTURE_BASELINE_MIN_SAMPLES` (pose, 1.5 Hz) — see its own comment.
+ *   - `POSTURE_COVERAGE_MIN_RATIO`/`HANDS_COVERAGE_MIN_RATIO` (12-09) — RATIOS
+ *     of a signal's own SCHEDULE-aware expected sample count (pose/hands
+ *     each 1.5 Hz), not raw counts, so — like the window ratios below —
+ *     they stay meaningful if `SCHEDULE` ever changes either model's share.
  *   - `GESTURE_RATE_STILL_MAX`/`GESTURE_RATE_EXCESSIVE_MIN` — per SESSION
  *     MINUTE from `gestureEventCount`, not per hands-tick, so the ceiling is
  *     the hands rate times 60: ~90/min if literally every hands tick
@@ -133,6 +137,62 @@ export const POSTURE_BASELINE_WINDOW_S = 20;
  * pose's share, the same discipline `FACE_SCHEDULE_SHARE` already documents
  * for `expectedSamples`. */
 export const POSTURE_BASELINE_MIN_SAMPLES = 15;
+
+/** Minimum share of a signal's EXPECTED pose samples (the schedule-aware
+ * denominator `visual-capture.ts`'s `stop()` already derives for pose, the
+ * same `FACE_SCHEDULE_SHARE` pattern applied to pose's own share) that must
+ * have come back USABLY VISIBLE for that signal before it may be reported
+ * as measured for the SESSION. This is an ADDITIONAL condition on top of
+ * `POSTURE_BASELINE_MIN_SAMPLES` above, not a replacement for it — a signal
+ * must clear BOTH the absolute achievability floor and this proportional
+ * one.
+ *
+ * REASONED BOUND (12-09), not TUNED — no session dump has ever captured a
+ * per-signal session-wide visibility RATIO; only the raw sample counts this
+ * ratio is checked against exist (`poseVisibleSamples`). This cannot be
+ * checked against a real distribution yet, so it is derived from
+ * first-principles reasoning instead and stated plainly as such:
+ *
+ * The item-7 sign-off failure (`.planning/phases/12-embodied-visual-signals/
+ * 12-09-PLAN.md`'s `<observed_failure>`) was produced by a brief in-frame
+ * glimpse that cleared `POSTURE_BASELINE_MIN_SAMPLES` (15 absolute samples)
+ * while the body was out of frame for essentially the entire rest of a
+ * ~165s session — roughly 6% of that session's own expected pose-sample
+ * count. Rate-independence matters here the same way it does everywhere
+ * else in this file: 6% is computed against the SCHEDULE-aware expected
+ * count, not a raw tick count, so this ratio stays meaningful if pose's
+ * schedule share ever changes.
+ *
+ * 25% is chosen well above that 6% failure case — comfortably clearing a
+ * brief glimpse — while remaining low enough that a genuinely
+ * PARTIALLY-visible body (e.g. shoulders readable for half the session, the
+ * REQ-51 case this file's header and 12-09's `<constraint_do_not_overcorrect>`
+ * both require to still score) clears it easily. Per 12-CONTEXT.md's
+ * calibration rule — restated in that same constraint block — this value is
+ * deliberately biased toward the UNREADABLE side when the two pull against
+ * each other: a false "held steady" credits a student for something never
+ * observed, which this file's own discipline treats as worse than
+ * declining to score a marginal body. Revisit the moment a real
+ * partially-visible session dump exists to check this ratio against. */
+export const POSTURE_COVERAGE_MIN_RATIO = 0.25;
+
+/** Hands sibling of `POSTURE_COVERAGE_MIN_RATIO` above — hands shares
+ * pose's identical `SCHEDULE` slot (one tick of four, ~1.5 Hz effective —
+ * see the file header's SCHEDULE RATE AUDIT), so the identical proportional
+ * argument applies: an absolute `handSamples > 0` floor alone cannot tell a
+ * brief in-frame glimpse apart from a genuinely usable session, which is
+ * exactly the class of defect `POSTURE_COVERAGE_MIN_RATIO` closes for
+ * posture (12-09's observed Session B also reported "Gesturing: Very
+ * still" and "Hands near face: Frequent" from an off-camera session — the
+ * identical bug on `gesture_rate_per_min`/`hands_near_face_pct`'s shared
+ * `handsUsable` gate).
+ *
+ * REASONED BOUND (12-09), same value and same bias as `POSTURE_COVERAGE_MIN_RATIO`
+ * for the same reason — no session dump has ever captured a per-session
+ * hands-visibility ratio either, so this is the same conservative,
+ * unreadable-biased placement, not an independently-tuned number. Revisit
+ * together with its posture sibling. */
+export const HANDS_COVERAGE_MIN_RATIO = 0.25;
 
 /** Magnitude of drift (normalized units, same scale as the baseline angle
  * comparison) that counts as "tripped" for a `posture_drift` episode window,
