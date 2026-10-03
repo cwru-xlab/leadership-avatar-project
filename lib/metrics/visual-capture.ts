@@ -270,52 +270,6 @@ const SCHEDULE: ModelId[] = ["face", "pose", "face", "hands"];
 const OBJECT_TICK_INTERVAL_MS = 2000;
 
 /**
- * TEMPORARY, DEV-ONLY (12-09 Task 2). `PHONE_SCORE_THRESHOLD`
- * (`body-thresholds.ts`) was left NOT RE-TUNED at 12-08 because no session
- * dump ever captured the object model's RAW per-detection "cell phone"
- * confidence score — only the already-thresholded `phonePresent`
- * boolean/aggregate counts it already gated. `ObjectDetectResult.phoneScore`
- * (the best-scoring "cell phone" detection that cleared the model's own
- * internal `scoreThreshold`, set to `PHONE_SCORE_THRESHOLD` in
- * `visual-capture.worker.ts`) already carries this reading back to the main
- * thread every object tick but was discarded here, unread. This flag, OFF by
- * default, logs it instead — diagnose first, decide after
- * (`PHONE_SCORE_THRESHOLD` is NOT changed by this plan; see
- * `12-09-PLAN.md` Task 2 item 3). Gated on a `NEXT_PUBLIC_` env var so it is
- * statically compiled out of a normal build and never logs for a real
- * student session; set `NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP=1` before
- * `npm run dev` to activate it for the Task 3 checkpoint's phone-confidence
- * read. REMOVE this flag and its one call site
- * (`applyObjectResult`) once that checkpoint's reading has been captured —
- * this is scaffolding, not a shipped feature.
- */
-const PHONE_CONFIDENCE_DEV_DUMP =
-  process.env.NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP === "1";
-
-/**
- * TEMPORARY, DEV-ONLY (12-10 Task 1). 12-09's sign-off re-run found MediaPipe
- * reporting confident `visibility` for a fully extrapolated, off-camera
- * skeleton — `isVisible` (`visual-capture.worker.ts`) tests only the model's
- * PREDICTED visibility score, never whether the landmark's coordinates are
- * actually inside the frame. This flag, OFF by default, logs the raw
- * landmark readings the worker now carries behind its own identically-named
- * flag (see `LandmarkDiagnostic`'s doc comment there) and aggregates, per
- * posture signal group and for hands, the split this plan exists to measure:
- * how often the CURRENT `isVisible` verdict said yes while the landmark was
- * actually outside the frame. Nothing here changes `isVisible`,
- * `computePostureSignalsMeasured`, or `computeHandsUsable` — Task 1 is
- * observation only. Gated on a `NEXT_PUBLIC_` env var, the same
- * `PHONE_CONFIDENCE_DEV_DUMP` precedent; set
- * `NEXT_PUBLIC_VISUAL_LANDMARK_DEV_DUMP=1` before `npm run dev` to activate
- * it. REMOVE this flag, its per-tick log call sites, and the aggregation
- * below once the Task 2 checkpoint's readings are captured and recorded in
- * `12-TUNING.md` (12-10-PLAN.md Task 3 item 6) — this is scaffolding, not a
- * shipped feature.
- */
-const VISUAL_LANDMARK_DEV_DUMP =
-  process.env.NEXT_PUBLIC_VISUAL_LANDMARK_DEV_DUMP === "1";
-
-/**
  * `SCHEDULE`'s face share, computed rather than hand-kept in sync, so a
  * future edit to `SCHEDULE` cannot silently re-break the schedule-aware
  * `expectedSamples` calculation in `stop()` below. See that calculation's
@@ -645,6 +599,20 @@ export function computePostureDrift(
  * a partially-visible body still score what IS available, so the ratio
  * cannot be tightened into a second absolute floor that would skip it).
  *
+ * WHY 12-09'S VERSION OF THIS GATE DID NOT CLOSE THE FAILURE (12-10 Task 3).
+ * The arithmetic here was right and the layer was right; the INPUT was
+ * fabricated. `poseVisibleSamples` counted ticks on which MediaPipe PREDICTED
+ * a landmark group was visible, which it does for a fully extrapolated
+ * off-camera skeleton — 98% of ticks in the failing session. Two things
+ * changed in 12-10 Task 3 and both are needed: `isVisible`
+ * (`visual-capture.worker.ts`) now also requires the landmark's coordinates
+ * to be inside the frame, so this numerator counts OBSERVED ticks; and
+ * `POSTURE_COVERAGE_MIN_RATIO` moved from 0.25 to 0.60, set from the two
+ * sessions' measured in-frame shares. The per-tick fix alone was NOT enough —
+ * the off-camera session's `forward_head` is in frame on 43% of ticks, which
+ * clears 0.25 — so a reader tempted to relax that ratio should read its own
+ * comment in `body-thresholds.ts` first.
+ *
  * Exported and pure for the same reason `computePostureBaseline`/
  * `computePostureDrift` are — `stop()`'s assembly code and
  * `scripts/verify-visual-metrics.ts` must exercise the identical arithmetic,
@@ -677,13 +645,27 @@ export function computePostureSignalsMeasured(
  * in `body-thresholds.ts`. The `> 0` check is kept as a defensive floor
  * (handles `expectedHandsSamples === 0` degenerate sessions), not the sole
  * gate.
+ *
+ * BUG FIX (12-10 Task 3, found in the Task 2 readings): 12-09's version of
+ * this gate could never fire, because the caller passed `handSamples` — the
+ * number of ticks the hands MODEL RAN, incremented unconditionally in
+ * `applyHandsResult` whether or not a hand was detected. That is ~100% of
+ * `expectedHandsSamples` on any session where the pipeline was alive, so the
+ * ratio was structurally pinned at ~1.0 and the gate was open regardless of
+ * what the camera saw. The off-camera Session A reading: 234 hands ticks,
+ * ~234 expected, 100% — and 39 ticks with a hand genuinely in frame. The
+ * parameter is now `handsDetectedSamples`, which counts ticks a hand was
+ * DETECTED IN FRAME (the worker's `detectHands` drops out-of-frame wrists
+ * before reporting `handCount`, 12-10 Task 3). Same two conditions, honest
+ * numerator.
  */
 export function computeHandsUsable(
-  handSamples: number,
+  handsDetectedSamples: number,
   expectedHandsSamples: number
 ): boolean {
   return (
-    handSamples > 0 && handSamples >= expectedHandsSamples * HANDS_COVERAGE_MIN_RATIO
+    handsDetectedSamples > 0 &&
+    handsDetectedSamples >= expectedHandsSamples * HANDS_COVERAGE_MIN_RATIO
   );
 }
 
@@ -1258,33 +1240,6 @@ export function createVisualCapture(
   let poseTorsoLeanSum = 0;
   let poseTorsoOpennessSum = 0;
 
-  // --- 12-10 Task 1, DEV-ONLY: the in-frame/isVisible split, aggregated per
-  // posture signal group. Only ever written to when
-  // `VISUAL_LANDMARK_DEV_DUMP` is on (the worker omits `diagnostics`
-  // entirely otherwise, so these stay all-zero and unread on a normal
-  // build). `visibleAndInFrame`/`visibleButOutOfFrame` are only incremented
-  // on ticks where the CURRENT `isVisible` verdict (`visible.*`) already
-  // said yes — this is exactly the split the plan's `<observed_failure>`
-  // identifies as "the number nobody has ever looked at."
-  const devLandmarkSplit: Record<
-    VisualPostureSignal,
-    { visibleAndInFrame: number; visibleButOutOfFrame: number; totalTicks: number }
-  > = {
-    shoulder_line: { visibleAndInFrame: 0, visibleButOutOfFrame: 0, totalTicks: 0 },
-    forward_head: { visibleAndInFrame: 0, visibleButOutOfFrame: 0, totalTicks: 0 },
-    torso_lean: { visibleAndInFrame: 0, visibleButOutOfFrame: 0, totalTicks: 0 },
-    torso_openness: { visibleAndInFrame: 0, visibleButOutOfFrame: 0, totalTicks: 0 },
-  };
-  // Hands sibling of the split above — there is no `isVisible` gate on hands
-  // today (every detected hand is reported unconditionally), so
-  // `visibleAndInFrame`/`visibleButOutOfFrame` here split DETECTED hands by
-  // whether their wrist coordinates were actually in frame.
-  const devHandsSplit = {
-    detectedAndInFrame: 0,
-    detectedButOutOfFrame: 0,
-    totalTicks: 0,
-  };
-
   // --- 12-06 posture baseline/drift. `postureBaselineReadings` only ever
   // holds readings from inside the (anchored) `POSTURE_BASELINE_WINDOW_S` —
   // see `applyPoseResult` for where it stops growing and `postureBaseline`
@@ -1690,54 +1645,6 @@ export function createVisualCapture(
       }
     }
 
-    // --- 12-10 Task 1, DEV-ONLY: raw per-tick dump plus the in-frame split
-    // aggregation. `result.diagnostics` is present only when the worker's
-    // own `VISUAL_LANDMARK_DEV_DUMP` flag is on, so this whole block is a
-    // no-op (an `if` on `undefined`) on a normal build, matching the
-    // sequencing rule's "no gating behaviour changed" requirement by
-    // construction — nothing here feeds `poseVisibleSamples` or any other
-    // accumulator read by a gating path.
-    if (VISUAL_LANDMARK_DEV_DUMP && result.diagnostics) {
-      const d = result.diagnostics;
-      console.debug("[visual-capture][dev] pose landmarks", {
-        tickIndex: poseSamples,
-        visible: result.visible,
-        landmarks: d,
-      });
-
-      const groupInFrame: Record<VisualPostureSignal, boolean> = {
-        shoulder_line: d.LEFT_SHOULDER.inFrame && d.RIGHT_SHOULDER.inFrame,
-        forward_head:
-          d.NOSE.inFrame && (d.LEFT_EAR.inFrame || d.RIGHT_EAR.inFrame),
-        torso_lean:
-          d.LEFT_SHOULDER.inFrame &&
-          d.RIGHT_SHOULDER.inFrame &&
-          d.LEFT_HIP.inFrame &&
-          d.RIGHT_HIP.inFrame,
-        torso_openness:
-          d.LEFT_SHOULDER.inFrame &&
-          d.RIGHT_SHOULDER.inFrame &&
-          d.LEFT_HIP.inFrame &&
-          d.RIGHT_HIP.inFrame,
-      };
-      const visibleByGroup: Record<VisualPostureSignal, boolean> = {
-        shoulder_line: result.visible.shoulderLine,
-        forward_head: result.visible.forwardHead,
-        torso_lean: result.visible.torsoLean,
-        torso_openness: result.visible.torsoOpenness,
-      };
-      for (const signal of VISUAL_POSTURE_SIGNALS) {
-        devLandmarkSplit[signal].totalTicks += 1;
-        if (visibleByGroup[signal]) {
-          if (groupInFrame[signal]) {
-            devLandmarkSplit[signal].visibleAndInFrame += 1;
-          } else {
-            devLandmarkSplit[signal].visibleButOutOfFrame += 1;
-          }
-        }
-      }
-    }
-
     // 12-06 posture baseline/drift. `PoseDetectResult`'s own discipline
     // (null exactly when not visible) carries straight through to
     // `PostureReading` with no further gating needed here.
@@ -1822,29 +1729,6 @@ export function createVisualCapture(
   function applyHandsResult(result: HandsDetectResult) {
     handSamples += 1;
 
-    // --- 12-10 Task 1, DEV-ONLY: raw per-tick dump plus the detected/
-    // in-frame split, the hands sibling of the pose aggregation above. See
-    // that block's comment — no-op by construction when the flag is off.
-    if (VISUAL_LANDMARK_DEV_DUMP) {
-      devHandsSplit.totalTicks += 1;
-      const withDiagnostics = result.primary.filter((hand) => hand.diagnostics);
-      if (withDiagnostics.length > 0) {
-        console.debug("[visual-capture][dev] hands landmarks", {
-          tickIndex: handSamples,
-          handCount: result.handCount,
-          hands: withDiagnostics.map((hand) => hand.diagnostics),
-        });
-        const anyInFrame = withDiagnostics.some(
-          (hand) => hand.diagnostics?.inFrame
-        );
-        const anyOutOfFrame = withDiagnostics.some(
-          (hand) => hand.diagnostics && !hand.diagnostics.inFrame
-        );
-        if (anyInFrame) devHandsSplit.detectedAndInFrame += 1;
-        if (anyOutOfFrame) devHandsSplit.detectedButOutOfFrame += 1;
-      }
-    }
-
     if (result.handCount > 0) {
       handsDetectedSamples += 1;
       winHandsDetected += 1;
@@ -1915,17 +1799,6 @@ export function createVisualCapture(
     if (result.phonePresent) {
       phoneVisibleSamples += 1;
       winPhoneCount += 1;
-    }
-    // TEMPORARY (12-09 Task 2) — see `PHONE_CONFIDENCE_DEV_DUMP`'s own
-    // comment. Logs every object tick, present or not, so the Task 3
-    // checkpoint reading shows the full distribution, not only the ticks
-    // that already cleared the threshold.
-    if (PHONE_CONFIDENCE_DEV_DUMP) {
-      console.debug("[visual-capture][dev] phone confidence", {
-        tickIndex: phoneSamples,
-        phonePresent: result.phonePresent,
-        phoneScore: result.phoneScore,
-      });
     }
   }
 
@@ -2584,42 +2457,6 @@ export function createVisualCapture(
       expectedSamples,
     });
 
-    // 12-10 Task 1, DEV-ONLY: the session-aggregate split this plan exists
-    // to measure — for each posture signal group and for hands, how often
-    // the CURRENT isVisible/detected verdict said yes while the landmark's
-    // coordinates were actually outside the frame. See
-    // `VISUAL_LANDMARK_DEV_DUMP`'s own comment for why this is observation
-    // only: nothing below is read by any gating path, and this entire block
-    // is skipped when the flag is off.
-    if (VISUAL_LANDMARK_DEV_DUMP) {
-      const toSummary = (signal: VisualPostureSignal) => {
-        const s = devLandmarkSplit[signal];
-        const visibleTotal = s.visibleAndInFrame + s.visibleButOutOfFrame;
-        return {
-          totalTicks: s.totalTicks,
-          visibleAndInFrame: s.visibleAndInFrame,
-          visibleButOutOfFrame: s.visibleButOutOfFrame,
-          visibleAndInFrameRatio:
-            visibleTotal > 0 ? s.visibleAndInFrame / visibleTotal : 0,
-          visibleButOutOfFrameRatio:
-            visibleTotal > 0 ? s.visibleButOutOfFrame / visibleTotal : 0,
-        };
-      };
-      console.debug("[visual-capture][dev] landmark in-frame split (session aggregate)", {
-        posture: {
-          shoulder_line: toSummary("shoulder_line"),
-          forward_head: toSummary("forward_head"),
-          torso_lean: toSummary("torso_lean"),
-          torso_openness: toSummary("torso_openness"),
-        },
-        hands: {
-          totalTicks: devHandsSplit.totalTicks,
-          detectedAndInFrame: devHandsSplit.detectedAndInFrame,
-          detectedButOutOfFrame: devHandsSplit.detectedButOutOfFrame,
-        },
-      });
-    }
-
     // 12-06: gesture/hands derivation — one pure function so the runtime
     // path and the verification script cannot drift apart, same discipline
     // as `computeVisualRates` above. `handsUsable` gates whether ANY of the
@@ -2632,10 +2469,20 @@ export function createVisualCapture(
     // BUG FIX (12-09, sibling of the item-7 fix): `handSamples > 0` ALONE
     // used to be the whole gate — an absolute floor a brief in-frame glimpse
     // clears identically to the posture defect this plan closes. Now routed
-    // through `computeHandsUsable`, which ALSO requires `handSamples` to
+    // through `computeHandsUsable`, which ALSO requires the numerator to
     // clear `HANDS_COVERAGE_MIN_RATIO` of this session's own schedule-aware
     // `expectedHandsSamples` — see that function's own comment.
-    const handsUsable = computeHandsUsable(handSamples, expectedHandsSamples);
+    //
+    // BUG FIX (12-10 Task 3): the numerator was `handSamples` — TICKS THE
+    // MODEL RAN, ~100% of `expectedHandsSamples` on any live session — so
+    // 12-09's gate was inert and the off-camera session kept its "Gesturing"
+    // and "Hands near face" rows. It is now `handsDetectedSamples`, ticks a
+    // hand was actually detected in frame. See `computeHandsUsable`'s own
+    // comment for the Session A reading that exposed this.
+    const handsUsable = computeHandsUsable(
+      handsDetectedSamples,
+      expectedHandsSamples
+    );
     const gestureRates = computeGestureRates({
       handSamples,
       gestureDisplacementSum,

@@ -89,7 +89,21 @@
  * NOT RE-TUNED (12-08 Task 2): no session dump captured a raw per-landmark
  * visibility-score distribution — only aggregate counts derived AFTER this
  * floor already applied. There is nothing in the 12-TUNING.md dataset this
- * value could be checked against. Left at its original value. */
+ * value could be checked against. Left at its original value.
+ *
+ * STILL NOT RE-TUNED, AND NOW KNOWN TO BE NEARLY INERT (12-10 Task 3). The
+ * Task 2 readings finally captured what this floor does in practice, and the
+ * answer is: almost nothing. The off-camera session cleared it for
+ * `forward_head` on 140 of 143 pose ticks (98%) with the face detected 0% of
+ * the session; the half-in-frame session cleared it for `shoulder_line` on
+ * 278 of 281 ticks (99%) with the shoulders at the frame's edge. MediaPipe
+ * asserts a confident `visibility` for extrapolated landmarks, so no value of
+ * this floor could separate an observed body part from a predicted one — the
+ * problem is the quantity, not the cutoff. It is left at 0.5 rather than
+ * retuned or removed: it is a cheap, harmless additional condition, and
+ * `isVisible` (`visual-capture.worker.ts`) now ANDs it with a real in-frame
+ * test that carries the actual signal. Do not reach for this constant to fix
+ * a visibility problem; see `isVisible`'s own comment first. */
 export const LANDMARK_VISIBILITY_FLOOR = 0.5;
 
 /** Length of the posture self-calibration window, in seconds, at the start
@@ -147,34 +161,78 @@ export const POSTURE_BASELINE_MIN_SAMPLES = 15;
  * must clear BOTH the absolute achievability floor and this proportional
  * one.
  *
- * REASONED BOUND (12-09), not TUNED — no session dump has ever captured a
- * per-signal session-wide visibility RATIO; only the raw sample counts this
- * ratio is checked against exist (`poseVisibleSamples`). This cannot be
- * checked against a real distribution yet, so it is derived from
- * first-principles reasoning instead and stated plainly as such:
+ * SET FROM TWO REAL SESSIONS (12-10 Task 3) — and NOT "TUNED" in the sense
+ * the rest of this file uses that word. Every constant here labelled TUNED
+ * was placed against an observed DISTRIBUTION across five recorded sessions
+ * (12-TUNING.md). This one is placed from the SEPARATION BETWEEN TWO
+ * SESSIONS, which is a much weaker evidence base, and it is labelled that way
+ * on purpose. 12-09 set this value to 0.25 as a REASONED BOUND with no
+ * readings at all, and the bound did not hold — the honest label matters.
  *
- * The item-7 sign-off failure (`.planning/phases/12-embodied-visual-signals/
- * 12-09-PLAN.md`'s `<observed_failure>`) was produced by a brief in-frame
- * glimpse that cleared `POSTURE_BASELINE_MIN_SAMPLES` (15 absolute samples)
- * while the body was out of frame for essentially the entire rest of a
- * ~165s session — roughly 6% of that session's own expected pose-sample
- * count. Rate-independence matters here the same way it does everywhere
- * else in this file: 6% is computed against the SCHEDULE-aware expected
- * count, not a raw tick count, so this ratio stays meaningful if pose's
- * schedule share ever changes.
+ * WHAT THIS RATIO IS NOW A RATIO OF. `isVisible`
+ * (`visual-capture.worker.ts`) was changed in the same task to require that a
+ * landmark's coordinates actually fall inside the frame, so
+ * `poseVisibleSamples[signal]` counts ticks the group was OBSERVED IN FRAME,
+ * not ticks the model felt confident about. Without that change this gate is
+ * meaningless at any value; without this gate that change does not close the
+ * failure. Both halves are required — see `isVisible`'s own comment.
  *
- * 25% is chosen well above that 6% failure case — comfortably clearing a
- * brief glimpse — while remaining low enough that a genuinely
- * PARTIALLY-visible body (e.g. shoulders readable for half the session, the
- * REQ-51 case this file's header and 12-09's `<constraint_do_not_overcorrect>`
- * both require to still score) clears it easily. Per 12-CONTEXT.md's
- * calibration rule — restated in that same constraint block — this value is
- * deliberately biased toward the UNREADABLE side when the two pull against
- * each other: a false "held steady" credits a student for something never
- * observed, which this file's own discipline treats as worse than
- * declining to score a marginal body. Revisit the moment a real
- * partially-visible session dump exists to check this ratio against. */
-export const POSTURE_COVERAGE_MIN_RATIO = 0.25;
+ * THE READINGS (12-10 Task 2, recorded in 12-TUNING.md; the dump that
+ * produced them was removed in Task 3). In-frame pose ticks over TOTAL pose
+ * ticks, per signal group:
+ *
+ *   Session A — OFF CAMERA, one arm in shot, face presence 0%, 143 pose
+ *   ticks. This is the session that defeated 12-08 and 12-09.
+ *     forward_head   62/143 = 43.4%   <- the highest value anything reached
+ *     shoulder_line  21/143 = 14.7%
+ *     torso_lean     5/143  =  3.5%
+ *     torso_openness 5/143  =  3.5%
+ *
+ *   Session B — HALF IN FRAME, shoulders at the frame's edge, torso cut off,
+ *   face visible 79%, eye contact 75%, 281 pose ticks. This is the REQ-51
+ *   side: a genuine partial body that must still be scored.
+ *     forward_head   212/281 = 75.4%  <- the only genuinely readable signal
+ *     shoulder_line  16/281  =  5.7%
+ *     torso_lean     1/281   =  0.4%
+ *     torso_openness 1/281   =  0.4%
+ *
+ * 60% sits just above the midpoint of the only gap those readings expose
+ * (43.4% to 75.4%, midpoint 59.4%), rounded to a round number and placed on
+ * the high side of that midpoint per 12-CONTEXT.md's calibration rule —
+ * restated in 12-09's `<constraint_do_not_overcorrect>` — that where the
+ * readable and unreadable sides pull against each other, the unreadable side
+ * wins. A false "held steady" or a false "shifted from the opening posture"
+ * credits or accuses a student over something never observed, which this
+ * file's discipline treats as worse than declining to score a marginal body.
+ *
+ * It yields, on these two sessions: Session A measures NOTHING, and is
+ * credited for nothing — the item-7 failure, closed at the layer that
+ * produces it. Session B measures `forward_head` ONLY. That second outcome is
+ * CORRECT, not a regression: Session B's own live report printed "Measured
+ * from: Shoulder line and Head position" while the user sat at the frame's
+ * edge with the torso cut off and the shoulder landmarks out of frame on 94%
+ * of the ticks the model called visible. Scoring the one landmark genuinely
+ * available, and naming only it, is REQ-51 satisfied rather than broken.
+ *
+ * HOW THIN THIS IS — read before changing it. (1) Two sessions, not a
+ * distribution. (2) The separating gap is 43.4% -> 75.4%: real, but a single
+ * reading on each side of it. Any cutoff from ~0.44 to ~0.75 produces
+ * identical verdicts on BOTH sessions, so these readings do NOT locate 0.60
+ * within that band — they only establish the band. Do not describe this
+ * cutoff as well-characterised. (3) The cost of being high is a real one and
+ * is accepted knowingly: a genuinely partial body visible for, say, half a
+ * session will NOT be scored on that signal. Session B's 75.4% clears 0.60
+ * with 15 points of headroom and is the ONLY genuine-partial reading that
+ * exists. A third and fourth real session — especially a fully-in-frame one,
+ * which would establish the ceiling this band has no reading for — should
+ * narrow this, and is the first thing to collect before touching the value.
+ *
+ * Rate-independence is unchanged from 12-09 and still matters: the
+ * denominator is the SCHEDULE-aware expected pose-sample count, not a raw
+ * tick count, so this ratio stays meaningful if pose's schedule share ever
+ * changes. (The readings above are quoted over observed total pose ticks,
+ * which is the same quantity to within that session's dropped ticks.) */
+export const POSTURE_COVERAGE_MIN_RATIO = 0.6;
 
 /** Hands sibling of `POSTURE_COVERAGE_MIN_RATIO` above — hands shares
  * pose's identical `SCHEDULE` slot (one tick of four, ~1.5 Hz effective —
@@ -187,11 +245,50 @@ export const POSTURE_COVERAGE_MIN_RATIO = 0.25;
  * identical bug on `gesture_rate_per_min`/`hands_near_face_pct`'s shared
  * `handsUsable` gate).
  *
- * REASONED BOUND (12-09), same value and same bias as `POSTURE_COVERAGE_MIN_RATIO`
- * for the same reason — no session dump has ever captured a per-session
- * hands-visibility ratio either, so this is the same conservative,
- * unreadable-biased placement, not an independently-tuned number. Revisit
- * together with its posture sibling. */
+ * RE-EXAMINED AND DELIBERATELY RETAINED AT 0.25 (12-10 Task 3) — the value
+ * is unchanged but the DECISION is new, and the numerator it is checked
+ * against was wrong until this task. Recorded here so the retention does not
+ * read as inertia; its posture sibling moved from 0.25 to 0.60 in the same
+ * task, and this one was examined against the same readings and kept.
+ *
+ * THE DEFECT THAT MADE THIS GATE INERT (12-10 Task 3, found in the Task 2
+ * readings). `computeHandsUsable` was called with `handSamples` — the count
+ * of ticks the hands MODEL RAN, incremented unconditionally at the top of
+ * `applyHandsResult`, detection or no detection. On any healthy session that
+ * is ~100% of `expectedHandsSamples` by construction, so this gate passed
+ * whatever the camera saw. Session A's reading proves it: 234 hands ticks
+ * against ~234 expected = 100%, gate open, while only 39 ticks held a hand
+ * genuinely in frame — which is why that off-camera session still reported
+ * "Gesturing: Well judged" and "Hands near face: Frequent" after 12-09
+ * supposedly closed exactly that. The numerator is now
+ * `handsDetectedSamples`, counted after the worker drops out-of-frame wrists
+ * (see `detectHands`). 12-09's hands fix never did anything; this is the
+ * first version of it that can.
+ *
+ * WHY 0.25 AND NOT 0.60. Against the corrected numerator the Task 2 readings
+ * give Session A 39/234 = 16.7% and Session B 1/282 = 0.4%. 0.25 refuses
+ * both, which is the right outcome for both — Session B saw one hand all
+ * session and must not be scored on gesturing either. But note what is
+ * MISSING: neither session is a genuine hands-visible positive, so unlike its
+ * posture sibling this value has NO upper reading bounding it, and the
+ * readings cannot set it. It is bounded from BELOW only, by Session A's
+ * 16.7%, and 0.25 clears that by 8 points — thin.
+ *
+ * It is therefore not raised to match posture's 0.60, and that restraint is
+ * the substance of the decision. Hands differ from posture in kind: hands
+ * legitimately leave frame throughout a normal session (resting in the lap,
+ * below the laptop edge) while shoulders do not, so the in-frame share a
+ * genuinely gesturing student produces is unknown and plausibly well under
+ * 60%. Raising this blind, with no positive reading to check against, risks
+ * silencing gesturing for most real sessions — overcorrection on the side
+ * 12-09's `<constraint_do_not_overcorrect>` warns about. The calibration
+ * rule's unreadable-side bias is already satisfied by the numerator fix,
+ * which is what was actually broken.
+ *
+ * NEXT READING NEEDED: a fully-in-frame session where the student visibly
+ * gestures, dumped for its in-frame hands share. That number, not reasoning,
+ * should set this constant — and it is the same session that would bound
+ * `POSTURE_COVERAGE_MIN_RATIO` from above. Revisit together. */
 export const HANDS_COVERAGE_MIN_RATIO = 0.25;
 
 /** Magnitude of drift (normalized units, same scale as the baseline angle

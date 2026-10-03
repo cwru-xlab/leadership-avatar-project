@@ -19,13 +19,21 @@
  * the corresponding threshold comparison is a main-thread constant — the
  * face runner's `yawDeg`/`pitchDeg` against `FORWARD_YAW_LIMIT_DEG`/
  * `FORWARD_PITCH_LIMIT_DEG` being the precedent this file follows throughout.
- * The three exceptions are `LANDMARK_VISIBILITY_FLOOR`, `PHONE_SCORE_THRESHOLD`
- * and `HANDS_NEAR_FACE_RADIUS`, all imported from the shared
- * `body-thresholds.ts` module rather than redefined here: these are
+ * The exceptions are `PHONE_SCORE_THRESHOLD` and `HANDS_NEAR_FACE_RADIUS`,
+ * imported from the shared `body-thresholds.ts` module rather than redefined
+ * here, plus `isLandmarkObservedInFrame` from `landmark-visibility.ts` (which
+ * applies `LANDMARK_VISIBILITY_FLOOR` on this file's behalf): these are
  * DETECTION-TIME filters this plan explicitly assigns to the worker (whether
- * a landmark/detection clears the floor needed to report a reading at all,
- * or whether a hand sits inside an expanded face box) — not scoring
- * verdicts. No threshold that decides a SCORE lives in this file.
+ * a landmark/detection clears the bar needed to report a reading at all, or
+ * whether a hand sits inside an expanded face box) — not scoring verdicts. No
+ * threshold that decides a SCORE lives in this file.
+ *
+ * 12-10 Task 3: `visible.*` on `PoseDetectResult` means OBSERVED IN FRAME,
+ * not "the model reported a confident `visibility` score". That distinction
+ * was the root cause of an item-7 sign-off failure that survived two
+ * attempted fixes — see `isLandmarkObservedInFrame`'s comment in
+ * `landmark-visibility.ts` before changing anything in this file's visibility
+ * handling.
  *
  * Loaded as an ES-module worker from `visual-capture.ts`:
  *   new Worker(new URL("./visual-capture.worker.ts", import.meta.url), { type: "module" })
@@ -50,44 +58,12 @@ import {
 type WasmFileset = Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>;
 import {
   HANDS_NEAR_FACE_RADIUS,
-  LANDMARK_VISIBILITY_FLOOR,
   PHONE_SCORE_THRESHOLD,
 } from "@/lib/metrics/body-thresholds";
-
-/**
- * TEMPORARY, DEV-ONLY (12-10 Task 1). `isVisible` below tests only the
- * model's own predicted `visibility` score — never whether the landmark's
- * coordinates actually fall inside the frame. 12-09's sign-off re-run
- * (`12-09-SUMMARY.md`'s root-cause section) found MediaPipe emitting a
- * confident `visibility` for a fully extrapolated, off-camera skeleton; this
- * flag, OFF by default, dumps the RAW material needed to see that happening
- * — per-landmark x/y, the raw visibility score, and whether the coordinates
- * are actually inside `[0,1]` — without changing what `isVisible` decides.
- * Gated on a `NEXT_PUBLIC_` env var, matching 12-09's
- * `NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP` precedent, so it is statically
- * compiled out of a normal build and never runs for a real student session;
- * set `NEXT_PUBLIC_VISUAL_LANDMARK_DEV_DUMP=1` before `npm run dev` to
- * activate it. REMOVE this flag and the `diagnostics` fields on
- * `PoseDetectResult`/`HandsDetectResult` once the Task 2 checkpoint's
- * readings are captured and recorded in `12-TUNING.md` — this is
- * scaffolding, not a shipped feature (12-10-PLAN.md Task 3 item 6).
- */
-const VISUAL_LANDMARK_DEV_DUMP =
-  process.env.NEXT_PUBLIC_VISUAL_LANDMARK_DEV_DUMP === "1";
-
-/** One landmark's raw diagnostic reading — never a full landmark array (see
- * this file's REQ-58 header comment): each named landmark the posture/hands
- * signals depend on is reported as its own flat object, by name, not as an
- * indexed array element. */
-export interface LandmarkDiagnostic {
-  x: number;
-  y: number;
-  visibility: number;
-  /** `0 <= x <= 1 && 0 <= y <= 1` — an OBSERVATION only in this task, not
-   * yet a gate. See `isVisible`'s own comment for why that distinction is
-   * the entire point of this plan. */
-  inFrame: boolean;
-}
+import {
+  isInFrame,
+  isLandmarkObservedInFrame,
+} from "@/lib/metrics/landmark-visibility";
 
 /** The four models this worker can host. 12-05 extended this union from the
  * face-only set 12-03 shipped. */
@@ -165,14 +141,6 @@ export interface PoseDetectResult {
   shoulderMidX: number | null;
   shoulderMidY: number | null;
   shoulderWidth: number | null;
-  /** TEMPORARY, DEV-ONLY (12-10 Task 1) — present only when
-   * `VISUAL_LANDMARK_DEV_DUMP` is on. The raw per-landmark readings backing
-   * the four `visible.*` verdicts above, named by `POSE_LANDMARK` key —
-   * observation only, read by nothing in `isVisible` or any gating path. */
-  diagnostics?: Record<
-    "NOSE" | "LEFT_EAR" | "RIGHT_EAR" | "LEFT_SHOULDER" | "RIGHT_SHOULDER" | "LEFT_HIP" | "RIGHT_HIP",
-    LandmarkDiagnostic
-  >;
 }
 
 /**
@@ -195,14 +163,6 @@ export interface HandsDetectResult {
     /** Null when no face box is currently available, never a substituted
      * false. */
     nearFace: boolean | null;
-    /** TEMPORARY, DEV-ONLY (12-10 Task 1) — present only when
-     * `VISUAL_LANDMARK_DEV_DUMP` is on. The wrist's raw x/y, its raw
-     * `visibility` reading, and whether its coordinates fall inside the
-     * frame. There is no `isVisible` gate on hands today (every detected
-     * hand is reported unconditionally) — this exists to show whether that
-     * is also hiding an extrapolated wrist, the same question Task 1 asks
-     * of the four pose signal groups. */
-    diagnostics?: LandmarkDiagnostic;
   }>;
 }
 
@@ -312,46 +272,22 @@ function boundsOf(landmarks: Array<{ x: number; y: number }>): Bounds {
   };
 }
 
-/** `true` when a given pose landmark's `visibility` clears
- * `LANDMARK_VISIBILITY_FLOOR`. A missing/undefined `visibility` is treated
- * as not visible, never as visible-by-default.
+/** `true` when a given pose landmark was OBSERVED IN FRAME this tick —
+ * coordinates inside the frame AND `visibility` clearing
+ * `LANDMARK_VISIBILITY_FLOOR`, both required.
  *
- * NOTE (12-10 Task 1): this is MediaPipe's own PREDICTED probability that
- * the landmark is visible, not an observation that it is actually inside
- * the frame — see this file's header comment and `VISUAL_LANDMARK_DEV_DUMP`
- * above for why that distinction is this plan's entire subject. This
- * function's behaviour is UNCHANGED by Task 1; only the diagnostic dump
- * reads anything new. */
-function isVisible(
-  landmarks: Array<{ visibility: number }>,
-  index: number
-): boolean {
-  return (landmarks[index]?.visibility ?? 0) >= LANDMARK_VISIBILITY_FLOOR;
-}
-
-/** TEMPORARY, DEV-ONLY (12-10 Task 1). `0 <= x <= 1 && 0 <= y <= 1` —
- * whether a normalized landmark's coordinates fall inside the captured
- * frame at all. Observation only; not read by `isVisible` or any gating
- * path in this task. */
-function isInFrame(point: { x: number; y: number }): boolean {
-  return point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1;
-}
-
-/** TEMPORARY, DEV-ONLY (12-10 Task 1). Builds one `LandmarkDiagnostic` from
- * a raw pose/hand landmark, by the shared shape both carry
- * (`NormalizedLandmark`: x, y, z, visibility). */
-function toDiagnostic(landmark: {
-  x: number;
-  y: number;
-  visibility: number;
-}): LandmarkDiagnostic {
-  return {
-    x: landmark.x,
-    y: landmark.y,
-    visibility: landmark.visibility,
-    inFrame: isInFrame(landmark),
-  };
-}
+ * BUG FIX (12-10 Task 3, the item-7 sign-off root cause): this used to test
+ * the model's PREDICTED `visibility` score alone, which MediaPipe reports
+ * confidently for a fully extrapolated off-camera skeleton — 98% of ticks in
+ * the failing session. `visible.*` in `PoseDetectResult` therefore means
+ * OBSERVED IN FRAME from here on, not "the model is confident it could guess
+ * this". The predicate itself lives in `landmark-visibility.ts` so the
+ * verification script can assert it directly (this module installs
+ * `self.onmessage` at module scope and cannot be imported from Node); see
+ * `isLandmarkObservedInFrame`'s own comment there for the Session A/B
+ * readings, why the in-frame half is needed, and why it is only HALF the fix
+ * — `POSTURE_COVERAGE_MIN_RATIO` is the other half. */
+const isVisible = isLandmarkObservedInFrame;
 
 async function createFaceLandmarker(
   resolver: WasmFileset,
@@ -706,21 +642,6 @@ function detectPose(bitmap: ImageBitmap, timestamp: number): PoseDetectResult {
       ? { x: shoulderMidX, y: shoulderMidY }
       : null;
 
-  // TEMPORARY, DEV-ONLY (12-10 Task 1) — see `VISUAL_LANDMARK_DEV_DUMP`'s own
-  // comment. Computed only when the flag is on, so this task costs nothing
-  // on a normal build.
-  const diagnostics = VISUAL_LANDMARK_DEV_DUMP
-    ? {
-        NOSE: toDiagnostic(landmarks[POSE_LANDMARK.NOSE]),
-        LEFT_EAR: toDiagnostic(landmarks[POSE_LANDMARK.LEFT_EAR]),
-        RIGHT_EAR: toDiagnostic(landmarks[POSE_LANDMARK.RIGHT_EAR]),
-        LEFT_SHOULDER: toDiagnostic(landmarks[POSE_LANDMARK.LEFT_SHOULDER]),
-        RIGHT_SHOULDER: toDiagnostic(landmarks[POSE_LANDMARK.RIGHT_SHOULDER]),
-        LEFT_HIP: toDiagnostic(landmarks[POSE_LANDMARK.LEFT_HIP]),
-        RIGHT_HIP: toDiagnostic(landmarks[POSE_LANDMARK.RIGHT_HIP]),
-      }
-    : undefined;
-
   return {
     poseFound: true,
     visible: {
@@ -736,7 +657,6 @@ function detectPose(bitmap: ImageBitmap, timestamp: number): PoseDetectResult {
     shoulderMidX,
     shoulderMidY,
     shoulderWidth,
-    diagnostics,
   };
 }
 
@@ -765,12 +685,42 @@ function detectHands(
   }
 
   const result = handLandmarker.detectForVideo(bitmap, timestamp);
-  const handCount = result.landmarks.length;
+  if (result.landmarks.length === 0) {
+    return { handCount: 0, primary: [] };
+  }
+
+  // 12-10 Task 3: the hands path shows the SAME extrapolation the pose path
+  // does, so it gets the same treatment — a hand whose wrist is outside the
+  // frame is not a detected hand. The Task 2 readings: in the off-camera
+  // session (Session A), 41 of the 80 hands ticks carrying a detection had
+  // the wrist OUTSIDE the frame — 51% of all detections were extrapolated —
+  // while only 39 were genuinely in frame. That session reported "Gesturing:
+  // Well judged" and "Hands near face: Frequent"; the comparison session
+  // (Session B) had 1 in-frame detection and 0 out-of-frame, so the effect
+  // is specific to the off-camera case, exactly as it is for pose.
+  //
+  // Dropped HERE, before selection, rather than gated downstream, so every
+  // consumer is fixed at once by construction: `handsDetectedSamples`,
+  // `aboveShoulder`, `nearFace`, and the gesture-displacement loop in
+  // `visual-capture.ts` all read `handCount`/`primary` and would otherwise
+  // each need their own guard. `handCount` is the count of IN-FRAME hands
+  // for the same reason — it is read as "was a hand seen this tick", and
+  // after this filter that is what it honestly answers.
+  //
+  // The in-frame test ONLY, never `LANDMARK_VISIBILITY_FLOOR`: HandLandmarker
+  // does not populate a meaningful per-landmark `visibility` (it reports
+  // handedness/confidence per hand instead), and no hands path has ever
+  // consulted that score. Adding it here would be a new, untuned gate rather
+  // than the honesty fix this plan is scoped to.
+  const inFrameHands = result.landmarks.filter((landmarks) =>
+    isInFrame(landmarks[0])
+  );
+  const handCount = inFrameHands.length;
   if (handCount === 0) {
     return { handCount: 0, primary: [] };
   }
 
-  const candidates = result.landmarks.map((landmarks) => {
+  const candidates = inFrameHands.map((landmarks) => {
     const wrist = landmarks[0];
     let minX = Infinity;
     let maxX = -Infinity;
@@ -789,8 +739,6 @@ function detectHands(
       fingertipSpanX: maxX - minX,
       fingertipSpanY: maxY - minY,
       area: boundsOf(landmarks).area,
-      // TEMPORARY, DEV-ONLY (12-10 Task 1) — see `VISUAL_LANDMARK_DEV_DUMP`.
-      diagnostics: VISUAL_LANDMARK_DEV_DUMP ? toDiagnostic(wrist) : undefined,
     };
   });
 
@@ -840,7 +788,6 @@ function detectHands(
       fingertipSpanY: candidate.fingertipSpanY,
       aboveShoulder,
       nearFace,
-      diagnostics: candidate.diagnostics,
     };
   });
 
