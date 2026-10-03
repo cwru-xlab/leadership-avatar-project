@@ -1563,9 +1563,9 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-02
-**Stopped At:** 12-10 Task 1 shipped and committed (`307c96d`); PAUSED at Task 2's BLOCKING human-verify checkpoint. The user must set `NEXT_PUBLIC_VISUAL_LANDMARK_DEV_DUMP=1`, restart `npm run dev`, run Session A (off camera, one arm in shot) and Session B (half in frame — shoulders visible, torso cut off), and paste back the per-signal in-frame/isVisible-split aggregates the dump logs (per-tick `console.debug("[visual-capture][dev] pose landmarks"...)`/`"hands landmarks"`, plus one `console.debug("[visual-capture][dev] landmark in-frame split (session aggregate)"...)` at session end). Task 3 (set the gate from those readings) and Task 4 (sign-off re-run) do not proceed without them.
-**Resume File:** .planning/phases/12-embodied-visual-signals/12-10-PLAN.md
+**Last Date:** 2026-10-03T03:52:22.276Z
+**Stopped At:** Phase 15 context gathered
+**Resume File:** .planning/phases/15-difficult-conversations/15-CONTEXT.md
 
 
 ## Accumulated Context
