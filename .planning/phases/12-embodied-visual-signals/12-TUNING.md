@@ -133,9 +133,106 @@ body — see `12-09-SUMMARY.md`'s root-cause section and `12-10-PLAN.md`. So:
 `POSTURE_DRIFT_SUSTAINED_S` (15) and `HANDS_NEAR_FACE_RADIUS` (0.15) were
 already NOT RE-TUNED for want of raw dumps; they inherit the same instruction.
 
+## The landmark in-frame readings (12-10 Task 2, 2026-10-03)
+
+Run by the user with `NEXT_PUBLIC_VISUAL_LANDMARK_DEV_DUMP=1`. These are the
+`landmark in-frame split (session aggregate)` outputs, transcribed. They are
+the evidence base for `POSTURE_COVERAGE_MIN_RATIO` (moved 0.25 -> 0.60) and for
+the in-frame half of `isVisible`, and they are recorded here because the dump
+that produced them was removed in the same task.
+
+**Session A — off camera, one arm in shot.** Face presence, eye contact and
+centering all recorded at 0%. 143 pose ticks.
+
+| signal         | visible & in frame | visible but OUT of frame | in-frame / total ticks |
+| -------------- | ------------------ | ------------------------ | ---------------------- |
+| forward_head   | 62                 | 78                       | **43.4%**              |
+| shoulder_line  | 21                 | 74                       | 14.7%                  |
+| torso_lean     | 5                  | 15                       | 3.5%                   |
+| torso_openness | 5                  | 15                       | 3.5%                   |
+
+Hands: 234 ticks, 39 detected in frame, 41 detected OUT of frame.
+
+**Session B — half in frame**, shoulders at the frame edge, torso cut off. Face
+visible 79%, eye contact 75%. 281 pose ticks.
+
+| signal         | visible & in frame | visible but OUT of frame | in-frame / total ticks |
+| -------------- | ------------------ | ------------------------ | ---------------------- |
+| forward_head   | 212                | 69                       | **75.4%**              |
+| shoulder_line  | 16                 | 262                      | 5.7%                   |
+| torso_lean     | 1                  | 2                        | 0.4%                   |
+| torso_openness | 1                  | 2                        | 0.4%                   |
+
+Hands: 282 ticks, 1 detected in frame, 0 out of frame.
+
+Per-tick samples recorded alongside: Session A tick 114
+`{shoulderLine: true, forwardHead: true, torsoLean: false, torsoOpenness: false}`,
+tick 184 `{shoulderLine: false, forwardHead: true, ...}`; Session B ticks 46 and
+276 both `{shoulderLine: true, forwardHead: true, torsoLean: false, torsoOpenness: false}`.
+
+### What these readings establish, and what they do not
+
+1. **`visibility` is near-useless as a gate.** Session A called `forward_head`
+   visible on 140/143 ticks (98%) with the face detected 0% of the session;
+   Session B called `shoulder_line` visible on 278/281 (99%) with the shoulders
+   at the frame's edge. The per-tick visible flags are indistinguishable
+   between a 0%-face session and a genuine one.
+
+2. **12-10's own stated hypothesis was falsified in its simple form.** Adding
+   an in-frame test to `isVisible` alone would NOT have fixed this: Session A's
+   `forward_head` is still in frame on 43.4% of ticks, which clears 12-09's
+   0.25 ratio. "Head position" would have been reported as measured a third
+   time. Both the per-tick fix and the ratio change are load-bearing; each was
+   confirmed to fail the replay assertions when reverted alone.
+
+3. **The ratio AS THE DUMP PRINTED IT inverts between the sessions and must
+   not be used.** The dump's `visibleAndInFrameRatio` divides by VISIBLE ticks,
+   giving Session A `shoulder_line` 0.221 against Session B's 0.058 — the
+   genuine body scores LOWER. The separating quantity is in-frame count over
+   TOTAL pose ticks, the right-hand column above.
+
+4. **Session B's own live report was over-claiming.** It printed "Measured
+   from: Shoulder line and Head position" with the shoulders out of frame on
+   262 of the 278 ticks the model called visible (94%). Session B measuring
+   `forward_head` ONLY is the correct outcome and is REQ-51 satisfied — scored
+   on the landmark genuinely available rather than skipped entirely.
+
+5. **Honest limits.** Two sessions. The separating gap is 43.4% -> 75.4%: real,
+   but one reading on each side, and ANY cutoff from ~0.44 to ~0.75 produces
+   identical verdicts on both. These readings establish the band; they do not
+   locate 0.60 within it. This cutoff is **not well-characterised**. There is
+   no fully-in-frame reading at all, so the band has no upper bound — that is
+   the next session to collect, and it would also set
+   `HANDS_COVERAGE_MIN_RATIO`, which these two sessions bound only from below
+   (Session A's 16.7% against its retained 0.25).
+
+### The hands numerator defect these readings exposed
+
+Session A's hands figures showed 234 ticks against ~234 expected, which is how
+`computeHandsUsable` was being called — with `handSamples`, the count of ticks
+the hands MODEL RAN, incremented whether or not a hand was detected. That is
+~100% of expected on any live session, so **12-09's hands coverage gate was
+inert** and Session A kept "Gesturing: Well judged" and "Hands near face:
+Frequent" after 12-09 claimed to have closed exactly that. The numerator is now
+`handsDetectedSamples`, counted after out-of-frame wrists are dropped. Found
+from these numbers, not from the code.
+
+## The phone-confidence dump (12-09) was removed UNUSED
+
+Both dev dumps were removed in 12-10 Task 3. For the landmark dump that is a
+removal after use — its readings are recorded above. For 12-09's
+`NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP` it is not: **its readings were never
+captured.** It was added for 12-09's Task 3 item 4, that item never ran, and it
+was re-listed as 12-10's Task 4 item 4, which has not run either at the time of
+removal. So no phone-confidence distribution exists anywhere in this record, and
+removing the dump loses nothing that was ever observed — but it also means
+`PHONE_SCORE_THRESHOLD` remains deliberately untuned with no dataset behind it,
+and the dump must be re-added if that reading is ever wanted. Stated explicitly
+so this removal is not mistaken for "the dump was used and is finished with".
+
 ---
 
 *Tuned 2026-10-02 against the dataset above. The 12-08 Task 3 sign-off
 walkthrough was performed on 2026-10-02 and FAILED on item 7 — see
 `12-08-SUMMARY.md` and `12-09-SUMMARY.md`. The 12-09 re-run also failed; the gap
-is carried by `12-10-PLAN.md`.*
+is carried by `12-10-PLAN.md`, whose Task 2 readings are recorded above.*

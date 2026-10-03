@@ -26,6 +26,7 @@ import {
   type PostureReading,
   type VisualSampleCounts,
 } from "../lib/metrics/visual-capture";
+import { isLandmarkObservedInFrame } from "../lib/metrics/landmark-visibility";
 import { resolveVisualOutcome, isPoorVisualCoverage } from "../lib/metrics/coverage";
 import {
   visualBands,
@@ -598,6 +599,272 @@ console.log("\n10b. 12-09 — item-7 sign-off failure: coverage gate + episode s
     "REQ-51 counter-assertion: a genuinely well-visible hands signal is NOT skipped",
     handsUsable,
     true
+  );
+}
+
+console.log(
+  "\n10c. 12-10 — the extrapolated out-of-frame skeleton, from the real Task 2 readings"
+);
+{
+  // PROVENANCE OF EVERY NUMBER BELOW. These are the session aggregates the
+  // user dumped on 2026-10-03 with `NEXT_PUBLIC_VISUAL_LANDMARK_DEV_DUMP=1`
+  // (12-10 Task 2; the dump was removed in Task 3, the readings are recorded
+  // in `12-TUNING.md`). The COUNTS are transcribed, not invented.
+  //
+  // What was captured was the per-signal aggregate split — in-frame vs
+  // out-of-frame counts over total pose ticks — NOT the raw per-landmark x/y
+  // coordinates. So the coordinates used in the per-tick predicate assertion
+  // further down are ILLUSTRATIVE of the out-of-frame condition those
+  // aggregates establish, and are labelled as such; they are not transcribed
+  // readings. Every session-level assertion uses the transcribed counts
+  // directly.
+  //
+  //   Session A — OFF CAMERA, one arm in shot. Face presence, eye contact and
+  //   centering all recorded at 0%. 143 pose ticks. This is the session that
+  //   defeated 12-08 ("Held steady") and 12-09 ("Shifted from the opening
+  //   posture"), and it is item 1 of the sign-off.
+  //     signal          visible+inFrame   visible+OUT of frame
+  //     forward_head          62                  78
+  //     shoulder_line         21                  74
+  //     torso_lean             5                  15
+  //     torso_openness         5                  15
+  //     hands: 234 ticks, 39 detected in frame, 41 detected OUT of frame
+  //
+  //   Session B — HALF IN FRAME, shoulders at the frame edge, torso cut off.
+  //   Face visible 79%, eye contact 75%. 281 pose ticks. The REQ-51 side.
+  //     forward_head         212                  69
+  //     shoulder_line         16                 262
+  //     torso_lean             1                   2
+  //     torso_openness         1                   2
+  //     hands: 282 ticks, 1 detected in frame, 0 out of frame
+  const sessionA = {
+    totalPoseTicks: 143,
+    inFrame: { forward_head: 62, shoulder_line: 21, torso_lean: 5, torso_openness: 5 },
+    // What the PRE-FIX `isVisible` counted: in-frame + out-of-frame, i.e.
+    // every tick the model asserted a confident `visibility` for.
+    visibleByScore: { forward_head: 140, shoulder_line: 95, torso_lean: 20, torso_openness: 20 },
+    handsTicks: 234,
+    handsDetectedInFrame: 39,
+  };
+  const sessionB = {
+    totalPoseTicks: 281,
+    inFrame: { forward_head: 212, shoulder_line: 16, torso_lean: 1, torso_openness: 1 },
+    visibleByScore: { forward_head: 281, shoulder_line: 278, torso_lean: 3, torso_openness: 3 },
+    handsTicks: 282,
+    handsDetectedInFrame: 1,
+  };
+
+  // --- The per-tick predicate itself. A landmark the model extrapolated
+  // OUTSIDE the frame is never observed, however confident the model is: this
+  // is the half of the fix that lives in `isLandmarkObservedInFrame`. The
+  // visibility scores here are high on purpose — that is the whole point, and
+  // it is what the Session A aggregate proves happens (the pre-fix predicate
+  // said "visible" for forward_head on 140 of 143 ticks while the face was
+  // detected 0% of the session).
+  const extrapolated = [
+    { x: -0.21, y: 0.42, visibility: 0.94 }, // off the left edge
+    { x: 1.18, y: 0.51, visibility: 0.88 }, // off the right edge
+    { x: 0.47, y: -0.09, visibility: 0.97 }, // above the top edge
+    { x: 0.52, y: 1.33, visibility: 0.91 }, // below the bottom edge
+  ];
+  extrapolated.forEach((landmark, i) => {
+    check(
+      `extrapolated landmark ${i} (x=${landmark.x}, y=${landmark.y}, visibility=${landmark.visibility}) is NOT observed`,
+      isLandmarkObservedInFrame(extrapolated, i),
+      false
+    );
+  });
+  // REQ-51's direction, same predicate: a landmark genuinely in frame still
+  // counts exactly as it did before, including hard on the frame's edge where
+  // Session B's shoulders sat.
+  const observed = [
+    { x: 0.5, y: 0.5, visibility: 0.9 },
+    { x: 0.0, y: 1.0, visibility: 0.6 }, // exactly on the edge — still in frame
+  ];
+  check(
+    "a landmark genuinely in frame is still observed (REQ-51 direction)",
+    [isLandmarkObservedInFrame(observed, 0), isLandmarkObservedInFrame(observed, 1)],
+    [true, true]
+  );
+  check(
+    "in frame but BELOW the visibility floor is still not observed (the floor is ANDed, not replaced)",
+    isLandmarkObservedInFrame([{ x: 0.5, y: 0.5, visibility: 0.1 }], 0),
+    false
+  );
+  check(
+    "a degenerate NaN coordinate fails CLOSED, never counting as observed",
+    isLandmarkObservedInFrame([{ x: NaN, y: 0.5, visibility: 0.99 }], 0),
+    false
+  );
+  check(
+    "a missing landmark is not observed",
+    isLandmarkObservedInFrame([], 3),
+    false
+  );
+
+  // --- SESSION A, the item-1 blocker: measures NOTHING. The numerator is the
+  // in-frame count (what `poseVisibleSamples` holds now that `isVisible`
+  // requires in-frame coordinates); the denominator is the session's own
+  // expected pose-sample count, which equals its observed tick count to
+  // within dropped ticks.
+  const sessionAMeasured = computePostureSignalsMeasured(
+    sessionA.inFrame,
+    sessionA.totalPoseTicks
+  );
+  check(
+    "Session A (off camera, one arm): NO posture signal is measured at all",
+    sessionAMeasured,
+    []
+  );
+
+  // BOTH HALVES OF THE FIX ARE LOAD-BEARING, and these two assertions are why
+  // neither may be relaxed on its own.
+  //
+  // (a) The per-tick in-frame fix is load-bearing EVEN AT the new 0.60 ratio:
+  // feed the PRE-FIX numerator (every tick the model called visible) and
+  // Session A measures two signals again.
+  check(
+    "Session A: the PRE-FIX score-only numerator still measures two signals even at the 0.60 ratio",
+    computePostureSignalsMeasured(sessionA.visibleByScore, sessionA.totalPoseTicks),
+    ["shoulder_line", "forward_head"]
+  );
+  // (b) The ratio change is load-bearing even WITH the in-frame fix. 12-09's
+  // ratio was 0.25 and Session A's forward_head is in frame on 62/143 = 43.4%
+  // of ticks, so the per-tick fix alone would have reported "Head position"
+  // as measured a third time. Arithmetic inlined deliberately — this asserts
+  // what the SUPERSEDED 0.25 bound would do, which no current code path
+  // should be able to produce.
+  const PRE_FIX_RATIO_12_09 = 0.25;
+  check(
+    "Session A: 12-09's 0.25 ratio would STILL have measured forward_head from in-frame ticks alone",
+    (Object.keys(sessionA.inFrame) as Array<keyof typeof sessionA.inFrame>).filter(
+      (signal) =>
+        sessionA.inFrame[signal] >= POSTURE_BASELINE_MIN_SAMPLES &&
+        sessionA.inFrame[signal] >= sessionA.totalPoseTicks * PRE_FIX_RATIO_12_09
+    ),
+    ["forward_head"]
+  );
+
+  // Session A's hands: refused. 39 in-frame detections of 234 ticks = 16.7%.
+  check(
+    "Session A: hands are NOT usable (39 in-frame detections of 234 ticks)",
+    computeHandsUsable(sessionA.handsDetectedInFrame, sessionA.handsTicks),
+    false
+  );
+  // The numerator defect 12-10 found: 12-09 passed `handSamples`, the count of
+  // ticks the MODEL RAN, which is ~100% of expected on any live session — so
+  // its hands gate was inert and Session A kept "Gesturing: Well judged" and
+  // "Hands near face: Frequent". This asserts the inertness directly, so a
+  // future refactor cannot quietly reintroduce the wrong numerator.
+  check(
+    "Session A: 12-09's numerator (ticks the model RAN) left the hands gate wide open",
+    computeHandsUsable(sessionA.handsTicks, sessionA.handsTicks),
+    true
+  );
+
+  // Session A's rendered report: no verdict row of EITHER kind. 12-08 produced
+  // a false "Held steady" here and 12-09 a false "Shifted from the opening
+  // posture"; `posture_drift_mean` is set to a real number below so this
+  // exercises the renderer's own refusal rather than an absent field.
+  const sessionARendered = visualBodyLanguageBands(
+    visual({
+      posture_signals_measured: sessionAMeasured,
+      posture_drift_mean: 0.42,
+    })
+  );
+  check(
+    "Session A: no Posture drift verdict row — neither the 12-08 nor the 12-09 wording",
+    sessionARendered.some((r) => r.label === "Posture drift"),
+    false
+  );
+  check(
+    'Session A: "Measured from" says the body was not visible',
+    bandFor(sessionARendered, "Measured from"),
+    "Nothing — body not visible in frame"
+  );
+  check(
+    "Session A: no Gesturing row (the arm the pipeline could not properly see)",
+    sessionARendered.some((r) => r.label === "Gesturing"),
+    false
+  );
+  check(
+    "Session A: no Hands near face row either",
+    sessionARendered.some((r) => r.label === "Hands near face"),
+    false
+  );
+  // And no Moments row / Growth Area survives: the eight body-language rows
+  // 12-09's run printed for this session were posture-drift and gesturing
+  // episodes, every one of them from a signal now declared unreadable.
+  const sessionAEpisodes = filterUnreadableBodyLanguageEpisodes(
+    [
+      { kind: "posture_drift" as const, start_s: 27, end_s: 176, severity: 1 },
+      { kind: "posture_drift" as const, start_s: 187, end_s: 229, severity: 1 },
+      { kind: "excessive_gesturing" as const, start_s: 30, end_s: 50, severity: 1 },
+      { kind: "minimal_gesturing" as const, start_s: 60, end_s: 80, severity: 1 },
+      { kind: "hands_near_face" as const, start_s: 90, end_s: 110, severity: 1 },
+      { kind: "off_camera" as const, start_s: 1, end_s: 260, severity: 1 },
+    ],
+    {
+      postureReadable: sessionAMeasured.length > 0,
+      handsReadable: computeHandsUsable(
+        sessionA.handsDetectedInFrame,
+        sessionA.handsTicks
+      ),
+    }
+  );
+  check(
+    "Session A: the only surviving episode is the Off camera row itself",
+    sessionAEpisodes.map((e) => e.kind),
+    ["off_camera"]
+  );
+
+  // --- SESSION B, the REQ-51 counter-assertion: a genuinely half-visible
+  // body is still scored on the ONE landmark group that was really in frame,
+  // and is NOT skipped just because its siblings fell short.
+  const sessionBMeasured = computePostureSignalsMeasured(
+    sessionB.inFrame,
+    sessionB.totalPoseTicks
+  );
+  check(
+    "Session B (half in frame): forward_head IS still measured — 212/281 = 75.4% in frame",
+    sessionBMeasured,
+    ["forward_head"]
+  );
+  check(
+    'Session B: "Measured from" names exactly that one signal',
+    bandFor(
+      visualBodyLanguageBands(
+        visual({ posture_signals_measured: sessionBMeasured, posture_drift_mean: 0.2 })
+      ),
+      "Measured from"
+    ),
+    "Head position"
+  );
+  check(
+    "Session B: a Posture drift verdict IS rendered — a partial body is scored, not skipped",
+    visualBodyLanguageBands(
+      visual({ posture_signals_measured: sessionBMeasured, posture_drift_mean: 0.2 })
+    ).some((r) => r.label === "Posture drift"),
+    true
+  );
+  // Session B's own live report printed "Measured from: Shoulder line and Head
+  // position" while the shoulders were out of frame on 262 of the 278 ticks
+  // the model called visible (94%). Dropping shoulder_line is the CORRECTION,
+  // not a regression — asserted explicitly so nobody reads it as one.
+  check(
+    "Session B: shoulder_line is correctly NOT measured (16/281 = 5.7% in frame)",
+    sessionBMeasured.includes("shoulder_line"),
+    false
+  );
+  check(
+    "Session B: the PRE-FIX numerator is what printed its over-claiming 'Shoulder line and Head position'",
+    computePostureSignalsMeasured(sessionB.visibleByScore, sessionB.totalPoseTicks),
+    ["shoulder_line", "forward_head"]
+  );
+  check(
+    "Session B: hands are NOT usable either — 1 in-frame detection all session",
+    computeHandsUsable(sessionB.handsDetectedInFrame, sessionB.handsTicks),
+    false
   );
 }
 
