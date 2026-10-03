@@ -1572,9 +1572,9 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-02T23:34:57.874Z
-**Stopped At:** Phase 12 sign-off run — items 1-6 + criterion 2 PASSED, item 7 FAILED; 12-09 planned to close it
-**Resume File:** .planning/phases/12-embodied-visual-signals/12-09-PLAN.md
+**Last Date:** 2026-10-03T03:32:09.451Z
+**Stopped At:** 12-09 closed PARTIALLY DELIVERED (Tasks 1-2 shipped, Task 3 failed item 1); root cause is isVisible trusting MediaPipe's predicted visibility with no frame-bounds check; 12-10 planned to fix the producer
+**Resume File:** .planning/phases/12-embodied-visual-signals/12-10-PLAN.md
 
 
 ## Accumulated Context
