@@ -36,7 +36,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 9: Student-Authored Scenarios** - Students create their own practice scenarios (completed 2026-09-21)
 - [x] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
 - [x] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality) (completed 2026-09-23)
-- [ ] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (8/10 plans; fidgeting retired as unmeasurable; sign-off item 1/7 PASSED at 12-10 after defeating two attempts — criterion 3 holds. Posture drift's true positive and the phone threshold are still open and need a follow-up plan)
+- [ ] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (8/11 plans; fidgeting retired as unmeasurable; sign-off item 1/7 PASSED at 12-10 after defeating two attempts — criterion 3 holds. 12-11 settles whether a slump is measurable at all, and decides the phone threshold)
 - [ ] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record
 - [ ] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
 - [ ] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios
@@ -260,7 +260,7 @@ report restructure (REQ-53's scored-vs-descriptive distinction gates REQ-52).
   3. Nothing the pipeline cannot observe is described as absent, and nothing reported
      descriptively is scored.
 
-**Plans:** 8/10 plans executed
+**Plans:** 8/11 plans executed
 
 Plans:
 - [x] 12-01-PLAN.md — Async stop() teardown + per-tick frame-budget instrumentation
@@ -284,6 +284,7 @@ Plans:
       checks whether a landmark is inside the frame, so an extrapolated skeleton
       built off one visible arm cleared both gates. Gap carried by 12-10.)
 - [x] 12-10-PLAN.md — Frame-bounds landmark gating, measured-first, item-1 third attempt
+- [ ] 12-11-PLAN.md — Is a slump measurable at all? Drift series + phone distribution, then repair or retire
       (DELIVERED `307c96d`/`69ed830`. **Sign-off item 1 PASSES at last** — the
       off-camera session that defeated 12-08 and 12-09 now correctly reports the
       body as unreadable, so criterion 3 holds against it and REQ-53 is met.
@@ -543,7 +544,7 @@ engine lands they can be planned and executed in any order, or in parallel.
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
-| 12. Embodied Visual Signals | 8/10 | In Progress|  |
+| 12. Embodied Visual Signals | 8/11 | In Progress|  |
 | 13. One-on-One Conversation Engine | 0/0 | Not planned |  |
 | 14. Practice Pitches | 0/15 | Planned     |  |
 | 15. Difficult Conversations | 0/11 | Planned     |  |
