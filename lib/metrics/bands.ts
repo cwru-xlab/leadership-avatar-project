@@ -378,7 +378,33 @@ function bandHandsNearFace(pct: number): string {
   return clamped >= HANDS_NEAR_FACE_TRIP_PCT ? "Frequent" : "Occasional";
 }
 
-function bandPostureDrift(drift: number, _driftMaxS: number | undefined): string {
+/**
+ * BUG FIX (12-09, item-7 sign-off failure, Defect 2): this function used to
+ * take only `drift`/`_driftMaxS` and render a binary verdict with NO
+ * unreadable branch — an off-camera session whose `posture_drift_mean`
+ * happened to be populated (the baseline can calibrate from the same brief
+ * glimpse that defeated the old `postureSignalsMeasured` floor, entirely
+ * independently of this function) still printed "Held steady from the
+ * opening posture," crediting a student for posture never observed.
+ *
+ * `measuredSignals` is now required and checked FIRST: an empty array means
+ * no posture landmark was usably visible session-wide, so no verdict is
+ * supportable, and this returns wording consistent with
+ * `describeMeasuredFrom`'s existing empty-case phrasing rather than a second
+ * vocabulary for the same condition. This is DELIBERATELY redundant with
+ * `visualBodyLanguageBands`'s own gate below (which omits the "Posture
+ * drift" row entirely when `posture_signals_measured` is empty) — defence
+ * in depth, the same discipline this plan's Task 1 applies to the
+ * producer/renderer split: a future direct call to this function must not
+ * be able to silently reintroduce the bug by skipping the renderer's gate.
+ */
+function bandPostureDrift(
+  drift: number,
+  measuredSignals: VisualPostureSignal[]
+): string {
+  if (measuredSignals.length === 0) {
+    return "Not visible enough to read — body not visible in frame";
+  }
   const clamped = clampFinite(drift, 0, 1);
   return clamped >= POSTURE_DRIFT_TRIP ? "Shifted from the opening posture" : "Held steady from the opening posture";
 }
@@ -413,10 +439,25 @@ export function visualBodyLanguageBands(m: VisualMetrics): MetricBandRow[] {
     rows.push({ label: "Hands near face", value: bandHandsNearFace(m.hands_near_face_pct) });
   }
 
-  if (typeof m.posture_drift_mean === "number") {
+  // BUG FIX (12-09, item-7 sign-off failure, Defect 2): this row used to be
+  // gated ONLY on `typeof m.posture_drift_mean === "number"`, entirely
+  // independent of `posture_signals_measured` — `posture_drift_mean` is
+  // populated by the baseline/drift machinery, which can establish from the
+  // SAME brief in-frame glimpse that (pre-fix) also defeated the
+  // session-wide coverage floor, so an off-camera session could still carry
+  // a real `posture_drift_mean` number here. The row is now gated on BOTH:
+  // a defined `posture_drift_mean` AND a non-empty `posture_signals_measured`
+  // — omit-don't-default, not a defaulted/invented verdict (see
+  // `bandPostureDrift`'s own comment for why it also independently refuses
+  // to render a verdict for the empty-array case).
+  if (
+    typeof m.posture_drift_mean === "number" &&
+    Array.isArray(m.posture_signals_measured) &&
+    m.posture_signals_measured.length > 0
+  ) {
     rows.push({
       label: "Posture drift",
-      value: bandPostureDrift(m.posture_drift_mean, m.posture_drift_max_s),
+      value: bandPostureDrift(m.posture_drift_mean, m.posture_signals_measured),
     });
   }
 
