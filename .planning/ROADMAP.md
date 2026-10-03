@@ -417,6 +417,13 @@ pasted LinkedIn text, their own written description, or AI-generated text —
 distilled into an avatar persona, or picked from a set of default characters.
 **Depends on:** Phase 13 (and reuses Phase 8's one-shot persona distillation
 endpoint rather than adding a second distillation path).
+**Scope note (2026-10-03, from `/gsd:discuss-phase 16`):** criterion 3's "stored
+privately" refers to the DISTILLED persona, not the raw paste. The raw pasted
+text stays ephemeral — the existing distill route's never-persisted contract is
+preserved — and the distilled persona is saved as an owner-scoped, never
+publishable instance. An attestation is recorded before a paste is accepted. The
+networking SETTING (conference, coffee chat, …) is deferred, not built. See
+`16-CONTEXT.md`.
 **Success Criteria** (what must be TRUE):
   1. A student can paste a description of a real person and practice against a
      persona distilled from it, through the existing distillation path.
