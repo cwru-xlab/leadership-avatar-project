@@ -320,6 +320,45 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
     findBodySignalWordingViolations(benign).length, 0);
 }
 {
+  // 12-09 Task 2 investigation of the 12-08 Task 3 sign-off's "Excessive
+  // gesturing at times" / "Try this:" / no-question observation. Reproduced
+  // directly: a growth area whose ENTIRE `detail` is one non-conforming
+  // sentence (no question mark, mentions a body signal) gets that sentence
+  // stripped to an empty string by the question-mark rule — `title` is
+  // never validated, so pre-fix this left a hollow entry (title +
+  // unconditional "Try this:" suggestion, no question anywhere) that
+  // reproduces the describe-then-ask violation one level up. The whole
+  // entry must be dropped, not left half-populated.
+  const hollowDetail = asStructuredReport({
+    ...FULL,
+    growth_areas: [
+      {
+        title: "Excessive gesturing at times",
+        detail: "Excessive gesturing at times",
+        suggestion: "Keep your hands relaxed at your sides when not actively gesturing.",
+        timecodes: ["1:26"],
+      },
+      {
+        title: "Hand-to-face movement",
+        detail: "Frequent hand-to-face movement — did you notice yourself doing this?",
+        suggestion: "Try keeping your hands in your lap when not gesturing.",
+        timecodes: ["2:10"],
+      },
+    ],
+  }) as StructuredReport;
+  const { report: sanitized } = sanitizeBodySignalWording(hollowDetail);
+  check(
+    "a growth area stripped down to an empty detail is dropped entirely, not left hollow",
+    sanitized.growth_areas.map((g) => g.title),
+    ["Hand-to-face movement"]
+  );
+  check(
+    "the compliant sibling entry survives untouched",
+    sanitized.growth_areas[0]?.detail,
+    "Frequent hand-to-face movement — did you notice yourself doing this?"
+  );
+}
+{
   // growth_areas[].suggestion is advisory, not a finding — it must NOT be
   // held to the question-mark rule, even though it mentions a body signal.
   const withAdvisorySuggestion = asStructuredReport({

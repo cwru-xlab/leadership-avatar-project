@@ -270,6 +270,29 @@ const SCHEDULE: ModelId[] = ["face", "pose", "face", "hands"];
 const OBJECT_TICK_INTERVAL_MS = 2000;
 
 /**
+ * TEMPORARY, DEV-ONLY (12-09 Task 2). `PHONE_SCORE_THRESHOLD`
+ * (`body-thresholds.ts`) was left NOT RE-TUNED at 12-08 because no session
+ * dump ever captured the object model's RAW per-detection "cell phone"
+ * confidence score — only the already-thresholded `phonePresent`
+ * boolean/aggregate counts it already gated. `ObjectDetectResult.phoneScore`
+ * (the best-scoring "cell phone" detection that cleared the model's own
+ * internal `scoreThreshold`, set to `PHONE_SCORE_THRESHOLD` in
+ * `visual-capture.worker.ts`) already carries this reading back to the main
+ * thread every object tick but was discarded here, unread. This flag, OFF by
+ * default, logs it instead — diagnose first, decide after
+ * (`PHONE_SCORE_THRESHOLD` is NOT changed by this plan; see
+ * `12-09-PLAN.md` Task 2 item 3). Gated on a `NEXT_PUBLIC_` env var so it is
+ * statically compiled out of a normal build and never logs for a real
+ * student session; set `NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP=1` before
+ * `npm run dev` to activate it for the Task 3 checkpoint's phone-confidence
+ * read. REMOVE this flag and its one call site
+ * (`applyObjectResult`) once that checkpoint's reading has been captured —
+ * this is scaffolding, not a shipped feature.
+ */
+const PHONE_CONFIDENCE_DEV_DUMP =
+  process.env.NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP === "1";
+
+/**
  * `SCHEDULE`'s face share, computed rather than hand-kept in sync, so a
  * future edit to `SCHEDULE` cannot silently re-break the schedule-aware
  * `expectedSamples` calculation in `stop()` below. See that calculation's
@@ -639,6 +662,42 @@ export function computeHandsUsable(
   return (
     handSamples > 0 && handSamples >= expectedHandsSamples * HANDS_COVERAGE_MIN_RATIO
   );
+}
+
+/**
+ * Pure. Filters a session's extracted SCORED episodes (`extractEpisodes`'s
+ * output) against the SAME session-wide coverage gates
+ * `computePostureSignalsMeasured`/`computeHandsUsable` compute — see Task 1
+ * item 5 of `12-09-PLAN.md`.
+ *
+ * WHY THIS IS NEEDED EVEN AFTER THE SESSION-WIDE GATES: `windowTrips`
+ * decides per-WINDOW, from that window's own real sample counts, with no
+ * visibility into session-wide coverage at all — that is deliberate (every
+ * other episode kind it judges follows the same "a window trips on its own
+ * ratio" discipline). But that means the EXACT brief in-frame glimpse that
+ * (pre-12-09) could clear the session-wide absolute floor alone can,
+ * independently, produce one or two genuinely-tripping windows long enough
+ * to clear `MIN_EPISODE_SECONDS` and surface as a Moments row / Growth Area
+ * — the identical class of defect as the producer/renderer fix, one level
+ * down. A body-language episode backed by a signal the session-wide gate
+ * has declared unreadable must produce silence, not a finding, so it is
+ * dropped here, after both session-wide gates are known.
+ */
+export function filterUnreadableBodyLanguageEpisodes(
+  episodes: VisualEpisode[],
+  readable: { postureReadable: boolean; handsReadable: boolean }
+): VisualEpisode[] {
+  return episodes.filter((e) => {
+    if (e.kind === "posture_drift") return readable.postureReadable;
+    if (
+      e.kind === "excessive_gesturing" ||
+      e.kind === "minimal_gesturing" ||
+      e.kind === "hands_near_face"
+    ) {
+      return readable.handsReadable;
+    }
+    return true;
+  });
 }
 
 /** Raw gesture/hand material one session accumulates, handed to
@@ -1736,6 +1795,17 @@ export function createVisualCapture(
       phoneVisibleSamples += 1;
       winPhoneCount += 1;
     }
+    // TEMPORARY (12-09 Task 2) — see `PHONE_CONFIDENCE_DEV_DUMP`'s own
+    // comment. Logs every object tick, present or not, so the Task 3
+    // checkpoint reading shows the full distribution, not only the ticks
+    // that already cleared the threshold.
+    if (PHONE_CONFIDENCE_DEV_DUMP) {
+      console.debug("[visual-capture][dev] phone confidence", {
+        tickIndex: phoneSamples,
+        phonePresent: result.phonePresent,
+        phoneScore: result.phoneScore,
+      });
+    }
   }
 
   /** Constructs the worker and waits (bounded by `WORKER_INIT_TIMEOUT_MS`)
@@ -2443,28 +2513,10 @@ export function createVisualCapture(
     );
 
     // 12-09 Task 1 item 5: an unreadable signal must produce silence, not a
-    // finding. `windowTrips` decides per-window, from that window's OWN
-    // sample counts — it has no visibility into the SESSION-WIDE coverage
-    // gates above, so the exact brief glimpse that (pre-fix) could clear
-    // `postureSignalsMeasured`/`handsUsable` could, independently, also
-    // produce one or two genuinely-tripping windows long enough to clear
-    // `MIN_EPISODE_SECONDS` and surface as a Moments row / Growth Area —
-    // the identical class of defect as Task 1's producer/renderer fix, one
-    // level down. A body-language episode backed by a signal the
-    // session-wide gate just declared unreadable is filtered out here,
-    // after both gates are known, rather than threading them into
-    // `windowTrips` itself (which stays a pure per-window function with no
-    // session-level state, same discipline as every other kind it judges).
-    const episodes = rawEpisodes.filter((e) => {
-      if (e.kind === "posture_drift") return postureSignalsMeasured.length > 0;
-      if (
-        e.kind === "excessive_gesturing" ||
-        e.kind === "minimal_gesturing" ||
-        e.kind === "hands_near_face"
-      ) {
-        return handsUsable;
-      }
-      return true;
+    // finding — see `filterUnreadableBodyLanguageEpisodes`'s own comment.
+    const episodes = filterUnreadableBodyLanguageEpisodes(rawEpisodes, {
+      postureReadable: postureSignalsMeasured.length > 0,
+      handsReadable: handsUsable,
     });
 
     // 12-07: measured-but-NEVER-SCORED observations — a phone in frame,

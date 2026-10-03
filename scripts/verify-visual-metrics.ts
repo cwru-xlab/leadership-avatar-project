@@ -11,11 +11,14 @@
 import {
   computeVisualRates,
   computeGestureRates,
+  computeHandsUsable,
   computeObservations,
   computePostureBaseline,
   computePostureDrift,
+  computePostureSignalsMeasured,
   extractDescriptiveEpisodes,
   extractEpisodes,
+  filterUnreadableBodyLanguageEpisodes,
   type CaptureWindow,
   type GestureCounts,
   type ObservationCounts,
@@ -41,7 +44,11 @@ import {
   type VisualDescriptiveObservations,
   type VisualMetrics,
 } from "../lib/metrics/types";
-import { PHONE_MIN_VISIBLE_S, POSTURE_BASELINE_WINDOW_S } from "../lib/metrics/body-thresholds";
+import {
+  PHONE_MIN_VISIBLE_S,
+  POSTURE_BASELINE_MIN_SAMPLES,
+  POSTURE_BASELINE_WINDOW_S,
+} from "../lib/metrics/body-thresholds";
 
 let failures = 0;
 
@@ -440,6 +447,158 @@ check("posture_drift_mean absent (even with posture_signals_measured present) yi
   const phase10Shaped = visual();
   const rows = visualBodyLanguageBands(phase10Shaped);
   check("Phase 10-shaped payload yields no body-language rows at all", rows, []);
+}
+
+console.log("\n10b. 12-09 — item-7 sign-off failure: coverage gate + episode silence");
+{
+  // THE EXACT FAILING SESSION (12-09-PLAN.md's <observed_failure>, Session
+  // B): Moments timeline read a single `0:01-2:45 [Camera] Off camera` row —
+  // ~165s session, body essentially never usably visible — yet reported
+  // "Posture drift: Held steady", "Measured from: Shoulder line and Head
+  // position", "Gesturing: Very still", "Hands near face: Frequent". Root
+  // cause: a brief in-frame glimpse cleared the OLD absolute floor
+  // (`POSTURE_BASELINE_MIN_SAMPLES`/`handSamples > 0`) alone. Reproduced
+  // here as a glimpse that STILL clears that absolute floor (15 samples —
+  // exactly the number that defeated the old gate) but falls far short of
+  // the new proportional one.
+  const sessionSeconds = 165;
+  // Schedule-aware expected count for a quarter-share model over 165s at
+  // 6 Hz: floor(165 * 6 * 0.25) = 247 — same arithmetic `stop()` performs
+  // for `expectedPoseSamples`/`expectedHandsSamples`.
+  const expectedPoseSamples = Math.floor(sessionSeconds * 6 * 0.25);
+  const expectedHandsSamples = expectedPoseSamples;
+  const glimpseSamples = POSTURE_BASELINE_MIN_SAMPLES; // 15 — clears the OLD absolute floor alone.
+
+  const poseVisibleSamples = {
+    shoulder_line: glimpseSamples,
+    forward_head: glimpseSamples,
+    torso_lean: 0,
+    torso_openness: 0,
+  };
+  const postureSignalsMeasured = computePostureSignalsMeasured(
+    poseVisibleSamples,
+    expectedPoseSamples
+  );
+  check(
+    "item-7 replay: a brief glimpse clearing the OLD absolute floor alone no longer measures posture",
+    postureSignalsMeasured,
+    []
+  );
+
+  const handsUsable = computeHandsUsable(glimpseSamples, expectedHandsSamples);
+  check(
+    "item-7 replay: the same brief glimpse no longer makes hands usable either",
+    handsUsable,
+    false
+  );
+
+  // The rendered report for this producer output: no "Posture drift" row,
+  // "Measured from" names nothing, and no Gesturing/Hands-near-face rows
+  // (the producer omits those fields entirely when `handsUsable` is false —
+  // reproduced here by simply not setting them, matching `stop()`'s
+  // `...(handsUsable ? {...} : {})` spread).
+  const rendered = visualBodyLanguageBands(
+    visual({
+      posture_signals_measured: postureSignalsMeasured,
+      // The baseline/drift machinery can still calibrate from the SAME
+      // glimpse, entirely independently of the session-wide coverage gate
+      // above (Task 1's Defect 2) — reproduced here with a real number,
+      // not left absent, so this assertion exercises the renderer's own
+      // independent refusal, not merely an absent-field omission.
+      posture_drift_mean: 0.1,
+    })
+  );
+  check(
+    "item-7 replay: NO Posture drift verdict row is rendered",
+    rendered.some((r) => r.label === "Posture drift"),
+    false
+  );
+  check(
+    'item-7 replay: "Measured from" says the body was not visible',
+    bandFor(rendered, "Measured from"),
+    "Nothing — body not visible in frame"
+  );
+  check(
+    "item-7 replay: no Gesturing row is rendered (producer omits it when hands are unreadable)",
+    rendered.some((r) => r.label === "Gesturing"),
+    false
+  );
+  check(
+    "item-7 replay: no Hands near face row is rendered either",
+    rendered.some((r) => r.label === "Hands near face"),
+    false
+  );
+
+  // No posture episode (Moments row / Growth Area) survives either — Task 1
+  // item 5's audit, exercised through its own pure seam.
+  const rawEpisodes = [
+    { kind: "posture_drift" as const, start_s: 0, end_s: 15, severity: 1 },
+    { kind: "excessive_gesturing" as const, start_s: 20, end_s: 35, severity: 1 },
+    { kind: "off_camera" as const, start_s: 0, end_s: 165, severity: 1 },
+  ];
+  const filtered = filterUnreadableBodyLanguageEpisodes(rawEpisodes, {
+    postureReadable: postureSignalsMeasured.length > 0,
+    handsReadable: handsUsable,
+  });
+  check(
+    "item-7 replay: no posture episode survives the unreadable-signal filter",
+    filtered.some((e) => e.kind === "posture_drift"),
+    false
+  );
+  check(
+    "item-7 replay: no gesturing episode survives it either",
+    filtered.some((e) => e.kind === "excessive_gesturing"),
+    false
+  );
+  check(
+    "item-7 replay: an UNRELATED episode kind (off_camera) is left alone",
+    filtered.some((e) => e.kind === "off_camera"),
+    true
+  );
+}
+{
+  // THE REQ-51 COUNTER-ASSERTION — the overcorrection guard. A PARTIALLY
+  // visible body: shoulder_line comfortably clears the new ratio,
+  // forward_head does not. The session must still score what WAS visible,
+  // name exactly that signal in "Measured from", and must NOT be skipped
+  // just because one sibling signal fell short.
+  const sessionSeconds = 165;
+  const expectedPoseSamples = Math.floor(sessionSeconds * 6 * 0.25); // 247
+  const poseVisibleSamples = {
+    // Comfortably above 25% of 247 (~62) — a genuinely half-visible body,
+    // shoulders readable for a solid majority of the session.
+    shoulder_line: 200,
+    // Clears the absolute floor (15) but well under the 25% ratio (~62) —
+    // visible occasionally, not usably, e.g. the student turned enough that
+    // the ears/nose were rarely both in frame.
+    forward_head: 20,
+    torso_lean: 0,
+    torso_openness: 0,
+  };
+  const postureSignalsMeasured = computePostureSignalsMeasured(
+    poseVisibleSamples,
+    expectedPoseSamples
+  );
+  check(
+    "REQ-51 counter-assertion: the clearly-visible signal is still measured",
+    postureSignalsMeasured,
+    ["shoulder_line"]
+  );
+  check(
+    "REQ-51 counter-assertion: measured from names exactly that signal, not none and not both",
+    bandFor(
+      visualBodyLanguageBands(visual({ posture_signals_measured: postureSignalsMeasured })),
+      "Measured from"
+    ),
+    "Shoulder line"
+  );
+  // The handsy sibling: well above the ratio, hands genuinely usable.
+  const handsUsable = computeHandsUsable(200, expectedPoseSamples);
+  check(
+    "REQ-51 counter-assertion: a genuinely well-visible hands signal is NOT skipped",
+    handsUsable,
+    true
+  );
 }
 
 console.log("\n11. visualObservationRows (descriptive, never scored)");
