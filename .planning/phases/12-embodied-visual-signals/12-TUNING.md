@@ -99,7 +99,43 @@ require a materially higher hands sample rate, costing face/pose temporal
 resolution and needing its own frame-budget gate — carried in
 `deferred-items.md`.
 
+## POSTURE_DRIFT_TRIP: its one observed trip was a FALSE POSITIVE (2026-10-02)
+
+Recorded during 12-09's Task 3. This supersedes nothing above, but it changes
+what the cutoff's evidence base means.
+
+`POSTURE_DRIFT_TRIP` (0.5) was already the weakest-evidenced cutoff in this
+file, set from two ordinary-session readings (0.358, 0.424) with its
+true-positive side unverified. It has now tripped exactly once, in a real
+session — and that trip was **noise, not posture**.
+
+The session was the 12-09 item-1 re-run: the user's body was essentially
+entirely off camera, the face was detected for ~1% of the session, and only a
+right arm was in shot for part of it. The report produced "Shifted from the
+opening posture" with two timecoded Moments rows (`0:27-2:56`, `3:07-3:49`), and
+claimed all four posture signals measured.
+
+The drift was computed from an extrapolated MediaPipe skeleton, not an observed
+body — see `12-09-SUMMARY.md`'s root-cause section and `12-10-PLAN.md`. So:
+
+- The true-positive side of `POSTURE_DRIFT_TRIP` remains **UNPROVEN**. Do not
+  read this trip as evidence the cutoff works.
+- A new concern is on the record: the drift computation can produce a
+  confident, timecoded magnitude from landmarks that were never observed. That
+  is a producer defect, not a cutoff mistuning, and tuning the cutoff against
+  readings taken from extrapolated skeletons would bake the defect into the
+  threshold.
+- **Any future re-tune of this cutoff must use readings taken AFTER the
+  frame-bounds landmark gating in 12-10 lands.** Every reading in the dataset
+  above predates it, and any of them taken against a partially-visible body may
+  carry the same contamination.
+
+`POSTURE_DRIFT_SUSTAINED_S` (15) and `HANDS_NEAR_FACE_RADIUS` (0.15) were
+already NOT RE-TUNED for want of raw dumps; they inherit the same instruction.
+
 ---
 
-*Tuned 2026-10-02 against the dataset above. Task 3 (phase sign-off
-walkthrough) was not performed — see `12-08-SUMMARY.md`.*
+*Tuned 2026-10-02 against the dataset above. The 12-08 Task 3 sign-off
+walkthrough was performed on 2026-10-02 and FAILED on item 7 — see
+`12-08-SUMMARY.md` and `12-09-SUMMARY.md`. The 12-09 re-run also failed; the gap
+is carried by `12-10-PLAN.md`.*
