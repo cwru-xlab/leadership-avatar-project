@@ -54,6 +54,41 @@ import {
   PHONE_SCORE_THRESHOLD,
 } from "@/lib/metrics/body-thresholds";
 
+/**
+ * TEMPORARY, DEV-ONLY (12-10 Task 1). `isVisible` below tests only the
+ * model's own predicted `visibility` score — never whether the landmark's
+ * coordinates actually fall inside the frame. 12-09's sign-off re-run
+ * (`12-09-SUMMARY.md`'s root-cause section) found MediaPipe emitting a
+ * confident `visibility` for a fully extrapolated, off-camera skeleton; this
+ * flag, OFF by default, dumps the RAW material needed to see that happening
+ * — per-landmark x/y, the raw visibility score, and whether the coordinates
+ * are actually inside `[0,1]` — without changing what `isVisible` decides.
+ * Gated on a `NEXT_PUBLIC_` env var, matching 12-09's
+ * `NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP` precedent, so it is statically
+ * compiled out of a normal build and never runs for a real student session;
+ * set `NEXT_PUBLIC_VISUAL_LANDMARK_DEV_DUMP=1` before `npm run dev` to
+ * activate it. REMOVE this flag and the `diagnostics` fields on
+ * `PoseDetectResult`/`HandsDetectResult` once the Task 2 checkpoint's
+ * readings are captured and recorded in `12-TUNING.md` — this is
+ * scaffolding, not a shipped feature (12-10-PLAN.md Task 3 item 6).
+ */
+const VISUAL_LANDMARK_DEV_DUMP =
+  process.env.NEXT_PUBLIC_VISUAL_LANDMARK_DEV_DUMP === "1";
+
+/** One landmark's raw diagnostic reading — never a full landmark array (see
+ * this file's REQ-58 header comment): each named landmark the posture/hands
+ * signals depend on is reported as its own flat object, by name, not as an
+ * indexed array element. */
+export interface LandmarkDiagnostic {
+  x: number;
+  y: number;
+  visibility: number;
+  /** `0 <= x <= 1 && 0 <= y <= 1` — an OBSERVATION only in this task, not
+   * yet a gate. See `isVisible`'s own comment for why that distinction is
+   * the entire point of this plan. */
+  inFrame: boolean;
+}
+
 /** The four models this worker can host. 12-05 extended this union from the
  * face-only set 12-03 shipped. */
 type ModelId = "face" | "pose" | "hands" | "object";
@@ -130,6 +165,14 @@ export interface PoseDetectResult {
   shoulderMidX: number | null;
   shoulderMidY: number | null;
   shoulderWidth: number | null;
+  /** TEMPORARY, DEV-ONLY (12-10 Task 1) — present only when
+   * `VISUAL_LANDMARK_DEV_DUMP` is on. The raw per-landmark readings backing
+   * the four `visible.*` verdicts above, named by `POSE_LANDMARK` key —
+   * observation only, read by nothing in `isVisible` or any gating path. */
+  diagnostics?: Record<
+    "NOSE" | "LEFT_EAR" | "RIGHT_EAR" | "LEFT_SHOULDER" | "RIGHT_SHOULDER" | "LEFT_HIP" | "RIGHT_HIP",
+    LandmarkDiagnostic
+  >;
 }
 
 /**
@@ -152,6 +195,14 @@ export interface HandsDetectResult {
     /** Null when no face box is currently available, never a substituted
      * false. */
     nearFace: boolean | null;
+    /** TEMPORARY, DEV-ONLY (12-10 Task 1) — present only when
+     * `VISUAL_LANDMARK_DEV_DUMP` is on. The wrist's raw x/y, its raw
+     * `visibility` reading, and whether its coordinates fall inside the
+     * frame. There is no `isVisible` gate on hands today (every detected
+     * hand is reported unconditionally) — this exists to show whether that
+     * is also hiding an extrapolated wrist, the same question Task 1 asks
+     * of the four pose signal groups. */
+    diagnostics?: LandmarkDiagnostic;
   }>;
 }
 
@@ -263,12 +314,43 @@ function boundsOf(landmarks: Array<{ x: number; y: number }>): Bounds {
 
 /** `true` when a given pose landmark's `visibility` clears
  * `LANDMARK_VISIBILITY_FLOOR`. A missing/undefined `visibility` is treated
- * as not visible, never as visible-by-default. */
+ * as not visible, never as visible-by-default.
+ *
+ * NOTE (12-10 Task 1): this is MediaPipe's own PREDICTED probability that
+ * the landmark is visible, not an observation that it is actually inside
+ * the frame — see this file's header comment and `VISUAL_LANDMARK_DEV_DUMP`
+ * above for why that distinction is this plan's entire subject. This
+ * function's behaviour is UNCHANGED by Task 1; only the diagnostic dump
+ * reads anything new. */
 function isVisible(
   landmarks: Array<{ visibility: number }>,
   index: number
 ): boolean {
   return (landmarks[index]?.visibility ?? 0) >= LANDMARK_VISIBILITY_FLOOR;
+}
+
+/** TEMPORARY, DEV-ONLY (12-10 Task 1). `0 <= x <= 1 && 0 <= y <= 1` —
+ * whether a normalized landmark's coordinates fall inside the captured
+ * frame at all. Observation only; not read by `isVisible` or any gating
+ * path in this task. */
+function isInFrame(point: { x: number; y: number }): boolean {
+  return point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1;
+}
+
+/** TEMPORARY, DEV-ONLY (12-10 Task 1). Builds one `LandmarkDiagnostic` from
+ * a raw pose/hand landmark, by the shared shape both carry
+ * (`NormalizedLandmark`: x, y, z, visibility). */
+function toDiagnostic(landmark: {
+  x: number;
+  y: number;
+  visibility: number;
+}): LandmarkDiagnostic {
+  return {
+    x: landmark.x,
+    y: landmark.y,
+    visibility: landmark.visibility,
+    inFrame: isInFrame(landmark),
+  };
 }
 
 async function createFaceLandmarker(
@@ -624,6 +706,21 @@ function detectPose(bitmap: ImageBitmap, timestamp: number): PoseDetectResult {
       ? { x: shoulderMidX, y: shoulderMidY }
       : null;
 
+  // TEMPORARY, DEV-ONLY (12-10 Task 1) — see `VISUAL_LANDMARK_DEV_DUMP`'s own
+  // comment. Computed only when the flag is on, so this task costs nothing
+  // on a normal build.
+  const diagnostics = VISUAL_LANDMARK_DEV_DUMP
+    ? {
+        NOSE: toDiagnostic(landmarks[POSE_LANDMARK.NOSE]),
+        LEFT_EAR: toDiagnostic(landmarks[POSE_LANDMARK.LEFT_EAR]),
+        RIGHT_EAR: toDiagnostic(landmarks[POSE_LANDMARK.RIGHT_EAR]),
+        LEFT_SHOULDER: toDiagnostic(landmarks[POSE_LANDMARK.LEFT_SHOULDER]),
+        RIGHT_SHOULDER: toDiagnostic(landmarks[POSE_LANDMARK.RIGHT_SHOULDER]),
+        LEFT_HIP: toDiagnostic(landmarks[POSE_LANDMARK.LEFT_HIP]),
+        RIGHT_HIP: toDiagnostic(landmarks[POSE_LANDMARK.RIGHT_HIP]),
+      }
+    : undefined;
+
   return {
     poseFound: true,
     visible: {
@@ -639,6 +736,7 @@ function detectPose(bitmap: ImageBitmap, timestamp: number): PoseDetectResult {
     shoulderMidX,
     shoulderMidY,
     shoulderWidth,
+    diagnostics,
   };
 }
 
@@ -691,6 +789,8 @@ function detectHands(
       fingertipSpanX: maxX - minX,
       fingertipSpanY: maxY - minY,
       area: boundsOf(landmarks).area,
+      // TEMPORARY, DEV-ONLY (12-10 Task 1) — see `VISUAL_LANDMARK_DEV_DUMP`.
+      diagnostics: VISUAL_LANDMARK_DEV_DUMP ? toDiagnostic(wrist) : undefined,
     };
   });
 
@@ -740,6 +840,7 @@ function detectHands(
       fingertipSpanY: candidate.fingertipSpanY,
       aboveShoulder,
       nearFace,
+      diagnostics: candidate.diagnostics,
     };
   });
 
