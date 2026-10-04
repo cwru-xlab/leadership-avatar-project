@@ -6,6 +6,26 @@
 **Local DB:** `postgresql://ajabreu79@localhost:5432/leadership_avatar_dev`  
 **Surface guard:** `npx tsx scripts/verify-pitch-surface-count.ts` — ALL CHECKS PASSED (2026-10-04)
 
+### Block A — automated suite (Task 3 prep, 2026-10-04)
+
+| Script | Result |
+| --- | --- |
+| verify-engine-config | PASS |
+| verify-engine-primitives | PASS |
+| verify-engine-surface-count | PASS |
+| verify-report-structure | PASS |
+| verify-pitch-engine-extensions | PASS |
+| verify-deck-intake | **1 FAIL** — known deferred fixture mismatch (`Spike Deck Title` vs `Spike Deck Slide 1`); see `deferred-items.md` |
+| verify-deck-rasterize | PASS |
+| verify-pitch-session-state | PASS |
+| verify-pitch-types | PASS |
+| verify-slide-gating | PASS |
+| verify-pitch-surface-count | PASS |
+| verify-deck-routes | PASS |
+| verify-pitch-report-panels | PASS |
+
+`npx tsc --noEmit`: pre-existing errors in unrelated `.next` spike types and Phase 15/16 verify stubs; **this plan's** `verify-pitch-surface-count.ts` networking stub corrected. `next build` known-broken on `/about` (EDGE_CONFIG). Dev server expected on `http://localhost:3000`.
+
 Prior human checkpoints reuse recorded evidence rather than re-running those sessions. Task 3 requires one fresh elevator pitch, one fresh investor pitch, Phase 13 regression, and calibration judgements before any Section 1–3 row may move from PENDING to PASS/FAIL.
 
 Known follow-ups (do **not** implement in 14-15): see `deferred-items.md` — walk-out temperature auto-end; broader non-investor deck modes; pre-existing `verify-deck-intake.ts` fixture mismatch.
