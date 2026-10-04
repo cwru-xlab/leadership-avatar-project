@@ -458,7 +458,7 @@ amended in the same session; see `14-CONTEXT.md`.
   5. Session length is proposed from slide count within a 20-30 minute envelope
      and is student-adjustable before starting; the remaining time is visible
      during the session and can be hidden by the student.
-**Plans:** 9/15 plans executed
+**Plans:** 10/15 plans executed
 **Gate:** every plan except 14-01, 14-03, 14-06 and 14-07 is blocked until Phase 13's
 15 plans have all executed and been signed off. Phase 14 has no REQ IDs; each plan
 names the Success Criteria it serves as `P14-SC1`..`P14-SC5` in its `requirements`
@@ -475,7 +475,7 @@ Plans:
 - [ ] 14-04-PLAN.md — Evaluator extensions: slide images as vision input, outcome composed into the one JSON schema, type-declared score cap
 - [ ] 14-05-PLAN.md — Server-authoritative slide cursor: four nullable columns, additive local migration, checkpoint ratchet, clamped budget (human-verified)
 - [x] 14-06-PLAN.md — PPTX→PDF conversion driver, PDF→PNG rasterizer, private deck storage and manifest
-- [ ] 14-07-PLAN.md — Deck upload route, manifest route, authenticated owner-only slide-image byte route (human-verified)
+- [x] 14-07-PLAN.md — Deck upload route, manifest route, authenticated owner-only slide-image byte route (human-verified)
 - [ ] 14-08-PLAN.md — `pitch-elevator` type record and prompts: six dimensions, soft 60s window, floor-gated walk-out
 - [x] 14-09-PLAN.md — `pitch-deck` type record and prompts: nine dimensions, slides channel, ask/fair band, session-length proposal
 - [ ] 14-10-PLAN.md — Elevator wizard steps and collapsible pitch timer, three real sessions judged (human-verified)
@@ -610,6 +610,6 @@ Plans:
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
 | 12. Embodied Visual Signals | 10/11 | Complete    | 2026-10-04 |
 | 13. One-on-One Conversation Engine | 15/15 | Complete*  | 2026-10-04 |
-| 14. Practice Pitches | 9/15 | In Progress|  |
+| 14. Practice Pitches | 10/15 | In Progress|  |
 | 15. Difficult Conversations | 11/11 | Complete*  | 2026-10-04 |
 | 16. Networking Practice | 11/11 | Complete   | 2026-10-04 |
