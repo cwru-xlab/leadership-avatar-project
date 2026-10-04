@@ -458,7 +458,7 @@ amended in the same session; see `14-CONTEXT.md`.
   5. Session length is proposed from slide count within a 20-30 minute envelope
      and is student-adjustable before starting; the remaining time is visible
      during the session and can be hidden by the student.
-**Plans:** 15 plans in 8 waves
+**Plans:** 1/15 plans executed
 **Gate:** every plan except 14-01, 14-03, 14-06 and 14-07 is blocked until Phase 13's
 15 plans have all executed and been signed off. Phase 14 has no REQ IDs; each plan
 names the Success Criteria it serves as `P14-SC1`..`P14-SC5` in its `requirements`
@@ -610,6 +610,6 @@ Plans:
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
 | 12. Embodied Visual Signals | 10/11 | Complete    | 2026-10-04 |
 | 13. One-on-One Conversation Engine | 15/15 | Complete*  | 2026-10-04 |
-| 14. Practice Pitches | 0/15 | Planned     |  |
+| 14. Practice Pitches | 1/15 | In Progress|  |
 | 15. Difficult Conversations | 0/11 | Planned     |  |
 | 16. Networking Practice | 2/11 | In Progress|  |
