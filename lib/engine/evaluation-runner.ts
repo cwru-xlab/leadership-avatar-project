@@ -35,9 +35,14 @@ import {
 import type { InteractionLog, InteractionEvent } from "@/types";
 
 import { runEvaluation } from "./evaluation";
+import { validateOutcome } from "./outcome";
 import { getEngineType } from "./registry";
 import { resolveSessionConfig } from "./resolve";
-import type { InstanceConfig, ResolvedSessionConfig } from "./types";
+import type {
+  EvaluatorImage,
+  InstanceConfig,
+  ResolvedSessionConfig,
+} from "./types";
 
 const MAX_ERROR_MESSAGE_LENGTH = 500;
 
@@ -394,6 +399,29 @@ export async function runAndPersistEvaluation({
       snapshot,
     );
 
+    // Type-declared images (looked up via the type record — ResolvedSessionConfig
+    // does not carry prompts; same adaptation as 13-05). Image-fetch failure
+    // degrades to text-only evaluation; never fails the whole report.
+    const typeRecord = getEngineType(resolved.config.typeSlug);
+    let images: EvaluatorImage[] | undefined;
+    if (typeRecord?.prompts.buildEvaluationImages) {
+      try {
+        images = await typeRecord.prompts.buildEvaluationImages({
+          config: resolved.config,
+        });
+      } catch (imageError) {
+        const imageMessage =
+          imageError instanceof Error
+            ? imageError.message
+            : String(imageError);
+        console.warn(
+          "Engine evaluation: buildEvaluationImages failed; degrading to text-only",
+          { reportId, error: imageMessage },
+        );
+        images = undefined;
+      }
+    }
+
     const outcome = await runEvaluation({
       config: resolved.config,
       transcript,
@@ -402,6 +430,7 @@ export async function runAndPersistEvaluation({
         visualMetrics: visualOutcome.scored ? visual : null,
         vocalMetrics: vocalOutcome.scored ? vocal : null,
       },
+      images,
     });
 
     if (outcome.ok) {
@@ -411,11 +440,47 @@ export async function runAndPersistEvaluation({
       const vocalUnscoredReason =
         report.cameraMode === null ? null : vocalOutcome.reason;
 
+      // Validate the evaluator-produced outcome through the ONE validator.
+      // Invalid → persist null (13-07: never half-written). Do not overwrite a
+      // non-null outcome the finish route already set unless the evaluator
+      // produced one.
+      const produced = outcome.producedOutcome;
+      let outcomeToPersist: Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined;
+      let validatedOutcome: Record<string, unknown> | null = null;
+
+      if (produced !== null) {
+        const validated = validateOutcome(resolved.config.outcome, produced);
+        if (validated.ok) {
+          validatedOutcome = validated.outcome;
+          outcomeToPersist = validated.outcome as unknown as Prisma.InputJsonValue;
+        } else {
+          console.warn(
+            "Engine evaluation: produced outcome failed validateOutcome; persisting null",
+            { reportId, errors: validated.errors },
+          );
+          outcomeToPersist = Prisma.JsonNull;
+        }
+      } else if (report.outcome == null) {
+        // Evaluator produced nothing and finish left nothing — leave as-is
+        // (undefined skips the column update).
+        outcomeToPersist = undefined;
+      }
+
+      // Type-declared score cap (e.g. early-end discovery_tailoring ceiling).
+      // Looked up on the type record — never via typeSlug branching.
+      const scoresForPost = outcome.result.scores;
+      const finalScores = typeRecord?.postProcessScores
+        ? typeRecord.postProcessScores(scoresForPost, {
+            terminationReason: report.terminationReason,
+            outcome: validatedOutcome,
+          })
+        : scoresForPost;
+
       await prisma.interactionReport.update({
         where: { id: reportId },
         data: {
           status: "READY",
-          scores: outcome.result.scores as unknown as Prisma.InputJsonValue,
+          scores: finalScores as unknown as Prisma.InputJsonValue,
           reportMarkdown: outcome.result.reportMarkdown,
           reportStructured: outcome.result
             .reportStructured as unknown as Prisma.InputJsonValue,
@@ -424,6 +489,9 @@ export async function runAndPersistEvaluation({
           completedAt: new Date(),
           visualUnscoredReason,
           vocalUnscoredReason,
+          ...(outcomeToPersist !== undefined
+            ? { outcome: outcomeToPersist }
+            : {}),
         },
       });
       console.info("Engine evaluation completed", {
@@ -433,6 +501,12 @@ export async function runAndPersistEvaluation({
         cameraMode: report.cameraMode,
         visualUnscoredReason,
         vocalUnscoredReason,
+        outcomePersisted:
+          outcomeToPersist === undefined
+            ? "unchanged"
+            : outcomeToPersist === Prisma.JsonNull
+              ? "null"
+              : "validated",
       });
       return;
     }

@@ -11,6 +11,10 @@
  * Type-specific grading inputs stay out of this file: the type's
  * `buildEvaluationContext` supplies them, and the JSON schema comes from
  * `buildRubricJsonSchema(config)`. No `if (typeSlug === ...)` branch.
+ *
+ * Plan 14-04: optional image content parts (type-declared via
+ * `buildEvaluationImages`) and a produced outcome parsed from the SAME
+ * schema-constrained response. BUDGET_MS / RETRIES are locked by 13-05.
  */
 
 import {
@@ -24,8 +28,12 @@ import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 import { buildScenarioEvaluationUserMessage } from "@/lib/scenario/prompts";
 
 import { getEngineType } from "./registry";
-import { buildRubricJsonSchema, parseRubricScores } from "./rubric";
-import type { ResolvedSessionConfig } from "./types";
+import {
+  buildRubricJsonSchema,
+  parseOutcomeFields,
+  parseRubricScores,
+} from "./rubric";
+import type { EvaluatorImage, ResolvedSessionConfig } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,6 +50,11 @@ export interface EvaluationOutcome {
   ok: true;
   result: ValidatedEvaluation;
   model: string;
+  /**
+   * Raw outcome object pulled from the model response for `validateOutcome`.
+   * Null when the type declares no outcome fields or the key was absent.
+   */
+  producedOutcome: Record<string, unknown> | null;
 }
 
 export interface EvaluationFailure {
@@ -65,6 +78,12 @@ export interface RunEvaluationInput {
    */
   evaluationContext: Record<string, unknown>;
   metricsOutcome: MetricsOutcome;
+  /**
+   * Optional rendered artifact images. When present and non-empty, the user
+   * message becomes a multimodal content array; when absent, a plain string
+   * (byte-identical to today's requests for types that declare no images).
+   */
+  images?: EvaluatorImage[];
 }
 
 const MAX_REASON_LENGTH = 500;
@@ -72,6 +91,12 @@ const BUDGET_MS = 50_000;
 const RETRIES = 1;
 const PER_ATTEMPT_TIMEOUT = Math.floor(BUDGET_MS / (RETRIES + 1));
 const RETRY_DELAY_MS = 1_000;
+
+/**
+ * Hard cap on evaluator images (14-RESEARCH.md Pitfall 3 / CONTEXT.md
+ * Claude's-Discretion). Must fit inside BUDGET_MS with `detail: "low"`.
+ */
+export const MAX_EVALUATOR_IMAGES = 12;
 
 function truncateReason(reason: string): string {
   return reason.length > MAX_REASON_LENGTH
@@ -94,6 +119,57 @@ function reportTitleFor(evaluationContext: Record<string, unknown>): string {
   return evaluationContext.kind === "scenario"
     ? "Scenario Performance Report"
     : "Interview Performance Report";
+}
+
+/**
+ * Evenly samples up to `MAX_EVALUATOR_IMAGES`, always including the first and
+ * last image. Exported so verification can assert the sampling contract.
+ */
+export function sampleEvaluatorImages(
+  images: EvaluatorImage[],
+  max: number = MAX_EVALUATOR_IMAGES,
+): { sampled: EvaluatorImage[]; sampledFromTotal: number | null } {
+  if (images.length <= max) {
+    return { sampled: images, sampledFromTotal: null };
+  }
+
+  // Evenly-spaced index set that always includes first and last.
+  const lastIndex = images.length - 1;
+  const indices = new Set<number>();
+  indices.add(0);
+  indices.add(lastIndex);
+  for (let i = 1; i < max - 1; i++) {
+    indices.add(Math.round((i * lastIndex) / (max - 1)));
+  }
+  // If rounding under-filled, walk forward filling gaps.
+  let cursor = 0;
+  while (indices.size < max && cursor <= lastIndex) {
+    indices.add(cursor);
+    cursor += 1;
+  }
+  const ordered = [...indices].sort((a, b) => a - b).slice(0, max);
+  return {
+    sampled: ordered.map((i) => images[i]!),
+    sampledFromTotal: images.length,
+  };
+}
+
+/**
+ * Builds the label-list / sampling note appended to the text part so the
+ * model can refer to attached images by name (vision parts carry no labels).
+ */
+export function buildImageAttachmentNote(
+  sampled: EvaluatorImage[],
+  sampledFromTotal: number | null,
+): string {
+  const labels = sampled.map((img) => img.label).join(", ");
+  if (sampledFromTotal !== null) {
+    return (
+      `Slide images attached, in order: ${labels}\n` +
+      `(${sampled.length} of ${sampledFromTotal} slides, evenly sampled)`
+    );
+  }
+  return `Slide images attached, in order: ${labels}`;
 }
 
 /**
@@ -167,6 +243,42 @@ visual_metrics: ${metrics.visualMetrics ? JSON.stringify(metrics.visualMetrics) 
 vocal_metrics: ${metrics.vocalMetrics ? JSON.stringify(metrics.vocalMetrics) : "null"}`;
 }
 
+type UserMessageContent =
+  | string
+  | Array<
+      | { type: "text"; text: string }
+      | {
+          type: "image_url";
+          image_url: { url: string; detail: "low" };
+        }
+    >;
+
+/**
+ * When images are present, build a multimodal content array. Absent images
+ * keep the plain string so existing types' requests are byte-identical.
+ *
+ * 14-RESEARCH.md: only the qualitative claim about `detail: "low"` is relied
+ * on; no per-model token math is assumed. BUDGET_MS is not re-tuned here.
+ */
+function buildUserMessageContent(
+  text: string,
+  images: EvaluatorImage[] | undefined,
+): UserMessageContent {
+  if (!images || images.length === 0) return text;
+
+  const { sampled, sampledFromTotal } = sampleEvaluatorImages(images);
+  const note = buildImageAttachmentNote(sampled, sampledFromTotal);
+  const textWithLabels = `${text}\n\n${note}`;
+
+  return [
+    { type: "text", text: textWithLabels },
+    ...sampled.map((img) => ({
+      type: "image_url" as const,
+      image_url: { url: img.dataUrl, detail: "low" as const },
+    })),
+  ];
+}
+
 /**
  * Validates a model response into scores + structured body. Throws on an
  * empty body so the retry loop can catch and (eventually) return a failure
@@ -212,12 +324,17 @@ export function validateEvaluationResult(
   return { scores, reportMarkdown, reportStructured };
 }
 
+interface AttemptResult {
+  validated: ValidatedEvaluation;
+  producedOutcome: Record<string, unknown> | null;
+}
+
 async function attemptEvaluation(
   input: RunEvaluationInput,
   evaluatorPrompt: string,
   model: string,
   timeoutMs: number,
-): Promise<ValidatedEvaluation> {
+): Promise<AttemptResult> {
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -226,6 +343,12 @@ async function attemptEvaluation(
   });
 
   const schema = buildRubricJsonSchema(input.config);
+  const textMessage = buildUserMessage(
+    input.transcript,
+    input.evaluationContext,
+    input.metricsOutcome,
+  );
+  const content = buildUserMessageContent(textMessage, input.images);
 
   const completion = await openai.chat.completions.create({
     model,
@@ -233,11 +356,7 @@ async function attemptEvaluation(
       { role: "system", content: evaluatorPrompt },
       {
         role: "user",
-        content: buildUserMessage(
-          input.transcript,
-          input.evaluationContext,
-          input.metricsOutcome,
-        ),
+        content,
       },
     ],
     max_tokens: 4000,
@@ -247,13 +366,13 @@ async function attemptEvaluation(
     },
   });
 
-  const content = completion.choices[0]?.message?.content;
-  if (!content) {
+  const responseContent = completion.choices[0]?.message?.content;
+  if (!responseContent) {
     throw new Error("Evaluator returned no content");
   }
 
-  const parsed = JSON.parse(content) as unknown;
-  return validateEvaluationResult(
+  const parsed = JSON.parse(responseContent) as unknown;
+  const validated = validateEvaluationResult(
     parsed,
     input.config,
     {
@@ -262,6 +381,10 @@ async function attemptEvaluation(
     },
     input.evaluationContext,
   );
+  return {
+    validated,
+    producedOutcome: parseOutcomeFields(parsed, input.config),
+  };
 }
 
 /**
@@ -290,7 +413,7 @@ export async function runEvaluation(
 
   for (let attempt = 1; attempt <= RETRIES + 1; attempt++) {
     try {
-      const result = await attemptEvaluation(
+      const { validated, producedOutcome } = await attemptEvaluation(
         input,
         evaluatorPrompt,
         model,
@@ -299,11 +422,12 @@ export async function runEvaluation(
       console.info("Engine evaluation completed", {
         model,
         typeSlug: input.config.typeSlug,
-        contentScore: result.scores.content ?? null,
-        behavioralScore: result.scores.behavioral ?? null,
-        markdownLength: result.reportMarkdown.length,
+        contentScore: validated.scores.content ?? null,
+        behavioralScore: validated.scores.behavioral ?? null,
+        markdownLength: validated.reportMarkdown.length,
+        imageCount: input.images?.length ?? 0,
       });
-      return { ok: true, result, model };
+      return { ok: true, result: validated, model, producedOutcome };
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error);
