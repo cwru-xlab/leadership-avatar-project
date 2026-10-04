@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 14-03-PLAN.md
+**Stopped At:** Completed 15-05-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -386,6 +386,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 16]: Early-end eval follows Phase 14: score all seven dims; early end is evidence not a crash
 - [Phase 14]: PDF text via pdfjs-dist (not in-process pdf2json) due to process-global stale pages
 - [Phase 14]: spike-deck.pptx built in 14-03; 14-01 should reuse
+- [Phase 15]: fromOthers list paging: updatedAt desc, cursor=last updatedAt, limit default 24
+- [Phase 15]: Publish outcomes use distinct HTTP statuses 200/422/503 so UI never parses prose
 
 ## Progress
 
@@ -1846,7 +1848,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:28:21.722Z
+**Last Date:** 2026-10-04T04:29:02.459Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
