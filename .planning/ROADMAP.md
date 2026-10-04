@@ -405,7 +405,7 @@ rebuilding infrastructure per type.
      renders them without knowing which interaction produced them.
   4. Visual, vocal and body metrics from Phases 10 and 12 reach every
      engine-backed interaction without per-type wiring.
-**Plans:** 15 plans in 12 waves
+**Plans:** 1/15 plans executed
 
 Plans:
 - [ ] 13-01-PLAN.md — Engine config layer: TYPE records + INSTANCE resolver
@@ -614,7 +614,7 @@ engine lands they can be planned and executed in any order, or in parallel.
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
 | 12. Embodied Visual Signals | 10/11 | Complete    | 2026-10-04 |
-| 13. One-on-One Conversation Engine | 0/0 | Not planned |  |
+| 13. One-on-One Conversation Engine | 1/15 | In Progress|  |
 | 14. Practice Pitches | 0/15 | Planned     |  |
 | 15. Difficult Conversations | 0/11 | Planned     |  |
 | 16. Networking Practice | 0/11 | Planned     |  |
