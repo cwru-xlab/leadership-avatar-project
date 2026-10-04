@@ -93,8 +93,19 @@ console.log("\n4. Floor does not loosen the reason vocabulary");
   );
 }
 
-console.log("\n5. Phase 13 regression — every real record still rejects avatar ends");
-for (const type of ENGINE_TYPES) {
+console.log(
+  "\n5. Phase 13 regression — original five types still reject avatar ends",
+);
+// Phase 14/16 types (pitch-elevator, networking, …) intentionally set
+// avatarMayEnd: true. Scope this regression to the five Phase 13 records.
+const PHASE_13_SLUGS = new Set([
+  "general",
+  "technical",
+  "consulting",
+  "early-career",
+  "case-study",
+]);
+for (const type of ENGINE_TYPES.filter((t) => PHASE_13_SLUGS.has(t.slug))) {
   check(
     `"${type.slug}" ships avatarMayEnd: false`,
     type.terminationPolicy.avatarMayEnd === false,
