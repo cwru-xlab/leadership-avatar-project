@@ -98,8 +98,21 @@ function makeInterviewTypeConfig(base: InterviewType): InteractionTypeConfig {
     finishPendingFlip: "request-path",
     // Interview report page offers "retry evaluation" on FAILED (REQ-69).
     supportsRetry: true,
-    // Populated when plan 13-09 builds the generic wizard.
-    setupSteps: [],
+    // Wizard steps declared here; CameraConsentStep is appended by SetupWizard
+    // for every type (REQ-70) and is never listed in this array.
+    setupSteps: [
+      {
+        id: "interviewer",
+        label: "Interviewer",
+        customComponent: "InterviewerStep",
+      },
+      {
+        id: "resume",
+        label: "Resume",
+        customComponent: "ResumeStep",
+        optional: true,
+      },
+    ],
   };
 }
 
@@ -199,7 +212,15 @@ const CASE_STUDY: InteractionTypeConfig = {
   finishPendingFlip: "runner",
   // Scenario has no retry route today — do not invent one (REQ-69).
   supportsRetry: false,
-  setupSteps: [],
+  // Instance intro then the shared camera gate (appended by SetupWizard).
+  // Plan 13-11 wires /practice/case-study/[instanceId] against these ids.
+  setupSteps: [
+    {
+      id: "intro",
+      label: "Intro",
+      customComponent: "InstanceIntroStep",
+    },
+  ],
 };
 
 export const ENGINE_TYPES: InteractionTypeConfig[] = [
