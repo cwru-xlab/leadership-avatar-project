@@ -405,14 +405,14 @@ rebuilding infrastructure per type.
      renders them without knowing which interaction produced them.
   4. Visual, vocal and body metrics from Phases 10 and 12 reach every
      engine-backed interaction without per-type wiring.
-**Plans:** 5/15 plans executed
+**Plans:** 6/15 plans executed
 
 Plans:
 - [x] 13-01-PLAN.md — Engine config layer: TYPE records + INSTANCE resolver
 - [x] 13-02-PLAN.md — `InteractionReport` model, additive CREATE TABLE migration, unified DTO
 - [x] 13-03-PLAN.md — Engine primitives: terminationPolicy, visible-context slice, outcome record, time budget
 - [x] 13-04-PLAN.md — Backfill script, local backfill run, row-for-row verification, REQ-67 human handoff
-- [ ] 13-05-PLAN.md — Type-derived rubric schema, one evaluator, one evaluation runner
+- [x] 13-05-PLAN.md — Type-derived rubric schema, one evaluator, one evaluation runner
 - [x] 13-06-PLAN.md — Generalize the chat/turn endpoint onto engine config (prefix cache preserved)
 - [ ] 13-07-PLAN.md — One session lifecycle: start/checkpoint/finish, legacy routes delegate
 - [ ] 13-08-PLAN.md — One report GET/retry/list, legacy report routes delegate
@@ -614,7 +614,7 @@ engine lands they can be planned and executed in any order, or in parallel.
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
 | 12. Embodied Visual Signals | 10/11 | Complete    | 2026-10-04 |
-| 13. One-on-One Conversation Engine | 5/15 | In Progress|  |
+| 13. One-on-One Conversation Engine | 6/15 | In Progress|  |
 | 14. Practice Pitches | 0/15 | Planned     |  |
 | 15. Difficult Conversations | 0/11 | Planned     |  |
 | 16. Networking Practice | 0/11 | Planned     |  |

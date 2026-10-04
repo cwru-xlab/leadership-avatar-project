@@ -485,13 +485,13 @@ what was decided; they add no scope.
   step needing custom UI supplies its own component. The consent gate exists once, not
   once per type.
 
-- **REQ-71** — [ ] Rubric dimensions are four shared (Visual, Vocal, Content,
+- **REQ-71** — [x] Rubric dimensions are four shared (Visual, Vocal, Content,
   Behavioral) plus type-declared extras. The evaluator's JSON schema becomes
   type-derived — `lib/report/structured.ts`'s hardcoded
   `required: ["visual","vocal","content","behavioral"]` keeps those four always
   present and appends the type's extras.
 
-- **REQ-72** — [ ] Visual and Vocal are never type-optional. Every engine-backed type
+- **REQ-72** — [x] Visual and Vocal are never type-optional. Every engine-backed type
   carries them with the full four-state handling from Phases 10 and 12 (scored /
   `CAMERA_OFF_OPTOUT` / `TYPED_ONLY` or `SPEECH_TOO_SHORT` / `INSUFFICIENT_DATA`). A
   type never wires metrics, so it can never forget to.
