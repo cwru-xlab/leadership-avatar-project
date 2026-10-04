@@ -58,6 +58,8 @@ export interface NetworkingPersonStepProps {
   onChange: (next: {
     characterId: string | null;
     instanceId: string | null;
+    /** Present after distill/save or saved-persona select — seeds live chat. */
+    broughtInLive?: { persona: string; displayName: string } | null;
   }) => void;
 }
 
@@ -201,7 +203,12 @@ export default function NetworkingPersonStep({
 
   const selectSavedPersona = (personaId: string) => {
     // Already attested at save time — relaunch without re-pasting (decision 7).
-    onChange({ characterId: null, instanceId: personaId });
+    // List DTO omits persona text — page fetches GET /persona/:id for live chat.
+    onChange({
+      characterId: null,
+      instanceId: personaId,
+      broughtInLive: null,
+    });
     setDistilledPreview(null);
     setActionError(null);
   };
@@ -314,7 +321,14 @@ export default function NetworkingPersonStep({
 
     setDisplayName(nameToSave.slice(0, MAX_DISPLAY_NAME_LENGTH));
     setDistilledPreview(distilled.persona);
-    onChange({ characterId: null, instanceId: saved.personaId });
+    onChange({
+      characterId: null,
+      instanceId: saved.personaId,
+      broughtInLive: {
+        persona: distilled.persona,
+        displayName: nameToSave.slice(0, MAX_DISPLAY_NAME_LENGTH),
+      },
+    });
     void loadSaved();
   };
 

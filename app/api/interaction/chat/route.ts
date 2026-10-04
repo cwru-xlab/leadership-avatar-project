@@ -436,6 +436,30 @@ export async function POST(request: NextRequest) {
           : undefined;
       const firstTurnDelivered = engineTurn?.firstTurnDelivered === true;
 
+      // Networking (16-07/16-08): characterId and brought-in persona text travel
+      // in the wizard customization bag — not on InterviewCustomizationInput —
+      // and are threaded into liveSystemPrompt via AssembleSystemPromptOpts.
+      const rawCustomizationBag =
+        engineInput?.customization &&
+        typeof engineInput.customization === "object"
+          ? (engineInput.customization as Record<string, unknown>)
+          : interviewInput?.customization &&
+              typeof interviewInput.customization === "object"
+            ? (interviewInput.customization as Record<string, unknown>)
+            : null;
+      const networkingCharacterId =
+        typeof rawCustomizationBag?.characterId === "string"
+          ? rawCustomizationBag.characterId
+          : null;
+      const networkingPersonaText =
+        typeof rawCustomizationBag?.distilledPersona === "string"
+          ? rawCustomizationBag.distilledPersona
+          : null;
+      const networkingDisplayName =
+        typeof rawCustomizationBag?.personaDisplayName === "string"
+          ? rawCustomizationBag.personaDisplayName
+          : null;
+
       const built = buildTurnMessages({
         config: sessionConfig,
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -473,6 +497,9 @@ export async function POST(request: NextRequest) {
         systemPrompt:
           typeof systemPrompt === "string" ? systemPrompt : undefined,
         roleContext: roleContext ?? null,
+        characterId: networkingCharacterId,
+        networkingPersona: networkingPersonaText,
+        networkingDisplayName,
       });
 
       fullMessages = built.messages;
