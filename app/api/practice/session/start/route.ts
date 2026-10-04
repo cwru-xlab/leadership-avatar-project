@@ -90,6 +90,9 @@ export async function POST(request: NextRequest) {
       payload.success = true;
       payload.log = result.log;
     }
+    if (result.timeBudgetSeconds != null) {
+      payload.timeBudgetSeconds = result.timeBudgetSeconds;
+    }
 
     return response(payload, 200);
   } catch (error) {

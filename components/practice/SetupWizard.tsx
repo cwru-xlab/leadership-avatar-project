@@ -30,6 +30,8 @@ export interface SetupLaunchResult {
   cameraMode: CameraMode;
   /** Present for case-study — the S3 InteractionLog the client keeps writing. */
   log?: InteractionLog;
+  /** Server-clamped budget when the type persists one (pitch-deck, 14-13). */
+  timeBudgetSeconds?: number | null;
 }
 
 /**
@@ -184,6 +186,7 @@ export default function SetupWizard({
           reportId?: string;
           cameraMode?: CameraMode;
           log?: InteractionLog;
+          timeBudgetSeconds?: number | null;
           error?: string;
         };
         if (!res.ok || !data.reportId) {
@@ -193,6 +196,10 @@ export default function SetupWizard({
           reportId: data.reportId,
           cameraMode: data.cameraMode ?? cameraMode,
           log: data.log,
+          timeBudgetSeconds:
+            typeof data.timeBudgetSeconds === "number"
+              ? data.timeBudgetSeconds
+              : null,
         });
       } catch (error) {
         addToast({
