@@ -122,6 +122,7 @@ export function resolveTermination({
 
   // (3) avatar-end floor — fail closed when the count is missing
   const floor = policy.avatarEndFloor;
+
   if (floor != null) {
     if (
       assistantTurnCount === undefined ||
