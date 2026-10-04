@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 16-03-PLAN.md
+**Stopped At:** Completed 16-06-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -372,6 +372,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 16]: avatarEndFloor inherited from 14-02 with resolveTermination enforcement — not a 16-07 blocker
 - [Phase 16]: networking-persona never-publishable by structural absence (decision 7), not published:false
 - [Phase 16]: NetworkingInputSnapshot carries goal for evaluator/report only; raw paste never snapshotted
+- [Phase 16]: Five networking characters as code records (priya-malhotra, marcus-okonkwo, elena-vasquez, devon-park, amira-hassan); seniority+field axis; ids permanent for inputSnapshot
+- [Phase 16]: Networking character personas use imported MAX_PERSONA_LENGTH; no avatarId, difficulty, or setting on records
 
 ## Progress
 
@@ -1832,7 +1834,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:18:27.380Z
+**Last Date:** 2026-10-04T04:21:18.667Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
