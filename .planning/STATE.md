@@ -12,9 +12,15 @@
 **Phase 15 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `15-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 15` for keyboard B–G + hostile probe 5.
 **Phase 16:** Plans 11/11 complete — tile live; human UAT UNVERIFIED (`16-VALIDATION.md`)
 **Phase 16 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `16-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 16` for keyboard B–G.
-**Stopped At:** Completed 14-07-PLAN.md
+**Stopped At:** Completed 14-12-PLAN.md
 
 ### Phase 14 progress note (2026-10-04)
+
+14-12 delivered: deck wizard UI — `DeckUploadStep` (XHR progress + reason/fix
+retry + thumbnails), `NegotiationAskStep`, `SessionLengthStep`
+(`proposeDeckSeconds`); server-only ask-independent fair band
+(`lib/pitch/fair-value-band.ts`, injected in `startSession`). See
+`14-12-SUMMARY.md`.
 
 14-07 delivered: authenticated deck upload + owner-only manifest/slide-image byte
 routes; human-verify **approved** (real PDF fidelity after canvasFactory +
@@ -426,6 +432,10 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 14]: proposeDeckSeconds anchors ≤8→1200s ≥25→1800s linear round-60 between; ask+fair instance config, settled-only outcome; avatarMayEnd false
 - [Phase 14]: Chat revealedSlideIndex is ratchet input only; slide text in tail block (REQ-73); one ratchetHighWaterMark shared with checkpoint
 - [Phase 14]: Deck routes: opaque deckId only; PPTX unconfigured → 502 reason+fix; real PDF raster needs canvasFactory + disableFontFace fonts
+- [Phase 14]: Fair-value band is per-type constant ($800k-## Decisions
+
+.2M / 8-12%), ask-independent, injected only in startSession
+- [Phase 14]: Deck wizard keys: deckUpload, negotiationAsk, sessionLength; slideTexts fetched at launch from manifest
 
 ## Progress
 
@@ -1886,7 +1896,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T15:17:20.186Z
+**Last Date:** 2026-10-04T15:23:41.952Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
