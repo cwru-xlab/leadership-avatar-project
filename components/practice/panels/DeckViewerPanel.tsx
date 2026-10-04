@@ -29,6 +29,8 @@ export interface DeckViewerPanelProps {
   deckId: string;
   slides: DeckViewerSlideMeta[];
   onFurthestChange: (furthestIndex: number) => void;
+  /** `stage` = full left-pane deck (pitch-deck primary). `compact` = overlay card. */
+  layout?: "compact" | "stage";
 }
 
 function slideUrl(deckId: string, index: number, thumb = false): string {
@@ -40,6 +42,7 @@ export default function DeckViewerPanel({
   deckId,
   slides,
   onFurthestChange,
+  layout = "compact",
 }: DeckViewerPanelProps) {
   const [current, setCurrent] = useState(0);
   const [furthest, setFurthest] = useState(0);
@@ -118,11 +121,16 @@ export default function DeckViewerPanel({
   const prevIndex = current > 0 ? current - 1 : null;
   const nextIndex = current < slides.length - 1 ? current + 1 : null;
   const counterLabel = `Slide ${current + 1} of ${slides.length}`;
+  const isStage = layout === "stage";
 
   return (
     <div
       aria-label="Pitch deck viewer"
-      className="pointer-events-auto relative flex w-full flex-col gap-2 rounded-xl border border-white/15 bg-[#07131f]/90 p-2 shadow-lg backdrop-blur-md"
+      className={
+        isStage
+          ? "pointer-events-auto relative flex h-full min-h-0 w-full flex-col gap-3"
+          : "pointer-events-auto relative flex w-full flex-col gap-2 rounded-xl border border-white/15 bg-[#07131f]/90 p-2 shadow-lg backdrop-blur-md"
+      }
       role="region"
     >
       <div className="flex items-center justify-between gap-2 px-1">
@@ -134,7 +142,7 @@ export default function DeckViewerPanel({
         </p>
       </div>
 
-      <div className="flex items-stretch gap-1.5">
+      <div className="flex min-h-0 flex-1 items-stretch gap-1.5">
         <Button
           isIconOnly
           aria-label="Previous slide"
@@ -147,12 +155,22 @@ export default function DeckViewerPanel({
           <ChevronLeft size={18} />
         </Button>
 
-        <div className="relative flex min-h-[10rem] min-w-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-[#041018]">
+        <div
+          className={
+            isStage
+              ? "relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-xl bg-[#02080d] ring-1 ring-white/10"
+              : "relative flex min-h-[10rem] min-w-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-[#041018]"
+          }
+        >
           {/* object-fit: contain — portrait and landscape both upright, uncropped */}
           {/* eslint-disable-next-line @next/next/no-img-element -- authenticated byte route, not a static asset */}
           <img
             alt={counterLabel}
-            className="max-h-[36vh] w-full object-contain"
+            className={
+              isStage
+                ? "h-full max-h-full w-full object-contain"
+                : "max-h-[36vh] w-full object-contain"
+            }
             draggable={false}
             height={meta.heightPx}
             key={stageSrc}
@@ -195,7 +213,11 @@ export default function DeckViewerPanel({
 
       <div
         aria-label="Slide thumbnails"
-        className="flex gap-1.5 overflow-x-auto pb-1 pt-0.5 [scrollbar-width:thin]"
+        className={
+          isStage
+            ? "flex shrink-0 gap-2 overflow-x-auto pb-1 pt-0.5 [scrollbar-width:thin]"
+            : "flex gap-1.5 overflow-x-auto pb-1 pt-0.5 [scrollbar-width:thin]"
+        }
       >
         {slides.map((slide) => {
           const isCurrent = slide.index === current;
@@ -216,7 +238,11 @@ export default function DeckViewerPanel({
                     ? "border-white/35"
                     : "border-white/10 opacity-80",
               ].join(" ")}
-              style={{ width: 64, height: 48 }}
+              style={
+                isStage
+                  ? { width: 96, height: 72 }
+                  : { width: 64, height: 48 }
+              }
               title={isSeen ? "Shown to the investor" : "Not yet shown"}
               type="button"
               onClick={() => goTo(slide.index)}

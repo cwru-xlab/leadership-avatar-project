@@ -124,6 +124,12 @@ interface PracticeSessionShellProps {
    */
   sessionPanelClassName?: string;
   /**
+   * Left-pane media layout. `avatar-primary` (default) is the interview layout.
+   * `deck-primary` fills the stage with the session panel (slides) and shrinks
+   * the live avatar into a corner PiP like the self-view (pitch-deck).
+   */
+  mediaLayout?: "avatar-primary" | "deck-primary";
+  /**
    * Optional fields merged into every `/api/interaction/chat` body and, when
    * `revealedSlideIndex` is present, into the existing checkpoint body
    * (13-10 extension for 14-13). Pitch-deck uses this to ride the furthest
@@ -240,6 +246,7 @@ function PracticeInterviewRoom({
   onFinish,
   sessionPanel,
   sessionPanelClassName,
+  mediaLayout = "avatar-primary",
   extraChatBody,
   onOpeningTurnTimingChange,
   sessionFinishRef,
@@ -1214,10 +1221,9 @@ function PracticeInterviewRoom({
             <span className="h-2 w-2 rounded-full bg-[#72d6b0]" />
             LIVE INTERVIEW
           </div>
-          {sessionPanel ? (
+          {sessionPanel && mediaLayout !== "deck-primary" ? (
             // Top-right of the avatar pane by default — keeps the face clear.
-            // Pitch-deck overrides via sessionPanelClassName for a bottom
-            // viewer that coexists with the avatar (14-13).
+            // Pitch-deck deck-primary mounts the panel as the stage instead.
             <div
               className={
                 sessionPanelClassName ??
@@ -1252,23 +1258,63 @@ function PracticeInterviewRoom({
           )}
         </header>
 
-        <div className="absolute inset-0">
-          <InteractiveAvatarWrapper
-            ref={avatarRef}
-            config={avatarConfig}
-            showHistory={false}
-            autoStart
-            cleanMode
-            onSessionStateChange={handleAvatarStateChange}
-          />
-        </div>
+        {mediaLayout === "deck-primary" ? (
+          <>
+            {/* Slides own the stage; avatar is a corner PiP like self-view. */}
+            <div className="absolute inset-0 bg-[#041018]" aria-hidden />
+            {sessionPanel ? (
+              <div
+                className={
+                  sessionPanelClassName ??
+                  "pointer-events-auto absolute inset-0 z-10 flex flex-col"
+                }
+              >
+                {sessionPanel}
+              </div>
+            ) : null}
+            <div
+              className="absolute bottom-4 left-4 z-20 h-[132px] w-44 overflow-hidden rounded-2xl border border-white/20 bg-black/80 shadow-xl sm:h-[150px] sm:w-52"
+              aria-label={
+                interviewerName
+                  ? `Live video of ${interviewerName}`
+                  : "Live investor video"
+              }
+            >
+              <InteractiveAvatarWrapper
+                ref={avatarRef}
+                config={avatarConfig}
+                showHistory={false}
+                autoStart
+                cleanMode
+                onSessionStateChange={handleAvatarStateChange}
+              />
+              <span className="pointer-events-none absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white">
+                {interviewerName.trim() || "Investor"}
+              </span>
+            </div>
+            <SelfViewThumbnail stream={cameraStream} />
+          </>
+        ) : (
+          <>
+            <div className="absolute inset-0">
+              <InteractiveAvatarWrapper
+                ref={avatarRef}
+                config={avatarConfig}
+                showHistory={false}
+                autoStart
+                cleanMode
+                onSessionStateChange={handleAvatarStateChange}
+              />
+            </div>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[#07131f] via-[#07131f]/45 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[#07131f] via-[#07131f]/45 to-transparent" />
 
-        {/* Self-view sits in the bottom-right of the AVATAR panel, the usual
-            video-call convention, rather than against the viewport edge where
-            it reserved an empty column beside the transcript. */}
-        <SelfViewThumbnail stream={cameraStream} />
+            {/* Self-view sits in the bottom-right of the AVATAR panel, the usual
+                video-call convention, rather than against the viewport edge where
+                it reserved an empty column beside the transcript. */}
+            <SelfViewThumbnail stream={cameraStream} />
+          </>
+        )}
         <div className="relative z-10 mt-auto px-5 pb-6 pt-36 sm:px-8 lg:hidden">
           <InterviewStatus
             interviewerName={interviewerName}
