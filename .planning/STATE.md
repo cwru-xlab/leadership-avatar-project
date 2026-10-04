@@ -6,10 +6,10 @@
 
 ## Current Position
 
-**Phase:** Not started (defining requirements)
+**Phase:** 17 — v1.0 Close-Out (plans TBD; Phase 18 — Avatar Disengagement & Walk-Out may run in parallel; Phase 19 — Deck-Led Pitch Family depends on Phase 18)
 **Plan:** —
-**Status:** Defining requirements
-**Last activity:** 2026-10-04 — Milestone v1.1 started
+**Status:** Roadmap approved; ready to plan Phase 17 (and Phase 18 in parallel)
+**Last activity:** 2026-10-04 — Milestone v1.1 ROADMAP.md created (Phases 17-19) and STATE.md Current Position updated
 
 ### Carried into v1.1 from v1.0
 
