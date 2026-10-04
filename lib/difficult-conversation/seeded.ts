@@ -17,6 +17,9 @@ import type { DifficultConversationRecord } from "@/lib/difficult-conversation/t
 /** Fixed timestamps — seeded content is version-controlled, not user-edited. */
 const SEEDED_AT = "2026-10-04T00:00:00.000Z";
 
+/** Resolve-time placeholder — filled by assignSeededAvatar, never a real id. */
+const UNRESOLVED = "";
+
 /**
  * Optional gender hints for `assignSeededAvatar`, keyed by conversation id.
  * Not part of DifficultConversationRecord — resolve-time preference only.
@@ -75,8 +78,8 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "team misses the next release.",
     difficulty: "guarded", // middle band default; student chooses at setup
     // Filled at resolve time by assignSeededAvatar — never hardcoded.
-    avatarId: '',
-    voiceId: '',
+    avatarId: UNRESOLVED,
+    voiceId: UNRESOLVED,
     ownerId: null,
     published: true,
     createdAt: SEEDED_AT,
@@ -109,8 +112,8 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "A muddled delivery leaves him believing it is reversible and creates a " +
       "legal exposure for the company.",
     difficulty: "guarded",
-    avatarId: '',
-    voiceId: '',
+    avatarId: UNRESOLVED,
+    voiceId: UNRESOLVED,
     ownerId: null,
     published: true,
     createdAt: SEEDED_AT,
@@ -137,12 +140,11 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "boss. You will offer the low number first and only move if she makes a " +
       "specific, evidenced case. You prefer to stall toward the review cycle.",
     studentObjective:
-      "Leave with a specific number and a date — not \"we'll revisit it\".",
-    stakes:
-      "Another vague deferral and she starts interviewing elsewhere.",
+      'Leave with a specific number and a date — not "we\'ll revisit it".',
+    stakes: "Another vague deferral and she starts interviewing elsewhere.",
     difficulty: "guarded",
-    avatarId: '',
-    voiceId: '',
+    avatarId: UNRESOLVED,
+    voiceId: UNRESOLVED,
     ownerId: null,
     published: true,
     createdAt: SEEDED_AT,
@@ -170,11 +172,10 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "student argues from the rubric rather than from effort or from their GPA.",
     studentObjective:
       "Get a concrete regrade or a written explanation tied to the rubric.",
-    stakes:
-      "The grade decides whether you clear a scholarship threshold.",
+    stakes: "The grade decides whether you clear a scholarship threshold.",
     difficulty: "guarded",
-    avatarId: '',
-    voiceId: '',
+    avatarId: UNRESOLVED,
+    voiceId: UNRESOLVED,
     ownerId: null,
     published: true,
     createdAt: SEEDED_AT,
@@ -201,14 +202,13 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "less angry about the slip than about finding out late. You will accept a " +
       "new date only with a credible explanation of what changed and what " +
       "prevents it recurring. A soft apology without a plan will not move you.",
-    studentObjective:
-      "Land the new date and keep the client relationship.",
+    studentObjective: "Land the new date and keep the client relationship.",
     stakes:
       "He has a competitor's proposal on his desk and will escalate if he " +
       "still cannot explain the delay upward.",
     difficulty: "guarded",
-    avatarId: '',
-    voiceId: '',
+    avatarId: UNRESOLVED,
+    voiceId: UNRESOLVED,
     ownerId: null,
     published: true,
     createdAt: SEEDED_AT,
@@ -242,8 +242,8 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "Escalating to a shared manager damages both of you and freezes the " +
       "next shared deliverable.",
     difficulty: "guarded",
-    avatarId: '',
-    voiceId: '',
+    avatarId: UNRESOLVED,
+    voiceId: UNRESOLVED,
     ownerId: null,
     published: true,
     createdAt: SEEDED_AT,
@@ -278,8 +278,8 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "Accepting sinks two committed deliverables and trains leadership that " +
       "your team will absorb impossible dates.",
     difficulty: "guarded",
-    avatarId: '',
-    voiceId: '',
+    avatarId: UNRESOLVED,
+    voiceId: UNRESOLVED,
     ownerId: null,
     published: true,
     createdAt: SEEDED_AT,
@@ -289,7 +289,7 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
 ];
 
 export function findSeededConversation(
-  id: string
+  id: string,
 ): DifficultConversationRecord | undefined {
   return SEEDED_CONVERSATIONS.find((record) => record.id === id);
 }
