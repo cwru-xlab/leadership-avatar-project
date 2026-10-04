@@ -496,6 +496,6 @@ what was decided; they add no scope.
   `CAMERA_OFF_OPTOUT` / `TYPED_ONLY` or `SPEECH_TOO_SHORT` / `INSUFFICIENT_DATA`). A
   type never wires metrics, so it can never forget to.
 
-- **REQ-73** — [ ] The assembled system prompt stays session-constant so the OpenAI
+- **REQ-73** — [x] The assembled system prompt stays session-constant so the OpenAI
   prefix cache still hits (REQ-20 unchanged), and per-turn state stays in the tail
   block. Unification must not move per-turn data into the system prompt.
