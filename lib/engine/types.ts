@@ -56,6 +56,13 @@ export interface TerminationPolicyConfig {
   avatarMayEnd: boolean;
   /** Closed list of reasons the avatar may cite when it ends a session. */
   avatarEndReasons: string[];
+  /**
+   * An avatar-initiated end is the model's own judgment (CONTEXT.md 14), but
+   * it must never land before enough has happened to grade. `null` / omitted
+   * means no floor, which is correct for the five Phase 13 types because all
+   * of them have `avatarMayEnd: false` and can never terminate at all.
+   */
+  avatarEndFloor?: { minAssistantTurns: number } | null;
 }
 
 /**
@@ -96,6 +103,19 @@ export interface OutcomeRecordConfig {
 export interface TimeBudgetConfig {
   totalSeconds: number | null;
   warnAtRemainingSeconds: number | null;
+  /**
+   * Soft by construction. Nothing in the engine stops a turn; exceeding it
+   * only changes what the tail block tells the model, which is how
+   * CONTEXT.md's "visible timer, soft cutoff, avatar shows impatience and
+   * may interrupt in dialogue" is implemented. There is deliberately no
+   * hard cutoff anywhere.
+   */
+  firstTurnWindowSeconds?: number | null;
+  /**
+   * CONTEXT.md: session length is PROPOSED and student-adjustable. The
+   * proposal is per-type logic; this field is only the clamp.
+   */
+  adjustableRangeSeconds?: [number, number] | null;
 }
 
 /** One step of the generic pre-session setup wizard (built in plan 13-09). */
@@ -179,10 +199,18 @@ export interface InteractionTypeConfig {
   visibleContext: VisibleContextConfig;
   outcome: OutcomeRecordConfig;
   timeBudget: TimeBudgetConfig;
-  /** Whether a session of this type requires a student-authored INSTANCE.
+  /**
+   * Whether a session of this type requires a student-authored INSTANCE.
    * `true` for `case-study`; `false` for the interview presets, which run
-   * off the type record alone (plus optional customization). */
-  instance: { required: boolean };
+   * off the type record alone (plus optional customization).
+   *
+   * `authoredInWizard: true` means the instance does not exist before the
+   * wizard runs — the student creates it during setup (a pitch deck is
+   * uploaded in the wizard). Such a type is reachable at `/practice/{slug}`
+   * even though `required` is true, which is what distinguishes it from
+   * `case-study`, whose instance is authored elsewhere and addressed by id.
+   */
+  instance: { required: boolean; authoredInWizard?: boolean };
   /**
    * Whether the client drives mid-session transcript checkpoints.
    * `"client-driven"` — interview presets; client fires ~9-15 checkpoints.
@@ -213,6 +241,55 @@ export interface InteractionTypeConfig {
 }
 
 /**
+ * A difficult-conversation INSTANCE — seeded catalog entry or student-authored
+ * record resolved into the same shape. Distinct from `"case-study"`: the field
+ * set differs, and `hiddenPosition` is a compiler-enforced privacy boundary
+ * CaseStudy does not have.
+ */
+export interface DifficultConversationInstance {
+  kind: "difficult-conversation";
+  /** Id the instance was resolved from (seeded catalog or authored record). */
+  conversationId: string;
+  /**
+   * Provenance only. The engine must NOT branch on it — `resolveSessionConfig`
+   * and the report behave identically for `"seeded"` and `"authored"`.
+   */
+  source: "seeded" | "authored";
+  /** Who the AVATAR is in this conversation (e.g. "Dana, your direct report"). */
+  role: string;
+  /** Who the STUDENT is (e.g. "their manager"). */
+  studentRole: string;
+  /** One-paragraph framing, shown to the student. */
+  situation: string;
+  /** Facts BOTH sides know. Shown in the briefing AND given to the avatar. */
+  sharedBackstory: string;
+  /**
+   * What the character privately believes, wants, and will not volunteer:
+   * their excuse, their counter-argument, their bottom line.
+   *
+   * Reaches the avatar's session-constant system prompt and the evaluator
+   * ONLY. Never the briefing, never the report, never any client response. It
+   * is deliberately absent from DifficultConversationInputSnapshot so a
+   * client cannot receive it by rendering a report.
+   */
+  hiddenPosition: string;
+  /** Explicit goal, shown in the briefing AND given to the evaluator. */
+  studentObjective: string;
+  /** What happens if it goes badly. Shapes avatar behavior and report framing. */
+  stakes: string;
+  /**
+   * The only adjustable property of a seeded conversation (CONTEXT.md). It is
+   * chosen in the wizard and is hidden entirely during the session — there is
+   * no indicator and no meter.
+   */
+  difficulty: "receptive" | "guarded" | "hostile";
+  /** Always set together with `voiceId`, never cross-paired (CaseAvatar precedent). */
+  avatarId: string;
+  /** Always set together with `avatarId`, never cross-paired (CaseAvatar precedent). */
+  voiceId: string;
+}
+
+/**
  * The student-authored INSTANCE layer — data, not code. A discriminated
  * union so the resolver can narrow on `kind` without a type guard library.
  *
@@ -222,6 +299,9 @@ export interface InteractionTypeConfig {
  * `avatarsSnapshot` / `criteriaSnapshot` and `lib/scenario/report-dto.ts`'s
  * `scenario.{name,background,characters,criteria}` DTO shape, which this
  * mirrors field-for-field.
+ *
+ * The `"difficult-conversation"` member carries the Phase 15 seeded/authored
+ * record shape; see `DifficultConversationInstance`.
  */
 export type InstanceConfig =
   | {
@@ -234,6 +314,43 @@ export type InstanceConfig =
        * before `evaluationPrompt` existed. */
       criteria: string | null;
     }
+  /**
+   * `pitchSubject` is FREE TEXT typed by the student — there is no
+   * category list (CONTEXT.md). `listenerKnowledge` is a student-selected
+   * wizard choice at setup, NOT derived from Phase 8's difficulty
+   * parameter and NOT a property of any scenario record.
+   */
+  | {
+      kind: "pitch-elevator";
+      pitchSubject: string;
+      listenerKnowledge: "blind" | "name-role" | "full-profile";
+    }
+  /**
+   * `askPriceUsd`/`askEquityPct` are captured as plain wizard form fields,
+   * not extracted by a model — they are session-constant and safe in the
+   * system prompt from turn one (14-RESEARCH.md Open Question 3).
+   * `fairValueBand` is instance config the avatar knows and the student
+   * does not; it is never model-produced and never part of the outcome
+   * record. `slideTexts` is the per-slide extracted text; the live
+   * visible-context cursor decides how much of it the avatar sees on a
+   * given turn, and that cursor is server-authoritative (plan 14-11).
+   */
+  | {
+      kind: "pitch-deck";
+      deckId: string;
+      slideCount: number;
+      slideTexts: string[];
+      askPriceUsd: number;
+      askEquityPct: number;
+      fairValueBand: {
+        priceUsdMin: number;
+        priceUsdMax: number;
+        equityPctMin: number;
+        equityPctMax: number;
+      };
+      proposedSeconds: number;
+    }
+  | DifficultConversationInstance
   | { kind: "none" };
 
 /**
