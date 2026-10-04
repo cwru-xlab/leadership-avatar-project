@@ -556,7 +556,7 @@ networking SETTING (conference, coffee chat, …) is deferred, not built. See
      student's session.
   4. The report judges rapport-building and the clarity of the student's
      self-introduction, not interview-style answer quality.
-**Plans:** 6/11 plans executed
+**Plans:** 7/11 plans executed
 **Gate:** every plan except 16-01 is blocked until Phase 13's 15 plans have all
 executed and been signed off. 16-01 — the AI person-generation route — is the one
 plan safe to run before Phase 13 lands: it touches no engine file and its only
@@ -586,7 +586,7 @@ Plans:
 - [ ] 16-04-PLAN.md — Owner-scoped persona store and three routes; cross-student 404; no publish surface
 - [ ] 16-05-PLAN.md — Shared distiller extraction, attestation route, and the gated networking distill route: consume before any model call
 - [ ] 16-06-PLAN.md — Five named fictional characters as code records, varied by seniority and field (human-verified)
-- [ ] 16-07-PLAN.md — The `networking` TYPE record and prompts: seven dimensions, hidden-goal visible-context slice, outcome record, floor-gated walk-away
+- [x] 16-07-PLAN.md — The `networking` TYPE record and prompts: seven dimensions, hidden-goal visible-context slice, outcome record, floor-gated walk-away
 - [ ] 16-08-PLAN.md — Wizard steps: person choice with three bring-in modes and the attestation, the required goal, the reused avatar picker (human-verified)
 - [ ] 16-09-PLAN.md — Hidden-goal leak test: sentinel absent from every outbound payload on real turns, present in the evaluation context (human-verified)
 - [ ] 16-10-PLAN.md — Report surfaces: the ask/outcome/common-ground panel and the early-end feedback line (human-verified)
@@ -612,4 +612,4 @@ Plans:
 | 13. One-on-One Conversation Engine | 15/15 | Complete*  | 2026-10-04 |
 | 14. Practice Pitches | 2/15 | In Progress|  |
 | 15. Difficult Conversations | 0/11 | Planned     |  |
-| 16. Networking Practice | 6/11 | In Progress|  |
+| 16. Networking Practice | 7/11 | In Progress|  |

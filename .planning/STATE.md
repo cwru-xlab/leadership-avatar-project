@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 15-04-PLAN.md
+**Stopped At:** Completed 16-07-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -382,6 +382,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 16]: POST /api/networking/persona requires already-consumed owned attestationId as receipt (decision 8 second enforcement)
 - [Phase 15]: Seeded DC default difficulty is guarded; three neighbours cover outward/peer/upward-refusal
 - [Phase 15]: assignSeededAvatar resolves from live ACTIVE catalog; no hardcoded avatar ids in seeded records
+- [Phase 16]: visibleContext ALLOW-LIST excludes goal; avatarEndFloor minAssistantTurns:4; characterId gated at live prompt
+- [Phase 16]: Early-end eval follows Phase 14: score all seven dims; early end is evidence not a crash
 
 ## Progress
 
@@ -1842,7 +1844,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:27:55.879Z
+**Last Date:** 2026-10-04T04:28:04.633Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
