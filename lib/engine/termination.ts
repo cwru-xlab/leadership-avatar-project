@@ -16,6 +16,11 @@
  * OpenAI prefix cache. This module only parses and validates; it never
  * emits the instruction text.
  *
+ * The floor exists so every session yields gradeable material (CONTEXT.md
+ * 14: "gated by a floor — it may never end before a minimum has happened").
+ * A rejected termination means the session CONTINUES; nothing about the
+ * student's turn is cut short and no error surfaces to the student.
+ *
  * Pure functions only — no I/O, no Prisma, no fetch.
  */
 
@@ -61,17 +66,23 @@ export function parseTerminationMarker(
 
 export type TerminationResolution =
   | { ok: true; recordedReason: string }
-  | { ok: false; recordedReason: null };
+  | { ok: false; recordedReason: null; reason?: "floor-not-met" };
 
 /**
  * Decides whether a termination attempt is accepted under a type's
  * `TerminationPolicyConfig`.
  *
- * - `source: "student"` is accepted iff `policy.studentMayEnd`.
- * - `source: "avatar"` is accepted iff `policy.avatarMayEnd` AND `reason` is
- *   one of the closed list `policy.avatarEndReasons` — an unrecognized
- *   reason is REJECTED, not stored, so the model cannot invent a reason
- *   vocabulary the report would then have to display.
+ * Gate order:
+ * 1. `source: "avatar"` requires `policy.avatarMayEnd`.
+ * 2. The reason must be in `policy.avatarEndReasons` — an unrecognized
+ *    reason is REJECTED, not stored, so the model cannot invent a reason
+ *    vocabulary the report would then have to display.
+ * 3. If `policy.avatarEndFloor` is set, require
+ *    `assistantTurnCount >= policy.avatarEndFloor.minAssistantTurns`.
+ *    When the floor is set and `assistantTurnCount` is missing, FAIL CLOSED
+ *    (reject) rather than letting an unmeasured session end.
+ *
+ * - `source: "student"` is accepted iff `policy.studentMayEnd` (no floor).
  *
  * A rejected result means the session continues; it never throws. With
  * `avatarMayEnd: false` (every built-in type today), no avatar-sourced call
@@ -81,10 +92,14 @@ export function resolveTermination({
   policy,
   source,
   reason,
+  assistantTurnCount,
 }: {
   policy: TerminationPolicyConfig;
   source: "student" | "avatar";
   reason: string | null;
+  /** Optional so Phase 13 call sites compile unchanged. Required when a
+   * floor is configured — omission fails closed. */
+  assistantTurnCount?: number;
 }): TerminationResolution {
   if (source === "student") {
     if (!policy.studentMayEnd) {
@@ -95,12 +110,25 @@ export function resolveTermination({
   }
 
   // source === "avatar"
-  if (
-    !policy.avatarMayEnd ||
-    !reason ||
-    !policy.avatarEndReasons.includes(reason)
-  ) {
+  // (1) avatarMayEnd must be true
+  if (!policy.avatarMayEnd) {
     return { ok: false, recordedReason: null };
+  }
+
+  // (2) reason must be in the closed vocabulary
+  if (!reason || !policy.avatarEndReasons.includes(reason)) {
+    return { ok: false, recordedReason: null };
+  }
+
+  // (3) avatar-end floor — fail closed when the count is missing
+  const floor = policy.avatarEndFloor;
+  if (floor != null) {
+    if (
+      assistantTurnCount === undefined ||
+      assistantTurnCount < floor.minAssistantTurns
+    ) {
+      return { ok: false, recordedReason: null, reason: "floor-not-met" };
+    }
   }
 
   return { ok: true, recordedReason: reason };
