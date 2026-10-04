@@ -38,10 +38,17 @@ import { initialProgress, type InterviewProgress } from "@/lib/interview/types";
 import { parseMetricsPayload, toMetricsJsonInput } from "@/lib/metrics/ingest";
 import type { CameraMode } from "@/lib/metrics/types";
 import type {
+  DifficultConversationInputSnapshot,
   InterviewInputSnapshot,
   PitchInputSnapshot,
   ScenarioInputSnapshot,
 } from "@/lib/report/snapshot";
+import { resolveDifficultConversationInstance } from "@/lib/difficult-conversation/resolve-instance";
+import { findSeededConversation } from "@/lib/difficult-conversation/seeded";
+import {
+  DIFFICULTY_BANDS,
+  type DifficultyBand,
+} from "@/lib/difficult-conversation/types";
 import type { InteractionLog } from "@/types";
 
 import { runAndPersistEvaluation } from "./evaluation-runner";
@@ -50,7 +57,11 @@ import { getEngineType } from "./registry";
 import { resolveSessionConfig } from "./resolve";
 import { resolveTermination } from "./termination";
 import { clampAdjustableBudget } from "./time-budget";
-import type { InstanceConfig, TimeBudgetConfig } from "./types";
+import type {
+  DifficultConversationInstance,
+  InstanceConfig,
+  TimeBudgetConfig,
+} from "./types";
 
 type SlideRevealEvent = {
   index: number;
@@ -224,6 +235,34 @@ async function resolveCameraMode(
   return { cameraMode, consentAt };
 }
 
+
+function isDifficultyBand(value: unknown): value is DifficultyBand {
+  return (
+    typeof value === "string" &&
+    (DIFFICULTY_BANDS as readonly string[]).includes(value)
+  );
+}
+
+function difficultConversationSnapshotFromInstance(
+  instance: DifficultConversationInstance,
+  conversationTitle: string,
+): DifficultConversationInputSnapshot {
+  return {
+    kind: "difficult-conversation",
+    conversationId: instance.conversationId,
+    conversationTitle,
+    source: instance.source,
+    role: instance.role,
+    studentRole: instance.studentRole,
+    situation: instance.situation,
+    sharedBackstory: instance.sharedBackstory,
+    studentObjective: instance.studentObjective,
+    stakes: instance.stakes,
+    difficulty: instance.difficulty,
+    avatarId: instance.avatarId,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // startSession
 // ---------------------------------------------------------------------------
@@ -243,6 +282,7 @@ export async function startSession({
   resumeText: rawResumeText,
   language,
   timeBudgetOverrideSeconds,
+  difficulty: rawDifficulty,
 }: {
   userId: string;
   userEmail: string;
@@ -260,6 +300,8 @@ export async function startSession({
   language?: unknown;
   /** Student-proposed session length in seconds; server clamps. */
   timeBudgetOverrideSeconds?: unknown;
+  /** Difficult-conversation wizard band override (15-08). */
+  difficulty?: unknown;
 }): Promise<StartSessionResult> {
   const type = getEngineType(typeSlug);
   if (!type) {
@@ -396,6 +438,76 @@ export async function startSession({
       typeSlug: type.slug,
       cameraMode,
       timeBudgetSeconds,
+    });
+
+    return { ok: true, reportId: report.id, cameraMode };
+  }
+
+
+  // ---- difficult-conversation: seeded-first resolve → Prisma snapshot
+  //      (no InteractionLog). Must run before the case-study fallthrough. ----
+  if (type.slug === "difficult-conversation") {
+    const conversationId =
+      typeof instanceId === "string" && instanceId.trim()
+        ? instanceId.trim()
+        : null;
+    if (!conversationId) {
+      return { ok: false, status: 404, error: "Conversation not found" };
+    }
+
+    let dcInstance = await resolveDifficultConversationInstance(conversationId);
+    if (!dcInstance) {
+      return { ok: false, status: 404, error: "Conversation not found" };
+    }
+
+    if (isDifficultyBand(rawDifficulty)) {
+      dcInstance = { ...dcInstance, difficulty: rawDifficulty };
+    }
+
+    const seeded = findSeededConversation(conversationId);
+    let conversationTitle = seeded?.title ?? "";
+    if (!conversationTitle) {
+      const situation = dcInstance.situation;
+      conversationTitle =
+        situation.length > 80
+          ? situation.slice(0, 77).trimEnd() + "…"
+          : situation;
+    }
+
+    const resolved = resolveSessionConfig(typeSlug, { instance: dcInstance });
+    if (!resolved.ok) {
+      return { ok: false, status: 400, error: resolved.reason };
+    }
+
+    const timeBudgetSeconds = resolvePersistedBudget(
+      resolved.config.timeBudget,
+      timeBudgetOverrideSeconds,
+    );
+
+    const inputSnapshot = difficultConversationSnapshotFromInstance(
+      dcInstance,
+      conversationTitle,
+    );
+
+    const report = await prisma.interactionReport.create({
+      data: {
+        userId,
+        typeSlug: type.slug,
+        status: "IN_PROGRESS",
+        cameraMode,
+        metricsConsentAt: consentAt,
+        inputSnapshot: inputSnapshot as unknown as Prisma.InputJsonValue,
+        timeBudgetSeconds,
+      },
+      select: { id: true },
+    });
+
+    console.info("Engine difficult-conversation report created", {
+      userId,
+      reportId: report.id,
+      typeSlug: type.slug,
+      conversationId,
+      cameraMode,
     });
 
     return { ok: true, reportId: report.id, cameraMode };
