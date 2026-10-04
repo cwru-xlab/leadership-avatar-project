@@ -212,7 +212,14 @@ export default function PracticeReportPage() {
       >
         <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#d4e2e9] bg-white p-8 shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
           <CircleAlert className="text-[#0a7391]" size={26} />
-          <p className="font-serif text-2xl text-[#102331]">Report not found</p>
+          <p className="font-serif text-2xl text-[#102331]">
+            This report type isn&apos;t set up to display yet
+          </p>
+          <p className="text-sm text-[#47616f]">
+            The session may have saved, but the report page has no chrome or
+            rubric for &ldquo;{params.type}&rdquo;. That is a configuration gap,
+            not a missing report row.
+          </p>
           <Button color="primary" onPress={() => router.push("/")}>
             Back to practice
           </Button>

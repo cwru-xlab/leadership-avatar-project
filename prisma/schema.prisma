@@ -405,6 +405,10 @@ model InteractionReport {
   // existing terminationReason column.
   terminationAtSeconds Int?
 
+  // Student-chosen display name for My Reports (nullable for pre-title rows).
+  // Finish writes a default when the student leaves it blank.
+  title String?
+
   startedAt   DateTime  @default(now())
   completedAt DateTime?
   createdAt   DateTime  @default(now())

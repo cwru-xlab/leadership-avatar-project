@@ -27,7 +27,10 @@ import {
   resolveVocalOutcome,
 } from "@/lib/metrics/coverage";
 import type { CameraMode } from "@/lib/metrics/types";
+import { loadDeckManifest } from "@/lib/deck/store";
 import { resolveDifficultConversationInstance } from "@/lib/difficult-conversation/resolve-instance";
+import { resolveDeckFairValueBand } from "@/lib/pitch/fair-value-band";
+import { DECK_ENVELOPE_SECONDS } from "@/lib/pitch/session-length";
 import {
   asInputSnapshot,
   type DifficultConversationInputSnapshot,
@@ -181,24 +184,66 @@ function instanceFromScenarioSnapshot(
 }
 
 /**
- * Pitch-elevator instances are fully reconstructible from the input snapshot
- * (no secrets omitted). Pitch-deck needs slideTexts from deck storage and is
- * handled separately when that path lands.
+ * Pitch instances are reconstructible from the input snapshot. Elevator is
+ * fully self-contained; deck reloads `slideTexts` from private deck storage
+ * (texts are not duplicated into the snapshot).
  */
-function instanceFromPitchSnapshot(
+async function instanceFromPitchSnapshot(
   snapshot: PitchInputSnapshot,
-): InstanceConfig | null {
-  if (snapshot.pitchKind !== "elevator") return null;
+  userId: string,
+): Promise<InstanceConfig | null> {
+  if (snapshot.pitchKind === "elevator") {
+    if (
+      typeof snapshot.pitchSubject !== "string" ||
+      !snapshot.listenerKnowledge
+    ) {
+      return null;
+    }
+    return {
+      kind: "pitch-elevator",
+      pitchSubject: snapshot.pitchSubject,
+      listenerKnowledge: snapshot.listenerKnowledge,
+    };
+  }
+
+  if (snapshot.pitchKind !== "deck") return null;
+
   if (
-    typeof snapshot.pitchSubject !== "string" ||
-    !snapshot.listenerKnowledge
+    typeof snapshot.deckId !== "string" ||
+    !snapshot.deckId ||
+    typeof snapshot.slideCount !== "number" ||
+    !Number.isFinite(snapshot.slideCount) ||
+    snapshot.slideCount <= 0 ||
+    typeof snapshot.askPriceUsd !== "number" ||
+    !Number.isFinite(snapshot.askPriceUsd) ||
+    typeof snapshot.askEquityPct !== "number" ||
+    !Number.isFinite(snapshot.askEquityPct)
   ) {
     return null;
   }
+
+  const manifest = await loadDeckManifest(userId, snapshot.deckId);
+  const slideTexts =
+    manifest?.slides.map((slide) =>
+      typeof slide.text === "string" ? slide.text : "",
+    ) ?? Array.from({ length: Math.trunc(snapshot.slideCount) }, () => "");
+
   return {
-    kind: "pitch-elevator",
-    pitchSubject: snapshot.pitchSubject,
-    listenerKnowledge: snapshot.listenerKnowledge,
+    kind: "pitch-deck",
+    deckId: snapshot.deckId,
+    slideCount: Math.trunc(snapshot.slideCount),
+    slideTexts,
+    askPriceUsd: snapshot.askPriceUsd,
+    askEquityPct: snapshot.askEquityPct,
+    fairValueBand:
+      snapshot.fairValueBand ??
+      resolveDeckFairValueBand({ slideCount: snapshot.slideCount }),
+    proposedSeconds:
+      typeof snapshot.budgetSeconds === "number" &&
+      Number.isFinite(snapshot.budgetSeconds) &&
+      snapshot.budgetSeconds > 0
+        ? Math.trunc(snapshot.budgetSeconds)
+        : DECK_ENVELOPE_SECONDS[0],
   };
 }
 
@@ -224,6 +269,7 @@ async function instanceFromDifficultConversationSnapshot(
 async function resolveConfigForReport(
   typeSlug: string,
   snapshot: InputSnapshot | null,
+  userId: string,
 ): Promise<
   | { ok: true; config: ResolvedSessionConfig }
   | { ok: false; reason: string }
@@ -246,12 +292,17 @@ async function resolveConfigForReport(
   }
 
   if (snapshot?.kind === "pitch") {
-    const instance = instanceFromPitchSnapshot(snapshot);
-    if (instance) {
-      return resolveSessionConfig(typeSlug, { instance });
+    const instance = await instanceFromPitchSnapshot(snapshot, userId);
+    if (!instance) {
+      return {
+        ok: false,
+        reason:
+          snapshot.pitchKind === "deck"
+            ? "pitch-deck instance could not be reconstructed for evaluation"
+            : "pitch-elevator instance could not be reconstructed for evaluation",
+      };
     }
-    // pitch-deck (or incomplete elevator snapshot): fall through — may fail
-    // resolve when the type requires an instance.
+    return resolveSessionConfig(typeSlug, { instance });
   }
 
   // Interview presets / networking defaults (and rows with no snapshot yet)
@@ -374,7 +425,11 @@ export async function runAndPersistEvaluation({
     });
 
     const snapshot = asInputSnapshot(report.inputSnapshot);
-    const resolved = await resolveConfigForReport(report.typeSlug, snapshot);
+    const resolved = await resolveConfigForReport(
+      report.typeSlug,
+      snapshot,
+      report.userId,
+    );
     if (!resolved.ok) {
       await persistFailure(reportId, resolved.reason);
       console.error("Engine evaluation failed: config resolution", {

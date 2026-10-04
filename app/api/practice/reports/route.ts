@@ -8,10 +8,9 @@
  * Optional `?types=` (comma-separated slugs) filters by typeSlug. When
  * absent, every type is returned.
  *
- * `app/reports/page.tsx` will pass the four interview preset slugs
- * explicitly (plan 13-13), so that page keeps rendering exactly what it
- * renders today. Making scenario runs visible in the list for the first
- * time is a deliberate NON-goal of Phase 13 (REQ-69).
+ * `app/reports/page.tsx` lists every finished interaction type and filters
+ * client-side (type tabs + title search). Study-plan generation remains
+ * interview-only.
  */
 
 import { NextRequest, NextResponse } from "next/server";

@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
       terminationReason,
       terminationSource,
       outcome,
+      title,
     } = body as Record<string, unknown>;
 
     if (typeof reportId !== "string") {
@@ -67,6 +68,7 @@ export async function POST(request: NextRequest) {
           ? terminationSource
           : "student",
       outcome,
+      title,
     });
 
     if (!result.ok) {
