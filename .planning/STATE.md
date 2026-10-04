@@ -12,9 +12,15 @@
 **Phase 15 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `15-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 15` for keyboard B–G + hostile probe 5.
 **Phase 16:** Plans 11/11 complete — tile live; human UAT UNVERIFIED (`16-VALIDATION.md`)
 **Phase 16 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `16-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 16` for keyboard B–G.
-**Stopped At:** Completed 14-10-PLAN.md
+**Stopped At:** Completed 14-13-PLAN.md
 
 ### Phase 14 progress note (2026-10-04)
+
+14-13 delivered: live deck viewer + soft hideable timer; `revealedSlideIndex`
+on every chat/checkpoint via shell `extraChatBody`; mid-UAT layout fix
+`8eb738f` (slides primary stage, avatar PiP). Human leak-test **approved**
+("overall, id say it's approved"). Broader non-investor deck modes deferred —
+see `deferred-items.md`. See `14-13-SUMMARY.md`.
 
 14-10 delivered: elevator wizard steps + soft collapsible PitchTimerPanel on
 `/practice/pitch-elevator`; human-verify **approved**. Mid-checkpoint timer fix
@@ -444,6 +450,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 .2M / 8-12%), ask-independent, injected only in startSession
 - [Phase 14]: Deck wizard keys: deckUpload, negotiationAsk, sessionLength; slideTexts fetched at launch from manifest
 - [Phase 14]: 14-10: wizard keys pitchSubject + listenerKnowledge; shell sessionPanel + opening-turn timing; short discovery turns do not conclude soft window
+- [Phase 14]: 14-13: shell extraChatBody + mediaLayout deck-primary (slides stage, avatar PiP); start returns clamped timeBudgetSeconds
 
 ## Progress
 
@@ -1904,7 +1911,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T15:34:55.801Z
+**Last Date:** 2026-10-04T15:47:55.282Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
