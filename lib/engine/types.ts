@@ -61,8 +61,6 @@ export interface TerminationPolicyConfig {
    * it must never land before enough has happened to grade. `null` / omitted
    * means no floor, which is correct for the five Phase 13 types because all
    * of them have `avatarMayEnd: false` and can never terminate at all.
-   * Added by Phase 16's 16-03 because 14-02 had not landed; 14-02 must
-   * reconcile to this field rather than redefining it.
    */
   avatarEndFloor?: { minAssistantTurns: number } | null;
 }
