@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 14-02-PLAN.md
+**Stopped At:** Completed 16-03-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -369,6 +369,9 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 16]: Person generation is a separate model call producing editable description prose; Phase 8 distill unchanged (16-01)
 - [Phase 14]: Pitch engine knobs (avatarEndFloor, firstTurnWindow, adjustableRange, authoredInWizard) are optional so Phase 13 registry records stay untouched
 - [Phase 14]: First-turn soft window is tail-block-only (REQ-73); no hardStop on the window state
+- [Phase 16]: avatarEndFloor inherited from 14-02 with resolveTermination enforcement — not a 16-07 blocker
+- [Phase 16]: networking-persona never-publishable by structural absence (decision 7), not published:false
+- [Phase 16]: NetworkingInputSnapshot carries goal for evaluator/report only; raw paste never snapshotted
 
 ## Progress
 
@@ -1829,7 +1832,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:17:59.237Z
+**Last Date:** 2026-10-04T04:18:27.380Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
