@@ -1,11 +1,27 @@
+/**
+ * DEPRECATED — thin delegation to the engine. Deleted in plan 13-13 once no
+ * page calls this path.
+ *
+ * Delegates with the four interview preset slugs as the type filter so
+ * `/reports` keeps rendering exactly today's interview-only list (REQ-69).
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
-import { prisma } from "@/lib/prisma";
-import { toInterviewReportDTO } from "@/lib/interview/report-dto";
+import { listReportsForUser } from "@/lib/report/handlers";
+import { toLegacyInterviewReportDTO } from "@/lib/report/legacy-adapters";
 
 export const runtime = "nodejs";
+
+/** The four interview presets — today's `/reports` page set (REQ-69). */
+const INTERVIEW_PRESET_SLUGS = [
+  "general",
+  "technical",
+  "consulting",
+  "early-career",
+] as const;
 
 function response(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, {
@@ -14,15 +30,6 @@ function response(body: Record<string, unknown>, status: number) {
   });
 }
 
-/**
- * Owner-scoped list of the caller's own interview reports, newest first.
- *
- * IN_PROGRESS rows (abandoned sessions with no finish/checkpoint completion)
- * are excluded in the `where` clause itself — the browser is never told an
- * abandoned session exists, unlike a single-report GET which never encounters
- * this case because a client only ever links to a report it already knows
- * the id of.
- */
 export async function GET(request: NextRequest) {
   try {
     const token = request.cookies.get(siteConfig.auth.cookie.name)?.value;
@@ -32,12 +39,18 @@ export async function GET(request: NextRequest) {
       return response({ error: "Unauthorized" }, 401);
     }
 
-    const rows = await prisma.interviewReport.findMany({
-      where: { userId: currentUser.id, status: { not: "IN_PROGRESS" } },
-      orderBy: { createdAt: "desc" },
-    });
+    const result = await listReportsForUser(currentUser.id, [
+      ...INTERVIEW_PRESET_SLUGS,
+    ]);
 
-    return response({ reports: rows.map(toInterviewReportDTO) }, 200);
+    if (!result.ok) {
+      return response({ error: result.error }, result.status);
+    }
+
+    return response(
+      { reports: result.reports.map(toLegacyInterviewReportDTO) },
+      200,
+    );
   } catch (error) {
     console.error("Interview reports list fetch failed:", error);
     return response({ error: "Unable to load your reports." }, 500);
