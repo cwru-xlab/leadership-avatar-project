@@ -192,10 +192,8 @@ export default function PracticeTypePage() {
         }}
         onFinish={(finishedReportId) => {
           setFullScreen(false);
-          // Report URL stays on the legacy path until plan 13-12/13-13;
-          // only the practice session URL is sanctioned to change here.
           router.push(
-            `/interview/${interviewType.slug}/report/${finishedReportId}`,
+            `/practice/${interviewType.slug}/report/${finishedReportId}`,
           );
         }}
       />
