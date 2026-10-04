@@ -33,7 +33,7 @@ async function resolveUser(request: NextRequest): Promise<User | null> {
  * POST /api/difficult-conversation/delete
  *
  * Owner-scoped delete. No pre-publish check — the record ceases to exist.
- * Non-owned / missing / seeded (ownerId null) → 404, never 403.
+ * Non-owned / missing / seeded (ownerId null) → 404, never a permission-denied status.
  */
 export async function POST(request: NextRequest) {
   try {
