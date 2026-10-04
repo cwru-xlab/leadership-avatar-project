@@ -110,6 +110,45 @@ export interface DifficultConversationInputSnapshot {
 }
 
 /**
+ * The networking type's input snapshot.
+ *
+ * REQ-65's design intent is that a new input shape needs no migration — this
+ * rides the existing `InteractionReport.inputSnapshot` JSON column.
+ *
+ * Every field here is SESSION-CONSTANT, captured at session start and never
+ * re-fetched.
+ *
+ * `goal` is recorded here because the EVALUATOR and the REPORT need it — the
+ * Goal Progress dimension is unscoreable without it (16-CONTEXT.md: the goal
+ * is required to start, so Goal Progress always scores). It is **never**
+ * admitted to the avatar's visible context on any turn; that exclusion is
+ * declared on the `networking` type's `visibleContext` (plan 16-07) and tested
+ * in plan 16-09. Nothing may read `goal` from this snapshot to build a live
+ * prompt.
+ *
+ * The raw pasted text is NOT here and must never be. Only the distilled
+ * persona's id and display name are recorded (16-CONTEXT.md decision 6).
+ *
+ * Mirror of the `networking-persona` `InstanceConfig` member's field names, so
+ * the two cannot drift.
+ */
+export interface NetworkingInputSnapshot {
+  kind: "networking";
+  /** "character" for a built-in record, "brought-in" for a distilled real person. */
+  personaSource: "character" | "brought-in";
+  /** The built-in character's id, or null for a brought-in person. */
+  characterId: string | null;
+  /** The brought-in persona instance's id, or null for a built-in character. */
+  personaId: string | null;
+  displayName: string | null;
+  /** The student's goal text. EVALUATOR-ONLY — see the interface doc. */
+  goal: string;
+  interviewerAvatarId: string | null;
+  interviewerVoice: string | null;
+  budgetSeconds: number | null;
+}
+
+/**
  * The closed union of input snapshot shapes. A new interaction type
  * (Phase 14's pitch, Phase 15's difficult conversation, Phase 16's
  * networking persona) adds a new member here and NO columns anywhere —
@@ -119,7 +158,8 @@ export type InputSnapshot =
   | InterviewInputSnapshot
   | ScenarioInputSnapshot
   | PitchInputSnapshot
-  | DifficultConversationInputSnapshot;
+  | DifficultConversationInputSnapshot
+  | NetworkingInputSnapshot;
 
 /**
  * The dimension-keyed score map replacing the four fixed score columns
@@ -192,11 +232,34 @@ const DIFFICULT_CONVERSATION_INPUT_KEYS: readonly (keyof DifficultConversationIn
     "avatarId",
   ];
 
+const NETWORKING_PERSONA_SOURCES = ["character", "brought-in"] as const;
+
+const NETWORKING_INPUT_KEYS: readonly (keyof NetworkingInputSnapshot)[] = [
+  "kind",
+  "personaSource",
+  "characterId",
+  "personaId",
+  "displayName",
+  "goal",
+  "interviewerAvatarId",
+  "interviewerVoice",
+  "budgetSeconds",
+];
+
 function hasAllKeys(
   value: Record<string, unknown>,
   keys: readonly string[],
 ): boolean {
   return keys.every((key) => key in value);
+}
+
+function isNetworkingPersonaSource(
+  value: unknown,
+): value is NetworkingInputSnapshot["personaSource"] {
+  return (
+    typeof value === "string" &&
+    (NETWORKING_PERSONA_SOURCES as readonly string[]).includes(value)
+  );
 }
 
 function isPitchKind(value: unknown): value is PitchInputSnapshot["pitchKind"] {
@@ -291,6 +354,21 @@ export function asInputSnapshot(value: unknown): InputSnapshot | null {
     typeof v.avatarId === "string"
   ) {
     return value as DifficultConversationInputSnapshot;
+  }
+  if (
+    v.kind === "networking" &&
+    hasAllKeys(v, NETWORKING_INPUT_KEYS) &&
+    isNetworkingPersonaSource(v.personaSource) &&
+    typeof v.goal === "string" &&
+    (v.characterId === null || typeof v.characterId === "string") &&
+    (v.personaId === null || typeof v.personaId === "string") &&
+    (v.displayName === null || typeof v.displayName === "string") &&
+    (v.interviewerAvatarId === null ||
+      typeof v.interviewerAvatarId === "string") &&
+    (v.interviewerVoice === null || typeof v.interviewerVoice === "string") &&
+    (v.budgetSeconds === null || typeof v.budgetSeconds === "number")
+  ) {
+    return value as NetworkingInputSnapshot;
   }
 
   return null;
