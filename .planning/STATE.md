@@ -2,22 +2,22 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-10-04 (13-14 DELIVERED — REQ-66 local acceptance `validation passed`; surface-count guard green. Shared-DB migrate still deferred under REQ-67. See `13-14-SUMMARY.md` / `13-VALIDATION.md`.)
+**Updated:** 2026-10-04 (13-15 DELIVERED — local DROP + Part 2 handoff ACK `drop handoff received`. Shared Part 1 still deferred under REQ-67 — BLOCKS PHASE CLOSE. See `13-15-SUMMARY.md`.)
 
 ## Current Position
 
-**Phase:** 13 — One-on-One Conversation Engine — IN PROGRESS (14 of 15 plans executed)
-**Current Plan:** 13-14 complete; next is 13-15
-**Stopped At:** Completed 13-14-PLAN.md
+**Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
+**Current Plan:** 13-15 complete
+**Stopped At:** Completed 13-15-PLAN.md — awaiting human shared-DB Part 1 for phase close
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
-Human acknowledged `13-MIGRATION-HANDOFF.md` and deferred the shared Lightsail DB
-half ("migrate later — focus on the local db for now"). **No agent may run**
-`prisma migrate deploy` or the backfill against the shared DB. Phase 13 does
-**not** close until a human runs the additive CREATE TABLE + backfill per that
-handoff. Later plans (13-05+) may continue against the local `leadership_avatar_dev`
-database.
+All 15 Phase 13 plans are executed. Local CREATE + backfill + DROP are done.
+Human ACK'd Part 2 handoff (`drop handoff received`) and previously deferred
+shared Part 1 ("migrate later"). **No agent may run** `prisma migrate deploy`
+or the backfill against the shared DB. Phase 13 does **not** close until a
+human runs Part 1 (CREATE TABLE + backfill) per `13-MIGRATION-HANDOFF.md`.
+Part 2 DROP on shared is optional/declinable after Part 1 spot-check.
 
 ### Prior note (Phase 12 position before Phase 13 execution)
 
@@ -360,6 +360,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 13]: Finish nav from /practice sessions now lands on /practice/{type}/report/{id}; old report pages intact until 13-13.
 - [Phase 13]: Redirect segment constraint is ((?!new(?:/|$))[^/]+); plain (?!new$) fails under path-to-regexp
 - [Phase 13-one-on-one-conversation-engine / 13-14]: Human REQ-66 verdict **validation passed** (all nine items PASS on local DB). Admin fixture corrected to `/case-play/testing` after absent UUID `7bfbee05-…`. Shared-DB half of backfill still OPEN under REQ-67; REQ-66 left unchecked in REQUIREMENTS.md until shared rows exist.
+- [Phase 13-one-on-one-conversation-engine / 13-15]: Human ACK **drop handoff received**. Local DROP applied (`20261004040000_drop_legacy_report_tables`). Shared Part 1 still OPEN under REQ-67; Part 2 declinable. Study-plans retargeted off `interviewReport` before DROP.
 - [Phase 13]: Dashboard tiles keep /interview and /case-play indexes; ScenarioCard launches /practice/case-study/{id}
 
 ## Progress
@@ -1821,8 +1822,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T03:55:00.000Z
-**Stopped At:** Completed 13-14-PLAN.md — REQ-66 local validation passed; next is 13-15 DROP TABLE handoff. Shared-DB REQ-67 still OPEN.
+**Last Date:** 2026-10-04T04:10:00.000Z
+**Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
 
