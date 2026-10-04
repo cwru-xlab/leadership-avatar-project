@@ -77,6 +77,7 @@ model User {
   auditLogs         AuditLog[]
   interactionReports InteractionReport[]
   studyPlans        StudyPlan[]
+  networkingAttestations NetworkingAttestation[]
 
   @@index([email])
   @@index([role])
@@ -410,4 +411,33 @@ model StudyPlan {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, savedAt])
+}
+
+// ============================================================================
+// NETWORKING ATTESTATION (Phase 16)
+// ============================================================================
+
+/// 16-CONTEXT.md decision 8: an attestation recorded before third-party pasted text
+/// is accepted for persona distillation. Deliberately NOT modelled as a column on
+/// `User` like `videoAnalysisConsentAt`: decision 8 rejects "a once-per-student
+/// acknowledgement that later sessions skip", so this is one row per distillation
+/// event, single-use via `consumedAt`.
+///
+/// APPEND-ONLY. `consumedAt` is the only column that is ever updated. Rows are never
+/// deleted and `wordingVersion` is never rewritten — the audit trail depends on it.
+model NetworkingAttestation {
+  id             String    @id @default(uuid())
+  userId         String
+  attestedAt     DateTime  @default(now())
+  /// The version key of the exact wording the student was shown, from
+  /// NETWORKING_ATTESTATION_WORDING in lib/networking/attestation.ts. Phase 10's
+  /// consent record has no equivalent field; this is genuinely new.
+  wordingVersion String
+  /// Stamped when this attestation is spent on one distillation. Non-null means spent.
+  consumedAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, attestedAt])
+  @@index([userId, consumedAt])
 }
