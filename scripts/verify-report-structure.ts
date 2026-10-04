@@ -618,7 +618,13 @@ console.log("\n6. Type-derived rubric schema (13-05)");
             avatars: [{ name: "A", role: "R" }],
             criteria: null,
           }
-        : { kind: "none" as const };
+        : type.slug === "pitch-elevator"
+          ? {
+              kind: "pitch-elevator" as const,
+              pitchSubject: "verify subject",
+              listenerKnowledge: "blind" as const,
+            }
+          : { kind: "none" as const };
     const resolved = resolveSessionConfig(type.slug, { instance });
     if (!resolved.ok) {
       failures += 1;
