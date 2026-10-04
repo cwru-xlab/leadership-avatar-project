@@ -2,7 +2,7 @@ import {
   GESTURE_RATE_EXCESSIVE_MIN,
   GESTURE_RATE_STILL_MAX,
   HANDS_NEAR_FACE_TRIP_PCT,
-  POSTURE_DRIFT_TRIP,
+  POSTURE_DRIFT_SUSTAINED_S,
 } from "./body-thresholds";
 import type {
   VisualDescriptiveEpisode,
@@ -397,16 +397,67 @@ function bandHandsNearFace(pct: number): string {
  * in depth, the same discipline this plan's Task 1 applies to the
  * producer/renderer split: a future direct call to this function must not
  * be able to silently reintroduce the bug by skipping the renderer's gate.
+ *
+ * ---
+ *
+ * BUG FIX (12-11 Task 3, cause 2 of the 12-10 item-3 false negative). This
+ * function used to take `posture_drift_mean` — the SESSION-WIDE mean of every
+ * post-baseline tick's drift — and compare it against `POSTURE_DRIFT_TRIP`.
+ * That statistic cannot answer the question the row asks, for a reason
+ * independent of the cross-signal mean fixed in `computePostureDrift`:
+ *
+ * A session is REQUIRED BY DESIGN to open upright. The first
+ * `POSTURE_BASELINE_WINDOW_S` (20s) establishes the baseline the drift is
+ * measured against, so near-zero drift at the start is structural, not
+ * behavioural. Averaging across the whole session then dilutes any later slump
+ * against that mandatory upright opening — the longer the student holds good
+ * posture before slumping, the lower the score the slump produces. Session A
+ * (12-11 Task 2, a hard HELD slump) is the proof: per-tick drift peaked at
+ * 0.643 and held above the trip for 12.0s, while the session mean it was
+ * collapsed into was 0.373. The row said "Held steady from the opening
+ * posture" — praise, to a student who had slumped for a minute.
+ *
+ * It now reads `posture_drift_max_s`: the longest SUSTAINED run above
+ * `POSTURE_DRIFT_TRIP`, in seconds. That quantity has been computed and
+ * persisted since 12-06 and, until this task, was read by NOTHING — and
+ * neither was `POSTURE_DRIFT_SUSTAINED_S`, the constant it is now compared
+ * against. A sustained run is what a slump actually IS: not a high average,
+ * but a stretch of real time spent away from where you started.
+ *
+ * **THE TRAP THIS DELIBERATELY AVOIDS, recorded because switching onto
+ * `posture_drift_max_s` looks like the whole fix and is not.**
+ * `POSTURE_DRIFT_SUSTAINED_S` was 15, and Session A's held slump measured
+ * 12.0s. Had the statistic been swapped without re-deriving that constant, the
+ * genuine slump would STILL have reported "Held steady" — a second silent
+ * false negative, one layer down, with the repair appearing to have changed
+ * nothing. The constant was re-derived to 8 from the same session's series;
+ * see its own comment in `body-thresholds.ts`.
+ *
+ * `posture_drift_mean` remains on `VisualMetrics` as a diagnostic/descriptive
+ * aggregate, but NOTHING scored reads it any more, and nothing should start:
+ * `scripts/verify-visual-metrics.ts` asserts that a session carrying only a
+ * high mean renders no verdict, which pins this fix against regression.
+ *
+ * The 12-09 unreadable-branch guarantee above is UNTOUCHED by this change: the
+ * `measuredSignals` check still runs FIRST, before the duration is looked at
+ * at all, so a session with no usably-visible posture landmark still gets no
+ * verdict regardless of what streak the drift machinery managed to accumulate
+ * from a brief glimpse.
  */
 function bandPostureDrift(
-  drift: number,
+  driftSustainedS: number,
   measuredSignals: VisualPostureSignal[]
 ): string {
   if (measuredSignals.length === 0) {
     return "Not visible enough to read — body not visible in frame";
   }
-  const clamped = clampFinite(drift, 0, 1);
-  return clamped >= POSTURE_DRIFT_TRIP ? "Shifted from the opening posture" : "Held steady from the opening posture";
+  // Clamped at the session-length scale rather than 0-1: this is a duration in
+  // seconds now, not a magnitude. The upper bound only guards against a
+  // non-finite or negative value reaching the comparison.
+  const sustainedS = clampFinite(driftSustainedS, 0, Number.MAX_SAFE_INTEGER);
+  return sustainedS >= POSTURE_DRIFT_SUSTAINED_S
+    ? "Shifted from the opening posture"
+    : "Held steady from the opening posture";
 }
 
 /**
@@ -450,14 +501,22 @@ export function visualBodyLanguageBands(m: VisualMetrics): MetricBandRow[] {
   // — omit-don't-default, not a defaulted/invented verdict (see
   // `bandPostureDrift`'s own comment for why it also independently refuses
   // to render a verdict for the empty-array case).
+  //
+  // 12-11 Task 3: the gated field is now `posture_drift_max_s`, the quantity
+  // the verdict is actually derived from, NOT `posture_drift_mean` — a row
+  // must never be gated on the presence of one field while its wording is
+  // decided by another. The producer emits both together or neither
+  // (`visual-capture.ts`'s `stop()` spreads them from one conditional), so
+  // this is equivalent at runtime; it is the omit-don't-default discipline
+  // that requires the gate and the verdict to name the same field.
   if (
-    typeof m.posture_drift_mean === "number" &&
+    typeof m.posture_drift_max_s === "number" &&
     Array.isArray(m.posture_signals_measured) &&
     m.posture_signals_measured.length > 0
   ) {
     rows.push({
       label: "Posture drift",
-      value: bandPostureDrift(m.posture_drift_mean, m.posture_signals_measured),
+      value: bandPostureDrift(m.posture_drift_max_s, m.posture_signals_measured),
     });
   }
 
