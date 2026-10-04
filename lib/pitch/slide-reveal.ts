@@ -11,7 +11,9 @@
  * or used value — only the returned mark reaches applyVisibleContext.
  *
  * **This function (`ratchetHighWaterMark`) is the only place in the repo where
- * a client-supplied slide index is read.** Any other reader is a bug.
+ * a client-supplied slide index is read.** Any other reader is a bug. The
+ * persisted column is `InteractionReport.slideHighWaterMark` (14-05); callers
+ * pass that stored value in and write the returned `mark` back.
  */
 
 import type { ResolvedSessionConfig } from "@/lib/engine/types";
