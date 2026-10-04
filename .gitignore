@@ -37,6 +37,8 @@ next-env.d.ts
 /.vscode
 CLAUDE.md
 .claude/
+.cursor/
+.omc/
 
 requirements/
 
@@ -45,3 +47,4 @@ requirements/cookies.txt
 /lib/generated/prisma
 
 .env
+
