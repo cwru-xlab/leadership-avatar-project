@@ -107,6 +107,9 @@ export interface SetupStepDeclaration {
   /** When set, the wizard renders this type's own component for the step
    * (e.g. deck upload, persona paste) instead of a generic field renderer. */
   customComponent?: string;
+  /** When true, the step may be skipped (e.g. interview resume). The camera
+   * consent gate is never optional — the wizard appends it separately. */
+  optional?: boolean;
 }
 
 /**
