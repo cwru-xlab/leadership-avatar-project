@@ -1,37 +1,29 @@
 # Phase 13 Migration Handoff — InteractionReport
 
-> ## RESOLVED 2026-10-04 — read this before the rest of the document
+> ## SUPERSEDED 2026-10-04 — do not plan against this document
 >
-> Both parts are **done on the shared Lightsail DB**: a human ran
-> `prisma migrate deploy`, all 14 migrations are applied, and
-> `prisma migrate status` reports `Database schema is up to date!`.
+> **`.planning/HANDOFF.md` §3 is the single source of truth on migration
+> state.** All 14 migrations are applied to shared; `Database schema is up to
+> date!`; nothing is pending or held; and both Part 1 and Part 2 are done.
+> Anything new follows `docs/MIGRATIONS.md` (Phase 17 plan 17-01), not this
+> document's §3.
 >
-> **The premise of everything below was false.** The shared DB was completely
-> empty — 0 users, 0 attempts, 0 reports of either kind. There were no live
-> student report rows to preserve, so:
+> This document's stale status row was read as current on 2026-10-04 and
+> produced two Phase 17 plans for work that was already complete; they were
+> discarded. The runbook below is kept as history — its commands, rationale, and
+> Part 1 / Part 2 ceremony record what was planned, even though the single
+> `prisma migrate deploy` it describes could not carry out that separation.
 >
-> - The **backfill was never run against shared** and never needed to be. It
->   would have copied zero rows.
-> - `scripts/verify-interaction-report-backfill.ts` **cannot pass against an
->   empty DB** by construction — it hard-asserts that at least one legacy
->   `cameraMode IS NULL` row exists to test (lines 266 and 271). That is not a
->   failure to fix; there is simply nothing to verify.
-> - The **`pg_dump` in P2-1 was not taken**, because both legacy tables were
->   empty when they were dropped.
-> - §3's single `prisma migrate deploy` would have applied the `DROP` in the
->   same command as the `CREATE`, since the DROP migration was added to the tree
->   after this document was written. The Part 1 / Part 2 separation this
->   document is built around **was not achievable with the command it
->   documents.**
+> The shared DB was completely empty — 0 users, 0 attempts, 0 reports of either
+> kind. The backfill was never run against shared because it would have copied
+> zero rows, and `scripts/verify-interaction-report-backfill.ts` cannot pass
+> there by construction because it requires a legacy `cameraMode IS NULL` row.
+> The `pg_dump` in P2-1 was not taken because both legacy tables were empty when
+> dropped.
 >
-> **And the separation was already moot.** `vercel.json`'s `buildCommand` runs
-> `prisma migrate deploy` on every deployment, so these migrations — the `DROP`
-> included — had already been applied automatically, unreviewed, to the
-> databases behind Vercel's Preview and Production `DATABASE_URL` secrets. The
-> careful human-gated ceremony below was guarding a door the build pipeline had
-> been walking through for days. See `HANDOFF.md §3`.
->
-> Kept unedited below as the record of what was planned and why.
+> The runbook below is preserved as superseded history, not an operational
+> procedure. Do not execute it; use `docs/MIGRATIONS.md` for any future schema
+> change.
 
 
 **Written:** 2026-10-03 · **Extended:** 2026-10-04 (plan 13-15 Part 2) · **Requirement:** REQ-67
@@ -45,8 +37,11 @@ This document has two independent parts:
 
 | Part | What | Plan | Local status | Shared status |
 |---|---|---|---|---|
-| **1** | `CREATE TABLE "InteractionReport"` + backfill | 13-02 / 13-04 | Applied + verified | ~~**DEFERRED by human** ("migrate later") — still OPEN~~ **SUPERSEDED — DONE 2026-10-04, see the banner at the top of this file** |
-| **2** | `DROP TABLE` legacy report tables | 13-15 | Applied + app still works | ~~**Do not run until Part 1 is done and spot-checked on shared**~~ **SUPERSEDED — DONE 2026-10-04 (both tables were empty), see the banner** |
+| **1** | `CREATE TABLE "InteractionReport"` + backfill | 13-02 / 13-04 | Applied + verified | Applied 2026-10-04 (human-run `prisma migrate deploy`) |
+| **2** | `DROP TABLE` legacy report tables | 13-15 | Applied + app still works | Applied 2026-10-04 — same run; the DROP migration was in the tree, so it went in the same command |
+
+> Part 1 previously read “**DEFERRED by human** ("migrate later") — still OPEN”; it was the stale row that misled planning. **SUPERSEDED: both parts applied 2026-10-04; see the banner.**
+> Part 2 previously read “**Do not run until Part 1 is done and spot-checked on shared**.” **SUPERSEDED: both parts applied 2026-10-04; see the banner.**
 
 You may accept, defer, or decline Part 2 independently of Part 1. Deferring
 Part 2 indefinitely costs nothing but disk — after Phase 13 code ships, the
@@ -476,12 +471,13 @@ npx tsx scripts/verify-interaction-report-backfill.ts
 ## P2-6. What to do next (Part 2)
 
 1. Finish Part 1 on shared if you have not (`migrate deploy` + backfill +
-   spot-check). **Per REQ-67, Phase 13 does not close until Part 1 is done.**
+   spot-check). **Per REQ-67, Phase 13 does not close until Part 1 is done — SUPERSEDED: both parts were applied 2026-10-04; see the banner.**
 2. Run the P2-3 verification queries; confirm all three conditions hold.
 3. Take the `pg_dump` backup of the two legacy tables.
 4. Read `prisma/migrations/20261004040000_drop_legacy_report_tables/migration.sql`.
 5. If satisfied, run Part 2's `prisma migrate deploy`. **Or decline / defer
    indefinitely** — nothing in the application reads those tables any more.
+   **SUPERSEDED: both parts were applied 2026-10-04; see the banner.**
 
 **Resume signal for plan 13-15:** reply **`drop handoff received`** to finish
 the plan (whether or not you have run Part 1 or Part 2 yet), or describe

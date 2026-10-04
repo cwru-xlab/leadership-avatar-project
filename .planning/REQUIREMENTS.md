@@ -490,21 +490,25 @@ what was decided; they add no scope.
   future pre-Phase-13 row can appear to re-open this.
 
 - **REQ-67** — [x] The Phase 13 migration is applied to the LOCAL dev database only.
-  The SQL is handed over for human review and a human runs `prisma migrate deploy`
-  against the shared Lightsail DB (`HANDOFF.md §3` precedent). No agent applies it.
-  Phase 13 does not close until a human has run it.
 
-  **CLOSED 2026-10-04 on the human-run clause ONLY.** A human ran
-  `prisma migrate deploy` against shared; `prisma migrate status` reports 14 of 14
-  applied, `Database schema is up to date!`.
+  **CORRECTED 2026-10-04.** No agent connects to the shared Lightsail database,
+  Vercel Preview, or Production — not for a migration and not
+  even for a read-only `SELECT`. A human applies migrations to those targets. That
+  rule bound agents throughout and continues to bind them.
 
-  **DO NOT read this tick as "migrations are human-gated here."** The "no agent
-  applies it" clause had already been untrue for days: `vercel.json`'s
-  `buildCommand` runs `prisma migrate deploy` on every deployment and had been
-  applying these migrations — the first `DROP TABLE` included — automatically and
-  unreviewed. That contradiction is **NOT closed by this box**; it is REQ-74, whose
-  plan 17-01 removes the command and documents the replacement procedure. Until
-  17-01 ships, deploys still self-migrate. See `13-CLOSE-RECORD.md` §3.
+  From the day `vercel.json`'s `buildCommand` gained `prisma migrate deploy` until
+  2026-10-04, however, every deployment applied pending migrations automatically
+  and unreviewed to the databases behind the Preview and Production secrets. That
+  included the project's first `DROP TABLE`; see `.planning/HANDOFF.md` §3 and its
+  2026-10-04 preview-build incident. The rule never bound CI, and the documents did
+  not say so.
+
+  REQ-74 / Phase 17 plan 17-01 removed `prisma migrate deploy` from
+  `buildCommand`, making the rule true of the pipeline as well as agents. A human
+  now follows `docs/MIGRATIONS.md` to apply a schema change to its target before
+  deploying code that depends on it. The Phase 13 migration was human-applied to
+  shared on 2026-10-04; `prisma migrate status` reported 14 of 14 applied and
+  `Database schema is up to date!`.
 
 - **REQ-68** — [x] All engine-backed sessions live under one `/practice/[type]` tree —
   session at `/practice/[type]/[instanceId?]`, report at
