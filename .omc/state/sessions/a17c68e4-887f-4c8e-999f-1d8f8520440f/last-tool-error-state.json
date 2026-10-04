@@ -1,0 +1,7 @@
+{
+  "tool_name": "Read",
+  "tool_input_preview": "{\"file_path\":\"/private/tmp/claude-502/-Users-ajabreu79-projects-leadership-avatar-project/a17c68e4-887f-4c8e-999f-1d8f8520440f/scratchpad/handoff.pdf\",\"pages\":\"1-3\"}",
+  "error": "pdftoppm is not installed. Install poppler-utils (e.g. `brew install poppler` or `apt-get install poppler-utils`) to enable PDF page rendering.",
+  "timestamp": "2026-10-04T18:25:46.652Z",
+  "retry_count": 1
+}

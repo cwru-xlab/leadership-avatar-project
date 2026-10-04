@@ -45,8 +45,8 @@ This document has two independent parts:
 
 | Part | What | Plan | Local status | Shared status |
 |---|---|---|---|---|
-| **1** | `CREATE TABLE "InteractionReport"` + backfill | 13-02 / 13-04 | Applied + verified | **DEFERRED by human** ("migrate later") — still OPEN |
-| **2** | `DROP TABLE` legacy report tables | 13-15 | Applied + app still works | **Do not run until Part 1 is done and spot-checked on shared** |
+| **1** | `CREATE TABLE "InteractionReport"` + backfill | 13-02 / 13-04 | Applied + verified | ~~**DEFERRED by human** ("migrate later") — still OPEN~~ **SUPERSEDED — DONE 2026-10-04, see the banner at the top of this file** |
+| **2** | `DROP TABLE` legacy report tables | 13-15 | Applied + app still works | ~~**Do not run until Part 1 is done and spot-checked on shared**~~ **SUPERSEDED — DONE 2026-10-04 (both tables were empty), see the banner** |
 
 You may accept, defer, or decline Part 2 independently of Part 1. Deferring
 Part 2 indefinitely costs nothing but disk — after Phase 13 code ships, the
