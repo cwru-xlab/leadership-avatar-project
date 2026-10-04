@@ -639,10 +639,18 @@
         "16-08"
       ],
       "timestamp": "2026-10-04T04:35:05Z",
-      "status": "spawned",
-      "files_modified": [],
-      "completion_timestamp": null,
-      "deviations": []
+      "status": "completed",
+      "files_modified": [
+        "scripts/verify-networking-goal-leak.ts",
+        "lib/networking/start-snapshot.ts",
+        "lib/engine/session.ts",
+        ".planning/phases/16-networking-practice/16-GOAL-LEAK-TEST.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:41:21Z",
+      "deviations": [
+        "Rule 3: networking startSession path",
+        "human blocks B-E UNVERIFIED"
+      ]
     },
     {
       "agent_id": "9e0e1049-e45c-4380-8e9e-0be8de011836",
@@ -656,9 +664,13 @@
         "16-08"
       ],
       "timestamp": "2026-10-04T04:35:05Z",
-      "status": "spawned",
-      "files_modified": [],
-      "completion_timestamp": null,
+      "status": "completed",
+      "files_modified": [
+        "components/practice/panels/NetworkingOutcomePanel.tsx",
+        "components/practice/ReportChrome.tsx",
+        "scripts/verify-networking-report-surfaces.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:37:47Z",
       "deviations": []
     },
     {
@@ -677,6 +689,28 @@
       "status": "spawned",
       "files_modified": [],
       "completion_timestamp": null,
+      "deviations": []
+    },
+    {
+      "agent_id": "14fb62a7-977a-40b0-89f3-98a1753a5056",
+      "task_description": "Parallel: Execute 16-11-PLAN.md",
+      "phase": "16",
+      "plan": "11",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 6,
+      "depends_on": [
+        "16-09",
+        "16-10"
+      ],
+      "timestamp": "2026-10-04T04:41:29Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/interactions/index.ts",
+        "scripts/verify-networking-surface-count.ts",
+        ".planning/phases/16-networking-practice/16-VALIDATION.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:45:48Z",
       "deviations": []
     }
   ]
