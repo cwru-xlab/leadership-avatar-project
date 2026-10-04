@@ -37,6 +37,7 @@ import {
   resolveNetworkingLivePersona,
 } from "../networking/prompts";
 import { PITCH_ELEVATOR_TYPE } from "../pitch/elevator-type";
+import { PITCH_DECK_TYPE } from "../pitch/deck-type";
 import { DIFFICULT_CONVERSATION_TYPE } from "../difficult-conversation/conversation-type";
 
 /**
@@ -353,6 +354,7 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   CASE_STUDY,
   NETWORKING,
   PITCH_ELEVATOR_TYPE,
+  PITCH_DECK_TYPE,
   DIFFICULT_CONVERSATION_TYPE,
 ];
 
@@ -383,7 +385,9 @@ export function registerEngineTypeForTests(
 ): () => void {
   const key = type.slug.trim().toLowerCase();
   const previous = ENGINE_TYPES_BY_SLUG[key];
+
   ENGINE_TYPES_BY_SLUG[key] = type;
+
   return () => {
     if (previous) {
       ENGINE_TYPES_BY_SLUG[key] = previous;
