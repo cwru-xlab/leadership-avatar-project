@@ -12,7 +12,7 @@
 **Phase 15 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `15-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 15` for keyboard B–G + hostile probe 5.
 **Phase 16:** Plans 11/11 complete — tile live; human UAT UNVERIFIED (`16-VALIDATION.md`)
 **Phase 16 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `16-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 16` for keyboard B–G.
-**Stopped At:** Completed 14-09-PLAN.md
+**Stopped At:** Completed 14-11-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -417,6 +417,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 14]: slide cursor lives in four nullable InteractionReport columns, not inputSnapshot; null means nothing revealed
 - [Phase 14]: pitch-deck: applyVisibleContext turn.cursors.slides = high-water mark; Phase 13 has no per-channel progressive mode field
 - [Phase 14]: proposeDeckSeconds anchors ≤8→1200s ≥25→1800s linear round-60 between; ask+fair instance config, settled-only outcome; avatarMayEnd false
+- [Phase 14]: Chat revealedSlideIndex is ratchet input only; slide text in tail block (REQ-73); one ratchetHighWaterMark shared with checkpoint
 
 ## Progress
 
@@ -1877,7 +1878,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T15:06:40.520Z
+**Last Date:** 2026-10-04T15:15:56.629Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
