@@ -31,6 +31,8 @@ import type {
 export interface ReportDTO {
   id: string;
   typeSlug: string;
+  /** Student-chosen or finish-time default display name. Null on pre-title rows. */
+  title: string | null;
   status: "IN_PROGRESS" | "PENDING" | "READY" | "FAILED";
   turnCount: number;
   /** Dimension-keyed score map (see `ScoreMap`). Replaces the four fixed
@@ -65,7 +67,7 @@ export interface ReportDTO {
   terminationAtSeconds: number | null;
   /**
    * REQ-64: the type-declared outcome record. `null` when the type has
-   * none or the session never reached one. Passed through unchanged —
+   * none or the session never reached one. Narrowed to a plain object —
    * keyed by the type's own field names, not a type-specific DTO shape.
    *
    * The outcome record is data the report RENDERS. It is never applied
@@ -73,7 +75,29 @@ export interface ReportDTO {
    * outcome cap or lift a dimension. If you are adding arithmetic that
    * reads `outcome` and writes a score, stop.
    */
-  outcome: unknown | null;
+  outcome: Record<string, unknown> | null;
+  /**
+   * Furthest 0-based slide index revealed during a deck session.
+   * `null` means nothing was revealed (or the type has no slides).
+   */
+  slideHighWaterMark: number | null;
+  /**
+   * Ordered reveal trail for a deck session. Narrowed through
+   * `asSlideReveals` — never raw JSON into a component. `null` when
+   * absent or unparseable.
+   */
+  slideReveals: SlideRevealDto[] | null;
+  /**
+   * Scheduled soft envelope in seconds (deck adjustable budget).
+   * `null` when the type has no session budget.
+   */
+  timeBudgetSeconds: number | null;
+  /**
+   * Wall-clock session duration in seconds, computed from
+   * `startedAt`/`completedAt` so overrun panels do no date arithmetic.
+   * `null` when `completedAt` is missing.
+   */
+  elapsedSeconds: number | null;
   /** Structured body (see `lib/report/structured.ts`). Null on pre-migration
    * rows, which fall back to rendering `reportMarkdown`. */
   reportStructured: StructuredReport | null;
@@ -82,6 +106,13 @@ export interface ReportDTO {
   evalModel: string | null;
   startedAt: string; // ISO
   completedAt: string | null; // ISO
+}
+
+/** One slide-reveal event as the report page consumes it (14-05 trail). */
+export interface SlideRevealDto {
+  index: number;
+  atTurnIndex: number;
+  atElapsedSeconds: number;
 }
 
 /**
@@ -256,6 +287,56 @@ export function asConversationOutcome(value: unknown): ConversationOutcomeView |
 }
 
 /**
+ * Narrow an unknown outcome JSON value to a plain object. Arrays and
+ * primitives become null — components never receive raw Prisma Json.
+ */
+export function asOutcomeRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+/**
+ * Narrow the slide-reveal trail the same way `asInputSnapshot` narrows
+ * snapshots — malformed entries are dropped, never thrown.
+ */
+export function asSlideReveals(value: unknown): SlideRevealDto[] | null {
+  if (!Array.isArray(value)) return null;
+  const out: SlideRevealDto[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const row = item as Record<string, unknown>;
+    if (
+      typeof row.index !== "number" ||
+      !Number.isFinite(row.index) ||
+      typeof row.atTurnIndex !== "number" ||
+      !Number.isFinite(row.atTurnIndex) ||
+      typeof row.atElapsedSeconds !== "number" ||
+      !Number.isFinite(row.atElapsedSeconds)
+    ) {
+      continue;
+    }
+    out.push({
+      index: Math.trunc(row.index),
+      atTurnIndex: Math.trunc(row.atTurnIndex),
+      atElapsedSeconds: Math.trunc(row.atElapsedSeconds),
+    });
+  }
+  return out.length > 0 ? out : null;
+}
+
+/** Elapsed session seconds from started/completed ISO strings. */
+export function computeElapsedSeconds(
+  startedAt: string,
+  completedAt: string | null,
+): number | null {
+  if (!completedAt) return null;
+  const start = Date.parse(startedAt);
+  const end = Date.parse(completedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+  return Math.round((end - start) / 1000);
+}
+
+/**
  * Maps a Prisma `InteractionReport` row to the unified client-facing DTO.
  *
  * This mapping is intentionally explicit, field by field — never spread
@@ -272,9 +353,12 @@ export function asConversationOutcome(value: unknown): ConversationOutcomeView |
  * both legacy DTOs already used.
  */
 export function toReportDto(row: InteractionReport): ReportDTO {
+  const startedAt = row.startedAt.toISOString();
+  const completedAt = row.completedAt ? row.completedAt.toISOString() : null;
   return {
     id: row.id,
     typeSlug: row.typeSlug,
+    title: typeof row.title === "string" && row.title.trim() ? row.title.trim() : null,
     status: row.status,
     turnCount: row.turnCount,
     scores: asScoreMap(row.scores),
@@ -285,17 +369,25 @@ export function toReportDto(row: InteractionReport): ReportDTO {
       visualUnscored: asVisualUnscoredReason(row.visualUnscoredReason),
       vocalUnscored: asVocalUnscoredReason(row.vocalUnscoredReason),
     },
+    // Pass the whole narrowed InputSnapshot union through — never
+    // cherry-pick interview-only fields (13-02 pitch-input defect fix).
     input: asInputSnapshot(row.inputSnapshot),
     terminationReason: row.terminationReason,
     terminationAtSeconds:
       typeof row.terminationAtSeconds === "number" ? row.terminationAtSeconds : null,
-    outcome: row.outcome,
+    outcome: asOutcomeRecord(row.outcome),
+    slideHighWaterMark:
+      typeof row.slideHighWaterMark === "number" ? row.slideHighWaterMark : null,
+    slideReveals: asSlideReveals(row.slideReveals),
+    timeBudgetSeconds:
+      typeof row.timeBudgetSeconds === "number" ? row.timeBudgetSeconds : null,
+    elapsedSeconds: computeElapsedSeconds(startedAt, completedAt),
     reportStructured: asStructuredReport(row.reportStructured),
     reportMarkdown: row.reportMarkdown,
     failureReason: row.failureReason,
     evalModel: row.evalModel,
-    startedAt: row.startedAt.toISOString(),
-    completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+    startedAt,
+    completedAt,
   };
   // Deliberately excluded, never in the object literal above:
   // row.userId, row.transcriptKey, row.interactionLogId, row.studentEmail,

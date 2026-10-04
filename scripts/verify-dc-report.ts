@@ -80,6 +80,7 @@ function baseReport(overrides: Partial<ReportDTO> = {}): ReportDTO {
   return {
     id: "rep-dc-verify",
     typeSlug: "difficult-conversation",
+    title: null,
     status: "READY",
     turnCount: 12,
     scores: {
@@ -130,6 +131,10 @@ function baseReport(overrides: Partial<ReportDTO> = {}): ReportDTO {
       endTurnReasons: null,
       endTurnTimecodeSeconds: null,
     },
+    slideHighWaterMark: null,
+    slideReveals: null,
+    timeBudgetSeconds: null,
+    elapsedSeconds: null,
     reportStructured: null,
     reportMarkdown: null,
     failureReason: null,

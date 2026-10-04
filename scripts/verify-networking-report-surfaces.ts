@@ -97,6 +97,7 @@ function syntheticRow(
     id: "rep-net-verify",
     userId: "user-verify",
     typeSlug: "networking",
+    title: null,
     status: "READY",
     inputSnapshot: {
       kind: "networking",
