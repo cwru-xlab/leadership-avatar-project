@@ -91,6 +91,11 @@ const INTERVIEW_RESUMES_PREFIX = "resumes/";
 // Structure: interviews/{userId}/{reportId}.json
 const INTERVIEW_TRANSCRIPTS_PREFIX = "interviews/";
 
+// Practice-pitch deck storage prefix.
+// Structure: decks/{userId}/{deckId}/{relativeKey}
+// Objects are PRIVATE — no public ACL, no presigned URL helper.
+const DECKS_PREFIX = "decks/";
+
 // Global compression switch for chat sessions
 const ENABLE_CHAT_COMPRESSION =
   process.env.ENABLE_CHAT_COMPRESSION === "false" || true;
@@ -1877,6 +1882,91 @@ export class S3AvatarStorage {
     const assessedLogs = logs.filter((l) => l.mode === "assessed");
     if (assessedLogs.length === 0) return 1;
     return Math.max(...assessedLogs.map((l) => l.attemptNumber)) + 1;
+  }
+
+  /**
+   * Store a private deck object under decks/{userId}/{deckId}/{relativeKey}.
+   *
+   * Deck objects are PRIVATE. There is deliberately no presigned-URL or
+   * public-ACL variant here — slide images reach the browser only through the
+   * authenticated, ownership-checked byte-serving route
+   * (app/api/practice/deck/[deckId]/slide/[index]/route.ts). Do not add a
+   * URL-returning helper.
+   *
+   * Keys are server-derived from the authenticated userId and a server-
+   * generated deckId — never from client input. `relativeKey` must not contain
+   * `..` or a leading `/`.
+   */
+  async saveDeckObject(
+    userId: string,
+    deckId: string,
+    relativeKey: string,
+    body: Buffer | Uint8Array | string,
+    contentType: string
+  ): Promise<string> {
+    if (relativeKey.includes("..") || relativeKey.startsWith("/")) {
+      throw new Error(
+        'Invalid relativeKey: must not contain ".." or a leading "/"'
+      );
+    }
+    const safeUserId = this.sanitizePathSegment(userId, "userId");
+    const safeDeckId = this.sanitizePathSegment(deckId, "deckId");
+    const key = `${DECKS_PREFIX}${safeUserId}/${safeDeckId}/${relativeKey}`;
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      })
+    );
+
+    return key;
+  }
+
+  /**
+   * Read a private deck object. Returns null on NoSuchKey.
+   *
+   * Deck objects are PRIVATE. There is deliberately no presigned-URL or
+   * public-ACL variant here — slide images reach the browser only through the
+   * authenticated, ownership-checked byte-serving route
+   * (app/api/practice/deck/[deckId]/slide/[index]/route.ts). Do not add a
+   * URL-returning helper.
+   */
+  async getDeckObject(
+    userId: string,
+    deckId: string,
+    relativeKey: string
+  ): Promise<{ body: Buffer; contentType: string } | null> {
+    if (relativeKey.includes("..") || relativeKey.startsWith("/")) {
+      throw new Error(
+        'Invalid relativeKey: must not contain ".." or a leading "/"'
+      );
+    }
+    const safeUserId = this.sanitizePathSegment(userId, "userId");
+    const safeDeckId = this.sanitizePathSegment(deckId, "deckId");
+    const key = `${DECKS_PREFIX}${safeUserId}/${safeDeckId}/${relativeKey}`;
+
+    try {
+      const response = await s3Client.send(
+        new GetObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: key,
+        })
+      );
+      if (!response.Body) return null;
+      const bytes = await response.Body.transformToByteArray();
+      return {
+        body: Buffer.from(bytes),
+        contentType: response.ContentType ?? "application/octet-stream",
+      };
+    } catch (error: any) {
+      if (error.name === "NoSuchKey" || error.$metadata?.httpStatusCode === 404) {
+        return null;
+      }
+      throw error;
+    }
   }
 }
 
