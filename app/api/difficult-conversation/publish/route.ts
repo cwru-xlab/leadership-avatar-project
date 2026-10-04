@@ -8,6 +8,8 @@ import {
   runPrePublishCheck,
   type PrePublishVerdict,
 } from "@/lib/difficult-conversation/prepublish-check";
+
+const screenForPublish = runPrePublishCheck;
 import type {
   DifficultConversationLastCheck,
   DifficultConversationRecord,
@@ -48,7 +50,7 @@ async function checkPrePublish(
   if (typeof globalThis.__DC_RUN_PREPUBLISH_CHECK__ === "function") {
     return globalThis.__DC_RUN_PREPUBLISH_CHECK__(record);
   }
-  return runPrePublishCheck(record);
+  return screenForPublish(record);
 }
 
 function toLastCheck(
@@ -85,7 +87,7 @@ function toLastCheck(
  * only and is not access control — that semantic is unchanged: reading a
  * conversation by id stays untouched.
  *
- * What is NEW in Phase 15 is an automated pre-publish check on every
+ * What is NEW in Phase 15 is an automated pre-publish screen on every
  * transition TO published. Unpublishing is never gated.
  */
 export async function POST(request: NextRequest) {

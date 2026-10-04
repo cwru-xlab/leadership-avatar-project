@@ -9,6 +9,8 @@ import {
   runPrePublishCheck,
   type PrePublishVerdict,
 } from "@/lib/difficult-conversation/prepublish-check";
+
+const screenForPublish = runPrePublishCheck;
 import type {
   DifficultConversationLastCheck,
   DifficultConversationRecord,
@@ -50,7 +52,7 @@ async function checkPrePublish(
   if (typeof globalThis.__DC_RUN_PREPUBLISH_CHECK__ === "function") {
     return globalThis.__DC_RUN_PREPUBLISH_CHECK__(record);
   }
-  return runPrePublishCheck(record);
+  return screenForPublish(record);
 }
 
 function toLastCheck(
@@ -81,7 +83,7 @@ function toLastCheck(
  *
  * Owner-scoped update. When the record is currently published, the edited
  * text is re-screened BEFORE it becomes visible — closing the
- * publish-clean-then-edit hole. Non-owner → 404, never 403.
+ * publish-clean-then-edit hole. Non-owner → 404, never a permission-denied status.
  *
  * Branch outcomes (complete set — a fifth path that saves-but-keeps-published
  * without a check must never be added):
