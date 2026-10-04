@@ -52,7 +52,7 @@ export default function SessionSafetyPanel({
 
   return (
     <aside
-      className="pointer-events-auto flex max-w-[min(100vw-2rem,22rem)] flex-col gap-2 rounded-xl border border-white/20 bg-[#0b1c2a]/92 px-3 py-2.5 text-left shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md"
+      className="pointer-events-auto flex w-full flex-col gap-1.5 rounded-xl border border-white/20 bg-[#0b1c2a]/92 px-2.5 py-2 text-left shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md"
       aria-label="Session safety controls"
     >
       {/*
@@ -64,7 +64,7 @@ export default function SessionSafetyPanel({
         size="sm"
         color="danger"
         variant="flat"
-        className="justify-start font-semibold"
+        className="h-8 min-h-8 justify-start font-semibold"
         isLoading={isEnding}
         onPress={() => setConfirmOpen(true)}
       >
@@ -73,12 +73,12 @@ export default function SessionSafetyPanel({
 
       {/*
         Static app copy. Never generated, never spoken by the character, never
-        rendered in the transcript.
+        rendered in the transcript. Always visible (not a tooltip) — kept
+        compact so it can sit in the avatar chrome without covering the face.
       */}
-      <p className="text-[11px] leading-4 text-[#9eb6c6]">
-        This is a practice conversation. The character stays in role the whole
-        time. You can end it at any time with the control above.{" "}
-        {SUPPORT_RESOURCE_NOTE}
+      <p className="text-[10px] leading-[1.35] text-[#9eb6c6]">
+        Practice only — the character stays in role. End anytime with the
+        control above. {SUPPORT_RESOURCE_NOTE}
       </p>
 
       <Modal

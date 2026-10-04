@@ -27,9 +27,12 @@ import {
   resolveVocalOutcome,
 } from "@/lib/metrics/coverage";
 import type { CameraMode } from "@/lib/metrics/types";
+import { resolveDifficultConversationInstance } from "@/lib/difficult-conversation/resolve-instance";
 import {
   asInputSnapshot,
+  type DifficultConversationInputSnapshot,
   type InputSnapshot,
+  type PitchInputSnapshot,
   type ScenarioInputSnapshot,
 } from "@/lib/report/snapshot";
 import type { InteractionLog, InteractionEvent } from "@/types";
@@ -150,7 +153,7 @@ function buildScenarioTranscript(log: InteractionLog): string {
 // Config resolution from a stored InteractionReport row
 // ---------------------------------------------------------------------------
 
-function instanceFromSnapshot(
+function instanceFromScenarioSnapshot(
   snapshot: ScenarioInputSnapshot,
 ): InstanceConfig {
   const avatars: Array<{ name: string; role: string; additionalInfo?: string }> =
@@ -177,28 +180,95 @@ function instanceFromSnapshot(
   };
 }
 
-function resolveConfigForReport(
+/**
+ * Pitch-elevator instances are fully reconstructible from the input snapshot
+ * (no secrets omitted). Pitch-deck needs slideTexts from deck storage and is
+ * handled separately when that path lands.
+ */
+function instanceFromPitchSnapshot(
+  snapshot: PitchInputSnapshot,
+): InstanceConfig | null {
+  if (snapshot.pitchKind !== "elevator") return null;
+  if (
+    typeof snapshot.pitchSubject !== "string" ||
+    !snapshot.listenerKnowledge
+  ) {
+    return null;
+  }
+  return {
+    kind: "pitch-elevator",
+    pitchSubject: snapshot.pitchSubject,
+    listenerKnowledge: snapshot.listenerKnowledge,
+  };
+}
+
+/**
+ * Difficult-conversation input snapshots deliberately omit `hiddenPosition`
+ * (privacy boundary). Re-resolve the live record/seed so the evaluator still
+ * gets the authored block; overlay the session's chosen difficulty/avatar.
+ */
+async function instanceFromDifficultConversationSnapshot(
+  snapshot: DifficultConversationInputSnapshot,
+): Promise<InstanceConfig | null> {
+  const resolved = await resolveDifficultConversationInstance(
+    snapshot.conversationId,
+  );
+  if (!resolved) return null;
+  return {
+    ...resolved,
+    difficulty: snapshot.difficulty,
+    avatarId: snapshot.avatarId || resolved.avatarId,
+  };
+}
+
+async function resolveConfigForReport(
   typeSlug: string,
   snapshot: InputSnapshot | null,
-):
+): Promise<
   | { ok: true; config: ResolvedSessionConfig }
-  | { ok: false; reason: string } {
+  | { ok: false; reason: string }
+> {
   if (snapshot?.kind === "scenario") {
     return resolveSessionConfig(typeSlug, {
-      instance: instanceFromSnapshot(snapshot),
+      instance: instanceFromScenarioSnapshot(snapshot),
     });
   }
-  // Interview presets (and rows with no snapshot yet) resolve off the type
-  // alone. Grading inputs are overlaid from the snapshot into
-  // evaluationContext below — resolveSessionConfig's customization input
-  // speaks picker slugs, not the already-resolved display values the
-  // snapshot stores.
+
+  if (snapshot?.kind === "difficult-conversation") {
+    const instance = await instanceFromDifficultConversationSnapshot(snapshot);
+    if (!instance) {
+      return {
+        ok: false,
+        reason: `difficult-conversation instance "${snapshot.conversationId}" could not be resolved for evaluation`,
+      };
+    }
+    return resolveSessionConfig(typeSlug, { instance });
+  }
+
+  if (snapshot?.kind === "pitch") {
+    const instance = instanceFromPitchSnapshot(snapshot);
+    if (instance) {
+      return resolveSessionConfig(typeSlug, { instance });
+    }
+    // pitch-deck (or incomplete elevator snapshot): fall through — may fail
+    // resolve when the type requires an instance.
+  }
+
+  // Interview presets / networking defaults (and rows with no snapshot yet)
+  // resolve off the type alone. Grading inputs are overlaid from the snapshot
+  // into evaluationContext below — resolveSessionConfig's customization input
+  // speaks picker slugs, not the already-resolved display values the snapshot
+  // stores.
   return resolveSessionConfig(typeSlug, {});
 }
 
 function buildEvaluationContextForReport(
   config: ResolvedSessionConfig,
   snapshot: InputSnapshot | null,
+  termination?: {
+    reason: string | null;
+    atSeconds: number | null;
+  },
 ): Record<string, unknown> {
   const type = getEngineType(config.typeSlug);
   if (!type) {
@@ -232,6 +302,19 @@ function buildEvaluationContextForReport(
           presetCustomization?.interviewerPersona ??
           "",
       },
+    };
+  }
+
+  // DC builder leaves termination null; fill from report columns (finish owns them).
+  if (
+    base.kind === "difficult-conversation" &&
+    termination &&
+    typeof base === "object"
+  ) {
+    return {
+      ...base,
+      terminationReason: termination.reason,
+      terminationAtSeconds: termination.atSeconds,
     };
   }
 
@@ -291,7 +374,7 @@ export async function runAndPersistEvaluation({
     });
 
     const snapshot = asInputSnapshot(report.inputSnapshot);
-    const resolved = resolveConfigForReport(report.typeSlug, snapshot);
+    const resolved = await resolveConfigForReport(report.typeSlug, snapshot);
     if (!resolved.ok) {
       await persistFailure(reportId, resolved.reason);
       console.error("Engine evaluation failed: config resolution", {
@@ -397,6 +480,10 @@ export async function runAndPersistEvaluation({
     const evaluationContext = buildEvaluationContextForReport(
       resolved.config,
       snapshot,
+      {
+        reason: report.terminationReason,
+        atSeconds: report.terminationAtSeconds,
+      },
     );
 
     // Type-declared images (looked up via the type record — ResolvedSessionConfig
