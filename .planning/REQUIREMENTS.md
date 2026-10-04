@@ -499,3 +499,168 @@ what was decided; they add no scope.
 - **REQ-73** — [x] The assembled system prompt stays session-constant so the OpenAI
   prefix cache still hits (REQ-20 unchanged), and per-turn state stays in the tail
   block. Unification must not move per-turn data into the system prompt.
+
+---
+
+# Milestone v1.1 — Consequence & Deck Breadth
+
+**Derived 2026-10-04** from
+`.planning/phases/14-practice-pitches/deferred-items.md` and the four design
+decisions locked in `/gsd:new-milestone` questioning. Phases 14–16 tracked
+success criteria instead of REQ IDs; v1.1 returns to REQ IDs, continuing from
+REQ-73.
+
+**Locked decisions (v1.1):**
+1. Temperature is **derived from observable signals, gated by avatar self-report** — signals drive the value, the avatar's own emitted cue can accelerate it.
+2. Temperature is **invisible during the session**, explained in the report afterward.
+3. Deck modes are **one TYPE record per mode** — funding request, product pitch, deck-led talk, and a deliberately general deck pitch.
+4. The temperature mechanism is an **engine primitive each TYPE opts into via config**, extending Phase 13's `terminationPolicy` / `avatarEndFloor` rather than adding a parallel mechanism.
+
+## Requirements
+
+### Phase 17 — v1.0 Close-Out
+
+- **REQ-74** — [ ] The Phase 13 shared-database half of REQ-67 is discharged: the
+  `CREATE TABLE` migration plus the `InteractionReport` backfill run against the
+  shared Lightsail DB by a **human**, and a verification pass confirms row counts,
+  field fidelity and null preservation match the local run. No agent applies the
+  migration. Phase 13 closes and REQ-66 / REQ-67 are checked off only after this.
+
+- **REQ-75** — [ ] REQ-63's per-turn visible-context slice is verified against a real
+  multi-channel session — the avatar's context provably contains only the declared
+  visible channels for that turn — and REQ-63 is checked off. The primitive already
+  exists (`lib/engine/types.ts` `visibleContext`, sliced in `lib/engine/prompts.ts`);
+  this requirement is evidence, not construction.
+
+- **REQ-76** — [ ] `scripts/verify-deck-intake.ts` passes every assertion. The
+  fixture/assertion mismatch between `scripts/generate-deck-fixtures.ts`
+  (`"Spike Deck Title"`) and `scripts/spike-deck-render.ts`
+  (`"Spike Deck Slide 1"`) is resolved by making the harness and its fixture agree
+  on one source, not by loosening the assertion.
+
+- **REQ-77** — [ ] The keyboard UAT deferred under `skip_checkpoints` on Phases 15
+  and 16 is discharged, with the result recorded in each phase's validation file.
+  A failure found here is logged as a defect, not silently repaired as part of UAT.
+
+### Phase 18 — Avatar Disengagement & Walk-Out
+
+- **REQ-78** — [ ] The engine carries a per-turn DISENGAGEMENT value computed from
+  observable session signals — elapsed time against the budget, turn count,
+  repetition, response length, whether the student established common ground. The
+  computation is deterministic and tunable without a model call.
+
+- **REQ-79** — [ ] The live avatar can emit a disengagement cue in its per-turn
+  structured output, and that cue ACCELERATES the derived value rather than
+  replacing it. A self-reported cue alone cannot end a session, so the
+  role-playing model never has sole authority over its own patience.
+
+- **REQ-80** — [ ] A type declares a disengagement THRESHOLD in config. Crossing it
+  is what triggers a walk-out; a type that declares no threshold behaves exactly as
+  it does today. Adding the capability touches no type that does not opt in.
+
+- **REQ-81** — [ ] Crossing the threshold plays exactly one final avatar statement
+  that the student can neither interrupt nor respond to — push-to-talk and the text
+  input are closed for its duration.
+
+- **REQ-82** — [ ] After that final statement the session ends automatically and
+  generates a report, without the student pressing End-session.
+
+- **REQ-83** — [ ] The auto-ended session is recorded as a FAILURE instance with an
+  avatar-initiated termination reason — not a neutral finish and not an error state.
+  It reuses Phase 13's `terminationPolicy` outcome record rather than adding a
+  parallel field.
+
+- **REQ-84** — [ ] A walk-out can never fire before the type's `avatarEndFloor`
+  minimum assistant turns, so no student is abandoned on the opening turn.
+  `lib/pitch/deck-type.ts` gains a real floor in place of its current
+  `avatarEndFloor: null`.
+
+- **REQ-85** — [ ] No disengagement indicator, meter or warning appears in the
+  session shell at any point. The student learns they were losing the room from the
+  report, never from a gauge.
+
+- **REQ-86** — [ ] The report explains the decline: when engagement fell and what
+  the student was doing at those points, on the session clock, consistent with
+  Phase 12's episode-timeline convention. Nothing the pipeline cannot observe is
+  asserted as a cause.
+
+### Phase 19 — Deck-Led Pitch Family
+
+- **REQ-87** — [ ] Four new deck-led TYPE records are playable alongside the
+  existing investor `pitch-deck`: a funding request (an ask amount, no equity and no
+  valuation band), a product pitch (outcome is interest and objections, not terms),
+  a deck-led talk (a presentation with Q&A, no ask), and a general deck pitch with
+  no mode-specific constraints.
+
+- **REQ-88** — [ ] All five deck types share one deck capability — upload, per-slide
+  text and images, the server-authoritative slide cursor and high-water mark, the
+  visible-context slice and the soft session timer. The shared behavior is reused
+  from Phase 14, not duplicated per mode.
+
+- **REQ-89** — [ ] Negotiation inputs are ABSENT from the types that have no terms
+  to negotiate — no ask price and no offered equity on a product pitch or a deck-led
+  talk — rather than present-but-optional or hidden behind a disabled field.
+
+- **REQ-90** — [ ] Each mode declares its own rubric dimensions and its own outcome
+  shape, so a funding request is not scored against an equity split and a deck-led
+  talk is not scored against a close.
+
+- **REQ-91** — [ ] A student reaching a deck mode goes through the one generic
+  pre-session wizard with mode-appropriate steps. No second wizard and no new
+  camera-consent gate is introduced (REQ-70 unchanged).
+
+- **REQ-92** — [ ] The one report page renders every mode's outcome through the
+  existing `ReportChrome` extras slot. No per-mode report page and no edit to the
+  shared report page is required to add a mode.
+
+- **REQ-93** — [ ] Adding these four modes touches no engine module, no route, no
+  evaluator and no report page — REQ-60 holds under its first real test since the
+  engine shipped. A mechanical guard proves it, in the spirit of Phase 16's
+  surface-count script.
+
+- **REQ-94** — [ ] The Practice Pitches picker presents the deck modes alongside the
+  elevator pitch and the investor deck, with each mode's purpose distinguishable
+  before a student commits to one.
+
+## Out of Scope (v1.1)
+
+| Feature | Reason |
+|---------|--------|
+| A live engagement meter in the session shell | Locked decision 2 — it makes the student optimize a gauge instead of the conversation (REQ-85 enforces its absence) |
+| Letting the avatar's self-report alone end a session | The model that is role-playing would be grading its own patience (REQ-79) |
+| One widened `pitch-deck` type with a mode field | Rejected for conditional logic inside a single config record; one record per mode honors REQ-60 |
+| Google Slides deck import | Permanently cut in Phase 14 — students export to PDF |
+| A networking-setting selector (conference, coffee chat) | Deferred at Phase 16 and not pulled into v1.1 |
+| Re-opening Phase 12 fidgeting measurement | Retired as unmeasurable, not deferred |
+| Part 2 of the shared-DB handoff (legacy `DROP TABLE`) | Declinable by the human after the Part 1 spot-check; not a v1.1 gate |
+
+## Traceability (v1.1)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| REQ-74 | Phase 17 | Pending |
+| REQ-75 | Phase 17 | Pending |
+| REQ-76 | Phase 17 | Pending |
+| REQ-77 | Phase 17 | Pending |
+| REQ-78 | Phase 18 | Pending |
+| REQ-79 | Phase 18 | Pending |
+| REQ-80 | Phase 18 | Pending |
+| REQ-81 | Phase 18 | Pending |
+| REQ-82 | Phase 18 | Pending |
+| REQ-83 | Phase 18 | Pending |
+| REQ-84 | Phase 18 | Pending |
+| REQ-85 | Phase 18 | Pending |
+| REQ-86 | Phase 18 | Pending |
+| REQ-87 | Phase 19 | Pending |
+| REQ-88 | Phase 19 | Pending |
+| REQ-89 | Phase 19 | Pending |
+| REQ-90 | Phase 19 | Pending |
+| REQ-91 | Phase 19 | Pending |
+| REQ-92 | Phase 19 | Pending |
+| REQ-93 | Phase 19 | Pending |
+| REQ-94 | Phase 19 | Pending |
+
+**Coverage:**
+- v1.1 requirements: 21 total
+- Mapped to phases: 21
+- Unmapped: 0 ✓
