@@ -197,6 +197,11 @@ export type StartSessionSuccess = {
   cameraMode: CameraMode;
   /** Present only for case-study — the S3 InteractionLog the client keeps writing. */
   log?: InteractionLog;
+  /**
+   * Server-clamped session budget in seconds (null when the type has none).
+   * Pitch-deck timer displays this, not the wizard's requested value (14-13).
+   */
+  timeBudgetSeconds?: number | null;
 };
 
 export type CheckpointSessionSuccess = {
@@ -521,7 +526,7 @@ export async function startSession({
       timeBudgetSeconds,
     });
 
-    return { ok: true, reportId: report.id, cameraMode };
+    return { ok: true, reportId: report.id, cameraMode, timeBudgetSeconds };
   }
 
 

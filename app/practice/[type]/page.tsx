@@ -39,6 +39,8 @@ import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import PracticeSessionShell from "@/components/practice/PracticeSessionShell";
+import DeckTimerPanel from "@/components/practice/panels/DeckTimerPanel";
+import DeckViewerPanel from "@/components/practice/panels/DeckViewerPanel";
 import PitchTimerPanel from "@/components/practice/panels/PitchTimerPanel";
 import SetupWizard, {
   type SetupStepNav,
@@ -172,6 +174,15 @@ export default function PracticeTypePage() {
   const [pitchTimerPhase, setPitchTimerPhase] = useState<
     "pitching" | "followups"
   >("pitching");
+
+  // Pitch-deck live session: furthest slide report + soft envelope timer.
+  const [furthestSlide, setFurthestSlide] = useState(0);
+  const [deckBudgetSeconds, setDeckBudgetSeconds] = useState<number | null>(
+    null,
+  );
+  const [deckSessionStartedAt, setDeckSessionStartedAt] = useState<
+    number | null
+  >(null);
 
   const elevatorInstance: InstanceConfig | null = useMemo(() => {
     if (!isPitchElevator) return null;
@@ -405,6 +416,11 @@ export default function PracticeTypePage() {
   ) {
     const windowSeconds =
       sessionConfig.timeBudget.firstTurnWindowSeconds ?? 60;
+    const deckBudget =
+      deckBudgetSeconds ??
+      sessionLength?.budgetSeconds ??
+      sessionConfig.timeBudget.totalSeconds ??
+      1200;
     return (
       <PracticeSessionShell
         sessionConfig={sessionConfig}
@@ -443,6 +459,16 @@ export default function PracticeTypePage() {
                 ? `Interview · with ${listenerDisplayName}`
                 : "Practice interview"
         }
+        sessionPanelClassName={
+          isPitchDeck
+            ? "pointer-events-auto absolute inset-x-3 bottom-24 z-30 flex max-h-[48vh] flex-col gap-2 sm:inset-x-5 lg:right-[calc(36%+0.75rem)] lg:left-3"
+            : undefined
+        }
+        extraChatBody={
+          isPitchDeck
+            ? { revealedSlideIndex: furthestSlide, reportId }
+            : undefined
+        }
         sessionPanel={
           isPitchElevator ? (
             <PitchTimerPanel
@@ -450,6 +476,20 @@ export default function PracticeTypePage() {
               turnStartedAt={pitchTurnStartedAt}
               phase={pitchTimerPhase}
             />
+          ) : isPitchDeck && deckUpload && deckSessionStartedAt != null ? (
+            <>
+              <div className="flex justify-end">
+                <DeckTimerPanel
+                  budgetSeconds={deckBudget}
+                  sessionStartedAt={deckSessionStartedAt}
+                />
+              </div>
+              <DeckViewerPanel
+                deckId={deckUpload.deckId}
+                slides={deckUpload.slides}
+                onFurthestChange={setFurthestSlide}
+              />
+            </>
           ) : undefined
         }
         onOpeningTurnTimingChange={
@@ -474,6 +514,9 @@ export default function PracticeTypePage() {
           setReportId(null);
           setPitchTurnStartedAt(null);
           setPitchTimerPhase("pitching");
+          setFurthestSlide(0);
+          setDeckBudgetSeconds(null);
+          setDeckSessionStartedAt(null);
           setFullScreen(false);
         }}
         onFinish={(finishedReportId) => {
@@ -653,11 +696,20 @@ export default function PracticeTypePage() {
               language: "en",
             };
           }}
-          onLaunch={({ reportId: launchedId, cameraMode: locked }) => {
+          onLaunch={({
+            reportId: launchedId,
+            cameraMode: locked,
+            timeBudgetSeconds: launchedBudget,
+          }) => {
             setReportId(launchedId);
             setCameraMode(locked);
             setPitchTurnStartedAt(null);
             setPitchTimerPhase("pitching");
+            setFurthestSlide(0);
+            setDeckBudgetSeconds(
+              typeof launchedBudget === "number" ? launchedBudget : null,
+            );
+            setDeckSessionStartedAt(Date.now());
             setPhase("session");
           }}
           renderStep={(stepId: string, nav: SetupStepNav) => {

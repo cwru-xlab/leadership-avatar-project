@@ -11,6 +11,7 @@ import {
 } from "react";
 import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
+import { Input } from "@heroui/input";
 import {
   Modal,
   ModalBody,
@@ -117,6 +118,19 @@ interface PracticeSessionShellProps {
    */
   sessionPanel?: ReactNode;
   /**
+   * Optional className for the sessionPanel positioning wrapper. Pitch-deck
+   * uses a wider bottom placement so the live viewer coexists with the avatar
+   * (14-13). Defaults preserve the compact top-right overlay from 14-10.
+   */
+  sessionPanelClassName?: string;
+  /**
+   * Optional fields merged into every `/api/interaction/chat` body and, when
+   * `revealedSlideIndex` is present, into the existing checkpoint body
+   * (13-10 extension for 14-13). Pitch-deck uses this to ride the furthest
+   * slide on every turn so a dropped write self-heals.
+   */
+  extraChatBody?: Record<string, unknown>;
+  /**
    * Read-only opening-turn timing for soft first-turn windows (pitch-elevator).
    * Fires when the student begins their first turn and again when that turn is
    * delivered (phase → followups). Does not accept commands back.
@@ -145,6 +159,11 @@ interface PracticeSessionShellProps {
    * error toast, no "session ended unexpectedly" copy (15-08 walk-out).
    */
   autoFinishOnAvatarEnd?: boolean;
+  /**
+   * Prefill for the end-session "Name this report" field. Finish still writes
+   * a server default when blank.
+   */
+  defaultReportTitle?: string;
 }
 
 export type SessionFinishFn = (opts: {
@@ -218,11 +237,14 @@ function PracticeInterviewRoom({
   onExit,
   onFinish,
   sessionPanel,
+  sessionPanelClassName,
+  extraChatBody,
   onOpeningTurnTimingChange,
   sessionFinishRef,
   defaultStudentEndReason,
   hideDefaultEndControl = false,
   autoFinishOnAvatarEnd = false,
+  defaultReportTitle = "",
 }: PracticeSessionShellProps) {
   if (!avatarConfig) {
     throw new Error("PracticeInterviewRoom requires avatarConfig");
@@ -230,6 +252,7 @@ function PracticeInterviewRoom({
   const avatarRef = useRef<InteractiveAvatarRef>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const reportIdRef = useRef<string | null>(initialReportId || null);
+  const extraChatBodyRef = useRef(extraChatBody);
   const checkpointing =
     getEngineType(sessionConfig.typeSlug)?.checkpointing ?? "none";
   const targetQuestionCount =
@@ -245,6 +268,11 @@ function PracticeInterviewRoom({
   const [openingTurnPhase, setOpeningTurnPhase] = useState<
     "pitching" | "followups"
   >("pitching");
+
+  useEffect(() => {
+    extraChatBodyRef.current = extraChatBody;
+  }, [extraChatBody]);
+
   const markOpeningTurnStarted = useCallback(() => {
     if (openingTurnStartedAtRef.current != null) return;
     if (messagesRef.current.some((m) => m.role === "user")) return;
@@ -302,15 +330,20 @@ function PracticeInterviewRoom({
   const [avatarReady, setAvatarReady] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [exitIntent, setExitIntent] = useState<null | "end" | "leave">(null);
+  const [reportTitleDraft, setReportTitleDraft] = useState(defaultReportTitle);
   const [submitting, setSubmitting] = useState(false);
   /** Pending termination from an accepted avatar end marker (or panel request). */
   const pendingTerminationRef = useRef<{
     reason: string;
     source: "student" | "avatar";
   } | null>(null);
+  useEffect(() => {
+    setReportTitleDraft(defaultReportTitle);
+  }, [defaultReportTitle]);
+
   // Stable ref so the chat turn handler can call the latest handleEnd without
   // re-binding sendMessage on every render (avatar auto-finish path).
-  const handleEndRef = useRef<(() => Promise<void>) | null>(null);
+  const handleEndRef = useRef<((title?: string) => Promise<void>) | null>(null);
   const [avatarEndedNotice, setAvatarEndedNotice] = useState(false);
 
   const stageLabel = useMemo(
@@ -412,6 +445,7 @@ function PracticeInterviewRoom({
         const reportId = await ensureReport();
         if (!reportId) return;
         try {
+          const extra = extraChatBodyRef.current;
           await fetch("/api/practice/session/checkpoint", {
             method: "POST",
             keepalive: true,
@@ -420,6 +454,9 @@ function PracticeInterviewRoom({
               reportId,
               turns: messagesRef.current,
               progress: nextProgress,
+              ...(extra && "revealedSlideIndex" in extra
+                ? { revealedSlideIndex: extra.revealedSlideIndex }
+                : {}),
             }),
           });
         } catch {
@@ -586,6 +623,7 @@ function PracticeInterviewRoom({
                   openingTurnPhase === "followups" || priorUserTurns === 0,
               },
             },
+            ...(extraChatBodyRef.current ?? {}),
           }),
         });
 
@@ -1006,7 +1044,7 @@ function PracticeInterviewRoom({
     onExit();
   };
 
-  const handleEnd = async () => {
+  const handleEnd = async (titleOverride?: string) => {
     // Interrupt mid-avatar-turn so End-session / walk-out never waits on speech.
     avatarRef.current?.interrupt();
     // A null reportId has two very different causes, and conflating them
@@ -1080,6 +1118,10 @@ function PracticeInterviewRoom({
           metrics: { cameraMode, visual, vocal },
           terminationReason: pendingTerminationRef.current?.reason ?? null,
           terminationSource: pendingTerminationRef.current?.source ?? "student",
+          title:
+            typeof titleOverride === "string"
+              ? titleOverride
+              : reportTitleDraft,
         }),
       });
       // 409 means it was already submitted — still the right destination.
@@ -1135,10 +1177,15 @@ function PracticeInterviewRoom({
             LIVE INTERVIEW
           </div>
           {sessionPanel ? (
-            // Top-right of the avatar pane — keeps the face clear. Centered
-            // overlay worked for a compact pitch timer but large type panels
-            // (SessionSafetyPanel + support note) covered the avatar.
-            <div className="pointer-events-auto absolute right-3 top-[4.25rem] z-30 max-w-[min(100%-1.5rem,18rem)] sm:right-5 sm:top-[4.75rem]">
+            // Top-right of the avatar pane by default — keeps the face clear.
+            // Pitch-deck overrides via sessionPanelClassName for a bottom
+            // viewer that coexists with the avatar (14-13).
+            <div
+              className={
+                sessionPanelClassName ??
+                "pointer-events-auto absolute right-3 top-[4.25rem] z-30 max-w-[min(100%-1.5rem,22rem)] sm:right-5 sm:top-[4.75rem]"
+              }
+            >
               {sessionPanel}
             </div>
           ) : null}
@@ -1336,12 +1383,20 @@ function PracticeInterviewRoom({
         <ModalContent>
           {exitIntent === "end" ? (
             <>
-              <ModalHeader>End interview and generate your report?</ModalHeader>
+              <ModalHeader>End session and generate your report?</ModalHeader>
               <ModalBody>
                 <p>
-                  You can&apos;t resume after this. We&apos;ll review your
-                  interview and your report will be ready in under a minute.
+                  You can&apos;t resume after this. We&apos;ll review the
+                  session and your report will be ready in under a minute.
                 </p>
+                <Input
+                  label="Name this report"
+                  description="Shown in My Reports with the date and time. Leave blank to use an automatic name."
+                  value={reportTitleDraft}
+                  onValueChange={setReportTitleDraft}
+                  maxLength={120}
+                  classNames={{ inputWrapper: "bg-default-100" }}
+                />
                 {answeredCount < SHORT_INTERVIEW_ANSWERS && (
                   <p className="text-[#b4540f]">
                     You&apos;ve only answered {answeredCount} question
@@ -1361,7 +1416,7 @@ function PracticeInterviewRoom({
                 <Button
                   color="primary"
                   isLoading={submitting}
-                  onPress={() => void handleEnd()}
+                  onPress={() => void handleEnd(reportTitleDraft)}
                 >
                   End and get my report
                 </Button>
