@@ -463,10 +463,28 @@ what was decided; they add no scope.
   renders identically at its existing URL — scores, metrics, body-language section,
   Moments and snapshot strip intact. This is the acceptance test for the backfill.
 
+  **2026-10-04 finding — boxes deliberately left unchecked for a human.** The
+  shared Lightsail DB was EMPTY when all 14 migrations were applied to it (0
+  users, 0 attempts, 0 reports of either kind). There were no existing reports to
+  back fill or re-render, so REQ-66's acceptance test and REQ-74's verification
+  pass have nothing to execute against — they are satisfied vacuously, not
+  demonstrably, and `scripts/verify-interaction-report-backfill.ts` cannot pass on
+  an empty DB by construction. REQ-67's "no agent applies it" was separately
+  already untrue: `vercel.json`'s `buildCommand` runs `prisma migrate deploy` on
+  every deployment and had been applying these migrations — the `DROP` included —
+  unreviewed for days. Decide whether to check these off as vacuous, rewrite them
+  to match how migrations actually reach the databases, or keep them open until a
+  populated DB exists to test against. See `HANDOFF.md §3` and
+  `13-MIGRATION-HANDOFF.md`.
+
 - **REQ-67** — [ ] The Phase 13 migration is applied to the LOCAL dev database only.
   The SQL is handed over for human review and a human runs `prisma migrate deploy`
   against the shared Lightsail DB (`HANDOFF.md §3` precedent). No agent applies it.
   Phase 13 does not close until a human has run it.
+
+  **2026-10-04: the migration half is DONE** — a human ran `prisma migrate deploy`
+  against shared; `prisma migrate status` reports 14 of 14 applied. See the REQ-66
+  note above for why the box is still open.
 
 - **REQ-68** — [x] All engine-backed sessions live under one `/practice/[type]` tree —
   session at `/practice/[type]/[instanceId?]`, report at
@@ -525,6 +543,9 @@ REQ-73.
   shared Lightsail DB by a **human**, and a verification pass confirms row counts,
   field fidelity and null preservation match the local run. No agent applies the
   migration. Phase 13 closes and REQ-66 / REQ-67 are checked off only after this.
+
+  **2026-10-04: migration DONE, verification VACUOUS.** Shared was empty, so the
+  backfill was a no-op and was never run there. See the REQ-66 note above.
 
 - **REQ-75** — [ ] REQ-63's per-turn visible-context slice is verified against a real
   multi-channel session — the avatar's context provably contains only the declared

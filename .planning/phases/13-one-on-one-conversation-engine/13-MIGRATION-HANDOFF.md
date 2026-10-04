@@ -1,5 +1,39 @@
 # Phase 13 Migration Handoff — InteractionReport
 
+> ## RESOLVED 2026-10-04 — read this before the rest of the document
+>
+> Both parts are **done on the shared Lightsail DB**: a human ran
+> `prisma migrate deploy`, all 14 migrations are applied, and
+> `prisma migrate status` reports `Database schema is up to date!`.
+>
+> **The premise of everything below was false.** The shared DB was completely
+> empty — 0 users, 0 attempts, 0 reports of either kind. There were no live
+> student report rows to preserve, so:
+>
+> - The **backfill was never run against shared** and never needed to be. It
+>   would have copied zero rows.
+> - `scripts/verify-interaction-report-backfill.ts` **cannot pass against an
+>   empty DB** by construction — it hard-asserts that at least one legacy
+>   `cameraMode IS NULL` row exists to test (lines 266 and 271). That is not a
+>   failure to fix; there is simply nothing to verify.
+> - The **`pg_dump` in P2-1 was not taken**, because both legacy tables were
+>   empty when they were dropped.
+> - §3's single `prisma migrate deploy` would have applied the `DROP` in the
+>   same command as the `CREATE`, since the DROP migration was added to the tree
+>   after this document was written. The Part 1 / Part 2 separation this
+>   document is built around **was not achievable with the command it
+>   documents.**
+>
+> **And the separation was already moot.** `vercel.json`'s `buildCommand` runs
+> `prisma migrate deploy` on every deployment, so these migrations — the `DROP`
+> included — had already been applied automatically, unreviewed, to the
+> databases behind Vercel's Preview and Production `DATABASE_URL` secrets. The
+> careful human-gated ceremony below was guarding a door the build pipeline had
+> been walking through for days. See `HANDOFF.md §3`.
+>
+> Kept unedited below as the record of what was planned and why.
+
+
 **Written:** 2026-10-03 · **Extended:** 2026-10-04 (plan 13-15 Part 2) · **Requirement:** REQ-67
 
 Read this before running anything. Part 1 covers ONE additive migration and
