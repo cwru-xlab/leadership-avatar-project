@@ -2,17 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
+import {
+  distillPersona,
+  MAX_PROFILE_TEXT_LENGTH,
+} from "@/lib/interview/persona-distill";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-// Kept local rather than importing `MAX_PERSONA_LENGTH` from
-// `lib/interview/customization.ts` so this route stays independent of that
-// plan. Must match its value.
-const MAX_PERSONA_LENGTH = 600;
-const MAX_PROFILE_TEXT_LENGTH = 4000;
-/** Display-only; long enough for a real name, short enough not to break the header. */
-const MAX_DISPLAY_NAME_LENGTH = 60;
 
 function response(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, {
@@ -20,38 +16,6 @@ function response(body: Record<string, unknown>, status: number) {
     headers: { "Cache-Control": "no-store" },
   });
 }
-
-const PERSONA_DISTILL_SYSTEM_PROMPT = `You turn a short pasted description of a real person into a single persona
-sentence for a role-play simulation. The output slots directly after the
-phrase "You are playing the role of: " in another system prompt, so it must
-read as a grammatical, second-person-implied noun-phrase continuation of
-that sentence — the same way you would complete "a warm but rigorous hiring
-manager with fifteen years of experience...".
-
-Take the person's name, role, and background from the pasted text and write
-the interviewer as that named person, in character, using ONLY detail that is
-actually present in the pasted text. Do not invent biography, employer
-history, or achievements beyond what was pasted. If the paste is thin, keep
-the persona short rather than padding it with invented detail.
-
-Output rules:
-- Plain prose only. No markdown, no bullet points, no headings.
-- No preamble ("Here is...", "Sure,", etc.) and no wrapping quotes.
-- Do not begin with "You are" — the sentence this continues already supplies
-  that. Begin directly with the descriptive noun phrase (e.g. "Maria Chen, a
-  director of engineering who...").
-- One to three sentences, concise enough to read naturally inside a single
-  system-prompt sentence.
-- End the persona with an explicit in-character directive naming the person,
-  so the interviewer actually inhabits them rather than treating the
-  description as background colour. For example: "You introduce yourself as
-  Maria Chen when the interview opens, and you stay recognisably her —
-  her seniority, her domain, her manner — for the whole conversation."
-
-Return JSON with exactly two keys:
-- "persona": the sentence described above.
-- "displayName": the person's name exactly as it appears in the pasted text
-  (e.g. "Maria Chen"). If the text names no person, return an empty string.`;
 
 /**
  * One-shot persona distillation (REQ-22).
@@ -67,6 +31,10 @@ Return JSON with exactly two keys:
  *
  * This route accepts pasted TEXT only. It must never fetch a student-supplied
  * URL (LinkedIn or otherwise) — see 08-CONTEXT.md's Deferred Ideas.
+ *
+ * The distillation logic now lives in `lib/interview/persona-distill.ts` so the
+ * networking path can gate it without a second distiller; this route's contract is
+ * unchanged.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -78,6 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     let body: unknown;
+
     try {
       body = await request.json();
     } catch {
@@ -93,16 +62,18 @@ export async function POST(request: NextRequest) {
     const truncatedInput = profileText.trim().slice(0, MAX_PROFILE_TEXT_LENGTH);
 
     let distilled: { persona: string; displayName: string };
+
     try {
       distilled = await distillPersona(truncatedInput);
     } catch (error) {
       console.error(
         "Interview persona distillation failed",
-        error instanceof Error ? error.constructor.name : typeof error
+        error instanceof Error ? error.constructor.name : typeof error,
       );
+
       return response(
         { error: "We could not process that description. Please try again." },
-        502
+        502,
       );
     }
 
@@ -110,9 +81,10 @@ export async function POST(request: NextRequest) {
 
     if (!persona) {
       console.error("Interview persona distillation returned empty output");
+
       return response(
         { error: "We could not process that description. Please try again." },
-        502
+        502,
       );
     }
 
@@ -126,64 +98,10 @@ export async function POST(request: NextRequest) {
     return response({ persona, displayName }, 200);
   } catch (error) {
     console.error("Interview persona distillation request failed:", error);
-    return response({ error: "Unable to process that description. Please try again." }, 500);
+
+    return response(
+      { error: "Unable to process that description. Please try again." },
+      500,
+    );
   }
-}
-
-async function distillPersona(
-  profileText: string
-): Promise<{ persona: string; displayName: string }> {
-  const OpenAI = (await import("openai")).default;
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    timeout: 20_000,
-    maxRetries: 0,
-  });
-
-  const model = process.env.INTERVIEW_PERSONA_MODEL || "gpt-4.1";
-
-  const completion = await openai.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: PERSONA_DISTILL_SYSTEM_PROMPT },
-      { role: "user", content: profileText },
-    ],
-    max_tokens: 400,
-    response_format: { type: "json_object" },
-  });
-
-  const content = completion.choices[0]?.message?.content;
-  if (!content) {
-    return { persona: "", displayName: "" };
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    return { persona: "", displayName: "" };
-  }
-
-  const record = parsed as { persona?: unknown; displayName?: unknown } | null;
-  const persona =
-    typeof record?.persona === "string"
-      ? stripWrappingQuotes(record.persona.trim()).slice(0, MAX_PERSONA_LENGTH)
-      : "";
-  const displayName =
-    typeof record?.displayName === "string"
-      ? stripWrappingQuotes(record.displayName.trim()).slice(0, MAX_DISPLAY_NAME_LENGTH)
-      : "";
-
-  return { persona, displayName };
-}
-
-function stripWrappingQuotes(text: string): string {
-  if (
-    text.length >= 2 &&
-    ((text.startsWith('"') && text.endsWith('"')) ||
-      (text.startsWith("'") && text.endsWith("'")))
-  ) {
-    return text.slice(1, -1).trim();
-  }
-  return text;
 }
