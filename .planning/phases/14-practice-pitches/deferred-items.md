@@ -16,3 +16,14 @@
   respond) and then automatically ends the session to generate the report —
   framed as a failure instance. Explicitly **not** in 14-10 scope; do not
   implement here. Pick up in a later phase / tuning plan.
+
+## Found during 14-13 (human verify — future product expansion)
+
+- **Broader slide-deck pitch modes beyond investor negotiation.** Today's
+  `pitch-deck` type forces an ask price + offered equity (investor-specific).
+  Users may also want to practice funding requests, simple product pitches, or
+  other deck-led talks without those constraints. Future work: a deck-pitch
+  family or wizard branch that keeps shared deck upload / slide gating / soft
+  timer, but makes negotiation fields optional or swaps in mode-specific
+  outcomes/rubrics. Explicitly **not** in Phase 14 lock — do not widen
+  `pitch-deck` InstanceConfig mid-phase.
