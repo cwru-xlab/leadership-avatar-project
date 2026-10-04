@@ -432,11 +432,11 @@ what was decided; they add no scope.
   `lib/interview/report-dto.ts`, `lib/scenario/report-dto.ts` — are collapsed into
   the engine, not left standing beside it.
 
-- **REQ-60** — [ ] An interaction type is a TypeScript config record plus prompts.
+- **REQ-60** — [x] An interaction type is a TypeScript config record plus prompts.
   Adding one touches no engine module, no route, no evaluator and no report page.
   Config lives in code (type-checked, reviewable in git), not S3 or Postgres.
 
-- **REQ-61** — [ ] A session resolves from two layers: a built-in TYPE (code record —
+- **REQ-61** — [x] A session resolves from two layers: a built-in TYPE (code record —
   rubric dimensions, prompts, limits, primitives) plus an optional student-authored
   INSTANCE (S3 data — role, situation, avatar, criteria). Phase 9's `CaseStudy`
   scenarios are instances under this model, not a separate pipeline.
