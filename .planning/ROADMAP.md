@@ -523,16 +523,16 @@ gains **no** `source` attribute; an assistant-emitted marker always means
 action distinguished from the out-of-band End-session control by its reason code.
 
 Plans:
-- [ ] 15-01-PLAN.md — Engine extensions: instance + snapshot union members, avatar-end floor consumed, termination `source` resolved
-- [ ] 15-02-PLAN.md — New S3 record type, one validator, owner-scoped store, published-is-discovery-only play path
-- [ ] 15-03-PLAN.md — Structural injection defense (delimited, instruction-hierarchy authored text) + the two-thing fail-closed pre-publish check
-- [ ] 15-04-PLAN.md — Seven seeded conversations as code records, with live-catalog avatar assignment
-- [ ] 15-05-PLAN.md — Five authoring routes; the check re-runs on every publish-visible save
-- [ ] 15-06-PLAN.md — The `difficult-conversation` type record and prompts: anti-drift prohibition, per-turn tail reminder, eight dimensions, unscored outcome
-- [ ] 15-07-PLAN.md — Three-section catalog and six-field builder with honest publish verdicts (human-verified)
-- [ ] 15-08-PLAN.md — Briefing and difficulty steps, always-visible End-session control and support note, in-character close confirm (human-verified)
-- [ ] 15-09-PLAN.md — Report surfaces: eight dimensions, unscored outcome record, avatar-end banner, in-role reaction (human-verified)
-- [ ] 15-10-PLAN.md — Adversarial drift probe and approach-vs-result harnesses (human-verified)
+- [x] 15-01-PLAN.md — Engine extensions: instance + snapshot union members, avatar-end floor consumed, termination `source` resolved
+- [x] 15-02-PLAN.md — New S3 record type, one validator, owner-scoped store, published-is-discovery-only play path
+- [x] 15-03-PLAN.md — Structural injection defense (delimited, instruction-hierarchy authored text) + the two-thing fail-closed pre-publish check
+- [x] 15-04-PLAN.md — Seven seeded conversations as code records, with live-catalog avatar assignment
+- [x] 15-05-PLAN.md — Five authoring routes; the check re-runs on every publish-visible save
+- [x] 15-06-PLAN.md — The `difficult-conversation` type record and prompts: anti-drift prohibition, per-turn tail reminder, eight dimensions, unscored outcome
+- [x] 15-07-PLAN.md — Three-section catalog and six-field builder with honest publish verdicts (human-verified)
+- [x] 15-08-PLAN.md — Briefing and difficulty steps, always-visible End-session control and support note, in-character close confirm (human-verified)
+- [x] 15-09-PLAN.md — Report surfaces: eight dimensions, unscored outcome record, avatar-end banner, in-role reaction (human-verified)
+- [x] 15-10-PLAN.md — Adversarial drift probe and approach-vs-result harnesses (human-verified)
 - [ ] 15-11-PLAN.md — Phase validation: four criteria and every locked decision signed off; surface-count guard (human-verified)
 
 ### Phase 16: Networking Practice
@@ -595,7 +595,9 @@ Plans:
 
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 10/11 | In Progress|  | Status | Completed |
+**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 16)
+
+| Phase | Plans | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Interview Registry & Prompts | - | Shipped (pre-roadmap) | 2026-09 |
 | 2. Interviewer Catalog | - | Shipped (pre-roadmap) | 2026-09 |
@@ -611,5 +613,5 @@ Plans:
 | 12. Embodied Visual Signals | 10/11 | Complete    | 2026-10-04 |
 | 13. One-on-One Conversation Engine | 15/15 | Complete*  | 2026-10-04 |
 | 14. Practice Pitches | 4/15 | In Progress|  |
-| 15. Difficult Conversations | 0/11 | Planned     |  |
+| 15. Difficult Conversations | 10/11 | In Progress|  |
 | 16. Networking Practice | 11/11 | Complete   | 2026-10-04 |
