@@ -12,9 +12,16 @@
 **Phase 15 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `15-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 15` for keyboard B–G + hostile probe 5.
 **Phase 16:** Plans 11/11 complete — tile live; human UAT UNVERIFIED (`16-VALIDATION.md`)
 **Phase 16 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `16-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 16` for keyboard B–G.
-**Stopped At:** Completed 14-13-PLAN.md
+**Stopped At:** Completed 14-14-PLAN.md
 
 ### Phase 14 progress note (2026-10-04)
+
+14-14 delivered: pitch report surfaces — DTO fields for outcome/termination/
+slide reveals/budget/elapsed; `PitchOutcomeBanner` (early-end, not error styling);
+`NegotiationTriplePanel` (ask vs settled vs fair); `DeckTimelinePanel` (coverage,
+timeline, noted overrun). Chromed via `ReportChrome` extras only — one report page
+needed no edit. Human-verify **approved** ("approved"). Deferred broader deck
+modes / walk-out temperature untouched. See `14-14-SUMMARY.md`.
 
 14-13 delivered: live deck viewer + soft hideable timer; `revealedSlideIndex`
 on every chat/checkpoint via shell `extraChatBody`; mid-UAT layout fix
@@ -445,12 +452,12 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 14]: proposeDeckSeconds anchors ≤8→1200s ≥25→1800s linear round-60 between; ask+fair instance config, settled-only outcome; avatarMayEnd false
 - [Phase 14]: Chat revealedSlideIndex is ratchet input only; slide text in tail block (REQ-73); one ratchetHighWaterMark shared with checkpoint
 - [Phase 14]: Deck routes: opaque deckId only; PPTX unconfigured → 502 reason+fix; real PDF raster needs canvasFactory + disableFontFace fonts
-- [Phase 14]: Fair-value band is per-type constant ($800k-## Decisions
-
-.2M / 8-12%), ask-independent, injected only in startSession
+- [Phase 14]: Fair-value band is per-type constant ($800k-$1.2M / 8-12%), ask-independent, injected only in startSession
 - [Phase 14]: Deck wizard keys: deckUpload, negotiationAsk, sessionLength; slideTexts fetched at launch from manifest
 - [Phase 14]: 14-10: wizard keys pitchSubject + listenerKnowledge; shell sessionPanel + opening-turn timing; short discovery turns do not conclude soft window
 - [Phase 14]: 14-13: shell extraChatBody + mediaLayout deck-primary (slides stage, avatar PiP); start returns clamped timeBudgetSeconds
+- [Phase 14]: Pitch report panels only via ReportChrome extras; one report page needs no slug branch
+- [Phase 14]: Ask/settled/fair stay three distinct sources; overrun is noted fact with no score dimension
 
 ## Progress
 
@@ -1911,8 +1918,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T15:47:55.282Z
-**Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
+**Last Date:** 2026-10-04T15:56:38.851Z
+**Stopped At:** Completed 14-14-PLAN.md
 **Resume File:** None
 
 
