@@ -19,6 +19,7 @@
 import type { ReactNode } from "react";
 import type { ReportDTO } from "@/lib/report/dto";
 
+import NetworkingOutcomePanel from "@/components/practice/panels/NetworkingOutcomePanel";
 import ConversationEndBanner from "@/components/practice/report/ConversationEndBanner";
 import ConversationOutcomePanel from "@/components/practice/report/ConversationOutcomePanel";
 import InRoleReactionPanel from "@/components/practice/report/InRoleReactionPanel";
@@ -87,6 +88,26 @@ const DIFFICULT_CONVERSATION_CHROME: ReportChrome = {
   },
 };
 
+/**
+ * Networking — same poll discipline as interview; outcome panel below scores
+ * through extras only. Seven dimensions arrive from the type declaration.
+ *
+ * Per 14-15's surface guard: this map plus `app/practice/[type]/page.tsx`
+ * are the only places a type slug is permitted to appear in a `.tsx` file
+ * outside the type's own components.
+ */
+const NETWORKING_CHROME: ReportChrome = {
+  pollIntervalMs: 2000,
+  giveUpAfterMs: 120_000,
+  stalledAffordance: "retry",
+  distinguishes401: true,
+  guardsRepollAfter404: false,
+  showsCustomizationStrip: false,
+  extras: {
+    below: (report) => <NetworkingOutcomePanel report={report} />,
+  },
+};
+
 const INTERVIEW_PRESET_SLUGS = new Set([
   "general",
   "technical",
@@ -125,6 +146,7 @@ export function getReportChrome(
 
   if (slug === "case-study") return CASE_STUDY_CHROME;
   if (slug === "difficult-conversation") return DIFFICULT_CONVERSATION_CHROME;
+  if (slug === "networking") return NETWORKING_CHROME;
   if (INTERVIEW_PRESET_SLUGS.has(slug)) return INTERVIEW_CHROME;
 
   return null;
