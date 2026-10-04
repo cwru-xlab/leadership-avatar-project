@@ -1,11 +1,22 @@
-# Phase 13 Migration Handoff — InteractionReport (additive half)
+# Phase 13 Migration Handoff — InteractionReport
 
-**Written:** 2026-10-03 · **Plan:** 13-04 · **Requirement:** REQ-67
+**Written:** 2026-10-03 · **Extended:** 2026-10-04 (plan 13-15 Part 2) · **Requirement:** REQ-67
 
-Read this before running anything. It covers ONE migration and ONE
-backfill script, both already applied and proven against the LOCAL dev
-database only. **No agent has touched, and may never touch, the shared
-Lightsail database.**
+Read this before running anything. Part 1 covers ONE additive migration and
+ONE backfill script (local already applied). Part 2 covers a SEPARATE
+`DROP TABLE` migration. **No agent has touched, and may never touch, the
+shared Lightsail database.**
+
+This document has two independent parts:
+
+| Part | What | Plan | Local status | Shared status |
+|---|---|---|---|---|
+| **1** | `CREATE TABLE "InteractionReport"` + backfill | 13-02 / 13-04 | Applied + verified | **DEFERRED by human** ("migrate later") — still OPEN |
+| **2** | `DROP TABLE` legacy report tables | 13-15 | Applied + app still works | **Do not run until Part 1 is done and spot-checked on shared** |
+
+You may accept, defer, or decline Part 2 independently of Part 1. Deferring
+Part 2 indefinitely costs nothing but disk — after Phase 13 code ships, the
+application no longer reads those legacy tables.
 
 ---
 
@@ -263,3 +274,181 @@ production table before touching it.
 **Resume signal:** reply "handoff received" to let the phase continue (you
 can run the shared-DB commands later), or describe any changes you want to
 the migration or backfill first.
+
+---
+
+# Part 2 — the destructive step (separable, declinable)
+
+**Written:** 2026-10-04 · **Plan:** 13-15 · **Requirement:** REQ-65 / REQ-67
+
+Part 1 (`CREATE TABLE` + backfill) and Part 2 (`DROP TABLE`) are **independent
+actions**. Part 2 should only be run after Part 1's backfill has been run
+against the shared DB **and** spot-checked there. Deferring Part 2
+indefinitely costs nothing but disk — the application no longer reads
+`InterviewReport` or `ScenarioReport`. You may decline Part 2 forever if you
+prefer to keep the legacy tables as a cold backup.
+
+**No agent has run or may run any of the commands below against the shared
+Lightsail database.**
+
+## P2-1. The warning this project has never needed before
+
+All seven pre-Phase-13 migrations were purely additive — zero `NOT NULL` on a
+pre-existing table, zero `DROP` (`HANDOFF.md` §3). **This is the first
+`DROP TABLE` in the project's history**, and it removes tables holding live
+student reports.
+
+The existing review bar ("read the SQL, confirm no NOT NULL/DROP, apply")
+**cannot** be applied to a migration whose whole content is a DROP. Treat
+this as irreversible in a way Part 1 is not.
+
+**Before Part 2 on shared:** take a backup, or at minimum:
+
+```bash
+pg_dump "$DATABASE_URL" \
+  --table='"InterviewReport"' \
+  --table='"ScenarioReport"' \
+  --format=custom \
+  --file=legacy-reports-pre-drop.dump
+```
+
+## P2-2. Exact shared-DB commands, in order — FOR A HUMAN
+
+Do **not** skip ahead. Part 2's `migrate deploy` will apply the DROP if Part 1
+is already applied; if Part 1 is not yet applied, the same `migrate deploy`
+would apply both in order — still only do that after reading both SQLs and
+taking a backup.
+
+```bash
+# --- Part 1 (if not already done on shared) ---
+# 1. Review additive SQL:
+#    prisma/migrations/20261004012908_add_interaction_report/migration.sql
+npx prisma migrate deploy          # applies pending migrations (CREATE first)
+npx tsx scripts/backfill-interaction-reports.ts --dry-run
+npx tsx scripts/backfill-interaction-reports.ts
+npx tsx scripts/verify-interaction-report-backfill.ts
+
+# Spot-check a couple of real student reports in the app at their OLD URLs
+# (they permanently redirect to /practice/.../report/{id}).
+
+# --- Pre-drop verification queries (must hold) ---
+# See P2-3 below. Do not proceed if any fail.
+
+# --- Backup (required) ---
+pg_dump "$DATABASE_URL" \
+  --table='"InterviewReport"' \
+  --table='"ScenarioReport"' \
+  --format=custom \
+  --file=legacy-reports-pre-drop.dump
+
+# --- Part 2 ---
+# 2. Review DROP SQL:
+#    prisma/migrations/20261004040000_drop_legacy_report_tables/migration.sql
+#    Confirm: exactly two DROP TABLE statements + FK constraint drops;
+#    nothing touches InteractionReport or InterviewReportStatus.
+npx prisma migrate deploy          # applies the DROP migration when pending
+```
+
+## P2-3. Pre-drop verification queries (SHARED DB)
+
+Run these against the shared database **after** Part 1 backfill and **before**
+Part 2. All three conditions must hold:
+
+```sql
+-- (a) InteractionReport row count >= sum of legacy counts
+SELECT
+  (SELECT COUNT(*) FROM "InteractionReport") AS interaction_count,
+  (SELECT COUNT(*) FROM "InterviewReport")   AS interview_count,
+  (SELECT COUNT(*) FROM "ScenarioReport")    AS scenario_count;
+-- Require: interaction_count >= interview_count + scenario_count
+
+-- (b) every legacy id present in InteractionReport
+SELECT ir.id AS missing_interview_id
+FROM "InterviewReport" ir
+LEFT JOIN "InteractionReport" x ON x.id = ir.id
+WHERE x.id IS NULL;
+-- Require: 0 rows
+
+SELECT sr.id AS missing_scenario_id
+FROM "ScenarioReport" sr
+LEFT JOIN "InteractionReport" x ON x.id = sr.id
+WHERE x.id IS NULL;
+-- Require: 0 rows
+
+-- (c) cameraMode IS NULL count identical on both sides of the backfill
+--     (null-preservation for pre-Phase-10 rows — REQ-48)
+SELECT
+  (SELECT COUNT(*) FROM "InterviewReport" WHERE "cameraMode" IS NULL)
+    + (SELECT COUNT(*) FROM "ScenarioReport" WHERE "cameraMode" IS NULL)
+    AS legacy_null_camera,
+  (SELECT COUNT(*) FROM "InteractionReport" WHERE "cameraMode" IS NULL)
+    AS interaction_null_camera;
+-- After a correct backfill that copied every legacy row, every null-camera
+-- legacy row has a twin — interaction_null_camera must be >= legacy_null_camera.
+-- Prefer exact equality of the null-camera cohort that originated from legacy
+-- ids; at minimum confirm no legacy null-camera id lost its null on the twin:
+SELECT ir.id
+FROM "InterviewReport" ir
+JOIN "InteractionReport" x ON x.id = ir.id
+WHERE ir."cameraMode" IS NULL AND x."cameraMode" IS NOT NULL
+UNION ALL
+SELECT sr.id
+FROM "ScenarioReport" sr
+JOIN "InteractionReport" x ON x.id = sr.id
+WHERE sr."cameraMode" IS NULL AND x."cameraMode" IS NOT NULL;
+-- Require: 0 rows
+```
+
+## P2-4. Local evidence (already done — do not re-run DROP locally)
+
+- **13-VALIDATION.md:** Status **PASSED** — human reply `validation passed`
+  (all nine REQ-66 items PASS on local DB). Item 7 fixture note: use
+  `/case-play/testing` (agent-chosen UUID was absent from local S3).
+- **DROP migration SQL** (`20261004040000_drop_legacy_report_tables`):
+  exactly two `DROP TABLE` statements + FK drops; zero references to
+  `InteractionReport` / `InterviewReportStatus`.
+- **Local migrate status:** both Phase 13 migrations applied on
+  `leadership_avatar_dev`; only `InteractionReport` remains among report
+  tables.
+- **Live app fix before DROP:** `app/api/study-plans/generate/route.ts` was
+  still reading `prisma.interviewReport` — retargeted to `interactionReport`
+  (interview typeSlugs only). That was the sole live application read found.
+- **Verification scripts (post-DROP, local):** all exit 0 —
+  `verify-engine-config`, `verify-engine-primitives`, `verify-engine-surface-count`,
+  `verify-turn-control`, `verify-report-structure`. `npx tsc --noEmit` clean.
+- **Schema:** `model InterviewReport` / `model ScenarioReport` removed;
+  `enum InterviewReportStatus` retained (historical name on the unified model).
+
+## P2-5. Status of `scripts/backfill-interaction-reports.ts`
+
+**Still present** for your shared-DB Part 1 run. Prisma models for the legacy
+tables were removed in 13-15; the script (and
+`scripts/verify-interaction-report-backfill.ts`) now read legacy tables via
+`$queryRaw` so they still compile and still work against a database that
+still has those tables. After Part 2 DROP they will fail with "relation does
+not exist" — expected.
+
+`scripts/seed-legacy-reports.ts` was **deleted** (local-only seed; not needed
+for shared).
+
+Invoke backfill (shared, after CREATE migration is applied):
+
+```bash
+npx tsx scripts/backfill-interaction-reports.ts --dry-run
+npx tsx scripts/backfill-interaction-reports.ts
+npx tsx scripts/verify-interaction-report-backfill.ts
+```
+
+## P2-6. What to do next (Part 2)
+
+1. Finish Part 1 on shared if you have not (`migrate deploy` + backfill +
+   spot-check). **Per REQ-67, Phase 13 does not close until Part 1 is done.**
+2. Run the P2-3 verification queries; confirm all three conditions hold.
+3. Take the `pg_dump` backup of the two legacy tables.
+4. Read `prisma/migrations/20261004040000_drop_legacy_report_tables/migration.sql`.
+5. If satisfied, run Part 2's `prisma migrate deploy`. **Or decline / defer
+   indefinitely** — nothing in the application reads those tables any more.
+
+**Resume signal for plan 13-15:** reply **`drop handoff received`** to finish
+the plan (whether or not you have run Part 1 or Part 2 yet), or describe
+changes you want to the DROP migration first.

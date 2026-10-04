@@ -3,13 +3,17 @@
  * a byte-equal, null-preserving `InteractionReport` twin of every legacy
  * `InterviewReport`/`ScenarioReport` row — not a vibe check.
  *
- * Run (LOCAL DB ONLY):
- *   DATABASE_URL="postgresql://ajabreu79@localhost:5432/leadership_avatar_dev" npx tsx scripts/verify-interaction-report-backfill.ts
+ * PRE-DROP TOOLING — retained for the shared-DB Part 1 run (REQ-67). Plan 13-15
+ * removed the Prisma models; this script reads legacy tables via `$queryRaw`.
+ * After local DROP it will fail locally — expected. Run against shared DB
+ * (still holding both legacy tables) after the human backfill and BEFORE Part 2.
+ *
+ * Run:
+ *   DATABASE_URL="<db-with-legacy-tables>" npx tsx scripts/verify-interaction-report-backfill.ts
  *
  * Exits non-zero on any failed assertion.
  */
-import { PrismaClient } from "@prisma/client";
-import type { Prisma } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -36,12 +40,83 @@ function jsonEqual(a: Prisma.JsonValue | null, b: unknown): boolean {
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 }
 
+type InterviewLegacyRow = {
+  id: string;
+  typeSlug: string;
+  interviewerAvatarId: string | null;
+  interviewerName: string | null;
+  resumeId: string | null;
+  resumeText: string | null;
+  turnCount: number;
+  status: string;
+  visualScore: number | null;
+  vocalScore: number | null;
+  contentScore: number | null;
+  behavioralScore: number | null;
+  cameraMode: string | null;
+  visualMetrics: Prisma.JsonValue | null;
+  vocalMetrics: Prisma.JsonValue | null;
+  visualUnscoredReason: string | null;
+  vocalUnscoredReason: string | null;
+  reportStructured: Prisma.JsonValue | null;
+  reportMarkdown: string | null;
+  failureReason: string | null;
+  evalModel: string | null;
+  industry: string | null;
+  roleTitle: string | null;
+  difficulty: string | null;
+  targetMinutes: number | null;
+  targetQuestionCount: number | null;
+  interviewerPersona: string | null;
+  startedAt: Date;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type ScenarioLegacyRow = {
+  id: string;
+  caseId: string;
+  interactionLogId: string | null;
+  studentEmail: string | null;
+  status: string;
+  turnCount: number;
+  visualScore: number | null;
+  vocalScore: number | null;
+  contentScore: number | null;
+  behavioralScore: number | null;
+  cameraMode: string | null;
+  visualMetrics: Prisma.JsonValue | null;
+  vocalMetrics: Prisma.JsonValue | null;
+  visualUnscoredReason: string | null;
+  vocalUnscoredReason: string | null;
+  reportStructured: Prisma.JsonValue | null;
+  reportMarkdown: string | null;
+  failureReason: string | null;
+  evalModel: string | null;
+  caseName: string;
+  backgroundSnapshot: string;
+  avatarsSnapshot: Prisma.JsonValue;
+  criteriaSnapshot: string | null;
+  startedAt: Date;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 async function run() {
-  // --- 1. Count assertion ------------------------------------------------
+  console.log("PRE-DROP TOOLING: legacy reads via $queryRaw (Prisma models removed in 13-15).\n");
+
   section("1. Count assertion");
 
-  const interviewCount = await prisma.interviewReport.count();
-  const scenarioCount = await prisma.scenarioReport.count();
+  const interviewCountRows = await prisma.$queryRaw<[{ count: bigint }]>`
+    SELECT COUNT(*)::bigint AS count FROM "InterviewReport"
+  `;
+  const scenarioCountRows = await prisma.$queryRaw<[{ count: bigint }]>`
+    SELECT COUNT(*)::bigint AS count FROM "ScenarioReport"
+  `;
+  const interviewCount = Number(interviewCountRows[0].count);
+  const scenarioCount = Number(scenarioCountRows[0].count);
   const interactionCount = await prisma.interactionReport.count();
 
   check(
@@ -50,9 +125,13 @@ async function run() {
     `interactionReport=${interactionCount}, interviewReport=${interviewCount}, scenarioReport=${scenarioCount}`
   );
 
-  const interviewIds = new Set((await prisma.interviewReport.findMany({ select: { id: true } })).map((r) => r.id));
-  const scenarioIds = new Set((await prisma.scenarioReport.findMany({ select: { id: true } })).map((r) => r.id));
-  const interactionIds = new Set((await prisma.interactionReport.findMany({ select: { id: true } })).map((r) => r.id));
+  const interviewRows = await prisma.$queryRaw<InterviewLegacyRow[]>`SELECT * FROM "InterviewReport"`;
+  const scenarioRows = await prisma.$queryRaw<ScenarioLegacyRow[]>`SELECT * FROM "ScenarioReport"`;
+  const interviewIds = new Set(interviewRows.map((r) => r.id));
+  const scenarioIds = new Set(scenarioRows.map((r) => r.id));
+  const interactionIds = new Set(
+    (await prisma.interactionReport.findMany({ select: { id: true } })).map((r) => r.id)
+  );
 
   const missingFromInterview = [...interviewIds].filter((id) => !interactionIds.has(id));
   const missingFromScenario = [...scenarioIds].filter((id) => !interactionIds.has(id));
@@ -68,10 +147,8 @@ async function run() {
     `missing: ${JSON.stringify(missingFromScenario)}`
   );
 
-  // --- 2. Per-row field assertions ---------------------------------------
   section("2. Per-row field assertions (InterviewReport)");
 
-  const interviewRows = await prisma.interviewReport.findMany();
   for (const row of interviewRows) {
     const twin = await prisma.interactionReport.findUnique({ where: { id: row.id } });
     if (!twin) {
@@ -89,12 +166,17 @@ async function run() {
     check(`[${row.id}] reportMarkdown`, twin.reportMarkdown === row.reportMarkdown);
     check(`[${row.id}] failureReason`, twin.failureReason === row.failureReason);
     check(`[${row.id}] evalModel`, twin.evalModel === row.evalModel);
-    check(`[${row.id}] startedAt`, twin.startedAt.getTime() === row.startedAt.getTime());
-    check(`[${row.id}] completedAt`, deepEqual(twin.completedAt, row.completedAt));
-    check(`[${row.id}] createdAt`, twin.createdAt.getTime() === row.createdAt.getTime());
-    check(`[${row.id}] updatedAt`, twin.updatedAt.getTime() === row.updatedAt.getTime());
+    check(`[${row.id}] startedAt`, twin.startedAt.getTime() === new Date(row.startedAt).getTime());
+    check(
+      `[${row.id}] completedAt`,
+      deepEqual(
+        twin.completedAt?.toISOString() ?? null,
+        row.completedAt ? new Date(row.completedAt).toISOString() : null
+      )
+    );
+    check(`[${row.id}] createdAt`, twin.createdAt.getTime() === new Date(row.createdAt).getTime());
+    check(`[${row.id}] updatedAt`, twin.updatedAt.getTime() === new Date(row.updatedAt).getTime());
 
-    // Score-map assertion
     const scores = twin.scores as Record<string, number | null> | null;
     check(`[${row.id}] scores.visual`, scores?.visual === row.visualScore);
     check(`[${row.id}] scores.vocal`, scores?.vocal === row.vocalScore);
@@ -104,7 +186,6 @@ async function run() {
       check(`[${row.id}] null visualScore stayed null (not coerced to 0)`, scores?.visual === null);
     }
 
-    // Snapshot assertion — ten typed columns round-trip through inputSnapshot.
     const snap = twin.inputSnapshot as Record<string, unknown> | null;
     if (snap && snap.kind === "interview") {
       check(`[${row.id}] snapshot.interviewerAvatarId`, snap.interviewerAvatarId === row.interviewerAvatarId);
@@ -124,7 +205,6 @@ async function run() {
 
   section("2. Per-row field assertions (ScenarioReport)");
 
-  const scenarioRows = await prisma.scenarioReport.findMany();
   for (const row of scenarioRows) {
     const twin = await prisma.interactionReport.findUnique({ where: { id: row.id } });
     if (!twin) {
@@ -142,10 +222,16 @@ async function run() {
     check(`[${row.id}] reportMarkdown`, twin.reportMarkdown === row.reportMarkdown);
     check(`[${row.id}] failureReason`, twin.failureReason === row.failureReason);
     check(`[${row.id}] evalModel`, twin.evalModel === row.evalModel);
-    check(`[${row.id}] startedAt`, twin.startedAt.getTime() === row.startedAt.getTime());
-    check(`[${row.id}] completedAt`, deepEqual(twin.completedAt, row.completedAt));
-    check(`[${row.id}] createdAt`, twin.createdAt.getTime() === row.createdAt.getTime());
-    check(`[${row.id}] updatedAt`, twin.updatedAt.getTime() === row.updatedAt.getTime());
+    check(`[${row.id}] startedAt`, twin.startedAt.getTime() === new Date(row.startedAt).getTime());
+    check(
+      `[${row.id}] completedAt`,
+      deepEqual(
+        twin.completedAt?.toISOString() ?? null,
+        row.completedAt ? new Date(row.completedAt).toISOString() : null
+      )
+    );
+    check(`[${row.id}] createdAt`, twin.createdAt.getTime() === new Date(row.createdAt).getTime());
+    check(`[${row.id}] updatedAt`, twin.updatedAt.getTime() === new Date(row.updatedAt).getTime());
     check(`[${row.id}] typeSlug === "case-study"`, twin.typeSlug === "case-study");
     check(`[${row.id}] interactionLogId`, twin.interactionLogId === row.interactionLogId);
     check(`[${row.id}] studentEmail`, twin.studentEmail === row.studentEmail);
@@ -171,7 +257,6 @@ async function run() {
     }
   }
 
-  // --- 3. NULL-PRESERVATION assertion -------------------------------------
   section("3. NULL-PRESERVATION assertion (pre-Phase-10 rows)");
 
   const legacyInterviewRows = interviewRows.filter((r) => r.cameraMode === null);
@@ -195,7 +280,6 @@ async function run() {
     check(`[${row.id}] vocalUnscoredReason stayed null`, twin?.vocalUnscoredReason === null);
   }
 
-  // --- 4. Idempotency assertion --------------------------------------------
   section("4. Idempotency assertion (second backfill run)");
 
   const sampleId = interviewRows[0]?.id;
@@ -219,7 +303,6 @@ async function run() {
     check("sampled row content unchanged (updatedAt excluded)", deepEqual(beforeRest, afterRest));
   }
 
-  // --- Summary --------------------------------------------------------------
   section("Summary");
   if (failures === 0) {
     console.log("ALL CHECKS PASSED");
@@ -231,8 +314,8 @@ async function run() {
 }
 
 run()
-  .then((failures) => {
-    process.exit(failures === 0 ? 0 : 1);
+  .then((n) => {
+    process.exit(n === 0 ? 0 : 1);
   })
   .catch((e) => {
     console.error("Verifier crashed:", e);
