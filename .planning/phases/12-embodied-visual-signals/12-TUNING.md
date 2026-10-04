@@ -717,3 +717,55 @@ negative in exactly the shape posture drift turned out to be.
 `NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP=1`.** The dump is still in place for
 precisely this. **Do not remove it until that distribution is recorded here.**
 This reading also blocks Phase 12 ROADMAP criterion 1 — see `12-11-SUMMARY.md`.
+
+---
+
+## PHONE_SCORE_THRESHOLD — RESOLVED by scope decision, 2026-10-03
+
+The true-positive side was finally run. A phone held clearly in frame produced:
+
+- Observations: **"A phone was visible for about 8 seconds"**
+- Moments: **`0:11-0:21 [Observation] Phone visible`** — detected and timecoded
+
+**This is the first true-positive phone observation in the phase.** Both prior
+sessions were no-phone (4 spurious detections topping out at 0.163, and one with
+zero), which could only ever bound the cutoff from above.
+
+**Known limitation, accepted by the user:** the reported duration UNDER-COUNTS.
+The user held the phone in frame for noticeably longer than the 8 seconds
+reported, and judged it acceptable — *"as long as it's generally accurate, it's
+really not the most important of things."* That is a deliberate scope decision,
+recorded here as such rather than as an unexamined pass.
+
+**Why under-counting is tolerable HERE and was not for posture drift.** The phone
+is a `12-07` descriptive observation: it renders under the Observations heading
+whose text reads "These do not affect any score", it is tagged `Observation`
+rather than `Body language` in the Moments timeline, and no scored field may
+derive from it (enforced at the type level — see `VisualDescriptiveObservations`
+in `types.ts`). An imprecise duration in a descriptive line is a precision
+defect. Posture drift's false negatives were a different kind of failure: a
+SCORED row told a student "Held steady" as praise for behaviour they did not
+exhibit.
+
+**`PHONE_SCORE_THRESHOLD` is therefore LEFT AT 0.5, unchanged.** Not because it
+was validated as optimal, but because:
+  - its false-positive side is well bounded (spurious ceiling 0.163 across two
+    no-phone sessions, comfortably below 0.5), and
+  - its true-positive side is now demonstrated to fire at all, which was the open
+    question.
+
+**Two candidate causes of the under-count were NOT distinguished, and a future
+plan should not assume it is the threshold:**
+  1. **Threshold too high** — detections between the 0.163 spurious ceiling and
+     0.5 would be discarded. The phone-held session's raw confidence
+     distribution was never captured (the user reported from the report UI, not
+     the console dump), so this is unquantified.
+  2. **Object sampling too sparse** — the staggered scheduler gives the object
+     model roughly 0.5 Hz (53 object ticks across a 108s session), so a 10-second
+     presence is only ~5 samples. Coarse sampling alone can under-count a
+     genuinely detected phone regardless of threshold.
+
+Distinguishing these needs the raw per-tick `phoneScore` series from a
+phone-held session. The dump that produces it was removed when this plan closed;
+re-adding it is the first step of any future attempt.
+
