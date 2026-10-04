@@ -1,23 +1,25 @@
 "use client";
 
 /**
- * Engine session page for instance-less types (interview presets + networking).
+ * Engine session page for instance-less types (interview presets) and
+ * wizard-authored types (`pitch-elevator`, instance.required + authoredInWizard).
  *
  * Hosts SetupWizard → PracticeSessionShell in ONE page with a step
  * transition (no navigation between them — matching today's interview
- * experience). Plan 13-11 owns `/practice/[type]/[instanceId]`.
+ * experience). Plan 13-11 owns `/practice/[type]/[instanceId]` for
+ * pre-authored instances (case-study).
  *
  * Do not edit `app/interview/[type]/page.tsx` from here — that page stays
  * live until 13-13 so humans can compare the two shells side by side.
  *
- * Networking registration (16-08): wires NetworkingPersonStep /
- * NetworkingGoalStep against the registry's setupSteps; reuses InterviewerStep
- * and SetupWizard's CameraConsentStep. No networking-specific picker or
- * consent gate.
+ * 14-10 extension against 13-09: a type with instance.required AND
+ * instance.authoredInWizard renders here — the instance is assembled from
+ * wizard state at launch and posted to `/api/practice/session/start`.
  */
 
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import type { CameraMode } from "@/lib/metrics/types";
+import type { InstanceConfig } from "@/lib/engine/types";
 import type { StartAvatarRequest } from "@/types";
 
 import { Button } from "@heroui/button";
@@ -34,19 +36,23 @@ import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import PracticeSessionShell from "@/components/practice/PracticeSessionShell";
+import PitchTimerPanel from "@/components/practice/panels/PitchTimerPanel";
 import SetupWizard, {
   type SetupStepNav,
 } from "@/components/practice/SetupWizard";
 import InterviewerStep, {
   type InterviewerOption,
 } from "@/components/practice/steps/InterviewerStep";
-import NetworkingGoalStep from "@/components/practice/steps/NetworkingGoalStep";
-import NetworkingPersonStep from "@/components/practice/steps/NetworkingPersonStep";
+import ListenerKnowledgeStep, {
+  type ListenerKnowledge,
+} from "@/components/practice/steps/ListenerKnowledgeStep";
+import PitchSubjectStep from "@/components/practice/steps/PitchSubjectStep";
 import ResumeStep from "@/components/practice/steps/ResumeStep";
 import { resolveInterviewType } from "@/lib/interview/customization";
 import { getEngineType } from "@/lib/engine/registry";
 import { resolveSessionConfig } from "@/lib/engine/resolve";
 import { useLayout } from "@/lib/layout-context";
+import { ELEVATOR_LISTENER_PERSONA } from "@/lib/pitch/elevator-prompts";
 
 type PagePhase = "wizard" | "session";
 
@@ -56,13 +62,13 @@ export default function PracticeTypePage() {
   const { setFullScreen } = useLayout();
 
   const engineType = useMemo(() => getEngineType(params.type), [params.type]);
-  const isNetworking = engineType?.slug === "networking";
+  const isPitchElevator = engineType?.slug === "pitch-elevator";
+  const authoredInWizard = Boolean(engineType?.instance.authoredInWizard);
 
   // Read-once-then-clear handoff from the picker (see app/interview/page.tsx),
   // guarded by a ref so React strict-mode's double-invoke of the mount effect
   // cannot read (and clear) the key twice. A parse failure is treated exactly
   // as absence — the wizard degrades to the preset's own defaults.
-  // Networking does not use this interview customization handoff.
   const handoffReadRef = useRef(false);
   const [storedCustomization, setStoredCustomization] =
     useState<InterviewCustomizationInput | null>(null);
@@ -71,16 +77,13 @@ export default function PracticeTypePage() {
   useEffect(() => {
     if (handoffReadRef.current) return;
     handoffReadRef.current = true;
-    if (params.type === "networking") {
+    if (params.type === "pitch-elevator") {
       setHandoffResolved(true);
-
       return;
     }
     const key = `interview:customization:${params.type}`;
-
     try {
       const raw = sessionStorage.getItem(key);
-
       sessionStorage.removeItem(key);
       if (raw) {
         setStoredCustomization(JSON.parse(raw) as InterviewCustomizationInput);
@@ -94,23 +97,14 @@ export default function PracticeTypePage() {
 
   const interviewType = useMemo(
     () =>
-      isNetworking
+      isPitchElevator
         ? null
         : resolveInterviewType(params.type, storedCustomization),
-    [params.type, storedCustomization, isNetworking],
+    [params.type, storedCustomization, isPitchElevator],
   );
 
-  const sessionConfig = useMemo(() => {
-    const resolved = resolveSessionConfig(params.type, {
-      customization: isNetworking ? undefined : storedCustomization,
-    });
-
-    return resolved.ok ? resolved.config : null;
-  }, [params.type, storedCustomization, isNetworking]);
-
   const [phase, setPhase] = useState<PagePhase>("wizard");
-  // When exiting a session, reopen the wizard on the resume step — same as
-  // today's `setStep("resume")` on InterviewSessionShell onExit.
+  // When exiting a session, reopen the wizard on a sensible step.
   const [wizardStepId, setWizardStepId] = useState<string | undefined>(
     undefined,
   );
@@ -121,18 +115,71 @@ export default function PracticeTypePage() {
   const [resumeId, setResumeId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("OFF");
   const [reportId, setReportId] = useState<string | null>(null);
-  // Networking wizard state (16-08) — character XOR brought-in persona, plus goal.
-  const [networkingCharacterId, setNetworkingCharacterId] = useState<
-    string | null
-  >(null);
-  const [networkingInstanceId, setNetworkingInstanceId] = useState<
-    string | null
-  >(null);
-  const [networkingGoal, setNetworkingGoal] = useState("");
+
+  // Elevator wizard state — keys match the type's setupSteps / InstanceConfig.
+  const [pitchSubject, setPitchSubject] = useState("");
+  const [listenerKnowledge, setListenerKnowledge] =
+    useState<ListenerKnowledge | null>(null);
+
+  // Soft pitch-window timing, mirrored from PracticeSessionShell (13-10 ext).
+  const [pitchTurnStartedAt, setPitchTurnStartedAt] = useState<number | null>(
+    null,
+  );
+  const [pitchTimerPhase, setPitchTimerPhase] = useState<
+    "pitching" | "followups"
+  >("pitching");
+
+  const elevatorInstance: InstanceConfig | null = useMemo(() => {
+    if (!isPitchElevator) return null;
+    const subject = pitchSubject.trim();
+    if (!subject || !listenerKnowledge) return null;
+    return {
+      kind: "pitch-elevator",
+      pitchSubject: subject,
+      listenerKnowledge,
+    };
+  }, [isPitchElevator, pitchSubject, listenerKnowledge]);
+
+  const sessionConfig = useMemo(() => {
+    if (isPitchElevator) {
+      if (!elevatorInstance) return null;
+      const resolved = resolveSessionConfig(params.type, {
+        instance: elevatorInstance,
+      });
+      return resolved.ok ? resolved.config : null;
+    }
+    const resolved = resolveSessionConfig(params.type, {
+      customization: storedCustomization,
+    });
+    return resolved.ok ? resolved.config : null;
+  }, [params.type, storedCustomization, isPitchElevator, elevatorInstance]);
+
+  // Pitch has no interviewer step — auto-pick a catalog avatar for HeyGen while
+  // the live prompt plays Dana Reyes. Fetched once when the pitch type mounts.
+  useEffect(() => {
+    if (!isPitchElevator || selectedInterviewer) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/interview/interviewers", {
+          cache: "no-store",
+        });
+        const data = (await response.json().catch(() => ({}))) as {
+          interviewers?: InterviewerOption[];
+        };
+        if (cancelled || !data.interviewers?.length) return;
+        setSelectedInterviewer(data.interviewers[0]);
+      } catch {
+        // Session can still run typed-only if the catalog is unavailable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isPitchElevator, selectedInterviewer]);
 
   useEffect(() => {
     setFullScreen(phase === "session");
-
     return () => setFullScreen(false);
   }, [setFullScreen, phase]);
 
@@ -156,16 +203,17 @@ export default function PracticeTypePage() {
     );
   }
 
-  // Unknown slug OR a type that requires an instance (those live at
-  // /practice/[type]/[instanceId] — plan 13-11). Networking is instance-
-  // optional and registered here; interview presets still need interviewType.
+  // Unknown slug, or a type that requires a pre-authored instance (those live
+  // at /practice/[type]/[instanceId] — plan 13-11). Wizard-authored types
+  // (authoredInWizard) are allowed here even when required is true.
   const typeAvailable =
     !!engineType &&
-    !engineType.instance.required &&
-    !!sessionConfig &&
-    (isNetworking || !!interviewType);
+    (!engineType.instance.required || authoredInWizard) &&
+    (isPitchElevator || (!!interviewType && !!sessionConfig));
 
-  if (!typeAvailable || !engineType || !sessionConfig) {
+  // During the pitch wizard, sessionConfig needs the assembled instance — allow
+  // the wizard to render before both fields are filled.
+  if (!typeAvailable || !engineType) {
     return (
       <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa] p-6 text-[#102331]">
         <Card className="max-w-lg border border-[#d4e2e9] shadow-none">
@@ -190,28 +238,59 @@ export default function PracticeTypePage() {
   const pageMinutes =
     interviewType?.targetMinutes ?? engineType.limits.targetMinutes;
   const reportTypeSlug = interviewType?.slug ?? engineType.slug;
+  const listenerDisplayName = isPitchElevator
+    ? listenerKnowledge === "blind"
+      ? "Your listener"
+      : ELEVATOR_LISTENER_PERSONA.name
+    : storedCustomization?.personaDisplayName?.trim() ||
+      selectedInterviewer?.name ||
+      "";
 
-  if (phase === "session" && selectedInterviewer && avatarConfig && reportId) {
+  if (
+    phase === "session" &&
+    selectedInterviewer &&
+    avatarConfig &&
+    reportId &&
+    sessionConfig
+  ) {
+    const windowSeconds =
+      sessionConfig.timeBudget.firstTurnWindowSeconds ?? 60;
     return (
       <PracticeSessionShell
+        sessionConfig={sessionConfig}
+        customization={isPitchElevator ? undefined : storedCustomization}
+        reportId={reportId}
+        interviewerName={listenerDisplayName}
+        interviewerAvatarId={selectedInterviewer.avatarId}
         avatarConfig={avatarConfig}
         cameraMode={cameraMode}
-        customization={storedCustomization}
-        interviewerAvatarId={selectedInterviewer.avatarId}
-        interviewerName={
-          storedCustomization?.personaDisplayName?.trim() ||
-          selectedInterviewer.name
-        }
+        resumeText={isPitchElevator ? "" : resumeText}
+        resumeFileName={isPitchElevator ? undefined : resumeFileName}
+        resumeId={isPitchElevator ? null : resumeId}
         language="en"
-        reportId={reportId}
-        resumeFileName={resumeFileName}
-        resumeId={resumeId}
-        resumeText={resumeText}
-        sessionConfig={sessionConfig}
+        sessionPanel={
+          isPitchElevator ? (
+            <PitchTimerPanel
+              windowSeconds={windowSeconds}
+              turnStartedAt={pitchTurnStartedAt}
+              phase={pitchTimerPhase}
+            />
+          ) : undefined
+        }
+        onOpeningTurnTimingChange={
+          isPitchElevator
+            ? ({ turnStartedAt, phase: nextPhase }) => {
+                setPitchTurnStartedAt(turnStartedAt);
+                setPitchTimerPhase(nextPhase);
+              }
+            : undefined
+        }
         onExit={() => {
-          setWizardStepId(isNetworking ? "networking-person" : "resume");
+          setWizardStepId(isPitchElevator ? "pitch-subject" : "resume");
           setPhase("wizard");
           setReportId(null);
+          setPitchTurnStartedAt(null);
+          setPitchTimerPhase("pitching");
           setFullScreen(false);
         }}
         onFinish={(finishedReportId) => {
@@ -228,8 +307,8 @@ export default function PracticeTypePage() {
         <div className="absolute -right-24 top-[-150px] h-96 w-96 rounded-full bg-[#a9ddeb]/60 blur-3xl" />
         <div className="relative mx-auto max-w-6xl px-5 pb-12 pt-7 sm:px-8 sm:pb-16">
           <button
-            className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[#47616f] transition-colors hover:text-[#0a7391] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
             type="button"
+            className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[#47616f] transition-colors hover:text-[#0a7391] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
             onClick={() => router.push("/")}
           >
             <ArrowLeft size={16} /> Back to practice
@@ -237,11 +316,11 @@ export default function PracticeTypePage() {
           <div className="mt-12 grid gap-8 lg:grid-cols-[1fr_290px] lg:items-end">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0a7391]">
-                {isNetworking ? "Networking studio" : "Interview studio"}
+                {isPitchElevator ? "Pitch studio" : "Interview studio"}
               </p>
               <h1 className="mt-3 max-w-3xl font-serif text-4xl leading-[0.98] tracking-[-0.045em] text-[#102331] sm:text-6xl">
-                {isNetworking
-                  ? "Practice the conversation before it counts."
+                {isPitchElevator
+                  ? "Sixty seconds to find common ground."
                   : "A focused space to practice how you lead."}
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-7 text-[#4e6977]">
@@ -251,18 +330,22 @@ export default function PracticeTypePage() {
             <div className="grid gap-3 rounded-2xl border border-[#c8dde5] bg-white/80 p-5 shadow-sm backdrop-blur-sm sm:grid-cols-3 lg:grid-cols-1">
               <Stat
                 icon={<Clock3 size={18} />}
+                value={
+                  isPitchElevator
+                    ? "30–60 s"
+                    : `${pageMinutes ?? "—"} min`
+                }
                 label="Practice"
-                value={`${pageMinutes} min`}
               />
               <Stat
                 icon={<UsersRound size={18} />}
-                label={isNetworking ? "Contact" : "Interviewer"}
                 value="Live avatar"
+                label={isPitchElevator ? "Listener" : "Interviewer"}
               />
               <Stat
                 icon={<LockKeyhole size={18} />}
-                label={isNetworking ? "Goal" : "Resume"}
                 value="Private"
+                label={isPitchElevator ? "Subject" : "Resume"}
               />
             </div>
           </div>
@@ -271,17 +354,21 @@ export default function PracticeTypePage() {
 
       <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
         <SetupWizard
+          typeSlug={engineType.slug}
+          steps={engineType.setupSteps}
+          initialStepId={wizardStepId}
           createReportOnLaunch
+          progressAriaLabel={
+            isPitchElevator
+              ? "Elevator pitch setup progress"
+              : "Interview setup progress"
+          }
           buildStartPayload={() =>
-            isNetworking
+            isPitchElevator
               ? {
-                  instanceId: networkingInstanceId,
-                  customization: {
-                    characterId: networkingCharacterId,
-                    goal: networkingGoal.trim(),
-                  },
+                  instance: elevatorInstance,
                   interviewerAvatarId: selectedInterviewer?.avatarId,
-                  interviewerName: selectedInterviewer?.name,
+                  interviewerName: listenerDisplayName,
                   language: "en",
                 }
               : {
@@ -295,32 +382,29 @@ export default function PracticeTypePage() {
                   language: "en",
                 }
           }
-          initialStepId={wizardStepId}
-          progressAriaLabel={
-            isNetworking
-              ? "Networking setup progress"
-              : "Interview setup progress"
-          }
+          onLaunch={({ reportId: launchedId, cameraMode: locked }) => {
+            setReportId(launchedId);
+            setCameraMode(locked);
+            setPitchTurnStartedAt(null);
+            setPitchTimerPhase("pitching");
+            setPhase("session");
+          }}
           renderStep={(stepId: string, nav: SetupStepNav) => {
-            if (stepId === "networking-person") {
+            if (stepId === "pitch-subject") {
               return (
-                <NetworkingPersonStep
-                  characterId={networkingCharacterId}
-                  instanceId={networkingInstanceId}
+                <PitchSubjectStep
                   nav={nav}
-                  onChange={({ characterId, instanceId }) => {
-                    setNetworkingCharacterId(characterId);
-                    setNetworkingInstanceId(instanceId);
-                  }}
+                  pitchSubject={pitchSubject}
+                  onChange={setPitchSubject}
                 />
               );
             }
-            if (stepId === "networking-goal") {
+            if (stepId === "listener-knowledge") {
               return (
-                <NetworkingGoalStep
-                  goal={networkingGoal}
+                <ListenerKnowledgeStep
                   nav={nav}
-                  onChange={setNetworkingGoal}
+                  listenerKnowledge={listenerKnowledge}
+                  onSelect={setListenerKnowledge}
                 />
               );
             }
@@ -337,8 +421,8 @@ export default function PracticeTypePage() {
               return (
                 <ResumeStep
                   nav={nav}
-                  resumeFileName={resumeFileName}
                   resumeId={resumeId}
+                  resumeFileName={resumeFileName}
                   onResumeChange={(next) => {
                     setResumeId(next.resumeId);
                     setResumeText(next.resumeText);
@@ -347,15 +431,7 @@ export default function PracticeTypePage() {
                 />
               );
             }
-
             return null;
-          }}
-          steps={engineType.setupSteps}
-          typeSlug={engineType.slug}
-          onLaunch={({ reportId: launchedId, cameraMode: locked }) => {
-            setReportId(launchedId);
-            setCameraMode(locked);
-            setPhase("session");
           }}
         />
       </div>
