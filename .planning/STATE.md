@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-10-04 (13-07 DELIVERED — one session lifecycle at `/api/practice/session/{start,checkpoint,finish}` + `lib/engine/session.ts`; legacy routes thin-delegate; REQ-59 session half MET. Prior: 13-05/13-06 wave 3. Shared-DB migrate still deferred under REQ-67. See `13-07-SUMMARY.md`.)
+**Updated:** 2026-10-04 (13-08 DELIVERED — one report GET/retry/list at `/api/practice/report*` + `/api/practice/reports`; legacy report routes thin-delegate; REQ-59 report-read half MET. Shared-DB migrate still deferred under REQ-67. See `13-08-SUMMARY.md`.)
 
 ## Current Position
 
-**Phase:** 13 — One-on-One Conversation Engine — IN PROGRESS (7 of 15 plans executed)
-**Current Plan:** 13-07 complete; next is 13-08
-**Stopped At:** Completed 13-07-PLAN.md
+**Phase:** 13 — One-on-One Conversation Engine — IN PROGRESS (8 of 15 plans executed)
+**Current Plan:** 13-08 complete; next is 13-09
+**Stopped At:** Completed 13-08-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -346,6 +346,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 13-one-on-one-conversation-engine / 13-04]: Backfill is a TypeScript upsert-on-id script with `--dry-run` (not Prisma migration SQL) so null `cameraMode` / unscored-reason preservation and typed `InputSnapshot` construction stay explicit; ScenarioReport rows permanently get `typeSlug = "case-study"` (13-01 lock).
 - [Phase 13]: Session lifecycle divergences declared as checkpointing + finishPendingFlip on InteractionTypeConfig (REQ-69)
 - [Phase 13]: case-study start returns InteractionLog; legacy routes preserve 201/409 body shapes while practice uses unified 200/202/409
+- [Phase 13]: supportsRetry declared on InteractionTypeConfig (interview true, case-study false) so REQ-69 retry divergence is type-assertable
+- [Phase 13]: Legacy report GETs keep type-scoped 404 via input.kind checks; /reports stays interview-only via hard-coded preset filter (REQ-69)
 
 ## Progress
 
@@ -1099,6 +1101,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   lost. See `11-04-SUMMARY.md` for full detail.
 - 13-05 (type-derived rubric + one evaluator/runner — `lib/engine/{rubric,evaluation,evaluation-runner}.ts`, additive `lib/report/structured.ts`, `scripts/verify-report-structure.ts` section 6): complete, wave 3 (parallel with 13-06). Commits `894eec9`, `2c48ed2`, `39dfa5a`. REQ-71/72 MET; Task 4 human verdict **identical**. REQ-59 left unchecked as split (evaluator/runner half only; session/report routes remain for 13-07/13-08). Legacy per-type evaluator modules kept until 13-13. See `13-05-SUMMARY.md`.
 - 13-07 (one session lifecycle — `lib/engine/session.ts`, `/api/practice/session/{start,checkpoint,finish}`, five legacy routes as thin delegations): complete, wave 4. Commits `10229ce`, `ac84db7`, `1a8957c`. Type-declared `checkpointing`/`finishPendingFlip` preserve Section-A divergences. Local sessions READY: interview `67737230-2573-47fb-b3ed-52d2a5531118`, case-study `f13011bb-2f76-48b3-8f6f-6ea93a01dd12`. REQ-59 session half MET (report-GET still 13-08); REQ-62/64 finish persistence MET. See `13-07-SUMMARY.md`.
+- 13-08 (one report GET/retry/list — `/api/practice/report/[reportId]{,/retry}`, `/api/practice/reports`, four legacy report routes as thin delegations, `lib/report/{handlers,legacy-adapters}.ts`, type-declared `supportsRetry`): complete, wave 5. Commits `53d8a25`, `fd7d282`, `b1e7db5`. Backfilled seed reports load through engine GET; retry interview-only; `/reports` stays interview-only (REQ-69). Screenshots in `screenshots/13-08/`. REQ-59 report-read half MET (pages/wizard still later). See `13-08-SUMMARY.md`.
 - 13-06 (engine prompt assembly + generalized chat route — `lib/engine/{prompts,turn-control}.ts`, `app/api/interaction/chat/route.ts`, `scripts/verify-turn-control.ts` sections 6–10): complete, wave 3 (parallel with 13-05). Commits `df4487d`, `1053810`, `6b38995`, `c1f8e6a`. REQ-73 MET with byte-equality proof; legacy admin-case path preserved. REQ-59/62/63 left unchecked as split. See `13-06-SUMMARY.md`.
 - 13-04 (local InteractionReport backfill + REQ-67 handoff — `scripts/seed-legacy-reports.ts`, `scripts/backfill-interaction-reports.ts`, `scripts/verify-interaction-report-backfill.ts`, `13-MIGRATION-HANDOFF.md`): complete for the LOCAL half, wave 2. Commits `1eafa7b`, `981f835`, handoff in `a948326`. Seeded five fixed-uuid pre-Phase-13 shapes into the legacy tables only; backfilled 67 InterviewReport + 3 ScenarioReport → 70 InteractionReport against `leadership_avatar_dev` only; verifier exited 0 with count/field/null-preservation/idempotency sections all passing (70→70 on second run). Human ACKNOWLEDGED the handoff and DEFERRED the shared-DB half — OPEN phase-closure item under REQ-67; Phase 13 cannot close until a human runs `prisma migrate deploy` + backfill on Lightsail. REQ-66/REQ-67 not checked off in REQUIREMENTS.md. See `13-04-SUMMARY.md` for full detail.
 - 13-03 (engine runtime primitives — `lib/engine/{termination,visible-context,outcome,time-budget}.ts`, `scripts/verify-engine-primitives.ts`): complete, wave 2 (parallel with 13-04). Commits `2211c66`, `fb9b466`, `eeaaa36`. Four pure modules with zero consumer wiring; REQ-62/63/64 MET. See `13-03-SUMMARY.md` for full detail.
@@ -1803,8 +1806,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T02:25:43.189Z
-**Stopped At:** Completed 13-07-PLAN.md — one session lifecycle; legacy routes delegate; interview `67737230-…` and case-study `f13011bb-…` READY locally. Next: 13-08.
+**Last Date:** 2026-10-04T02:30:25.575Z
+**Stopped At:** Completed 13-08-PLAN.md — one report GET/retry/list; legacy report routes delegate; screenshots in `screenshots/13-08/`. Next: 13-09.
 **Resume File:** None
 
 
