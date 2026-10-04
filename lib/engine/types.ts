@@ -134,9 +134,14 @@ export interface LiveSystemPromptExtra {
  * `buildInterviewSystemPrompt`.
  */
 export interface InteractionPromptsConfig {
-  liveSystemPrompt: (config: ResolvedSessionConfig, extra: LiveSystemPromptExtra) => string;
+  liveSystemPrompt: (
+    config: ResolvedSessionConfig,
+    extra: LiveSystemPromptExtra,
+  ) => string;
   evaluatorPrompt: string;
-  buildEvaluationContext: (config: ResolvedSessionConfig) => Record<string, unknown>;
+  buildEvaluationContext: (
+    config: ResolvedSessionConfig,
+  ) => Record<string, unknown>;
 }
 
 /** A type's limits, stated to the model, not enforced as a hard cutoff
