@@ -2,7 +2,7 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.1 — Consequence & Deck Breadth
-**Updated:** 2026-10-04 (Phase 18 planned — 5 plans for Avatar Disengagement & Walk-Out. Milestone v1.1; v1.0 shipped Phases 1–16.)
+**Updated:** 2026-10-04 (Phase 13 CLOSED — REQ-66/REQ-67 ticked with a recorded caveat, REQ-63 delegated to REQ-75; see `13-CLOSE-RECORD.md`. Phase 18 planned — 5 plans for Avatar Disengagement & Walk-Out. Milestone v1.1; v1.0 shipped Phases 1–16.)
 
 ## Current Position
 
@@ -13,11 +13,17 @@
 
 ### Carried into v1.1 from v1.0
 
-- **REQ-67 — Phase 13 close BLOCKED.** Shared Lightsail `CREATE TABLE` + backfill
-  is human-run only; human ACK'd and deferred it. **No agent may apply it.**
-  REQ-66 stays unchecked until shared rows exist. See `13-MIGRATION-HANDOFF.md`.
+- **~~REQ-67 — Phase 13 close BLOCKED~~ — PHASE 13 IS CLOSED (2026-10-04).**
+  REQ-66 and REQ-67 are ticked with a recorded caveat, not a passing test: the
+  shared DB was found EMPTY so the backfill acceptance test is unsatisfiable there
+  by construction and passed on local only (70 rows), and REQ-67 closed on its
+  human-run clause alone. Full reasoning: `13-CLOSE-RECORD.md`.
+  **Still carried, and NOT closed by that:** `vercel.json`'s `buildCommand` runs
+  `prisma migrate deploy` on every deployment, so deploys self-migrate unreviewed.
+  That is REQ-74 / plan 17-01. The no-agent-on-shared rule still binds agents.
 - **REQ-63** is implemented in the engine (`lib/engine/types.ts` `visibleContext`,
-  sliced in `lib/engine/prompts.ts`) but was never verified and checked off.
+  sliced in `lib/engine/prompts.ts`) but was never verified and checked off. Phase
+  13 closed with this **delegated to REQ-75 / plan 17-03**, not granted.
 - **Phases 15 and 16 keyboard UAT undischarged** — both completed under
   `skip_checkpoints`; 4/4 SC PASS-automated each. `/gsd:verify-work 15`, `16`.
 - **`scripts/verify-deck-intake.ts` fails one assertion** — fixture/assertion
@@ -71,14 +77,27 @@ routes; human-verify **approved** (real PDF fidelity after canvasFactory +
 disableFontFace fix `97b273e`). PPTX convert still 502 until Gotenberg provisioned.
 See `14-07-SUMMARY.md`.
 
-### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
+### ~~Open phase-closure item (REQ-67)~~ — RESOLVED 2026-10-04, PHASE 13 CLOSED
 
-All 15 Phase 13 plans are executed. Local CREATE + backfill + DROP are done.
-Human ACK'd Part 2 handoff (`drop handoff received`) and previously deferred
-shared Part 1 ("migrate later"). **No agent may run** `prisma migrate deploy`
-or the backfill against the shared DB. Phase 13 does **not** close until a
-human runs Part 1 (CREATE TABLE + backfill) per `13-MIGRATION-HANDOFF.md`.
-Part 2 DROP on shared is optional/declinable after Part 1 spot-check.
+**Superseded. Do not act on the text below; it is kept as the record of what was
+planned.** A human ran `prisma migrate deploy` against shared on 2026-10-04 —
+14 of 14 applied, `Database schema is up to date!` — and the shared DB was found
+EMPTY, so Part 1's backfill had no rows to move and was never run there. Both
+parts are done, nothing is held, and **Phase 13 is closed**:
+`13-CLOSE-RECORD.md`. `13-MIGRATION-HANDOFF.md` carries the same correction as a
+banner.
+
+**The no-agent-on-shared rule still binds agents** — unchanged. What it never
+bound is CI: `vercel.json` self-migrates on every deploy, which is REQ-74 /
+plan 17-01, still open.
+
+> *Original text, superseded:* All 15 Phase 13 plans are executed. Local CREATE +
+> backfill + DROP are done. Human ACK'd Part 2 handoff (`drop handoff received`)
+> and previously deferred shared Part 1 ("migrate later"). No agent may run
+> `prisma migrate deploy` or the backfill against the shared DB. Phase 13 does
+> not close until a human runs Part 1 (CREATE TABLE + backfill) per
+> `13-MIGRATION-HANDOFF.md`. Part 2 DROP on shared is optional/declinable after
+> Part 1 spot-check.
 
 ### Prior note (Phase 12 position before Phase 13 execution)
 
@@ -483,6 +502,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 14]: Pitch report panels only via ReportChrome extras; one report page needs no slug branch
 - [Phase 14]: Ask/settled/fair stay three distinct sources; overrun is noted fact with no score dimension
 - [Phase 14]: Phase SIGNED OFF 2026-10-04 — 15/15 plans; `14-VALIDATION.md` all PASS; no calibration changes; deferred-items.md remains parked (not new plans)
+- [Phase 13 / close]: **Phase 13 CLOSED 2026-10-04 by human decision**, standalone rather than waiting for Phase 17's plan 17-07. REQ-66 and REQ-67 ticked with a **recorded caveat, not a passing test** — the shared Lightsail DB was found EMPTY, so REQ-66's backfill acceptance test is unsatisfiable there by construction (the verifier hard-asserts a legacy `cameraMode IS NULL` row exists) and passed on LOCAL only (67 InterviewReport + 3 ScenarioReport → 70 InteractionReport, verifier exit 0, idempotent 70→70, commits `1eafa7b`/`981f835`, 13-14 human acceptance 9/9 PASS). REQ-67 closed on its **human-run clause alone** and explicitly NOT on "no agent applies it" — `vercel.json`'s `buildCommand` had been self-migrating every deploy for days. Chosen over the other two options in REQ-66's note (rewrite the requirements to match the real pipeline; keep them open until a populated DB exists) because the legacy tables are dropped, so no future pre-Phase-13 row can ever appear to re-open the test. **REQ-63 delegated, not granted** — it stays open under REQ-75 / plan 17-03. **REQ-74's governance contradiction is NOT closed by this** and remains Phase 17's. Full reasoning and the documents corrected: `13-CLOSE-RECORD.md`.
 
 ## Progress
 

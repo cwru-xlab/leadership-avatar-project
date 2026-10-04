@@ -57,6 +57,22 @@ Dev server: `http://localhost:3000` (local DB).
 
 ## Phase-closure status
 
-- Shared-DB CREATE TABLE + backfill from `13-MIGRATION-HANDOFF.md` (REQ-67): **DEFERRED by human** — still open; blocks phase close.
-- Plan 13-15 DROP TABLE handoff: **cleared to proceed** (validation passed; DROP remains a separate, declinable human step).
-- REQ-66 local acceptance: **MET** against local backfill. Shared-DB half of REQ-66 still pending the deferred migrate.
+**PHASE 13 CLOSED 2026-10-04.** See `13-CLOSE-RECORD.md` for the full reasoning;
+this section is updated to match it.
+
+- Shared-DB CREATE TABLE + backfill from `13-MIGRATION-HANDOFF.md` (REQ-67):
+  **DONE, and the backfill half was moot.** A human ran `prisma migrate deploy`
+  against shared — 14 of 14 applied — and the shared DB was found EMPTY (0 users,
+  0 reports of either kind), so there were no rows to backfill and the script was
+  never run there. No longer blocks phase close.
+- Plan 13-15 DROP TABLE handoff: **cleared and applied.** Both legacy tables were
+  empty when dropped, so no `pg_dump` preceded it and none was needed.
+- REQ-66 local acceptance: **MET** against local backfill (70 rows). The shared-DB
+  half is **unsatisfiable by construction**, not pending — the verifier hard-asserts
+  at least one legacy `cameraMode IS NULL` row exists, and shared has none. Local
+  is the only place this test could ever have run.
+- REQ-66 / REQ-67: **closed with a recorded caveat**, not on a passing test.
+- REQ-63: **still OPEN** — implemented but unverified, delegated to Phase 17's
+  REQ-75 / plan 17-03, which files `13-VISIBLE-CONTEXT-PROOF.md` here.
+- **Not closed by this phase:** `vercel.json`'s `buildCommand` self-migrates on
+  every deploy (REQ-74 / plan 17-01).

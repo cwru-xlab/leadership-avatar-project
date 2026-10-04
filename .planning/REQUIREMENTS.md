@@ -450,6 +450,13 @@ what was decided; they add no scope.
   controls what the avatar may see on a given turn, as distinct from everything the
   session knows. Modelled generally, not as slide bookkeeping.
 
+  **IMPLEMENTED BUT UNVERIFIED — deliberately still open after Phase 13 closed.**
+  The primitive exists (`lib/engine/types.ts` `visibleContext`, sliced in
+  `lib/engine/prompts.ts`); it was never proven against a real multi-channel
+  session. Phase 13 closed 2026-10-04 with this box **delegated, not granted** —
+  REQ-75 / plan 17-03 owns the proof (`13-VISIBLE-CONTEXT-PROOF.md`) and ticks this
+  box then. See `13-CLOSE-RECORD.md` §4.
+
 - **REQ-64** — [x] A type-declared OUTCOME record (JSON) persists structured session
   results, and an explicit TIME BUDGET is an engine concept carried in the existing
   per-turn tail block, never in the system prompt.
@@ -459,32 +466,45 @@ what was decided; they add no scope.
   scores are a JSON map keyed by dimension. The old tables are dropped, not kept
   beside it.
 
-- **REQ-66** — [ ] Every existing report is backfilled into `InteractionReport` and
+- **REQ-66** — [x] Every existing report is backfilled into `InteractionReport` and
   renders identically at its existing URL — scores, metrics, body-language section,
   Moments and snapshot strip intact. This is the acceptance test for the backfill.
 
-  **2026-10-04 finding — boxes deliberately left unchecked for a human.** The
-  shared Lightsail DB was EMPTY when all 14 migrations were applied to it (0
-  users, 0 attempts, 0 reports of either kind). There were no existing reports to
-  back fill or re-render, so REQ-66's acceptance test and REQ-74's verification
-  pass have nothing to execute against — they are satisfied vacuously, not
-  demonstrably, and `scripts/verify-interaction-report-backfill.ts` cannot pass on
-  an empty DB by construction. REQ-67's "no agent applies it" was separately
-  already untrue: `vercel.json`'s `buildCommand` runs `prisma migrate deploy` on
-  every deployment and had been applying these migrations — the `DROP` included —
-  unreviewed for days. Decide whether to check these off as vacuous, rewrite them
-  to match how migrations actually reach the databases, or keep them open until a
-  populated DB exists to test against. See `HANDOFF.md §3` and
-  `13-MIGRATION-HANDOFF.md`.
+  **CLOSED 2026-10-04 WITH A CAVEAT, not on a passing test.** Human decision;
+  evidence and full reasoning in `13-CLOSE-RECORD.md` §3.
 
-- **REQ-67** — [ ] The Phase 13 migration is applied to the LOCAL dev database only.
+  **MET on local, demonstrably:** 67 `InterviewReport` + 3 `ScenarioReport` → 70
+  `InteractionReport` on `leadership_avatar_dev`;
+  `scripts/verify-interaction-report-backfill.ts` exited 0 with count,
+  field-fidelity, null-preservation and idempotency sections passing (70 → 70 on a
+  second run); commits `1eafa7b`, `981f835`; plan 13-14's human acceptance test
+  nine-for-nine PASS. See `13-04-SUMMARY.md`, `13-14-SUMMARY.md`.
+
+  **VACUOUS on shared, and unsatisfiable there by construction:** the shared
+  Lightsail DB was EMPTY when all 14 migrations were applied (0 users, 0 attempts,
+  0 reports of either kind), so there were no reports to backfill or re-render —
+  the backfill would have copied zero rows and was never run against shared. The
+  verifier *cannot* pass there: it hard-asserts at least one legacy
+  `cameraMode IS NULL` row exists (lines 266, 271). Local is the only place this
+  test could ever have run, and it ran. The legacy tables are now dropped, so no
+  future pre-Phase-13 row can appear to re-open this.
+
+- **REQ-67** — [x] The Phase 13 migration is applied to the LOCAL dev database only.
   The SQL is handed over for human review and a human runs `prisma migrate deploy`
   against the shared Lightsail DB (`HANDOFF.md §3` precedent). No agent applies it.
   Phase 13 does not close until a human has run it.
 
-  **2026-10-04: the migration half is DONE** — a human ran `prisma migrate deploy`
-  against shared; `prisma migrate status` reports 14 of 14 applied. See the REQ-66
-  note above for why the box is still open.
+  **CLOSED 2026-10-04 on the human-run clause ONLY.** A human ran
+  `prisma migrate deploy` against shared; `prisma migrate status` reports 14 of 14
+  applied, `Database schema is up to date!`.
+
+  **DO NOT read this tick as "migrations are human-gated here."** The "no agent
+  applies it" clause had already been untrue for days: `vercel.json`'s
+  `buildCommand` runs `prisma migrate deploy` on every deployment and had been
+  applying these migrations — the first `DROP TABLE` included — automatically and
+  unreviewed. That contradiction is **NOT closed by this box**; it is REQ-74, whose
+  plan 17-01 removes the command and documents the replacement procedure. Until
+  17-01 ships, deploys still self-migrate. See `13-CLOSE-RECORD.md` §3.
 
 - **REQ-68** — [x] All engine-backed sessions live under one `/practice/[type]` tree —
   session at `/practice/[type]/[instanceId?]`, report at
@@ -572,13 +592,18 @@ REQ-73.
   no marketplace integrations, and the `la_db_*` secrets are orphaned leftovers
   pointing at a store that no longer exists. Nobody has verified it.
 
-  **REQ-66 and REQ-67 close under this requirement with a recorded caveat, not a
-  passing test.** The shared DB was found EMPTY (0 users, 0 reports of either kind),
-  so the `InteractionReport` backfill was a no-op and was never run against shared.
-  Its verifier *cannot* pass there — it hard-asserts at least one legacy
-  `cameraMode IS NULL` row exists, and there are none. REQ-66's acceptance test is
-  unsatisfiable on shared by construction; it passed on local (70 rows) and that is
-  the only place it ever could.
+  **SUPERSEDED 2026-10-04 — REQ-66 and REQ-67 no longer close under this
+  requirement.** They were closed directly against Phase 13 with the recorded
+  caveat this paragraph specified, in `13-CLOSE-RECORD.md` §3, so that a 15/15
+  phase did not stay open on bookkeeping. The caveat is unchanged: the shared DB
+  was found EMPTY (0 users, 0 reports of either kind), the backfill was a no-op and
+  was never run against shared, its verifier *cannot* pass there, and REQ-66's
+  acceptance test passed on local (70 rows) — the only place it ever could.
+
+  **What REQ-74 still owns** is everything above this paragraph: the `buildCommand`
+  removal, the replacement procedure, the stale-document reconciliation, and the
+  Production `DATABASE_URL` confirmation. REQ-67's tick does NOT mean that work is
+  done.
 
 - **REQ-75** — [ ] REQ-63's per-turn visible-context slice is verified against a real
   multi-channel session — the avatar's context provably contains only the declared

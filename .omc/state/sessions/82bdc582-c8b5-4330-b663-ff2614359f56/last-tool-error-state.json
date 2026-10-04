@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /Users/ajabreu79/projects/leadership-avatar-project; git add app/api/interaction/chat/route.ts scripts/verify-dc-prepublish.ts scripts/verify-dc-routes.ts scripts/verify-dc-surface-coun...",
+  "error": "Exit code 129\nerror: unknown option `cached'\nusage: git status [<options>] [--] [<pathspec>...]\n\n    -v, --verbose         be verbose\n    -s, --short           show status concisely\n    -b, --branch          show branch information\n    --show-stash          show stash information\n    --ahead-behind        compute full ahead/behind values\n    --porcelain[=<version>]\n                          machine-readable output\n    --long                show status in long format (default)\n    -z, --null     ...",
+  "timestamp": "2026-10-04T17:45:35.689Z",
+  "retry_count": 1
+}

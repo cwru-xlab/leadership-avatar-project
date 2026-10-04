@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd .planning/phases/17-v1-0-close-out && head -60 17-CONTEXT.md && echo \\\"=== 17-01 head ===\\\" && head -40 17-01-PLAN.md\",\"description\":\"Read phase 17 context and first plan\"}",
+  "error": "Exit code 1\n(eval):cd:1: no such file or directory: .planning/phases/17-v1-0-close-out",
+  "timestamp": "2026-10-04T18:19:02.614Z",
+  "retry_count": 1
+}
