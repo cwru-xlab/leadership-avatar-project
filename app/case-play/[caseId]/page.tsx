@@ -256,6 +256,14 @@ export default function CasePlayPage() {
     loadCase();
   }, [caseId]);
 
+  // Runtime dispatcher (13-11): student-authored scenarios run on the engine.
+  // Must be runtime — a static next.config redirect cannot tell ownerId cases
+  // from legacy admin cases. Legacy (isScenario === false) is untouched.
+  useEffect(() => {
+    if (!caseData || !isScenario) return;
+    router.replace(`/practice/case-study/${caseId}`);
+  }, [caseData, isScenario, caseId, router]);
+
   // Fetch avatar portrait images from their linked profiles
   useEffect(() => {
     if (!caseData?.avatars) return;
@@ -1584,6 +1592,16 @@ export default function CasePlayPage() {
         <Button onPress={() => router.push("/case-play")} startContent={<ArrowLeft className="w-4 h-4" />}>
           Back to Cases
         </Button>
+      </div>
+    );
+  }
+
+  // Student-authored scenario: redirect in flight — show the same loading
+  // spinner the page already uses while caseData is fetching.
+  if (isScenario) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Spinner size="lg" label="Loading case..." />
       </div>
     );
   }
