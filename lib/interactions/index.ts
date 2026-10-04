@@ -68,8 +68,8 @@ export const INTERACTION_TYPES: InteractionType[] = [
       "Rehearse introducing yourself and building rapport with a stranger in a professional setting.",
     icon: "Users",
     estimatedMinutes: 15,
-    route: null,
-    availability: "coming-soon",
+    route: "/practice/networking",
+    availability: "live",
   },
 ];
 
