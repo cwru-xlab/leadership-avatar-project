@@ -155,7 +155,7 @@ Get the real values from the existing `.env.local` — they are not in git.
 
 ## 3. Migrations — the actual handoff item
 
-Seven migrations exist in `prisma/migrations/`:
+Migrations in `prisma/migrations/` (shared-DB status as of last human decision):
 
 | Migration | Phase | Applied to shared DB? |
 |---|---|---|
@@ -166,11 +166,20 @@ Seven migrations exist in `prisma/migrations/`:
 | `20260921141342_add_interview_customization` | 8 | yes (applied 2026-09-23) |
 | `20260921201213_add_scenario_report` | 9 | yes (applied 2026-09-23) |
 | `20260922134512_add_video_audio_metrics` | 10 | yes (applied 2026-09-23) |
+| `20260930230000_add_report_structured` | 11 | check with human |
+| `20261004012908_add_interaction_report` | 13 | PENDING (REQ-67 Part 1 deferred) |
+| `20261004040000_drop_legacy_report_tables` | 13 | PENDING / declinable after Part 1 |
+| `20261101000000_add_networking_attestation` | 16 | **PENDING** — local only; hold shared (16-02, 2026-10-04) |
 
-**RESOLVED 2026-09-23 — nothing is queued any more.** `prisma migrate status`
-against the shared Lightsail DB reports all seven applied. These four were
-originally held back (applied to the local dev DB only) so the team could review
-the SQL before it touched shared data; that review happened and they were
+**Queued for human (Phase 16):** `20261101000000_add_networking_attestation` —
+purely additive `CREATE TABLE "NetworkingAttestation"` + two indexes + FK.
+Applied to local `leadership_avatar_dev` only. Shared Lightsail run is
+**hold / PENDING** until a human decides (same discipline as REQ-67). Do not
+run `prisma migrate deploy` against shared from an agent.
+
+**RESOLVED 2026-09-23 for the original seven.** Those four Phase 6–10 migrations
+were originally held back (applied to the local dev DB only) so the team could
+review the SQL before it touched shared data; that review happened and they were
 applied. The history below is kept because it explains what each one does. Every
 one is additive — zero `NOT NULL` on any pre-existing table, so existing rows are
 unaffected and the app handles the nulls everywhere it reads them:
