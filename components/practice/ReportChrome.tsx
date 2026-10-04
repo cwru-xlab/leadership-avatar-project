@@ -10,9 +10,25 @@
  *
  * Anyone tempted to "tidy" these numbers into one shared constant should
  * read that requirement first and leave this file alone.
+ *
+ * Extras exist so a new type contributes report panels without the one
+ * report page learning its name. If you are about to write `typeSlug ===`
+ * in the report page, add an extras entry here instead.
  */
 
+import type { ReactNode } from "react";
+import type { ReportDTO } from "@/lib/report/dto";
+
+import ConversationEndBanner from "@/components/practice/report/ConversationEndBanner";
+import ConversationOutcomePanel from "@/components/practice/report/ConversationOutcomePanel";
+import InRoleReactionPanel from "@/components/practice/report/InRoleReactionPanel";
+
 export type StalledAffordance = "retry" | "check-again";
+
+/** Slot position relative to the shared score cards. */
+export type ReportExtrasSlot = "above" | "below";
+
+export type ReportExtrasRenderer = (report: ReportDTO) => ReactNode;
 
 export interface ReportChrome {
   pollIntervalMs: number;
@@ -21,6 +37,11 @@ export interface ReportChrome {
   distinguishes401: boolean;
   guardsRepollAfter404: boolean;
   showsCustomizationStrip: boolean;
+  /**
+   * Per-type report panels. Types that declare none leave both slots
+   * undefined — interview presets and case-study stay visually unchanged.
+   */
+  extras?: Partial<Record<ReportExtrasSlot, ReportExtrasRenderer>>;
 }
 
 /** Interview presets — sourced from `app/interview/[type]/report/[reportId]/page.tsx`. */
@@ -43,6 +64,29 @@ const CASE_STUDY_CHROME: ReportChrome = {
   showsCustomizationStrip: false,
 };
 
+/**
+ * Difficult conversation — same poll discipline as interview; panels arrive
+ * through extras only (Against 13-12 / 14-14 shape). Banner above scores;
+ * factual outcome + in-role reaction below.
+ */
+const DIFFICULT_CONVERSATION_CHROME: ReportChrome = {
+  pollIntervalMs: 2000,
+  giveUpAfterMs: 120_000,
+  stalledAffordance: "retry",
+  distinguishes401: true,
+  guardsRepollAfter404: false,
+  showsCustomizationStrip: false,
+  extras: {
+    above: (report) => <ConversationEndBanner report={report} />,
+    below: (report) => (
+      <>
+        <ConversationOutcomePanel report={report} />
+        <InRoleReactionPanel report={report} />
+      </>
+    ),
+  },
+};
+
 const INTERVIEW_PRESET_SLUGS = new Set([
   "general",
   "technical",
@@ -51,14 +95,37 @@ const INTERVIEW_PRESET_SLUGS = new Set([
 ]);
 
 /**
+ * Render a chrome extras slot for the one report page. Generic — never
+ * branches on a type slug. Returns null when the type declared no panel
+ * for that slot or the report is not yet ready to show extras.
+ */
+export function renderReportExtras(
+  chrome: ReportChrome | null | undefined,
+  slot: ReportExtrasSlot,
+  report: ReportDTO | null | undefined,
+): ReactNode {
+  if (!chrome?.extras || !report || report.status !== "READY") return null;
+  const render = chrome.extras[slot];
+
+  if (!render) return null;
+
+  return render(report);
+}
+
+/**
  * Resolve report chrome for a practice type slug. Returns null for an
  * unknown slug so the report page can render not-found rather than
  * inventing a default cadence.
  */
-export function getReportChrome(typeSlug: string | undefined | null): ReportChrome | null {
+export function getReportChrome(
+  typeSlug: string | undefined | null,
+): ReportChrome | null {
   if (!typeSlug) return null;
   const slug = typeSlug.trim().toLowerCase();
+
   if (slug === "case-study") return CASE_STUDY_CHROME;
+  if (slug === "difficult-conversation") return DIFFICULT_CONVERSATION_CHROME;
   if (INTERVIEW_PRESET_SLUGS.has(slug)) return INTERVIEW_CHROME;
+
   return null;
 }
