@@ -50,9 +50,13 @@ export interface SetupWizardProps {
   renderStep: (stepId: string, nav: SetupStepNav) => ReactNode;
   /**
    * Builds the start-route body from the locked camera mode. Called only
-   * when `createReportOnLaunch` is true (the default).
+   * when `createReportOnLaunch` is true (the default). May return a Promise
+   * when launch needs a last-moment fetch (e.g. pitch-deck slideTexts from
+   * the owner-only manifest — 14-12).
    */
-  buildStartPayload?: (cameraMode: CameraMode) => PracticeStartPayload;
+  buildStartPayload?: (
+    cameraMode: CameraMode,
+  ) => PracticeStartPayload | Promise<PracticeStartPayload>;
   /**
    * Called with `{reportId, cameraMode}` after launch. When
    * `createReportOnLaunch` is false, `reportId` is empty and the page/shell
@@ -75,6 +79,11 @@ export interface SetupWizardProps {
   initialStepId?: string;
   /** Camera-gate primary CTA — forwarded to CameraConsentStep. */
   launchLabel?: string;
+  /**
+   * Called when the student presses Back on the first declared step.
+   * Without this, goBack is a no-op at step 0 (index clamps to 0).
+   */
+  onBackFromStart?: () => void;
 }
 
 export interface SetupStepNav {
@@ -102,6 +111,7 @@ export default function SetupWizard({
   progressAriaLabel = "Interview setup progress",
   initialStepId,
   launchLabel,
+  onBackFromStart,
 }: SetupWizardProps) {
   const allSteps = useMemo(
     () => [
@@ -130,8 +140,14 @@ export default function SetupWizard({
   }, [allSteps.length]);
 
   const goBack = useCallback(() => {
-    setStepIndex((i) => Math.max(i - 1, 0));
-  }, []);
+    setStepIndex((i) => {
+      if (i <= 0) {
+        onBackFromStart?.();
+        return 0;
+      }
+      return i - 1;
+    });
+  }, [onBackFromStart]);
 
   const handleCameraLaunch = useCallback(
     async (cameraMode: CameraMode) => {
@@ -151,8 +167,11 @@ export default function SetupWizard({
 
       setLaunching(true);
       try {
+        const pagePayload = await Promise.resolve(
+          buildStartPayload(cameraMode),
+        );
         const body = {
-          ...buildStartPayload(cameraMode),
+          ...pagePayload,
           typeSlug,
           cameraMode,
         };

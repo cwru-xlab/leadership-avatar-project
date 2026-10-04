@@ -37,15 +37,21 @@ import {
 import { initialProgress, type InterviewProgress } from "@/lib/interview/types";
 import { parseMetricsPayload, toMetricsJsonInput } from "@/lib/metrics/ingest";
 import type { CameraMode } from "@/lib/metrics/types";
-import type {
-  DifficultConversationInputSnapshot,
-  InterviewInputSnapshot,
-  PitchInputSnapshot,
-  ScenarioInputSnapshot,
+import {
+  asInputSnapshot,
+  type DifficultConversationInputSnapshot,
+  type InterviewInputSnapshot,
+  type PitchInputSnapshot,
+  type ScenarioInputSnapshot,
 } from "@/lib/report/snapshot";
+import {
+  buildDefaultReportTitle,
+  normalizeReportTitle,
+} from "@/lib/report/title";
 import { resolveDifficultConversationInstance } from "@/lib/difficult-conversation/resolve-instance";
 import { findSeededConversation } from "@/lib/difficult-conversation/seeded";
 import { ratchetHighWaterMark } from "@/lib/pitch/slide-reveal";
+import { resolveDeckFairValueBand } from "@/lib/pitch/fair-value-band";
 import {
   DIFFICULTY_BANDS,
   type DifficultyBand,
@@ -461,8 +467,22 @@ export async function startSession({
   //      case-study's S3 InteractionLog path. Needed so pitch types with
   //      instance.required + authoredInWizard do not fall into case-study. ----
   if (type.instance.authoredInWizard) {
+    // pitch-deck: fairValueBand is server-only. Always overwrite (or inject)
+    // so a client-supplied band cannot let a student negotiate against a
+    // band they chose (14-12). Ask-independent constant — see
+    // lib/pitch/fair-value-band.ts.
+    let wizardInstance = rawInstance ?? undefined;
+    if (wizardInstance?.kind === "pitch-deck") {
+      wizardInstance = {
+        ...wizardInstance,
+        fairValueBand: resolveDeckFairValueBand({
+          slideCount: wizardInstance.slideCount,
+        }),
+      };
+    }
+
     const resolved = resolveSessionConfig(typeSlug, {
-      instance: rawInstance ?? undefined,
+      instance: wizardInstance,
     });
     if (!resolved.ok) {
       return { ok: false, status: 400, error: resolved.reason };
@@ -854,6 +874,7 @@ export async function finishSession({
   terminationSource,
   terminationAtSeconds: rawTerminationAtSeconds,
   outcome: rawOutcome,
+  title: rawTitle,
 }: {
   userId: string;
   userEmail: string;
@@ -867,6 +888,8 @@ export async function finishSession({
   /** Elapsed seconds when an avatar-initiated end was accepted. */
   terminationAtSeconds?: unknown;
   outcome?: unknown;
+  /** Optional student-chosen My Reports title. */
+  title?: unknown;
 }): Promise<FinishSessionResult> {
   if (typeof reportId !== "string" || !reportId) {
     return { ok: false, status: 404, error: "Report not found" };
@@ -933,6 +956,15 @@ export async function finishSession({
     recordedOutcome = validated.ok ? validated.outcome : null;
   }
 
+  const snapshot = asInputSnapshot(report.inputSnapshot);
+  const resolvedTitle =
+    normalizeReportTitle(rawTitle) ??
+    buildDefaultReportTitle({
+      typeSlug: report.typeSlug,
+      input: snapshot,
+      when: new Date(),
+    });
+
   // ---- REQ-72: metrics parsing is UNCONDITIONAL — no type can skip it ----
   const { visual: visualMetrics, vocal: vocalMetrics } =
     parseMetricsPayload(metricsPayload);
@@ -998,6 +1030,7 @@ export async function finishSession({
         transcriptKey,
         turnCount: turns.length,
         failureReason: null,
+        title: resolvedTitle,
         visualMetrics: toMetricsJsonInput(visualMetrics),
         vocalMetrics: toMetricsJsonInput(vocalMetrics),
         terminationReason: recordedTerminationReason,
@@ -1072,6 +1105,7 @@ export async function finishSession({
   await prisma.interactionReport.update({
     where: { id: report.id },
     data: {
+      title: resolvedTitle,
       visualMetrics: toMetricsJsonInput(visualMetrics),
       vocalMetrics: toMetricsJsonInput(vocalMetrics),
       terminationReason: recordedTerminationReason,
