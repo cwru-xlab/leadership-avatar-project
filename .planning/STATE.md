@@ -1,20 +1,44 @@
 # Project State
 
 **Project:** Leadership Avatar — Interview Practice
-**Milestone:** v1.0
-**Updated:** 2026-10-04 (13-15 DELIVERED — local DROP + Part 2 handoff ACK `drop handoff received`. Shared Part 1 still deferred under REQ-67 — BLOCKS PHASE CLOSE. See `13-15-SUMMARY.md`.)
+**Milestone:** v1.1 — Consequence & Deck Breadth
+**Updated:** 2026-10-04 (Milestone v1.1 started. v1.0 shipped Phases 1–16; see `MILESTONES.md`. Sourced from Phase 14 `deferred-items.md`.)
 
 ## Current Position
 
-**Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
-**Current Plan:** 16-11 complete (Phase 16 plans 11/11 done; keyboard sign-off UNVERIFIED under skip_checkpoints)
-**Phase 15:** Plans 11/11 complete — surface-count + VALIDATION delivered; keyboard UAT UNVERIFIED (`15-VALIDATION.md`, `/gsd/verify-work 15`)
-**Phase 15 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `15-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 15` for keyboard B–G + hostile probe 5.
-**Phase 16:** Plans 11/11 complete — tile live; human UAT UNVERIFIED (`16-VALIDATION.md`)
-**Phase 16 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `16-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 16` for keyboard B–G.
-**Stopped At:** Completed 14-14-PLAN.md
+**Phase:** Not started (defining requirements)
+**Plan:** —
+**Status:** Defining requirements
+**Last activity:** 2026-10-04 — Milestone v1.1 started
+
+### Carried into v1.1 from v1.0
+
+- **REQ-67 — Phase 13 close BLOCKED.** Shared Lightsail `CREATE TABLE` + backfill
+  is human-run only; human ACK'd and deferred it. **No agent may apply it.**
+  REQ-66 stays unchecked until shared rows exist. See `13-MIGRATION-HANDOFF.md`.
+- **REQ-63** is implemented in the engine (`lib/engine/types.ts` `visibleContext`,
+  sliced in `lib/engine/prompts.ts`) but was never verified and checked off.
+- **Phases 15 and 16 keyboard UAT undischarged** — both completed under
+  `skip_checkpoints`; 4/4 SC PASS-automated each. `/gsd:verify-work 15`, `16`.
+- **`scripts/verify-deck-intake.ts` fails one assertion** — fixture/assertion
+  mismatch between `generate-deck-fixtures.ts` and `spike-deck-render.ts`.
+
+---
+
+## Accumulated Context (v1.0)
+
+Preserved from the previous milestone. Phase 14 was SIGNED OFF 15/15
+(`14-VALIDATION.md` all PASS, `14-15-SUMMARY.md`); Phases 15 and 16 reached 11/11.
+
 
 ### Phase 14 progress note (2026-10-04)
+
+**14-15 SIGNED OFF** — human: "overall, i think we're good with 14-15".
+`14-VALIDATION.md` all Success Criteria + locked decisions **PASS**; no calibration
+changes; deferred items unchanged. Mid-UAT fixes: pitches picker, finish Prisma
+`title` client refresh, chat slide-text hydrate from private storage. Fresh deck
+evidence `0c7f54d8-d79d-4665-bd56-2f6455441849`. See `14-15-SUMMARY.md`.
+
 
 14-14 delivered: pitch report surfaces — DTO fields for outcome/termination/
 slide reveals/budget/elapsed; `PitchOutcomeBanner` (early-end, not error styling);
@@ -458,6 +482,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 14]: 14-13: shell extraChatBody + mediaLayout deck-primary (slides stage, avatar PiP); start returns clamped timeBudgetSeconds
 - [Phase 14]: Pitch report panels only via ReportChrome extras; one report page needs no slug branch
 - [Phase 14]: Ask/settled/fair stay three distinct sources; overrun is noted fact with no score dimension
+- [Phase 14]: Phase SIGNED OFF 2026-10-04 — 15/15 plans; `14-VALIDATION.md` all PASS; no calibration changes; deferred-items.md remains parked (not new plans)
 
 ## Progress
 
@@ -1918,8 +1943,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T15:56:38.851Z
-**Stopped At:** Completed 14-14-PLAN.md
+**Last Date:** 2026-10-04T16:30:00.000Z
+**Stopped At:** Completed 14-15-PLAN.md — Phase 14 SIGNED OFF
 **Resume File:** None
 
 
