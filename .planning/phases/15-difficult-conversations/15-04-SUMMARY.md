@@ -67,7 +67,7 @@ completed: 2026-10-04
 2. **Task 2: The seven seeded conversations** - `8043ae9` (feat)
 3. **Task 3: Prove the catalog is valid, unownable, and resolvable today** - `bdc5639` (feat)
 
-**Plan metadata:** (docs commit follows)
+**Plan metadata:** `b29fab0` (docs: complete plan)
 
 ## Seeded catalog (stable ids for 15-11)
 
