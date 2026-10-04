@@ -31,9 +31,17 @@ import {
 } from "../lib/engine/resolve";
 import {
   buildRubricJsonSchema,
+  parseOutcomeFields,
   parseRubricScores,
 } from "../lib/engine/rubric";
+import {
+  buildImageAttachmentNote,
+  MAX_EVALUATOR_IMAGES,
+  sampleEvaluatorImages,
+} from "../lib/engine/evaluation";
+import { applyEarlyEndCap } from "../lib/pitch/score-caps";
 import type { InteractionTypeConfig } from "../lib/engine/types";
+import type { ScoreMap } from "../lib/report/snapshot";
 
 /**
  * Pre-Phase-13 `EVALUATION_JSON_SCHEMA` from `lib/interview/evaluation.ts`,
@@ -741,6 +749,263 @@ console.log("\n6. Type-derived rubric schema (13-05)");
         [null, null, 2, 4],
       );
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 7. Outcome composition, image sampling, early-end score cap (plan 14-04)
+// ---------------------------------------------------------------------------
+
+console.log("\n7. Outcome / images / early-end cap (14-04)");
+{
+  // 7.1 — Phase 13 types remain deeply equal to the frozen snapshots.
+  for (const slug of ["general", "technical", "consulting", "early-career"]) {
+    const resolved = resolveSessionConfig(slug, {});
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve ${slug}: ${resolved.reason}`);
+      continue;
+    }
+    check(
+      `"${slug}" schema still deeply equals EVALUATION_JSON_SCHEMA after outcome composition`,
+      deepEqual(buildRubricJsonSchema(resolved.config), EVALUATION_JSON_SCHEMA),
+      true,
+    );
+  }
+  {
+    const resolved = resolveSessionConfig("case-study", {
+      instance: {
+        kind: "case-study",
+        caseId: "verify-case",
+        caseName: "Verify",
+        background: "bg",
+        avatars: [{ name: "A", role: "R" }],
+        criteria: null,
+      },
+    });
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve case-study: ${resolved.reason}`);
+    } else {
+      check(
+        "case-study schema still deeply equals SCENARIO_EVALUATION_JSON_SCHEMA after outcome composition",
+        deepEqual(
+          buildRubricJsonSchema(resolved.config),
+          SCENARIO_EVALUATION_JSON_SCHEMA,
+        ),
+        true,
+      );
+    }
+  }
+
+  // 7.2 — synthetic type with outcome fields produces the composed schema.
+  const withOutcome: InteractionTypeConfig = {
+    ...ENGINE_TYPES[0],
+    slug: "synthetic-outcome-fields",
+    outcome: {
+      fields: [
+        { key: "settledPriceUsd", label: "Settled price", kind: "number" },
+        { key: "settledEquityPct", label: "Settled equity", kind: "number" },
+        {
+          key: "dealReached",
+          label: "Deal reached",
+          kind: "boolean",
+          required: true,
+        },
+      ],
+    },
+  };
+  const outcomeResolved = resolveFromTypeConfig(withOutcome, {});
+  if (!outcomeResolved.ok) {
+    failures += 1;
+    console.log(`  FAIL resolve synthetic outcome: ${outcomeResolved.reason}`);
+  } else {
+    const schema = buildRubricJsonSchema(outcomeResolved.config);
+    const outcomeSchema = schema.schema.properties.outcome as {
+      additionalProperties?: boolean;
+      properties?: Record<string, { type: unknown }>;
+    };
+    check(
+      "synthetic outcome appears in required[]",
+      schema.schema.required.includes("outcome"),
+      true,
+    );
+    check(
+      "synthetic outcome.additionalProperties === false",
+      outcomeSchema.additionalProperties,
+      false,
+    );
+    check(
+      "settledPriceUsd typed [number,null]",
+      outcomeSchema.properties?.settledPriceUsd?.type,
+      ["number", "null"],
+    );
+  }
+
+  // 7.3 — outcome field key colliding with a rubric dimension property is rejected.
+  const collidingOutcome: InteractionTypeConfig = {
+    ...ENGINE_TYPES[0],
+    slug: "synthetic-outcome-collide",
+    outcome: {
+      fields: [
+        { key: "visual_score", label: "Collides", kind: "number" },
+      ],
+    },
+  };
+  const collideOutcomeResolved = resolveFromTypeConfig(collidingOutcome, {});
+  if (!collideOutcomeResolved.ok) {
+    failures += 1;
+    console.log(
+      `  FAIL resolve colliding outcome config: ${collideOutcomeResolved.reason}`,
+    );
+  } else {
+    throws(
+      "outcome field colliding with rubric score property is rejected at config level",
+      () => buildRubricJsonSchema(collideOutcomeResolved.config),
+    );
+  }
+
+  // 7.4 — parseOutcomeFields: empty declaration ignores a smuggled outcome key.
+  {
+    const general = resolveSessionConfig("general", {});
+    if (!general.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve general for parseOutcomeFields: ${general.reason}`);
+    } else {
+      check(
+        "parseOutcomeFields returns null for no-fields type even when outcome key present",
+        parseOutcomeFields(
+          { outcome: { settledPriceUsd: 100 }, visual_score: 3 },
+          general.config,
+        ),
+        null,
+      );
+    }
+    if (outcomeResolved.ok) {
+      check(
+        "parseOutcomeFields returns raw object for a type that declares fields",
+        parseOutcomeFields(
+          {
+            outcome: { settledPriceUsd: 100, settledEquityPct: null, dealReached: true },
+          },
+          outcomeResolved.config,
+        ),
+        { settledPriceUsd: 100, settledEquityPct: null, dealReached: true },
+      );
+    }
+  }
+
+  // 7.5 — Cap: only one dimension moves; no zeroing of shared dimensions.
+  {
+    const scores: ScoreMap = {
+      visual: 5,
+      vocal: 5,
+      content: 5,
+      behavioral: 5,
+      discovery_tailoring: 5,
+      structure: 5,
+    };
+    const capped = applyEarlyEndCap(scores, {
+      terminationReason: "lost_interest",
+    });
+    check("early-end cap lowers discovery_tailoring to 2", capped.discovery_tailoring, 2);
+    check(
+      "early-end cap leaves every other key exactly 5",
+      [
+        capped.visual,
+        capped.vocal,
+        capped.content,
+        capped.behavioral,
+        capped.structure,
+      ],
+      [5, 5, 5, 5, 5],
+    );
+    check(
+      "no-zeroing: visual/vocal/content/behavioral still present and non-null",
+      [
+        capped.visual !== null && capped.visual !== undefined,
+        capped.vocal !== null && capped.vocal !== undefined,
+        capped.content !== null && capped.content !== undefined,
+        capped.behavioral !== null && capped.behavioral !== undefined,
+      ],
+      [true, true, true, true],
+    );
+  }
+
+  // 7.6 — Cap is a ceiling, not a setter.
+  {
+    check(
+      "cap leaves discovery_tailoring at 1 when already below ceiling",
+      applyEarlyEndCap(
+        { discovery_tailoring: 1, visual: 4 },
+        { terminationReason: "walked_out" },
+      ).discovery_tailoring,
+      1,
+    );
+    check(
+      "cap leaves discovery_tailoring null (never invents a score)",
+      applyEarlyEndCap(
+        { discovery_tailoring: null, visual: 4 },
+        { terminationReason: "walked_out" },
+      ).discovery_tailoring,
+      null,
+    );
+  }
+
+  // 7.7 — Cap is inert on a normal finish.
+  {
+    const input: ScoreMap = {
+      visual: 4,
+      vocal: 3,
+      content: 5,
+      behavioral: 2,
+      discovery_tailoring: 5,
+    };
+    check(
+      "terminationReason null returns deeply equal scores",
+      deepEqual(applyEarlyEndCap(input, { terminationReason: null }), input),
+      true,
+    );
+  }
+
+  // 7.8 — Image capping and labelling.
+  {
+    const fake = Array.from({ length: 34 }, (_, i) => ({
+      dataUrl: `data:image/png;base64,${i}`,
+      label: `slide ${i + 1}`,
+    }));
+    const { sampled, sampledFromTotal } = sampleEvaluatorImages(fake);
+    check(
+      "sampleEvaluatorImages returns exactly MAX_EVALUATOR_IMAGES",
+      sampled.length,
+      MAX_EVALUATOR_IMAGES,
+    );
+    check(
+      "sampleEvaluatorImages includes the first of the original 34",
+      sampled[0]?.label,
+      "slide 1",
+    );
+    check(
+      "sampleEvaluatorImages includes the last of the original 34",
+      sampled[sampled.length - 1]?.label,
+      "slide 34",
+    );
+    check(
+      "sampleEvaluatorImages records the original total",
+      sampledFromTotal,
+      34,
+    );
+    const note = buildImageAttachmentNote(sampled, sampledFromTotal);
+    check(
+      "image attachment note names sampled slide labels",
+      sampled.every((img) => note.includes(img.label)),
+      true,
+    );
+    check(
+      "image attachment note mentions evenly sampled count",
+      note.includes("12 of 34 slides, evenly sampled"),
+      true,
+    );
   }
 }
 
