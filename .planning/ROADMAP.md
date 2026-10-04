@@ -36,7 +36,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 9: Student-Authored Scenarios** - Students create their own practice scenarios (completed 2026-09-21)
 - [x] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
 - [x] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality) (completed 2026-09-23)
-- [ ] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (10/11 plans; fidgeting retired as unmeasurable; criterion 3 holds since 12-10. 12-11 settled posture drift — the row now responds correctly in BOTH directions and REQ-51 is MET. NOT complete: criterion 1 is only PARTIALLY met because PHONE_SCORE_THRESHOLD has never been validated against a phone-held session, and 12-08/12-09 remain [~] partially delivered — their work landed but their own sign-offs failed, and successors closed the gaps. 12-03's stale checkbox was corrected 2026-10-03)
+- [ ] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (10/11 plans; fidgeting retired as unmeasurable; criterion 3 holds since 12-10. 12-11 settled posture drift — the row now responds correctly in BOTH directions and REQ-51 is MET. All three success criteria MET (criterion 1 carries a recorded phone duration under-count the user accepted). 12-08/12-09 remain [~] partially delivered — their work landed but their own sign-offs failed, and successors closed the gaps. 12-03's stale checkbox was corrected 2026-10-03)
 - [ ] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record
 - [ ] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
 - [ ] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios
@@ -347,12 +347,35 @@ Plans:
    bounded from above only. Re-tuning against real student sessions is carried in
    `deferred-items.md`.
 
-**Criterion assessment at 12-11's close.** Criterion 2 MET (12-08: `meanTickMs`
-35.6 against a 166.7ms interval). Criterion 3 MET (12-10 item 1, reconfirmed
-here). **Criterion 1 PARTIALLY MET** — arm movement and posture are both measured
-and timecoded and now demonstrably work; the phone is measured and timecoded but
-its threshold has never been checked against a true positive, which is the exact
-claim 12-11's Task 4 had to be run to establish for posture. Not rubber-stamped.
+**Criterion assessment at 12-11's close, amended 2026-10-03.** Criterion 2 MET
+(12-08: `meanTickMs` 35.6 against a 166.7ms interval; reconfirmed at 12-10 and
+12-11 at 25.2 and 31.9). Criterion 3 MET (12-10 item 1, reconfirmed at 12-11).
+
+**Criterion 1 — MET, with one limitation recorded.** Arm movement and posture are
+measured, timecoded, and now demonstrably work in both directions. The phone's
+true positive was finally run on 2026-10-03 and it fires: "A phone was visible
+for about 8 seconds" with a `0:11-0:21 [Observation] Phone visible` Moments row.
+
+The reported duration UNDER-COUNTS a longer real hold. The user reviewed this and
+accepted it — *"as long as it's generally accurate, it's really not the most
+important of things"* — a deliberate scope decision, not an unexamined pass.
+
+This was assessed as PARTIALLY MET before that session, on the reasoning that the
+phase had twice shipped a signal literally "measured and timecoded" while unable
+to report the behaviour it named. That concern does not survive contact with the
+result, for a reason specific to this signal: the phone is a `12-07` DESCRIPTIVE
+observation — rendered under "These do not affect any score", tagged
+`Observation` rather than `Body language`, and structurally barred from feeding
+any scored field. An imprecise duration there is a precision defect. Posture
+drift's false negatives were categorically worse: a SCORED row praising a student
+for behaviour they did not exhibit.
+
+`PHONE_SCORE_THRESHOLD` stays at 0.5 — false-positive side well bounded (spurious
+ceiling 0.163 across two no-phone sessions), true-positive side now demonstrated.
+The under-count's cause was NOT isolated: it may be the threshold, or the object
+model's ~0.5 Hz sampling (53 ticks in 108s), and the raw confidence series for a
+phone-held session was never captured. See `12-TUNING.md` — a future attempt must
+re-add the dump rather than assume the threshold is at fault.
 
 ### Phase 13: One-on-One Conversation Engine
 **Goal:** Generalize the interview pipeline into a parameterized one-on-one
