@@ -14,6 +14,10 @@ import { loadOwnedDifficultConversation } from "@/lib/difficult-conversation/sto
  * Owner-only edit. Loads through loadOwnedDifficultConversation so a
  * non-owner, unknown id, or seeded (ownerless) id all render the same
  * not-found — never a 403, never "you don't own this".
+ *
+ * Seeded catalog ids have ownerId: null, so the loader returns null and this
+ * page collapses to not-found. Featured conversations are edited only by
+ * code review, not through this UI.
  */
 export default async function EditConversationPage({
   params,
@@ -52,6 +56,14 @@ export default async function EditConversationPage({
           Edits to a published scenario go live after the safety check. A
           failing check keeps your new text saved and privately playable, but
           unpublishes it until you fix the problem.
+        </p>
+        <p className="max-w-2xl text-sm text-default-500">
+          Unpublish is instant and never gated. Publishing again re-runs the
+          same automated check — there is no separate draft-versus-live copy.
+        </p>
+        <p className="max-w-2xl text-sm text-default-500">
+          Opening this URL for a classmate&apos;s scenario or a featured id
+          shows the standard not-found page, not a permission error.
         </p>
       </div>
 
