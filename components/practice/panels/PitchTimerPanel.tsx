@@ -73,7 +73,7 @@ export default function PitchTimerPanel({
     wording = `Pitch: ${formatClock(displayElapsed)}`;
     band = displayElapsed > windowSeconds ? "past" : "target";
   } else if (turnStartedAt == null) {
-    wording = `${windowSeconds}s window — starts when you begin`;
+    wording = `${windowSeconds}s window — starts when you begin your pitch`;
     band = "under";
   } else if (displayElapsed < bandStart) {
     wording = `${formatClock(displayElapsed)} — you have room`;
@@ -125,15 +125,17 @@ export default function PitchTimerPanel({
 
   return (
     <div
-      className={`pointer-events-auto flex min-w-[14rem] items-center gap-2 rounded-xl border px-3 py-2 shadow-lg backdrop-blur-md ${tone}`}
+      className={`pointer-events-auto flex w-full min-w-[16rem] max-w-[22rem] items-start gap-2 rounded-xl border px-3 py-2 shadow-lg backdrop-blur-md ${tone}`}
     >
-      <Clock3 size={16} className="shrink-0 opacity-90" aria-hidden />
+      <Clock3 size={16} className="mt-0.5 shrink-0 opacity-90" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-80">
           Pitch window
         </p>
-        {/* aria-live=off: do not interrupt a screen reader every second. */}
-        <p className="truncate text-sm font-medium" aria-live="off">
+        {/* aria-live=off: do not interrupt a screen reader every second.
+            No truncate — idle copy ("60s window — starts when you begin")
+            must stay fully readable in the top-right overlay. */}
+        <p className="text-sm font-medium leading-snug whitespace-normal" aria-live="off">
           {wording}
         </p>
       </div>

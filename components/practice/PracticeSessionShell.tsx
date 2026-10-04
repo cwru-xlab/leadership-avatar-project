@@ -132,8 +132,10 @@ interface PracticeSessionShellProps {
   extraChatBody?: Record<string, unknown>;
   /**
    * Read-only opening-turn timing for soft first-turn windows (pitch-elevator).
-   * Fires when the student begins their first turn and again when that turn is
-   * delivered (phase → followups). Does not accept commands back.
+   * Fires when the student begins a pitching-phase turn and again when a
+   * pitch-scale turn is delivered (phase → followups). Short discovery turns
+   * stay in pitching and clear turnStartedAt so the 60s window can restart on
+   * the actual pitch. Does not accept commands back.
    */
   onOpeningTurnTimingChange?: (state: {
     turnStartedAt: number | null;
@@ -273,23 +275,54 @@ function PracticeInterviewRoom({
     extraChatBodyRef.current = extraChatBody;
   }, [extraChatBody]);
 
+  // Pitch window targets the spoken pitch, not discovery Q&A (14-10 Session A).
+  // Under this floor a turn is treated as setup and the timer can restart.
+  const PITCH_WINDOW_MIN_SECONDS = 30;
+  // Typed turns have ~0 wall-clock between start+deliver; ~50 words ≈ 20s speech.
+  const PITCH_WINDOW_MIN_WORDS = 50;
+
   const markOpeningTurnStarted = useCallback(() => {
+    if (openingTurnPhase === "followups") return;
+    // Allow restart after a short discovery turn cleared the start time.
     if (openingTurnStartedAtRef.current != null) return;
-    if (messagesRef.current.some((m) => m.role === "user")) return;
     openingTurnStartedAtRef.current = Date.now();
     onOpeningTurnTimingChange?.({
       turnStartedAt: openingTurnStartedAtRef.current,
       phase: "pitching",
     });
-  }, [onOpeningTurnTimingChange]);
-  const markOpeningTurnDelivered = useCallback(() => {
-    if (openingTurnPhase === "followups") return;
-    setOpeningTurnPhase("followups");
-    onOpeningTurnTimingChange?.({
-      turnStartedAt: openingTurnStartedAtRef.current,
-      phase: "followups",
-    });
   }, [onOpeningTurnTimingChange, openingTurnPhase]);
+  const markOpeningTurnDelivered = useCallback(
+    (content = ""): boolean => {
+      if (openingTurnPhase === "followups") return true;
+      const started = openingTurnStartedAtRef.current;
+      const elapsedSec =
+        started == null
+          ? 0
+          : Math.max(0, (Date.now() - started) / 1000);
+      const words = content.trim().split(/\s+/).filter(Boolean).length;
+      const isPitchScale =
+        elapsedSec >= PITCH_WINDOW_MIN_SECONDS ||
+        (elapsedSec < 2 && words >= PITCH_WINDOW_MIN_WORDS);
+
+      if (!isPitchScale) {
+        // Discovery / intro — leave the soft window open for the real pitch.
+        openingTurnStartedAtRef.current = null;
+        onOpeningTurnTimingChange?.({
+          turnStartedAt: null,
+          phase: "pitching",
+        });
+        return false;
+      }
+
+      setOpeningTurnPhase("followups");
+      onOpeningTurnTimingChange?.({
+        turnStartedAt: openingTurnStartedAtRef.current,
+        phase: "followups",
+      });
+      return true;
+    },
+    [onOpeningTurnTimingChange, openingTurnPhase]
+  );
   const openingSentRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -581,12 +614,18 @@ function PracticeInterviewRoom({
         ...messagesRef.current,
         { ...userMessage, timestamp: Date.now() },
       ];
-      const priorUserTurns = messagesRef.current.filter((m) => m.role === "user").length;
       markOpeningTurnStarted();
+      // Capture before deliver — short discovery clears the ref so the timer
+      // can restart, but this chat turn still needs the start timestamp.
+      const firstTurnStartedAtForPayload = openingTurnStartedAtRef.current;
       appendMessage(userMessage);
-      if (priorUserTurns === 0) {
-        markOpeningTurnDelivered();
-      }
+      // While still pitching, decide whether THIS turn was the pitch (voice
+      // duration / substantial typed text) or just discovery — do not freeze
+      // the 60s window on a 4-second intro.
+      const pitchWindowConcluded =
+        openingTurnPhase === "followups"
+          ? true
+          : markOpeningTurnDelivered(content);
       setInput("");
       setSending(true);
       setStreamingText("");
@@ -618,9 +657,8 @@ function PracticeInterviewRoom({
               turnState: {
                 progress,
                 startedAt: startedAtRef.current ?? Date.now(),
-                firstTurnStartedAt: openingTurnStartedAtRef.current,
-                firstTurnDelivered:
-                  openingTurnPhase === "followups" || priorUserTurns === 0,
+                firstTurnStartedAt: firstTurnStartedAtForPayload,
+                firstTurnDelivered: pitchWindowConcluded,
               },
             },
             ...(extraChatBodyRef.current ?? {}),
