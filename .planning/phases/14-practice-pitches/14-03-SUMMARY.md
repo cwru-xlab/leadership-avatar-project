@@ -80,7 +80,7 @@ completed: 2026-10-04
 2. **Task 2: Per-page PDF and per-slide PPTX text extraction** - `7546c38` (feat)
 3. **Task 3: Prove intake against real fixtures** - `55d4a23` (feat)
 
-**Plan metadata:** (pending docs commit)
+**Plan metadata:** `90cfef7` (docs: complete plan)
 
 ## Exported signatures (for 14-06 / 14-07)
 
