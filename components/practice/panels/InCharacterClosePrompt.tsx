@@ -40,11 +40,11 @@ export default function InCharacterClosePrompt({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
-    <div className="pointer-events-auto mt-1">
+    <div className="pointer-events-auto w-full">
       <Button
         size="sm"
         variant="bordered"
-        className="border-white/25 bg-[#102a3a]/80 text-[#d7ebf5] backdrop-blur-md"
+        className="h-8 min-h-8 w-full border-white/25 bg-[#102a3a]/80 text-[#d7ebf5] backdrop-blur-md"
         isLoading={isClosing}
         onPress={() => setConfirmOpen(true)}
       >

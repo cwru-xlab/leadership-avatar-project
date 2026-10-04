@@ -304,7 +304,7 @@ export default function PracticeInstancePage() {
           autoFinishOnAvatarEnd
           sessionFinishRef={sessionFinishRef}
           sessionPanel={
-            <div className="flex flex-col items-center gap-1">
+            <div className="flex w-full flex-col items-stretch gap-1">
               <SessionSafetyPanel
                 isEnding={ending}
                 onEndSession={finishWith}
