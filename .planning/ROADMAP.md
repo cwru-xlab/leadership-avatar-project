@@ -556,7 +556,7 @@ networking SETTING (conference, coffee chat, …) is deferred, not built. See
      student's session.
   4. The report judges rapport-building and the clarity of the student's
      self-introduction, not interview-style answer quality.
-**Plans:** 3/11 plans executed
+**Plans:** 4/11 plans executed
 **Gate:** every plan except 16-01 is blocked until Phase 13's 15 plans have all
 executed and been signed off. 16-01 — the AI person-generation route — is the one
 plan safe to run before Phase 13 lands: it touches no engine file and its only
@@ -612,4 +612,4 @@ Plans:
 | 13. One-on-One Conversation Engine | 15/15 | Complete*  | 2026-10-04 |
 | 14. Practice Pitches | 1/15 | In Progress|  |
 | 15. Difficult Conversations | 0/11 | Planned     |  |
-| 16. Networking Practice | 3/11 | In Progress|  |
+| 16. Networking Practice | 4/11 | In Progress|  |
