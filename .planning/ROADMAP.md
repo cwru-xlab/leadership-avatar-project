@@ -622,13 +622,13 @@ result, it does not perform the keyboard pass itself.
 **Plans:** 7 plans
 
 Plans:
-- [ ] 17-01-PLAN.md — REQ-74 Part 1: human-run shared-DB migration + backfill, recorded (non-autonomous)
-- [ ] 17-02-PLAN.md — REQ-74 Part 2: human-run legacy DROP, gated on Part 1 verifying (non-autonomous)
+- [ ] 17-01-PLAN.md — REQ-74: remove `prisma migrate deploy` from vercel.json + document the replacement procedure (non-autonomous)
+- [ ] 17-02-PLAN.md — REQ-74: reconcile the stale migration documents + confirm the Production DATABASE_URL secret (non-autonomous)
 - [ ] 17-03-PLAN.md — REQ-75: deck visible-context sentinel harness + REQ-63 proof in Phase 13's directory
 - [ ] 17-04-PLAN.md — REQ-76: deck-intake fixture wiring fix (assertion unchanged)
 - [ ] 17-05-PLAN.md — REQ-77 Pass 1: human keyboard UAT of the Phases 15/16 deferred blocks (non-autonomous)
 - [ ] 17-06-PLAN.md — REQ-77 Pass 1 defect-volume checkpoint + approved repairs (non-autonomous)
-- [ ] 17-07-PLAN.md — Document amendments + phase close / REQ-74 split policy
+- [ ] 17-07-PLAN.md — Document amendments + phase close (REQ-66/REQ-67 caveat, Phase 13 closes outright)
 
 ### Phase 18: Avatar Disengagement & Walk-Out
 **Goal:** A session the avatar is visibly losing actually ends — today the avatar can
