@@ -56,12 +56,42 @@ export interface ScenarioInputSnapshot {
 }
 
 /**
+ * The difficult-conversation type's input snapshot.
+ *
+ * Field-for-field with DifficultConversationInstance minus hiddenPosition.
+ * The omission is the privacy boundary and is asserted in
+ * scripts/verify-dc-engine-extensions.ts.
+ *
+ * Also omits `voiceId` (not needed for report rendering) and adds
+ * `conversationTitle` for report headings. Termination reason codes are NOT
+ * duplicated here — they already live as engine columns.
+ */
+export interface DifficultConversationInputSnapshot {
+  kind: "difficult-conversation";
+  conversationId: string;
+  conversationTitle: string;
+  source: "seeded" | "authored";
+  role: string;
+  studentRole: string;
+  situation: string;
+  sharedBackstory: string;
+  // hiddenPosition deliberately omitted — privacy boundary; see interface doc.
+  studentObjective: string;
+  stakes: string;
+  difficulty: "receptive" | "guarded" | "hostile";
+  avatarId: string;
+}
+
+/**
  * The closed union of input snapshot shapes. A new interaction type
  * (Phase 14's pitch, Phase 15's difficult conversation, Phase 16's
  * networking persona) adds a new member here and NO columns anywhere —
  * that is the mechanism REQ-65 exists to provide.
  */
-export type InputSnapshot = InterviewInputSnapshot | ScenarioInputSnapshot;
+export type InputSnapshot =
+  | InterviewInputSnapshot
+  | ScenarioInputSnapshot
+  | DifficultConversationInputSnapshot;
 
 /**
  * The dimension-keyed score map replacing the four fixed score columns
@@ -97,8 +127,42 @@ const SCENARIO_INPUT_KEYS: readonly (keyof ScenarioInputSnapshot)[] = [
   "criteria",
 ];
 
+const DC_DIFFICULTY_BANDS = ["receptive", "guarded", "hostile"] as const;
+const DC_SOURCES = ["seeded", "authored"] as const;
+
+const DIFFICULT_CONVERSATION_INPUT_KEYS: readonly (keyof DifficultConversationInputSnapshot)[] =
+  [
+    "kind",
+    "conversationId",
+    "conversationTitle",
+    "source",
+    "role",
+    "studentRole",
+    "situation",
+    "sharedBackstory",
+    "studentObjective",
+    "stakes",
+    "difficulty",
+    "avatarId",
+  ];
+
 function hasAllKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   return keys.every((key) => key in value);
+}
+
+function isDcDifficulty(
+  value: unknown,
+): value is DifficultConversationInputSnapshot["difficulty"] {
+  return (
+    typeof value === "string" &&
+    (DC_DIFFICULTY_BANDS as readonly string[]).includes(value)
+  );
+}
+
+function isDcSource(
+  value: unknown,
+): value is DifficultConversationInputSnapshot["source"] {
+  return typeof value === "string" && (DC_SOURCES as readonly string[]).includes(value);
 }
 
 /**
@@ -125,6 +189,23 @@ export function asInputSnapshot(value: unknown): InputSnapshot | null {
     Array.isArray(v.avatars)
   ) {
     return value as ScenarioInputSnapshot;
+  }
+  if (
+    v.kind === "difficult-conversation" &&
+    hasAllKeys(v, DIFFICULT_CONVERSATION_INPUT_KEYS) &&
+    typeof v.conversationId === "string" &&
+    typeof v.conversationTitle === "string" &&
+    isDcSource(v.source) &&
+    typeof v.role === "string" &&
+    typeof v.studentRole === "string" &&
+    typeof v.situation === "string" &&
+    typeof v.sharedBackstory === "string" &&
+    typeof v.studentObjective === "string" &&
+    typeof v.stakes === "string" &&
+    isDcDifficulty(v.difficulty) &&
+    typeof v.avatarId === "string"
+  ) {
+    return value as DifficultConversationInputSnapshot;
   }
   return null;
 }

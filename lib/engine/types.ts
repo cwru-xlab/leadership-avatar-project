@@ -61,6 +61,8 @@ export interface TerminationPolicyConfig {
    * it must never land before enough has happened to grade. `null` / omitted
    * means no floor, which is correct for the five Phase 13 types because all
    * of them have `avatarMayEnd: false` and can never terminate at all.
+   * Added by Phase 16's 16-03 because 14-02 had not landed; 14-02 must
+   * reconcile to this field rather than redefining it.
    */
   avatarEndFloor?: { minAssistantTurns: number } | null;
 }
@@ -351,6 +353,44 @@ export type InstanceConfig =
       proposedSeconds: number;
     }
   | DifficultConversationInstance
+  /**
+   * This describes a REAL PERSON. It is owner-scoped and **NEVER publishable**.
+   * 16-CONTEXT.md decision 7: "the publish affordance must be absent, not merely
+   * off." There is deliberately no `published`, no `visibility` and no
+   * `sharedWith` field here, and there is deliberately no
+   * `/api/networking/persona/publish` route anywhere in the repo. Do NOT add
+   * parity with `CaseStudy` (`app/api/scenario/publish/route.ts`) — the absence
+   * is the enforcement. A defaulted-false flag is a latent bug; an absent field
+   * cannot be flipped.
+   *
+   * `persona` is the DISTILLED sentence, never the raw pasted text. The raw
+   * paste is never stored anywhere (16-CONTEXT.md decision 6; the contract at
+   * `app/api/interview/persona/distill/route.ts:64-70`). `source` records which
+   * input mode produced it without recording the input.
+   *
+   * `attestationId`/`attestedAt`/`attestedWordingVersion` are a RECEIPT of the
+   * gate that already ran, not the gate itself. The gate is `consumeAttestation`
+   * in `lib/networking/attestation.ts`, called before distillation (plan 16-05).
+   * Do not reason about the attestation from this record alone.
+   *
+   * `ownerId` is enforced on read by the same idiom `loadOwnedScenario` uses at
+   * `lib/scenario/validation.ts:252` — a non-owner gets not-found, not forbidden.
+   */
+  | {
+      kind: "networking-persona";
+      personaId: string;
+      ownerId: string;
+      displayName: string;
+      /** The <=600-char distilled sentence. See MAX_PERSONA_LENGTH. */
+      persona: string;
+      /** Which of the three sources produced the text that was distilled. */
+      source: "pasted" | "written" | "generated";
+      /** The NetworkingAttestation row spent to create this persona, and its wording version. */
+      attestationId: string;
+      attestedAt: string;
+      attestedWordingVersion: string;
+      createdAt: string;
+    }
   | { kind: "none" };
 
 /**
