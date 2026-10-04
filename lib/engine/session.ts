@@ -85,7 +85,7 @@ export type SessionFailure = {
   reportId?: string;
   /** Report row status when conflict (IN_PROGRESS / PENDING / READY / FAILED). */
   reportStatus?: string;
-}
+};
 
 export type StartSessionSuccess = {
   ok: true;
