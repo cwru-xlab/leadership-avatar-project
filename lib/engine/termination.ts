@@ -38,15 +38,18 @@ export interface ParsedTerminationMarker {
  * is `resolveTermination` below that decides whether that reason is one the
  * session actually accepts.
  */
-export function parseTerminationMarker(assistantText: string): ParsedTerminationMarker {
+export function parseTerminationMarker(
+  assistantText: string,
+): ParsedTerminationMarker {
   const marker = assistantText.match(TERMINATION_MARKER);
+
   if (!marker) {
     return { cleanedText: assistantText, termination: null };
   }
 
   const attributes = marker[1];
   const reasonMatch = attributes.match(REASON_ATTRIBUTE);
-  const reason = reasonMatch ? reasonMatch[1] ?? reasonMatch[2] ?? "" : "";
+  const reason = reasonMatch ? (reasonMatch[1] ?? reasonMatch[2] ?? "") : "";
   const cleanedText = assistantText.slice(0, marker.index).trim();
 
   if (!reason) {
@@ -87,12 +90,18 @@ export function resolveTermination({
     if (!policy.studentMayEnd) {
       return { ok: false, recordedReason: null };
     }
+
     return { ok: true, recordedReason: reason ?? "" };
   }
 
   // source === "avatar"
-  if (!policy.avatarMayEnd || !reason || !policy.avatarEndReasons.includes(reason)) {
+  if (
+    !policy.avatarMayEnd ||
+    !reason ||
+    !policy.avatarEndReasons.includes(reason)
+  ) {
     return { ok: false, recordedReason: null };
   }
+
   return { ok: true, recordedReason: reason };
 }
