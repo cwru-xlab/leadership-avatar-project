@@ -459,9 +459,10 @@ export default function PracticeTypePage() {
                 ? `Interview · with ${listenerDisplayName}`
                 : "Practice interview"
         }
+        mediaLayout={isPitchDeck ? "deck-primary" : "avatar-primary"}
         sessionPanelClassName={
           isPitchDeck
-            ? "pointer-events-auto absolute inset-x-3 bottom-24 z-30 flex max-h-[48vh] flex-col gap-2 sm:inset-x-5 lg:right-[calc(36%+0.75rem)] lg:left-3"
+            ? "pointer-events-auto absolute inset-0 z-10 flex flex-col gap-2 px-3 pb-[9.5rem] pt-16 sm:px-5 sm:pb-28 sm:pt-[4.5rem]"
             : undefined
         }
         extraChatBody={
@@ -478,17 +479,20 @@ export default function PracticeTypePage() {
             />
           ) : isPitchDeck && deckUpload && deckSessionStartedAt != null ? (
             <>
-              <div className="flex justify-end">
+              <div className="pointer-events-auto absolute right-3 top-[4.25rem] z-30 sm:right-5 sm:top-[4.75rem]">
                 <DeckTimerPanel
                   budgetSeconds={deckBudget}
                   sessionStartedAt={deckSessionStartedAt}
                 />
               </div>
-              <DeckViewerPanel
-                deckId={deckUpload.deckId}
-                slides={deckUpload.slides}
-                onFurthestChange={setFurthestSlide}
-              />
+              <div className="flex min-h-0 flex-1 flex-col">
+                <DeckViewerPanel
+                  deckId={deckUpload.deckId}
+                  slides={deckUpload.slides}
+                  onFurthestChange={setFurthestSlide}
+                  layout="stage"
+                />
+              </div>
             </>
           ) : undefined
         }
