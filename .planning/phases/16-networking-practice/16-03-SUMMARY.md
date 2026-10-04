@@ -72,7 +72,7 @@ Each task was committed atomically:
 2. **Task 2: Add the networking input-snapshot member** - `29cf091` (feat)
 3. **Task 3: Prove the extensions, including the never-publishable absence** - `852e666` (feat)
 
-**Plan metadata:** (pending docs commit)
+**Plan metadata:** `eeb1604` (docs: complete plan)
 
 ## Files Created/Modified
 
