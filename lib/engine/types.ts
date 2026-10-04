@@ -19,6 +19,7 @@
  */
 
 import type { AttemptLanguage } from "@/lib/languages";
+import type { ScoreMap } from "@/lib/report/snapshot";
 
 /** A single scored dimension on the report. */
 export interface RubricDimension {
@@ -26,6 +27,20 @@ export interface RubricDimension {
   label: string;
   description: string;
 }
+
+/**
+ * One rendered artifact image a type wants the evaluator to see.
+ * `dataUrl` is a full `data:image/...;base64,...` (or https) URL the OpenAI
+ * vision content part can consume; `label` is a human name ("slide 1") so the
+ * text part of the user message can refer to images unambiguously.
+ */
+export interface EvaluatorImage {
+  dataUrl: string;
+  label: string;
+}
+
+/** Kind of a type-declared outcome field — maps 1:1 to JSON Schema types. */
+export type OutcomeFieldKind = "string" | "number" | "boolean";
 
 /**
  * The four dimensions every engine-backed type reports on, in display order.
@@ -86,7 +101,13 @@ export interface VisibleContextConfig {
 export interface OutcomeFieldDeclaration {
   key: string;
   label: string;
-  kind: "string" | "number" | "boolean";
+  kind: OutcomeFieldKind;
+  /**
+   * Declarative hint for consumers. OpenAI strict `json_schema` still lists
+   * every property under `required` with a nullable type (there is no optional
+   * key); this flag does not change the schema wire shape.
+   */
+  required?: boolean;
 }
 
 /**
@@ -165,6 +186,16 @@ export interface InteractionPromptsConfig {
   buildEvaluationContext: (
     config: ResolvedSessionConfig,
   ) => Record<string, unknown>;
+  /**
+   * A type that wants its artifacts judged on APPEARANCE supplies images here.
+   * The engine passes them to the one evaluator as `image_url` content parts
+   * with `detail: 'low'`. A type that declares nothing sends no images and its
+   * call is byte-identical to today's. CONTEXT.md 14: rendered slide images
+   * are an evaluator input, not only a student-facing asset.
+   */
+  buildEvaluationImages?: (ctx: {
+    config: ResolvedSessionConfig;
+  }) => Promise<EvaluatorImage[]>;
 }
 
 /** A type's limits, stated to the model, not enforced as a hard cutoff
@@ -238,6 +269,21 @@ export interface InteractionTypeConfig {
   /** Declared steps for the generic pre-session setup wizard (plan 13-09).
    * Declaration only — this plan does not build the wizard. */
   setupSteps: SetupStepDeclaration[];
+  /**
+   * A pure, type-declared adjustment applied AFTER the model's scores and
+   * BEFORE persistence. It exists so CONTEXT.md's "an early end caps the
+   * discovery/tailoring dimension, other dimensions unaffected" is expressible
+   * without the engine knowing what an elevator pitch is. It must never
+   * introduce a score where the model returned null, and must never lower a
+   * dimension it was not asked to cap — plan 14-04's verification asserts both.
+   */
+  postProcessScores?: (
+    scores: ScoreMap,
+    ctx: {
+      terminationReason: string | null;
+      outcome: Record<string, unknown> | null;
+    },
+  ) => ScoreMap;
 }
 
 /**

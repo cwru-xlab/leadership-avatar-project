@@ -8,6 +8,10 @@
  * extras gets them appended to `required[]` / `properties` without a second
  * evaluator module (REQ-71). Visual and Vocal are structurally required
  * (REQ-72) — this module rejects a config that somehow omits them.
+ *
+ * When a type declares `outcome.fields`, those fields are composed into the
+ * SAME schema as an `outcome` object property (plan 14-04). Empty outcome
+ * fields leave the schema byte-identical to the Phase 13 snapshots.
  */
 
 import {
@@ -18,6 +22,7 @@ import {
 import type { ScoreMap } from "@/lib/report/snapshot";
 import {
   SHARED_RUBRIC_DIMENSION_KEYS,
+  type OutcomeFieldKind,
   type ResolvedSessionConfig,
 } from "./types";
 
@@ -52,12 +57,24 @@ function schemaNameFor(config: ResolvedSessionConfig): string {
     : "interview_evaluation";
 }
 
+function jsonSchemaTypeForKind(kind: OutcomeFieldKind): {
+  type: [string, "null"];
+} {
+  if (kind === "number") return { type: ["number", "null"] };
+  if (kind === "boolean") return { type: ["boolean", "null"] };
+  return { type: ["string", "null"] };
+}
+
 /**
  * Builds the OpenAI `json_schema` envelope for one resolved type.
  *
  * Throws at CONFIG level (not per session) if `visual` or `vocal` is missing
  * from `config.rubricDimensions` — belt-and-braces for REQ-72 given that
  * `resolve.ts` already always prepends the four shared dimensions.
+ *
+ * Also throws if an outcome field key collides with a rubric dimension key,
+ * a score property name, or a structured-report property name — the schema
+ * cannot host two properties of the same name.
  */
 export function buildRubricJsonSchema(
   config: ResolvedSessionConfig,
@@ -67,6 +84,21 @@ export function buildRubricJsonSchema(
     throw new Error(
       `ResolvedSessionConfig for "${config.typeSlug}" is missing visual or vocal in rubricDimensions — visual/vocal are never type-optional (REQ-72)`,
     );
+  }
+
+  const reservedPropertyNames = new Set<string>([
+    ...keys,
+    ...keys.map(scorePropertyName),
+    ...STRUCTURED_REPORT_REQUIRED,
+    "outcome",
+  ]);
+
+  for (const field of config.outcome.fields) {
+    if (reservedPropertyNames.has(field.key)) {
+      throw new Error(
+        `ResolvedSessionConfig for "${config.typeSlug}" declares outcome field "${field.key}" that collides with a rubric/schema property name`,
+      );
+    }
   }
 
   const scoreRequired = config.rubricDimensions.map((d) =>
@@ -80,17 +112,40 @@ export function buildRubricJsonSchema(
     );
   }
 
+  const required = [...scoreRequired, ...STRUCTURED_REPORT_REQUIRED];
+  const properties: Record<string, unknown> = {
+    ...scoreProperties,
+    ...STRUCTURED_REPORT_PROPERTIES,
+  };
+
+  // Phase 13 types declare zero outcome fields — leave the schema untouched
+  // so deep-equality against the frozen interview/scenario snapshots holds.
+  if (config.outcome.fields.length > 0) {
+    const outcomeProperties: Record<string, unknown> = {};
+    const outcomeRequired: string[] = [];
+    for (const field of config.outcome.fields) {
+      outcomeProperties[field.key] = jsonSchemaTypeForKind(field.kind);
+      // OpenAI strict json_schema: every property must be listed in required;
+      // optional-in-spirit fields use a nullable type instead of omission.
+      outcomeRequired.push(field.key);
+    }
+    properties.outcome = {
+      type: "object",
+      additionalProperties: false,
+      required: outcomeRequired,
+      properties: outcomeProperties,
+    };
+    required.push("outcome");
+  }
+
   return {
     name: schemaNameFor(config),
     strict: true,
     schema: {
       type: "object",
       additionalProperties: false,
-      required: [...scoreRequired, ...STRUCTURED_REPORT_REQUIRED],
-      properties: {
-        ...scoreProperties,
-        ...STRUCTURED_REPORT_PROPERTIES,
-      },
+      required,
+      properties,
     },
   };
 }
@@ -122,6 +177,36 @@ export function parseRubricScores(
   }
 
   return scores;
+}
+
+/**
+ * Pulls the raw `outcome` object out of a model response for
+ * `validateOutcome` to judge. Does NOT validate — a second validator here
+ * would drift from `lib/engine/outcome.ts`.
+ *
+ * Returns `null` when the type declares no outcome fields (even if the model
+ * smuggled an `outcome` key) or when the key is absent/non-object.
+ */
+export function parseOutcomeFields(
+  parsedJson: unknown,
+  config: ResolvedSessionConfig,
+): Record<string, unknown> | null {
+  if (config.outcome.fields.length === 0) return null;
+
+  if (
+    !parsedJson ||
+    typeof parsedJson !== "object" ||
+    Array.isArray(parsedJson)
+  ) {
+    return null;
+  }
+
+  const raw = (parsedJson as Record<string, unknown>).outcome;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  return raw as Record<string, unknown>;
 }
 
 function coerceScore(value: unknown): number | null {

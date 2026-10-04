@@ -71,7 +71,7 @@ completed: 2026-10-04
 2. **Task 2: The S3 layer and the owner-scoped loader** - `6614473` (feat)
 3. **Task 3: Prove validation, ownership and the privacy boundary** - `4142970` (feat)
 
-**Plan metadata:** `4ee4795` (docs: complete plan)
+**Plan metadata:** `4fd31d8` (docs: complete plan)
 
 ## Contract for downstream plans (15-04 / 15-05 / 15-07)
 
