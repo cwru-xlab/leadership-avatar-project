@@ -233,6 +233,9 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 12-embodied-visual-signals / 12-11]: `bandPostureDrift` reads `posture_drift_max_s` (the longest sustained run above the trip), not `posture_drift_mean`. A session is required BY DESIGN to open upright, so a session-wide mean dilutes any later slump against that opening — the longer a student holds good posture before slumping, the lower the score the slump produces. A sustained run is what a slump actually IS.
 - [Phase 12-embodied-visual-signals / 12-11]: `POSTURE_DRIFT_SUSTAINED_S` 15 -> 8, and wired up for the first time after being read by NOTHING across three plans while the file header certified it achievable. The insufficiency of the aggregation fix alone was PROVEN by reverting that constant and watching the assertion fail — at 15 the genuine 12.0s slump would still have reported "Held steady", a second silent false negative one layer down with the repair appearing to have changed nothing.
 - [Phase 12-embodied-visual-signals / 12-11]: `POSTURE_FORWARD_HEAD_DRIFT_SCALE` left at 0.3 DESPITE saturating. Raising it to recover dynamic range would desensitise a detection only just proven, for a severity gradation nothing has asked for. The restraint is the decision; an UNCLAMPED delta series across a moderate and a hard slump is the reading needed first.
+- [Phase 13-one-on-one-conversation-engine / 13-02]: `transcriptKey`/`interactionLogId`/`studentEmail` stay as three separate nullable columns on `InteractionReport`, not converged into one tagged pointer — they resolve through different `S3Storage` accessors (`getInterviewTranscript(userId, reportId)` vs `getInteractionLog(studentEmail, caseId, logId)`) with genuinely different required context.
+- [Phase 13-one-on-one-conversation-engine / 13-02]: `InterviewReportStatus` enum kept its historical name on `InteractionReport` rather than being renamed. It is already shared by both legacy tables; renaming touches every importer for zero behavioral gain.
+- [Phase 13-one-on-one-conversation-engine / 13-02]: The real migration directory is `20261004012908_add_interaction_report` — Prisma's actual generated timestamp, not the `20261003000000` placeholder the plan's `files_modified` frontmatter listed.
 - [Phase 12-embodied-visual-signals / 12-11]: `PHONE_SCORE_THRESHOLD` stays 0.5 and stays labelled UNDECIDED. Only the no-phone false-positive floor has ever been observed (now two sessions); a one-sided reading can only justify RAISING a cutoff, and a user observation of a sustained phone reported as "about 2 seconds" points the other way. The phone half of the dev dump was deliberately KEPT this time, because 12-10 removed the instrument before taking its reading and then had nothing to read at its own sign-off.
 - [Phase 12-embodied-visual-signals / 12-11]: 12-10's claim that `forwardHeadOffset`'s sign "may be backwards relative to the behaviour being graded" is WITHDRAWN. Drift scores the ABSOLUTE delta, so a decrease registers exactly as strongly as an increase; the channel was the strongest responder in the session. The misnomer is real, the blindness was not. `forwardHeadOffset` was deliberately NOT renamed — the name is load-bearing across the worker, two type contracts, the signal key, display wording and every recorded reading, and a transcription error in this phase has already cost three wrong posture verdicts.
 - [Phase 12-embodied-visual-signals / 12-11]: A stale dev server is a recognised failure mode for `NEXT_PUBLIC_*`-gated readings — it produced a false item-1 failure, caught only because a removed dump was still printing text describing pre-fix behaviour. Future dev dumps should print a build marker.
@@ -1064,6 +1067,30 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   and unintentionally undid concurrently-landing sibling commit 11-03's
   `11-CALLER-MAP.md` work, immediately restored verbatim as `a9fe820`. No data
   lost. See `11-04-SUMMARY.md` for full detail.
+- 13-02 (unified `InteractionReport` model, snapshot/score types, unified
+  report DTO — `prisma/schema.prisma`, `lib/report/snapshot.ts`,
+  `lib/report/dto.ts`): complete, wave 1. Commits `1462b89`, `6c224d5`,
+  `fafff49`. Added `model InteractionReport` and generated/applied
+  `prisma/migrations/20261004012908_add_interaction_report/migration.sql`
+  against the LOCAL dev DB only (REQ-67) — confirmed additive-only by eye and
+  by grep: one `CREATE TABLE`, two `CREATE INDEX`, one FK to `User`, zero
+  `DROP`, zero `ALTER TABLE` on `InterviewReport`/`ScenarioReport`; both
+  legacy models and tables untouched. `lib/report/snapshot.ts` declares the
+  `InputSnapshot` discriminated union (`kind: "interview" | "scenario"`) and
+  `ScoreMap`, with `asInputSnapshot`/`asScoreMap` narrowing garbage JSON to
+  `null` rather than throwing. `lib/report/dto.ts` exports `toReportDto()`,
+  unioning both legacy DTOs' fields and preserving the `cameraMode === null`
+  legacy null-guard exactly; sources its metrics block from
+  `lib/metrics/types.ts` only, no private duplicate shape. Verified end-to-end
+  against the local dev DB with three throwaway rows (interview-shaped,
+  scenario-shaped, all-null legacy), inserted/asserted/deleted via an
+  uncommitted `tsx` script. `npx tsc --noEmit` and `npx prisma validate`
+  clean throughout. **REQ-65 only partially addressed**: the additive half
+  (one table, JSON `inputSnapshot`, JSON `scores`) is done; the backfill
+  (plan 13-04) and the drop of `InterviewReport`/`ScenarioReport` (plan
+  13-15) are still required before REQ-65 can be marked met — not checked
+  off in `REQUIREMENTS.md` yet for that reason. See `13-02-SUMMARY.md` for
+  full detail.
 
 ## Phase 6 Status: COMPLETE
 
