@@ -9,11 +9,7 @@
  * it, and the composed markdown drifting out of the shape the study-plan
  * consumer scans for.
  */
-import { validateEvaluationResult, EVALUATION_JSON_SCHEMA } from "../lib/interview/evaluation";
-import {
-  validateScenarioEvaluationResult,
-  SCENARIO_EVALUATION_JSON_SCHEMA,
-} from "../lib/scenario/evaluation";
+import { validateEvaluationResult } from "../lib/engine/evaluation";
 import {
   composeReportMarkdown,
   parseStructuredReport,
@@ -38,6 +34,192 @@ import {
   parseRubricScores,
 } from "../lib/engine/rubric";
 import type { InteractionTypeConfig } from "../lib/engine/types";
+
+/**
+ * Pre-Phase-13 `EVALUATION_JSON_SCHEMA` from `lib/interview/evaluation.ts`,
+ * frozen verbatim as a permanent regression guard (plan 13-13). The live
+ * module was deleted when the engine's type-derived schema took over; this
+ * snapshot is the only remaining proof that `buildRubricJsonSchema` still
+ * produces today's interview bytes.
+ */
+const EVALUATION_JSON_SCHEMA = {
+  name: "interview_evaluation",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "visual_score",
+      "vocal_score",
+      "content_score",
+      "behavioral_score",
+      "overall_summary",
+      "strengths",
+      "growth_areas",
+      "category_notes",
+      "rubric_notes",
+      "practice_next",
+    ],
+    properties: {
+      visual_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      vocal_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      content_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      behavioral_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      overall_summary: { type: "string" },
+      strengths: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "detail", "evidence"],
+          properties: {
+            title: { type: "string" },
+            detail: { type: "string" },
+            evidence: { type: ["string", "null"] },
+          },
+        },
+      },
+      growth_areas: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "detail", "suggestion", "timecodes"],
+          properties: {
+            title: { type: "string" },
+            detail: { type: "string" },
+            suggestion: { type: "string" },
+            timecodes: { type: "array", items: { type: "string" } },
+          },
+        },
+      },
+      category_notes: {
+        type: "object",
+        additionalProperties: false,
+        required: ["visual", "vocal", "content", "behavioral"],
+        properties: {
+          visual: { type: ["string", "null"] },
+          vocal: { type: ["string", "null"] },
+          content: { type: ["string", "null"] },
+          behavioral: { type: ["string", "null"] },
+        },
+      },
+      rubric_notes: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["item", "note"],
+          properties: {
+            item: { type: "string" },
+            note: { type: "string" },
+          },
+        },
+      },
+      practice_next: { type: "string" },
+    },
+  },
+} as const;
+
+/**
+ * Pre-Phase-13 `SCENARIO_EVALUATION_JSON_SCHEMA` from `lib/scenario/evaluation.ts`,
+ * frozen verbatim as a permanent regression guard (plan 13-13). Same role as
+ * `EVALUATION_JSON_SCHEMA` above for the case-study schema name.
+ */
+const SCENARIO_EVALUATION_JSON_SCHEMA = {
+  name: "scenario_evaluation",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "visual_score",
+      "vocal_score",
+      "content_score",
+      "behavioral_score",
+      "overall_summary",
+      "strengths",
+      "growth_areas",
+      "category_notes",
+      "rubric_notes",
+      "practice_next",
+    ],
+    properties: {
+      visual_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      vocal_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      content_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      behavioral_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      overall_summary: { type: "string" },
+      strengths: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "detail", "evidence"],
+          properties: {
+            title: { type: "string" },
+            detail: { type: "string" },
+            evidence: { type: ["string", "null"] },
+          },
+        },
+      },
+      growth_areas: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "detail", "suggestion", "timecodes"],
+          properties: {
+            title: { type: "string" },
+            detail: { type: "string" },
+            suggestion: { type: "string" },
+            timecodes: { type: "array", items: { type: "string" } },
+          },
+        },
+      },
+      category_notes: {
+        type: "object",
+        additionalProperties: false,
+        required: ["visual", "vocal", "content", "behavioral"],
+        properties: {
+          visual: { type: ["string", "null"] },
+          vocal: { type: ["string", "null"] },
+          content: { type: ["string", "null"] },
+          behavioral: { type: ["string", "null"] },
+        },
+      },
+      rubric_notes: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["item", "note"],
+          properties: {
+            item: { type: "string" },
+            note: { type: "string" },
+          },
+        },
+      },
+      practice_next: { type: "string" },
+    },
+  },
+} as const;
+
+/** Resolve a general interview config for validator tests (engine replaces per-type modules). */
+function generalConfig() {
+  const resolved = resolveSessionConfig("general", {});
+  if (!resolved.ok) throw new Error(`resolve general failed: ${resolved.reason}`);
+  return resolved.config;
+}
+
+function validateInterviewLike(
+  raw: unknown,
+  opts: { hasVisualMetrics: boolean; hasVocalMetrics: boolean },
+) {
+  return validateEvaluationResult(raw, generalConfig(), opts, {
+    kind: "interview",
+  });
+}
 
 let failures = 0;
 
@@ -114,28 +296,28 @@ check("arrays are not structured reports", asStructuredReport([1, 2]), null);
 
 console.log("\n2. Validation — the FAILED path and metric gating");
 throws("an empty body still throws (FAILED, not a blank report)", () =>
-  validateEvaluationResult({ content_score: 4 }, { hasVisualMetrics: true, hasVocalMetrics: true }));
+  validateInterviewLike({ content_score: 4 }, { hasVisualMetrics: true, hasVocalMetrics: true }));
 {
-  const v = validateEvaluationResult(FULL, { hasVisualMetrics: true, hasVocalMetrics: true });
-  check("scores coerce", [v.visualScore, v.vocalScore, v.contentScore, v.behavioralScore], [3, 2, 4, 4]);
+  const v = validateInterviewLike(FULL, { hasVisualMetrics: true, hasVocalMetrics: true });
+  check("scores coerce", [v.scores.visual, v.scores.vocal, v.scores.content, v.scores.behavioral], [3, 2, 4, 4]);
   check("markdown is composed, not returned by the model", v.reportMarkdown.startsWith("### Interview Performance Report"), true);
   check("structured body is carried through", v.reportStructured.strengths.length, 2);
 }
 {
   // The gating that must survive the refactor: no metrics supplied => null,
   // whatever the model claimed.
-  const v = validateEvaluationResult(FULL, { hasVisualMetrics: false, hasVocalMetrics: false });
-  check("visual/vocal forced null when metrics were absent", [v.visualScore, v.vocalScore], [null, null]);
-  check("content/behavioral unaffected", [v.contentScore, v.behavioralScore], [4, 4]);
+  const v = validateInterviewLike(FULL, { hasVisualMetrics: false, hasVocalMetrics: false });
+  check("visual/vocal forced null when metrics were absent", [v.scores.visual, v.scores.vocal], [null, null]);
+  check("content/behavioral unaffected", [v.scores.content, v.scores.behavioral], [4, 4]);
   check("and the composed table reflects the STORED scores",
     v.reportMarkdown.includes("Not available — requires video/audio analysis"), true);
 }
 {
-  const v = validateEvaluationResult(
+  const v = validateInterviewLike(
     { ...FULL, content_score: "4", behavioral_score: 9 },
     { hasVisualMetrics: true, hasVocalMetrics: true }
   );
-  check("string and out-of-range scores become null", [v.contentScore, v.behavioralScore], [null, null]);
+  check("string and out-of-range scores become null", [v.scores.content, v.scores.behavioral], [null, null]);
 }
 
 console.log("\n3. Markdown composition");
@@ -256,9 +438,9 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
     findBodySignalWordingViolations(nonBodyFinding).length, 0);
 }
 {
-  // Both evaluator modules' own validate* functions must apply the
-  // sanitizer, not just the pure function in isolation — this is the actual
-  // enforcement path a live evaluation runs through.
+  // The engine's validateEvaluationResult must apply the sanitizer — this is
+  // the actual enforcement path a live evaluation runs through (legacy
+  // per-type validators deleted in 13-13).
   const withViolation = {
     ...FULL,
     category_notes: {
@@ -266,7 +448,7 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
       visual: "Remained still, which can seem flat over video.",
     },
   };
-  const interviewResult = validateEvaluationResult(withViolation, {
+  const interviewResult = validateInterviewLike(withViolation, {
     hasVisualMetrics: true,
     hasVocalMetrics: true,
   });
@@ -274,13 +456,30 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
     (interviewResult.reportStructured.category_notes.visual ?? "").includes("can seem flat over video"),
     false);
 
-  const scenarioResult = validateScenarioEvaluationResult(withViolation, {
-    hasVisualMetrics: true,
-    hasVocalMetrics: true,
+  const scenarioResolved = resolveSessionConfig("case-study", {
+    instance: {
+      kind: "case-study",
+      caseId: "verify-case",
+      caseName: "Verify",
+      background: "bg",
+      avatars: [{ name: "A", role: "R" }],
+      criteria: null,
+    },
   });
-  check("validateScenarioEvaluationResult strips the violation before returning it",
-    (scenarioResult.reportStructured.category_notes.visual ?? "").includes("can seem flat over video"),
-    false);
+  if (!scenarioResolved.ok) {
+    failures += 1;
+    console.log(`  FAIL resolve case-study for sanitizer check: ${scenarioResolved.reason}`);
+  } else {
+    const scenarioResult = validateEvaluationResult(
+      withViolation,
+      scenarioResolved.config,
+      { hasVisualMetrics: true, hasVocalMetrics: true },
+      { kind: "scenario" },
+    );
+    check("case-study validateEvaluationResult strips the violation before returning it",
+      (scenarioResult.reportStructured.category_notes.visual ?? "").includes("can seem flat over video"),
+      false);
+  }
 }
 
 {
