@@ -37,7 +37,7 @@ export const CURRENT_ATTESTATION_WORDING_VERSION = "v1";
 export const ATTESTATION_FRESHNESS_SECONDS = 30 * 60;
 
 export type RecordAttestationResult =
-  | { ok: true; attestationId: string }
+  | { ok: true; attestationId: string; attestedAt: Date }
   | { ok: false; reason: "stale-wording" };
 
 export type ConsumeAttestationResult =
@@ -71,10 +71,10 @@ export async function recordAttestation(args: {
       userId,
       wordingVersion,
     },
-    select: { id: true },
+    select: { id: true, attestedAt: true },
   });
 
-  return { ok: true, attestationId: row.id };
+  return { ok: true, attestationId: row.id, attestedAt: row.attestedAt };
 }
 
 /**
