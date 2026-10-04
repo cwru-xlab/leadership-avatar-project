@@ -5,6 +5,14 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // Native canvas binary used by PDF page → PNG rasterization (Phase 14-01 spike;
+  // production deck pipeline will share this). Must not be bundled by Turbopack.
+  serverExternalPackages: [
+    "@napi-rs/canvas",
+    "@napi-rs/canvas-linux-x64-gnu",
+    "@napi-rs/canvas-linux-arm64-gnu",
+    "pdfjs-dist",
+  ],
   images: {
     remotePatterns: [
       {
