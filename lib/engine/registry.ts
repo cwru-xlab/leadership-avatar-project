@@ -36,6 +36,7 @@ import {
   buildNetworkingSystemPrompt,
   resolveNetworkingLivePersona,
 } from "../networking/prompts";
+import { PITCH_ELEVATOR_TYPE } from "../pitch/elevator-type";
 
 /**
  * Builds an interview preset's `InteractionTypeConfig` record. `base` is the
@@ -351,6 +352,7 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   EARLY_CAREER,
   CASE_STUDY,
   NETWORKING,
+  PITCH_ELEVATOR_TYPE,
 ];
 
 const ENGINE_TYPES_BY_SLUG: Record<string, InteractionTypeConfig> =
