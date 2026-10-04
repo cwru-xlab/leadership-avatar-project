@@ -39,6 +39,7 @@ import { parseMetricsPayload, toMetricsJsonInput } from "@/lib/metrics/ingest";
 import type { CameraMode } from "@/lib/metrics/types";
 import type {
   InterviewInputSnapshot,
+  PitchInputSnapshot,
   ScenarioInputSnapshot,
 } from "@/lib/report/snapshot";
 import type { InteractionLog } from "@/types";
@@ -48,6 +49,90 @@ import { validateOutcome } from "./outcome";
 import { getEngineType } from "./registry";
 import { resolveSessionConfig } from "./resolve";
 import { resolveTermination } from "./termination";
+import { clampAdjustableBudget } from "./time-budget";
+import type { InstanceConfig, TimeBudgetConfig } from "./types";
+
+type SlideRevealEvent = {
+  index: number;
+  atTurnIndex: number;
+  atElapsedSeconds: number;
+};
+
+/**
+ * Persist the clamped budget, or null when the type declares no budget.
+ * The student PROPOSES/adjusts; the server CLAMPS — a client cannot request
+ * a 4-hour investor meeting.
+ */
+function resolvePersistedBudget(
+  config: TimeBudgetConfig,
+  timeBudgetOverrideSeconds: unknown,
+): number | null {
+  const hasBudget =
+    config.totalSeconds != null || config.adjustableRangeSeconds != null;
+  if (!hasBudget) return null;
+
+  const override =
+    typeof timeBudgetOverrideSeconds === "number" &&
+    Number.isFinite(timeBudgetOverrideSeconds)
+      ? timeBudgetOverrideSeconds
+      : (config.totalSeconds ?? 0);
+
+  return clampAdjustableBudget(config, override).seconds;
+}
+
+/** Build a PitchInputSnapshot from a pitch instance when one is supplied. */
+function pitchSnapshotFromInstance(
+  instance: InstanceConfig,
+  budgetSeconds: number | null,
+): PitchInputSnapshot | null {
+  if (instance.kind === "pitch-elevator") {
+    return {
+      kind: "pitch",
+      pitchKind: "elevator",
+      pitchSubject: instance.pitchSubject,
+      listenerKnowledge: instance.listenerKnowledge,
+      deckId: null,
+      slideCount: null,
+      askPriceUsd: null,
+      askEquityPct: null,
+      fairValueBand: null,
+      firstTurnWindowSeconds: 60,
+      budgetSeconds,
+      listenerPersona: null,
+    };
+  }
+  if (instance.kind === "pitch-deck") {
+    return {
+      kind: "pitch",
+      pitchKind: "deck",
+      pitchSubject: null,
+      listenerKnowledge: null,
+      deckId: instance.deckId,
+      slideCount: instance.slideCount,
+      askPriceUsd: instance.askPriceUsd,
+      askEquityPct: instance.askEquityPct,
+      fairValueBand: instance.fairValueBand,
+      firstTurnWindowSeconds: null,
+      budgetSeconds,
+      listenerPersona: null,
+    };
+  }
+  return null;
+}
+
+function isPitchDeckSnapshot(
+  snapshot: unknown,
+): snapshot is PitchInputSnapshot & { pitchKind: "deck"; slideCount: number } {
+  if (!snapshot || typeof snapshot !== "object") return false;
+  const s = snapshot as PitchInputSnapshot;
+  return (
+    s.kind === "pitch" &&
+    s.pitchKind === "deck" &&
+    typeof s.slideCount === "number" &&
+    Number.isFinite(s.slideCount) &&
+    s.slideCount > 0
+  );
+}
 
 const UUID_V4_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -149,6 +234,7 @@ export async function startSession({
   userName,
   typeSlug,
   instanceId,
+  instance: rawInstance,
   customization,
   cameraModeRequest,
   interviewerAvatarId: rawInterviewerAvatarId,
@@ -156,12 +242,15 @@ export async function startSession({
   resumeId: rawResumeId,
   resumeText: rawResumeText,
   language,
+  timeBudgetOverrideSeconds,
 }: {
   userId: string;
   userEmail: string;
   userName?: string | null;
   typeSlug: string;
   instanceId?: string | null;
+  /** Wizard-authored instance (pitch-elevator / pitch-deck). */
+  instance?: InstanceConfig | null;
   customization?: InterviewCustomizationInput | null;
   cameraModeRequest?: unknown;
   interviewerAvatarId?: unknown;
@@ -169,6 +258,8 @@ export async function startSession({
   resumeId?: unknown;
   resumeText?: unknown;
   language?: unknown;
+  /** Student-proposed session length in seconds; server clamps. */
+  timeBudgetOverrideSeconds?: unknown;
 }): Promise<StartSessionResult> {
   const type = getEngineType(typeSlug);
   if (!type) {
@@ -188,6 +279,11 @@ export async function startSession({
     if (!resolved.ok) {
       return { ok: false, status: 400, error: resolved.reason };
     }
+
+    const timeBudgetSeconds = resolvePersistedBudget(
+      resolved.config.timeBudget,
+      timeBudgetOverrideSeconds,
+    );
 
     // Re-resolve through the legacy validator so the snapshot matches what
     // the live prompt used — even when the client sent garbage that fell
@@ -240,6 +336,9 @@ export async function startSession({
         cameraMode,
         metricsConsentAt: consentAt,
         inputSnapshot: inputSnapshot as unknown as Prisma.InputJsonValue,
+        // slideHighWaterMark stays null — null means nothing revealed yet
+        // (same meaning for a no-deck type and a deck session not yet started).
+        timeBudgetSeconds,
       },
       select: { id: true },
     });
@@ -249,6 +348,54 @@ export async function startSession({
       reportId: report.id,
       typeSlug: type.slug,
       cameraMode,
+    });
+
+    return { ok: true, reportId: report.id, cameraMode };
+  }
+
+  // ---- Wizard-authored types (pitch-elevator / pitch-deck): ONE Prisma
+  //      write, ZERO S3 — same write shape as interview, distinct from
+  //      case-study's S3 InteractionLog path. Needed so pitch types with
+  //      instance.required + authoredInWizard do not fall into case-study. ----
+  if (type.instance.authoredInWizard) {
+    const resolved = resolveSessionConfig(typeSlug, {
+      instance: rawInstance ?? undefined,
+    });
+    if (!resolved.ok) {
+      return { ok: false, status: 400, error: resolved.reason };
+    }
+
+    const timeBudgetSeconds = resolvePersistedBudget(
+      resolved.config.timeBudget,
+      timeBudgetOverrideSeconds,
+    );
+
+    const pitchSnapshot = pitchSnapshotFromInstance(
+      resolved.config.instance,
+      timeBudgetSeconds,
+    );
+
+    const report = await prisma.interactionReport.create({
+      data: {
+        userId,
+        typeSlug: type.slug,
+        status: "IN_PROGRESS",
+        cameraMode,
+        metricsConsentAt: consentAt,
+        inputSnapshot: pitchSnapshot
+          ? (pitchSnapshot as unknown as Prisma.InputJsonValue)
+          : Prisma.DbNull,
+        timeBudgetSeconds,
+      },
+      select: { id: true },
+    });
+
+    console.info("Engine wizard-authored report created", {
+      userId,
+      reportId: report.id,
+      typeSlug: type.slug,
+      cameraMode,
+      timeBudgetSeconds,
     });
 
     return { ok: true, reportId: report.id, cameraMode };
@@ -285,6 +432,11 @@ export async function startSession({
     criteria: scenario.evaluationPrompt ?? null,
   };
 
+  const timeBudgetSeconds = resolvePersistedBudget(
+    type.timeBudget,
+    timeBudgetOverrideSeconds,
+  );
+
   const report = await prisma.interactionReport.create({
     data: {
       userId,
@@ -293,6 +445,7 @@ export async function startSession({
       cameraMode,
       metricsConsentAt: consentAt,
       inputSnapshot: inputSnapshot as unknown as Prisma.InputJsonValue,
+      timeBudgetSeconds,
     },
     select: { id: true },
   });
@@ -368,16 +521,24 @@ export async function startSession({
 // checkpointSession
 // ---------------------------------------------------------------------------
 
+/**
+ * Mid-session durable write. `revealedSlideIndex` is an INPUT to a server-
+ * side ratchet, never a stored value (14-RESEARCH.md Pitfall 2 — a client-
+ * trusted cursor is a context-leak vector). Persisted mark is always
+ * `max(stored ?? -1, min(requested, slideCount - 1))`.
+ */
 export async function checkpointSession({
   userId,
   reportId,
   turns: rawTurns,
   progress: rawProgress,
+  revealedSlideIndex,
 }: {
   userId: string;
   reportId: string;
   turns: unknown;
   progress?: unknown;
+  revealedSlideIndex?: unknown;
 }): Promise<CheckpointSessionResult> {
   if (typeof reportId !== "string" || !UUID_REGEX.test(reportId)) {
     return { ok: false, status: 400, error: "Invalid reportId" };
@@ -391,6 +552,8 @@ export async function checkpointSession({
       typeSlug: true,
       startedAt: true,
       inputSnapshot: true,
+      slideHighWaterMark: true,
+      slideReveals: true,
     },
   });
 
@@ -453,9 +616,54 @@ export async function checkpointSession({
     transcript,
   );
 
+  // Ratchet: only for pitch-deck snapshots. Interview / elevator / other
+  // clients sending revealedSlideIndex cannot create a cursor.
+  const updateData: {
+    turnCount: number;
+    transcriptKey: string;
+    slideHighWaterMark?: number;
+    slideReveals?: Prisma.InputJsonValue;
+  } = { turnCount: turns.length, transcriptKey: key };
+
+  if (isPitchDeckSnapshot(report.inputSnapshot)) {
+    const slideCount = report.inputSnapshot.slideCount;
+    const stored = report.slideHighWaterMark;
+    const requested =
+      typeof revealedSlideIndex === "number" &&
+      Number.isFinite(revealedSlideIndex)
+        ? Math.trunc(revealedSlideIndex)
+        : null;
+
+    // Non-finite or negative input is ignored (not an error).
+    if (requested !== null && requested >= 0) {
+      const next = Math.max(
+        stored ?? -1,
+        Math.min(requested, slideCount - 1),
+      );
+      updateData.slideHighWaterMark = next;
+
+      if (next > (stored ?? -1)) {
+        const prior: SlideRevealEvent[] = Array.isArray(report.slideReveals)
+          ? (report.slideReveals as SlideRevealEvent[])
+          : [];
+        const event: SlideRevealEvent = {
+          index: next,
+          atTurnIndex: turns.length,
+          atElapsedSeconds: Math.round(
+            (Date.now() - report.startedAt.getTime()) / 1000,
+          ),
+        };
+        updateData.slideReveals = [
+          ...prior,
+          event,
+        ] as unknown as Prisma.InputJsonValue;
+      }
+    }
+  }
+
   await prisma.interactionReport.update({
     where: { id: report.id },
-    data: { turnCount: turns.length, transcriptKey: key },
+    data: updateData,
   });
 
   return { ok: true, turnCount: turns.length };
@@ -475,6 +683,7 @@ export async function finishSession({
   log: rawLog,
   terminationReason,
   terminationSource,
+  terminationAtSeconds: rawTerminationAtSeconds,
   outcome: rawOutcome,
 }: {
   userId: string;
@@ -486,6 +695,8 @@ export async function finishSession({
   log?: unknown;
   terminationReason?: string | null;
   terminationSource?: "student" | "avatar";
+  /** Elapsed seconds when an avatar-initiated end was accepted. */
+  terminationAtSeconds?: unknown;
   outcome?: unknown;
 }): Promise<FinishSessionResult> {
   if (typeof reportId !== "string" || !reportId) {
@@ -529,9 +740,16 @@ export async function finishSession({
     source,
     reason: terminationReason ?? null,
   });
+  // Rejected terminations write both reason and timecode as null (13-07).
   const recordedTerminationReason = termination.ok
     ? termination.recordedReason
     : null;
+  const recordedTerminationAtSeconds =
+    termination.ok &&
+    typeof rawTerminationAtSeconds === "number" &&
+    Number.isFinite(rawTerminationAtSeconds)
+      ? Math.max(0, Math.trunc(rawTerminationAtSeconds))
+      : null;
 
   let recordedOutcome: Record<string, unknown> | null = null;
   if (
@@ -614,6 +832,7 @@ export async function finishSession({
         visualMetrics: toMetricsJsonInput(visualMetrics),
         vocalMetrics: toMetricsJsonInput(vocalMetrics),
         terminationReason: recordedTerminationReason,
+        terminationAtSeconds: recordedTerminationAtSeconds,
         outcome:
           recordedOutcome === null
             ? Prisma.DbNull
@@ -687,6 +906,7 @@ export async function finishSession({
       visualMetrics: toMetricsJsonInput(visualMetrics),
       vocalMetrics: toMetricsJsonInput(vocalMetrics),
       terminationReason: recordedTerminationReason,
+      terminationAtSeconds: recordedTerminationAtSeconds,
       outcome:
         recordedOutcome === null
           ? Prisma.DbNull
