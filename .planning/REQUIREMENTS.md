@@ -454,7 +454,7 @@ what was decided; they add no scope.
   results, and an explicit TIME BUDGET is an engine concept carried in the existing
   per-turn tail block, never in the system prompt.
 
-- **REQ-65** — [ ] One `InteractionReport` table replaces `InterviewReport` and
+- **REQ-65** — [x] One `InteractionReport` table replaces `InterviewReport` and
   `ScenarioReport`. Per-type input is one JSON `inputSnapshot` typed in TypeScript;
   scores are a JSON map keyed by dimension. The old tables are dropped, not kept
   beside it.

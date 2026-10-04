@@ -37,7 +37,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
 - [x] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality) (completed 2026-09-23)
 - [x] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (10/11 plans; fidgeting retired as unmeasurable; criterion 3 holds since 12-10. 12-11 settled posture drift — the row now responds correctly in BOTH directions and REQ-51 is MET. All three success criteria MET (criterion 1 carries a recorded phone duration under-count the user accepted). 12-08/12-09 remain [~] partially delivered — their work landed but their own sign-offs failed, and successors closed the gaps. 12-03's stale checkbox was corrected 2026-10-03) (completed 2026-10-04)
-- [ ] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record
+- [x] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record (plans complete 2026-10-04; REQ-67 shared Part 1 still OPEN — see STATE.md)
 - [ ] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
 - [ ] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios
 - [ ] **Phase 16: Networking Practice** - Practice against a described real person or a default character
@@ -405,7 +405,7 @@ rebuilding infrastructure per type.
      renders them without knowing which interaction produced them.
   4. Visual, vocal and body metrics from Phases 10 and 12 reach every
      engine-backed interaction without per-type wiring.
-**Plans:** 14/15 plans executed
+**Plans:** 15/15 plans complete
 
 Plans:
 - [x] 13-01-PLAN.md — Engine config layer: TYPE records + INSTANCE resolver
@@ -422,7 +422,7 @@ Plans:
 - [x] 13-12-PLAN.md — One report page rendering config-declared rubric dimensions
 - [x] 13-13-PLAN.md — Permanent redirects, link rewiring, deletion of the per-type trees
 - [x] 13-14-PLAN.md — REQ-66 acceptance test: pre-Phase-13 reports at their OLD URLs (non-autonomous)
-- [ ] 13-15-PLAN.md — DROP TABLE migration as its own declinable step + human handoff
+- [x] 13-15-PLAN.md — DROP TABLE migration as its own declinable step + human handoff
 
 ### Phase 14: Practice Pitches
 **Goal:** Ship the Practice Pitches interaction with its two sublayers — a strict
@@ -614,7 +614,7 @@ engine lands they can be planned and executed in any order, or in parallel.
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
 | 12. Embodied Visual Signals | 10/11 | Complete    | 2026-10-04 |
-| 13. One-on-One Conversation Engine | 14/15 | In Progress|  |
+| 13. One-on-One Conversation Engine | 15/15 | Complete*  | 2026-10-04 |
 | 14. Practice Pitches | 0/15 | Planned     |  |
 | 15. Difficult Conversations | 0/11 | Planned     |  |
 | 16. Networking Practice | 0/11 | Planned     |  |
