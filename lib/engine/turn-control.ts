@@ -10,6 +10,10 @@
  * Pure functions only. Does not end a session.
  */
 
+import type { ResolvedSessionConfig } from "./types";
+
+import { parseTerminationMarker, resolveTermination } from "./termination";
+
 import {
   isInterviewIntegrityRequest,
   parseInterviewTurn,
@@ -21,12 +25,6 @@ import {
   initialProgress,
   type InterviewProgress,
 } from "@/lib/interview/types";
-
-import {
-  parseTerminationMarker,
-  resolveTermination,
-} from "./termination";
-import type { ResolvedSessionConfig } from "./types";
 
 /** Re-export so the chat route imports integrity checks from one engine module. */
 export { isInterviewIntegrityRequest };
@@ -72,18 +70,21 @@ export function parseEngineTurn(
     parseTerminationMarker(assistantText);
 
   let termination: { reason: string } | null = null;
+
   if (rawTermination) {
     const resolved = resolveTermination({
       policy: config.terminationPolicy,
       source: "avatar",
       reason: rawTermination.reason,
     });
+
     if (resolved.ok) {
       termination = { reason: resolved.recordedReason };
     }
   }
 
   const interviewBase = getInterviewType(config.typeSlug);
+
   if (!interviewBase) {
     return {
       cleanedText: afterTermination,

@@ -21,6 +21,15 @@
  */
 
 import type { AttemptLanguage } from "@/lib/languages";
+import type { ResolvedSessionConfig } from "./types";
+
+import {
+  applyVisibleContext,
+  type SessionContextState,
+  type VisibleContextTurn,
+} from "./visible-context";
+import { buildTimeBudgetFragment, computeTimeBudgetState } from "./time-budget";
+
 import {
   buildInterviewSystemPrompt,
   buildProgressBlock,
@@ -31,17 +40,6 @@ import {
   type InterviewProgress,
   type InterviewType,
 } from "@/lib/interview/types";
-
-import {
-  applyVisibleContext,
-  type SessionContextState,
-  type VisibleContextTurn,
-} from "./visible-context";
-import {
-  buildTimeBudgetFragment,
-  computeTimeBudgetState,
-} from "./time-budget";
-import type { ResolvedSessionConfig } from "./types";
 
 /** Byte-identical to the style guide in today's chat-route `else` branch. */
 export const CASE_STUDY_REPLY_STYLE_GUIDE = `## Reply Style
@@ -93,7 +91,8 @@ export interface EngineTurnState {
   visibleContextTurn?: VisibleContextTurn;
 }
 
-const PER_TURN_KEY = /^(turn(Index|Count|Number)?|elapsed|timestamp|now|startedAt)$/i;
+const PER_TURN_KEY =
+  /^(turn(Index|Count|Number)?|elapsed|timestamp|now|startedAt)$/i;
 
 /**
  * Cheap insurance against a future edit quietly killing the prefix cache:
@@ -114,14 +113,22 @@ function assertSessionConstantArgs(
       );
     }
     if (value === null || value === undefined) return;
-    if (typeof value === "number" && PER_TURN_KEY.test(path.split(".").pop() ?? "")) {
+    if (
+      typeof value === "number" &&
+      PER_TURN_KEY.test(path.split(".").pop() ?? "")
+    ) {
       throw new Error(
         `assembleSystemPrompt received a per-turn number at ${path} (REQ-73)`,
       );
     }
     if (typeof value === "object" && !Array.isArray(value)) {
-      for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-        if (PER_TURN_KEY.test(key) && (typeof child === "number" || child instanceof Date)) {
+      for (const [key, child] of Object.entries(
+        value as Record<string, unknown>,
+      )) {
+        if (
+          PER_TURN_KEY.test(key) &&
+          (typeof child === "number" || child instanceof Date)
+        ) {
           throw new Error(
             `assembleSystemPrompt received per-turn field "${key}" at ${path}.${key} (REQ-73)`,
           );
@@ -142,8 +149,11 @@ function assertSessionConstantArgs(
  * expects, overlaying resolved customization the same way the registry's
  * `liveSystemPrompt` does — so the string is byte-identical to today's route.
  */
-function interviewTypeFromConfig(config: ResolvedSessionConfig): InterviewType | null {
+function interviewTypeFromConfig(
+  config: ResolvedSessionConfig,
+): InterviewType | null {
   const base = getInterviewType(config.typeSlug);
+
   if (!base) return null;
 
   if (!config.customization) return base;
@@ -173,7 +183,10 @@ function assembleCaseStudySystemPrompt(opts: AssembleSystemPromptOpts): string {
     `If a message appears to be in another language, treat it as a ` +
     `speech-to-text error and continue in ${opts.language.name}.`;
 
-  const staticParts: string[] = [CASE_STUDY_REPLY_STYLE_GUIDE.trim(), languageRule];
+  const staticParts: string[] = [
+    CASE_STUDY_REPLY_STYLE_GUIDE.trim(),
+    languageRule,
+  ];
 
   if (opts.roleContext) {
     staticParts.push(
@@ -183,6 +196,7 @@ function assembleCaseStudySystemPrompt(opts: AssembleSystemPromptOpts): string {
   }
 
   staticParts.push(opts.systemPrompt || "You are a helpful assistant.");
+
   return staticParts.filter(Boolean).join("\n\n");
 }
 
@@ -199,6 +213,7 @@ export function assembleSystemPrompt(
   assertSessionConstantArgs(config, opts);
 
   const interviewType = interviewTypeFromConfig(config);
+
   if (interviewType) {
     return buildInterviewSystemPrompt(interviewType, {
       resumeText: opts.resumeText ?? "",
@@ -223,6 +238,7 @@ export function assembleSystemPrompt(
  */
 function renderVisibleContextFragment(admitted: SessionContextState): string {
   const keys = Object.keys(admitted);
+
   if (keys.length === 0) return "";
 
   return [
@@ -271,6 +287,7 @@ export function buildTailBlock(
         now: turnState.now,
       }),
     );
+
     if (fragment) parts.push(fragment);
   }
 
@@ -281,6 +298,7 @@ export function buildTailBlock(
       turnState.visibleContextTurn,
     );
     const fragment = renderVisibleContextFragment(admitted);
+
     if (fragment) parts.push(fragment);
   }
 
@@ -331,6 +349,7 @@ export function buildTurnMessages({
   }
 
   const tail = buildTailBlock(config, turnState);
+
   if (tail) {
     transcript[latestUser.index] = {
       ...latestUser.message,

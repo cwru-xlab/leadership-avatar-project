@@ -1,5 +1,10 @@
+import type { InterviewCustomizationInput } from "@/lib/interview/customization";
+import type { InstanceConfig, ResolvedSessionConfig } from "@/lib/engine/types";
+
 import { NextRequest, NextResponse } from "next/server";
+
 import { createLLMStream, createSSEHeaders } from "../../llm/common";
+
 import { resolveAttemptLanguage } from "@/lib/languages";
 import {
   getInterviewType,
@@ -7,9 +12,7 @@ import {
   type BehavioralCategory,
   type InterviewProgress,
 } from "@/lib/interview/types";
-import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import { resolveSessionConfig } from "@/lib/engine/resolve";
-import type { InstanceConfig, ResolvedSessionConfig } from "@/lib/engine/types";
 import { buildTurnMessages } from "@/lib/engine/prompts";
 import {
   isInterviewIntegrityRequest,
@@ -50,6 +53,7 @@ function isChatMessage(value: unknown): value is ChatMessageInput {
   if (!value || typeof value !== "object") return false;
 
   const message = value as Record<string, unknown>;
+
   return (
     (message.role === "user" || message.role === "assistant") &&
     typeof message.content === "string" &&
@@ -60,10 +64,17 @@ function isChatMessage(value: unknown): value is ChatMessageInput {
 
 function normalizeProgress(value: unknown): InterviewProgress {
   const fallback = initialProgress();
+
   if (!value || typeof value !== "object") return fallback;
 
   const progress = value as Partial<InterviewProgress>;
-  const stages = ["opening", "resume", "behavioral", "role_specific", "closing"] as const;
+  const stages = [
+    "opening",
+    "resume",
+    "behavioral",
+    "role_specific",
+    "closing",
+  ] as const;
   const categories = [
     "conflict/disagreement",
     "failure/setback",
@@ -74,11 +85,10 @@ function normalizeProgress(value: unknown): InterviewProgress {
   ] as const;
 
   const isCategory = (category: unknown): category is BehavioralCategory =>
-    typeof category === "string" && categories.includes(category as BehavioralCategory);
+    typeof category === "string" &&
+    categories.includes(category as BehavioralCategory);
   const uniqueCategories = (items: unknown): BehavioralCategory[] =>
-    Array.isArray(items)
-      ? [...new Set(items.filter(isCategory))]
-      : [];
+    Array.isArray(items) ? [...new Set(items.filter(isCategory))] : [];
 
   return {
     stage:
@@ -105,19 +115,24 @@ function normalizeProgress(value: unknown): InterviewProgress {
     behavioralQuestionsAsked:
       typeof progress.behavioralQuestionsAsked === "number" &&
       Number.isFinite(progress.behavioralQuestionsAsked)
-        ? Math.max(0, Math.min(20, Math.floor(progress.behavioralQuestionsAsked)))
+        ? Math.max(
+            0,
+            Math.min(20, Math.floor(progress.behavioralQuestionsAsked)),
+          )
         : fallback.behavioralQuestionsAsked,
   };
 }
 
 function elapsedMinutes(startedAt: unknown): number {
   if (typeof startedAt !== "number" || !Number.isFinite(startedAt)) return 0;
+
   return Math.max(0, Math.floor((Date.now() - startedAt) / 60_000));
 }
 
 function isInstanceConfig(value: unknown): value is InstanceConfig {
   if (!value || typeof value !== "object") return false;
   const kind = (value as { kind?: unknown }).kind;
+
   return kind === "none" || kind === "case-study";
 }
 
@@ -131,7 +146,9 @@ function extractTypeSlug(
   engine: EngineRequestInput | undefined,
 ): string | undefined {
   if (engine && typeof engine.typeSlug === "string") return engine.typeSlug;
-  if (interview && typeof interview.typeSlug === "string") return interview.typeSlug;
+  if (interview && typeof interview.typeSlug === "string")
+    return interview.typeSlug;
+
   return undefined;
 }
 
@@ -159,14 +176,18 @@ function attachTerminationToStream(
   return new ReadableStream({
     async start(controller) {
       const reader = stream.getReader();
+
       try {
         for (;;) {
           const { done, value } = await reader.read();
+
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
+
           buffer += chunk;
           const lines = buffer.split("\n");
+
           buffer = lines.pop() ?? "";
 
           for (const line of lines) {
@@ -177,11 +198,17 @@ function attachTerminationToStream(
                   delta?: string;
                   metadata?: Record<string, unknown>;
                 };
+
                 if (event.type === "content" && event.delta) {
                   accumulated += event.delta;
                 }
                 if (event.type === "end") {
-                  const parsed = parseEngineTurn(accumulated, config, parseOpts);
+                  const parsed = parseEngineTurn(
+                    accumulated,
+                    config,
+                    parseOpts,
+                  );
+
                   event.metadata = {
                     ...(event.metadata ?? {}),
                     termination: parsed.termination,
@@ -213,7 +240,10 @@ function attachTerminationToStream(
 /** Legacy case-study / admin-case assembly — byte-identical to pre-Phase-13. */
 function assembleLegacyCaseStudyPrompt(
   systemPrompt: unknown,
-  roleContext: { roleName?: string; additionalInfo?: string } | null | undefined,
+  roleContext:
+    | { roleName?: string; additionalInfo?: string }
+    | null
+    | undefined,
   languageName: string,
 ): string {
   const styleGuide = `## Reply Style
@@ -236,6 +266,7 @@ function assembleLegacyCaseStudyPrompt(
     `speech-to-text error and continue in ${languageName}.`;
 
   const staticParts: string[] = [styleGuide.trim(), languageRule];
+
   if (roleContext) {
     staticParts.push(
       `You are playing the role of "${roleContext.roleName}" in a case study simulation.`,
@@ -246,6 +277,7 @@ function assembleLegacyCaseStudyPrompt(
     (typeof systemPrompt === "string" ? systemPrompt : "") ||
       "You are a helpful assistant.",
   );
+
   return staticParts.filter(Boolean).join("\n\n");
   // ── END CACHE PREFIX ──────────────────────────────────────────────────
 }
@@ -257,7 +289,11 @@ export async function POST(request: NextRequest) {
       body;
     const attemptLanguage = resolveAttemptLanguage(language);
 
-    if (!Array.isArray(messages) || messages.length === 0 || !messages.every(isChatMessage)) {
+    if (
+      !Array.isArray(messages) ||
+      messages.length === 0 ||
+      !messages.every(isChatMessage)
+    ) {
       return NextResponse.json(
         { error: "Messages must be a non-empty array of valid chat messages" },
         { status: 400 },
@@ -271,7 +307,8 @@ export async function POST(request: NextRequest) {
     // A client that sends neither `interview` nor `engine` takes today's
     // generic path with its own systemPrompt/roleContext — the LEGACY ADMIN
     // CASE path. Do not require an engine type.
-    const wantsEngineType = Boolean(interview) || Boolean(engineInput?.typeSlug);
+    const wantsEngineType =
+      Boolean(interview) || Boolean(engineInput?.typeSlug);
 
     let sessionConfig: ResolvedSessionConfig | null = null;
 
@@ -286,8 +323,12 @@ export async function POST(request: NextRequest) {
       // from both poisoning the prompt AND from varying turn-to-turn.
       // (Same intent as the former resolveInterviewType comment on this route.)
       const customization =
-        (engineInput?.customization as InterviewCustomizationInput | undefined) ??
-        (interviewInput?.customization as InterviewCustomizationInput | undefined);
+        (engineInput?.customization as
+          | InterviewCustomizationInput
+          | undefined) ??
+        (interviewInput?.customization as
+          | InterviewCustomizationInput
+          | undefined);
       const instance = isInstanceConfig(engineInput?.instance)
         ? engineInput!.instance
         : undefined;
@@ -299,12 +340,18 @@ export async function POST(request: NextRequest) {
 
       if (!resolved.ok) {
         // Keep the existing status and message so no client's error handling changes.
-        return NextResponse.json({ error: "Unknown interview type" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Unknown interview type" },
+          { status: 400 },
+        );
       }
       sessionConfig = resolved.config;
     }
 
-    let fullMessages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+    let fullMessages: Array<{
+      role: "system" | "user" | "assistant";
+      content: string;
+    }>;
     let interviewStyleTurnControl = false;
     let parseOpts: {
       previousProgress?: InterviewProgress;
@@ -319,10 +366,12 @@ export async function POST(request: NextRequest) {
           : "";
       const progress = normalizeProgress(interviewInput?.progress);
       const isInterview = Boolean(getInterviewType(sessionConfig.typeSlug));
+
       interviewStyleTurnControl = isInterview;
 
       if (isInterview) {
         const hasUser = messages.some((m) => m.role === "user");
+
         if (!hasUser) {
           return NextResponse.json(
             { error: "An interview turn must include a candidate message" },
@@ -348,6 +397,7 @@ export async function POST(request: NextRequest) {
               const latestUser = [...messages]
                 .reverse()
                 .find((m) => m.role === "user");
+
               return latestUser
                 ? isInterviewIntegrityRequest(latestUser.content)
                 : false;
@@ -356,7 +406,8 @@ export async function POST(request: NextRequest) {
         },
         language: attemptLanguage,
         resumeText,
-        systemPrompt: typeof systemPrompt === "string" ? systemPrompt : undefined,
+        systemPrompt:
+          typeof systemPrompt === "string" ? systemPrompt : undefined,
         roleContext: roleContext ?? null,
       });
 
@@ -376,6 +427,7 @@ export async function POST(request: NextRequest) {
         roleContext,
         attemptLanguage.name,
       );
+
       fullMessages = [
         { role: "system", content: fullSystemPrompt }, // Must stay at index 0 for caching
         ...messages,
@@ -398,6 +450,7 @@ export async function POST(request: NextRequest) {
     return new Response(responseStream, { headers: createSSEHeaders() });
   } catch (error) {
     console.error("Error in interaction chat:", error);
+
     return NextResponse.json(
       { error: "Failed to generate response" },
       { status: 500 },
