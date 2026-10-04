@@ -260,7 +260,7 @@ report restructure (REQ-53's scored-vs-descriptive distinction gates REQ-52).
   3. Nothing the pipeline cannot observe is described as absent, and nothing reported
      descriptively is scored.
 
-**Plans:** 11/11 plans complete
+**Plans:** 11/11 plans complete — keyboard UAT deferred under skip_checkpoints → `/gsd/verify-work 15`
 
 Plans:
 - [x] 12-01-PLAN.md — Async stop() teardown + per-tick frame-budget instrumentation
@@ -611,5 +611,5 @@ Plans:
 | 12. Embodied Visual Signals | 10/11 | Complete    | 2026-10-04 |
 | 13. One-on-One Conversation Engine | 15/15 | Complete*  | 2026-10-04 |
 | 14. Practice Pitches | 4/15 | In Progress|  |
-| 15. Difficult Conversations | 10/11 | In Progress|  |
+| 15. Difficult Conversations | 11/11 | Complete*  | 2026-10-04 |
 | 16. Networking Practice | 11/11 | Complete   | 2026-10-04 |
