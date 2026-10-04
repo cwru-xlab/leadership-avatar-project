@@ -443,11 +443,31 @@ export interface VisualMetrics {
    * `HANDS_NEAR_FACE_RADIUS` of the face — its OWN scored signal, distinct
    * from general gesticulation rate (REQ-50). */
   hands_near_face_pct?: number;
-  /** 0-1. Mean magnitude of drift away from the session's own opening
-   * posture baseline — SCORED, baseline-relative, never an absolute-posture
-   * judgement. See Pattern 3 in `12-RESEARCH.md`. */
+  /** 0-1. Session-wide mean of each post-baseline tick's drift away from the
+   * session's own opening posture baseline — baseline-relative, never an
+   * absolute-posture judgement. See Pattern 3 in `12-RESEARCH.md`.
+   *
+   * NO LONGER SCORED (12-11 Task 3). This was the field `bandPostureDrift`
+   * compared against `POSTURE_DRIFT_TRIP`, and it is the wrong statistic for
+   * the question: a session is required BY DESIGN to open upright (the first
+   * `POSTURE_BASELINE_WINDOW_S` establishes the baseline), so a session-wide
+   * mean dilutes any later slump against that mandatory upright opening. A
+   * real held slump measured 0.373 here while peaking at 0.643 per tick and
+   * holding above the trip for 12.0s, and the report said "Held steady from
+   * the opening posture". The scored verdict now derives from
+   * `posture_drift_max_s` below. This field is RETAINED as a diagnostic
+   * aggregate — useful when reading a dump — but nothing scored reads it and
+   * nothing should start; `scripts/verify-visual-metrics.ts` asserts that a
+   * session carrying only a high mean renders no verdict. */
   posture_drift_mean?: number;
-  /** Longest single sustained posture-drift run, in seconds. */
+  /** Longest single sustained posture-drift run, in seconds — the span over
+   * which per-tick drift held continuously above `POSTURE_DRIFT_TRIP`.
+   *
+   * THE SCORED POSTURE QUANTITY as of 12-11 Task 3, compared against
+   * `POSTURE_DRIFT_SUSTAINED_S` by `bandPostureDrift`. Computed and persisted
+   * since 12-06 and, until that task, read by nothing at all. A sustained run
+   * is what a slump actually is: not a high average, but a stretch of real
+   * time spent away from where you started. */
   posture_drift_max_s?: number;
   /** Which landmark groups actually cleared the visibility floor for this
    * session — the input to the "Measured from" row, rendered

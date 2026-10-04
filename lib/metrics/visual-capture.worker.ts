@@ -123,11 +123,40 @@ export interface PoseDetectResult {
   };
   /** Angle of the 11-12 shoulder line from horizontal, in degrees. */
   shoulderTiltDeg: number | null;
-  /** Magnitude of the nose's displacement from the shoulder midpoint,
+  /** **THE NAME IS A MISNOMER — read this before using the field.** This is
+   * NOT anterior (forward) head translation. It is the 2D IMAGE-SPACE
+   * DISTANCE from the shoulder midpoint to the nose,
+   * `hypot(nose.x - shoulderMidX, nose.y - shoulderMidY) / shoulderWidth`,
    * normalised by shoulder width so the reading does not change when the
    * student moves closer to or further from the camera - without this
    * normalisation, leaning in would read identically to a forward-head
-   * posture change. */
+   * posture change.
+   *
+   * True forward-head translation runs along the CAMERA AXIS and is
+   * near-invisible to a frontal webcam, so this metric cannot measure it and
+   * never did. **The quantity it actually tracks DECREASES as the head drops
+   * toward the shoulder line** — i.e. a slump makes this number go DOWN, not
+   * up. Session A (12-11 Task 2, a deliberate held slump) measured exactly
+   * that: 0.7681 upright falling to <=0.4681 at the peak of the slump.
+   *
+   * NAMING LEFT ALONE DELIBERATELY (12-11 Task 3). The label is wrong but it
+   * is load-bearing across the worker, `PostureReading`, `PostureBaseline`'s
+   * field names, the `forward_head` signal key in `VisualPostureSignal`, the
+   * "Head position" display wording and 12-TUNING.md's recorded readings.
+   * Renaming it is churn with a real chance of a transcription error in a
+   * phase that has already shipped three posture false verdicts; documenting
+   * it is the cheaper and safer correction. If it IS renamed later,
+   * `headToShoulderDistance` is the accurate name.
+   *
+   * CORRECTION TO 12-10's RECORDED HYPOTHESIS — this is NOT a detection
+   * failure. 12-10's close recorded that "the sign may be backwards relative
+   * to the behaviour being graded", and 12-11's Session A readings confirmed
+   * the DECREASE while refuting the consequence. `computePostureDrift` scores
+   * `Math.abs(current - baseline)`, so a decrease registers exactly as
+   * strongly as an increase of the same size: the direction cannot affect the
+   * magnitude, and this channel was never blind to a slump. It was the
+   * strongest responder to one (delta 1.000, clamp-saturated). The defect is
+   * purely one of LABELLING. Do not carry 12-10's stronger claim forward. */
   forwardHeadOffset: number | null;
   /** Angle of the shoulder-midpoint-to-hip-midpoint line from vertical, in
    * degrees. 0 is upright; sign follows the direction of lean. */
@@ -351,15 +380,24 @@ async function createHandLandmarkerModel(
  * production threshold authoritative while the flag is on. Nothing else in
  * the pipeline reads `phoneScore`.
  *
- * Set `NEXT_PUBLIC_POSTURE_DRIFT_DEV_DUMP=1` and restart `npm run dev`
+ * Set `NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP=1` and restart `npm run dev`
  * (a `NEXT_PUBLIC_*` var is inlined at build time). REMOVE this flag, the
- * floor below, and the branch in `createObjectDetectorModel` once 12-11 Task
- * 2's readings are recorded in `12-TUNING.md` — scaffolding, not a feature.
+ * floor below, and the branch in `createObjectDetectorModel` once a
+ * PHONE-HELD session's readings are recorded in `12-TUNING.md` — scaffolding,
+ * not a feature.
+ *
+ * NOT REMOVED BY 12-11 Task 3, deliberately, even though that task removed the
+ * posture half of this dump. 12-11 Task 2 ran only the no-phone session, so the
+ * TRUE-POSITIVE confidence distribution is still unobserved and
+ * `PHONE_SCORE_THRESHOLD` is still undecided. 12-10 removed this instrument
+ * before taking the reading and then had nothing to read at its own sign-off;
+ * that is the mistake this retention avoids repeating. See
+ * `PHONE_SCORE_THRESHOLD` in `body-thresholds.ts`.
  */
-const POSTURE_DRIFT_DEV_DUMP =
-  process.env.NEXT_PUBLIC_POSTURE_DRIFT_DEV_DUMP === "1";
+const PHONE_CONFIDENCE_DEV_DUMP =
+  process.env.NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP === "1";
 
-/** TEMPORARY, DEV-ONLY (12-11 Task 1) — see `POSTURE_DRIFT_DEV_DUMP`. Low
+/** TEMPORARY, DEV-ONLY — see `PHONE_CONFIDENCE_DEV_DUMP`. Low
  * enough to show the left tail of the "cell phone" confidence distribution
  * without flooding the dump with every speck the detector will guess at.
  * Mirrored as a literal in `visual-capture.ts`'s dump note; both go away
@@ -382,7 +420,7 @@ async function createObjectDetectorModel(
     // detector will REPORT, so the sub-threshold tail is observable; the
     // phonePresent verdict in `detectObject` still uses
     // PHONE_SCORE_THRESHOLD either way.
-    scoreThreshold: POSTURE_DRIFT_DEV_DUMP
+    scoreThreshold: PHONE_CONFIDENCE_DEV_DUMP
       ? PHONE_DEV_DUMP_SCORE_FLOOR
       : PHONE_SCORE_THRESHOLD,
   });
@@ -861,7 +899,7 @@ function detectObject(
   // build (the model's own `scoreThreshold` already removed everything
   // below), and it keeps the production verdict authoritative when the
   // DEV-ONLY dump lowers that model-side filter — see
-  // `POSTURE_DRIFT_DEV_DUMP`.
+  // `PHONE_CONFIDENCE_DEV_DUMP`.
   return {
     phonePresent: bestScore >= PHONE_SCORE_THRESHOLD,
     phoneScore: bestScore,

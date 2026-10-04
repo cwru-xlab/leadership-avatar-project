@@ -49,6 +49,10 @@ import {
   PHONE_MIN_VISIBLE_S,
   POSTURE_BASELINE_MIN_SAMPLES,
   POSTURE_BASELINE_WINDOW_S,
+  POSTURE_DRIFT_SUSTAINED_S,
+  POSTURE_DRIFT_TRIP,
+  POSTURE_FORWARD_HEAD_DRIFT_SCALE,
+  POSTURE_SHOULDER_TILT_DRIFT_SCALE_DEG,
 } from "../lib/metrics/body-thresholds";
 
 let failures = 0;
@@ -764,12 +768,21 @@ console.log(
 
   // Session A's rendered report: no verdict row of EITHER kind. 12-08 produced
   // a false "Held steady" here and 12-09 a false "Shifted from the opening
-  // posture"; `posture_drift_mean` is set to a real number below so this
+  // posture"; BOTH drift fields are set to real numbers below so this
   // exercises the renderer's own refusal rather than an absent field.
+  //
+  // 12-11 Task 3: `posture_drift_max_s` is now the field the row is gated on
+  // and the verdict derived from, so it MUST be present in this fixture —
+  // and present at a value that WOULD have tripped (20s, well above
+  // POSTURE_DRIFT_SUSTAINED_S). Without it this check would still pass, but
+  // for the wrong reason: an absent field rather than the coverage refusal it
+  // exists to pin. A check that passes for the wrong reason is what 12-09's
+  // own sign-off failure was made of.
   const sessionARendered = visualBodyLanguageBands(
     visual({
       posture_signals_measured: sessionAMeasured,
       posture_drift_mean: 0.42,
+      posture_drift_max_s: 20,
     })
   );
   check(
@@ -834,7 +847,11 @@ console.log(
     'Session B: "Measured from" names exactly that one signal',
     bandFor(
       visualBodyLanguageBands(
-        visual({ posture_signals_measured: sessionBMeasured, posture_drift_mean: 0.2 })
+        visual({
+          posture_signals_measured: sessionBMeasured,
+          posture_drift_mean: 0.2,
+          posture_drift_max_s: 0,
+        })
       ),
       "Measured from"
     ),
@@ -843,7 +860,11 @@ console.log(
   check(
     "Session B: a Posture drift verdict IS rendered — a partial body is scored, not skipped",
     visualBodyLanguageBands(
-      visual({ posture_signals_measured: sessionBMeasured, posture_drift_mean: 0.2 })
+      visual({
+          posture_signals_measured: sessionBMeasured,
+          posture_drift_mean: 0.2,
+          posture_drift_max_s: 0,
+        })
     ).some((r) => r.label === "Posture drift"),
     true
   );
@@ -864,6 +885,318 @@ console.log(
   check(
     "Session B: hands are NOT usable either — 1 in-frame detection all session",
     computeHandsUsable(sessionB.handsDetectedInFrame, sessionB.handsTicks),
+    false
+  );
+}
+
+console.log(
+  "\n10d. 12-11 — the posture-drift false negative, from the real Session A readings"
+);
+{
+  // THE READING THIS SECTION REPLAYS. Session A, run by the user on
+  // 2026-10-03 as 12-11 Task 2: fully in frame, well centred, upright for
+  // ~20s, then a hard and unmistakable HELD slump. 108.0s, 162 pose ticks,
+  // 131 of them post-baseline and all 131 scored. Signals measured:
+  // shoulder_line + forward_head. Baseline (31 samples): tilt = 4.307 deg,
+  // fwdHead = 0.7681.
+  //
+  // WHAT THE PIPELINE SAID: "Posture drift: Held steady from the opening
+  // posture." That is the fourth consecutive wrong posture verdict in this
+  // phase and the first one measured rather than guessed at.
+  //
+  // WHAT THE DUMP SHOWED — the signals could see the slump perfectly well:
+  //   max per-signal delta  = 1.000 (forward_head, CLAMP-SATURATED) at t=55.9
+  //   max shoulder_line     = 0.508 at t=53.9  (alone above the 0.5 trip)
+  //   max per-tick drift    = 0.643 at t=107.1 (above the trip)
+  //   sustained streak      = 12.0s above the trip
+  //   posture_drift_mean    = 0.373  <-- the ONLY one of these the band read
+  //
+  // Two independent dilutions turned a saturated signal into "Held steady",
+  // and this section pins both repairs against regression. Every raw number
+  // below is from that console paste; none is constructed.
+  const sessionABaseline = baselineFixture({
+    shoulderTiltDeg: 4.307,
+    forwardHeadOffset: 0.7681,
+    signals: ["shoulder_line", "forward_head"],
+    sampleCount: 31,
+  });
+  const round3 = (n: number | null) =>
+    n === null ? null : Math.round(n * 1000) / 1000;
+  // The aggregation as it stood before 12-11 Task 3, kept here so the
+  // assertions can state the burial as an arithmetic FACT rather than assert
+  // only the fixed behaviour. A test that shows only the new value cannot
+  // demonstrate that the old one was wrong.
+  const preFixMean = (perSignal: Partial<Record<string, number>>) => {
+    const values = Object.values(perSignal).filter(
+      (v): v is number => typeof v === "number"
+    );
+    return values.length === 0
+      ? null
+      : round3(values.reduce((sum, v) => sum + v, 0) / values.length);
+  };
+
+  // --- CAUSE 1: the cross-signal mean. t=33.4 of the real series, the tick
+  // where the slump first bites: raw tilt=2.22, fwdHead=0.5999.
+  const t334 = computePostureDrift(
+    reading({ tS: 33.4, shoulderTiltDeg: 2.22, forwardHeadOffset: 0.5999 }),
+    sessionABaseline
+  );
+  check(
+    "Session A t=33.4: per-signal deltas reproduce the dump exactly",
+    [round3(t334.perSignal.shoulder_line ?? null), round3(t334.perSignal.forward_head ?? null)],
+    [0.139, 0.561]
+  );
+  check(
+    "Session A t=33.4: the PRE-FIX cross-signal mean was 0.350 — the dump's own printed drift",
+    preFixMean(t334.perSignal),
+    0.35
+  );
+  check(
+    "Session A t=33.4: that mean was BELOW the trip — a slumping tick scored as steady",
+    (preFixMean(t334.perSignal) ?? 0) > POSTURE_DRIFT_TRIP,
+    false
+  );
+  check(
+    "Session A t=33.4: the worst axis is 0.561 and IS above the trip",
+    round3(t334.driftMagnitude),
+    0.561
+  );
+  check(
+    "Session A t=33.4: the repaired aggregation trips on this tick",
+    (t334.driftMagnitude ?? 0) > POSTURE_DRIFT_TRIP,
+    true
+  );
+
+  // THE DECISIVE STRUCTURAL CASE, and the reason the mean was wrong IN KIND
+  // rather than merely too lenient. A PURE slump — forward_head saturated at
+  // the clamp ceiling, shoulder line perfectly still at its baseline —
+  // averages to EXACTLY 0.500, which is not `> 0.5`. Under the mean, a
+  // maximal single-axis slump was undetectable at ANY trip at or above 0.5,
+  // so no amount of lowering POSTURE_DRIFT_TRIP could have fixed this.
+  // Session A only reached a 0.643 peak because its shoulders happened to
+  // move 0.286 as well; a student who slumps without tilting got nothing.
+  const pureSlump = computePostureDrift(
+    reading({ tS: 56, shoulderTiltDeg: 4.307, forwardHeadOffset: 0.4 }),
+    sessionABaseline
+  );
+  check(
+    "a PURE slump saturates forward_head at the clamp ceiling",
+    round3(pureSlump.perSignal.forward_head ?? null),
+    1
+  );
+  check(
+    "...with the shoulder line exactly at baseline, contributing 0",
+    round3(pureSlump.perSignal.shoulder_line ?? null),
+    0
+  );
+  check(
+    "...which the PRE-FIX mean collapsed to exactly 0.500 — NOT above a 0.5 trip",
+    [preFixMean(pureSlump.perSignal), (preFixMean(pureSlump.perSignal) ?? 0) > POSTURE_DRIFT_TRIP],
+    [0.5, false]
+  );
+  check(
+    "...while the worst axis reports the full 1.0 the signal actually measured",
+    round3(pureSlump.driftMagnitude),
+    1
+  );
+
+  // THE SATURATION, recorded as an assertion so the limit is not forgotten:
+  // 1.000 is the CLAMP, not a measurement. It says only that the offset moved
+  // at least POSTURE_FORWARD_HEAD_DRIFT_SCALE (0.3) from baseline. A moderate
+  // slump and an extreme one are indistinguishable above that point, so this
+  // channel cannot support severity wording. See the scale's own comment.
+  const moderate = computePostureDrift(
+    reading({ forwardHeadOffset: 0.7681 - 0.31 }),
+    sessionABaseline
+  );
+  const extreme = computePostureDrift(
+    reading({ forwardHeadOffset: 0.7681 - 0.60 }),
+    sessionABaseline
+  );
+  check(
+    "forward_head SATURATES: a 0.31 and a 0.60 offset change are indistinguishable at 1.000",
+    [round3(moderate.perSignal.forward_head ?? null), round3(extreme.perSignal.forward_head ?? null)],
+    [1, 1]
+  );
+
+  // THE SIGN-INVERSION CORRECTION (12-10 overstated this; see
+  // PoseDetectResult.forwardHeadOffset's comment). fwdHead DOES decrease
+  // during a slump — the metric is a head-to-shoulder DISTANCE, not anterior
+  // displacement — but drift scores the ABSOLUTE delta, so a decrease
+  // registers exactly as strongly as an increase. The channel was never
+  // blind; the defect is purely one of labelling.
+  const dropped = computePostureDrift(
+    reading({ forwardHeadOffset: 0.7681 - 0.15 }),
+    sessionABaseline
+  );
+  const raised = computePostureDrift(
+    reading({ forwardHeadOffset: 0.7681 + 0.15 }),
+    sessionABaseline
+  );
+  check(
+    "a DECREASING forward-head offset scores identically to an increase of the same size",
+    [round3(dropped.perSignal.forward_head ?? null), round3(raised.perSignal.forward_head ?? null)],
+    [0.5, 0.5]
+  );
+
+  // --- THE FALSE-POSITIVE SIDE. These four rows are from Session A's own
+  // upright stretch and the slump's leading edge, and they are the ONLY clean
+  // post-12-10 ordinary readings that exist: 12-TUNING.md's S1-S4 ordinary
+  // sessions predate the frame-bounds gating and are contaminated by
+  // extrapolated skeletons, so they cannot calibrate this side. The worst
+  // axis must stay BELOW the trip for every one of them — a repair that
+  // trips on sitting still is no better than one that never trips.
+  const ordinaryRows: Array<[number, number, number, number]> = [
+    // tS, raw tilt, raw fwdHead, expected worst-axis drift
+    [21.4, 5.48, 0.7887, 0.078],
+    [26.1, 5.3, 0.6975, 0.235],
+    [32.7, 3.26, 0.6924, 0.252],
+  ];
+  for (const [tS, tilt, fwdHead, expected] of ordinaryRows) {
+    const d = computePostureDrift(
+      reading({ tS, shoulderTiltDeg: tilt, forwardHeadOffset: fwdHead }),
+      sessionABaseline
+    );
+    check(
+      `Session A t=${tS} (upright): worst axis is ${expected}, reproducing the dump`,
+      round3(d.driftMagnitude),
+      expected
+    );
+    check(
+      `Session A t=${tS} (upright): stays below the trip — no false positive`,
+      (d.driftMagnitude ?? 1) > POSTURE_DRIFT_TRIP,
+      false
+    );
+  }
+
+  // The scale constants are load-bearing in every number above. Pinned so a
+  // change to either one surfaces here rather than silently re-deriving every
+  // assertion in this section.
+  check(
+    "the scales these replays are computed against are the ones in the file",
+    [POSTURE_SHOULDER_TILT_DRIFT_SCALE_DEG, POSTURE_FORWARD_HEAD_DRIFT_SCALE],
+    [15, 0.3]
+  );
+
+  // --- CAUSE 2: the session-wide mean, and THE TRAP IN THE OBVIOUS FIX.
+  // Session A's streak above the trip measured 12.0s under the OLD
+  // cross-signal mean. POSTURE_DRIFT_SUSTAINED_S was 15. Had the band simply
+  // been switched from posture_drift_mean onto posture_drift_max_s without
+  // re-deriving that constant, this genuine held slump would STILL have
+  // reported "Held steady" — a second silent false negative one layer down,
+  // with the aggregation repair appearing to have done nothing.
+  check(
+    "THE TRAP: the sustained floor sits BELOW Session A's measured 12.0s streak",
+    POSTURE_DRIFT_SUSTAINED_S <= 12,
+    true
+  );
+  const sessionAMeasuredSignals = ["shoulder_line", "forward_head"] as const;
+  check(
+    "Session A: the slump is finally reported — the verdict this whole plan exists for",
+    bandFor(
+      visualBodyLanguageBands(
+        visual({
+          posture_signals_measured: [...sessionAMeasuredSignals],
+          posture_drift_mean: 0.373,
+          posture_drift_max_s: 12,
+        })
+      ),
+      "Posture drift"
+    ),
+    "Shifted from the opening posture"
+  );
+  check(
+    'Session A: "Measured from" still names both signals — REQ-51 has not regressed',
+    bandFor(
+      visualBodyLanguageBands(
+        visual({
+          posture_signals_measured: [...sessionAMeasuredSignals],
+          posture_drift_mean: 0.373,
+          posture_drift_max_s: 12,
+        })
+      ),
+      "Measured from"
+    ),
+    "Shoulder line and Head position"
+  );
+
+  // THE REGRESSION PIN FOR THE STATISTIC SWAP. These two assertions are a
+  // matched pair and only mean something together: the verdict must follow
+  // the SUSTAINED STREAK and must be indifferent to the session MEAN. Reading
+  // the mean is the specific defect that produced the item-3 false negative,
+  // and posture_drift_mean is still on the payload, so nothing but an
+  // assertion stops a future change from quietly reaching for it again.
+  check(
+    "a damning session MEAN with no sustained streak says Held steady — the mean is NOT read",
+    bandFor(
+      visualBodyLanguageBands(
+        visual({
+          posture_signals_measured: [...sessionAMeasuredSignals],
+          posture_drift_mean: 0.95,
+          posture_drift_max_s: 0,
+        })
+      ),
+      "Posture drift"
+    ),
+    "Held steady from the opening posture"
+  );
+  check(
+    "a low session MEAN with a long sustained streak says Shifted — the streak IS read",
+    bandFor(
+      visualBodyLanguageBands(
+        visual({
+          posture_signals_measured: [...sessionAMeasuredSignals],
+          posture_drift_mean: 0.05,
+          posture_drift_max_s: 30,
+        })
+      ),
+      "Posture drift"
+    ),
+    "Shifted from the opening posture"
+  );
+
+  // The duration requirement is the other half of the worst-axis change and
+  // the reason taking a max is safe: a momentary excursion on one axis
+  // (reaching for water, glancing at a note) must not become a verdict. At
+  // pose's confirmed ~1.5 Hz, the 8s floor demands ~12 consecutive ticks
+  // above the trip, and noise does not hold for 8 seconds.
+  check(
+    "a brief single excursion below the sustained floor is NOT reported as a shift",
+    bandFor(
+      visualBodyLanguageBands(
+        visual({
+          posture_signals_measured: [...sessionAMeasuredSignals],
+          posture_drift_mean: 0.4,
+          posture_drift_max_s: POSTURE_DRIFT_SUSTAINED_S - 1,
+        })
+      ),
+      "Posture drift"
+    ),
+    "Held steady from the opening posture"
+  );
+
+  // The row is gated on the field its verdict is DERIVED from. A row gated on
+  // one field while worded from another is how 12-09's Defect 2 happened.
+  check(
+    "posture_drift_max_s absent (mean present, signals present) yields no Posture drift row",
+    visualBodyLanguageBands(
+      visual({
+        posture_signals_measured: [...sessionAMeasuredSignals],
+        posture_drift_mean: 0.9,
+      })
+    ).some((r) => r.label === "Posture drift"),
+    false
+  );
+
+  // And 12-09's unreadable-branch guarantee survives the rewiring: the
+  // measured-signals check runs FIRST, before the duration is looked at at
+  // all, so an off-camera session that somehow accumulated a long streak from
+  // a brief glimpse still gets no verdict.
+  check(
+    "12-09 guarantee intact: empty measured signals refuse a verdict even with a 30s streak",
+    visualBodyLanguageBands(
+      visual({ posture_signals_measured: [], posture_drift_max_s: 30 })
+    ).some((r) => r.label === "Posture drift"),
     false
   );
 }

@@ -53,9 +53,9 @@ were estimated, inferred, or reconstructed.
 | `GESTURE_RATE_EXCESSIVE_MIN` | 20 | **Moderate, conservative.** Above S3's 12.2 (highest observed, not described as excessive). No observed true positive. |
 | `GESTURE_WINDOW_EXCESSIVE_PCT` | 22 | Derived alongside the window-trip bug fix below. |
 | `HANDS_NEAR_FACE_TRIP_PCT` | 50 | **Good.** Four readings spanning 0 / 26 / 32 / 71%, with S3's 71% being the one session of deliberate face-touching. Separates ordinary (26–32%) from deliberate cleanly. |
-| `POSTURE_DRIFT_TRIP` | 0.5 | **Weakest in the file.** Two readings (0.358, 0.424), both ordinary sessions. Placed above both so ordinary movement reads "held steady". True-positive side unverified. |
+| `POSTURE_DRIFT_TRIP` | 0.5 | **Set from one real session (12-11), retained.** Now bounded on BOTH sides by Session A: ordinary <=0.252, slump >=0.508. Was never the defect — see the 12-11 section below. |
 | `HANDS_NEAR_FACE_RADIUS` | 0.15 | **Not re-tuned.** No dump captured the raw hand-to-face distance distribution. |
-| `POSTURE_DRIFT_SUSTAINED_S` | 15 | **Not re-tuned.** Needs a raw per-tick drift series; only session aggregates exist, and those were computed against the old 0.35 trip. |
+| `POSTURE_DRIFT_SUSTAINED_S` | 8 | **Set from one real session (12-11), lowered from 15.** The series finally exists. Bounded from ABOVE only (Session A's 12.0s streak); nothing bounds it from below. **Was read by NOTHING until 12-11.** |
 
 ## The excessive-gesturing defect (a bug, not a mistuning)
 
@@ -363,3 +363,234 @@ was carried by `12-10-PLAN.md`, whose Task 2 readings are recorded above and
 whose Task 4 re-run on 2026-10-03 PASSED item 1 at last. Items 3 (posture-drift
 true positive) and 4 (phone confidence) are carried forward — see the two
 sections immediately above.*
+
+---
+
+# 12-11: the posture-drift series, and the two dilutions that buried a slump
+
+This section supersedes the "Hypothesis for the item-3 failure" above, which
+was a code reading and is now either confirmed or corrected by measurement.
+**Branch R of 12-11-PLAN.md Task 3 applies:** the signals CAN see a slump; the
+aggregation was burying it.
+
+## Session A — the deliberate slump. The reading the phase had been missing
+
+Run by the user on 2026-10-03 with 12-11 Task 1's dump active. Fully in frame,
+well centred, upright ~20s, then a hard and unmistakable held slump. Pasted from
+a real browser console; nothing below is estimated or reconstructed.
+
+```
+scales: shoulder_line=15deg forward_head=0.3 torso_lean=20deg torso_openness=0.3
+POSTURE_DRIFT_TRIP=0.5; POSTURE_BASELINE_WINDOW_S=20
+session: sessionSeconds=108.0 poseTicks=162
+         postureSignalsMeasured=[shoulder_line, forward_head]
+baseline: calibrated=true anchorTS=1.1 signals=[shoulder_line, forward_head]
+          sampleCount=31
+baseline values: tilt=4.307 fwdHead=0.7681 lean=- open=-
+MAXIMA over ALL 131 post-baseline ticks (NOT sampled):
+  max per-tick driftMagnitude = 0.643 at t=107.1
+  max per-signal delta        = 1.000 (forward_head) at t=55.9
+    max delta shoulder_line   = 0.508 at t=53.9
+    max delta forward_head    = 1.000 at t=55.9
+  posture_drift_mean  = 0.373 (over 131 scored ticks)
+  posture_drift_max_s = 12.0 (sustained streak above the trip;
+                              computed but NOT read by the band)
+```
+
+Series rows (the full 131/131 were printed unsampled; the paste truncated around
+t=35, but the MAXIMA block above is complete and authoritative):
+
+```
+t=21.4 raw[tilt=5.48 fwdHead=0.7887] delta[tilt=0.078 fwdHead=0.069] drift=0.074
+t=26.1 raw[tilt=5.30 fwdHead=0.6975] delta[tilt=0.067 fwdHead=0.235] drift=0.151
+t=32.7 raw[tilt=3.26 fwdHead=0.6924] delta[tilt=0.070 fwdHead=0.252] drift=0.161
+t=33.4 raw[tilt=2.22 fwdHead=0.5999] delta[tilt=0.139 fwdHead=0.561] drift=0.350
+t=34.0 raw[tilt=1.82 fwdHead=0.6200] delta[tilt=0.166 fwdHead=0.494] drift=0.330
+t=34.7 raw[tilt=1.91 fwdHead=0.5964] delta[tilt=0.160 fwdHead=0.572] drift=0.366
+```
+
+**The report for this session said: "Posture drift: Held steady from the opening
+posture", measured from "Shoulder line and Head position".**
+
+The arithmetic was re-derived independently from the raw readings and the
+baseline before anything was changed, and it reproduces the dump exactly:
+at t=33.4, `|0.5999-0.7681|/0.3 = 0.561` and `|2.22-4.307|/15 = 0.139`, mean
+`0.350` — the printed `drift`. **The computation was never wrong. The statistic
+the band read was.**
+
+## Sessions B and C
+
+- **Session B (lateral lean) — NOT RUN, and NO LONGER NEEDED.** Its stated
+  purpose was to separate "slump-blind" from "wholly dead", and Session A
+  answered that on its own: both channels moved, `shoulder_line` reaching 0.508.
+  Recorded as not-needed rather than outstanding.
+- **Session C (phone held) — NOT RUN. Still outstanding.** See the phone section
+  at the end.
+
+## Which cause each reading settled
+
+**Cause 1 — the cross-signal mean. CONFIRMED, and worse than hypothesised.**
+`forward_head` saturated at the clamp ceiling (1.000) while the peak per-tick
+drift was only 0.643, because the mean averaged it against `shoulder_line`'s
+0.286. Beyond the hypothesis, one case decides the shape of the repair: a PURE
+slump — `forward_head` saturated at 1.000 with a perfectly still shoulder line
+at 0.000 — averages to **exactly 0.500**, which is not `> 0.5`. Under the mean a
+maximal single-axis slump was undetectable at any trip at or above 0.5, so
+**lowering `POSTURE_DRIFT_TRIP` could never have fixed this.** Session A only
+reached 0.643 because its shoulders happened to move too. The mean was wrong in
+KIND: the four signals are roughly orthogonal axes, not repeated measurements of
+one quantity, and a student who drifts hard on one axis got half credit for the
+axis they did not move. `computePostureDrift` now takes the **worst (maximum)
+axis**.
+
+**Cause 2 — the session-wide mean. CONFIRMED.** A session is required BY DESIGN
+to open upright (the first 20s establishes the baseline), so averaging across it
+dilutes any later slump against a mandatory upright opening: the longer a
+student holds good posture before slumping, the lower the score the slump
+produces. Session A peaked at 0.643 and held above the trip for 12.0s, and that
+collapsed to a 0.373 session mean. `bandPostureDrift` now reads
+`posture_drift_max_s` — the sustained streak, computed and persisted since 12-06
+and until now **read by nothing**.
+
+**Cause 3 — `forwardHeadOffset` is a misnomer. CONFIRMED AS LABELLING; 12-10's
+STRONGER CLAIM IS WITHDRAWN.** This correction matters, because the ledger above
+currently implies the channel may be blind to a slump and **it is not.**
+
+12-10 recorded that the metric measures head-to-shoulder DISTANCE rather than
+anterior displacement, and that therefore "the sign may be backwards relative to
+the behaviour being graded." The first half is confirmed: `fwdHead` DECREASED
+during the slump, 0.7681 -> <=0.4681. The second half does not follow.
+`computePostureDrift` scores `Math.abs(current - baseline)`, so a decrease
+registers exactly as strongly as an increase of the same size — the direction
+cannot affect the magnitude. Far from being blind, **`forward_head` was the
+STRONGEST responder to the slump in the entire session**, the only signal to
+saturate. The defect is purely one of labelling, and 12-10's close (and 12-11's
+own planning) overstated it. Do not carry the stronger claim forward.
+
+The name was left alone deliberately — it is load-bearing across the worker,
+`PostureReading`/`PostureBaseline` field names, the `forward_head` signal key,
+the "Head position" display wording, and this file's recorded readings; renaming
+risks a transcription error in a phase that has already shipped three wrong
+posture verdicts. Its doc comment now states what it actually measures.
+`headToShoulderDistance` is the accurate name if it is ever renamed.
+
+## The trap in the obvious fix — demonstrated, not just argued
+
+Switching the band onto `posture_drift_max_s` looks like the clean repair. **On
+its own it would have produced a second silent false negative.**
+`POSTURE_DRIFT_SUSTAINED_S` was 15, and Session A's held slump measured 12.0s.
+
+This was verified empirically rather than reasoned about: with both aggregation
+repairs in place and that constant alone left at 15,
+`scripts/verify-visual-metrics.ts` still reported
+
+```
+FAIL Session A: the slump is finally reported
+       expected "Shifted from the opening posture"
+       actual   "Held steady from the opening posture"
+```
+
+— the original defect, intact, one layer down, with the aggregation repair
+appearing to have done nothing. An assertion now pins
+`POSTURE_DRIFT_SUSTAINED_S <= 12`.
+
+Why a minute-long held slump only ever produced a 12s run is visible in the
+series: at t=33.4/34.0/34.7 the mean read 0.350/0.330/0.366, all BELOW the trip,
+contributing no streak at all, while the worst axis read 0.561/0.494/0.572.
+
+## Constants decided
+
+| Constant | Before | After | Basis |
+|---|---|---|---|
+| `computePostureDrift` cross-signal reduction | mean | **max (worst axis)** | Cause 1 above; the pure-slump 0.500 case |
+| `bandPostureDrift` statistic | `posture_drift_mean` | **`posture_drift_max_s`** | Cause 2 above |
+| `POSTURE_DRIFT_SUSTAINED_S` | 15 (**unused**) | **8** (wired up) | Session A's 12.0s streak, with margin for the observed mid-slump dip |
+| `POSTURE_DRIFT_TRIP` | 0.5 | **0.5 (retained)** | Now bounded both sides: ordinary <=0.252, slump >=0.508 |
+| `POSTURE_*_DRIFT_SCALE*` | 15 / 0.3 / 20 / 0.3 | **unchanged** | shoulder 15deg gets its first real support (7.62deg observed); forward-head 0.3 SATURATED — see below |
+| `POSTURE_COVERAGE_MIN_RATIO` | 0.60 | **0.60 (retained)** | The ceiling reading exists and does not narrow it — see below |
+| `PHONE_SCORE_THRESHOLD` | 0.5 | **still undecided** | Only the false-positive side was measured |
+
+**EVIDENCE BASE: ONE SLUMP SESSION.** Labelled SET FROM ONE REAL SESSION, not
+TUNED, matching how 12-10 labelled its own 0.60. The false-positive side of the
+worst-axis change rests on a single upright stretch from that same session, and
+12-11 Task 4's ordinary-session check is its first real test. **12-TUNING.md's
+S1-S4 ordinary readings cannot be used for it: they predate 12-10's frame-bounds
+gating and are contaminated by extrapolated skeletons.**
+
+## A known limit: forward_head SATURATED at the clamp ceiling
+
+`forward_head`'s peak delta was **exactly 1.000**, which is the clamp in
+`computePostureDrift`, not a measurement. It says only that the offset moved at
+least 0.3 (the scale) from a 0.7681 baseline. **The true magnitude is unknown
+and unrecoverable from this dump, because the clamp discarded it.**
+
+The consequence is specific: **0.3 may be too small to discriminate a moderate
+slump from an extreme one** — both land at 1.000 and read identically. This does
+not affect DETECTION, which is now proven, but the channel has no usable dynamic
+range above the cutoff and **cannot support any future severity or
+degree-of-slump wording.**
+
+0.3 was not raised on that basis, and the restraint is the decision: raising it
+to recover headroom would simultaneously desensitise detection, trading a proven
+true positive for a severity gradation nothing has asked for. The reading needed
+first is an **UNCLAMPED** per-signal delta series — dump
+`abs(current - baseline) / scale` before the clamp, across a moderate slump and
+a hard one, and set the scale from the gap between them.
+
+## POSTURE_COVERAGE_MIN_RATIO — re-decided, and 12-10's expectation corrected
+
+12-10 named a fully-in-frame session as "the first thing to collect before
+touching the value". Session A is that session: 162 pose ticks, both signals
+measured, all 162 ticks yielding at least one usable signal (>=80.9% jointly).
+**It does not narrow the cutoff, and nothing should keep waiting for it.**
+
+12-10 located 0.60 inside a band whose ends are its two DECISION boundaries: it
+must REFUSE 12-10's off-camera Session A (`forward_head` 43%) and ACCEPT 12-10's
+half-visible Session B (75.4%). Any value in (0.43, 0.754] gives identical
+verdicts. A fully-in-frame session lands far ABOVE that band rather than inside
+it, so every candidate value accepts it and it discriminates between none of
+them. The reading does confirm a good session clears the gate with 20+ points of
+headroom, and rules this cutoff out as a cause of the item-3 false negative —
+but 12-10's expectation that a ceiling reading would locate the value was
+mistaken about what such a reading can do.
+
+**What would actually narrow it:** a session genuinely partial at BETWEEN 43%
+and 75% in frame — one whose verdict DIFFERS across the band — plus the user's
+judgement on whether it ought to have been scored. Still not collected. 0.60 is
+still not well-characterised.
+
+## PHONE_SCORE_THRESHOLD — still undecided, but half the dataset now exists
+
+Session C was not run, so for the fourth plan running this constant is not set.
+The position is now narrower than "no data", though: Session A held **no phone
+at any point**, which makes it a clean **false-positive floor**.
+
+```
+objectTicks=53 ticksWithACellPhoneDetection=4 ticksWithNone=49
+min=0.058 median=0.081 max=0.163
+atOrAbove 0.5 = 0; below 0.5 (above the 0.05 dump floor) = 4
+histogram: 0.0-0.1: 3   0.1-0.2: 1   rest 0
+phone_visible_seconds = 0.0
+```
+
+This is genuinely useful partial evidence: the model DOES emit spurious
+low-confidence "cell phone" detections on a phone-free session, and 0.5 refused
+every one of them with ~3x of margin, correctly reporting 0.0 seconds. Nothing
+here argues for raising it.
+
+**The true-positive side has never been observed, in any plan.** Without it
+there is no way to know whether a genuinely-held phone scores 0.9 (0.5 is fine)
+or 0.3 (0.5 silently discards real phone time — a false negative in exactly the
+shape posture drift just turned out to be). A one-sided reading can only justify
+RAISING a cutoff, and raising it is not the direction any evidence points.
+Guessing from the false-positive side alone is the move that 12-09's coverage
+guess and 12-10's proposed per-tick fix were both caught making, so the constant
+stays at 0.5 and stays labelled undecided.
+
+**THE PHONE HALF OF THE DEV DUMP WAS DELIBERATELY KEPT IN PLACE**
+(`NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP`), unlike the posture half, which was
+removed in 12-11 Task 3 once the readings above were recorded. 12-10 removed
+this instrument in its Task 3 and then found at its own Task 4 item 4 that there
+was nothing left to read; that is the mistake the retention avoids repeating.
+**A future phone decision requires this dump, so do not remove it until a
+phone-held session's distribution is recorded here.**
