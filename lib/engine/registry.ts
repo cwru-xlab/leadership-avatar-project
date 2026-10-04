@@ -37,6 +37,7 @@ import {
   resolveNetworkingLivePersona,
 } from "../networking/prompts";
 import { PITCH_ELEVATOR_TYPE } from "../pitch/elevator-type";
+import { DIFFICULT_CONVERSATION_TYPE } from "../difficult-conversation/conversation-type";
 
 /**
  * Builds an interview preset's `InteractionTypeConfig` record. `base` is the
@@ -353,6 +354,7 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   CASE_STUDY,
   NETWORKING,
   PITCH_ELEVATOR_TYPE,
+  DIFFICULT_CONVERSATION_TYPE,
 ];
 
 const ENGINE_TYPES_BY_SLUG: Record<string, InteractionTypeConfig> =
