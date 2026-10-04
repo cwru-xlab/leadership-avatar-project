@@ -1,0 +1,580 @@
+{
+  "version": "1.2",
+  "max_entries": 50,
+  "entries": [
+    {
+      "agent_id": "fa23c74e-d1be-43b5-b051-02a30e4e216e",
+      "task_description": "Parallel: Execute 14-02-PLAN.md",
+      "phase": "14",
+      "plan": "02",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [
+        "13-15"
+      ],
+      "timestamp": "2026-10-04T04:13:11Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/engine/types.ts",
+        "lib/engine/termination.ts",
+        "lib/engine/time-budget.ts",
+        "lib/report/snapshot.ts",
+        "scripts/verify-pitch-engine-extensions.ts",
+        ".planning/phases/14-practice-pitches/14-02-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:18:18Z",
+      "deviations": [
+        "[Rule 3] firstTurnWindow optional on TimeBudgetState",
+        "[Rule 3] Preserved Phase 15 DifficultConversationInputSnapshot",
+        "[Rule 3] Floor gate reconciled with parallel 15-01"
+      ]
+    },
+    {
+      "agent_id": "0e8bbfa9-c0ff-4085-951e-94f9157ed01c",
+      "task_description": "Parallel: Execute 14-03-PLAN.md",
+      "phase": "14",
+      "plan": "03",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [],
+      "timestamp": "2026-10-04T04:13:11Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/deck/types.ts",
+        "lib/deck/intake.ts",
+        "lib/deck/pdf-extract.ts",
+        "lib/deck/pptx-extract.ts",
+        "scripts/verify-deck-intake.ts",
+        "scripts/generate-deck-fixtures.ts",
+        "scripts/fixtures/*",
+        "package.json",
+        "package-lock.json",
+        ".planning/phases/14-practice-pitches/14-03-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:28:37Z",
+      "deviations": [
+        "[Rule 1] pdfjs-dist instead of pdf2json for extractPerPageText",
+        "[Rule 3] pdf-lib fixtures; spike-deck.pptx built here for 14-01 reuse"
+      ]
+    },
+    {
+      "agent_id": "bbb6de0f-73c1-4858-8501-b5d9bcbf12c9",
+      "task_description": "Parallel: Execute 14-01-PLAN.md",
+      "phase": "14",
+      "plan": "01",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [],
+      "timestamp": "2026-10-04T04:13:11Z",
+      "status": "spawned",
+      "files_modified": [],
+      "completion_timestamp": null,
+      "deviations": []
+    },
+    {
+      "agent_id": "1d3e88ba-172c-47c5-bb6c-6e7c2393a67d",
+      "task_description": "Parallel: Execute 15-01-PLAN.md",
+      "phase": "15",
+      "plan": "01",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [
+        "13-15"
+      ],
+      "timestamp": "2026-10-04T04:13:23Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/engine/types.ts",
+        "lib/engine/termination.ts",
+        "lib/report/snapshot.ts",
+        "scripts/verify-dc-engine-extensions.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:17:34Z",
+      "deviations": [
+        "Rule1 re-merge DC+pitch snapshot",
+        "Rule3 avatarEndFloor from 14-02"
+      ]
+    },
+    {
+      "agent_id": "99cedd49-fdd4-4166-b173-0c086a0ca109",
+      "task_description": "Parallel: Execute 15-02-PLAN.md",
+      "phase": "15",
+      "plan": "02",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [],
+      "timestamp": "2026-10-04T04:13:23Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/difficult-conversation/types.ts",
+        "lib/difficult-conversation/validation.ts",
+        "lib/difficult-conversation/store.ts",
+        "lib/s3-client.ts",
+        "scripts/verify-dc-store.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:22:00Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "356b8d76-bca3-4e52-948a-ba3f46d4d99c",
+      "task_description": "Parallel: Execute 15-03-PLAN.md",
+      "phase": "15",
+      "plan": "03",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [],
+      "timestamp": "2026-10-04T04:13:23Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/difficult-conversation/authored-text.ts",
+        "lib/difficult-conversation/prepublish-check.ts",
+        "scripts/fixtures/dc-injection-corpus.ts",
+        "scripts/verify-dc-prepublish.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:21:24Z",
+      "deviations": [
+        "Rule1 delimiter-breakout fixture",
+        "Rule3 single-path assertion"
+      ]
+    },
+    {
+      "agent_id": "922003a9-9b05-47fb-9946-9b11bd999cfe",
+      "task_description": "Parallel: Execute 16-01-PLAN.md",
+      "phase": "16",
+      "plan": "01",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [],
+      "timestamp": "2026-10-04T04:13:38Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/networking/person-generation.ts",
+        "app/api/networking/persona/generate/route.ts",
+        "scripts/spike-networking-person-generation.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:17:58Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "bc6138c3-7128-4f81-bcc7-ccf44b88b430",
+      "task_description": "Parallel: Execute 16-02-PLAN.md",
+      "phase": "16",
+      "plan": "02",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [
+        "13-15"
+      ],
+      "timestamp": "2026-10-04T04:13:38Z",
+      "status": "completed",
+      "files_modified": [
+        "prisma/schema.prisma",
+        "prisma/migrations/20261101000000_add_networking_attestation/migration.sql",
+        "lib/networking/attestation.ts",
+        "scripts/verify-networking-attestation.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:17:43Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "4963db5a-3709-4c0e-9a52-032becacf2c5",
+      "task_description": "Parallel: Execute 16-03-PLAN.md",
+      "phase": "16",
+      "plan": "03",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [
+        "13-15"
+      ],
+      "timestamp": "2026-10-04T04:13:38Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/engine/types.ts",
+        "lib/report/snapshot.ts",
+        "scripts/verify-networking-engine-extensions.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:19:10Z",
+      "deviations": [
+        "networking-persona first appeared in concurrent 15-01; reconciled",
+        "avatarEndFloor inherited from 14-02"
+      ]
+    },
+    {
+      "agent_id": "1d271c05-fc81-417c-b13e-f9f304463e99",
+      "task_description": "Parallel: Execute 16-06-PLAN.md",
+      "phase": "16",
+      "plan": "06",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [
+        "13-15"
+      ],
+      "timestamp": "2026-10-04T04:18:01Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/networking/characters.ts",
+        "scripts/verify-networking-characters.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:22:03Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "6bb180fe-0f9f-41d6-92a8-a71e2fae9acc",
+      "task_description": "Parallel: Execute 16-05-PLAN.md",
+      "phase": "16",
+      "plan": "05",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "16-02"
+      ],
+      "timestamp": "2026-10-04T04:18:01Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/interview/persona-distill.ts",
+        "app/api/interview/persona/distill/route.ts",
+        "app/api/networking/attestation/route.ts",
+        "app/api/networking/persona/distill/route.ts",
+        "scripts/verify-networking-distill-gate.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:24:58Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "28c53f99-e77f-40c2-b5f2-ff422eac2fbe",
+      "task_description": "Parallel: Execute 14-05-PLAN.md",
+      "phase": "14",
+      "plan": "05",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "14-02"
+      ],
+      "timestamp": "2026-10-04T04:28:42Z",
+      "status": "checkpoint_waiting",
+      "files_modified": [],
+      "completion_timestamp": null,
+      "deviations": [],
+      "checkpoint": {
+        "type": "human-verify",
+        "resume_signal": "approved",
+        "task_commits": [
+          "a140c8c",
+          "cd9df96",
+          "92f2eda"
+        ]
+      },
+      "timestamp_checkpoint": "2026-10-04T04:32:22Z"
+    },
+    {
+      "agent_id": "c67b40fb-3c16-4150-91c1-e630d577eff4",
+      "task_description": "Parallel: Execute 14-04-PLAN.md",
+      "phase": "14",
+      "plan": "04",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "14-02"
+      ],
+      "timestamp": "2026-10-04T04:18:29Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/engine/types.ts",
+        "lib/engine/rubric.ts",
+        "lib/engine/evaluation.ts",
+        "lib/engine/evaluation-runner.ts",
+        "lib/pitch/score-caps.ts",
+        "scripts/verify-report-structure.ts",
+        ".planning/phases/14-practice-pitches/14-04-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:26:32Z",
+      "deviations": [
+        "Adaptation: buildEvaluationImages via getEngineType",
+        "Adaptation: skipped paid live runAndPersistEvaluation",
+        "Parallel race: Task 1 commit orphaned; content on HEAD"
+      ]
+    },
+    {
+      "agent_id": "fa22718d-cb81-492b-9904-19e83f74b573",
+      "task_description": "Parallel: Execute 16-04-PLAN.md",
+      "phase": "16",
+      "plan": "04",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "16-02",
+        "16-03"
+      ],
+      "timestamp": "2026-10-04T04:19:31Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/networking/persona-store.ts",
+        "app/api/networking/persona/route.ts",
+        "app/api/networking/persona/[personaId]/route.ts",
+        "scripts/verify-networking-persona-store.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:27:17Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "5b26e269-1b6f-4216-ae5c-b037d53f26d7",
+      "task_description": "Parallel: Execute 16-07-PLAN.md",
+      "phase": "16",
+      "plan": "07",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 3,
+      "depends_on": [
+        "16-03",
+        "16-06"
+      ],
+      "timestamp": "2026-10-04T04:22:51Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/networking/prompts.ts",
+        "lib/engine/registry.ts",
+        "scripts/verify-networking-type.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:28:25Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "d1d82ea4-11b3-4b3d-a38c-1216d3c98640",
+      "task_description": "Parallel: Execute 15-04-PLAN.md",
+      "phase": "15",
+      "plan": "04",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "15-02"
+      ],
+      "timestamp": "2026-10-04T04:22:54Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/difficult-conversation/avatar-assignment.ts",
+        "lib/difficult-conversation/seeded.ts",
+        "scripts/verify-dc-seeded.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:28:13Z",
+      "deviations": [
+        "Rule3 ACTIVE filter mirrored",
+        "Rule3 soft genderHint",
+        "Rule1 UNRESOLVED constant"
+      ]
+    },
+    {
+      "agent_id": "10ea7245-5d62-4532-8adb-d9688a9d1c70",
+      "task_description": "Parallel: Execute 15-05-PLAN.md",
+      "phase": "15",
+      "plan": "05",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "15-02",
+        "15-03"
+      ],
+      "timestamp": "2026-10-04T04:22:54Z",
+      "status": "completed",
+      "files_modified": [
+        "app/api/difficult-conversation/add/route.ts",
+        "app/api/difficult-conversation/edit/route.ts",
+        "app/api/difficult-conversation/delete/route.ts",
+        "app/api/difficult-conversation/publish/route.ts",
+        "app/api/difficult-conversation/list/route.ts",
+        "scripts/verify-dc-routes.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:29:15Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "11a18530-bcef-43ef-9e59-b78542d6d066",
+      "task_description": "Parallel: Execute 14-08-PLAN.md",
+      "phase": "14",
+      "plan": "08",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 3,
+      "depends_on": [
+        "14-02",
+        "14-04"
+      ],
+      "timestamp": "2026-10-04T04:26:39Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/pitch/elevator-prompts.ts",
+        "lib/pitch/elevator-type.ts",
+        "lib/engine/registry.ts",
+        "scripts/verify-pitch-types.ts",
+        "scripts/verify-pitch-engine-extensions.ts",
+        "scripts/verify-report-structure.ts",
+        ".planning/phases/14-practice-pitches/14-08-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:29:32Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "0c6d5fdb-e654-4a62-98fb-cbe4eef29592",
+      "task_description": "Parallel: Execute 15-06-PLAN.md",
+      "phase": "15",
+      "plan": "06",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 3,
+      "depends_on": [
+        "15-01",
+        "15-03",
+        "15-04"
+      ],
+      "timestamp": "2026-10-04T04:28:21Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/difficult-conversation/conversation-prompts.ts",
+        "lib/difficult-conversation/conversation-type.ts",
+        "lib/difficult-conversation/resolve-instance.ts",
+        "lib/engine/registry.ts",
+        "lib/engine/prompts.ts",
+        "lib/engine/types.ts",
+        "scripts/verify-dc-type.ts",
+        "scripts/verify-dc-prompt-safety.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:32:02Z",
+      "deviations": [
+        "Rule2 buildTailFragment",
+        "Rule2 assembleSystemPrompt fallthrough"
+      ]
+    },
+    {
+      "agent_id": "55b4b643-80ad-40de-a7e6-3a16c4936ee3",
+      "task_description": "Parallel: Execute 16-08-PLAN.md",
+      "phase": "16",
+      "plan": "08",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 4,
+      "depends_on": [
+        "16-01",
+        "16-04",
+        "16-05",
+        "16-07"
+      ],
+      "timestamp": "2026-10-04T04:28:30Z",
+      "status": "spawned",
+      "files_modified": [],
+      "completion_timestamp": null,
+      "deviations": []
+    },
+    {
+      "agent_id": "ca442f75-346f-4390-b15a-4d19bb138eeb",
+      "task_description": "Parallel: Execute 15-07-PLAN.md",
+      "phase": "15",
+      "plan": "07",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 3,
+      "depends_on": [
+        "15-05"
+      ],
+      "timestamp": "2026-10-04T04:29:25Z",
+      "status": "spawned",
+      "files_modified": [],
+      "completion_timestamp": null,
+      "deviations": []
+    },
+    {
+      "agent_id": "9b0ba847-8193-41a3-a686-cbb78aa40a3d",
+      "task_description": "Parallel: Execute 14-10-PLAN.md",
+      "phase": "14",
+      "plan": "10",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 4,
+      "depends_on": [
+        "14-08"
+      ],
+      "timestamp": "2026-10-04T04:29:39Z",
+      "status": "spawned",
+      "files_modified": [],
+      "completion_timestamp": null,
+      "deviations": []
+    },
+    {
+      "agent_id": "QUEUED-14-09",
+      "task_description": "Queued: Execute 14-09-PLAN.md (waiting 14-05)",
+      "phase": "14",
+      "plan": "09",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 4,
+      "depends_on": [
+        "14-02",
+        "14-04",
+        "14-05",
+        "14-08"
+      ],
+      "timestamp": "2026-10-04T04:29:39Z",
+      "status": "queued",
+      "files_modified": [],
+      "completion_timestamp": null,
+      "deviations": [],
+      "blocked_by": "14-05"
+    },
+    {
+      "agent_id": "ba877d8a-bfbf-4518-a098-4bb23b6c1ce2",
+      "task_description": "Parallel: Execute 15-08-PLAN.md",
+      "phase": "15",
+      "plan": "08",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 4,
+      "depends_on": [
+        "15-06"
+      ],
+      "timestamp": "2026-10-04T04:32:15Z",
+      "status": "spawned",
+      "files_modified": [],
+      "completion_timestamp": null,
+      "deviations": []
+    },
+    {
+      "agent_id": "0a2623f7-32f5-4689-959f-70a159b25364",
+      "task_description": "Parallel: Execute 15-09-PLAN.md",
+      "phase": "15",
+      "plan": "09",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 4,
+      "depends_on": [
+        "15-06"
+      ],
+      "timestamp": "2026-10-04T04:32:15Z",
+      "status": "spawned",
+      "files_modified": [],
+      "completion_timestamp": null,
+      "deviations": []
+    }
+  ]
+}
