@@ -71,7 +71,7 @@ completed: 2026-10-04
 2. **Task 2: The S3 layer and the owner-scoped loader** - `6614473` (feat)
 3. **Task 3: Prove validation, ownership and the privacy boundary** - `4142970` (feat)
 
-**Plan metadata:** `4fd31d8` (docs: complete plan)
+**Plan metadata:** `3c73c51` (docs: complete plan)
 
 ## Contract for downstream plans (15-04 / 15-05 / 15-07)
 
@@ -152,7 +152,11 @@ deleteDifficultConversation(id: string, userId: string): Promise<boolean>
 
 ## Issues Encountered
 
-None beyond the dotenv load-order fix above.
+- Dotenv load-order fix above (resolved in Task 3).
+- Parallel-branch hazard: amending the docs commit briefly staged unrelated
+  `lib/engine/*` changes from another wave agent into `3c73c51`. Content was
+  already present in the working tree; history attribution is noisy but no
+  further rewrite was attempted (later commits sit on top).
 
 ## Next Phase Readiness
 
