@@ -13,6 +13,12 @@ const nextConfig = {
     "@napi-rs/canvas-linux-arm64-gnu",
     "pdfjs-dist",
   ],
+  // Practice deck uploads allow up to 25MB of file bytes (MAX_DECK_SIZE_BYTES)
+  // plus multipart overhead. Default proxy body buffer is 10MB and truncates
+  // silently, which breaks FormData parsing for large decks.
+  experimental: {
+    proxyClientMaxBodySize: "32mb",
+  },
   images: {
     remotePatterns: [
       {
