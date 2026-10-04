@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 15-07-PLAN.md (human-verify deferred)
+**Stopped At:** Completed 16-08-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -392,6 +392,9 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 14]: Elevator listener persona is built-in Dana Reyes (VP Ops); disclosure branches on listenerKnowledge, persona always full in live prompt
 - [Phase 15]: DC type: marker <engine-end reason/>; floor minAssistantTurns:4; buildTailFragment hook; approach-not-result objective_achieved
 - [Phase 15]: 15-07: discovery at /conversations (Featured→Mine→Others); builder shares server validator; 422/503 publish panels; registry tile live
+- [Phase 16]: Networking wizard goal length cap is 300 characters
+- [Phase 16]: 13-09 customComponent is a label only; page renderStep mounts NetworkingPerson/Goal steps
+- [Phase 16]: startSession networking InputSnapshot path deferred as 16-11 extension handoff (16-08 forbids engine edits)
 
 ## Progress
 
@@ -1852,7 +1855,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:33:48.063Z
+**Last Date:** 2026-10-04T04:34:30.442Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
