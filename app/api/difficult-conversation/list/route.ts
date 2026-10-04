@@ -4,6 +4,7 @@ import { getCurrentUser, type User } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { listDifficultConversations } from "@/lib/difficult-conversation/store";
 import { SEEDED_CONVERSATIONS } from "@/lib/difficult-conversation/seeded";
+import { s3Storage } from "@/lib/s3-client";
 import type { DifficultConversationRecord } from "@/lib/difficult-conversation/types";
 import type { DifficultConversationSummary } from "@/lib/difficult-conversation/store";
 
@@ -35,43 +36,105 @@ async function resolveUser(request: NextRequest): Promise<User | null> {
 /**
  * Discovery card shape. Carries `isMine` (owner presence) rather than the raw
  * ownerId. Deliberately omits the avatar's private stance — never on the wire
- * for list.
+ * for list. `studentRole` / `situation` / `lastCheckStatus` power the 15-07
+ * catalog cards without a second round-trip.
  */
 type DiscoverySummary = {
   id: string;
   title: string;
   avatarRole: string;
+  studentRole: string;
+  situation: string;
   difficulty: string;
   published: boolean;
   updatedAt: string;
   isMine: boolean;
+  /** Present for owned rows only; never exposed for another student's card. */
+  lastCheckStatus?: "passed" | "rejected" | "unavailable" | null;
 };
 
+function publicFields(record: DifficultConversationRecord): {
+  studentRole: string;
+  situation: string;
+  lastCheckStatus: "passed" | "rejected" | "unavailable" | null;
+} {
+  const status = record.lastCheck?.status ?? null;
+  return {
+    studentRole: record.studentRole,
+    situation: record.situation,
+    lastCheckStatus:
+      status === "passed" || status === "rejected" || status === "unavailable"
+        ? status
+        : null,
+  };
+}
+
 function fromSeeded(record: DifficultConversationRecord): DiscoverySummary {
+  const pub = publicFields(record);
   return {
     id: record.id,
     title: record.title,
     avatarRole: record.avatarRole,
+    studentRole: pub.studentRole,
+    situation: pub.situation,
     difficulty: record.difficulty,
     published: record.published,
     updatedAt: record.updatedAt,
     isMine: false,
+    // Seeded records are never "yours" — omit check state entirely.
   };
 }
 
-function fromIndex(
-  entry: DifficultConversationSummary,
+function fromRecord(
+  record: DifficultConversationRecord,
   userId: string
 ): DiscoverySummary {
+  const isMine = record.ownerId === userId;
+  const pub = publicFields(record);
   return {
-    id: entry.id,
-    title: entry.title,
-    avatarRole: entry.avatarRole,
-    difficulty: entry.difficulty,
-    published: entry.published,
-    updatedAt: entry.updatedAt,
-    isMine: entry.ownerId === userId,
+    id: record.id,
+    title: record.title,
+    avatarRole: record.avatarRole,
+    studentRole: pub.studentRole,
+    situation: pub.situation,
+    difficulty: record.difficulty,
+    published: record.published,
+    updatedAt: record.updatedAt,
+    isMine,
+    // Check state only on the owner's own cards.
+    ...(isMine ? { lastCheckStatus: pub.lastCheckStatus } : {}),
   };
+}
+
+async function hydrateSummaries(
+  entries: DifficultConversationSummary[],
+  userId: string
+): Promise<DiscoverySummary[]> {
+  const records = await Promise.all(
+    entries.map((e) => s3Storage.getDifficultConversationObject(e.id))
+  );
+  const out: DiscoverySummary[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const record = records[i];
+    const entry = entries[i]!;
+    if (record) {
+      out.push(fromRecord(record, userId));
+    } else {
+      // Index orphan — still show something, never invent private fields.
+      out.push({
+        id: entry.id,
+        title: entry.title,
+        avatarRole: entry.avatarRole,
+        studentRole: "",
+        situation: "",
+        difficulty: entry.difficulty,
+        published: entry.published,
+        updatedAt: entry.updatedAt,
+        isMine: entry.ownerId === userId,
+      });
+    }
+  }
+  return out;
 }
 
 /**
@@ -101,19 +164,21 @@ export async function GET(request: NextRequest) {
 
     const seeded = SEEDED_CONVERSATIONS.map(fromSeeded);
 
-    const mine = (await listDifficultConversations({ ownerId: currentUser.id }))
+    const mineEntries = (
+      await listDifficultConversations({ ownerId: currentUser.id })
+    )
       .slice()
       .sort(
         (a, b) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      )
-      .map((e) => fromIndex(e, currentUser.id));
+      );
+    const mine = await hydrateSummaries(mineEntries, currentUser.id);
 
-    let fromOthers = (
+    let fromOthersEntries = (
       await listDifficultConversations({ publishedOnly: true })
     ).filter((e) => e.ownerId && e.ownerId !== currentUser.id);
 
-    fromOthers.sort(
+    fromOthersEntries.sort(
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
@@ -121,21 +186,22 @@ export async function GET(request: NextRequest) {
     if (cursor) {
       const cursorTime = new Date(cursor).getTime();
       if (Number.isFinite(cursorTime)) {
-        fromOthers = fromOthers.filter(
+        fromOthersEntries = fromOthersEntries.filter(
           (e) => new Date(e.updatedAt).getTime() < cursorTime
         );
       }
     }
 
-    const page = fromOthers.slice(0, limit);
+    const page = fromOthersEntries.slice(0, limit);
     const nextCursor =
       page.length === limit ? page[page.length - 1]!.updatedAt : null;
+    const fromOthers = await hydrateSummaries(page, currentUser.id);
 
     return response(
       {
         seeded,
         mine,
-        fromOthers: page.map((e) => fromIndex(e, currentUser.id)),
+        fromOthers,
         nextCursor,
       },
       200

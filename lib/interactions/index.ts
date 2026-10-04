@@ -58,8 +58,8 @@ export const INTERACTION_TYPES: InteractionType[] = [
       "Practice navigating a tense, high-stakes conversation before you have to have it for real.",
     icon: "MessageCircleWarning",
     estimatedMinutes: 20,
-    route: null,
-    availability: "coming-soon",
+    route: "/conversations",
+    availability: "live",
   },
   {
     slug: "networking",

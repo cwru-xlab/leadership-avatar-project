@@ -187,6 +187,7 @@ const KIOSK_ROUTES: string[] = [
 const STUDENT_ROUTES: string[] = [
   "/interview",
   "/case-play",
+  "/conversations",
   "/api/interaction",
   "/reports",
   "/settings",
@@ -196,6 +197,8 @@ const STUDENT_ROUTES: string[] = [
   // Student-owned scenario CRUD, ownership enforced in the route handlers
   // themselves.
   "/api/scenario",
+  // Student-owned difficult-conversation authoring + discovery (Phase 15).
+  "/api/difficult-conversation",
   // REQ-36 consent endpoint, owner-scoped in the route handler itself.
   "/api/metrics",
   // Student-owned study-plan generation and saved-plan history. Every route
