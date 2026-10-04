@@ -92,6 +92,10 @@ function makeInterviewTypeConfig(base: InterviewType): InteractionTypeConfig {
       warnAtRemainingSeconds: null,
     },
     instance: { required: false },
+    // Interview clients fire ~9-15 fire-and-forget checkpoints per session.
+    checkpointing: "client-driven",
+    // Interview finish flips IN_PROGRESS → PENDING in the request path.
+    finishPendingFlip: "request-path",
     // Populated when plan 13-09 builds the generic wizard.
     setupSteps: [],
   };
@@ -186,6 +190,11 @@ const CASE_STUDY: InteractionTypeConfig = {
   outcome: { fields: [] },
   timeBudget: { totalSeconds: null, warnAtRemainingSeconds: null },
   instance: { required: true },
+  // Scenario has NO checkpoint — transcript durability is /api/interaction/save.
+  // Rejecting a checkpoint here is what keeps case-study non-resumable (REQ-69).
+  checkpointing: "none",
+  // Scenario finish does NOT flip PENDING; the runner does (REQ-69).
+  finishPendingFlip: "runner",
   setupSteps: [],
 };
 
