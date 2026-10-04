@@ -211,3 +211,99 @@ export function buildStudentBriefing(
     stakes: instance.stakes,
   });
 }
+
+/**
+ * Prompt 2 — post-session grader. Scores all eight dimensions. The unscored
+ * outcome record and in-role reaction are physically separate from the scores.
+ * Do not instruct any cap, zero, or clamp — CONTEXT.md rejects outcome-driven
+ * score adjustment for this type.
+ */
+export const CONVERSATION_EVALUATOR_PROMPT = `You are grading a DIFFICULT CONVERSATION practice session. The student practised a hard interpersonal conversation with a character who had a private position. Score EVERY dimension on the 1–5 scale.
+
+The shared four (Visual, Vocal, Content, Behavioral) use the usual delivery and substance criteria.
+
+The four conversation-specific dimensions:
+
+1. Clarity (clarity): Was the problem, the expectation or the ask stated unambiguously, or was it buried in hedging, preamble and implication? Judge whether the other person could have left the conversation unsure what was being asked of them.
+
+2. Empathy (empathy): Did the student acknowledge and respond to the other person's position — what they said, not what the student came in expecting — or did they steamroll, or read from a script? Acknowledging is not agreeing.
+
+3. Holding the line (holding_the_line): Did the student maintain their position under pushback without becoming hostile? Caving scores low. Escalating into attack scores low. Restating calmly, conceding what is true while holding what matters, scores high.
+
+4. Objective achieved (objective_achieved): This scores the APPROACH, not the result. You are scoring how effectively the student pursued their stated objective — not whether they got it. A student who handled a genuinely immovable character well can still score high here. A student who got what they wanted because the character folded easily does not score high for that alone. Do NOT read the outcome record below and work backwards from it. Score the pursuit.
+   Calibration: Objective not met + skilful pursuit = high. Objective met + clumsy pursuit = low.
+
+---
+
+## The outcome record, which you do not score
+
+Separately from every score above, state factually what happened. This is a record, not a judgement, and it does not raise or lower any score. Fill it in after you have scored. Do not score the outcome record.
+
+- objectiveStatus: one of "met" | "partially_met" | "not_met" | "avatar_ended"
+- objectiveNote: one sentence of fact, not evaluation
+
+## The in-role reaction
+
+Write a short passage in the FIRST PERSON as the character (the avatar's role), as that person's private reaction after the conversation ended — what they were left feeling and thinking. Two to four sentences. It is not advice and not a critique; it is the character's inner voice. Then list the specific turns that caused it, each with the approximate timecode and one clause saying what it did to you.
+
+- inRoleReaction: string (first-person inner voice)
+- reactionCauses: a JSON array string of objects { timecodeSeconds, quote, effect }
+
+This is the only place the character speaks out of the conversation. It appears in the student's report and never during the session.
+
+## Avatar-ended sessions
+
+If the character ended the conversation, score every dimension on what DID happen — never zero a dimension and never report an error. Do not cap, clamp, or zero any score because of an early end. State the specific reasons it turned and the approximate timecode where it turned.
+
+- endTurnReasons: string
+- endTurnTimecodeSeconds: number or null
+`;
+
+export type ConversationEvaluationContext = {
+  kind: "difficult-conversation";
+  authoredBlock: string;
+  studentObjective: string;
+  stakes: string;
+  difficulty: DifficultConversationInstance["difficulty"] | null;
+  role: string;
+  terminationReason: string | null;
+  terminationAtSeconds: number | null;
+};
+
+/**
+ * Per-type grading inputs. Authored fields (including hiddenPosition) reach
+ * the evaluator only through buildAuthoredTextBlock. Termination reason /
+ * timecode are filled by the evaluation runner from report columns when
+ * present; this builder supplies the session-constant fields from config.
+ */
+export function buildConversationEvaluationContext(
+  config: ResolvedSessionConfig,
+): ConversationEvaluationContext {
+  const instance =
+    config.instance.kind === "difficult-conversation"
+      ? config.instance
+      : null;
+
+  const authoredBlock = instance
+    ? buildAuthoredTextBlock({
+        role: instance.role,
+        studentRole: instance.studentRole,
+        situation: instance.situation,
+        sharedBackstory: instance.sharedBackstory,
+        hiddenPosition: instance.hiddenPosition,
+        studentObjective: instance.studentObjective,
+        stakes: instance.stakes,
+      })
+    : "";
+
+  return {
+    kind: "difficult-conversation",
+    authoredBlock,
+    studentObjective: instance?.studentObjective ?? "",
+    stakes: instance?.stakes ?? "",
+    difficulty: instance?.difficulty ?? null,
+    role: instance?.role ?? "",
+    terminationReason: null,
+    terminationAtSeconds: null,
+  };
+}
