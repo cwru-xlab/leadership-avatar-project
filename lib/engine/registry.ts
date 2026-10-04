@@ -374,6 +374,26 @@ export function listEngineTypes(): InteractionTypeConfig[] {
   return ENGINE_TYPES;
 }
 
+/**
+ * Test-only registration for forward-referenced types (e.g. pitch-deck
+ * before plan 14-09 lands the real record). Returns an unregister fn.
+ * Never call from production request paths.
+ */
+export function registerEngineTypeForTests(
+  type: InteractionTypeConfig,
+): () => void {
+  const key = type.slug.trim().toLowerCase();
+  const previous = ENGINE_TYPES_BY_SLUG[key];
+  ENGINE_TYPES_BY_SLUG[key] = type;
+  return () => {
+    if (previous) {
+      ENGINE_TYPES_BY_SLUG[key] = previous;
+    } else {
+      delete ENGINE_TYPES_BY_SLUG[key];
+    }
+  };
+}
+
 // Sanity-check at module scope: every preset slug transcribed here must still
 // exist in the legacy registry under the same slug, so a future edit to
 // either registry that drops a slug fails loudly instead of silently

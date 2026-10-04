@@ -35,7 +35,10 @@ export async function POST(request: NextRequest) {
       return response({ error: "Invalid request body" }, 400);
     }
 
-    const { reportId, turns, progress } = body as Record<string, unknown>;
+    const { reportId, turns, progress, revealedSlideIndex } = body as Record<
+      string,
+      unknown
+    >;
 
     if (typeof reportId !== "string") {
       return response({ error: "Invalid reportId" }, 400);
@@ -46,6 +49,7 @@ export async function POST(request: NextRequest) {
       reportId,
       turns,
       progress,
+      revealedSlideIndex,
     });
 
     if (!result.ok) {

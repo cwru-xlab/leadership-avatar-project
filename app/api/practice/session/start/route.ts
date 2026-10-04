@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { startSession } from "@/lib/engine/session";
+import type { InstanceConfig } from "@/lib/engine/types";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 
 export const runtime = "nodejs";
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest) {
     const {
       typeSlug,
       instanceId,
+      instance,
       customization,
       cameraMode,
       interviewerAvatarId,
@@ -47,6 +49,7 @@ export async function POST(request: NextRequest) {
       resumeId,
       resumeText,
       language,
+      timeBudgetOverrideSeconds,
     } = body as Record<string, unknown>;
 
     if (typeof typeSlug !== "string" || !typeSlug) {
@@ -59,6 +62,10 @@ export async function POST(request: NextRequest) {
       userName: currentUser.name,
       typeSlug,
       instanceId: typeof instanceId === "string" ? instanceId : null,
+      instance:
+        instance && typeof instance === "object"
+          ? (instance as InstanceConfig)
+          : null,
       customization: customization as InterviewCustomizationInput | undefined,
       cameraModeRequest: cameraMode,
       interviewerAvatarId,
@@ -66,6 +73,7 @@ export async function POST(request: NextRequest) {
       resumeId,
       resumeText,
       language,
+      timeBudgetOverrideSeconds,
     });
 
     if (!result.ok) {
