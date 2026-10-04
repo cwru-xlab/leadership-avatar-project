@@ -302,6 +302,11 @@ export default function PracticeInstancePage() {
           language="en"
           hideDefaultEndControl
           autoFinishOnAvatarEnd
+          defaultReportTitle={
+            dcTitle.trim()
+              ? `Difficult conversation · ${dcTitle.trim().slice(0, 60)}`
+              : "Difficult conversation"
+          }
           sessionFinishRef={sessionFinishRef}
           sessionPanel={
             <div className="flex w-full flex-col items-stretch gap-1">
@@ -352,6 +357,7 @@ export default function PracticeInstancePage() {
             createReportOnLaunch
             progressAriaLabel="Conversation setup progress"
             launchLabel="Start conversation"
+            onBackFromStart={() => router.push("/conversations")}
             buildStartPayload={() => ({
               instanceId: dcInstance.conversationId,
               difficulty: effectiveDifficulty,
@@ -435,6 +441,11 @@ export default function PracticeInstancePage() {
         caseStudy={caseData}
         interactionLog={interactionLog}
         language="en"
+        defaultReportTitle={
+          caseData.name
+            ? `Case study · ${caseData.name.slice(0, 60)}`
+            : "Case study"
+        }
         onExit={() => {
           setPhase("wizard");
           setReportId(null);
@@ -471,6 +482,7 @@ export default function PracticeInstancePage() {
           createReportOnLaunch
           progressAriaLabel="Scenario setup progress"
           launchLabel="Start"
+          onBackFromStart={() => router.push("/case-play")}
           buildStartPayload={() => ({
             instanceId: caseData.id,
             language: "en",

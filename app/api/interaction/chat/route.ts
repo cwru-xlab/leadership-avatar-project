@@ -22,6 +22,8 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { prisma } from "@/lib/prisma";
+import { loadDeckManifest } from "@/lib/deck/store";
+import { resolveDeckFairValueBand } from "@/lib/pitch/fair-value-band";
 import {
   ratchetHighWaterMark,
   resolveRevealedSlides,
@@ -476,31 +478,34 @@ export async function POST(request: NextRequest) {
           ? rawCustomizationBag.personaDisplayName
           : null;
 
-      // Pitch-deck only: server-authoritative slide high-water mark → tail.
+      // Pitch-deck only: hydrate slide text from private storage, then ratchet
+      // the high-water mark into the tail. The live shell intentionally sends
+      // `slideTexts: []` (14-12) — never trust client texts for admission.
       // Interview / case-study / elevator paths are untouched below.
       let revealedSlides: { index: number; text: string }[] | undefined;
       let slideCountForTail: number | undefined;
 
       if (sessionConfig.instance.kind === "pitch-deck") {
-        const slideCount = sessionConfig.instance.slideCount;
         let stored: number | null = null;
         let reportStartedAt: Date | null = null;
         let priorReveals: unknown = null;
         let ownedReportId: string | null = null;
+        let deckOwnerId: string | null = null;
 
         const reportId =
           typeof rawReportId === "string" && rawReportId.length > 0
             ? rawReportId
             : null;
 
-        if (reportId) {
-          try {
-            const token = request.cookies.get(
-              siteConfig.auth.cookie.name,
-            )?.value;
-            const currentUser = await getCurrentUser(token || "");
+        try {
+          const token = request.cookies.get(
+            siteConfig.auth.cookie.name,
+          )?.value;
+          const currentUser = await getCurrentUser(token || "");
+          if (currentUser) {
+            deckOwnerId = currentUser.id;
 
-            if (currentUser) {
+            if (reportId) {
               const report = await prisma.interactionReport.findFirst({
                 where: { id: reportId, userId: currentUser.id },
                 select: {
@@ -518,13 +523,48 @@ export async function POST(request: NextRequest) {
                 reportStartedAt = report.startedAt;
               }
             }
+          }
+        } catch (err) {
+          console.error(
+            "pitch-deck slide mark load failed; proceeding in-memory",
+            err,
+          );
+        }
+
+        // 14-11: read slide text from private deck storage, not the client.
+        // Also inject the server-only fair-value band so the cache prefix is
+        // the real band every turn (client omits it on purpose).
+        if (deckOwnerId) {
+          try {
+            const manifest = await loadDeckManifest(
+              deckOwnerId,
+              sessionConfig.instance.deckId,
+            );
+            if (manifest && manifest.slideCount > 0) {
+              const slideTexts = manifest.slides.map((slide) =>
+                typeof slide.text === "string" ? slide.text : "",
+              );
+              sessionConfig = {
+                ...sessionConfig,
+                instance: {
+                  ...sessionConfig.instance,
+                  slideCount: manifest.slideCount,
+                  slideTexts,
+                  fairValueBand: resolveDeckFairValueBand({
+                    slideCount: manifest.slideCount,
+                  }),
+                },
+              };
+            }
           } catch (err) {
             console.error(
-              "pitch-deck slide mark load failed; proceeding in-memory",
+              "pitch-deck slide text hydrate failed; continuing without texts",
               err,
             );
           }
         }
+
+        const slideCount = sessionConfig.instance.slideCount;
 
         // revealedSlideIndex is an INPUT to the ratchet only — never used raw.
         const { mark, advanced } = ratchetHighWaterMark({

@@ -48,8 +48,8 @@ export const INTERACTION_TYPES: InteractionType[] = [
       "Deliver a pitch to an AI audience and get feedback on clarity, structure, and persuasion.",
     icon: "Presentation",
     estimatedMinutes: 15,
-    // Interim route for 14-10 elevator verify; pitch-deck sublayer lands in 14-12+.
-    route: "/practice/pitch-elevator",
+    // Picker for elevator vs investor deck (both live as of 14-12/14-13).
+    route: "/practice/pitches",
     availability: "live",
   },
   {

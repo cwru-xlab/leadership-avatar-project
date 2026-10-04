@@ -38,7 +38,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality) (completed 2026-09-23)
 - [x] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (10/11 plans; fidgeting retired as unmeasurable; criterion 3 holds since 12-10. 12-11 settled posture drift — the row now responds correctly in BOTH directions and REQ-51 is MET. All three success criteria MET (criterion 1 carries a recorded phone duration under-count the user accepted). 12-08/12-09 remain [~] partially delivered — their work landed but their own sign-offs failed, and successors closed the gaps. 12-03's stale checkbox was corrected 2026-10-03) (completed 2026-10-04)
 - [x] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record (plans complete 2026-10-04; REQ-67 shared Part 1 still OPEN — see STATE.md)
-- [ ] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
+- [x] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
 - [x] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios (completed 2026-10-04)
 - [x] **Phase 16: Networking Practice** - Practice against a described real person or a default character (completed 2026-10-04)
 
@@ -458,7 +458,7 @@ amended in the same session; see `14-CONTEXT.md`.
   5. Session length is proposed from slide count within a 20-30 minute envelope
      and is student-adjustable before starting; the remaining time is visible
      during the session and can be hidden by the student.
-**Plans:** 14/15 plans executed
+**Plans:** 15/15 plans executed — Phase signed off 2026-10-04
 **Gate:** every plan except 14-01, 14-03, 14-06 and 14-07 is blocked until Phase 13's
 15 plans have all executed and been signed off. Phase 14 has no REQ IDs; each plan
 names the Success Criteria it serves as `P14-SC1`..`P14-SC5` in its `requirements`
@@ -483,7 +483,7 @@ Plans:
 - [x] 14-12-PLAN.md — Deck wizard steps: upload with progress and specific errors, the ask, the adjustable length
 - [x] 14-13-PLAN.md — Live deck viewer, thumbnail strip, soft session timer, real investor pitch leak test (human-verified)
 - [x] 14-14-PLAN.md — Report surfaces: early-end outcome banner, ask vs settled vs fair, slide timeline and overrun (human-verified)
-- [ ] 14-15-PLAN.md — Phase validation: five criteria and every locked decision signed off; surface-count guard (human-verified)
+- [x] 14-15-PLAN.md — Phase validation: five criteria and every locked decision signed off; surface-count guard (human-verified)
 
 ### Phase 15: Difficult Conversations
 **Goal:** Ship role-specific difficult conversations in which the avatar fully
@@ -595,7 +595,9 @@ Plans:
 
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 11/11 | Complete   | 2026-10-04 | Status | Completed |
+**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 16)
+
+| Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Interview Registry & Prompts | - | Shipped (pre-roadmap) | 2026-09 |
 | 2. Interviewer Catalog | - | Shipped (pre-roadmap) | 2026-09 |
@@ -610,6 +612,6 @@ Plans:
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
 | 12. Embodied Visual Signals | 10/11 | Complete    | 2026-10-04 |
 | 13. One-on-One Conversation Engine | 15/15 | Complete*  | 2026-10-04 |
-| 14. Practice Pitches | 14/15 | In Progress|  |
+| 14. Practice Pitches | 15/15 | Complete   | 2026-10-04 |
 | 15. Difficult Conversations | 11/11 | Complete*  | 2026-10-04 |
 | 16. Networking Practice | 11/11 | Complete   | 2026-10-04 |
