@@ -231,7 +231,7 @@ async function main() {
   notPptx.file("readme.txt", "just a zip, no ppt/slides");
   writeFileSync(join(FIXTURES, "not-pptx.zip"), await notPptx.generateAsync({ type: "nodebuffer" }));
 
-  writeFileSync(join(FIXTURES, "spike-deck.pptx"), await buildSpikePptx());
+  writeFileSync(join(FIXTURES, "deck-two-slide.pptx"), await buildSpikePptx());
 
   console.log("Wrote fixtures to", FIXTURES);
 }

@@ -2,7 +2,7 @@
  * Prove deck intake against real fixture files (14-03).
  * Run: npx tsx scripts/verify-deck-intake.ts
  */
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 
 import { validateAndExtractDeck } from "../lib/deck/intake";
@@ -13,6 +13,16 @@ import {
 } from "../lib/deck/types";
 
 const FIXTURES = join(process.cwd(), "scripts/fixtures");
+const FIXTURE_NAMES = [
+  "deck-landscape.pdf",
+  "deck-two-slide.pptx",
+  "deck-portrait.pdf",
+  "deck-one-slide.pdf",
+  "deck-image-only.pdf",
+  "not-a-deck.txt",
+  "fake.pdf",
+  "not-pptx.zip",
+];
 let failed = 0;
 
 function assert(condition: boolean, message: string) {
@@ -34,6 +44,20 @@ async function section(n: number, title: string, fn: () => Promise<void>) {
 }
 
 async function main() {
+  const missingFixtures = FIXTURE_NAMES.filter(
+    (name) => !existsSync(join(FIXTURES, name)),
+  );
+
+  if (missingFixtures.length > 0) {
+    for (const name of missingFixtures) {
+      console.error(
+        `FAIL: fixture ${name} missing — run: npx tsx scripts/generate-deck-fixtures.ts`,
+      );
+    }
+    process.exitCode = 1;
+    return;
+  }
+
   await section(1, "deck-landscape.pdf happy path", async () => {
     const result = await validateAndExtractDeck(load("deck-landscape.pdf"));
 
@@ -52,8 +76,8 @@ async function main() {
     }
   });
 
-  await section(2, "spike-deck.pptx happy path", async () => {
-    const result = await validateAndExtractDeck(load("spike-deck.pptx"));
+  await section(2, "deck-two-slide.pptx happy path", async () => {
+    const result = await validateAndExtractDeck(load("deck-two-slide.pptx"));
 
     assert(result.ok === true, "ok: true");
     if (result.ok) {
