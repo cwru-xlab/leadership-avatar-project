@@ -2,14 +2,14 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.1 — Consequence & Deck Breadth
-**Updated:** 2026-10-04 (Milestone v1.1 started. v1.0 shipped Phases 1–16; see `MILESTONES.md`. Sourced from Phase 14 `deferred-items.md`.)
+**Updated:** 2026-10-04 (Phase 18 planned — 5 plans for Avatar Disengagement & Walk-Out. Milestone v1.1; v1.0 shipped Phases 1–16.)
 
 ## Current Position
 
-**Phase:** 17 — v1.0 Close-Out (plans TBD; Phase 18 — Avatar Disengagement & Walk-Out may run in parallel; Phase 19 — Deck-Led Pitch Family depends on Phase 18)
-**Plan:** —
-**Status:** Roadmap approved; ready to plan Phase 17 (and Phase 18 in parallel)
-**Last activity:** 2026-10-04 — Milestone v1.1 ROADMAP.md created (Phases 17-19) and STATE.md Current Position updated
+**Phase:** 18 — Avatar Disengagement & Walk-Out (plans ready; Phase 17 — v1.0 Close-Out may run in parallel; Phase 19 depends on Phase 18)
+**Plan:** 18-01 (next to execute)
+**Status:** Phase 18 planned (5 plans, waves 1–5); ready for `/gsd:execute-phase 18`
+**Last activity:** 2026-10-04 — Phase 18 plans created (18-01..18-05) covering REQ-78–86
 
 ### Carried into v1.1 from v1.0
 

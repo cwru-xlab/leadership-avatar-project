@@ -658,7 +658,14 @@ adding a parallel mechanism)
      points on the session clock.
   5. A type that declares no threshold behaves exactly as it does today, and a
      walk-out can never fire before a type's `avatarEndFloor` minimum turns.
-**Plans:** TBD
+**Plans:** 5 plans
+
+Plans:
+- [ ] 18-01-PLAN.md — Opt-in disengagementThreshold + pure computeDisengagement (REQ-78, REQ-80)
+- [ ] 18-02-PLAN.md — Cue acceleration, resolveTermination gate, pitch-deck floor + type opt-ins (REQ-79, REQ-83, REQ-84)
+- [ ] 18-03-PLAN.md — Live walk-out lock, final statement, auto-finish, no meter (REQ-81, REQ-82, REQ-85)
+- [ ] 18-04-PLAN.md — Report decline on session clock from stored episodes (REQ-86)
+- [ ] 18-05-PLAN.md — Human UAT + 18-VALIDATION.md against SC1–5 / REQ-78–86
 
 ### Phase 19: Deck-Led Pitch Family
 **Goal:** Widen the deck pitch from investor-negotiation-only into a family of
