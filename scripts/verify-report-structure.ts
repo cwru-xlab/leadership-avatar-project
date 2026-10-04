@@ -624,7 +624,39 @@ console.log("\n6. Type-derived rubric schema (13-05)");
               pitchSubject: "verify subject",
               listenerKnowledge: "blind" as const,
             }
-          : { kind: "none" as const };
+          : type.slug === "pitch-deck"
+            ? {
+                kind: "pitch-deck" as const,
+                deckId: "verify-deck",
+                slideCount: 2,
+                slideTexts: ["s1", "s2"],
+                askPriceUsd: 1_000_000,
+                askEquityPct: 10,
+                fairValueBand: {
+                  priceUsdMin: 800_000,
+                  priceUsdMax: 1_200_000,
+                  equityPctMin: 8,
+                  equityPctMax: 12,
+                },
+                proposedSeconds: 1200,
+              }
+            : type.slug === "difficult-conversation"
+              ? {
+                  kind: "difficult-conversation" as const,
+                  conversationId: "verify-dc",
+                  source: "seeded" as const,
+                  role: "Dana",
+                  studentRole: "manager",
+                  situation: "A performance conversation.",
+                  sharedBackstory: "Prior check-ins documented gaps.",
+                  hiddenPosition: "They will not own the slip.",
+                  studentObjective: "Get a written commitment.",
+                  stakes: "Release slips.",
+                  difficulty: "guarded" as const,
+                  avatarId: "avatar-test",
+                  voiceId: "voice-test",
+                }
+              : { kind: "none" as const };
     const resolved = resolveSessionConfig(type.slug, { instance });
     if (!resolved.ok) {
       failures += 1;

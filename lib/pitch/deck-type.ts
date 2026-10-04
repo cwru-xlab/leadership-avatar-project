@@ -126,9 +126,9 @@ export const PITCH_DECK_TYPE: InteractionTypeConfig = {
   },
   // Deck is uploaded during setup.
   instance: { required: true, authoredInWizard: true },
-  // Decided in 14-05: the server-authoritative slide cursor and the reveal
-  // trail need durable writes across a 20-30 minute session. case-study
-  // remains "none".
+  // Decided in 14-05: the server-authoritative reveal mark column and the
+  // reveal trail need durable writes across a 20-30 minute session.
+  // case-study remains "none".
   checkpointing: "client-driven",
   finishPendingFlip: "request-path",
   supportsRetry: true,
