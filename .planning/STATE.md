@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 16-02-PLAN.md
+**Stopped At:** Completed 16-01-PLAN.md (parallel wave 1)
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -366,6 +366,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 15]: avatarEndFloor Case A from 14-02; floor enforcement committed by 15-01 under 14-02 shape
 - [Phase 16]: Attestation is append-only NetworkingAttestation table (not User column / not S3 instance field); overrides 16-RESEARCH
 - [Phase 16]: Migration 20261101000000_add_networking_attestation local-only; shared DB hold/PENDING
+- [Phase 16]: Person generation is a separate model call producing editable description prose; Phase 8 distill unchanged (16-01)
 
 ## Progress
 
@@ -1826,7 +1827,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:17:24.184Z
+**Last Date:** 2026-10-04T04:17:38.890Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
