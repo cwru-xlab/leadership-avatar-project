@@ -24,6 +24,43 @@ const nextConfig = {
       },
     ],
   },
+  /**
+   * Permanent redirects from pre-Phase-13 session/report URLs into the
+   * unified `/practice/[type]` engine (REQ-68). Report entries are listed
+   * before the shorter session entries so the more-specific path wins.
+   *
+   * Constraints:
+   * - Dynamic segments use `((?!new(?:/|$))[^/]+)` so the literal sibling
+   *   `new` cannot match (protects `/case-play/new`). Plain `(?!new$)`
+   *   fails here because path-to-regexp compiles the param into a larger
+   *   pattern where `$` never sits at the segment boundary — verified by
+   *   matching `/case-play/new/report/x` (must miss) vs `/case-play/newer/
+   *   report/x` (must hit).
+   * - There is intentionally NO redirect for `/case-play/:caseId` alone —
+   *   that path keeps a runtime ownerId dispatch (plan 13-11).
+   * - `/interview` and `/case-play` index pages are not redirected.
+   */
+  async redirects() {
+    // Reject the literal segment "new"; allow "newer", UUIDs, slugs, etc.
+    const seg = "((?!new(?:/|$))[^/]+)";
+    return [
+      {
+        source: `/interview/:type${seg}/report/:reportId${seg}`,
+        destination: "/practice/:type/report/:reportId",
+        permanent: true,
+      },
+      {
+        source: `/case-play/:caseId${seg}/report/:reportId${seg}`,
+        destination: "/practice/case-study/report/:reportId",
+        permanent: true,
+      },
+      {
+        source: `/interview/:type${seg}`,
+        destination: "/practice/:type",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
