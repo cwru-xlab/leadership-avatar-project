@@ -18,10 +18,7 @@
 
 import { createHash } from "crypto";
 
-import {
-  getHeygenApiKey,
-  getLiveAvatarApiUrl,
-} from "@/lib/heygen-server";
+import { getHeygenApiKey, getLiveAvatarApiUrl } from "@/lib/heygen-server";
 
 export interface ActiveAvatarWithVoice {
   avatarId: string;
@@ -53,7 +50,7 @@ interface LiveAvatarRecord {
  * Exported so verification can assert a resolved id is still in today's set.
  */
 export function filterActiveAvatarsWithVoices(
-  results: LiveAvatarRecord[]
+  results: LiveAvatarRecord[],
 ): ActiveAvatarWithVoice[] {
   return results
     .filter(
@@ -63,7 +60,7 @@ export function filterActiveAvatarsWithVoices(
         Boolean(avatar.id) &&
         Boolean(avatar.name) &&
         Boolean(avatar.default_voice?.id) &&
-        Boolean(avatar.default_voice?.name)
+        Boolean(avatar.default_voice?.name),
     )
     .map((avatar) => ({
       avatarId: avatar.id,
@@ -88,13 +85,15 @@ export async function fetchActiveAvatarCatalog(): Promise<
   ActiveAvatarWithVoice[]
 > {
   const apiKey = getHeygenApiKey();
+
   if (!apiKey) {
     throw new Error(
-      "Cannot resolve seeded conversation avatar: HEYGEN_API_KEY is not set on the server."
+      "Cannot resolve seeded conversation avatar: HEYGEN_API_KEY is not set on the server.",
     );
   }
 
   let response: Response;
+
   try {
     response = await fetch(`${getLiveAvatarApiUrl()}/v1/avatars`, {
       headers: { "X-API-KEY": apiKey },
@@ -102,17 +101,19 @@ export async function fetchActiveAvatarCatalog(): Promise<
     });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+
     throw new Error(
-      `Cannot resolve seeded conversation avatar: LiveAvatar catalog fetch failed (${detail}).`
+      `Cannot resolve seeded conversation avatar: LiveAvatar catalog fetch failed (${detail}).`,
     );
   }
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+
     throw new Error(
       `Cannot resolve seeded conversation avatar: LiveAvatar catalog returned HTTP ${response.status}${
         body ? ` — ${body.slice(0, 200)}` : ""
-      }.`
+      }.`,
     );
   }
 
@@ -123,7 +124,7 @@ export async function fetchActiveAvatarCatalog(): Promise<
 
   if (catalog.length === 0) {
     throw new Error(
-      "Cannot resolve seeded conversation avatar: no ACTIVE, non-expired LiveAvatar profiles with a default_voice are available on this account."
+      "Cannot resolve seeded conversation avatar: no ACTIVE, non-expired LiveAvatar profiles with a default_voice are available on this account.",
     );
   }
 
@@ -134,6 +135,7 @@ export async function fetchActiveAvatarCatalog(): Promise<
 function catalogIndex(conversationId: string, length: number): number {
   const digest = createHash("sha256").update(conversationId).digest();
   const n = digest.readUInt32BE(0);
+
   return n % length;
 }
 
@@ -145,17 +147,20 @@ function catalogIndex(conversationId: string, length: number): number {
  */
 function matchesGenderHint(
   avatar: ActiveAvatarWithVoice,
-  genderHint: string
+  genderHint: string,
 ): boolean {
   const hint = genderHint.trim().toLowerCase();
+
   if (!hint) return true;
 
   if (avatar.gender) {
     const g = avatar.gender.toLowerCase();
+
     return g === hint || g.startsWith(hint) || hint.startsWith(g);
   }
 
   const first = avatar.name.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+
   if (!first) return false;
 
   // Compact set covering this account's catalog plus common English names.
@@ -212,6 +217,7 @@ function matchesGenderHint(
   if (hint === "male" || hint === "m" || hint === "man") {
     return MALE.has(first);
   }
+
   return false;
 }
 
@@ -223,23 +229,25 @@ function matchesGenderHint(
  */
 export async function assignSeededAvatar(
   conversationId: string,
-  preference?: { genderHint?: string }
+  preference?: { genderHint?: string },
 ): Promise<{ avatarId: string; voiceId: string }> {
   if (!conversationId.trim()) {
     throw new Error(
-      "Cannot resolve seeded conversation avatar: conversationId is required."
+      "Cannot resolve seeded conversation avatar: conversationId is required.",
     );
   }
 
   const catalog = await fetchActiveAvatarCatalog();
   const sorted = [...catalog].sort((a, b) =>
-    a.avatarId.localeCompare(b.avatarId)
+    a.avatarId.localeCompare(b.avatarId),
   );
 
   let pool = sorted;
   const hint = preference?.genderHint?.trim();
+
   if (hint) {
     const narrowed = sorted.filter((a) => matchesGenderHint(a, hint));
+
     if (narrowed.length > 0) {
       pool = narrowed;
     }
