@@ -434,9 +434,20 @@ the band read was.**
 drift was only 0.643, because the mean averaged it against `shoulder_line`'s
 0.286. Beyond the hypothesis, one case decides the shape of the repair: a PURE
 slump — `forward_head` saturated at 1.000 with a perfectly still shoulder line
-at 0.000 — averages to **exactly 0.500**, which is not `> 0.5`. Under the mean a
-maximal single-axis slump was undetectable at any trip at or above 0.5, so
-**lowering `POSTURE_DRIFT_TRIP` could never have fixed this.** Session A only
+at 0.000 — averages to **exactly 0.500**: the hard CEILING on per-tick drift for
+a single-axis slump, no matter how extreme.
+
+**Correction (orchestrator, on review):** the original wording here said 0.500
+"is not `> 0.5`". That step is wrong — the pre-12-11 comparator was
+`clamped >= POSTURE_DRIFT_TRIP` (`bands.ts:409` at `df02eee^`), so a value of
+exactly 0.500 WOULD have satisfied it. The conclusion survives by a different
+and stronger route: the band read the SESSION-WIDE mean, which also averages in
+the mandatory upright opening and every non-slump tick (Session A's upright rows
+run ~0.07-0.09). A real pure-slump session is therefore strictly BELOW the 0.500
+per-tick ceiling, never at it. So a maximal single-axis slump was undetectable
+in practice, and **lowering `POSTURE_DRIFT_TRIP` could never have fixed it** —
+the ceiling is a property of the mean, not of the cutoff. The repair decision
+(take the worst axis) is unaffected and correct. Session A only
 reached 0.643 because its shoulders happened to move too. The mean was wrong in
 KIND: the four signals are roughly orthogonal axes, not repeated measurements of
 one quantity, and a student who drifts hard on one axis got half credit for the
