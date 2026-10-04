@@ -2,12 +2,25 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-10-03 (12-10 DELIVERED and closed — its Task 4 sign-off re-run PASSED the item that had defeated 12-08 and 12-09. Phase 12 is NOT complete: two measurement-blocked gaps remain and need a follow-up plan. Phases 13-16 were separately added to the v1.0 roadmap from the user's one-on-one interactions brief — see "Roadmap Evolution" at the end of this file.)
+**Updated:** 2026-10-04 (12-11 Task 1 committed, paused at its Task 2 blocking checkpoint — see Current Position. 12-10 DELIVERED and closed — its Task 4 sign-off re-run PASSED the item that had defeated 12-08 and 12-09. Phase 12 is NOT complete: two measurement-blocked gaps remain and need a follow-up plan. Phases 13-16 were separately added to the v1.0 roadmap from the user's one-on-one interactions brief — see "Roadmap Evolution" at the end of this file.)
 
 ## Current Position
 
 **Phase:** 12 — Embodied Visual Signals — IN PROGRESS
-**Current Plan:** none in flight. **12-10 is DELIVERED and closed**
+**Current Plan:** **12-11 IN FLIGHT, PAUSED at its Task 2 blocking human
+checkpoint.** Task 1 is committed (`a854519`) — a dev-only, off-by-default dump
+behind `NEXT_PUBLIC_POSTURE_DRIFT_DEV_DUMP` that captures the per-tick posture
+drift series (raw readings, baselines, per-signal deltas, per-tick
+`driftMagnitude`), the per-session maxima computed over EVERY tick, and the
+phone confidence distribution 12-09 built and 12-10 removed before it was ever
+run. Instrumentation only: no threshold, scale, aggregation or gate changed, and
+`verify-visual-metrics.ts` output is byte-identical with the var unset.
+**Tasks 3 and 4 are deliberately NOT started** — Task 3 branches on Task 2's
+readings (repair the aggregation vs retire the scored row), and pre-building
+either side is the guess-first pattern that has defeated this phase three times.
+Awaiting the user's Session A (deliberate slump), B (lateral lean) and C (phone)
+output. No SUMMARY exists for 12-11 yet, by design.
+**12-10 is DELIVERED and closed**
 (`307c96d`, `69ed830`, docs `9595ba2`, `9994209`); see `12-10-SUMMARY.md`.
 12-01 through 12-09 are as previously recorded — 12-01 through 12-07 shipped the
 capture engine, type contract, worker migration, report surfacing and both the
@@ -1605,8 +1618,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-03T23:51:26Z
-**Stopped At:** Completed 12-10-PLAN.md — DELIVERED, item 1 sign-off PASSED; phase 12 still open on items 3 and 4 (needs plan 12-11)
+**Last Date:** 2026-10-04T00:04:17.574Z
+**Stopped At:** 12-11 Task 1 committed (a854519) — PAUSED at Task 2 blocking human checkpoint, awaiting the user's Session A/B/C readings with NEXT_PUBLIC_POSTURE_DRIFT_DEV_DUMP=1. Tasks 3-4 NOT started by design (measure-first).
 **Resume File:** None
 
 
