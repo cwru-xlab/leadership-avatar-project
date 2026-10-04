@@ -2,24 +2,72 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-10-04 (12-11 Task 1 committed, paused at its Task 2 blocking checkpoint — see Current Position. 12-10 DELIVERED and closed — its Task 4 sign-off re-run PASSED the item that had defeated 12-08 and 12-09. Phase 12 is NOT complete: two measurement-blocked gaps remain and need a follow-up plan. Phases 13-16 were separately added to the v1.0 roadmap from the user's one-on-one interactions brief — see "Roadmap Evolution" at the end of this file.)
+**Updated:** 2026-10-04 (12-11 Tasks 1-3 committed, paused at its Task 4 blocking sign-off checkpoint — see Current Position. Task 2's readings landed and put Task 3 on Branch R: the posture-drift aggregation was repaired, not retired. 12-10 DELIVERED and closed. Phase 12 is NOT complete: 12-11's sign-off is outstanding, PHONE_SCORE_THRESHOLD is still undecided, and 12-03 remains unexecuted. Phases 13-16 were separately added to the v1.0 roadmap from the user's one-on-one interactions brief — see "Roadmap Evolution" at the end of this file.)
 
 ## Current Position
 
 **Phase:** 12 — Embodied Visual Signals — IN PROGRESS
-**Current Plan:** **12-11 IN FLIGHT, PAUSED at its Task 2 blocking human
-checkpoint.** Task 1 is committed (`a854519`) — a dev-only, off-by-default dump
-behind `NEXT_PUBLIC_POSTURE_DRIFT_DEV_DUMP` that captures the per-tick posture
-drift series (raw readings, baselines, per-signal deltas, per-tick
-`driftMagnitude`), the per-session maxima computed over EVERY tick, and the
-phone confidence distribution 12-09 built and 12-10 removed before it was ever
-run. Instrumentation only: no threshold, scale, aggregation or gate changed, and
-`verify-visual-metrics.ts` output is byte-identical with the var unset.
-**Tasks 3 and 4 are deliberately NOT started** — Task 3 branches on Task 2's
-readings (repair the aggregation vs retire the scored row), and pre-building
-either side is the guess-first pattern that has defeated this phase three times.
-Awaiting the user's Session A (deliberate slump), B (lateral lean) and C (phone)
-output. No SUMMARY exists for 12-11 yet, by design.
+**Current Plan:** **12-11 IN FLIGHT, PAUSED at its Task 4 blocking human
+sign-off checkpoint.** Tasks 1-3 are committed (`a854519`, `df02eee`).
+
+**Task 2's readings arrived and decided the plan.** Session A — fully in frame,
+upright ~20s, then a hard held slump (108.0s, 162 pose ticks, baseline
+tilt=4.307deg fwdHead=0.7681) — showed the signals see a slump perfectly well:
+`forward_head`'s delta SATURATED at the clamp ceiling (1.000), `shoulder_line`
+reached 0.508, peak per-tick drift 0.643, and a 12.0s sustained streak above the
+0.5 trip. The session mean the band actually read was 0.373, so the report said
+"Held steady". **Branch R: the aggregation was burying it. The scored row was
+repaired, NOT retired** — 12-08's fidgeting precedent did not apply, because the
+geometry was never the problem.
+
+**Task 3, committed as `df02eee`.** Two dilutions, both fixed:
+`computePostureDrift` now takes the WORST AXIS instead of the cross-signal mean
+(the mean was wrong in kind — a pure slump with still shoulders averages to
+exactly 0.500, not `> 0.5`, so no trip value could ever have caught it), and
+`bandPostureDrift` now reads `posture_drift_max_s` instead of
+`posture_drift_mean` (a session opens upright BY DESIGN, so a session-wide mean
+dilutes a slump against a mandatory upright opening).
+**`POSTURE_DRIFT_SUSTAINED_S` 15 -> 8 and wired up for the first time** — it had
+been exported and read by NOTHING for three plans. At 15 the genuine 12.0s slump
+would STILL have failed; that was verified empirically by reverting the constant
+alone, not assumed. `POSTURE_DRIFT_TRIP` retained at 0.5, now bounded on both
+sides for the first time (ordinary <=0.252, slump >=0.508).
+`POSTURE_COVERAGE_MIN_RATIO` retained at 0.60 — the fully-in-frame ceiling
+reading exists but lands above the decision band, so it cannot narrow it, which
+corrects 12-10's expectation. All readings are recorded in `12-TUNING.md`; the
+posture dev dump is removed. 27 replay assertions were added from the real
+numbers and the 11 load-bearing ones confirmed to FAIL against reverted
+behaviour with exports intact.
+
+**Correction carried into the ledger:** 12-10's claim that `forwardHeadOffset`'s
+sign "may be backwards relative to the behaviour being graded" is WITHDRAWN.
+`fwdHead` does decrease during a slump (the metric is a head-to-shoulder
+DISTANCE, not anterior displacement — a genuine misnomer), but drift scores the
+ABSOLUTE delta, so direction cannot affect magnitude. The channel was never
+blind; it was the strongest responder in the session. Labelling defect only.
+
+**Two things deliberately NOT done.** `PHONE_SCORE_THRESHOLD` is **still
+undecided** — Session C (phone held) was not run, so only the no-phone
+false-positive floor exists (4 of 53 object ticks spurious, max 0.163, none
+>=0.5, 0.0s correctly reported). The true-positive side has never been observed
+in any plan, and a one-sided reading can only justify raising a cutoff. **The
+phone half of the dev dump was KEPT for that reading** (now
+`NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP`) — 12-10 removed it before taking the
+reading and then had nothing to read at its own sign-off. Session B (lateral
+lean) was also not run but is now moot: Session A answered what it was for.
+
+**Evidence base is ONE slump session**, labelled SET FROM ONE REAL SESSION
+rather than TUNED, matching 12-10's honesty about its own 0.60. The
+false-positive side of the worst-axis change is NOT yet observed — 12-TUNING's
+S1-S4 ordinary readings predate 12-10's frame-bounds gating and are contaminated
+by extrapolated skeletons, so Task 4's ordinary-session check is its first real
+test. A known limit is on the record: `forward_head` saturated at 1.000, so the
+true magnitude is unrecoverable and the 0.3 scale may be too small to
+discriminate a moderate slump from an extreme one; it cannot support severity
+wording.
+
+No SUMMARY exists for 12-11 yet, by design — Task 4 must be signed off first.
+
 **12-10 is DELIVERED and closed**
 (`307c96d`, `69ed830`, docs `9595ba2`, `9994209`); see `12-10-SUMMARY.md`.
 12-01 through 12-09 are as previously recorded — 12-01 through 12-07 shipped the
@@ -1618,8 +1666,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T00:04:17.574Z
-**Stopped At:** 12-11 Task 1 committed (a854519) — PAUSED at Task 2 blocking human checkpoint, awaiting the user's Session A/B/C readings with NEXT_PUBLIC_POSTURE_DRIFT_DEV_DUMP=1. Tasks 3-4 NOT started by design (measure-first).
+**Last Date:** 2026-10-04T00:31:51.718Z
+**Stopped At:** 12-11 Task 3 committed (df02eee); PAUSED at Task 4 blocking sign-off checkpoint
 **Resume File:** None
 
 
