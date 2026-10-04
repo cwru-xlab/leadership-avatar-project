@@ -57,6 +57,7 @@ import { resolveInterviewType } from "@/lib/interview/customization";
 import { getEngineType } from "@/lib/engine/registry";
 import { resolveSessionConfig } from "@/lib/engine/resolve";
 import { useLayout } from "@/lib/layout-context";
+import { getNetworkingCharacter } from "@/lib/networking/characters";
 import { ELEVATOR_LISTENER_PERSONA } from "@/lib/pitch/elevator-prompts";
 
 type PagePhase = "wizard" | "session";
@@ -135,6 +136,11 @@ export default function PracticeTypePage() {
     string | null
   >(null);
   const [networkingGoal, setNetworkingGoal] = useState("");
+  /** Distilled sentence + display name for brought-in path (chat live prompt). */
+  const [networkingBroughtInLive, setNetworkingBroughtInLive] = useState<{
+    persona: string;
+    displayName: string;
+  } | null>(null);
 
   // Soft pitch-window timing, mirrored from PracticeSessionShell (13-10 ext).
   const [pitchTurnStartedAt, setPitchTurnStartedAt] = useState<number | null>(
@@ -178,6 +184,59 @@ export default function PracticeTypePage() {
     isNetworking,
     elevatorInstance,
   ]);
+
+  // Resent verbatim on every networking chat turn so liveSystemPrompt can
+  // resolve the persona (characterId on extra, or brought-in distilled text).
+  const networkingCustomization = useMemo(() => {
+    if (!isNetworking) return null;
+    if (networkingCharacterId) {
+      return { characterId: networkingCharacterId };
+    }
+    if (networkingBroughtInLive) {
+      return {
+        distilledPersona: networkingBroughtInLive.persona,
+        personaDisplayName: networkingBroughtInLive.displayName,
+      };
+    }
+    return null;
+  }, [isNetworking, networkingCharacterId, networkingBroughtInLive]);
+
+  // When the student picks a saved brought-in persona, load its distilled
+  // sentence for the live chat path (session start already has instanceId).
+  useEffect(() => {
+    if (!isNetworking || !networkingInstanceId || networkingCharacterId) {
+      if (!networkingInstanceId) setNetworkingBroughtInLive(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/networking/persona/${networkingInstanceId}`,
+          { cache: "no-store" },
+        );
+        const data = (await response.json().catch(() => ({}))) as {
+          persona?: string;
+          displayName?: string;
+        };
+        if (cancelled || !response.ok) return;
+        if (
+          typeof data.persona === "string" &&
+          typeof data.displayName === "string"
+        ) {
+          setNetworkingBroughtInLive({
+            persona: data.persona,
+            displayName: data.displayName,
+          });
+        }
+      } catch {
+        // Launch still works for startSession; chat will fail closed without live text.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isNetworking, networkingInstanceId, networkingCharacterId]);
 
   // Pitch has no interviewer step — auto-pick a catalog avatar for HeyGen while
   // the live prompt plays Dana Reyes. Fetched once when the pitch type mounts.
@@ -265,13 +324,21 @@ export default function PracticeTypePage() {
   const pageMinutes =
     interviewType?.targetMinutes ?? engineType.limits.targetMinutes;
   const reportTypeSlug = interviewType?.slug ?? engineType.slug;
+  const networkingCharacter = networkingCharacterId
+    ? getNetworkingCharacter(networkingCharacterId)
+    : null;
   const listenerDisplayName = isPitchElevator
     ? listenerKnowledge === "blind"
       ? "Your listener"
       : ELEVATOR_LISTENER_PERSONA.name
-    : storedCustomization?.personaDisplayName?.trim() ||
-      selectedInterviewer?.name ||
-      "";
+    : isNetworking
+      ? networkingCharacter?.displayName ||
+        networkingBroughtInLive?.displayName ||
+        selectedInterviewer?.name ||
+        ""
+      : storedCustomization?.personaDisplayName?.trim() ||
+        selectedInterviewer?.name ||
+        "";
 
   if (
     phase === "session" &&
@@ -286,7 +353,11 @@ export default function PracticeTypePage() {
       <PracticeSessionShell
         sessionConfig={sessionConfig}
         customization={
-          isPitchElevator || isNetworking ? undefined : storedCustomization
+          isPitchElevator
+            ? undefined
+            : isNetworking
+              ? networkingCustomization
+              : storedCustomization
         }
         reportId={reportId}
         interviewerName={listenerDisplayName}
@@ -482,9 +553,15 @@ export default function PracticeTypePage() {
                   nav={nav}
                   characterId={networkingCharacterId}
                   instanceId={networkingInstanceId}
-                  onChange={({ characterId, instanceId }) => {
+                  onChange={({ characterId, instanceId, broughtInLive }) => {
                     setNetworkingCharacterId(characterId);
                     setNetworkingInstanceId(instanceId);
+                    if (broughtInLive) {
+                      setNetworkingBroughtInLive(broughtInLive);
+                    } else if (characterId || !instanceId) {
+                      setNetworkingBroughtInLive(null);
+                    }
+                    // instanceId without broughtInLive → useEffect fetches persona
                   }}
                 />
               );

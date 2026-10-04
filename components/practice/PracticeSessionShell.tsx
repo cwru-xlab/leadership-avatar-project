@@ -73,8 +73,16 @@ interface PracticeSessionShellProps {
    * turn (REQ-23). Never re-derived, mutated, or re-resolved here — the
    * server re-resolves it identically each time, and byte-stability is what
    * keeps the OpenAI prefix cache hitting turn to turn.
+   *
+   * Networking may also carry `characterId` (built-in character) or
+   * `distilledPersona` + `personaDisplayName` (brought-in) — fields the
+   * interview picker type does not declare, but the chat route reads.
    */
-  customization?: InterviewCustomizationInput | null;
+  customization?:
+    | (InterviewCustomizationInput & {
+        characterId?: string | null;
+      })
+    | null;
   /**
    * Report row created by SetupWizard's launch POST (or by ensureReport as
    * a retry). Pre-seeded into reportIdRef so the first checkpoint does not
@@ -103,9 +111,9 @@ interface PracticeSessionShellProps {
   caseStudy?: CaseStudy | null;
   interactionLog?: InteractionLog | null;
   /**
-   * Optional type-specific in-session chrome (e.g. pitch timer). Rendered in
-   * the existing session header row — never a second shell. Pure presentation:
-   * panels here must not gate mic/send controls.
+   * Optional type-specific in-session chrome (e.g. pitch timer, session safety).
+   * Rendered top-right of the avatar pane — never a second shell, never centered
+   * over the face. Pure presentation: panels here must not gate mic/send controls.
    */
   sessionPanel?: ReactNode;
   /**
@@ -1127,7 +1135,10 @@ function PracticeInterviewRoom({
             LIVE INTERVIEW
           </div>
           {sessionPanel ? (
-            <div className="pointer-events-auto absolute left-1/2 top-4 z-30 -translate-x-1/2 sm:top-5">
+            // Top-right of the avatar pane — keeps the face clear. Centered
+            // overlay worked for a compact pitch timer but large type panels
+            // (SessionSafetyPanel + support note) covered the avatar.
+            <div className="pointer-events-auto absolute right-3 top-[4.25rem] z-30 max-w-[min(100%-1.5rem,18rem)] sm:right-5 sm:top-[4.75rem]">
               {sessionPanel}
             </div>
           ) : null}

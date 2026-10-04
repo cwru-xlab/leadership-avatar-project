@@ -165,6 +165,19 @@ export interface SetupStepDeclaration {
 export interface LiveSystemPromptExtra {
   resumeText?: string;
   language?: AttemptLanguage;
+  /**
+   * Networking character path (16-07): wizard characterId is not on
+   * ResolveSessionConfigInput yet, so the live chat route threads it here.
+   * Session-constant — resent identically every turn (REQ-73).
+   */
+  characterId?: string | null;
+  /**
+   * Networking brought-in path when the client has the distilled sentence but
+   * has not rehydrated a full networking-persona InstanceConfig. Prefer a real
+   * instance on ResolvedSessionConfig when available.
+   */
+  networkingPersona?: string | null;
+  networkingDisplayName?: string | null;
 }
 
 /**

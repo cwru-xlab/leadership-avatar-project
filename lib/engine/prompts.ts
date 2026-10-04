@@ -70,6 +70,11 @@ export interface AssembleSystemPromptOpts {
   systemPrompt?: string;
   /** Case-study per-scene avatar role. Same request-time choice as above. */
   roleContext?: CaseStudyRoleContext | null;
+  /** Networking: built-in character id (session-constant). */
+  characterId?: string | null;
+  /** Networking: brought-in distilled persona sentence (session-constant). */
+  networkingPersona?: string | null;
+  networkingDisplayName?: string | null;
 }
 
 /** Per-turn state that may only enter the tail block, never the system prompt. */
@@ -236,6 +241,9 @@ export function assembleSystemPrompt(
     return type.prompts.liveSystemPrompt(config, {
       resumeText: opts.resumeText,
       language: opts.language,
+      characterId: opts.characterId,
+      networkingPersona: opts.networkingPersona,
+      networkingDisplayName: opts.networkingDisplayName,
     });
   }
 
@@ -339,6 +347,9 @@ export interface BuildTurnMessagesInput {
   resumeText?: string;
   systemPrompt?: string;
   roleContext?: CaseStudyRoleContext | null;
+  characterId?: string | null;
+  networkingPersona?: string | null;
+  networkingDisplayName?: string | null;
 }
 
 /**
@@ -353,6 +364,9 @@ export function buildTurnMessages({
   resumeText,
   systemPrompt,
   roleContext,
+  characterId,
+  networkingPersona,
+  networkingDisplayName,
 }: BuildTurnMessagesInput): {
   systemPrompt: string;
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
@@ -362,6 +376,9 @@ export function buildTurnMessages({
     resumeText,
     systemPrompt,
     roleContext,
+    characterId,
+    networkingPersona,
+    networkingDisplayName,
   });
 
   const transcript = messages.map((message) => ({ ...message }));

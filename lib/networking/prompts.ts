@@ -216,7 +216,11 @@ export function buildNetworkingEvaluationContext(
  */
 export function resolveNetworkingLivePersona(
   config: ResolvedSessionConfig,
-  opts: { characterId?: string | null } = {},
+  opts: {
+    characterId?: string | null;
+    persona?: string | null;
+    displayName?: string | null;
+  } = {},
 ): NetworkingSystemPromptInput | null {
   if (config.instance.kind === "networking-persona") {
     return {
@@ -232,6 +236,14 @@ export function resolveNetworkingLivePersona(
       persona: character.persona,
       displayName: character.displayName,
     };
+  }
+
+  const persona = typeof opts.persona === "string" ? opts.persona.trim() : "";
+  const displayName =
+    typeof opts.displayName === "string" ? opts.displayName.trim() : "";
+
+  if (persona && displayName) {
+    return { persona, displayName };
   }
 
   return null;

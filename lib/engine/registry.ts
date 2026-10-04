@@ -250,15 +250,14 @@ const NETWORKING: InteractionTypeConfig = {
   extraRubricDimensions: NETWORKING_RUBRIC_EXTRAS,
   prompts: {
     liveSystemPrompt: (config, extra) => {
-      // characterId is wizard/session data — not yet on ResolveSessionConfigInput.
-      // Until a typed customization path lands, the live route may pass it on
-      // `extra` (same bag LiveSystemPromptExtra already is). Prefer a
-      // networking-persona instance when present.
-      const characterId =
-        typeof (extra as { characterId?: unknown }).characterId === "string"
-          ? (extra as { characterId: string }).characterId
-          : null;
-      const live = resolveNetworkingLivePersona(config, { characterId });
+      // characterId / brought-in persona text are wizard/session data — not yet
+      // on ResolveSessionConfigInput. The live chat route threads them on
+      // `extra`. Prefer a networking-persona instance when present.
+      const live = resolveNetworkingLivePersona(config, {
+        characterId: extra.characterId ?? null,
+        persona: extra.networkingPersona ?? null,
+        displayName: extra.networkingDisplayName ?? null,
+      });
 
       if (!live) {
         throw new Error(
