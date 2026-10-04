@@ -255,8 +255,20 @@ This is the only place the character speaks out of the conversation. It appears 
 
 If the character ended the conversation, score every dimension on what DID happen — never zero a dimension and never report an error. Do not cap, clamp, or zero any score because of an early end. State the specific reasons it turned and the approximate timecode where it turned.
 
-- endTurnReasons: string
-- endTurnTimecodeSeconds: number or null
+- endTurnReasons: string — prose reasons when the character ended it. If the character did NOT end the conversation, use the empty string "" (never null, never an object, never an array).
+- endTurnTimecodeSeconds: number — approximate seconds when it turned, when the character ended it. If the character did NOT end the conversation, use 0 (never null, never an object).
+
+## Outcome field types (strict — wrong types discard the whole outcome)
+
+Every outcome value must match its declared kind exactly:
+- objectiveStatus: string enum only — "met" | "partially_met" | "not_met" | "avatar_ended"
+- objectiveNote: string
+- inRoleReaction: string (first person; must contain "I ")
+- reactionCauses: a STRING containing a JSON array (e.g. "[{...}]"), never a raw JSON array value
+- endTurnReasons: string ("" when not avatar-ended)
+- endTurnTimecodeSeconds: number (0 when not avatar-ended)
+
+Do not work backwards from objectiveStatus when scoring objective_achieved. Score the pursuit first; fill the outcome record after.
 `;
 
 export type ConversationEvaluationContext = {
