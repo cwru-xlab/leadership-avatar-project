@@ -46,6 +46,9 @@ export default function ScenarioCard({
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
   const handleCardClick = () => {
+    // Launch on the engine session path (REQ-68 / plan 13-13). Edit/publish/
+    // delete below stay on /case-play authoring routes.
+    router.push(`/practice/case-study/${scenario.id}`);
     onPlay(scenario.id);
   };
 

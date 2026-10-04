@@ -59,11 +59,19 @@ import {
   GESTURE_WINDOW_EXCESSIVE_PCT,
   GESTURE_WINDOW_MIN_HAND_SAMPLES,
   GESTURE_WINDOW_STILL_PCT,
+  HANDS_COVERAGE_MIN_RATIO,
   HANDS_NEAR_FACE_TRIP_PCT,
   PHONE_EPISODE_TRIP_PCT,
   PHONE_MIN_VISIBLE_S,
+  // TEMPORARY (12-11 Task 1): read ONLY by the dev-only phone confidence
+  // dump's output, so the printed cutoff can never go stale against the real
+  // constant. Nothing on this thread gates on it — the verdict is the
+  // worker's (see `visual-capture.worker.ts`'s header on its three accepted
+  // body-thresholds imports). Remove with the dump.
+  PHONE_SCORE_THRESHOLD,
   POSTURE_BASELINE_MIN_SAMPLES,
   POSTURE_BASELINE_WINDOW_S,
+  POSTURE_COVERAGE_MIN_RATIO,
   POSTURE_DRIFT_TRIP,
   POSTURE_FORWARD_HEAD_DRIFT_SCALE,
   POSTURE_SHOULDER_TILT_DRIFT_SCALE_DEG,
@@ -275,6 +283,70 @@ const OBJECT_TICK_INTERVAL_MS = 2000;
  */
 const FACE_SCHEDULE_SHARE =
   SCHEDULE.filter((model) => model === "face").length / SCHEDULE.length;
+
+/**
+ * `SCHEDULE`'s pose share, same derivation and same rationale as
+ * `FACE_SCHEDULE_SHARE` above — this is the denominator `POSTURE_COVERAGE_MIN_RATIO`
+ * (`body-thresholds.ts`) needs to tell a brief in-frame glimpse apart from a
+ * genuinely usable session (12-09, item-7 sign-off fix). See that
+ * constant's own comment for the full reasoning.
+ */
+const POSE_SCHEDULE_SHARE =
+  SCHEDULE.filter((model) => model === "pose").length / SCHEDULE.length;
+
+/**
+ * `SCHEDULE`'s hands share, same derivation as `POSE_SCHEDULE_SHARE` above —
+ * the denominator `HANDS_COVERAGE_MIN_RATIO` needs (12-09, the sibling fix
+ * for `gesture_rate_per_min`/`hands_near_face_pct`).
+ */
+const HANDS_SCHEDULE_SHARE =
+  SCHEDULE.filter((model) => model === "hands").length / SCHEDULE.length;
+
+/**
+ * TEMPORARY, DEV-ONLY. Originally 12-11 Task 1's two-part dump (posture drift
+ * series + phone confidence distribution); the POSTURE HALF WAS REMOVED in
+ * 12-11 Task 3 once its readings were recorded in `12-TUNING.md` and acted on,
+ * which is why this is narrower than its history suggests.
+ *
+ * WHAT REMAINS, and why it is still here rather than deleted with its sibling:
+ * the phone confidence distribution, which has been scheduled three times
+ * (12-07, 12-09, 12-10) and **never once captured**. 12-10 removed this dump
+ * in its Task 3 and then found, at its Task 4 item 4, that there was nothing
+ * left to read — the item could not run and was deferred again. 12-11 Task 2
+ * ran only the NO-PHONE session, which bounds the false-positive side (4 of 53
+ * object ticks carried a spurious "cell phone" detection, max score 0.163,
+ * none at or above 0.5) and leaves the TRUE-POSITIVE side unobserved, so
+ * `PHONE_SCORE_THRESHOLD` is still undecided. See its comment in
+ * `body-thresholds.ts`.
+ *
+ * **DO NOT REMOVE THIS UNTIL A PHONE-HELD SESSION HAS BEEN DUMPED.** Removing
+ * it is what cost 12-10 the reading. Once that session exists and its
+ * distribution is recorded in `12-TUNING.md`, delete this flag, its two call
+ * sites, the `stop()` summary and the worker's `PHONE_DEV_DUMP_SCORE_FLOOR`
+ * widening — scaffolding, not a shipped feature.
+ *
+ * OFF by default, and it changes no threshold, scale, aggregation or gate. The
+ * one thing it does alter is the detector's own `scoreThreshold`, lowered to
+ * `PHONE_DEV_DUMP_SCORE_FLOOR` in `visual-capture.worker.ts` so sub-threshold
+ * scores reach this process at all; `phonePresent` still requires
+ * `>= PHONE_SCORE_THRESHOLD`, so the session verdict is unchanged.
+ *
+ * `console.info`, NOT `console.debug`: Chrome hides `debug` behind the Verbose
+ * level, which cost 12-09 and 12-10 a round trip each.
+ *
+ * Set `NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP=1` and restart `npm run dev` (a
+ * `NEXT_PUBLIC_*` var is inlined at build time, so a hot reload will not pick
+ * it up).
+ */
+const PHONE_CONFIDENCE_DEV_DUMP =
+  process.env.NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP === "1";
+
+/** TEMPORARY, DEV-ONLY. Must match `PHONE_DEV_DUMP_SCORE_FLOOR` in
+ * `visual-capture.worker.ts` — reported in the dump so the reader knows the
+ * distribution's left edge is the instrument's, not the detector's ceiling.
+ * Not imported from the worker module: importing a value from it would pull
+ * the worker's `self.onmessage` installation into the main bundle. */
+const PHONE_CONFIDENCE_DEV_DUMP_FLOOR = 0.05;
 
 /** How long `start()` will wait for the worker's `ready`/`init-error` reply
  * before giving up and falling back to the main-thread landmarker path. A
@@ -522,16 +594,64 @@ export function computePostureBaseline(
 
 /**
  * Pure. Drift is `abs(current - baseline)` per signal, normalised to 0-1 by
- * that signal's scale constant in `body-thresholds.ts`, clamped, then
- * averaged across only the signals that HAVE a baseline. A signal absent from
- * `baseline.signals` contributes nothing — not a 0 — and when no signal is
- * shared between the reading and the baseline, `driftMagnitude` is `null`,
- * never a defaulted 0: a clean `clampFinite`-style fallback here would print
- * a flattering posture reading for a student nobody ever actually measured.
+ * that signal's scale constant in `body-thresholds.ts`, clamped, then reduced
+ * across only the signals that HAVE a baseline by taking the **worst (maximum)
+ * axis**. A signal absent from `baseline.signals` contributes nothing — not a
+ * 0 — and when no signal is shared between the reading and the baseline,
+ * `driftMagnitude` is `null`, never a defaulted 0: a clean `clampFinite`-style
+ * fallback here would print a flattering posture reading for a student nobody
+ * ever actually measured.
  *
  * **The fairness property this exists to prove:** two readings with wildly
  * different ABSOLUTE values but identical deltas from their OWN baselines
- * produce the SAME drift — see `scripts/verify-visual-metrics.ts`.
+ * produce the SAME drift — see `scripts/verify-visual-metrics.ts`. (Unaffected
+ * by the mean -> max change below: both are functions of the deltas alone.)
+ *
+ * BUG FIX (12-11 Task 3, cause 1 of the 12-10 item-3 false negative — a hard
+ * held slump reported "Held steady from the opening posture"). This was
+ * `values.reduce(sum) / values.length`, the arithmetic MEAN across signals.
+ * The mean is wrong IN KIND here, not merely too lenient, and Session A's
+ * per-tick series (12-11 Task 2 — see `POSTURE_DRIFT_TRIP` for the session)
+ * is what proves it.
+ *
+ * The four posture signals are roughly ORTHOGONAL axes, not repeated
+ * measurements of one quantity. `shoulderTiltDeg` is the shoulder line's angle
+ * to HORIZONTAL (a left-right tilt); a vertical slump barely moves it. So
+ * averaging them answers "how far has this student moved on average across
+ * axes", when the question the row asks is "has this student's posture drifted"
+ * — and any ONE axis moving a long way IS drift. Under a mean, a student who
+ * drifts hard on one axis and not at all on another gets half credit for the
+ * axis they did not move.
+ *
+ * The arithmetic, from Session A's real readings (baseline tilt=4.307deg,
+ * fwdHead=0.7681), is unambiguous:
+ *
+ *   t=33.4  deltas tilt=0.139 fwd=0.561  ->  mean 0.350 (BELOW the 0.5 trip)
+ *                                        ->  max  0.561 (above it)
+ *   peak    deltas tilt=0.286 fwd=1.000  ->  mean 0.643
+ *
+ * And the decisive case, which no choice of `POSTURE_DRIFT_TRIP` could have
+ * rescued: a PURE slump — `forward_head` saturated at the clamp ceiling 1.000
+ * with a perfectly still shoulder line at 0.000 — averages to EXACTLY 0.500,
+ * which is not `> 0.5`. Under the mean, a maximal single-axis slump was
+ * structurally undetectable at the current trip. Session A only produced a
+ * 0.643 peak because the shoulders happened to move 0.286 as well.
+ *
+ * WHY THIS IS SAFE DESPITE MAKING THE SIGNAL STRICTLY MORE SENSITIVE (max >=
+ * mean, always). It is one half of a two-part mechanism and must not be read
+ * alone: `bandPostureDrift` now requires the drift to hold above the trip for
+ * `POSTURE_DRIFT_SUSTAINED_S` (8s, ~12 consecutive pose ticks at the confirmed
+ * ~1.5 Hz) before it will say anything. A single noisy tick on a single axis
+ * cannot trip the row; noise does not hold for 8 seconds. Taking the max
+ * WITHOUT that duration requirement would be the overcorrection — see
+ * `POSTURE_DRIFT_SUSTAINED_S`'s own comment.
+ *
+ * KNOWN LIMIT: the false-positive side of this change is NOT yet observed. The
+ * only clean post-12-10 ordinary readings available are Session A's own upright
+ * stretch (worst axis 0.066-0.252, comfortably under the trip); 12-TUNING.md's
+ * S1-S4 ordinary readings PREDATE the 12-10 frame-bounds gating and are
+ * contaminated by extrapolated skeletons, so they cannot calibrate it. 12-11
+ * Task 4's ordinary-session check is the first real test.
  */
 export function computePostureDrift(
   reading: PostureReading,
@@ -556,9 +676,136 @@ export function computePostureDrift(
     return { driftMagnitude: null, perSignal };
   }
   return {
-    driftMagnitude: values.reduce((sum, v) => sum + v, 0) / values.length,
+    // The WORST axis, not the mean across axes — see this function's doc
+    // comment for the Session A readings that forced the change and for why
+    // the duration requirement in `bandPostureDrift` is the other half of it.
+    driftMagnitude: Math.max(...values),
     perSignal,
   };
+}
+
+/**
+ * Pure. Decides, per posture signal, whether SESSION-WIDE visibility was
+ * enough to report that signal as measured at all — the mechanism behind
+ * `posture_signals_measured` and (via REQ-51's "Measured from" row) which
+ * landmarks a partially-visible body is honestly scored on.
+ *
+ * BUG FIX (12-09, item-7 sign-off failure): a signal used to clear this gate
+ * on `poseVisibleSamples[signal] >= POSTURE_BASELINE_MIN_SAMPLES` alone — an
+ * ABSOLUTE floor of 15 that a brief few-second in-frame glimpse can clear in
+ * an otherwise entirely off-camera session, exactly what happened in the
+ * failing sign-off session. A signal must now ALSO clear
+ * `POSTURE_COVERAGE_MIN_RATIO` of ITS OWN schedule-aware expected sample
+ * count (`expectedPoseSamples`) — see that constant's own comment in
+ * `body-thresholds.ts` for the reasoning and which side it is biased toward.
+ * Both conditions are required; neither alone is sufficient (REQ-51 requires
+ * a partially-visible body still score what IS available, so the ratio
+ * cannot be tightened into a second absolute floor that would skip it).
+ *
+ * WHY 12-09'S VERSION OF THIS GATE DID NOT CLOSE THE FAILURE (12-10 Task 3).
+ * The arithmetic here was right and the layer was right; the INPUT was
+ * fabricated. `poseVisibleSamples` counted ticks on which MediaPipe PREDICTED
+ * a landmark group was visible, which it does for a fully extrapolated
+ * off-camera skeleton — 98% of ticks in the failing session. Two things
+ * changed in 12-10 Task 3 and both are needed: `isVisible`
+ * (`visual-capture.worker.ts`) now also requires the landmark's coordinates
+ * to be inside the frame, so this numerator counts OBSERVED ticks; and
+ * `POSTURE_COVERAGE_MIN_RATIO` moved from 0.25 to 0.60, set from the two
+ * sessions' measured in-frame shares. The per-tick fix alone was NOT enough —
+ * the off-camera session's `forward_head` is in frame on 43% of ticks, which
+ * clears 0.25 — so a reader tempted to relax that ratio should read its own
+ * comment in `body-thresholds.ts` first.
+ *
+ * Exported and pure for the same reason `computePostureBaseline`/
+ * `computePostureDrift` are — `stop()`'s assembly code and
+ * `scripts/verify-visual-metrics.ts` must exercise the identical arithmetic,
+ * so a regression here is a test failure, not something only a human
+ * reading a live report would catch.
+ */
+export function computePostureSignalsMeasured(
+  poseVisibleSamples: Record<VisualPostureSignal, number>,
+  expectedPoseSamples: number
+): VisualPostureSignal[] {
+  return VISUAL_POSTURE_SIGNALS.filter(
+    (signal) =>
+      poseVisibleSamples[signal] >= POSTURE_BASELINE_MIN_SAMPLES &&
+      poseVisibleSamples[signal] >= expectedPoseSamples * POSTURE_COVERAGE_MIN_RATIO
+  );
+}
+
+/**
+ * Pure. The hands sibling of `computePostureSignalsMeasured` above — decides
+ * whether `gesture_rate_per_min`/`gesture_amplitude_mean`/
+ * `hands_above_shoulder_pct`/`hands_near_face_pct` may be reported at all
+ * this session.
+ *
+ * BUG FIX (12-09, sibling of the item-7 fix): this gate used to be
+ * `handSamples > 0` alone — the identical absolute-floor-of-a-glimpse defect
+ * `computePostureSignalsMeasured` closes for posture, which is why the same
+ * failing session also reported "Gesturing: Very still" and "Hands near
+ * face: Frequent" while off camera. `HANDS_COVERAGE_MIN_RATIO` is the
+ * proportional sibling of `POSTURE_COVERAGE_MIN_RATIO` — see its own comment
+ * in `body-thresholds.ts`. The `> 0` check is kept as a defensive floor
+ * (handles `expectedHandsSamples === 0` degenerate sessions), not the sole
+ * gate.
+ *
+ * BUG FIX (12-10 Task 3, found in the Task 2 readings): 12-09's version of
+ * this gate could never fire, because the caller passed `handSamples` — the
+ * number of ticks the hands MODEL RAN, incremented unconditionally in
+ * `applyHandsResult` whether or not a hand was detected. That is ~100% of
+ * `expectedHandsSamples` on any session where the pipeline was alive, so the
+ * ratio was structurally pinned at ~1.0 and the gate was open regardless of
+ * what the camera saw. The off-camera Session A reading: 234 hands ticks,
+ * ~234 expected, 100% — and 39 ticks with a hand genuinely in frame. The
+ * parameter is now `handsDetectedSamples`, which counts ticks a hand was
+ * DETECTED IN FRAME (the worker's `detectHands` drops out-of-frame wrists
+ * before reporting `handCount`, 12-10 Task 3). Same two conditions, honest
+ * numerator.
+ */
+export function computeHandsUsable(
+  handsDetectedSamples: number,
+  expectedHandsSamples: number
+): boolean {
+  return (
+    handsDetectedSamples > 0 &&
+    handsDetectedSamples >= expectedHandsSamples * HANDS_COVERAGE_MIN_RATIO
+  );
+}
+
+/**
+ * Pure. Filters a session's extracted SCORED episodes (`extractEpisodes`'s
+ * output) against the SAME session-wide coverage gates
+ * `computePostureSignalsMeasured`/`computeHandsUsable` compute — see Task 1
+ * item 5 of `12-09-PLAN.md`.
+ *
+ * WHY THIS IS NEEDED EVEN AFTER THE SESSION-WIDE GATES: `windowTrips`
+ * decides per-WINDOW, from that window's own real sample counts, with no
+ * visibility into session-wide coverage at all — that is deliberate (every
+ * other episode kind it judges follows the same "a window trips on its own
+ * ratio" discipline). But that means the EXACT brief in-frame glimpse that
+ * (pre-12-09) could clear the session-wide absolute floor alone can,
+ * independently, produce one or two genuinely-tripping windows long enough
+ * to clear `MIN_EPISODE_SECONDS` and surface as a Moments row / Growth Area
+ * — the identical class of defect as the producer/renderer fix, one level
+ * down. A body-language episode backed by a signal the session-wide gate
+ * has declared unreadable must produce silence, not a finding, so it is
+ * dropped here, after both session-wide gates are known.
+ */
+export function filterUnreadableBodyLanguageEpisodes(
+  episodes: VisualEpisode[],
+  readable: { postureReadable: boolean; handsReadable: boolean }
+): VisualEpisode[] {
+  return episodes.filter((e) => {
+    if (e.kind === "posture_drift") return readable.postureReadable;
+    if (
+      e.kind === "excessive_gesturing" ||
+      e.kind === "minimal_gesturing" ||
+      e.kind === "hands_near_face"
+    ) {
+      return readable.handsReadable;
+    }
+    return true;
+  });
 }
 
 /** Raw gesture/hand material one session accumulates, handed to
@@ -1121,6 +1368,15 @@ export function createVisualCapture(
   let postureDriftStreakStartS: number | null = null;
   let postureDriftMaxS = 0;
 
+  // --- DEV-ONLY: the phone confidence distribution nobody has ever captured.
+  // Only ever written to when `PHONE_CONFIDENCE_DEV_DUMP` is on, read only by
+  // the summary at the end of `stop()`, and fed to no accumulator any
+  // gating, banding or episode path reads — observation only, by
+  // construction. See `PHONE_CONFIDENCE_DEV_DUMP`'s own comment. (12-11 Task 1
+  // also accumulated a per-tick posture drift series here; that half was
+  // removed in Task 3 once its readings were recorded in 12-TUNING.md.)
+  const devPhoneScores: number[] = [];
+
   // --- 12-05 hands accumulators.
   let handSamples = 0;
   let handsDetectedSamples = 0;
@@ -1556,7 +1812,11 @@ export function createVisualCapture(
       // post-baseline reading, not part of the window itself.
     }
 
-    const { driftMagnitude } = computePostureDrift(reading, postureBaseline);
+    const { driftMagnitude, perSignal } = computePostureDrift(
+      reading,
+      postureBaseline
+    );
+
     if (driftMagnitude === null) return;
 
     postureDriftSum += driftMagnitude;
@@ -1652,6 +1912,12 @@ export function createVisualCapture(
   function applyObjectResult(result: ObjectDetectResult) {
     phoneSamples += 1;
     winPhoneProcessed += 1;
+
+    // 12-11 Task 1, DEV-ONLY: every object tick, detection or not, so the
+    // distribution printed at `stop()` is the full one rather than only the
+    // ticks that already cleared the threshold. `phoneScore` is read by
+    // nothing else in this file.
+    if (PHONE_CONFIDENCE_DEV_DUMP) devPhoneScores.push(result.phoneScore);
     if (result.phonePresent) {
       phoneVisibleSamples += 1;
       winPhoneCount += 1;
@@ -2095,6 +2361,18 @@ export function createVisualCapture(
 
     // One line, once per session, so a walkthrough can confirm at a glance
     // which delegate AND which thread is actually doing the work.
+    // 12-11 Task 1, DEV-ONLY: confirm activation at the TOP of the session.
+    // The readings themselves only print at `stop()`, and a NEXT_PUBLIC_ var
+    // needs a dev-server restart to take effect — without this line a user
+    // would not learn the flag never took until after recording the whole
+    // session, which is a wasted session and a wasted round trip.
+    if (PHONE_CONFIDENCE_DEV_DUMP) {
+      console.info(
+        "[visual-capture][dev] phone-confidence dump ACTIVE" +
+          " — the readings print when the session ends (one [dev] line)"
+      );
+    }
+
     console.info("[visual-capture] engine started", {
       delegate: delegateInUse,
       thread: usingWorker ? "worker" : "main",
@@ -2171,6 +2449,17 @@ export function createVisualCapture(
     const expectedSamples = Math.floor(
       trackLiveSeconds * METRICS_SAMPLE_HZ * FACE_SCHEDULE_SHARE
     );
+    // 12-09: the SAME schedule-aware pattern, applied to pose's and hands'
+    // own shares — `POSTURE_COVERAGE_MIN_RATIO`/`HANDS_COVERAGE_MIN_RATIO`
+    // (body-thresholds.ts) need a real per-model expected-sample denominator,
+    // not `expectedSamples` above (which is face's own share and would be
+    // the wrong number for a model running at a different schedule share).
+    const expectedPoseSamples = Math.floor(
+      trackLiveSeconds * METRICS_SAMPLE_HZ * POSE_SCHEDULE_SHARE
+    );
+    const expectedHandsSamples = Math.floor(
+      trackLiveSeconds * METRICS_SAMPLE_HZ * HANDS_SCHEDULE_SHARE
+    );
 
     if (
       poseUnavailableSamples > 0 &&
@@ -2196,7 +2485,10 @@ export function createVisualCapture(
     // Fold the partial final window in before extracting, so an excursion
     // that was still running when the student hit End is not dropped.
     closeWindow(sessionSeconds);
-    const episodes = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
+    // Filtered below (12-09 Task 1 item 5), once `postureSignalsMeasured`/
+    // `handsUsable` are known, against the session-wide unreadable signals
+    // those gates identify.
+    const rawEpisodes = extractEpisodes(windows, VISUAL_EPISODE_KINDS);
     const lightingOk =
       lumaSamples > 0 &&
       lumaSum / lumaSamples >= LUMA_MIN_OK &&
@@ -2307,7 +2599,24 @@ export function createVisualCapture(
     // (hands has no main-thread fallback — 12-05), so `handSamples === 0`
     // means the hands pipeline never ran this session, not merely that no
     // hand was ever seen.
-    const handsUsable = handSamples > 0;
+    //
+    // BUG FIX (12-09, sibling of the item-7 fix): `handSamples > 0` ALONE
+    // used to be the whole gate — an absolute floor a brief in-frame glimpse
+    // clears identically to the posture defect this plan closes. Now routed
+    // through `computeHandsUsable`, which ALSO requires the numerator to
+    // clear `HANDS_COVERAGE_MIN_RATIO` of this session's own schedule-aware
+    // `expectedHandsSamples` — see that function's own comment.
+    //
+    // BUG FIX (12-10 Task 3): the numerator was `handSamples` — TICKS THE
+    // MODEL RAN, ~100% of `expectedHandsSamples` on any live session — so
+    // 12-09's gate was inert and the off-camera session kept its "Gesturing"
+    // and "Hands near face" rows. It is now `handsDetectedSamples`, ticks a
+    // hand was actually detected in frame. See `computeHandsUsable`'s own
+    // comment for the Session A reading that exposed this.
+    const handsUsable = computeHandsUsable(
+      handsDetectedSamples,
+      expectedHandsSamples
+    );
     const gestureRates = computeGestureRates({
       handSamples,
       gestureDisplacementSum,
@@ -2325,9 +2634,28 @@ export function createVisualCapture(
     // `postureBaseline.signals` — a signal can fail to calibrate in the
     // opening 20s (POSTURE_BASELINE_WINDOW_S) yet still be reportable in the
     // "Measured from" row if the student came into frame shortly after.
-    const postureSignalsMeasured = VISUAL_POSTURE_SIGNALS.filter(
-      (signal) => poseVisibleSamples[signal] >= POSTURE_BASELINE_MIN_SAMPLES
+    //
+    // BUG FIX (12-09, item-7 sign-off failure): `poseVisibleSamples[signal]
+    // >= POSTURE_BASELINE_MIN_SAMPLES` used to be the WHOLE condition — an
+    // absolute floor of 15 that a brief few-second in-frame glimpse clears
+    // even across an otherwise entirely off-camera ~165s session (6% real
+    // visibility in the failing sign-off session). Routed through
+    // `computePostureSignalsMeasured`, which now ALSO requires each signal
+    // to clear `POSTURE_COVERAGE_MIN_RATIO` of `expectedPoseSamples` — see
+    // that function's own comment and `12-09-PLAN.md`'s
+    // `<observed_failure>`/`<constraint_do_not_overcorrect>` for why both
+    // conditions, not either alone, are required.
+    const postureSignalsMeasured = computePostureSignalsMeasured(
+      poseVisibleSamples,
+      expectedPoseSamples
     );
+
+    // 12-09 Task 1 item 5: an unreadable signal must produce silence, not a
+    // finding — see `filterUnreadableBodyLanguageEpisodes`'s own comment.
+    const episodes = filterUnreadableBodyLanguageEpisodes(rawEpisodes, {
+      postureReadable: postureSignalsMeasured.length > 0,
+      handsReadable: handsUsable,
+    });
 
     // 12-07: measured-but-NEVER-SCORED observations — a phone in frame,
     // and the absolute (never baseline-relative) posture reading.
@@ -2393,6 +2721,64 @@ export function createVisualCapture(
       };
     }
 
+    // --- DEV-ONLY: the phone confidence session summary. Skipped entirely
+    // when the flag is off (the array it reads is then empty and unwritten).
+    // Emitted with `console.info` — `console.debug` is hidden behind Chrome's
+    // Verbose level and cost 12-09 and 12-10 a round trip each — and as ONE
+    // newline-joined string rather than an object, so it can be copied out of
+    // the console whole. See `PHONE_CONFIDENCE_DEV_DUMP`.
+    //
+    // 12-11 Task 3 removed the POSTURE DRIFT SERIES dump that stood here
+    // alongside this one: its Session A readings are recorded in
+    // `12-TUNING.md` and were acted on in the same task (the cross-signal mean
+    // in `computePostureDrift` and the session-mean statistic in
+    // `bandPostureDrift`, both repaired). The phone half stays because its
+    // reading has NOT been taken — see `PHONE_CONFIDENCE_DEV_DUMP`.
+    if (PHONE_CONFIDENCE_DEV_DUMP) {
+      const fmt = (v: number | null | undefined, digits = 3): string =>
+        v === null || v === undefined ? "-" : v.toFixed(digits);
+
+      const phoneSorted = [...devPhoneScores].sort((a, b) => a - b);
+      const detections = phoneSorted.filter((score) => score > 0);
+      const histogram = new Array<number>(10).fill(0);
+      for (const score of detections) {
+        histogram[Math.min(9, Math.floor(score * 10))] += 1;
+      }
+      console.info(
+        [
+          "[visual-capture][dev] 12-11 PHONE CONFIDENCE DISTRIBUTION",
+          `objectTicks=${devPhoneScores.length}` +
+            ` ticksWithACellPhoneDetection=${detections.length}` +
+            ` ticksWithNone=${devPhoneScores.length - detections.length}`,
+          `INSTRUMENT NOTE: with this dump active the detector's own` +
+            ` scoreThreshold is lowered to ${PHONE_CONFIDENCE_DEV_DUMP_FLOOR}` +
+            ` so sub-threshold scores are observable at all (on a normal build` +
+            ` nothing below PHONE_SCORE_THRESHOLD ever reaches this process,` +
+            ` which is why "the count below 0.5" has never existed).` +
+            ` phonePresent still requires >= PHONE_SCORE_THRESHOLD` +
+            ` (${PHONE_SCORE_THRESHOLD}), so the session verdict is unchanged.`,
+          `min=${fmt(detections[0])}` +
+            ` median=${fmt(detections[Math.floor(detections.length / 2)])}` +
+            ` max=${fmt(detections[detections.length - 1])}`,
+          `atOrAbove ${PHONE_SCORE_THRESHOLD} = ${
+            detections.filter((score) => score >= PHONE_SCORE_THRESHOLD).length
+          }; below ${PHONE_SCORE_THRESHOLD} (and above the ${PHONE_CONFIDENCE_DEV_DUMP_FLOOR} dump floor) = ${
+            detections.filter((score) => score < PHONE_SCORE_THRESHOLD).length
+          }`,
+          `histogram (0.1 buckets, detections only): ${histogram
+            .map(
+              (count, i) =>
+                `${(i / 10).toFixed(1)}-${((i + 1) / 10).toFixed(1)}:${count}`
+            )
+            .join(" ")}`,
+          `phone_visible_seconds (as the pipeline would report it) =` +
+            ` ${fmt(observations?.phone_visible_seconds, 1)}`,
+          `raw per-tick phoneScore, in tick order: ${devPhoneScores
+            .map((score) => score.toFixed(3))
+            .join(", ")}`,
+        ].join("\n")
+      );
+    }
 
     return {
       eye_contact_pct: rates.eyeContactPct,

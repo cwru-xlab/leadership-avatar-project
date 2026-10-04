@@ -48,8 +48,9 @@ export const INTERACTION_TYPES: InteractionType[] = [
       "Deliver a pitch to an AI audience and get feedback on clarity, structure, and persuasion.",
     icon: "Presentation",
     estimatedMinutes: 15,
-    route: null,
-    availability: "coming-soon",
+    // Picker for elevator vs investor deck (both live as of 14-12/14-13).
+    route: "/practice/pitches",
+    availability: "live",
   },
   {
     slug: "difficult-conversations",
@@ -58,8 +59,8 @@ export const INTERACTION_TYPES: InteractionType[] = [
       "Practice navigating a tense, high-stakes conversation before you have to have it for real.",
     icon: "MessageCircleWarning",
     estimatedMinutes: 20,
-    route: null,
-    availability: "coming-soon",
+    route: "/conversations",
+    availability: "live",
   },
   {
     slug: "networking",
@@ -68,8 +69,8 @@ export const INTERACTION_TYPES: InteractionType[] = [
       "Rehearse introducing yourself and building rapport with a stranger in a professional setting.",
     icon: "Users",
     estimatedMinutes: 15,
-    route: null,
-    availability: "coming-soon",
+    route: "/practice/networking",
+    availability: "live",
   },
 ];
 

@@ -1,0 +1,1087 @@
+{
+  "version": "1.2",
+  "max_entries": 50,
+  "entries": [
+    {
+      "agent_id": "fa23c74e-d1be-43b5-b051-02a30e4e216e",
+      "task_description": "Parallel: Execute 14-02-PLAN.md",
+      "phase": "14",
+      "plan": "02",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [
+        "13-15"
+      ],
+      "timestamp": "2026-10-04T04:13:11Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/engine/types.ts",
+        "lib/engine/termination.ts",
+        "lib/engine/time-budget.ts",
+        "lib/report/snapshot.ts",
+        "scripts/verify-pitch-engine-extensions.ts",
+        ".planning/phases/14-practice-pitches/14-02-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:18:18Z",
+      "deviations": [
+        "[Rule 3] firstTurnWindow optional on TimeBudgetState",
+        "[Rule 3] Preserved Phase 15 DifficultConversationInputSnapshot",
+        "[Rule 3] Floor gate reconciled with parallel 15-01"
+      ]
+    },
+    {
+      "agent_id": "0e8bbfa9-c0ff-4085-951e-94f9157ed01c",
+      "task_description": "Parallel: Execute 14-03-PLAN.md",
+      "phase": "14",
+      "plan": "03",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [],
+      "timestamp": "2026-10-04T04:13:11Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/deck/types.ts",
+        "lib/deck/intake.ts",
+        "lib/deck/pdf-extract.ts",
+        "lib/deck/pptx-extract.ts",
+        "scripts/verify-deck-intake.ts",
+        "scripts/generate-deck-fixtures.ts",
+        "scripts/fixtures/*",
+        "package.json",
+        "package-lock.json",
+        ".planning/phases/14-practice-pitches/14-03-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:28:37Z",
+      "deviations": [
+        "[Rule 1] pdfjs-dist instead of pdf2json for extractPerPageText",
+        "[Rule 3] pdf-lib fixtures; spike-deck.pptx built here for 14-01 reuse"
+      ]
+    },
+    {
+      "agent_id": "bbb6de0f-73c1-4858-8501-b5d9bcbf12c9",
+      "task_description": "Parallel: Execute 14-01-PLAN.md",
+      "phase": "14",
+      "plan": "01",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [],
+      "timestamp": "2026-10-04T04:13:11Z",
+      "status": "completed",
+      "files_modified": [
+        "scripts/spike-deck-render.ts",
+        ".env.example",
+        ".env.template",
+        "next.config.js",
+        "scripts/fixtures/spike-deck.pptx",
+        ".planning/phases/14-practice-pitches/14-DECK-RENDER-DECISION.md",
+        ".planning/phases/14-practice-pitches/14-01-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T05:07:39Z",
+      "deviations": [],
+      "checkpoint": {
+        "type": "decision",
+        "resume_signal": "gotenberg | vercel-libreoffice | cloudconvert",
+        "recommended": "gotenberg",
+        "task_commits": [
+          "cda094d",
+          "b78f3e9"
+        ]
+      },
+      "timestamp_checkpoint": "2026-10-04T05:05:41Z",
+      "checkpoint_decision": "gotenberg",
+      "timestamp_resumed": "2026-10-04T05:06:38Z"
+    },
+    {
+      "agent_id": "1d3e88ba-172c-47c5-bb6c-6e7c2393a67d",
+      "task_description": "Parallel: Execute 15-01-PLAN.md",
+      "phase": "15",
+      "plan": "01",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [
+        "13-15"
+      ],
+      "timestamp": "2026-10-04T04:13:23Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/engine/types.ts",
+        "lib/engine/termination.ts",
+        "lib/report/snapshot.ts",
+        "scripts/verify-dc-engine-extensions.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:17:34Z",
+      "deviations": [
+        "Rule1 re-merge DC+pitch snapshot",
+        "Rule3 avatarEndFloor from 14-02"
+      ]
+    },
+    {
+      "agent_id": "99cedd49-fdd4-4166-b173-0c086a0ca109",
+      "task_description": "Parallel: Execute 15-02-PLAN.md",
+      "phase": "15",
+      "plan": "02",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [],
+      "timestamp": "2026-10-04T04:13:23Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/difficult-conversation/types.ts",
+        "lib/difficult-conversation/validation.ts",
+        "lib/difficult-conversation/store.ts",
+        "lib/s3-client.ts",
+        "scripts/verify-dc-store.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:22:00Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "356b8d76-bca3-4e52-948a-ba3f46d4d99c",
+      "task_description": "Parallel: Execute 15-03-PLAN.md",
+      "phase": "15",
+      "plan": "03",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [],
+      "timestamp": "2026-10-04T04:13:23Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/difficult-conversation/authored-text.ts",
+        "lib/difficult-conversation/prepublish-check.ts",
+        "scripts/fixtures/dc-injection-corpus.ts",
+        "scripts/verify-dc-prepublish.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:21:24Z",
+      "deviations": [
+        "Rule1 delimiter-breakout fixture",
+        "Rule3 single-path assertion"
+      ]
+    },
+    {
+      "agent_id": "922003a9-9b05-47fb-9946-9b11bd999cfe",
+      "task_description": "Parallel: Execute 16-01-PLAN.md",
+      "phase": "16",
+      "plan": "01",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [],
+      "timestamp": "2026-10-04T04:13:38Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/networking/person-generation.ts",
+        "app/api/networking/persona/generate/route.ts",
+        "scripts/spike-networking-person-generation.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:17:58Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "bc6138c3-7128-4f81-bcc7-ccf44b88b430",
+      "task_description": "Parallel: Execute 16-02-PLAN.md",
+      "phase": "16",
+      "plan": "02",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [
+        "13-15"
+      ],
+      "timestamp": "2026-10-04T04:13:38Z",
+      "status": "completed",
+      "files_modified": [
+        "prisma/schema.prisma",
+        "prisma/migrations/20261101000000_add_networking_attestation/migration.sql",
+        "lib/networking/attestation.ts",
+        "scripts/verify-networking-attestation.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:17:43Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "4963db5a-3709-4c0e-9a52-032becacf2c5",
+      "task_description": "Parallel: Execute 16-03-PLAN.md",
+      "phase": "16",
+      "plan": "03",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [
+        "13-15"
+      ],
+      "timestamp": "2026-10-04T04:13:38Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/engine/types.ts",
+        "lib/report/snapshot.ts",
+        "scripts/verify-networking-engine-extensions.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:19:10Z",
+      "deviations": [
+        "networking-persona first appeared in concurrent 15-01; reconciled",
+        "avatarEndFloor inherited from 14-02"
+      ]
+    },
+    {
+      "agent_id": "1d271c05-fc81-417c-b13e-f9f304463e99",
+      "task_description": "Parallel: Execute 16-06-PLAN.md",
+      "phase": "16",
+      "plan": "06",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 1,
+      "depends_on": [
+        "13-15"
+      ],
+      "timestamp": "2026-10-04T04:18:01Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/networking/characters.ts",
+        "scripts/verify-networking-characters.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:22:03Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "6bb180fe-0f9f-41d6-92a8-a71e2fae9acc",
+      "task_description": "Parallel: Execute 16-05-PLAN.md",
+      "phase": "16",
+      "plan": "05",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "16-02"
+      ],
+      "timestamp": "2026-10-04T04:18:01Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/interview/persona-distill.ts",
+        "app/api/interview/persona/distill/route.ts",
+        "app/api/networking/attestation/route.ts",
+        "app/api/networking/persona/distill/route.ts",
+        "scripts/verify-networking-distill-gate.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:24:58Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "28c53f99-e77f-40c2-b5f2-ff422eac2fbe",
+      "task_description": "Parallel: Execute 14-05-PLAN.md",
+      "phase": "14",
+      "plan": "05",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "14-02"
+      ],
+      "timestamp": "2026-10-04T04:28:42Z",
+      "status": "completed",
+      "files_modified": [],
+      "completion_timestamp": "2026-10-04T14:59:50Z",
+      "deviations": [],
+      "checkpoint": {
+        "type": "human-verify",
+        "resume_signal": "approved",
+        "task_commits": [
+          "a140c8c",
+          "cd9df96",
+          "92f2eda"
+        ]
+      },
+      "timestamp_checkpoint": "2026-10-04T04:32:22Z",
+      "checkpoint_decision": "approved",
+      "timestamp_resumed": "2026-10-04T14:58:39Z"
+    },
+    {
+      "agent_id": "c67b40fb-3c16-4150-91c1-e630d577eff4",
+      "task_description": "Parallel: Execute 14-04-PLAN.md",
+      "phase": "14",
+      "plan": "04",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "14-02"
+      ],
+      "timestamp": "2026-10-04T04:18:29Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/engine/types.ts",
+        "lib/engine/rubric.ts",
+        "lib/engine/evaluation.ts",
+        "lib/engine/evaluation-runner.ts",
+        "lib/pitch/score-caps.ts",
+        "scripts/verify-report-structure.ts",
+        ".planning/phases/14-practice-pitches/14-04-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:26:32Z",
+      "deviations": [
+        "Adaptation: buildEvaluationImages via getEngineType",
+        "Adaptation: skipped paid live runAndPersistEvaluation",
+        "Parallel race: Task 1 commit orphaned; content on HEAD"
+      ]
+    },
+    {
+      "agent_id": "fa22718d-cb81-492b-9904-19e83f74b573",
+      "task_description": "Parallel: Execute 16-04-PLAN.md",
+      "phase": "16",
+      "plan": "04",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "16-02",
+        "16-03"
+      ],
+      "timestamp": "2026-10-04T04:19:31Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/networking/persona-store.ts",
+        "app/api/networking/persona/route.ts",
+        "app/api/networking/persona/[personaId]/route.ts",
+        "scripts/verify-networking-persona-store.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:27:17Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "5b26e269-1b6f-4216-ae5c-b037d53f26d7",
+      "task_description": "Parallel: Execute 16-07-PLAN.md",
+      "phase": "16",
+      "plan": "07",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 3,
+      "depends_on": [
+        "16-03",
+        "16-06"
+      ],
+      "timestamp": "2026-10-04T04:22:51Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/networking/prompts.ts",
+        "lib/engine/registry.ts",
+        "scripts/verify-networking-type.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:28:25Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "d1d82ea4-11b3-4b3d-a38c-1216d3c98640",
+      "task_description": "Parallel: Execute 15-04-PLAN.md",
+      "phase": "15",
+      "plan": "04",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "15-02"
+      ],
+      "timestamp": "2026-10-04T04:22:54Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/difficult-conversation/avatar-assignment.ts",
+        "lib/difficult-conversation/seeded.ts",
+        "scripts/verify-dc-seeded.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:28:13Z",
+      "deviations": [
+        "Rule3 ACTIVE filter mirrored",
+        "Rule3 soft genderHint",
+        "Rule1 UNRESOLVED constant"
+      ]
+    },
+    {
+      "agent_id": "10ea7245-5d62-4532-8adb-d9688a9d1c70",
+      "task_description": "Parallel: Execute 15-05-PLAN.md",
+      "phase": "15",
+      "plan": "05",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "15-02",
+        "15-03"
+      ],
+      "timestamp": "2026-10-04T04:22:54Z",
+      "status": "completed",
+      "files_modified": [
+        "app/api/difficult-conversation/add/route.ts",
+        "app/api/difficult-conversation/edit/route.ts",
+        "app/api/difficult-conversation/delete/route.ts",
+        "app/api/difficult-conversation/publish/route.ts",
+        "app/api/difficult-conversation/list/route.ts",
+        "scripts/verify-dc-routes.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:29:15Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "11a18530-bcef-43ef-9e59-b78542d6d066",
+      "task_description": "Parallel: Execute 14-08-PLAN.md",
+      "phase": "14",
+      "plan": "08",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 3,
+      "depends_on": [
+        "14-02",
+        "14-04"
+      ],
+      "timestamp": "2026-10-04T04:26:39Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/pitch/elevator-prompts.ts",
+        "lib/pitch/elevator-type.ts",
+        "lib/engine/registry.ts",
+        "scripts/verify-pitch-types.ts",
+        "scripts/verify-pitch-engine-extensions.ts",
+        "scripts/verify-report-structure.ts",
+        ".planning/phases/14-practice-pitches/14-08-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:29:32Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "0c6d5fdb-e654-4a62-98fb-cbe4eef29592",
+      "task_description": "Parallel: Execute 15-06-PLAN.md",
+      "phase": "15",
+      "plan": "06",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 3,
+      "depends_on": [
+        "15-01",
+        "15-03",
+        "15-04"
+      ],
+      "timestamp": "2026-10-04T04:28:21Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/difficult-conversation/conversation-prompts.ts",
+        "lib/difficult-conversation/conversation-type.ts",
+        "lib/difficult-conversation/resolve-instance.ts",
+        "lib/engine/registry.ts",
+        "lib/engine/prompts.ts",
+        "lib/engine/types.ts",
+        "scripts/verify-dc-type.ts",
+        "scripts/verify-dc-prompt-safety.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:32:02Z",
+      "deviations": [
+        "Rule2 buildTailFragment",
+        "Rule2 assembleSystemPrompt fallthrough"
+      ]
+    },
+    {
+      "agent_id": "55b4b643-80ad-40de-a7e6-3a16c4936ee3",
+      "task_description": "Parallel: Execute 16-08-PLAN.md",
+      "phase": "16",
+      "plan": "08",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 4,
+      "depends_on": [
+        "16-01",
+        "16-04",
+        "16-05",
+        "16-07"
+      ],
+      "timestamp": "2026-10-04T04:28:30Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/networking/wizard-client.ts",
+        "components/practice/steps/NetworkingPersonStep.tsx",
+        "components/practice/steps/NetworkingGoalStep.tsx",
+        "app/practice/[type]/page.tsx"
+      ],
+      "completion_timestamp": "2026-10-04T04:34:53Z",
+      "deviations": [
+        "re-registered networking steps after 14-10 overwrite"
+      ]
+    },
+    {
+      "agent_id": "ca442f75-346f-4390-b15a-4d19bb138eeb",
+      "task_description": "Parallel: Execute 15-07-PLAN.md",
+      "phase": "15",
+      "plan": "07",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 3,
+      "depends_on": [
+        "15-05"
+      ],
+      "timestamp": "2026-10-04T04:29:25Z",
+      "status": "completed",
+      "files_modified": [
+        "app/conversations/page.tsx",
+        "app/conversations/new/page.tsx",
+        "app/conversations/[id]/page.tsx",
+        "components/difficult-conversation/ConversationCard.tsx",
+        "components/difficult-conversation/ConversationBuilder.tsx",
+        "lib/interactions/index.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:34:05Z",
+      "deviations": [
+        "list hydrate",
+        "middleware STUDENT_ROUTES",
+        "difficulty cards",
+        "registry path index.ts"
+      ]
+    },
+    {
+      "agent_id": "9b0ba847-8193-41a3-a686-cbb78aa40a3d",
+      "task_description": "Parallel: Execute 14-10-PLAN.md",
+      "phase": "14",
+      "plan": "10",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 4,
+      "depends_on": [
+        "14-08"
+      ],
+      "timestamp": "2026-10-04T04:29:39Z",
+      "status": "completed",
+      "files_modified": [
+        "components/practice/steps/PitchSubjectStep.tsx",
+        "components/practice/steps/ListenerKnowledgeStep.tsx",
+        "components/practice/panels/PitchTimerPanel.tsx",
+        "app/practice/[type]/page.tsx",
+        "components/practice/PracticeSessionShell.tsx",
+        ".planning/phases/14-practice-pitches/14-10-SUMMARY.md",
+        ".planning/phases/14-practice-pitches/deferred-items.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T15:35:41Z",
+      "deviations": [
+        "Rule 2: chat instance/first-turn/floor plumbing",
+        "Rule 1: soft window freeze on short discovery turns (516f278)",
+        "Deferred: walk-out auto-end / temperature session close"
+      ],
+      "checkpoint": {
+        "type": "human-verify",
+        "resume_signal": "approved",
+        "task_commits": [
+          "4791e32",
+          "0f14cbe"
+        ]
+      },
+      "timestamp_checkpoint": "2026-10-04T04:34:08Z",
+      "checkpoint_decision": "approved",
+      "timestamp_checkpoint_resume": "2026-10-04T15:33:59Z",
+      "task_commits": [
+        "4791e32",
+        "0f14cbe",
+        "516f278",
+        "f21c80a"
+      ]
+    },
+    {
+      "agent_id": "54948eeb-7ff2-41d0-84b6-90987d16b4c1",
+      "task_description": "Parallel: Execute 14-09-PLAN.md",
+      "phase": "14",
+      "plan": "09",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 4,
+      "depends_on": [
+        "14-02",
+        "14-04",
+        "14-05",
+        "14-08"
+      ],
+      "timestamp": "2026-10-04T15:00:01Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/pitch/slides-channel.ts",
+        "lib/pitch/session-length.ts",
+        "lib/pitch/deck-prompts.ts",
+        "lib/pitch/deck-type.ts",
+        "lib/engine/registry.ts",
+        "scripts/verify-pitch-types.ts",
+        "scripts/verify-report-structure.ts",
+        ".planning/phases/14-practice-pitches/14-09-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T15:09:29Z",
+      "deviations": [
+        "[Rule 3] Stubbed pitch-deck + difficult-conversation instances in verify-report-structure.ts",
+        "[Rule 3] buildDeckEvaluationImages accepts optional userId/slideHighWaterMark/loadSlideImage beyond typed { config }",
+        "[Rule 3] clampAdjustableBudget asserts .seconds against TimeBudgetConfig"
+      ],
+      "task_commits": [
+        "234de8c",
+        "75c85a6",
+        "3457653"
+      ]
+    },
+    {
+      "agent_id": "ba877d8a-bfbf-4518-a098-4bb23b6c1ce2",
+      "task_description": "Parallel: Execute 15-08-PLAN.md",
+      "phase": "15",
+      "plan": "08",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 4,
+      "depends_on": [
+        "15-06"
+      ],
+      "timestamp": "2026-10-04T04:32:15Z",
+      "status": "completed",
+      "files_modified": [
+        "components/practice/steps/ConversationBriefingStep.tsx",
+        "components/practice/steps/ConversationDifficultyStep.tsx",
+        "components/practice/panels/SessionSafetyPanel.tsx",
+        "components/practice/panels/InCharacterClosePrompt.tsx",
+        "components/practice/PracticeSessionShell.tsx",
+        "app/practice/[type]/[instanceId]/page.tsx"
+      ],
+      "completion_timestamp": "2026-10-04T04:36:52Z",
+      "deviations": [
+        "startSession DC branch",
+        "play route",
+        "human-verify skipped",
+        "sessionPanel consumed"
+      ]
+    },
+    {
+      "agent_id": "0a2623f7-32f5-4689-959f-70a159b25364",
+      "task_description": "Parallel: Execute 15-09-PLAN.md",
+      "phase": "15",
+      "plan": "09",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 4,
+      "depends_on": [
+        "15-06"
+      ],
+      "timestamp": "2026-10-04T04:32:15Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/report/dto.ts",
+        "components/practice/ReportChrome.tsx",
+        "components/practice/report/ConversationEndBanner.tsx",
+        "components/practice/report/ConversationOutcomePanel.tsx",
+        "components/practice/report/InRoleReactionPanel.tsx",
+        "scripts/verify-dc-report.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:36:05Z",
+      "deviations": [
+        "wired renderReportExtras",
+        "extras slot added in 14-14 shape",
+        "human-verify skipped"
+      ]
+    },
+    {
+      "agent_id": "ca3b4f43-a8f4-464d-a082-504abc5bd9d5",
+      "task_description": "Parallel: Execute 16-09-PLAN.md",
+      "phase": "16",
+      "plan": "09",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 5,
+      "depends_on": [
+        "16-08"
+      ],
+      "timestamp": "2026-10-04T04:35:05Z",
+      "status": "completed",
+      "files_modified": [
+        "scripts/verify-networking-goal-leak.ts",
+        "lib/networking/start-snapshot.ts",
+        "lib/engine/session.ts",
+        ".planning/phases/16-networking-practice/16-GOAL-LEAK-TEST.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:41:21Z",
+      "deviations": [
+        "Rule 3: networking startSession path",
+        "human blocks B-E UNVERIFIED"
+      ]
+    },
+    {
+      "agent_id": "9e0e1049-e45c-4380-8e9e-0be8de011836",
+      "task_description": "Parallel: Execute 16-10-PLAN.md",
+      "phase": "16",
+      "plan": "10",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 5,
+      "depends_on": [
+        "16-08"
+      ],
+      "timestamp": "2026-10-04T04:35:05Z",
+      "status": "completed",
+      "files_modified": [
+        "components/practice/panels/NetworkingOutcomePanel.tsx",
+        "components/practice/ReportChrome.tsx",
+        "scripts/verify-networking-report-surfaces.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:37:47Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "324118de-9383-419d-90d1-2a60e91f66d8",
+      "task_description": "Parallel: Execute 15-10-PLAN.md",
+      "phase": "15",
+      "plan": "10",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 5,
+      "depends_on": [
+        "15-08",
+        "15-09"
+      ],
+      "timestamp": "2026-10-04T04:37:01Z",
+      "status": "completed",
+      "files_modified": [
+        "scripts/dc-drift-probe.ts",
+        "scripts/dc-approach-vs-result.ts",
+        "lib/difficult-conversation/conversation-prompts.ts",
+        ".planning/phases/15-difficult-conversations/15-DRIFT.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:46:02Z",
+      "deviations": [
+        "eval outcome fields",
+        "prompt harden after drift FAILs",
+        "hostile probe 5 deferred"
+      ]
+    },
+    {
+      "agent_id": "14fb62a7-977a-40b0-89f3-98a1753a5056",
+      "task_description": "Parallel: Execute 16-11-PLAN.md",
+      "phase": "16",
+      "plan": "11",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 6,
+      "depends_on": [
+        "16-09",
+        "16-10"
+      ],
+      "timestamp": "2026-10-04T04:41:29Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/interactions/index.ts",
+        "scripts/verify-networking-surface-count.ts",
+        ".planning/phases/16-networking-practice/16-VALIDATION.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:45:48Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "4067a41a-6552-4be1-b123-32b6930dcc91",
+      "task_description": "Parallel: Execute 15-11-PLAN.md",
+      "phase": "15",
+      "plan": "11",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 6,
+      "depends_on": [
+        "15-07",
+        "15-10"
+      ],
+      "timestamp": "2026-10-04T04:46:09Z",
+      "status": "completed",
+      "files_modified": [
+        "scripts/verify-dc-surface-count.ts",
+        ".planning/phases/15-difficult-conversations/15-VALIDATION.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:50:17Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "9c8f543f-0b41-47a9-9a0b-ffc076c7a4ce",
+      "task_description": "Parallel: Execute 14-06-PLAN.md",
+      "phase": "14",
+      "plan": "06",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 2,
+      "depends_on": [
+        "14-01",
+        "14-03"
+      ],
+      "timestamp": "2026-10-04T05:07:46Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/deck/pptx-convert.ts",
+        "lib/deck/pdf-rasterize.ts",
+        "lib/deck/store.ts",
+        "lib/s3-client.ts",
+        "scripts/verify-deck-rasterize.ts",
+        ".planning/phases/14-practice-pitches/14-06-SUMMARY.md",
+        ".planning/phases/14-practice-pitches/deferred-items.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T05:11:38Z",
+      "deviations": [
+        "Softened one-path guard for pdf-extract text-only pdfjs",
+        "Dynamic-import store after dotenv"
+      ]
+    },
+    {
+      "agent_id": "9d846739-3c61-4843-8ec9-55ced68a2fe2",
+      "task_description": "Parallel: Execute 14-07-PLAN.md",
+      "phase": "14",
+      "plan": "07",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 3,
+      "depends_on": [
+        "14-06"
+      ],
+      "timestamp": "2026-10-04T05:11:43Z",
+      "status": "completed",
+      "files_modified": [
+        "app/api/practice/deck/upload/route.ts",
+        "app/api/practice/deck/[deckId]/route.ts",
+        "app/api/practice/deck/[deckId]/slide/[index]/route.ts",
+        "scripts/verify-deck-routes.ts",
+        "lib/deck/pdf-rasterize.ts",
+        ".planning/phases/14-practice-pitches/14-07-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T15:18:06Z",
+      "deviations": [],
+      "checkpoint": {
+        "type": "human-verify",
+        "resume_signal": "approved",
+        "task_commits": [
+          "665e9aa",
+          "54cc551",
+          "1f8b515",
+          "7036f39"
+        ]
+      },
+      "timestamp_checkpoint": "2026-10-04T05:17:09Z",
+      "checkpoint_decision": "approved",
+      "timestamp_checkpoint_resume": "2026-10-04T15:16:32Z",
+      "task_commits": [
+        "665e9aa",
+        "54cc551",
+        "1f8b515",
+        "7036f39",
+        "97b273e",
+        "259da85",
+        "173452f"
+      ]
+    },
+    {
+      "agent_id": "3b654036-72ef-46e9-a1a3-b86bdfbcff4c",
+      "task_description": "Parallel: Execute 14-11-PLAN.md",
+      "phase": "14",
+      "plan": "11",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 5,
+      "depends_on": [
+        "14-05",
+        "14-09"
+      ],
+      "timestamp": "2026-10-04T15:09:49Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/pitch/slide-reveal.ts",
+        "scripts/verify-slide-gating.ts",
+        "lib/engine/session.ts",
+        "lib/engine/prompts.ts",
+        "app/api/interaction/chat/route.ts",
+        "scripts/verify-pitch-types.ts",
+        ".planning/phases/14-practice-pitches/14-11-SUMMARY.md"
+      ],
+      "completion_timestamp": "2026-10-04T15:16:18Z",
+      "deviations": [],
+      "task_commits": [
+        "2db34d9",
+        "90d1f7a",
+        "7278628"
+      ]
+    },
+    {
+      "agent_id": "a8f3a157-165c-4df7-885d-b7f4a7bea674",
+      "task_description": "Parallel: Execute 14-12-PLAN.md",
+      "phase": "14",
+      "plan": "12",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 5,
+      "depends_on": [
+        "14-07",
+        "14-09"
+      ],
+      "timestamp": "2026-10-04T15:18:17Z",
+      "status": "completed",
+      "files_modified": [
+        "components/practice/steps/DeckUploadStep.tsx",
+        "components/practice/steps/NegotiationAskStep.tsx",
+        "components/practice/steps/SessionLengthStep.tsx",
+        "lib/pitch/fair-value-band.ts",
+        "lib/engine/session.ts",
+        "components/practice/SetupWizard.tsx",
+        "app/practice/[type]/page.tsx",
+        ".planning/phases/14-practice-pitches/14-12-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T15:24:25Z",
+      "deviations": [
+        "[Rule 3] SetupWizard.buildStartPayload may return a Promise so slideTexts load from owner manifest",
+        "[Rule 2] startSession injects resolveDeckFairValueBand for pitch-deck"
+      ],
+      "task_commits": [
+        "34cc1c3",
+        "ea5734a",
+        "ba2bcfd",
+        "1d8a8e6"
+      ]
+    },
+    {
+      "agent_id": "6a0d918b-842e-4bd1-af3a-bb7d8e3a0c08",
+      "task_description": "Parallel: Execute 14-13-PLAN.md",
+      "phase": "14",
+      "plan": "13",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 6,
+      "depends_on": [
+        "14-11",
+        "14-12"
+      ],
+      "timestamp": "2026-10-04T15:24:34Z",
+      "status": "completed",
+      "files_modified": [
+        "components/practice/panels/DeckViewerPanel.tsx",
+        "components/practice/panels/DeckTimerPanel.tsx",
+        "components/practice/PracticeSessionShell.tsx",
+        "app/practice/[type]/page.tsx",
+        ".planning/phases/14-practice-pitches/14-13-SUMMARY.md",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T15:48:42Z",
+      "deviations": [],
+      "checkpoint": {
+        "type": "human-verify",
+        "resume_signal": "approved",
+        "task_commits": [
+          "6bf426a",
+          "06ca16f"
+        ]
+      },
+      "timestamp_checkpoint": "2026-10-04T15:32:03Z",
+      "checkpoint_decision": "approved",
+      "timestamp_checkpoint_resume": "2026-10-04T15:47:09Z",
+      "task_commits": [
+        "6bf426a",
+        "06ca16f",
+        "8eb738f",
+        "52200da"
+      ]
+    },
+    {
+      "agent_id": "2ced20e1-e8f2-4d19-88ba-c9b6d057d02f",
+      "task_description": "Parallel: Execute 14-14-PLAN.md",
+      "phase": "14",
+      "plan": "14",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 7,
+      "depends_on": [
+        "14-04",
+        "14-09",
+        "14-13"
+      ],
+      "timestamp": "2026-10-04T15:48:53Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/report/dto.ts",
+        "components/practice/report/PitchOutcomeBanner.tsx",
+        "components/practice/report/NegotiationTriplePanel.tsx",
+        "components/practice/report/DeckTimelinePanel.tsx",
+        "components/practice/ReportChrome.tsx",
+        "scripts/verify-pitch-report-panels.ts"
+      ],
+      "completion_timestamp": "2026-10-04T15:57:18Z",
+      "deviations": [],
+      "checkpoint": {
+        "type": "human-verify",
+        "resume_signal": "approved",
+        "task_commits": [
+          "bd43829",
+          "990655b"
+        ]
+      },
+      "timestamp_checkpoint": "2026-10-04T15:53:02Z",
+      "checkpoint_decision": "approved",
+      "timestamp_checkpoint_resume": "2026-10-04T15:56:09Z",
+      "task_commits": [
+        "bd43829",
+        "990655b",
+        "431a518"
+      ]
+    },
+    {
+      "agent_id": "dbdc601a-5939-4497-94b2-372c135ca03b",
+      "task_description": "Parallel: Execute 14-15-PLAN.md",
+      "phase": "14",
+      "plan": "15",
+      "parallel_group": "pg-20261004001253-3756a1a7",
+      "granularity": "plan",
+      "wave": 8,
+      "depends_on": [
+        "14-10",
+        "14-13",
+        "14-14"
+      ],
+      "timestamp": "2026-10-04T15:57:28Z",
+      "status": "completed",
+      "files_modified": [
+        ".planning/phases/14-practice-pitches/14-VALIDATION.md",
+        ".planning/phases/14-practice-pitches/14-15-SUMMARY.md",
+        "scripts/verify-pitch-surface-count.ts",
+        "app/api/interaction/chat/route.ts",
+        "lib/engine/evaluation-runner.ts",
+        "lib/interactions/index.ts",
+        "app/practice/pitches/page.tsx",
+        ".planning/STATE.md",
+        ".planning/ROADMAP.md"
+      ],
+      "completion_timestamp": "2026-10-04T16:25:20Z",
+      "deviations": [],
+      "checkpoint": {
+        "type": "human-verify",
+        "resume_signal": "approved",
+        "task_commits": [
+          "6af5a1e",
+          "a8c9b24",
+          "e5ba53a",
+          "a32cf91"
+        ]
+      },
+      "timestamp_checkpoint": "2026-10-04T16:02:24Z",
+      "checkpoint_decision": "approved",
+      "timestamp_checkpoint_resume": "2026-10-04T16:25:20Z"
+    }
+  ]
+}

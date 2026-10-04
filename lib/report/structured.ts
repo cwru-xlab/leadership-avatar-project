@@ -74,6 +74,23 @@ export interface StructuredReport {
  */
 const STRING_OR_NULL = { type: ["string", "null"] } as const;
 
+/**
+ * One 1–5 integer-or-null score property for a rubric dimension. Used by
+ * `lib/engine/rubric.ts`'s type-derived evaluator schema so every dimension —
+ * the four shared ones and any type-declared extras — emits the same shape
+ * the two hardcoded schemas used for `visual_score` / `vocal_score` / etc.
+ *
+ * `label` is accepted for future description text; today's schemas carry no
+ * `description` field, so this helper matches that byte-for-byte.
+ */
+export function rubricDimensionProperty(_key: string, _label: string) {
+  return {
+    type: ["integer", "null"] as const,
+    minimum: 1,
+    maximum: 5,
+  };
+}
+
 export const STRUCTURED_REPORT_PROPERTIES = {
   overall_summary: { type: "string" },
   strengths: {

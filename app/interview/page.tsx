@@ -28,7 +28,7 @@ export default function InterviewPresetPickerPage() {
   const [customized, setCustomized] = useState(false);
 
   const handleStart = (slug: string) => {
-    // Handoff contract with app/interview/[type]/page.tsx: that page reads
+    // Handoff contract with app/practice/[type]/page.tsx: that page reads
     // `interview:customization:{slug}` from sessionStorage ONCE on mount and
     // removes it immediately, so a mid-wizard refresh falls back cleanly to
     // preset defaults rather than silently reusing stale settings. Nothing
@@ -42,7 +42,7 @@ export default function InterviewPresetPickerPage() {
         // than blocking the start.
       }
     }
-    router.push(`/interview/${slug}`);
+    router.push(`/practice/${slug}`);
   };
 
   return (

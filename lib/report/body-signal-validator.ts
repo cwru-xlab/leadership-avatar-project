@@ -364,5 +364,24 @@ export function sanitizeBodySignalWording(report: StructuredReport): {
     ref.set(rejoined.length > 0 ? rejoined : null);
   }
 
+  // BUG FIX (12-09 Task 2, investigation of the 12-08 Task 3 sign-off's
+  // "Excessive gesturing at times" / "Try this:" / no-question observation):
+  // a growth area's `detail` can be reduced to an EMPTY string when every
+  // sentence in it violated the describe-then-ask contract (the "empty
+  // field" tradeoff this function's own header comment already documents).
+  // `title` is NEVER validated or stripped — it is a short label, not a
+  // finding — so leaving the growth area in place with a now-empty `detail`
+  // renders exactly the real defect: a bare title plus
+  // `ReportBody.tsx`'s unconditional "Try this: " suggestion line, with NO
+  // question anywhere, reproducing the describe-then-ask violation the
+  // stripping was meant to prevent, one level up in the same report.
+  // Dropping the whole entry — never showing a half-populated one — is the
+  // same omit-don't-default discipline this codebase already applies
+  // elsewhere (REQ-51's "Measured from" row, `visualBodyLanguageBands`'s row
+  // omission): a hollow finding is worse than no finding at all.
+  clone.growth_areas = clone.growth_areas.filter(
+    (g) => g.detail.trim().length > 0
+  );
+
   return { report: clone, strippedCount };
 }
