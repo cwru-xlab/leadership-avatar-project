@@ -96,6 +96,8 @@ function makeInterviewTypeConfig(base: InterviewType): InteractionTypeConfig {
     checkpointing: "client-driven",
     // Interview finish flips IN_PROGRESS → PENDING in the request path.
     finishPendingFlip: "request-path",
+    // Interview report page offers "retry evaluation" on FAILED (REQ-69).
+    supportsRetry: true,
     // Populated when plan 13-09 builds the generic wizard.
     setupSteps: [],
   };
@@ -195,6 +197,8 @@ const CASE_STUDY: InteractionTypeConfig = {
   checkpointing: "none",
   // Scenario finish does NOT flip PENDING; the runner does (REQ-69).
   finishPendingFlip: "runner",
+  // Scenario has no retry route today — do not invent one (REQ-69).
+  supportsRetry: false,
   setupSteps: [],
 };
 

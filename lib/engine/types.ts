@@ -196,6 +196,14 @@ export interface InteractionTypeConfig {
    *   runner writes PENDING as its first write.
    */
   finishPendingFlip: "request-path" | "runner";
+  /**
+   * Whether this type exposes a report-evaluation retry route (REQ-69).
+   * `true` — interview presets; `/retry` flips FAILED → PENDING and
+   *   re-runs evaluation.
+   * `false` — case-study; the path genuinely does not exist today, so the
+   *   engine retry route returns 404 rather than inventing retry for free.
+   */
+  supportsRetry: boolean;
   /** Declared steps for the generic pre-session setup wizard (plan 13-09).
    * Declaration only — this plan does not build the wizard. */
   setupSteps: SetupStepDeclaration[];
