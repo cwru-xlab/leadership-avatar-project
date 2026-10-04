@@ -14,6 +14,13 @@
 **Phase 16 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `16-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 16` for keyboard B–G.
 **Stopped At:** Completed 14-07-PLAN.md
 
+### Phase 14 progress note (2026-10-04)
+
+14-07 delivered: authenticated deck upload + owner-only manifest/slide-image byte
+routes; human-verify **approved** (real PDF fidelity after canvasFactory +
+disableFontFace fix `97b273e`). PPTX convert still 502 until Gotenberg provisioned.
+See `14-07-SUMMARY.md`.
+
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
 All 15 Phase 13 plans are executed. Local CREATE + backfill + DROP are done.
