@@ -28,6 +28,14 @@ import {
 } from "../interview/prompts";
 import { SCENARIO_EVALUATOR_PROMPT } from "../scenario/prompts";
 import { resolveAttemptLanguage } from "../languages";
+import {
+  NETWORKING_EVALUATOR_PROMPT,
+  NETWORKING_OUTCOME,
+  NETWORKING_RUBRIC_EXTRAS,
+  buildNetworkingEvaluationContext,
+  buildNetworkingSystemPrompt,
+  resolveNetworkingLivePersona,
+} from "../networking/prompts";
 
 /**
  * Builds an interview preset's `InteractionTypeConfig` record. `base` is the
@@ -223,12 +231,126 @@ const CASE_STUDY: InteractionTypeConfig = {
   ],
 };
 
+/**
+ * Networking Practice. Slug is LOCKED to the literal `"networking"` — it
+ * becomes permanent, queryable history in `InteractionReport.typeSlug` and
+ * must never be renamed (same locking 13-01 applied to `"case-study"`).
+ *
+ * Description copy is reused verbatim from `lib/interactions/index.ts` so the
+ * dashboard tile and this type do not drift. That file is a DIFFERENT
+ * namespace with its own slugs; plan 16-11 owns flipping the tile live.
+ */
+const NETWORKING: InteractionTypeConfig = {
+  slug: "networking",
+  name: "Networking Practice",
+  description:
+    "Rehearse introducing yourself and building rapport with a stranger in a professional setting.",
+  extraRubricDimensions: NETWORKING_RUBRIC_EXTRAS,
+  prompts: {
+    liveSystemPrompt: (config, extra) => {
+      // characterId is wizard/session data — not yet on ResolveSessionConfigInput.
+      // Until a typed customization path lands, the live route may pass it on
+      // `extra` (same bag LiveSystemPromptExtra already is). Prefer a
+      // networking-persona instance when present.
+      const characterId =
+        typeof (extra as { characterId?: unknown }).characterId === "string"
+          ? (extra as { characterId: string }).characterId
+          : null;
+      const live = resolveNetworkingLivePersona(config, { characterId });
+
+      if (!live) {
+        throw new Error(
+          "networking type: neither a networking-persona instance nor a resolvable characterId — no silent default",
+        );
+      }
+
+      return buildNetworkingSystemPrompt(live);
+    },
+    evaluatorPrompt: NETWORKING_EVALUATOR_PROMPT,
+    buildEvaluationContext: (config) =>
+      buildNetworkingEvaluationContext(config),
+  },
+  limits: {
+    // Matches lib/interactions/index.ts estimatedMinutes: 15. No question count.
+    targetMinutes: 15,
+    targetQuestionCount: null,
+  },
+  terminationPolicy: {
+    studentMayEnd: true,
+    avatarMayEnd: true,
+    // Closed vocabulary — the model may not invent a reason.
+    avatarEndReasons: ["disengaged", "not-worth-continuing", "out-of-time"],
+    // Four assistant turns is roughly two real exchanges — enough that a
+    // self-introduction has happened and Rapport and Self-Introduction are
+    // gradeable. 16-CONTEXT.md: "a floor is required so disengagement cannot
+    // fire in the opening seconds." This is the SAME engine knob
+    // pitch-elevator uses (14-02), not a second mechanism. Enforcement is in
+    // resolveTermination (confirmed by 16-03-SUMMARY).
+    avatarEndFloor: { minAssistantTurns: 4 },
+  },
+  // ALLOW-LIST (not deny-list): a new channel added later is hidden by default
+  // rather than leaked by default. `goal` is deliberately absent — the
+  // avatar must never see the student's goal (16-CONTEXT.md).
+  visibleContext: {
+    visibleChannels: [
+      "displayName",
+      "characterId",
+      "personaId",
+      "personaSource",
+      "persona",
+      "interviewerAvatarId",
+      "interviewerVoice",
+      "budgetSeconds",
+    ],
+  },
+  outcome: NETWORKING_OUTCOME,
+  // 15 minutes matches the dashboard tile's existing promise
+  // (lib/interactions/index.ts estimatedMinutes: 15). No adjustable range —
+  // 16-CONTEXT.md asks for none on this type.
+  timeBudget: {
+    totalSeconds: 15 * 60,
+    warnAtRemainingSeconds: 120,
+  },
+  // Built-in characters need no instance; brought-in persona is optional.
+  // authoredInWizard omitted: a saved persona can exist before the wizard
+  // (relaunch without re-pasting), so the 14-02 "created during setup" doc
+  // does not fit cleanly.
+  instance: { required: false },
+  checkpointing: "client-driven",
+  finishPendingFlip: "request-path",
+  supportsRetry: true,
+  // CameraConsentStep is appended by SetupWizard for EVERY type (13-09) and
+  // must NOT appear here — a second copy would be the third hand-rolled
+  // consent gate 13-09 exists to prevent. Plan 16-08 implements the custom
+  // person/goal components against these declarations.
+  setupSteps: [
+    {
+      id: "networking-person",
+      label: "Who you're meeting",
+      customComponent: "NetworkingPersonStep",
+    },
+    {
+      id: "networking-goal",
+      label: "Your goal",
+      customComponent: "NetworkingGoalStep",
+    },
+    {
+      // Reuse Phase 13's InterviewerStep declaration id — do NOT declare a
+      // networking-specific avatar/voice picker (16-CONTEXT.md decision 10).
+      id: "interviewer",
+      label: "Avatar & voice",
+      customComponent: "InterviewerStep",
+    },
+  ],
+};
+
 export const ENGINE_TYPES: InteractionTypeConfig[] = [
   GENERAL,
   TECHNICAL,
   CONSULTING,
   EARLY_CAREER,
   CASE_STUDY,
+  NETWORKING,
 ];
 
 const ENGINE_TYPES_BY_SLUG: Record<string, InteractionTypeConfig> =
