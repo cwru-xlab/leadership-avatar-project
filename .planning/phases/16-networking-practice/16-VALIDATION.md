@@ -203,3 +203,10 @@ If a later human keyboard pass marks any Success Criterion **FAIL**, add an entr
 | G — Regression keyboard + row sign-off | **UNVERIFIED** |
 
 **Phase 16 keyboard sign-off:** **NOT completed** under `skip_checkpoints`. Automated guards and prior-plan evidence support shipping the tile + config-as-surfaces claim; human UAT remains open.
+
+### Task 3 disposition (2026-10-04)
+
+- Checkpoint `human-verify` **skipped** per `skip_checkpoints: true` (parallel group wave 6).
+- No calibration tuning applied (block F unanswered).
+- No Success Criterion marked FAIL; no Section 6 product gap opened.
+- Resume signal for a later human: type `approved` after walking blocks B–G, or list FAIL rows + calibration changes.
