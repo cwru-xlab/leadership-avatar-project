@@ -2,7 +2,7 @@
  * Owner-scoped CRUD for difficult-conversation S3 records.
  *
  * Objects live under DIFFICULT_CONVERSATIONS_PREFIX with a maintained index —
- * the Phase 9 cases/ pattern, on a NEW prefix. Never touches CASES_PREFIX.
+ * the Phase 9 cases/ pattern, on a NEW prefix. Never touches the cases/ tree.
  */
 
 import { randomUUID } from "crypto";
