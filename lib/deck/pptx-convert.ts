@@ -1,5 +1,5 @@
 /**
- * PPTX → PDF conversion driver for Phase 14 Practice Pitches.
+ * PPTX → PDF conversion adapter for Phase 14 Practice Pitches.
  *
  * Selected backend: `gotenberg` (human decision 2026-10-04).
  * Contract: `.planning/phases/14-practice-pitches/14-DECK-RENDER-DECISION.md`
