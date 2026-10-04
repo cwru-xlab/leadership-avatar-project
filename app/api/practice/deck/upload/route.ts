@@ -6,7 +6,7 @@ import { validateAndExtractDeck } from "@/lib/deck/intake";
 import { convertPptxToPdf } from "@/lib/deck/pptx-convert";
 import { rasterizePdf } from "@/lib/deck/pdf-rasterize";
 import { persistDeck } from "@/lib/deck/store";
-import { DECK_REJECTIONS } from "@/lib/deck/types";
+import { DECK_REJECTIONS, MAX_DECK_SIZE_BYTES } from "@/lib/deck/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -59,6 +59,30 @@ export async function POST(request: NextRequest) {
       return response({ error: "Unauthorized" }, 401);
     }
 
+    // Reject oversized payloads before buffering multipart into memory.
+    // Content-Length includes multipart overhead — allow 1MB slack over the
+    // deck cap so a max-size file with boundaries still reaches intake.
+    const contentLengthHeader = request.headers.get("content-length");
+    if (contentLengthHeader) {
+      const contentLength = Number(contentLengthHeader);
+
+      if (
+        Number.isFinite(contentLength) &&
+        contentLength > MAX_DECK_SIZE_BYTES + 1024 * 1024
+      ) {
+        const tooLarge = DECK_REJECTIONS["too-large"];
+
+        return response(
+          {
+            error: tooLarge.reason,
+            fix: tooLarge.fix,
+            code: "too-large",
+          },
+          400,
+        );
+      }
+    }
+
     const formData = await request.formData();
     const file = formData.get("file");
 
@@ -67,6 +91,19 @@ export async function POST(request: NextRequest) {
 
       return response(
         { error: empty.reason, fix: empty.fix, code: "empty" },
+        400,
+      );
+    }
+
+    if (typeof file.size === "number" && file.size > MAX_DECK_SIZE_BYTES) {
+      const tooLarge = DECK_REJECTIONS["too-large"];
+
+      return response(
+        {
+          error: tooLarge.reason,
+          fix: tooLarge.fix,
+          code: "too-large",
+        },
         400,
       );
     }
@@ -143,6 +180,30 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("Practice deck upload failed:", error);
+
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+
+    if (
+      message.includes("body exceeded") ||
+      message.includes("request entity too large") ||
+      message.includes("payload too large") ||
+      message.includes("file size") ||
+      message.includes("max_deck") ||
+      message.includes("failed to parse body as formdata") ||
+      message.includes("formdata")
+    ) {
+      const tooLarge = DECK_REJECTIONS["too-large"];
+
+      return response(
+        {
+          error: tooLarge.reason,
+          fix: tooLarge.fix,
+          code: "too-large",
+        },
+        400,
+      );
+    }
 
     return response(
       {
