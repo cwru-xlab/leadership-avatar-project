@@ -328,24 +328,33 @@ Three things turned out to be false, and had been for a while:
    **its verifier cannot pass there**: it hard-asserts that at least one legacy
    `cameraMode IS NULL` row exists to test, and there are none.
 
-3. **`vercel.json` self-migrates on every deploy.** See §1.2 — this is the live
+3. **`vercel.json` self-migrated on every deploy.** See §1.2 — this was the live
    item, now Phase 17's REQ-74.
 
-**`13-MIGRATION-HANDOFF.md` reads correctly now** — it opens with a RESOLVED banner
-recording that both parts are done and that the premise of everything below it was
-false, and its status table rows are marked superseded in place. The body below is
-deliberately kept unedited as the record of what was planned and why, so don't be
-thrown when it describes a careful human-gated ceremony in the present tense.
-Phase 17's `17-CONTEXT.md` carries the same `<correction>`; plans 17-01 and 17-02
-were **replaced** (not revised) because the originals planned work already
-completed.
+**RESOLVED 2026-10-04 by removal** (REQ-74, Phase 17 plan 17-01, commit
+`a6e8eec`): `prisma migrate deploy` is out of `vercel.json`'s `buildCommand`,
+which is now `touch .env && prisma generate && next build`. The pipeline changed
+to match the documented discipline; amending the documents to bless CI-applied
+migrations was offered and rejected.
 
-**Still unverified and worth closing:** nobody has confirmed what the **Production
-`DATABASE_URL`** secret actually points at. It is write-only (Vercel "Sensitive"),
-the account has no marketplace integrations, and the `la_db_*` secrets are orphaned
-leftovers pointing at a store that no longer exists. To settle it: deploy, sign in
-through the SSO-gated production URL, and check whether a `User` row lands in the
-Lightsail DB. This is also plan 17-02.
+Deployments no longer self-migrate. A schema change must be applied to its target
+**before** the deploy that depends on it, or that deploy serves 500s on a missing
+column. The human procedure is [`docs/MIGRATIONS.md`](../docs/MIGRATIONS.md).
+
+`13-MIGRATION-HANDOFF.md` is now explicitly **SUPERSEDED**: its stale "still OPEN"
+row misled a planning round, while the preserved runbook remains historical record.
+Phase 17's `17-CONTEXT.md` carries the same correction; plans 17-01 and 17-02 were
+**replaced** (not revised) because the originals planned work already completed.
+
+**CONFIRMED 2026-10-04:** Production `DATABASE_URL` points at the shared
+Lightsail database. Human statement: “ok the DATABASE_URL var points to Lighstail
+for sure”. Preview's target was not confirmed in this checkpoint. This is the database
+that the now-removed `buildCommand` had been migrating; future schema changes are
+governed by [`docs/MIGRATIONS.md`](../docs/MIGRATIONS.md).
+
+The secret remains write-only (Vercel "Sensitive"), the account has no marketplace
+integrations, and the `la_db_*` secrets are orphaned leftovers pointing at a store
+that no longer exists.
 
 All 14 migrations are additive except `20261004040000_drop_legacy_report_tables`
 (the project's first and only `DROP TABLE`, retiring `InterviewReport` /
