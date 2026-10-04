@@ -75,9 +75,9 @@ model User {
   createdCohorts    Cohort[]         @relation("CohortCreator")
   createdCases      Case[]           @relation("CaseCreator")
   auditLogs         AuditLog[]
-  interviewReports  InterviewReport[]
-  scenarioReports   ScenarioReport[]
+  interactionReports InteractionReport[]
   studyPlans        StudyPlan[]
+  networkingAttestations NetworkingAttestation[]
 
   @@index([email])
   @@index([role])
@@ -288,130 +288,134 @@ enum InterviewReportStatus {
   FAILED
 }
 
-model InterviewReport {
-  id                  String                @id @default(uuid())
-  userId              String
-  typeSlug            String
-  interviewerAvatarId String?
-  interviewerName     String?
+// `InterviewReport` and `ScenarioReport` models were removed in plan 13-15
+// (DROP TABLE migration). Their data lives in `InteractionReport` after backfill.
+// `enum InterviewReportStatus` is retained — name is historical (shared by both
+// legacy tables and the unified model).
 
-  // Resume context snapshot — makes a report reproducible without re-parsing the PDF.
-  // resumeText is a snapshot, NOT a pointer; the PDF itself is never exposed.
-  resumeId            String?
-  resumeText          String?               @db.Text
+// ============================================================================
+// INTERACTION REPORT (Phase 13 unified report — REQ-65)
+// ============================================================================
+//
+// Unified report table for every interaction type. Legacy `InterviewReport`
+// and `ScenarioReport` tables were dropped in plan 13-15 after the 13-04
+// backfill. Shared-DB DROP remains a human-run, declinable handoff (REQ-67).
+//
+// `typeSlug` carries the engine type ("general" | "technical" | "consulting"
+// | "early-career" | "case-study", and later Phase 14-16 additions) so one
+// table serves every interaction type without a migration per type.
+// `inputSnapshot` and `scores` are JSON precisely so a new type or a new
+// rubric dimension needs zero columns and zero migration — see
+// `lib/report/snapshot.ts` for their TypeScript shapes.
 
-  // Canonical transcript lives in S3; this is the server-derived key.
-  transcriptKey       String?
-  turnCount           Int                   @default(0)
+model InteractionReport {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  status              InterviewReportStatus  @default(IN_PROGRESS)
+  // Engine type slug: "general" | "technical" | "consulting" |
+  // "early-career" | "case-study", extended by Phases 14-16.
+  typeSlug String
 
-  // Nullable by design. Visual and Vocal stay null until a real metrics pipeline exists.
-  visualScore         Int?
-  vocalScore          Int?
-  contentScore        Int?
-  behavioralScore     Int?
+  // Name is historical: this enum was already shared by `InterviewReport`
+  // and `ScenarioReport` before this model existed. Renaming it here would
+  // touch every importer of the existing enum for no behavioral gain, so
+  // Phase 13 deliberately keeps the name `InterviewReportStatus`.
+  status InterviewReportStatus @default(IN_PROGRESS)
 
-  // Phase 10 video/audio metrics. All nullable: a row written before Phase 10
-  // has every field null, which is exactly the "Not yet measured" legacy state.
-  // Only DERIVED NUMBERS are stored here — never media (REQ-38).
-  cameraMode           String?   // "ON" | "OFF"; null = pre-Phase-10 row
+  // Per-type input, typed in TypeScript (see `lib/report/snapshot.ts`
+  // `InputSnapshot`), discriminated on `kind`. Nullable so an IN_PROGRESS
+  // row can exist before the snapshot is complete — matching today's
+  // behavior where snapshot columns are written at session start.
+  inputSnapshot Json?
+
+  // Dimension-keyed score map, e.g. {visual, vocal, content, behavioral,
+  // deck_quality}. A new rubric dimension needs no migration.
+  scores Json?
+
+  // Three separate nullable pointers, deliberately NOT converged into one
+  // tagged-union pointer (discretion item, decided here): `transcriptKey`
+  // (interview) and `interactionLogId` (scenario) resolve through different
+  // S3Storage accessors with different required context —
+  // `getInterviewTranscript(userId, reportId)` vs
+  // `getInteractionLog(studentEmail, caseId, logId)` — so converging them
+  // would buy a tagged union and cost read-path branching for no
+  // requirement. `studentEmail` is retained precisely because the scenario
+  // S3 read cannot resolve without it.
+  transcriptKey    String?
+  interactionLogId String?
+  studentEmail     String?
+
+  turnCount Int @default(0)
+
+  // Phase 10 video/audio metrics. All nullable: a row written before
+  // Phase 10 has every field null, which is exactly the "Not yet measured"
+  // legacy state. Only DERIVED NUMBERS are stored here — never media
+  // (REQ-38). `cameraMode === null` means "pre-Phase-10 row, do not
+  // synthesize an unscored reason" (REQ-48) — nothing may coerce null to
+  // "OFF".
+  cameraMode           String? // "ON" | "OFF"; null = pre-Phase-10 row
   visualMetrics        Json?
   vocalMetrics         Json?
-  visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
-  vocalUnscoredReason  String?   // "TYPED_ONLY" | "SPEECH_TOO_SHORT" | "INSUFFICIENT_DATA"
+  visualUnscoredReason String? // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
+  vocalUnscoredReason  String? // "TYPED_ONLY" | "SPEECH_TOO_SHORT" | "INSUFFICIENT_DATA"
   metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
 
-  /// Structured report body — see `lib/report/structured.ts`. Null on every row
-  /// written before the evaluator returned structured output; those rows still
-  /// render from `reportMarkdown`, which is now COMPOSED from this rather than
-  /// returned by the model.
-  reportStructured    Json?
-  reportMarkdown      String?               @db.Text
-  failureReason       String?               @db.Text
-  evalModel           String?
+  /// Structured report body — see `lib/report/structured.ts`. Null on every
+  /// row written before the evaluator returned structured output; those
+  /// rows still render from `reportMarkdown`, which is now COMPOSED from
+  /// this rather than returned by the model.
+  reportStructured Json?
+  reportMarkdown   String? @db.Text
+  failureReason    String? @db.Text
+  evalModel        String?
 
-  // Resolved customization snapshot — what this session actually ran with, not the
-  // preset's defaults. Nullable: rows written before Phase 8 have none.
-  industry            String?
-  roleTitle           String?
-  difficulty          String?
-  targetMinutes       Int?
-  targetQuestionCount Int?
-  interviewerPersona  String?               @db.Text
+  // REQ-62: the recorded reason an avatar-initiated end produces. Nullable;
+  // null means the session ended normally (student- or system-initiated).
+  terminationReason String?
 
-  startedAt           DateTime              @default(now())
-  completedAt         DateTime?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  // REQ-64: the type-declared outcome record (e.g. negotiated price and
+  // equity). Nullable; shape is per-type and enforced in code only.
+  outcome Json?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Zero-based index of the highest slide ever revealed to the avatar.
+  // SERVER-WRITTEN ONLY, monotonic non-decreasing. Null for every type that
+  // has no deck AND for a deck session that has not revealed anything yet
+  // (null means "nothing revealed" — never persist -1). A client never writes
+  // this value directly — see lib/engine/session.ts's ratchet. Backward
+  // navigation never lowers it (Phase 14 CONTEXT.md: the investor already
+  // saw those slides).
+  slideHighWaterMark Int?
+
+  // Ordered append-only trail of
+  // `{ index, atTurnIndex, atElapsedSeconds }` reveal events. Feeds
+  // Criterion 4's slide/speech correlation scoring and the report's
+  // timeline. Append-only: entries are never rewritten or removed.
+  slideReveals Json?
+
+  // The session's resolved time budget in seconds, after the student's
+  // adjustment was clamped into the type's declared adjustableRangeSeconds.
+  // Null for types with no budget. The budget is SOFT: nothing in the app
+  // stops a session when it is exhausted; the overrun is noted in the report.
+  timeBudgetSeconds Int?
+
+  // Elapsed seconds at the moment an avatar-initiated end was ACCEPTED, so
+  // the report can show the timecode where interest dropped (Phase 14
+  // CONTEXT.md). Null when the session ended normally. Pairs with the
+  // existing terminationReason column.
+  terminationAtSeconds Int?
+
+  // Student-chosen display name for My Reports (nullable for pre-title rows).
+  // Finish writes a default when the student leaves it blank.
+  title String?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([userId, createdAt])
   @@index([userId, typeSlug])
-}
-
-model ScenarioReport {
-  id                 String                @id @default(uuid())
-  userId             String
-
-  // The S3 CaseStudy id this run played. Deliberately a bare String and NOT a
-  // Prisma relation — the scenario lives in S3, not Postgres, and REQ-34 requires
-  // this report to survive that scenario's deletion. There is nothing to cascade.
-  caseId             String
-
-  // Pointer back to the S3 InteractionLog this run produced, so the evaluator can
-  // re-read the transcript without a second copy being written.
-  // interactions/{studentEmail}/{caseId}/{logId}.json
-  interactionLogId   String?
-  studentEmail       String?
-
-  status             InterviewReportStatus @default(IN_PROGRESS)
-
-  turnCount          Int                   @default(0)
-
-  // Nullable by design. Visual and Vocal stay null until Phase 10 builds a real
-  // video/audio metrics pipeline. Enforced in code, never trusted from the model.
-  visualScore        Int?
-  vocalScore         Int?
-  contentScore       Int?
-  behavioralScore    Int?
-
-  // Phase 10 video/audio metrics. All nullable: a row written before Phase 10
-  // has every field null, which is exactly the "Not yet measured" legacy state.
-  // Only DERIVED NUMBERS are stored here — never media (REQ-38).
-  cameraMode           String?   // "ON" | "OFF"; null = pre-Phase-10 row
-  visualMetrics        Json?
-  vocalMetrics         Json?
-  visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
-  vocalUnscoredReason  String?   // "TYPED_ONLY" | "SPEECH_TOO_SHORT" | "INSUFFICIENT_DATA"
-  metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
-
-  /// Structured report body — see `lib/report/structured.ts`. Null on every row
-  /// written before the evaluator returned structured output; those rows still
-  /// render from `reportMarkdown`, which is now COMPOSED from this rather than
-  /// returned by the model.
-  reportStructured   Json?
-  reportMarkdown     String?               @db.Text
-  failureReason      String?               @db.Text
-  evalModel          String?
-
-  // REQ-33 run-time snapshot. Written once when the run is recorded; never updated
-  // when the underlying scenario is later edited or deleted.
-  caseName           String
-  backgroundSnapshot String                @db.Text
-  avatarsSnapshot    Json
-  criteriaSnapshot   String?               @db.Text
-
-  startedAt          DateTime              @default(now())
-  completedAt        DateTime?
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-  @@index([userId, caseId])
 }
 
 // ============================================================================
@@ -438,4 +442,33 @@ model StudyPlan {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, savedAt])
+}
+
+// ============================================================================
+// NETWORKING ATTESTATION (Phase 16)
+// ============================================================================
+
+/// 16-CONTEXT.md decision 8: an attestation recorded before third-party pasted text
+/// is accepted for persona distillation. Deliberately NOT modelled as a column on
+/// `User` like `videoAnalysisConsentAt`: decision 8 rejects "a once-per-student
+/// acknowledgement that later sessions skip", so this is one row per distillation
+/// event, single-use via `consumedAt`.
+///
+/// APPEND-ONLY. `consumedAt` is the only column that is ever updated. Rows are never
+/// deleted and `wordingVersion` is never rewritten — the audit trail depends on it.
+model NetworkingAttestation {
+  id             String    @id @default(uuid())
+  userId         String
+  attestedAt     DateTime  @default(now())
+  /// The version key of the exact wording the student was shown, from
+  /// NETWORKING_ATTESTATION_WORDING in lib/networking/attestation.ts. Phase 10's
+  /// consent record has no equivalent field; this is genuinely new.
+  wordingVersion String
+  /// Stamped when this attestation is spent on one distillation. Non-null means spent.
+  consumedAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, attestedAt])
+  @@index([userId, consumedAt])
 }

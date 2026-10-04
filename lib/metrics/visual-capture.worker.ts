@@ -19,13 +19,21 @@
  * the corresponding threshold comparison is a main-thread constant — the
  * face runner's `yawDeg`/`pitchDeg` against `FORWARD_YAW_LIMIT_DEG`/
  * `FORWARD_PITCH_LIMIT_DEG` being the precedent this file follows throughout.
- * The three exceptions are `LANDMARK_VISIBILITY_FLOOR`, `PHONE_SCORE_THRESHOLD`
- * and `HANDS_NEAR_FACE_RADIUS`, all imported from the shared
- * `body-thresholds.ts` module rather than redefined here: these are
+ * The exceptions are `PHONE_SCORE_THRESHOLD` and `HANDS_NEAR_FACE_RADIUS`,
+ * imported from the shared `body-thresholds.ts` module rather than redefined
+ * here, plus `isLandmarkObservedInFrame` from `landmark-visibility.ts` (which
+ * applies `LANDMARK_VISIBILITY_FLOOR` on this file's behalf): these are
  * DETECTION-TIME filters this plan explicitly assigns to the worker (whether
- * a landmark/detection clears the floor needed to report a reading at all,
- * or whether a hand sits inside an expanded face box) — not scoring
- * verdicts. No threshold that decides a SCORE lives in this file.
+ * a landmark/detection clears the bar needed to report a reading at all, or
+ * whether a hand sits inside an expanded face box) — not scoring verdicts. No
+ * threshold that decides a SCORE lives in this file.
+ *
+ * 12-10 Task 3: `visible.*` on `PoseDetectResult` means OBSERVED IN FRAME,
+ * not "the model reported a confident `visibility` score". That distinction
+ * was the root cause of an item-7 sign-off failure that survived two
+ * attempted fixes — see `isLandmarkObservedInFrame`'s comment in
+ * `landmark-visibility.ts` before changing anything in this file's visibility
+ * handling.
  *
  * Loaded as an ES-module worker from `visual-capture.ts`:
  *   new Worker(new URL("./visual-capture.worker.ts", import.meta.url), { type: "module" })
@@ -50,9 +58,12 @@ import {
 type WasmFileset = Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>;
 import {
   HANDS_NEAR_FACE_RADIUS,
-  LANDMARK_VISIBILITY_FLOOR,
   PHONE_SCORE_THRESHOLD,
 } from "@/lib/metrics/body-thresholds";
+import {
+  isInFrame,
+  isLandmarkObservedInFrame,
+} from "@/lib/metrics/landmark-visibility";
 
 /** The four models this worker can host. 12-05 extended this union from the
  * face-only set 12-03 shipped. */
@@ -112,11 +123,40 @@ export interface PoseDetectResult {
   };
   /** Angle of the 11-12 shoulder line from horizontal, in degrees. */
   shoulderTiltDeg: number | null;
-  /** Magnitude of the nose's displacement from the shoulder midpoint,
+  /** **THE NAME IS A MISNOMER — read this before using the field.** This is
+   * NOT anterior (forward) head translation. It is the 2D IMAGE-SPACE
+   * DISTANCE from the shoulder midpoint to the nose,
+   * `hypot(nose.x - shoulderMidX, nose.y - shoulderMidY) / shoulderWidth`,
    * normalised by shoulder width so the reading does not change when the
    * student moves closer to or further from the camera - without this
    * normalisation, leaning in would read identically to a forward-head
-   * posture change. */
+   * posture change.
+   *
+   * True forward-head translation runs along the CAMERA AXIS and is
+   * near-invisible to a frontal webcam, so this metric cannot measure it and
+   * never did. **The quantity it actually tracks DECREASES as the head drops
+   * toward the shoulder line** — i.e. a slump makes this number go DOWN, not
+   * up. Session A (12-11 Task 2, a deliberate held slump) measured exactly
+   * that: 0.7681 upright falling to <=0.4681 at the peak of the slump.
+   *
+   * NAMING LEFT ALONE DELIBERATELY (12-11 Task 3). The label is wrong but it
+   * is load-bearing across the worker, `PostureReading`, `PostureBaseline`'s
+   * field names, the `forward_head` signal key in `VisualPostureSignal`, the
+   * "Head position" display wording and 12-TUNING.md's recorded readings.
+   * Renaming it is churn with a real chance of a transcription error in a
+   * phase that has already shipped three posture false verdicts; documenting
+   * it is the cheaper and safer correction. If it IS renamed later,
+   * `headToShoulderDistance` is the accurate name.
+   *
+   * CORRECTION TO 12-10's RECORDED HYPOTHESIS — this is NOT a detection
+   * failure. 12-10's close recorded that "the sign may be backwards relative
+   * to the behaviour being graded", and 12-11's Session A readings confirmed
+   * the DECREASE while refuting the consequence. `computePostureDrift` scores
+   * `Math.abs(current - baseline)`, so a decrease registers exactly as
+   * strongly as an increase of the same size: the direction cannot affect the
+   * magnitude, and this channel was never blind to a slump. It was the
+   * strongest responder to one (delta 1.000, clamp-saturated). The defect is
+   * purely one of LABELLING. Do not carry 12-10's stronger claim forward. */
   forwardHeadOffset: number | null;
   /** Angle of the shoulder-midpoint-to-hip-midpoint line from vertical, in
    * degrees. 0 is upright; sign follows the direction of lean. */
@@ -261,15 +301,22 @@ function boundsOf(landmarks: Array<{ x: number; y: number }>): Bounds {
   };
 }
 
-/** `true` when a given pose landmark's `visibility` clears
- * `LANDMARK_VISIBILITY_FLOOR`. A missing/undefined `visibility` is treated
- * as not visible, never as visible-by-default. */
-function isVisible(
-  landmarks: Array<{ visibility: number }>,
-  index: number
-): boolean {
-  return (landmarks[index]?.visibility ?? 0) >= LANDMARK_VISIBILITY_FLOOR;
-}
+/** `true` when a given pose landmark was OBSERVED IN FRAME this tick —
+ * coordinates inside the frame AND `visibility` clearing
+ * `LANDMARK_VISIBILITY_FLOOR`, both required.
+ *
+ * BUG FIX (12-10 Task 3, the item-7 sign-off root cause): this used to test
+ * the model's PREDICTED `visibility` score alone, which MediaPipe reports
+ * confidently for a fully extrapolated off-camera skeleton — 98% of ticks in
+ * the failing session. `visible.*` in `PoseDetectResult` therefore means
+ * OBSERVED IN FRAME from here on, not "the model is confident it could guess
+ * this". The predicate itself lives in `landmark-visibility.ts` so the
+ * verification script can assert it directly (this module installs
+ * `self.onmessage` at module scope and cannot be imported from Node); see
+ * `isLandmarkObservedInFrame`'s own comment there for the Session A/B
+ * readings, why the in-frame half is needed, and why it is only HALF the fix
+ * — `POSTURE_COVERAGE_MIN_RATIO` is the other half. */
+const isVisible = isLandmarkObservedInFrame;
 
 async function createFaceLandmarker(
   resolver: WasmFileset,
@@ -314,6 +361,49 @@ async function createHandLandmarkerModel(
   });
 }
 
+/**
+ * TEMPORARY, DEV-ONLY (12-11 Task 1). `PHONE_SCORE_THRESHOLD` has never had a
+ * dataset behind it: 12-09 built a dump for it, 12-10 removed that dump
+ * before it was ever run. The reading cannot be taken at all without this
+ * flag, because the detector's OWN `scoreThreshold` is set to
+ * `PHONE_SCORE_THRESHOLD`, so no detection scoring below 0.5 has ever
+ * crossed back to this process — "the count below the current threshold"
+ * that 12-11 Task 1 asks for is unobservable by construction on a normal
+ * build.
+ *
+ * When this flag is on, and ONLY then, the object detector is created with
+ * `PHONE_DEV_DUMP_SCORE_FLOOR` instead, so the full confidence distribution
+ * is visible. The session VERDICT is unchanged: `detectObject` now states
+ * `phonePresent` as `bestScore >= PHONE_SCORE_THRESHOLD` explicitly, which
+ * is exactly equivalent to the previous `bestScore > 0` on a normal build
+ * (where the model already filtered everything under 0.5 out), and keeps the
+ * production threshold authoritative while the flag is on. Nothing else in
+ * the pipeline reads `phoneScore`.
+ *
+ * Set `NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP=1` and restart `npm run dev`
+ * (a `NEXT_PUBLIC_*` var is inlined at build time). REMOVE this flag, the
+ * floor below, and the branch in `createObjectDetectorModel` once a
+ * PHONE-HELD session's readings are recorded in `12-TUNING.md` — scaffolding,
+ * not a feature.
+ *
+ * NOT REMOVED BY 12-11 Task 3, deliberately, even though that task removed the
+ * posture half of this dump. 12-11 Task 2 ran only the no-phone session, so the
+ * TRUE-POSITIVE confidence distribution is still unobserved and
+ * `PHONE_SCORE_THRESHOLD` is still undecided. 12-10 removed this instrument
+ * before taking the reading and then had nothing to read at its own sign-off;
+ * that is the mistake this retention avoids repeating. See
+ * `PHONE_SCORE_THRESHOLD` in `body-thresholds.ts`.
+ */
+const PHONE_CONFIDENCE_DEV_DUMP =
+  process.env.NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP === "1";
+
+/** TEMPORARY, DEV-ONLY — see `PHONE_CONFIDENCE_DEV_DUMP`. Low
+ * enough to show the left tail of the "cell phone" confidence distribution
+ * without flooding the dump with every speck the detector will guess at.
+ * Mirrored as a literal in `visual-capture.ts`'s dump note; both go away
+ * together. */
+const PHONE_DEV_DUMP_SCORE_FLOOR = 0.05;
+
 async function createObjectDetectorModel(
   resolver: WasmFileset,
   delegate: "GPU" | "CPU"
@@ -325,8 +415,14 @@ async function createObjectDetectorModel(
     },
     runningMode: "VIDEO",
     // Detection-time filter, not a scoring verdict - see this file's header
-    // comment on the three accepted body-thresholds.ts imports.
-    scoreThreshold: PHONE_SCORE_THRESHOLD,
+    // comment on the three accepted body-thresholds.ts imports. The
+    // DEV-ONLY branch (12-11 Task 1, off by default) lowers only what the
+    // detector will REPORT, so the sub-threshold tail is observable; the
+    // phonePresent verdict in `detectObject` still uses
+    // PHONE_SCORE_THRESHOLD either way.
+    scoreThreshold: PHONE_CONFIDENCE_DEV_DUMP
+      ? PHONE_DEV_DUMP_SCORE_FLOOR
+      : PHONE_SCORE_THRESHOLD,
   });
 }
 
@@ -667,12 +763,42 @@ function detectHands(
   }
 
   const result = handLandmarker.detectForVideo(bitmap, timestamp);
-  const handCount = result.landmarks.length;
+  if (result.landmarks.length === 0) {
+    return { handCount: 0, primary: [] };
+  }
+
+  // 12-10 Task 3: the hands path shows the SAME extrapolation the pose path
+  // does, so it gets the same treatment — a hand whose wrist is outside the
+  // frame is not a detected hand. The Task 2 readings: in the off-camera
+  // session (Session A), 41 of the 80 hands ticks carrying a detection had
+  // the wrist OUTSIDE the frame — 51% of all detections were extrapolated —
+  // while only 39 were genuinely in frame. That session reported "Gesturing:
+  // Well judged" and "Hands near face: Frequent"; the comparison session
+  // (Session B) had 1 in-frame detection and 0 out-of-frame, so the effect
+  // is specific to the off-camera case, exactly as it is for pose.
+  //
+  // Dropped HERE, before selection, rather than gated downstream, so every
+  // consumer is fixed at once by construction: `handsDetectedSamples`,
+  // `aboveShoulder`, `nearFace`, and the gesture-displacement loop in
+  // `visual-capture.ts` all read `handCount`/`primary` and would otherwise
+  // each need their own guard. `handCount` is the count of IN-FRAME hands
+  // for the same reason — it is read as "was a hand seen this tick", and
+  // after this filter that is what it honestly answers.
+  //
+  // The in-frame test ONLY, never `LANDMARK_VISIBILITY_FLOOR`: HandLandmarker
+  // does not populate a meaningful per-landmark `visibility` (it reports
+  // handedness/confidence per hand instead), and no hands path has ever
+  // consulted that score. Adding it here would be a new, untuned gate rather
+  // than the honesty fix this plan is scoped to.
+  const inFrameHands = result.landmarks.filter((landmarks) =>
+    isInFrame(landmarks[0])
+  );
+  const handCount = inFrameHands.length;
   if (handCount === 0) {
     return { handCount: 0, primary: [] };
   }
 
-  const candidates = result.landmarks.map((landmarks) => {
+  const candidates = inFrameHands.map((landmarks) => {
     const wrist = landmarks[0];
     let minX = Infinity;
     let maxX = -Infinity;
@@ -769,7 +895,15 @@ function detectObject(
       }
     }
   }
-  return { phonePresent: bestScore > 0, phoneScore: bestScore };
+  // `>= PHONE_SCORE_THRESHOLD` rather than `> 0`: identical on a normal
+  // build (the model's own `scoreThreshold` already removed everything
+  // below), and it keeps the production verdict authoritative when the
+  // DEV-ONLY dump lowers that model-side filter — see
+  // `PHONE_CONFIDENCE_DEV_DUMP`.
+  return {
+    phonePresent: bestScore >= PHONE_SCORE_THRESHOLD,
+    phoneScore: bestScore,
+  };
 }
 
 self.onmessage = (event: MessageEvent<InboundMessage>) => {

@@ -5,30 +5,63 @@ import { useRouter } from "next/navigation";
 import { Card, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Button } from "@heroui/button";
+import { Input } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
-import { BookOpenCheck, ChevronRight, Sparkles } from "lucide-react";
+import { BookOpenCheck, ChevronRight, Search, Sparkles } from "lucide-react";
 
-import type { InterviewReportDTO } from "@/lib/interview/report-dto";
+import type { ReportDTO } from "@/lib/report/dto";
+import {
+  displayReportTitle,
+  formatReportWhen,
+  typeLabelForReport,
+} from "@/lib/report/title";
 import type { StudyPlanDTO, StudyPlanSummaryDTO } from "@/lib/study-plan/plan-dto";
 import type { StudyPlanContent } from "@/lib/study-plan/types";
 
-const TYPE_LABELS: Record<string, string> = {
-  general: "General Interview",
-};
+/** Study-plan generation still uses interview feedback only. */
+const INTERVIEW_TYPE_SLUGS = new Set([
+  "general",
+  "technical",
+  "consulting",
+  "early-career",
+]);
 
-function typeLabel(typeSlug: string): string {
-  return (
-    TYPE_LABELS[typeSlug] ??
-    typeSlug
-      .split(/[-_]/)
-      .filter(Boolean)
-      .map((word) => word[0]!.toUpperCase() + word.slice(1))
-      .join(" ")
-  );
+type TypeFilter =
+  | "all"
+  | "interview"
+  | "pitch"
+  | "difficult-conversation"
+  | "networking"
+  | "case-study";
+
+const TYPE_FILTERS: { id: TypeFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "interview", label: "Interviews" },
+  { id: "pitch", label: "Pitches" },
+  { id: "difficult-conversation", label: "Difficult conversations" },
+  { id: "networking", label: "Networking" },
+  { id: "case-study", label: "Case studies" },
+];
+
+function matchesTypeFilter(typeSlug: string, filter: TypeFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "interview") return INTERVIEW_TYPE_SLUGS.has(typeSlug);
+  if (filter === "pitch")
+    return typeSlug === "pitch-elevator" || typeSlug === "pitch-deck";
+  return typeSlug === filter;
+}
+
+function interviewerName(report: ReportDTO): string | null {
+  return report.input?.kind === "interview" ? report.input.interviewerName : null;
+}
+
+function scoreOf(report: ReportDTO, key: string): number | null {
+  const value = report.scores?.[key];
+  return typeof value === "number" ? value : null;
 }
 
 const STATUS_CHIP: Record<
-  InterviewReportDTO["status"],
+  ReportDTO["status"],
   { label: string; color: "success" | "warning" | "danger" | "default" }
 > = {
   READY: { label: "Ready", color: "success" },
@@ -169,9 +202,11 @@ function PlanContent({ content }: { content: StudyPlanContent }) {
 
 export default function MyReportsPage() {
   const router = useRouter();
-  const [reports, setReports] = useState<InterviewReportDTO[] | null>(null);
+  const [reports, setReports] = useState<ReportDTO[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [plans, setPlans] = useState<StudyPlanSummaryDTO[] | null>(null);
   const [plansError, setPlansError] = useState<string | null>(null);
   const [preview, setPreview] = useState<GeneratedPreview | null>(null);
@@ -182,16 +217,42 @@ export default function MyReportsPage() {
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
   const eligibleReportCount = useMemo(
-    () => reports?.filter((report) => report.status === "READY" && Boolean(report.reportMarkdown?.trim())).length ?? 0,
-    [reports]
+    () =>
+      reports?.filter(
+        (report) =>
+          INTERVIEW_TYPE_SLUGS.has(report.typeSlug) &&
+          report.status === "READY" &&
+          Boolean(report.reportMarkdown?.trim()),
+      ).length ?? 0,
+    [reports],
   );
+
+  const filteredReports = useMemo(() => {
+    if (!reports) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return reports.filter((report) => {
+      if (!matchesTypeFilter(report.typeSlug, typeFilter)) return false;
+      if (!q) return true;
+      const when = report.completedAt ?? report.startedAt;
+      const title = displayReportTitle({
+        title: report.title,
+        typeSlug: report.typeSlug,
+        input: report.input,
+        when,
+      }).toLowerCase();
+      const type = typeLabelForReport(report.typeSlug).toLowerCase();
+      const withName = interviewerName(report)?.toLowerCase() ?? "";
+      return title.includes(q) || type.includes(q) || withName.includes(q);
+    });
+  }, [reports, typeFilter, searchQuery]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const response = await fetch("/api/interview/reports", {
+        // No ?types= filter — return every finished interaction (pitches, DC, networking, …).
+        const response = await fetch(`/api/practice/reports`, {
           cache: "no-store",
           credentials: "include",
         });
@@ -200,7 +261,7 @@ export default function MyReportsPage() {
           return;
         }
         const data = (await response.json().catch(() => ({}))) as {
-          reports?: InterviewReportDTO[];
+          reports?: ReportDTO[];
           error?: string;
         };
         if (!response.ok || !data.reports) {
@@ -338,7 +399,9 @@ export default function MyReportsPage() {
           Leadership Avatar Practice
         </div>
         <h1 className="mt-3 font-serif text-3xl tracking-[-0.03em] text-[#102331] sm:text-4xl">My Reports</h1>
-        <p className="mt-2 text-sm text-[#58727f]">Every practice interview you&apos;ve finished, newest first.</p>
+        <p className="mt-2 text-sm text-[#58727f]">
+          Every finished practice session — interviews, pitches, conversations, and networking — newest first.
+        </p>
 
         <div className="mt-8">
           {needsLogin ? (
@@ -444,26 +507,97 @@ export default function MyReportsPage() {
               )}
 
               <section className="mt-10">
-                <h2 className="font-serif text-2xl text-[#102331]">Interview reports</h2>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h2 className="font-serif text-2xl text-[#102331]">Practice reports</h2>
+                    <p className="mt-1 text-sm text-[#58727f]">
+                      Filter by type or search by the name you saved at the end of a session.
+                    </p>
+                  </div>
+                  <Input
+                    aria-label="Search reports"
+                    placeholder="Search by name or type…"
+                    value={searchQuery}
+                    onValueChange={setSearchQuery}
+                    startContent={<Search size={16} className="text-[#8298a3]" />}
+                    className="max-w-sm"
+                    classNames={{ inputWrapper: "bg-white" }}
+                  />
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {TYPE_FILTERS.map((tab) => (
+                    <Button
+                      key={tab.id}
+                      size="sm"
+                      variant={typeFilter === tab.id ? "solid" : "flat"}
+                      color={typeFilter === tab.id ? "primary" : "default"}
+                      onPress={() => setTypeFilter(tab.id)}
+                    >
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
                 {reports.length === 0 ? (
                   <div className="mt-4 rounded-2xl border border-[#d4e2e9] bg-white p-8 text-center shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
                     <p className="font-serif text-2xl text-[#102331]">You haven&apos;t finished a practice session yet.</p>
-                    <p className="mt-2 text-sm text-[#58727f]">Start a practice interview and your report will show up here.</p>
+                    <p className="mt-2 text-sm text-[#58727f]">Start a practice interaction and your report will show up here.</p>
                     <Button className="mt-5" color="primary" onPress={() => router.push("/")}>Go to dashboard</Button>
+                  </div>
+                ) : filteredReports.length === 0 ? (
+                  <div className="mt-4 rounded-2xl border border-[#d4e2e9] bg-white p-8 text-center shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
+                    <p className="font-serif text-xl text-[#102331]">No reports match this filter.</p>
+                    <Button className="mt-4" variant="flat" onPress={() => { setTypeFilter("all"); setSearchQuery(""); }}>
+                      Clear filters
+                    </Button>
                   </div>
                 ) : (
                   <div className="mt-4 space-y-3">
-                    {reports.map((report) => {
+                    {filteredReports.map((report) => {
                       const chip = STATUS_CHIP[report.status];
                       const date = report.completedAt ?? report.startedAt;
+                      const title = displayReportTitle({
+                        title: report.title,
+                        typeSlug: report.typeSlug,
+                        input: report.input,
+                        when: date,
+                      });
+                      const withWhom = interviewerName(report);
                       return (
-                        <Card key={report.id} isPressable className="w-full border border-[#d4e2e9] shadow-[0_8px_24px_rgba(20,58,75,0.06)]" onPress={() => router.push(`/interview/${report.typeSlug}/report/${report.id}`)}>
+                        <Card
+                          key={report.id}
+                          isPressable
+                          className="w-full border border-[#d4e2e9] shadow-[0_8px_24px_rgba(20,58,75,0.06)]"
+                          onPress={() =>
+                            router.push(
+                              `/practice/${report.typeSlug}/report/${report.id}`,
+                            )
+                          }
+                        >
                           <CardBody className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2"><span className="font-serif text-lg text-[#102331]">{typeLabel(report.typeSlug)}</span><Chip size="sm" color={chip.color} variant="flat">{chip.label}</Chip></div>
-                              <p className="text-sm text-[#58727f]">{report.interviewerName ? `With ${report.interviewerName}` : "—"}{" · "}{formatDate(date)}</p>
+                            <div className="flex min-w-0 flex-col gap-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-serif text-lg text-[#102331]">
+                                  {title}
+                                </span>
+                                <Chip size="sm" color={chip.color} variant="flat">
+                                  {chip.label}
+                                </Chip>
+                                <Chip size="sm" variant="bordered">
+                                  {typeLabelForReport(report.typeSlug)}
+                                </Chip>
+                              </div>
+                              <p className="text-sm text-[#58727f]">
+                                {formatReportWhen(date)}
+                                {withWhom ? ` · With ${withWhom}` : ""}
+                              </p>
                             </div>
-                            <div className="flex gap-6"><ScoreBadge label="Content" score={report.scores.content} /><ScoreBadge label="Behavioral" score={report.scores.behavioral} /></div>
+                            <div className="flex gap-6">
+                              <ScoreBadge label="Content" score={scoreOf(report, "content")} />
+                              <ScoreBadge
+                                label="Behavioral"
+                                score={scoreOf(report, "behavioral")}
+                              />
+                            </div>
                           </CardBody>
                         </Card>
                       );

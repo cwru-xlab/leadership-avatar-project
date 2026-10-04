@@ -329,11 +329,38 @@ was decided, they do not add scope.*
   vocabulary cannot identify a specific or offensive gesture and must never be described as
   doing so.
 
-- **REQ-51** — [ ] Body posture is measured from body landmarks — shoulder-line tilt,
-  forward-head, torso lean and openness. The SCORE comes from drift against the student's
-  own opening posture, never against a fixed upright ideal; the absolute reading is
-  reported but not graded. A partially visible body is scored on the landmarks that ARE
-  available rather than skipped, and every posture comment states which were measured.
+- **REQ-51** — [x] **MET (12-11 Task 4, 2026-10-03).** Body posture is measured from body
+  landmarks — shoulder-line tilt, forward-head, torso lean and openness. The SCORE comes
+  from drift against the student's own opening posture, never against a fixed upright
+  ideal; the absolute reading is reported but not graded. A partially visible body is
+  scored on the landmarks that ARE available rather than skipped, and every posture
+  comment states which were measured.
+
+  Clause by clause: all four signals are computed and only the genuinely in-frame ones
+  are scored (12-10's frame-bounds gating); the score is `abs(current - baseline)`
+  against a baseline established in the first `POSTURE_BASELINE_WINDOW_S`, never an
+  ideal; the absolute reading lives in the unscored Observations section (12-04/12-07)
+  and nothing scored reads it; the partial-visibility clause passed at 12-10 Task 4
+  item 2 and was confirmed un-regressed at 12-11 Task 4 item 3; and the "Measured from"
+  row renders unconditionally (`bands.ts:524`).
+
+  **What held this open until now was one thing only:** the drift-scoring mechanism had
+  never been observed to respond correctly to the behaviour it grades — three "Held
+  steady" readings on genuine slumps (12-08, 12-09, 12-10 item 3) and one "Shifted" that
+  was 12-09's false positive on an extrapolated skeleton, with the false-positive side
+  never tested at all. 12-11 found the cause by measurement (the band read a session-wide
+  mean of a cross-signal mean, and a single-axis slump is capped at 0.500 per tick under
+  that mean regardless of the cutoff), repaired both aggregations, and wired up
+  `POSTURE_DRIFT_SUSTAINED_S`, which had been read by nothing for three plans. 12-11
+  Task 4 then demonstrated the row responding correctly in **both** directions on the
+  same build — a slump reported with a matching timecode (`0:48-1:26`), an ordinary
+  session reported as steady with no episode — with the independent episode code path
+  agreeing in both directions.
+
+  **Evidence base, stated honestly: one slump session and one ordinary session.** The
+  constants are labelled SET FROM ONE REAL SESSION, not TUNED. Re-tuning against real
+  student sessions is expected work, carried in `deferred-items.md`. See
+  `12-11-SUMMARY.md` and `12-TUNING.md`.
 
 - **REQ-52** — [ ] **NOT MET** (12-08 Task 1 checkpoint, deliberate — this is not a gap
   pending more work, it is a measurement-capability limit this pipeline cannot clear at
@@ -352,10 +379,21 @@ was decided, they do not add scope.*
   (a materially higher hands sample rate — a new, scoped piece of work with its own
   frame-budget analysis, not a threshold retune).
 
-- **REQ-53** — [ ] Descriptive-only signals live in their own report section — not inline
-  with scored rows carrying a marker — so a student cannot read an unscored observation as
-  a deduction. Scored body signals group under their own subheading within the visual
-  bands. REQ-52 and REQ-54 depend on this.
+- **REQ-53** — [x] **MET (12-10 Task 4 item 1, 2026-10-03).** Descriptive-only signals
+  live in their own report section — not inline with scored rows carrying a marker — so a
+  student cannot read an unscored observation as a deduction. Scored body signals group
+  under their own subheading within the visual bands. REQ-52 and REQ-54 depend on this.
+  The section-separation clause shipped at 12-04. What held this open through 12-08 and
+  12-09 was the honesty clause tracked under it via ROADMAP criterion 3 — "nothing the
+  pipeline cannot observe is described as absent" — which failed twice on a real
+  off-camera session (a false "Held steady", then a false "Shifted from the opening
+  posture" with timecodes). After 12-10's frame-bounds landmark gating that session now
+  reports the body as unreadable, gives no posture verdict, produces no Moments rows for
+  unobserved signals, and no longer credits gesturing on an arm it could not properly
+  see. 12-10 Task 4 item 3's false NEGATIVE does not bear on this requirement: in that
+  session the body WAS observable and was honestly declared measured, so it is a
+  sensitivity failure on an observed signal, not an unobservable signal described as
+  absent. See `12-10-SUMMARY.md`.
 
 - **REQ-54** — [x] A phone visible in frame is reported factually — "a phone was visible
   for 40 seconds" — never as an inference about attention, which the sensor cannot support.
@@ -378,3 +416,332 @@ was decided, they do not add scope.*
 - **REQ-58** — [x] No frame, landmark array or media blob leaves the browser or outlives
   the tick that produced it (REQ-38 unchanged). Every new signal reaches the server as a
   derived scalar.
+
+### Phase 13 — One-on-One Conversation Engine
+
+**Derived 2026-10-02** from Phase 13's four ROADMAP success criteria and the
+locked decisions in
+`.planning/phases/13-one-on-one-conversation-engine/13-CONTEXT.md`. They restate
+what was decided; they add no scope.
+
+- **REQ-59** — [x] One engine serves every one-on-one interaction type. Exactly one
+  session-start, one checkpoint, one finish, one report-GET and one evaluation runner
+  exist for all types. The per-type trees that exist today —
+  `app/api/interview/session/*`, `app/api/scenario/session/*`,
+  `lib/interview/evaluation{,-runner}.ts`, `lib/scenario/evaluation{,-runner}.ts`,
+  `lib/interview/report-dto.ts`, `lib/scenario/report-dto.ts` — are collapsed into
+  the engine, not left standing beside it.
+
+- **REQ-60** — [x] An interaction type is a TypeScript config record plus prompts.
+  Adding one touches no engine module, no route, no evaluator and no report page.
+  Config lives in code (type-checked, reviewable in git), not S3 or Postgres.
+
+- **REQ-61** — [x] A session resolves from two layers: a built-in TYPE (code record —
+  rubric dimensions, prompts, limits, primitives) plus an optional student-authored
+  INSTANCE (S3 data — role, situation, avatar, criteria). Phase 9's `CaseStudy`
+  scenarios are instances under this model, not a separate pipeline.
+
+- **REQ-62** — [x] `terminationPolicy` is an engine primitive: a type declares who may
+  end a session, including an AVATAR-INITIATED end, and the reason is recorded on the
+  report. Nothing but the student can end a session today. Built in Phase 13 even
+  though Phase 14 is its first consumer.
+
+- **REQ-63** — [ ] A per-turn VISIBLE-CONTEXT slice is an engine primitive: a type
+  controls what the avatar may see on a given turn, as distinct from everything the
+  session knows. Modelled generally, not as slide bookkeeping.
+
+  **IMPLEMENTED BUT UNVERIFIED — deliberately still open after Phase 13 closed.**
+  The primitive exists (`lib/engine/types.ts` `visibleContext`, sliced in
+  `lib/engine/prompts.ts`); it was never proven against a real multi-channel
+  session. Phase 13 closed 2026-10-04 with this box **delegated, not granted** —
+  REQ-75 / plan 17-03 owns the proof (`13-VISIBLE-CONTEXT-PROOF.md`) and ticks this
+  box then. See `13-CLOSE-RECORD.md` §4.
+
+- **REQ-64** — [x] A type-declared OUTCOME record (JSON) persists structured session
+  results, and an explicit TIME BUDGET is an engine concept carried in the existing
+  per-turn tail block, never in the system prompt.
+
+- **REQ-65** — [x] One `InteractionReport` table replaces `InterviewReport` and
+  `ScenarioReport`. Per-type input is one JSON `inputSnapshot` typed in TypeScript;
+  scores are a JSON map keyed by dimension. The old tables are dropped, not kept
+  beside it.
+
+- **REQ-66** — [x] Every existing report is backfilled into `InteractionReport` and
+  renders identically at its existing URL — scores, metrics, body-language section,
+  Moments and snapshot strip intact. This is the acceptance test for the backfill.
+
+  **CLOSED 2026-10-04 WITH A CAVEAT, not on a passing test.** Human decision;
+  evidence and full reasoning in `13-CLOSE-RECORD.md` §3.
+
+  **MET on local, demonstrably:** 67 `InterviewReport` + 3 `ScenarioReport` → 70
+  `InteractionReport` on `leadership_avatar_dev`;
+  `scripts/verify-interaction-report-backfill.ts` exited 0 with count,
+  field-fidelity, null-preservation and idempotency sections passing (70 → 70 on a
+  second run); commits `1eafa7b`, `981f835`; plan 13-14's human acceptance test
+  nine-for-nine PASS. See `13-04-SUMMARY.md`, `13-14-SUMMARY.md`.
+
+  **VACUOUS on shared, and unsatisfiable there by construction:** the shared
+  Lightsail DB was EMPTY when all 14 migrations were applied (0 users, 0 attempts,
+  0 reports of either kind), so there were no reports to backfill or re-render —
+  the backfill would have copied zero rows and was never run against shared. The
+  verifier *cannot* pass there: it hard-asserts at least one legacy
+  `cameraMode IS NULL` row exists (lines 266, 271). Local is the only place this
+  test could ever have run, and it ran. The legacy tables are now dropped, so no
+  future pre-Phase-13 row can appear to re-open this.
+
+- **REQ-67** — [x] The Phase 13 migration is applied to the LOCAL dev database only.
+  The SQL is handed over for human review and a human runs `prisma migrate deploy`
+  against the shared Lightsail DB (`HANDOFF.md §3` precedent). No agent applies it.
+  Phase 13 does not close until a human has run it.
+
+  **CLOSED 2026-10-04 on the human-run clause ONLY.** A human ran
+  `prisma migrate deploy` against shared; `prisma migrate status` reports 14 of 14
+  applied, `Database schema is up to date!`.
+
+  **DO NOT read this tick as "migrations are human-gated here."** The "no agent
+  applies it" clause had already been untrue for days: `vercel.json`'s
+  `buildCommand` runs `prisma migrate deploy` on every deployment and had been
+  applying these migrations — the first `DROP TABLE` included — automatically and
+  unreviewed. That contradiction is **NOT closed by this box**; it is REQ-74, whose
+  plan 17-01 removes the command and documents the replacement procedure. Until
+  17-01 ships, deploys still self-migrate. See `13-CLOSE-RECORD.md` §3.
+
+- **REQ-68** — [x] All engine-backed sessions live under one `/practice/[type]` tree —
+  session at `/practice/[type]/[instanceId?]`, report at
+  `/practice/[type]/report/[reportId]`. `/interview/*` and `/case-play/*` session and
+  report paths become permanent redirects so existing deep links keep resolving.
+
+- **REQ-69** — [x] Phase 13 is an INVISIBLE refactor. The shared session shell and
+  report page reproduce today's interview and case-play appearance exactly; the changed
+  URL is the only sanctioned visible difference. The two experiences' existing
+  divergences (scenario has no checkpoint; report chrome differs) are PRESERVED, not
+  converged. A divergence that cannot be preserved is a CHECKPOINT, not an executor
+  judgment call.
+
+- **REQ-70** — [x] One generic pre-session wizard owns step machinery, progress,
+  back/forward, the camera-mode consent gate and launch. A type declares its steps; a
+  step needing custom UI supplies its own component. The consent gate exists once, not
+  once per type.
+
+- **REQ-71** — [x] Rubric dimensions are four shared (Visual, Vocal, Content,
+  Behavioral) plus type-declared extras. The evaluator's JSON schema becomes
+  type-derived — `lib/report/structured.ts`'s hardcoded
+  `required: ["visual","vocal","content","behavioral"]` keeps those four always
+  present and appends the type's extras.
+
+- **REQ-72** — [x] Visual and Vocal are never type-optional. Every engine-backed type
+  carries them with the full four-state handling from Phases 10 and 12 (scored /
+  `CAMERA_OFF_OPTOUT` / `TYPED_ONLY` or `SPEECH_TOO_SHORT` / `INSUFFICIENT_DATA`). A
+  type never wires metrics, so it can never forget to.
+
+- **REQ-73** — [x] The assembled system prompt stays session-constant so the OpenAI
+  prefix cache still hits (REQ-20 unchanged), and per-turn state stays in the tail
+  block. Unification must not move per-turn data into the system prompt.
+
+---
+
+# Milestone v1.1 — Consequence & Deck Breadth
+
+**Derived 2026-10-04** from
+`.planning/phases/14-practice-pitches/deferred-items.md` and the four design
+decisions locked in `/gsd:new-milestone` questioning. Phases 14–16 tracked
+success criteria instead of REQ IDs; v1.1 returns to REQ IDs, continuing from
+REQ-73.
+
+**Locked decisions (v1.1):**
+1. Temperature is **derived from observable signals, gated by avatar self-report** — signals drive the value, the avatar's own emitted cue can accelerate it.
+2. Temperature is **invisible during the session**, explained in the report afterward.
+3. Deck modes are **one TYPE record per mode** — funding request, product pitch, deck-led talk, and a deliberately general deck pitch.
+4. The temperature mechanism is an **engine primitive each TYPE opts into via config**, extending Phase 13's `terminationPolicy` / `avatarEndFloor` rather than adding a parallel mechanism.
+
+## Requirements
+
+### Phase 17 — v1.0 Close-Out
+
+- **REQ-74** — [ ] **RE-SCOPED 2026-10-04.** The migration work this requirement
+  originally described is ALREADY DONE: `HANDOFF.md §3` (commit `9a53084`, "correct
+  the migration record after the shared-DB run") records all 14 migrations applied
+  to the shared Lightsail DB, `Database schema is up to date!`, nothing pending or
+  held. `13-MIGRATION-HANDOFF.md`'s "DEFERRED by human — still OPEN" is STALE.
+
+  What replaces it is the governance contradiction that run exposed:
+  `vercel.json`'s `buildCommand` is
+  `touch .env && prisma generate && prisma migrate deploy && next build`, so every
+  deployment applies pending migrations automatically and unreviewed. A preview
+  build on 2026-10-04 applied `add_interaction_report_title` to a database already
+  holding the first `DROP TABLE` in this project's history, with no human run and no
+  `pg_dump`. REQ-67's "no agent applies it; a human runs `prisma migrate deploy`"
+  therefore does not describe this project's actual behavior and has not since
+  `vercel.json` gained that command.
+
+  **Decided:** `prisma migrate deploy` is REMOVED from `buildCommand`, making the
+  pipeline match the documented discipline rather than amending the discipline to
+  match the pipeline.
+
+  **The removal is not sufficient on its own.** Deploys will stop self-migrating, so
+  a schema change must be applied deliberately BEFORE the deploy that depends on it,
+  or the app serves 500s on a missing column. This requirement is met only when the
+  replacement procedure is documented and the stale documents are reconciled —
+  `HANDOFF.md §3`, `13-MIGRATION-HANDOFF.md` and REQ-67 must stop contradicting each
+  other and reality. Safe to do now: all 14 migrations are applied everywhere, so
+  nothing is pending at the moment of removal. Phase 18 is the first consumer that
+  will need the new procedure.
+
+  Also closed under this requirement: **confirm what the Production `DATABASE_URL`
+  secret actually points at.** It is write-only (Vercel "Sensitive"), the account has
+  no marketplace integrations, and the `la_db_*` secrets are orphaned leftovers
+  pointing at a store that no longer exists. Nobody has verified it.
+
+  **SUPERSEDED 2026-10-04 — REQ-66 and REQ-67 no longer close under this
+  requirement.** They were closed directly against Phase 13 with the recorded
+  caveat this paragraph specified, in `13-CLOSE-RECORD.md` §3, so that a 15/15
+  phase did not stay open on bookkeeping. The caveat is unchanged: the shared DB
+  was found EMPTY (0 users, 0 reports of either kind), the backfill was a no-op and
+  was never run against shared, its verifier *cannot* pass there, and REQ-66's
+  acceptance test passed on local (70 rows) — the only place it ever could.
+
+  **What REQ-74 still owns** is everything above this paragraph: the `buildCommand`
+  removal, the replacement procedure, the stale-document reconciliation, and the
+  Production `DATABASE_URL` confirmation. REQ-67's tick does NOT mean that work is
+  done.
+
+- **REQ-75** — [ ] REQ-63's per-turn visible-context slice is verified against a real
+  multi-channel session — the avatar's context provably contains only the declared
+  visible channels for that turn — and REQ-63 is checked off. The primitive already
+  exists (`lib/engine/types.ts` `visibleContext`, sliced in `lib/engine/prompts.ts`);
+  this requirement is evidence, not construction.
+
+- **REQ-76** — [ ] `scripts/verify-deck-intake.ts` passes every assertion. The
+  fixture/assertion mismatch between `scripts/generate-deck-fixtures.ts`
+  (`"Spike Deck Title"`) and `scripts/spike-deck-render.ts`
+  (`"Spike Deck Slide 1"`) is resolved by making the harness and its fixture agree
+  on one source, not by loosening the assertion.
+
+- **REQ-77** — [ ] The keyboard UAT deferred under `skip_checkpoints` on Phases 15
+  and 16 is discharged, with the result recorded in each phase's validation file.
+  A failure found here is logged as a defect, not silently repaired as part of UAT.
+
+### Phase 18 — Avatar Disengagement & Walk-Out
+
+- **REQ-78** — [ ] The engine carries a per-turn DISENGAGEMENT value computed from
+  observable session signals — elapsed time against the budget, turn count,
+  repetition, response length, whether the student established common ground. The
+  computation is deterministic and tunable without a model call.
+
+- **REQ-79** — [ ] The live avatar can emit a disengagement cue in its per-turn
+  structured output, and that cue ACCELERATES the derived value rather than
+  replacing it. A self-reported cue alone cannot end a session, so the
+  role-playing model never has sole authority over its own patience.
+
+- **REQ-80** — [ ] A type declares a disengagement THRESHOLD in config. Crossing it
+  is what triggers a walk-out; a type that declares no threshold behaves exactly as
+  it does today. Adding the capability touches no type that does not opt in.
+
+- **REQ-81** — [ ] Crossing the threshold plays exactly one final avatar statement
+  that the student can neither interrupt nor respond to — push-to-talk and the text
+  input are closed for its duration.
+
+- **REQ-82** — [ ] After that final statement the session ends automatically and
+  generates a report, without the student pressing End-session.
+
+- **REQ-83** — [ ] The auto-ended session is recorded as a FAILURE instance with an
+  avatar-initiated termination reason — not a neutral finish and not an error state.
+  It reuses Phase 13's `terminationPolicy` outcome record rather than adding a
+  parallel field.
+
+- **REQ-84** — [ ] A walk-out can never fire before the type's `avatarEndFloor`
+  minimum assistant turns, so no student is abandoned on the opening turn.
+  `lib/pitch/deck-type.ts` gains a real floor in place of its current
+  `avatarEndFloor: null`.
+
+- **REQ-85** — [ ] No disengagement indicator, meter or warning appears in the
+  session shell at any point. The student learns they were losing the room from the
+  report, never from a gauge.
+
+- **REQ-86** — [ ] The report explains the decline: when engagement fell and what
+  the student was doing at those points, on the session clock, consistent with
+  Phase 12's episode-timeline convention. Nothing the pipeline cannot observe is
+  asserted as a cause.
+
+### Phase 19 — Deck-Led Pitch Family
+
+- **REQ-87** — [ ] Four new deck-led TYPE records are playable alongside the
+  existing investor `pitch-deck`: a funding request (an ask amount, no equity and no
+  valuation band), a product pitch (outcome is interest and objections, not terms),
+  a deck-led talk (a presentation with Q&A, no ask), and a general deck pitch with
+  no mode-specific constraints.
+
+- **REQ-88** — [ ] All five deck types share one deck capability — upload, per-slide
+  text and images, the server-authoritative slide cursor and high-water mark, the
+  visible-context slice and the soft session timer. The shared behavior is reused
+  from Phase 14, not duplicated per mode.
+
+- **REQ-89** — [ ] Negotiation inputs are ABSENT from the types that have no terms
+  to negotiate — no ask price and no offered equity on a product pitch or a deck-led
+  talk — rather than present-but-optional or hidden behind a disabled field.
+
+- **REQ-90** — [ ] Each mode declares its own rubric dimensions and its own outcome
+  shape, so a funding request is not scored against an equity split and a deck-led
+  talk is not scored against a close.
+
+- **REQ-91** — [ ] A student reaching a deck mode goes through the one generic
+  pre-session wizard with mode-appropriate steps. No second wizard and no new
+  camera-consent gate is introduced (REQ-70 unchanged).
+
+- **REQ-92** — [ ] The one report page renders every mode's outcome through the
+  existing `ReportChrome` extras slot. No per-mode report page and no edit to the
+  shared report page is required to add a mode.
+
+- **REQ-93** — [ ] Adding these four modes touches no engine module, no route, no
+  evaluator and no report page — REQ-60 holds under its first real test since the
+  engine shipped. A mechanical guard proves it, in the spirit of Phase 16's
+  surface-count script.
+
+- **REQ-94** — [ ] The Practice Pitches picker presents the deck modes alongside the
+  elevator pitch and the investor deck, with each mode's purpose distinguishable
+  before a student commits to one.
+
+## Out of Scope (v1.1)
+
+| Feature | Reason |
+|---------|--------|
+| A live engagement meter in the session shell | Locked decision 2 — it makes the student optimize a gauge instead of the conversation (REQ-85 enforces its absence) |
+| Letting the avatar's self-report alone end a session | The model that is role-playing would be grading its own patience (REQ-79) |
+| One widened `pitch-deck` type with a mode field | Rejected for conditional logic inside a single config record; one record per mode honors REQ-60 |
+| Google Slides deck import | Permanently cut in Phase 14 — students export to PDF |
+| A networking-setting selector (conference, coffee chat) | Deferred at Phase 16 and not pulled into v1.1 |
+| Re-opening Phase 12 fidgeting measurement | Retired as unmeasurable, not deferred |
+| Running the shared-DB migration or backfill | **Already applied** 2026-10-04 (`HANDOFF.md §3`, commit `9a53084`) — all 14 migrations on shared, nothing pending. Both Part 1 and Part 2 are done. Nothing to run. |
+| Re-running the `InteractionReport` backfill verifier on shared | Unsatisfiable by construction — shared was empty (0 reports), so the backfill was a no-op and the verifier hard-asserts a legacy `cameraMode IS NULL` row that does not exist |
+| Amending the docs to bless CI-applied migrations | Rejected 2026-10-04 — the opposite was chosen: `prisma migrate deploy` comes OUT of `buildCommand` so the pipeline matches the discipline (REQ-74) |
+
+## Traceability (v1.1)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| REQ-74 | Phase 17 | Pending |
+| REQ-75 | Phase 17 | Pending |
+| REQ-76 | Phase 17 | Pending |
+| REQ-77 | Phase 17 | Pending |
+| REQ-78 | Phase 18 | Pending |
+| REQ-79 | Phase 18 | Pending |
+| REQ-80 | Phase 18 | Pending |
+| REQ-81 | Phase 18 | Pending |
+| REQ-82 | Phase 18 | Pending |
+| REQ-83 | Phase 18 | Pending |
+| REQ-84 | Phase 18 | Pending |
+| REQ-85 | Phase 18 | Pending |
+| REQ-86 | Phase 18 | Pending |
+| REQ-87 | Phase 19 | Pending |
+| REQ-88 | Phase 19 | Pending |
+| REQ-89 | Phase 19 | Pending |
+| REQ-90 | Phase 19 | Pending |
+| REQ-91 | Phase 19 | Pending |
+| REQ-92 | Phase 19 | Pending |
+| REQ-93 | Phase 19 | Pending |
+| REQ-94 | Phase 19 | Pending |
+
+**Coverage:**
+- v1.1 requirements: 21 total
+- Mapped to phases: 21
+- Unmapped: 0 ✓

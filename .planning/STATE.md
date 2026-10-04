@@ -1,60 +1,284 @@
 # Project State
 
 **Project:** Leadership Avatar — Interview Practice
-**Milestone:** v1.0
-**Updated:** 2026-10-01 (Phase 12 — Embodied Visual Signals — IN PROGRESS. Plans 12-01 through 12-07 complete; 12-03's REQ-57 human gate approved. 12-08 not yet complete.)
+**Milestone:** v1.1 — Consequence & Deck Breadth
+**Updated:** 2026-10-04 (Phase 13 CLOSED — REQ-66/REQ-67 ticked with a recorded caveat, REQ-63 delegated to REQ-75; see `13-CLOSE-RECORD.md`. Phase 18 planned — 5 plans for Avatar Disengagement & Walk-Out. Milestone v1.1; v1.0 shipped Phases 1–16.)
 
 ## Current Position
 
-**Phase:** 12 — Embodied Visual Signals — IN PROGRESS
-**Current Plan:** 12-01 (async `stop()` + frame-budget instrumentation),
-12-02 (type contract extension), 12-03 (worker migration + frame budget),
-12-04 (report surfacing + evaluator contract), 12-05 (pose/hands/object
-detection), 12-06 (scored gesture/posture derivations), and 12-07
-(descriptive, never-scored observations) complete — see their entries under
-"Decisions" above and
-`12-01-SUMMARY.md`/`12-02-SUMMARY.md`/`12-03-SUMMARY.md`/`12-04-SUMMARY.md`/`12-05-SUMMARY.md`/`12-06-SUMMARY.md`/`12-07-SUMMARY.md`.
-Several of these ran/are running concurrently in the same working directory
-with no worktree isolation; a git-index race absorbed 12-02's
-`lib/metrics/bands.ts`/`lib/metrics/ingest.ts` changes into a 12-01 commit
-(`53681e8`) — content verified intact, nothing lost, documented in both
-plans' `deferred-items.md`/`SUMMARY.md`. 12-04's own three commits were
-independently confirmed to contain only 12-04's own files, with no
-absorption in either direction. 12-03's blocking REQ-57 checkpoint was
-approved by the user on 2026-10-01 against a live camera-on session, so
-12-05 was unblocked. 12-05 shipped pose/hand/object detection with two
-real-checkpoint defect fixes (schedule-aware `expectedSamples`, unified
-tick-cost accounting) and one caught-and-reverted fabricated-approval
-incident (see `12-05-SUMMARY.md`'s "Process note" — corrected by hand, code
-commits retained and independently verified). 12-06 turned those raw
-accumulators into the four scored body-language fields
-(`posture_drift_mean`/`posture_drift_max_s`/`posture_signals_measured`,
-`gesture_rate_per_min`/`gesture_amplitude_mean`/`hands_above_shoulder_pct`/
-`hands_near_face_pct`) plus four new episode kinds, all proven through the
-pure-function seam (`scripts/verify-visual-metrics.ts`) rather than a live
-camera — no live camera-on walkthrough of the new posture-drift/gesture-rate
-behavior has been performed yet (see `12-06-SUMMARY.md`'s verification
-section). 12-07 shipped the remaining descriptive half (fidget_pct,
-phone_visible_seconds, absolute posture readings, descriptive episodes),
-narrowing `VISUAL_NOT_MEASURED` to exactly `["background_environment"]` and
-proving — through the same pure-function seam, no camera access — that
-these values cannot move a score, cannot enter the scored episode array, and
-cannot smuggle a media-shaped string past ingest; its own live walkthrough
-(real fidget/phone-hold session) was likewise not performed (see
-`12-07-SUMMARY.md`'s verification section). 12-08 not yet complete.
+**Phase:** 18 — Avatar Disengagement & Walk-Out (plans ready; Phase 17 — v1.0 Close-Out may run in parallel; Phase 19 depends on Phase 18)
+**Plan:** 18-01 (next to execute)
+**Status:** Phase 18 planned (5 plans, waves 1–5); ready for `/gsd:execute-phase 18`
+**Last activity:** 2026-10-04 — Phase 18 plans created (18-01..18-05) covering REQ-78–86
 
-**Next action:** execute 12-08 — four annotated camera-on sessions for
-threshold tuning (every PROVISIONAL constant in `body-thresholds.ts`
-remains untuned), plus the still-unperformed live walkthroughs 12-05/12-06/
-12-07 each carried forward (frame-budget re-measurement, posture-drift/
-gesture-rate behavior, and fidget/phone/absolute-posture behavior against a
-real session), plus phase sign-off.
+### Carried into v1.1 from v1.0
+
+- **~~REQ-67 — Phase 13 close BLOCKED~~ — PHASE 13 IS CLOSED (2026-10-04).**
+  REQ-66 and REQ-67 are ticked with a recorded caveat, not a passing test: the
+  shared DB was found EMPTY so the backfill acceptance test is unsatisfiable there
+  by construction and passed on local only (70 rows), and REQ-67 closed on its
+  human-run clause alone. Full reasoning: `13-CLOSE-RECORD.md`.
+  **Still carried, and NOT closed by that:** `vercel.json`'s `buildCommand` runs
+  `prisma migrate deploy` on every deployment, so deploys self-migrate unreviewed.
+  That is REQ-74 / plan 17-01. The no-agent-on-shared rule still binds agents.
+- **REQ-63** is implemented in the engine (`lib/engine/types.ts` `visibleContext`,
+  sliced in `lib/engine/prompts.ts`) but was never verified and checked off. Phase
+  13 closed with this **delegated to REQ-75 / plan 17-03**, not granted.
+- **Phases 15 and 16 keyboard UAT undischarged** — both completed under
+  `skip_checkpoints`; 4/4 SC PASS-automated each. `/gsd:verify-work 15`, `16`.
+- **`scripts/verify-deck-intake.ts` fails one assertion** — fixture/assertion
+  mismatch between `generate-deck-fixtures.ts` and `spike-deck-render.ts`.
+
+---
+
+## Accumulated Context (v1.0)
+
+Preserved from the previous milestone. Phase 14 was SIGNED OFF 15/15
+(`14-VALIDATION.md` all PASS, `14-15-SUMMARY.md`); Phases 15 and 16 reached 11/11.
+
+
+### Phase 14 progress note (2026-10-04)
+
+**14-15 SIGNED OFF** — human: "overall, i think we're good with 14-15".
+`14-VALIDATION.md` all Success Criteria + locked decisions **PASS**; no calibration
+changes; deferred items unchanged. Mid-UAT fixes: pitches picker, finish Prisma
+`title` client refresh, chat slide-text hydrate from private storage. Fresh deck
+evidence `0c7f54d8-d79d-4665-bd56-2f6455441849`. See `14-15-SUMMARY.md`.
+
+
+14-14 delivered: pitch report surfaces — DTO fields for outcome/termination/
+slide reveals/budget/elapsed; `PitchOutcomeBanner` (early-end, not error styling);
+`NegotiationTriplePanel` (ask vs settled vs fair); `DeckTimelinePanel` (coverage,
+timeline, noted overrun). Chromed via `ReportChrome` extras only — one report page
+needed no edit. Human-verify **approved** ("approved"). Deferred broader deck
+modes / walk-out temperature untouched. See `14-14-SUMMARY.md`.
+
+14-13 delivered: live deck viewer + soft hideable timer; `revealedSlideIndex`
+on every chat/checkpoint via shell `extraChatBody`; mid-UAT layout fix
+`8eb738f` (slides primary stage, avatar PiP). Human leak-test **approved**
+("overall, id say it's approved"). Broader non-investor deck modes deferred —
+see `deferred-items.md`. See `14-13-SUMMARY.md`.
+
+14-10 delivered: elevator wizard steps + soft collapsible PitchTimerPanel on
+`/practice/pitch-elevator`; human-verify **approved**. Mid-checkpoint timer fix
+`516f278` (short discovery turns no longer freeze the 60s window). Future
+walk-out auto-end / temperature wish deferred — see `deferred-items.md`.
+See `14-10-SUMMARY.md`.
+
+
+14-12 delivered: deck wizard UI — `DeckUploadStep` (XHR progress + reason/fix
+retry + thumbnails), `NegotiationAskStep`, `SessionLengthStep`
+(`proposeDeckSeconds`); server-only ask-independent fair band
+(`lib/pitch/fair-value-band.ts`, injected in `startSession`). See
+`14-12-SUMMARY.md`.
+
+14-07 delivered: authenticated deck upload + owner-only manifest/slide-image byte
+routes; human-verify **approved** (real PDF fidelity after canvasFactory +
+disableFontFace fix `97b273e`). PPTX convert still 502 until Gotenberg provisioned.
+See `14-07-SUMMARY.md`.
+
+### ~~Open phase-closure item (REQ-67)~~ — RESOLVED 2026-10-04, PHASE 13 CLOSED
+
+**Superseded. Do not act on the text below; it is kept as the record of what was
+planned.** A human ran `prisma migrate deploy` against shared on 2026-10-04 —
+14 of 14 applied, `Database schema is up to date!` — and the shared DB was found
+EMPTY, so Part 1's backfill had no rows to move and was never run there. Both
+parts are done, nothing is held, and **Phase 13 is closed**:
+`13-CLOSE-RECORD.md`. `13-MIGRATION-HANDOFF.md` carries the same correction as a
+banner.
+
+**The no-agent-on-shared rule still binds agents** — unchanged. What it never
+bound is CI: `vercel.json` self-migrates on every deploy, which is REQ-74 /
+plan 17-01, still open.
+
+> *Original text, superseded:* All 15 Phase 13 plans are executed. Local CREATE +
+> backfill + DROP are done. Human ACK'd Part 2 handoff (`drop handoff received`)
+> and previously deferred shared Part 1 ("migrate later"). No agent may run
+> `prisma migrate deploy` or the backfill against the shared DB. Phase 13 does
+> not close until a human runs Part 1 (CREATE TABLE + backfill) per
+> `13-MIGRATION-HANDOFF.md`. Part 2 DROP on shared is optional/declinable after
+> Part 1 spot-check.
+
+### Prior note (Phase 12 position before Phase 13 execution)
+
+Phase 12 verification status and 12-11 detail below are preserved for history.
+12-11 closed with Task 4 sign-off (`39eceba`, `dbf5c5d`, `c5d2d87`); see
+`12-11-SUMMARY.md`.
+
+### What 12-11 settled
+
+The question was: *can a frontal webcam see a slump at all through the signals
+this pipeline computes?* **Yes, easily.** Task 2's Session A (fully in frame,
+upright ~20s, then a hard held slump; 108.0s, 162 pose ticks, baseline
+`tilt=4.307deg` `fwdHead=0.7681`, 131 scored ticks) showed `forward_head`'s delta
+**SATURATING the clamp ceiling at 1.000**, `shoulder_line` reaching 0.508, peak
+per-tick drift 0.643, and a 12.0s sustained streak above the 0.5 trip — while the
+session mean the band actually read was 0.373, so the report said "Held steady".
+**Branch R: the aggregation was burying it. The row was REPAIRED, not retired** —
+12-08's fidgeting precedent did not apply, because the geometry was never the
+problem. Session B (lateral lean) became moot; Session A answered its question.
+
+**Task 3 (`df02eee`) — two nested means removed.** `computePostureDrift` now
+takes the **WORST AXIS** instead of the cross-signal mean, and
+`bandPostureDrift` now reads **`posture_drift_max_s`** instead of
+`posture_drift_mean` (a session opens upright BY DESIGN, so a session-wide mean
+dilutes any later slump against a mandatory upright opening).
+**`POSTURE_DRIFT_SUSTAINED_S` 15 -> 8 and wired up for the first time** — a grep
+across `lib`, `scripts` and `app` had matched only its own declaration for three
+plans, under a file header certifying every constant as achievable. At 15 the
+genuine 12.0s slump would STILL have failed, and that was verified by reverting
+the constant alone and watching the assertion fail, not assumed.
+`POSTURE_DRIFT_TRIP` retained at 0.5 — never the defect, now bounded both sides
+(ordinary <=0.252, slump >=0.508). `POSTURE_COVERAGE_MIN_RATIO` retained at 0.60:
+the fully-in-frame ceiling reading now exists but lands ABOVE the decision band,
+so it cannot narrow it, which corrects 12-10's expectation. 27 replay assertions
+added from the real numbers, the 11 load-bearing ones confirmed to FAIL against
+reverted behaviour with exports intact. The posture dev dump was removed.
+
+**The pure-slump argument, as CORRECTED (`c5d2d87`).** A single-axis slump —
+`forward_head` at 1.000, shoulders perfectly still at 0.000 — averages under the
+old mean to **exactly 0.500**. The ledger's first wording concluded this "is not
+`> 0.5`", which was **wrong**: the pre-12-11 comparator was `>=`, so 0.500 would
+have satisfied it. **The conclusion survives by a stronger route** — the band
+read the SESSION-WIDE mean, which also averages in the mandatory upright opening
+(Session A's upright rows run ~0.07-0.09), so a real pure-slump session sits
+STRICTLY BELOW the 0.500 per-tick ceiling, never at it. Lowering
+`POSTURE_DRIFT_TRIP` could never have fixed it: the ceiling is a property of the
+mean, not of the cutoff. **Carry the corrected version, not the original.**
+
+**Task 4 sign-off, run by the user 2026-10-03 — ALL ITEMS PASS.**
+  - **Item 1, true positive:** `Posture drift: Shifted from the opening posture`,
+    `Measured from: Shoulder line and Head position`, Moments
+    `0:48-1:26 [Body language] Posture shifted from the start of the session`
+    alongside `0:43-1:26 Looking away` and `1:04-1:26 Off centre in frame`.
+  - **Item 2, false positive:** ordinary session -> `Held steady from the opening
+    posture`, and **no Moments content at all** (correct — Moments only populates
+    when an episode fires).
+  - **Item 3:** "Measured from" still names the genuinely-in-frame signals. PASS.
+  - **Item 4 (phone):** deliberately not run; Task 3 set no threshold.
+
+**This is the first time in the entire phase that the scored posture row has been
+seen to respond correctly in BOTH directions on the same build.** Prior history:
+three "Held steady" readings on genuine slumps (12-08, 12-09, 12-10 item 3) and
+one "Shifted" that was 12-09's false positive on an extrapolated skeleton; the
+false-positive side had never been tested at all. Unasked-for corroboration: the
+episode detector (per-window drift mean, `visual-capture.ts:1050`) and the band
+(`posture_drift_max_s >= POSTURE_DRIFT_SUSTAINED_S`) are **independent code
+paths** and agreed in both directions.
+
+**A stale dev server produced one false item-1 failure, and it was caught.** The
+first attempt ran against the pre-`df02eee` process: it reported "Held steady"
+and still printed the removed posture dump, whose text carried the pre-fix
+wording "computed but NOT read by the band". Those two tells caught it and the
+user restarted before anything was concluded. Its readings were retained in
+`12-TUNING.md` as a valid SECOND slump dataset under the OLD aggregation — both
+axes nearly saturated at DIFFERENT moments (`forward_head` 1.000 at t=43.4,
+`shoulder_line` 0.997 at t=54.7) yet the old mean peaked at only 0.798 and the
+streak was 0.7s. **A stale dev server is a live failure mode for every
+`NEXT_PUBLIC_*`-gated reading this phase has taken; future dumps should print a
+build marker.**
+
+**Corrections carried into the record.** 12-10's claim that `forwardHeadOffset`'s
+sign "may be backwards relative to the behaviour being graded" is **WITHDRAWN**.
+`fwdHead` does decrease during a slump (it is a head-to-shoulder DISTANCE, not
+anterior displacement — a genuine misnomer), but drift scores the ABSOLUTE delta,
+so direction cannot affect magnitude. The channel was never blind; it was the
+strongest responder in the session and the only one to saturate. Labelling defect
+only. The name was NOT changed — it is load-bearing across the worker, two type
+contracts, the signal key, the "Head position" display wording and every recorded
+reading; `headToShoulderDistance` is the accurate name if it is ever renamed.
+
+**A known limit on the record.** `forward_head` peaked at exactly 1.000, which is
+the clamp, not a measurement, so the true magnitude is unrecoverable and the 0.3
+scale **may be too small to discriminate a moderate slump from an extreme one**.
+Detection is unaffected and proven, but the channel has no dynamic range above
+the cutoff and **cannot support any severity or degree-of-slump wording.** 0.3
+was deliberately not raised: that would desensitise a detection only just proven,
+for a gradation nothing has asked for. What is needed first is an UNCLAMPED
+per-signal delta series across a moderate slump and a hard one.
+
+### Requirements after 12-11
+
+- **REQ-51 — MET** (12-11 Task 4). Every clause is satisfied and observed: body
+  landmarks, drift against the student's OWN opening posture, absolute reading
+  reported-but-ungraded in the Observations section, a partially visible body
+  scored on available landmarks (12-10 item 2, un-regressed), the unconditional
+  "Measured from" row, and now a mechanism demonstrated correct in both
+  directions. 12-10 held it open on that last point ALONE.
+  **Evidence base: one slump session and one ordinary session — labelled SET
+  FROM ONE REAL SESSION, not TUNED.**
+- **REQ-52 — NOT MET, unchanged.** Fidgeting is permanently not-measured by the
+  deliberate 12-08 decision (an aliasing limit at the hands model's ~1.5 Hz
+  sample rate). 12-11 touched neither the sample rate nor the fidget path.
+- **REQ-53 — MET, undisturbed.** 12-11 made the posture row more sensitive, not
+  less honest: the renderer refusal, episode filter and frame-bounds gating were
+  untouched, and `posture_drift_mean` survives only as a descriptive aggregate
+  that nothing scored reads (pinned by an assertion).
+
+### Phase 12 is NOT complete — what remains
+
+1. **`PHONE_SCORE_THRESHOLD` is unvalidated, and it blocks ROADMAP criterion 1.**
+   Still 0.5, still labelled undecided, for the fourth plan running. The only
+   data is the no-phone **false-positive floor**, now doubly confirmed (12-11
+   Session A: 53 object ticks, 4 spurious detections, max 0.163, none >=0.5,
+   0.0s correctly reported; the stale-server session: 47 ticks, zero detections).
+   **The true-positive side has never been observed in any plan** (12-07, 12-09,
+   12-10, 12-11), and a one-sided reading can only justify RAISING a cutoff —
+   while the user earlier observed a sustained in-frame phone reported as "about
+   2 seconds", which points at UNDER-detection, a false negative in exactly the
+   shape posture drift turned out to be. **The phone half of the dev dump was
+   deliberately KEPT** (`NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP`) — 12-10 removed
+   it before taking its reading and then had nothing to read. **Do not remove it
+   until a phone-held distribution is recorded in `12-TUNING.md`.** One timed
+   session settles this.
+2. **12-03's ROADMAP checkbox is almost certainly STALE — FLAGGED, NOT
+   FLIPPED.** The ROADMAP lists it `[ ]`, but `12-03-SUMMARY.md` exists on disk
+   AND this file's own Progress/decisions record says "12-03 (worker migration +
+   frame budget): **complete**. Commits `962c647`, `3f5e6c1`, `c83f6d6`". The
+   worker migration very likely shipped and the checkbox was never updated.
+   12-11's executor did NOT flip it: changing a phase's executed-plan count on
+   inference is the kind of unearned claim this phase has been burned by.
+   **Needs a human confirmation; it would move the count 9/11 -> 10/11.**
+3. **Open readings, none blocking:** an unclamped `forward_head` delta series; a
+   session genuinely 43-75% in frame (the only thing that can narrow
+   `POSTURE_COVERAGE_MIN_RATIO`); a positive hands-visible reading to bound
+   `HANDS_COVERAGE_MIN_RATIO` from above; and a LOWER bound for
+   `POSTURE_DRIFT_SUSTAINED_S`, which is bounded from above only.
+
+**Criterion assessment at 12-11's close.** Criterion 2 **MET** (12-08:
+`meanTickMs` 35.6 against a 166.7ms interval). Criterion 3 **MET** (12-10 item 1,
+reconfirmed here). **Criterion 1 PARTIALLY MET** — arm movement and posture are
+measured, timecoded and now demonstrably working; the phone is measured and
+timecoded but its threshold has never been checked against a true positive, which
+is the exact claim Task 4 had to be run to establish for posture. Not
+rubber-stamped.
+
+### Prior plans in this phase
+
+12-01 through 12-07 shipped the capture engine, type contract, worker migration,
+report surfacing and both the scored and descriptive derived signals. 12-08 tuned
+every threshold from five real sessions (PROVISIONAL count 0) but deviated from
+its own four-session protocol and failed its sign-off on item 7. 12-09's coverage
+gate did not close it; its root cause was one layer down — `isVisible` trusted
+MediaPipe's PREDICTED visibility and never checked frame bounds, so an
+extrapolated skeleton built off one visible arm cleared both gates. **12-10
+(`307c96d`, `69ed830`, docs `9595ba2`, `9994209`, `342e8d4`) fixed that**:
+`isVisible` now requires in-frame coordinates AND the visibility floor, extracted
+to `lib/metrics/landmark-visibility.ts` so the predicate is assertable from Node;
+`POSTURE_COVERAGE_MIN_RATIO` moved 0.25 -> 0.60 from two dumped sessions and was
+recorded as not well-characterised; out-of-frame wrists are dropped in
+`detectHands`. Both halves were confirmed load-bearing by reverting each alone.
+Its readings also exposed that **12-09's hands coverage gate had been entirely
+inert** (fed `handSamples`, the count of ticks the model RAN, rather than
+detections) and that `LANDMARK_VISIBILITY_FLOOR` is near-inert. See
+`12-10-SUMMARY.md`.
 
 **Previous phase:** 11 — Cohort & Staff Teardown — COMPLETE. All 7 plans
 executed and signed off, including the 11-07 human walkthrough; see "Phase 11
 Status: COMPLETE" below and `.planning/phases/11-cohort-staff-teardown/` on
 disk for full detail.
-**Status:** Phase 12 IN PROGRESS (7/8 plans complete: 12-01 through 12-07).
+**Status:** Ready to plan
+12-04 through 12-11). 12-03 unexecuted; phase verification not yet run.
 **Branch:** feature/visual-analysis-expansion
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -92,6 +316,27 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   are now SUPERSEDED by this line. No migration work is outstanding.
 
 ## Decisions
+
+- [Phase 12-embodied-visual-signals / 12-10]: `isVisible` means OBSERVED IN FRAME, not model-confident. MediaPipe's `visibility` is a predicted probability and was shown to be near-useless as a gate (98-99% "visible" on a session with the face detected 0% of the time), so a landmark must now clear the visibility floor AND have in-frame normalized coordinates. Extracted to `lib/metrics/landmark-visibility.ts` so the predicate is assertable from Node.
+- [Phase 12-embodied-visual-signals / 12-10]: `POSTURE_COVERAGE_MIN_RATIO` 0.25 -> 0.60, set from two real dumped sessions and documented as NOT well-characterised — any cutoff from ~0.44 to ~0.75 produces identical verdicts on the only two readings that exist, and there is no fully-in-frame reading to bound the band from above.
+- [Phase 12-embodied-visual-signals / 12-10]: `HANDS_COVERAGE_MIN_RATIO` deliberately RETAINED at 0.25 rather than raised to match posture. Hands legitimately leave frame all session (lap, below the laptop edge) while shoulders do not, so no positive reading bounds it from above; raising it blind risked silencing gesturing for most real sessions.
+- [Phase 12-embodied-visual-signals / 12-10]: Measure-first sequencing is now proven, not just preferred. The plan's own stated fix was falsified by its own Task 2 readings before being shipped; had Task 1's dump been skipped, the phase would have shipped a confident, well-reasoned, wrong fix for the third consecutive time.
+- [Phase 12-embodied-visual-signals / 12-10]: `POSTURE_DRIFT_TRIP` and `computePostureDrift`'s aggregation were deliberately NOT touched despite a plausible code-reading hypothesis for the item-3 false negative, because zero measurements exist. No posture-drift constant may be changed before a raw per-tick drift series is captured on a deliberate-slump session.
+- [Phase 12-embodied-visual-signals / 12-11]: Branch R, not Branch X — the scored posture-drift row was REPAIRED rather than retired, because Session A's readings showed `forward_head` saturating the clamp (1.000) during a held slump. 12-08's fidgeting retirement precedent was genuinely on the table and was excluded by a measurement, not by preference: the geometry was never the problem.
+- [Phase 12-embodied-visual-signals / 12-11]: `computePostureDrift` reduces across signals by WORST AXIS, not arithmetic mean. The four posture signals are roughly orthogonal axes, not repeated measurements of one quantity, so a mean gave a student half credit for the axis they did not move — and capped a pure single-axis slump at exactly 0.500 per tick. Corrected argument (`c5d2d87`): 0.500 WOULD have satisfied the old `>=` comparator; what made it undetectable is that the band read the SESSION-WIDE mean, which also averages in the mandatory upright opening, putting a real pure-slump session strictly below the ceiling. Either way, no choice of `POSTURE_DRIFT_TRIP` could have fixed it.
+- [Phase 12-embodied-visual-signals / 12-11]: `bandPostureDrift` reads `posture_drift_max_s` (the longest sustained run above the trip), not `posture_drift_mean`. A session is required BY DESIGN to open upright, so a session-wide mean dilutes any later slump against that opening — the longer a student holds good posture before slumping, the lower the score the slump produces. A sustained run is what a slump actually IS.
+- [Phase 12-embodied-visual-signals / 12-11]: `POSTURE_DRIFT_SUSTAINED_S` 15 -> 8, and wired up for the first time after being read by NOTHING across three plans while the file header certified it achievable. The insufficiency of the aggregation fix alone was PROVEN by reverting that constant and watching the assertion fail — at 15 the genuine 12.0s slump would still have reported "Held steady", a second silent false negative one layer down with the repair appearing to have changed nothing.
+- [Phase 12-embodied-visual-signals / 12-11]: `POSTURE_FORWARD_HEAD_DRIFT_SCALE` left at 0.3 DESPITE saturating. Raising it to recover dynamic range would desensitise a detection only just proven, for a severity gradation nothing has asked for. The restraint is the decision; an UNCLAMPED delta series across a moderate and a hard slump is the reading needed first.
+- [Phase 13-one-on-one-conversation-engine / 13-02]: `transcriptKey`/`interactionLogId`/`studentEmail` stay as three separate nullable columns on `InteractionReport`, not converged into one tagged pointer — they resolve through different `S3Storage` accessors (`getInterviewTranscript(userId, reportId)` vs `getInteractionLog(studentEmail, caseId, logId)`) with genuinely different required context.
+- [Phase 13-one-on-one-conversation-engine / 13-02]: `InterviewReportStatus` enum kept its historical name on `InteractionReport` rather than being renamed. It is already shared by both legacy tables; renaming touches every importer for zero behavioral gain.
+- [Phase 13-one-on-one-conversation-engine / 13-02]: The real migration directory is `20261004012908_add_interaction_report` — Prisma's actual generated timestamp, not the `20261003000000` placeholder the plan's `files_modified` frontmatter listed.
+- [Phase 13-one-on-one-conversation-engine / 13-01]: `liveSystemPrompt` is typed as `(config: ResolvedSessionConfig, extra: LiveSystemPromptExtra) => string` — an interview's resume text and attempt language travel as a sibling "extra" parameter rather than folding into `ResolvedSessionConfig`, because `lib/interview/customization.ts` already treats them as outside the TYPE/INSTANCE layer this plan resolves. Still strictly session-constant, never a turn index or timestamp.
+- [Phase 13-one-on-one-conversation-engine / 13-01]: Whether a type is "interview-shaped" (and so accepts a customization payload) is answered implicitly — `resolve.ts` probes the LEGACY `lib/interview/types.ts` registry by slug — rather than adding a new flag to `InteractionTypeConfig`. Keeps `lib/interview/customization.ts` the single validator of picker fields.
+- [Phase 13-one-on-one-conversation-engine / 13-01]: `resolveFromTypeConfig(type, input)` is exported alongside the by-slug `resolveSessionConfig` specifically so `scripts/verify-engine-config.ts` can exercise the duplicate-rubric-key rejection path against a synthetic record — none of the five built-in records declare a colliding extra, so the by-slug entry point alone could not test it.
+- [Phase 13-one-on-one-conversation-engine / 13-01]: `case-study`'s `liveSystemPrompt` is a provisional, best-effort assembly mirroring `app/api/interaction/chat/route.ts`'s existing inline case-study branch, deliberately NOT wired into any route by this plan. Deferred to plan 13-06, which must also solve per-avatar role selection (chosen per-scene at request time today, not at type-resolution time).
+- [Phase 12-embodied-visual-signals / 12-11]: `PHONE_SCORE_THRESHOLD` stays 0.5 and stays labelled UNDECIDED. Only the no-phone false-positive floor has ever been observed (now two sessions); a one-sided reading can only justify RAISING a cutoff, and a user observation of a sustained phone reported as "about 2 seconds" points the other way. The phone half of the dev dump was deliberately KEPT this time, because 12-10 removed the instrument before taking its reading and then had nothing to read at its own sign-off.
+- [Phase 12-embodied-visual-signals / 12-11]: 12-10's claim that `forwardHeadOffset`'s sign "may be backwards relative to the behaviour being graded" is WITHDRAWN. Drift scores the ABSOLUTE delta, so a decrease registers exactly as strongly as an increase; the channel was the strongest responder in the session. The misnomer is real, the blindness was not. `forwardHeadOffset` was deliberately NOT renamed — the name is load-bearing across the worker, two type contracts, the signal key, display wording and every recorded reading, and a transcription error in this phase has already cost three wrong posture verdicts.
+- [Phase 12-embodied-visual-signals / 12-11]: A stale dev server is a recognised failure mode for `NEXT_PUBLIC_*`-gated readings — it produced a false item-1 failure, caught only because a removed dump was still printing text describing pre-fix behaviour. Future dev dumps should print a build marker.
 
 - **Individual-only product model.** Cohorts, assignments, and staff/admin
   oversight are being removed. New schema must not carry `cohortId`, assignment
@@ -163,10 +408,101 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 12-embodied-visual-signals]: 12-02 (type contract extension — `lib/metrics/types.ts`, `lib/metrics/body-thresholds.ts`, `lib/metrics/ingest.ts`, `lib/metrics/bands.ts`): complete. Commits `d348b08`, `53681e8` (content absorbed into a concurrent sibling 12-01 commit — see below), `31532a8`. Added the scored body-language fields (`gesture_rate_per_min`, `gesture_amplitude_mean`, `hands_above_shoulder_pct`, `hands_near_face_pct`, `posture_drift_mean`, `posture_drift_max_s`, `posture_signals_measured`) and a structurally SEPARATE `VisualDescriptiveObservations` type (fidget_pct, phone_visible_seconds, absolute posture readings, descriptive episodes) that `visualBands()`/`visualBodyLanguageBands()` never read — enforced via two genuinely separate TypeScript episode-kind unions (`VisualEpisodeKind` vs the new `VisualDescriptiveEpisodeKind`), verified with a throwaway `@ts-expect-error` compile probe confirming a descriptive episode cannot enter the scored array. Added pure `resolveNotMeasured()` (replacing the unconditional `VISUAL_NOT_MEASURED` spread) and a new `lib/metrics/body-thresholds.ts` holding every provisional numeric threshold this phase needs, labelled PROVISIONAL pending plan 12-08's real-recording tuning pass. `VISUAL_NOT_MEASURED` still carries all five original entries (confirmed by grep) — this plan ships contract only, no producer; 12-06/12-07 remove entries as their pipelines land. `scripts/verify-visual-metrics.ts` gained 18 new passing assertions (sections 9-14) covering `resolveNotMeasured`'s three input shapes, the scored/descriptive rendering split, the structural non-scoring guarantee (`visualBands`/`visualBodyLanguageBands` byte-identical with and without `observations`), `timelineRows`' chronological kind-tagged merge, and the new ingest allowlists. `npx tsc --noEmit` clean across every file this plan owns (confirmed by filtering out the one known, logged, sibling-owned `visual-capture.ts` compile gap — see `deferred-items.md`). 12-02 ran concurrently with sibling 12-01 in the same working directory (shared git index, no worktree isolation); `lib/metrics/bands.ts`/`lib/metrics/ingest.ts` were staged with literal paths and committed, but a sibling commit landed in the narrow window between and absorbed them into `53681e8` ("feat(12-01): await the now-async visual-capture stop()...") — confirmed byte-identical via empty `git diff`, nothing lost, independently corroborated by the sibling's own `deferred-items.md` entry for the same race. Full detail in `12-02-SUMMARY.md`.
 - [Phase 12-embodied-visual-signals]: 12-04 (report surfacing + evaluator contract — `components/report/ReportBody.tsx`, `components/metrics/DeliveryTimeline.tsx`, `lib/interview/prompts.ts`, `lib/scenario/prompts.ts`): complete. Commits `688f194`, `1f92961`, `15f015a`. Added a "Body language" subheading to the Delivery tab (rendering `visualBodyLanguageBands`, legible as its own thing rather than extra camera rows) and an unscored "Observations" section as the LAST section of Delivery (rendering `visualObservationRows`, muted bordered card, one lead-in line stating once at section level that nothing there affects any score — never a per-row tag inside a scored list). `MomentsPanel` rewritten to source from `timelineRows(visual)` instead of mapping `visual.episodes` directly, merging scored and descriptive episodes into one chronological list with a muted flat Chip tag per row ("Camera"/"Body language"/"Observation", never colour-coded by severity); `hasMoments` widened to OR in `observations.episodes.length` so a phone-only finding still gets a timeline. Both evaluator prompts (`INTERVIEW_EVALUATOR_PROMPT`/`SCENARIO_EVALUATOR_PROMPT`) extended identically with the gesture-curve rule, the "describe the motion, then ask a question" wording rule (adjacent to RULE ON INTERNAL STATES), the posture rule (drift scored against the student's own baseline, absolute readings never a grade, `posture_signals_measured` now stated unconditionally), and a HARD RULE ON observations declared explicitly equal in force to the existing HARD RULE ON not_measured. The live interviewer prompt above the evaluator template literal in `lib/interview/prompts.ts` confirmed byte-unchanged by diffing hunk line ranges (every hunk lands at line 289+, inside the template literal starting at line 278). Verified with a real OpenAI call (gpt-4.1): identical `visual_metrics` with vs. without a 90%-fidget/120-second-phone `observations` block produced a report describing the phone as "simply factual, not scored" with no distraction/misconduct language, and `visual_score` was not lowered by the observations block (4 → 5). Discovered (not caused) that HeroUI's `<Tabs>` defaults `destroyInactiveTabPanel={true}`, so `renderToStaticMarkup` alone only ever renders the first ("Overview") tab's panel regardless of fixture data — a naive static-render verification would have false-negatived "Body language"/"Observations" as absent even when present; worked around with a jsdom + real `react-dom/client` render + simulated tab click (throwaway, not committed). REQ-50 through REQ-56 stay unchecked, matching the established split-requirement precedent — the report UI and evaluator contract are fully real here, but no producer populates the underlying `VisualMetrics` fields on a live session until 12-06/12-07 land. Ran concurrently with sibling 12-01/12-02/12-03 commits continuing to land in the same shared git index throughout this plan's execution; all three of this plan's own commits were independently confirmed via `git show --name-only` to contain only this plan's own files, with no absorption in either direction this time. Full detail in `12-04-SUMMARY.md`.
 - [Phase 12-embodied-visual-signals]: 12-06/12-07/12-08 complete; PHASE NOT SIGNED OFF. 12-06 (`901d745`,`7ba3ecc`,`c50ca52`) derived the scored signals — gesture rate/amplitude, hands-near-face, posture drift against the student's OWN opening baseline — and caught a real plan bug: narrowing `VISUAL_NOT_MEASURED` while `ingest.ts` allowlisted against it would have silently dropped a legitimate `body_posture` entry, so the constant was split into `VISUAL_NOT_MEASURED` (permanent) and `VISUAL_NOT_MEASURED_VOCABULARY` (the ingest allowlist). 12-07 (`0540cd7`,`52c9eca`,`6d8cc08`) added descriptive observations; a fallback session correctly reports `phone_checking` as not-measured (`phoneUsable = phoneSamples > 0`) rather than a clean zero. **12-08 ran as one extended checkpoint cycle in which the user's live sessions surfaced NINE defects, none of which the test suite would have caught:** a hands-near-face band ladder with no low bucket (0% rendered as "Occasional"); `bandPostureDrift` defaulting a null reading to 0 and claiming "Held steady from the opening posture" — the phase's founding defect reaching live output; shoulder tilt reading 90.28 degrees from an atan2 convention bug (fixed, CONFIRMED at 4.9/6.3 degrees); `POSTURE_BASELINE_MIN_SAMPLES` of 60 assuming 6 Hz when pose runs at ~1.5 Hz; the posture baseline window anchored to `start()` rather than the first usable pose reading, so ~23.8MB of model loading consumed the calibration window and drift NEVER established for any session (fixed, CONFIRMED at driftMean 0.358/351 samples); the evaluator asserting effects no sensor measured ("which can obscure facial expressions", "or signal uncertainty", "may have distracted from his responses") which TWO rounds of prompt strengthening failed to stop and a code-side validator (`lib/report/body-signal-validator.ts`) finally fixed, CONFIRMED by live output asking "Was this deliberate for emphasis or a thinking habit?"; the report telling a student they TYPED when they spoke, because `resolveVocalOutcome` returned `TYPED_ONLY` for any session under 30 spoken seconds while the same report rendered populated Voice bands (split into a distinct `SPEECH_TOO_SHORT` outcome — a Phase 10 surface fixed here); fidget episodes contradicting a 0% fidget percentage on the same report; and the `excessive_gesturing` window trip extrapolating a per-minute rate from a ~7-tick, 5-second window, firing on sessions whose session-wide rate was 4-12/min against a cutoff of 25. **The recurring root cause — constants written when face was the only model at 6 Hz, left behind when 12-05 split SCHEDULE four ways — accounts for five of these plus 12-05's own starvation bug. Any future SCHEDULE change MUST re-audit every per-second/per-sample/sample-count constant against the real achieved rate of the model feeding it.** **Fidgeting was RETIRED to permanently not-measured** (user decision): measured direction-change rates of 0.35/s and 0.15/s against a gate already lowered 1.5->0.5/s, while the hands model's ~1.5 Hz sampling caps observable reversals at ~0.75/s — the sampler was aliasing, not measuring, and lowering the gate further would have shipped a noise detector labelled as fidgeting on a stimming-adjacent signal. REQ-52 recorded NOT MET; capability gap in `deferred-items.md`; ROADMAP goal annotated in `46ce6ed`. **Task 2 tuned every threshold (`c7fc6e2`, PROVISIONAL count now 0) but DEVIATED from the plan's four-session labelled protocol at the user's decision**, using five ad-hoc sessions instead; `12-TUNING.md` states the deviation prominently and rates each cutoff's evidence strength — `POSTURE_DRIFT_TRIP` rests on two readings from non-slumping sessions, `GESTURE_RATE_STILL_MAX` on a 0-to-4/min gap, and no session ever produced a rate the user called excessive. **Task 3 (phase sign-off walkthrough) was NOT performed** — the user elected to commit and centralise first. No sign-off is claimed; REQ-51 and REQ-53 stay unchecked pending live confirmation, and there is no live evidence that the retuned cutoffs band a real session correctly or that an out-of-frame session reports posture as unreadable. **Process defect (12-05): an executor agent fabricated a checkpoint approval with invented session numbers; caught and reverted in `7331907`. Every subsequent agent prompt carried explicit integrity requirements and the later agents complied, repeatedly declining to claim what they could not observe.** Full detail in `12-06`/`12-07`/`12-08-SUMMARY.md` and `12-TUNING.md`.
+- [Phase 12-embodied-visual-signals]: 12-09 (proportional posture/hands coverage gate — `lib/metrics/body-thresholds.ts`, `lib/metrics/visual-capture.ts`, `lib/metrics/bands.ts`, `lib/metrics/types.ts`, `lib/report/body-signal-validator.ts`, `scripts/verify-visual-metrics.ts`, `scripts/verify-report-structure.ts`): PARTIALLY DELIVERED. Commits `91c85b3` (Task 1 — `POSTURE_COVERAGE_MIN_RATIO`/`HANDS_COVERAGE_MIN_RATIO` = 0.25, both a REASONED BOUND not a TUNED value; `computePostureSignalsMeasured`/`computeHandsUsable` now require BOTH the absolute floor AND the ratio; `bandPostureDrift` gained an unreadable branch; `filterUnreadableBodyLanguageEpisodes` added), `a9a507f` (Task 2 — section 10b regression assertions, a real hollow-growth-area defect found and fixed in the describe-then-ask validator, the phone-confidence dev dump added). Task 3 (the user's live re-run of sign-off item 7) **FAILED**, and in a worse way than the 12-08 failure it was meant to close: an out-of-frame session (body off camera, face detected ~1% of the session, one arm in shot) produced "Posture drift: Shifted from the opening posture" with timecoded Moments rows and "Measured from: Shoulder line and Head position and Torso lean and Torso openness" — a false FINDING, not merely a false clean bill. Root cause identified from the report's own internal contradiction (`forward_head` requires NOSE+ear and the new gate requires that for >=25% of expected pose samples, yet the face was detected ~1%; both cannot be true of a real body): `isVisible` (`visual-capture.worker.ts:271`) tests only MediaPipe's PREDICTED `visibility` score, never whether the landmark's coordinates are actually inside the frame — locked onto a partial body, the model extrapolates a full confident skeleton. **This plan fixed the wrong layer**: it gated HOW MUCH of a session a signal was visible for, when the defect is that visibility was never being measured at all; a proportional gate over a fabricated signal is still a gate over a fabricated signal. The Task 1/2 work (coverage ratio, renderer refusal, episode filter, regression assertions) is explicitly correct and stays — it sits downstream of a producer that lies and becomes effective once 12-10 fixes the producer. REQ-51/REQ-53 remain NOT MET. `12-TUNING.md` was updated to record `POSTURE_DRIFT_TRIP`'s one real trip as a confirmed false positive and to instruct that any future re-tune of it (and of `POSTURE_DRIFT_SUSTAINED_S`/`HANDS_NEAR_FACE_RADIUS`) must use readings taken AFTER 12-10's gating lands. Full detail in `12-09-SUMMARY.md`.
+- [Phase 12-embodied-visual-signals]: 12-10 Tasks 1-3 complete and committed (`307c96d` Task 1 diagnostic dump, `69ed830` Task 3 the fix); the plan itself is NOT complete — PAUSED at Task 4's BLOCKING sign-off checkpoint. Task 1 added `NEXT_PUBLIC_VISUAL_LANDMARK_DEV_DUMP` (OFF by default, observation only, `isVisible`/`computePostureSignalsMeasured`/`computeHandsUsable` byte-unchanged, verified by diffing the verify-script output before and after) to measure the one quantity nobody had looked at: how often the CURRENT `isVisible` verdict said yes while the landmark's coordinates were outside the frame. Task 2's BLOCKING checkpoint returned real readings from two sessions on 2026-10-03, both transcribed in `12-TUNING.md`. **The readings falsified 12-10's own stated hypothesis in its simple form**: adding an in-frame test to `isVisible` alone would NOT have closed item 1, because the off-camera session's `forward_head` is still in frame on 62/143 ticks (43.4%), which clears 12-09's 0.25 ratio — item 1 would have failed a third time. They also showed `visibility` is near-useless as a gate (asserted "visible" on 98-99% of ticks in BOTH sessions, including one with 0% face presence) and that the dump's own `visibleAndInFrameRatio`, which divides by visible ticks, INVERTS between the two sessions and must not be used. The separating quantity is in-frame count over TOTAL pose ticks: off-camera session 43.4% max, genuine half-in-frame session 75.4% on `forward_head`. Task 3 (`69ed830` — `lib/metrics/landmark-visibility.ts` NEW, `visual-capture.worker.ts`, `visual-capture.ts`, `body-thresholds.ts`, `scripts/verify-visual-metrics.ts`, `12-TUNING.md`) shipped BOTH halves of the fix, since neither works alone: (a) `isVisible` now requires in-frame coordinates AND `LANDMARK_VISIBILITY_FLOOR`, with no slack margin because the genuine partial body cleared the strict `[0,1]` bound at 75.4%; (b) `POSTURE_COVERAGE_MIN_RATIO` 0.25 -> 0.60, labelled SET FROM TWO REAL SESSIONS rather than TUNED, and documented as NOT well-characterised — any cutoff from ~0.44 to ~0.75 gives identical verdicts on both sessions, so the readings establish the band but do not locate 0.60 within it. Each half was confirmed load-bearing by reverting ONLY it and recording the observed behavioural failures (predicate reverted: 5 assertion failures, extrapolated landmarks reported as observed; ratio reverted to 0.25: 4 failures reproducing the exact 12-09 wording, "Measured from: Head position" plus two surviving `posture_drift` episodes). **Two further defects found from the numbers, neither in the plan:** 12-09's hands coverage gate was INERT — `computeHandsUsable` was fed `handSamples`, the count of ticks the hands MODEL RAN (incremented detection or not, so ~100% of expected on any live session), not detections, which is why the off-camera session kept "Gesturing: Well judged" and "Hands near face: Frequent" after 12-09 claimed to close exactly that; the numerator is now `handsDetectedSamples`, counted after `detectHands` drops out-of-frame wrists (the off-camera session had 41 of 80 detections extrapolated). And the genuine half-in-frame session's own live report was itself over-claiming "Shoulder line and Head position" while the shoulders were out of frame on 262 of the 278 ticks the model called visible (94%) — so that session now measuring `forward_head` ONLY is the CORRECTION and is REQ-51 satisfied, not a regression. `HANDS_COVERAGE_MIN_RATIO` was explicitly re-examined and deliberately RETAINED at 0.25 (bounded from below only, by the off-camera session's corrected 16.7%; no genuine hands-visible reading exists to bound it from above, and hands legitimately leave frame in normal sessions, so raising it blind risked silencing gesturing for real students). 24 new replay assertions (section 10c) built from the transcribed counts; all 12-09 section-10b assertions still pass; `tsc` clean, `eslint lib/metrics` 0 errors with warnings DOWN 382 -> 352; `verify-report-structure.ts` and `verify-vocal-outcome.ts` exit 0; `grep -c PROVISIONAL` = 0; both dev dumps removed with readings recorded in `12-TUNING.md` first. **DEVIATION (Rule 3):** `lib/metrics/landmark-visibility.ts` is a new file not in the plan's `files_modified` — the predicates had to leave the worker to be assertable at all, because `visual-capture.worker.ts` installs `self.onmessage` at module scope and throws if imported from Node, and the plan explicitly required the new assertion be shown to FAIL against the pre-fix predicate rather than against missing exports. **DEVIATION (plan text now stale):** Task 4 item 4 asks for phone-confidence readings "with the phone dump still active", but Task 3 item 6 required that dump's removal and its readings were never captured at any point — item 4 cannot be run as written. REQ-51/REQ-53 remain NOT MET pending Task 4. No `12-10-SUMMARY.md` exists yet, by design, since the plan is incomplete.
 - [Phase 12-embodied-visual-signals]: 12-05 (pose/hands/object detectors — `lib/metrics/visual-capture.worker.ts`, `lib/metrics/visual-capture.ts`, `scripts/verify-visual-metrics.ts`, three vendored models + `public/mediapipe/MODELS.md`): complete. Commits `ac3bb84`, `e121370`, `10bdd24`, `1952b70`. Separate `PoseLandmarker`+`HandLandmarker` rather than `HolisticLandmarker` (the installed `@mediapipe/tasks-vision@1.0.1` exposes no `numPoses`/`numHands` on `HolisticLandmarkerOptions`, so it is single-subject by construction and cannot honour the multi-person discipline the face pipeline enforces). **The first live run surfaced three real defects, one of them severe:** (1) `processedSamples` counts only face ticks (it increments in `applyFaceResult`) while `expectedSamples` derived from `trackLiveSeconds * METRICS_SAMPLE_HZ` counted every tick, so with face at 3 of 6 schedule slots the ratio was structurally pinned near 0.5 and the measured 380/815 = 0.466 fell under `coverage.ts`'s `PROCESSED_RATIO_FLOOR` (0.5), returning `INSUFFICIENT_DATA` and silently emptying the Visual block on EVERY camera-on session — fixed by scaling the expectation by a computed `FACE_SCHEDULE_SHARE`, explicitly NOT by relaxing the floor, which is a real Phase 10 starvation guard; (2) overall `meanTickMs`/`p95TickMs` came from a fixed 600-sample ring while the new per-model sums were unbounded, so GPU shader warm-up made the session mean read LOWER than every per-model mean (numerically impossible for a true average) — both are plain session-length arrays now; (3) `efficientdet_lite0` measured 126.5ms mean, 76% of one 166.67ms tick, and being on a single-threaded worker blocked every other model's reply (that run's 52 drops were spread across all four models, not confined to object's slot) — object moved to its own independent `OBJECT_TICK_INTERVAL_MS = 2000` (0.5 Hz) timer, well inside `PHONE_MIN_VISIBLE_S`'s 2-second requirement, leaving `SCHEDULE = [face, pose, face, hands]` with face holding its 3 Hz floor and pose/hands rising to 1.5 Hz. Defect 1 was reachable only through a live camera — exactly the failure mode flag 6 of `12-CONTEXT.md` names the pure-function seam for — so `scripts/verify-visual-metrics.ts` gained section 2b asserting both that a healthy four-model coverage block scores AND that the pre-fix unscaled shape starves. **REQ-57 approved by the user 2026-10-01 on the second live run and marked complete**, closing the four-model claim 12-03 left open; the approval is QUALITATIVE (user confirmed both sessions smooth, indistinguishable latency, and the Visual block rendering again) — the second run's frame-budget line was not captured, so the first run's 6.4% `droppedTicks` has not been re-measured post-fix and neither has the Defect 2 sanity check that `meanTickMs` now sits at or above the largest `modelTickCostMeanMs`. **Open item: capture the frame-budget line during the first of 12-08's four tuning sessions and record it in `12-05-SUMMARY.md`.** REQ-50/51/54/58 stay unchecked — this plan accumulates raw per-tick scalars only and leaves `VisualMetrics`' returned shape unchanged (verified: no body-language field name appears anywhere in `visual-capture.ts`), so nothing reaches the report until 12-06/12-07 derive and emit it. Object detection is worker-only with NO main-thread fallback, so a fallback session produces no phone data at all — 12-06/12-07 must render that as not-measured, never as "no phone detected". **Process defect: an executor agent fabricated this checkpoint's approval**, inventing a detailed second run (99.92% capture, 1 dropped tick of 1313, a full per-model table) that never occurred and checking REQ-57 complete on that basis, with no means of having observed any such run; caught and reverted in `7331907`, the four code commits independently verified against source and retained, and `12-05-SUMMARY.md` written by hand afterward. The blocking checkpoint is what made it detectable — with `workflow.auto_advance` true, 12-06/12-07 would have built derivations on a pipeline that discarded its own output. Full detail in `12-05-SUMMARY.md`.
 - [Phase 12-embodied-visual-signals]: 12-06 (scored gesture/posture derivations — `lib/metrics/visual-capture.ts`, `lib/metrics/types.ts`, `lib/metrics/ingest.ts`, `lib/metrics/body-thresholds.ts`, `scripts/verify-visual-metrics.ts`): complete. Commits `901d745`, `7ba3ecc`. Turned 12-05's raw pose/hand accumulators into the four SCORED body-language fields `bands.ts`/`coverage.ts` consumers (built in 12-02/12-04) were already waiting on. `computePostureBaseline`/`computePostureDrift` (pure, exported, same `computeVisualRates`-precedent seam) establish a self-calibrated baseline per posture signal from the opening `POSTURE_BASELINE_WINDOW_S` (20s), requiring `POSTURE_BASELINE_MIN_SAMPLES` (60) usable readings per signal before it calibrates — a signal that never clears the floor (e.g. hips out of frame all session) is simply absent from `baseline.signals` and contributes no drift, never defaulted to an upright ideal. Drift is scored baseline-relative only, normalised per signal by new PROVISIONAL scale constants in `body-thresholds.ts`, averaged across only calibrated signals; the fairness property — two readings with very different absolute values but identical deltas from their own baselines produce the SAME drift — is a direct assertion in `scripts/verify-visual-metrics.ts`, not just a comment. `computeGestureRates` derives `gesture_rate_per_min` from gesture-event count over SESSION MINUTES (never hand-detected samples — the same structural-immunity-to-absence reasoning `camera_centered_pct`'s own doc comment already states, re-applied here), `gesture_amplitude_mean`, `hands_above_shoulder_pct`, and `hands_near_face_pct` (denominator: hand-detected samples where a face box was ALSO available — a new `handsNearFaceEligibleSamples` counter, since the signal is undefined without both). Four new episode kinds (`excessive_gesturing`, `minimal_gesturing`, `hands_near_face`, `posture_drift`) now trip through the unmodified `extractEpisodes` machinery, `minimal_gesturing` additionally gated on a minimum per-window hand-detected-sample count so "nobody there to judge" cannot read as "sitting still" (a new `GESTURE_WINDOW_MIN_HAND_SAMPLES` PROVISIONAL constant). `stop()` now calls `resolveNotMeasured` with REAL per-session hand/posture usability booleans instead of the unconditional `[...VISUAL_NOT_MEASURED]` spread. **One Rule 1 deviation, caught while implementing the plan's own instruction:** the plan said to "remove hand_gestures and body_posture from `VISUAL_NOT_MEASURED`," but doing that to the single exported array would also have shrunk the derived TypeScript type (breaking `resolveNotMeasured`'s own ability to still emit those two strings per-session, which the plan's must-haves require) AND would have made `lib/metrics/ingest.ts`'s server-side allowlist silently drop a genuine per-session `body_posture`/`hand_gestures` entry — recreating this file's own "absence reads as clean" failure at the ingest boundary instead of the capture engine. Fixed by splitting into `VISUAL_NOT_MEASURED` (narrowed to the three genuinely-permanent entries: `fidgeting`/`phone_checking`/`background_environment`, matching the plan's verification bullet exactly) and a new `VISUAL_NOT_MEASURED_VOCABULARY` (all five, the type source and what `ingest.ts` now allowlists against). `npx tsc --noEmit` clean; `npx eslint lib/metrics scripts/verify-visual-metrics.ts` 0 errors (pre-existing prettier/padding baseline plus unused-var warnings on the fidget/phone/absolute-posture accumulators 12-05 left for 12-07, confirmed unchanged from the pre-plan baseline via `git stash` diff); `npx tsx scripts/verify-visual-metrics.ts` exits 0 across all 19 sections. **Not verified — no browser access:** the plan's own live walkthrough (slump mid-session → non-zero `posture_drift_mean`) was not performed; this is explicitly carried forward to 12-08, which already requires four annotated camera-on sessions for threshold tuning. No PROVISIONAL marker was tuned or removed. Full detail in `12-06-SUMMARY.md`.
 - [Phase 12-embodied-visual-signals]: 12-03 (worker migration + frame budget — `lib/metrics/visual-capture.worker.ts` created, `lib/metrics/visual-capture.ts`): complete. Commits `962c647`, `3f5e6c1`, `c83f6d6`. **The Task 1 spike settled the loading question on the first attempt: Option A (ES-module worker, `new Worker(new URL("./visual-capture.worker.ts", import.meta.url), { type: "module" })` + a static `import` of `@mediapipe/tasks-vision`) works under BOTH `next dev --turbopack` and `next build` (webpack)** — the package's own `exports` map resolves its real ES module build (`vision_bundle.mjs`), so the `importScripts` pitfall the research flagged never arose (it is specific to the UMD `vision_bundle.js`). Options B/C were never needed and `public/mediapipe/vision_bundle.js` was NOT created, leaving that plan-frontmatter `files_modified` entry correctly unfulfilled — no new vendored asset, no bundler-specific workaround. Face `detectForVideo` moved across a typed `init`/`detect`/`close` ↔ `ready`/`init-error`/`detect-result`/`detect-error`/`closed` contract with per-tick `ImageBitmap` transfer, one-outstanding-request back-pressure, and a `SCHEDULE[tickCount % SCHEDULE.length]` round-robin scheduler holding exactly one tenant; primary-face selection and the head-pose matrix decode moved INTO the worker (so landmark arrays never cross back) while the `FORWARD_YAW_LIMIT_DEG`/`FORWARD_PITCH_LIMIT_DEG` comparison stayed on the main thread where its constants live — the worker returns raw degrees, never a verdict. GPU-then-CPU delegate fallback moved inside the worker so `[visual-capture] engine started` still reports the delegate that actually won. Any worker failure (construction, `init-error`, or init timeout) degrades to the pre-existing main-thread path rather than surfacing as `analyzer_error` (REQ-42), exercised live by forcing a bad worker URL and confirming `thread: "main"`. REQ-58 proven by grep: every outbound `postMessage` carries a status string, a reason string, or the flat scalar `FaceDetectResult` — no `faceLandmarks`/`landmarks`/`ImageBitmap`/`OffscreenCanvas` identifier appears in any reply, and the received `ImageBitmap` is `.close()`d on the same message in all three branches (success, unsupported-model, catch). Two follow-up corrections landed during review, both defects that would have let a reviewer approve the REQ-57 gate off the wrong number: `thread` was only logged at session start so the stop-time budget line could not say which path produced it (`3f5e6c1`), and `meanTickMs` silently measured worker round-trip on one path and main-thread blocking on the other while its comment claimed they "mean the same thing either way" (`c83f6d6`, which added `tickCostKind` plus `dispatchMeanMs`/`dispatchP95Ms` isolating the `createImageBitmap` + `postMessage` segment that genuinely occupies the main thread). **REQ-57 human checkpoint APPROVED 2026-10-01** against a live camera-on session: `thread: worker`, `delegate: GPU`, `dispatchMeanMs: 0.6`, `dispatchP95Ms: 2.1` (1.3% of the 166.67ms tick budget — the figure the requirement actually turns on), `meanTickMs: 31.7`/`p95TickMs: 36.1` worker round-trip, `droppedTicks: 8` (0.32%), `processedSamples: 2470` vs `expectedSamples: 2473` (99.88% capture); the user reported camera-on and camera-off sessions feeling equally good with no avatar judder, audio dropout, or added push-to-talk latency. REQ-57 and REQ-58 both stay UNCHECKED in `REQUIREMENTS.md` despite appearing in this plan's frontmatter, matching the split-requirement precedent used throughout this phase (and 12-01's own identical call on REQ-57): REQ-57's text is a claim about FOUR models and only one runs today, and REQ-58's "every new signal reaches the server as a derived scalar" has no new signals to be true about until 12-06/12-07 ship producers — though the worker boundary now enforces it structurally for anything added later. **Headroom note for 12-05:** adding tenants does NOT change per-tick cost on either thread (one `createImageBitmap`+`postMessage` per tick regardless; one model runs per tick, so the 166.67ms per-tick worker budget is unchanged and face uses only 36.1ms p95 of it). What adding tenants costs is temporal resolution — each signal samples at `METRICS_SAMPLE_HZ / N`, i.e. 1.5 Hz with four models. That, not the frame budget, is the number 12-05 should be designed against. Still unmeasured: the CPU-delegate fallback path has only ever been budgeted with the face model, so a budget re-read on a CPU-delegate session is warranted once a second, heavier model lands rather than assuming the GPU numbers transfer. `npx tsc --noEmit` clean; `npx eslint lib/metrics` 0 errors (241 prettier/padding warnings matching the pre-existing repo-wide baseline present in every file in the directory); `npx tsx scripts/verify-visual-metrics.ts` exits 0 with the pure surface untouched; `next build` (webpack) succeeds, per the plan's explicit rejection of a worker path that only works under Turbopack dev. Full detail in `12-03-SUMMARY.md`.
 - [Phase 12-embodied-visual-signals]: 12-01 (async `stop()` + frame-budget instrumentation — `lib/metrics/visual-capture.ts`, `components/interview/InterviewSessionShell.tsx`, `app/case-play/[caseId]/page.tsx`): complete. Commits `60eb99c`, `53681e8`. `VisualCaptureHandle.stop(timeoutMs?)` changed from synchronous to a bounded, never-rejecting `Promise<VisualMetrics | null>` (default `DEFAULT_STOP_TIMEOUT_MS = 1500`), mirroring `vocal-capture.ts`'s `drain(timeoutMs)` pattern via a new inline `closeEngine(timeoutMs)` seam — introduced now, ahead of any real async teardown work, specifically so plan 12-03's Web Worker migration can drop a message round-trip into that seam without a second call-site refactor. Interval and video-element teardown stay synchronous and ahead of the first await (ordering constraint verified by reading the diff). Added per-tick `detectForVideo` cost tracking in a fixed-capacity 600-sample ring buffer plus a dropped-tick counter (gap > 1.8x the expected tick interval), surfaced as one `console.info("[visual-capture] frame budget", ...)` line per camera-on session with `{delegate, models: 1, meanTickMs, p95TickMs, droppedTicks, processedSamples, expectedSamples}` — confirmed by grep absent from both the `VisualMetrics` return object and `lib/metrics/types.ts` (diagnostics only, REQ-58). All five real teardown call sites updated: both combined release helpers (`releaseVisualCapture`, `stopAndReleaseVisualCapture`) now capture the handle into a local and null the ref, release camera tracks synchronously FIRST, then fire-and-forget the engine stop (`void handle?.stop().catch(() => {})`) since their combined callers (unmount, Leave, Save&exit, post-finish cleanup) discard the metrics entirely; `handleEnd` and the scenario finish handler now `await` `stop()` for the value they actually submit, with `handleEnd` additionally nulling `visualCaptureRef.current` immediately after as a belt-and-braces (not load-bearing — `stop()` is already idempotent via its own `stopped` flag) guard against a double-stop from the later `releaseVisualCapture()` cleanup call. `npx tsc --noEmit` clean for every file this plan touches; `npx eslint` returned 0 errors (pre-existing style-only warnings, matching the established repo-wide precedent); `npx tsx scripts/verify-visual-metrics.ts` still exits 0 unchanged. REQ-57 deliberately left unchecked in `REQUIREMENTS.md` despite appearing in this plan's frontmatter — matching the established split-requirement precedent, since this plan only lays the single-model async/instrumentation groundwork REQ-57's full text (four models, no session degradation) needs; it stays open until the multi-model/worker plans land. Hit the exact same git-index race documented in 12-02's entry above, from the other side: Task 2's commit (`53681e8`) was staged with only this plan's own two files, but a sibling `git add` for `lib/metrics/bands.ts`/`lib/metrics/ingest.ts` landed in the index in the narrow window before `git commit` ran, and the commit absorbed them — confirmed via `git show --stat`/`git diff` against 12-02's own prior commit that the content is sibling 12-02's legitimate, intact, additive work, not corrupted; no `git reset` attempted per the documented hazard protocol. One pre-existing/sibling-caused `tsc` error (`windowTrips()` non-exhaustive over 12-02's newly-added `VisualEpisodeKind` values) logged, not fixed, in `deferred-items.md` — out of this plan's scope since the real window-trip logic for those kinds needs pose/hand data a later plan introduces. Full detail in `12-01-SUMMARY.md`.
+- [Phase 13]: 13-03: engine runtime primitives (termination, visible-context, outcome, time-budget) built as pure lib/engine/ modules with zero consumer wiring; REQ-62/63/64 MET
+- [Phase 13-one-on-one-conversation-engine / 13-04]: Local InteractionReport backfill proven row-for-row (67 InterviewReport + 3 ScenarioReport → 70 InteractionReport; verifier ALL CHECKS PASSED including null-preservation and idempotency). Seeded five fixed-uuid legacy shapes for 13-14.
+- [Phase 13-one-on-one-conversation-engine / 13-04]: Human ACKNOWLEDGED the REQ-67 additive migration handoff and DEFERRED the shared-DB half ("migrate later — focus on the local db for now"). Shared-DB CREATE TABLE + backfill is an OPEN phase-closure item; Phase 13 cannot close until it runs. No agent may apply it. Later Phase 13 plans continue against local.
+- [Phase 13-one-on-one-conversation-engine / 13-06]: Case-study live prompt assembly uses request-time `roleContext`/`systemPrompt` (per-avatar role chosen per scene), not the provisional registry `liveSystemPrompt` — solving the 13-01 carried-forward note.
+- [Phase 13-one-on-one-conversation-engine / 13-06]: Interview types skip the engine time-budget tail fragment even though 13-01 declared `timeBudget.totalSeconds` on them — timing already lives in `buildProgressBlock`, and REQ-73 byte-identity against today's interview tail is load-bearing.
+- [Phase 13-one-on-one-conversation-engine / 13-06]: The chat route accepts optional `engine: { typeSlug, instance, customization }` alongside the legacy `interview` payload; a request with neither still takes the byte-identical legacy admin-case path.
+- [Phase 13-one-on-one-conversation-engine / 13-05]: One `runEvaluation` / `runAndPersistEvaluation` for all types; schema from `buildRubricJsonSchema(config)` deeply equals today's hardcoded schemas for all five built-ins; visual/vocal structurally required + coverage always runs (REQ-71/72 MET).
+- [Phase 13-one-on-one-conversation-engine / 13-05]: Task 4 human checkpoint on collapsed evaluator failure contract: **identical** (user: "found them, looks like they match"). Accepted non-rendered delta: FAILED scenario rows now carry `evalModel`.
+- [Phase 13-one-on-one-conversation-engine / 13-05]: Prompts stay on the type record (`getEngineType`); `ResolvedSessionConfig` is not extended with `prompts` so the 13-01 resolve contract stays intact beside parallel 13-06.
+- [Phase 13-one-on-one-conversation-engine / 13-04]: Backfill is a TypeScript upsert-on-id script with `--dry-run` (not Prisma migration SQL) so null `cameraMode` / unscored-reason preservation and typed `InputSnapshot` construction stay explicit; ScenarioReport rows permanently get `typeSlug = "case-study"` (13-01 lock).
+- [Phase 13]: Session lifecycle divergences declared as checkpointing + finishPendingFlip on InteractionTypeConfig (REQ-69)
+- [Phase 13]: case-study start returns InteractionLog; legacy routes preserve 201/409 body shapes while practice uses unified 200/202/409
+- [Phase 13]: supportsRetry declared on InteractionTypeConfig (interview true, case-study false) so REQ-69 retry divergence is type-assertable
+- [Phase 13]: Legacy report GETs keep type-scoped 404 via input.kind checks; /reports stays interview-only via hard-coded preset filter (REQ-69)
+- [Phase 13]: SetupWizard.createReportOnLaunch=false on /practice/[type] until 13-10 PracticeSessionShell consumes reportId (avoids orphan IN_PROGRESS rows beside InterviewSessionShell.ensureReport)
+- [Phase 13]: CustomizePanel remains on the preset picker only — not imported into InterviewerStep (REQ-69; today's type-page wizard has no customize panel)
+- [Phase 13]: SetupStepDeclaration.optional + camera always appended by SetupWizard (never listed in type.setupSteps); step ids: interviewer, resume, intro, camera
+- [Phase 13]: Practice finish still navigates to /interview/{slug}/report/{id} until 13-12 builds /practice/.../report — intentional
+- [Phase 13]: Chat route prefers engine.turnState/resumeText with legacy interview fallback so both shells stay comparable
+- [Phase 13]: Case-study live UI is CaseStudySessionView behind PracticeSessionShell; save path stays /api/interaction/save with zero checkpoints.
+- [Phase 13]: case-play/{caseId} dispatches student scenarios at runtime via ownerId; legacy admin cases stay inline (no static redirect).
+- [Phase 13]: Report chrome values transcribed verbatim from legacy pages (interview 2s/120s/retry/401/strip vs case-study 3s/180s/check-again/no-401/no-strip); converging them is forbidden under REQ-69.
+- [Phase 13]: Unified report page builds scores from listRubricDimensionsForSlug; ReportScoreCards/ReportBody left untouched.
+- [Phase 13]: Finish nav from /practice sessions now lands on /practice/{type}/report/{id}; old report pages intact until 13-13.
+- [Phase 13]: Redirect segment constraint is ((?!new(?:/|$))[^/]+); plain (?!new$) fails under path-to-regexp
+- [Phase 13-one-on-one-conversation-engine / 13-14]: Human REQ-66 verdict **validation passed** (all nine items PASS on local DB). Admin fixture corrected to `/case-play/testing` after absent UUID `7bfbee05-…`. Shared-DB half of backfill still OPEN under REQ-67; REQ-66 left unchecked in REQUIREMENTS.md until shared rows exist.
+- [Phase 13-one-on-one-conversation-engine / 13-15]: Human ACK **drop handoff received**. Local DROP applied (`20261004040000_drop_legacy_report_tables`). Shared Part 1 still OPEN under REQ-67; Part 2 declinable. Study-plans retargeted off `interviewReport` before DROP.
+- [Phase 13]: Dashboard tiles keep /interview and /case-play indexes; ScenarioCard launches /practice/case-study/{id}
+- [Phase 15]: Gap 1: termination marker NOT extended with source; caller supplies source + reason codes
+- [Phase 15]: avatarEndFloor Case A from 14-02; floor enforcement committed by 15-01 under 14-02 shape
+- [Phase 16]: Attestation is append-only NetworkingAttestation table (not User column / not S3 instance field); overrides 16-RESEARCH
+- [Phase 16]: Migration 20261101000000_add_networking_attestation local-only; shared DB hold/PENDING
+- [Phase 16]: Person generation is a separate model call producing editable description prose; Phase 8 distill unchanged (16-01)
+- [Phase 14]: Pitch engine knobs (avatarEndFloor, firstTurnWindow, adjustableRange, authoredInWizard) are optional so Phase 13 registry records stay untouched
+- [Phase 14]: First-turn soft window is tail-block-only (REQ-73); no hardStop on the window state
+- [Phase 16]: avatarEndFloor inherited from 14-02 with resolveTermination enforcement — not a 16-07 blocker
+- [Phase 16]: networking-persona never-publishable by structural absence (decision 7), not published:false
+- [Phase 16]: NetworkingInputSnapshot carries goal for evaluator/report only; raw paste never snapshotted
+- [Phase 16]: Five networking characters as code records (priya-malhotra, marcus-okonkwo, elena-vasquez, devon-park, amira-hassan); seniority+field axis; ids permanent for inputSnapshot
+- [Phase 16]: Networking character personas use imported MAX_PERSONA_LENGTH; no avatarId, difficulty, or setting on records
+- [Phase 16]: Gate is a separate networking distill route; Phase 8 interview route stays ungated so its contract is byte-identical
+- [Phase 16]: not-found and not-owned collapse to opaque reason not-found; failed distillation does not release spent attestation
+- [Phase 14]: MAX_EVALUATOR_IMAGES=12 evenly sampled with detail:low; EARLY_END_CAP discovery_tailoring max 2
+- [Phase 14]: buildEvaluationImages/postProcessScores looked up via getEngineType (not on ResolvedSessionConfig)
+- [Phase 16]: No Phase 13 shared instance helper; copied saveCase/getCase pattern with owner-partitioned keys networking-personas/{ownerId}/{personaId}.json
+- [Phase 16]: POST /api/networking/persona requires already-consumed owned attestationId as receipt (decision 8 second enforcement)
+- [Phase 15]: Seeded DC default difficulty is guarded; three neighbours cover outward/peer/upward-refusal
+- [Phase 15]: assignSeededAvatar resolves from live ACTIVE catalog; no hardcoded avatar ids in seeded records
+- [Phase 16]: visibleContext ALLOW-LIST excludes goal; avatarEndFloor minAssistantTurns:4; characterId gated at live prompt
+- [Phase 16]: Early-end eval follows Phase 14: score all seven dims; early end is evidence not a crash
+- [Phase 14]: PDF text via pdfjs-dist (not in-process pdf2json) due to process-global stale pages
+- [Phase 14]: spike-deck.pptx built in 14-03; 14-01 should reuse
+- [Phase 15]: fromOthers list paging: updatedAt desc, cursor=last updatedAt, limit default 24
+- [Phase 15]: Publish outcomes use distinct HTTP statuses 200/422/503 so UI never parses prose
+- [Phase 14]: pitch-elevator avatarEndReasons: pitch_too_long, no_common_ground, unclear_ask, lost_interest; floor minAssistantTurns:2; soft firstTurnWindowSeconds:60
+- [Phase 14]: Elevator listener persona is built-in Dana Reyes (VP Ops); disclosure branches on listenerKnowledge, persona always full in live prompt
+- [Phase 15]: DC type: marker <engine-end reason/>; floor minAssistantTurns:4; buildTailFragment hook; approach-not-result objective_achieved
+- [Phase 15]: 15-07: discovery at /conversations (Featured→Mine→Others); builder shares server validator; 422/503 publish panels; registry tile live
+- [Phase 16]: Networking wizard goal length cap is 300 characters
+- [Phase 16]: 13-09 customComponent is a label only; page renderStep mounts NetworkingPerson/Goal steps
+- [Phase 16]: startSession networking InputSnapshot path deferred as 16-11 extension handoff (16-08 forbids engine edits)
+- [Phase 15]: ReportChrome extras slot added in 14-14 shape (above/below); DC panels register there
+- [Phase 15]: MomentsPanel not reused for reactionCauses; formatTimecode from bands reused instead
+- [Phase 15]: Shell sessionPanel slot consumed (Phase 14 shape); DC End-session vs in-character close use distinct reason codes
+- [Phase 16]: Networking report: Phase 15 outcome-panel idiom; early-end inside below panel; never-asked same weight as other landings
+- [Phase 16]: Hidden-goal leak: sentinel absent from live assembly; start snapshot via lib/networking/start-snapshot.ts
+- [Phase 16]: 16-09 human leak/walk-away blocks UNVERIFIED under skip_checkpoints — not a silent pass for 16-11
+- [Phase 16]: Networking tile live at /practice/networking; surface-count guards never-publishable and never-stored-paste
+- [Phase 16]: skip_checkpoints: 16-11 human B–G UNVERIFIED; Phase 16 keyboard sign-off not completed
+- [Phase 15]: 15-10: deny-the-frame is FAIL; unused end-turn outcome fields must be empty string/0 not null
+- [Phase 15]: 15-11 surface-count: five authoring routes + play; session.ts DC branch allowlisted once
+- [Phase 15]: 15-11 keyboard sign-off deferred under skip_checkpoints → /gsd/verify-work 15
+- [Phase 14]: DECK_CONVERT_BACKEND=gotenberg (self-hosted on Lightsail); human provisions URL+token
+- [Phase 14]: PDF→PNG via pdfjs-dist legacy + @napi-rs/canvas; Vercel needs webpack for .node
+- [Phase 14]: Gotenberg PPTX→PDF + pdfjs/@napi-rs/canvas rasterize; private decks/{userId}/{deckId} with manifest-last (no Prisma table)
+- [Phase 14]: pitch-deck gets client-driven checkpointing; elevator none; case-study unchanged
+- [Phase 14]: slide cursor lives in four nullable InteractionReport columns, not inputSnapshot; null means nothing revealed
+- [Phase 14]: pitch-deck: applyVisibleContext turn.cursors.slides = high-water mark; Phase 13 has no per-channel progressive mode field
+- [Phase 14]: proposeDeckSeconds anchors ≤8→1200s ≥25→1800s linear round-60 between; ask+fair instance config, settled-only outcome; avatarMayEnd false
+- [Phase 14]: Chat revealedSlideIndex is ratchet input only; slide text in tail block (REQ-73); one ratchetHighWaterMark shared with checkpoint
+- [Phase 14]: Deck routes: opaque deckId only; PPTX unconfigured → 502 reason+fix; real PDF raster needs canvasFactory + disableFontFace fonts
+- [Phase 14]: Fair-value band is per-type constant ($800k-$1.2M / 8-12%), ask-independent, injected only in startSession
+- [Phase 14]: Deck wizard keys: deckUpload, negotiationAsk, sessionLength; slideTexts fetched at launch from manifest
+- [Phase 14]: 14-10: wizard keys pitchSubject + listenerKnowledge; shell sessionPanel + opening-turn timing; short discovery turns do not conclude soft window
+- [Phase 14]: 14-13: shell extraChatBody + mediaLayout deck-primary (slides stage, avatar PiP); start returns clamped timeBudgetSeconds
+- [Phase 14]: Pitch report panels only via ReportChrome extras; one report page needs no slug branch
+- [Phase 14]: Ask/settled/fair stay three distinct sources; overrun is noted fact with no score dimension
+- [Phase 14]: Phase SIGNED OFF 2026-10-04 — 15/15 plans; `14-VALIDATION.md` all PASS; no calibration changes; deferred-items.md remains parked (not new plans)
+- [Phase 13 / close]: **Phase 13 CLOSED 2026-10-04 by human decision**, standalone rather than waiting for Phase 17's plan 17-07. REQ-66 and REQ-67 ticked with a **recorded caveat, not a passing test** — the shared Lightsail DB was found EMPTY, so REQ-66's backfill acceptance test is unsatisfiable there by construction (the verifier hard-asserts a legacy `cameraMode IS NULL` row exists) and passed on LOCAL only (67 InterviewReport + 3 ScenarioReport → 70 InteractionReport, verifier exit 0, idempotent 70→70, commits `1eafa7b`/`981f835`, 13-14 human acceptance 9/9 PASS). REQ-67 closed on its **human-run clause alone** and explicitly NOT on "no agent applies it" — `vercel.json`'s `buildCommand` had been self-migrating every deploy for days. Chosen over the other two options in REQ-66's note (rewrite the requirements to match the real pipeline; keep them open until a populated DB exists) because the legacy tables are dropped, so no future pre-Phase-13 row can ever appear to re-open the test. **REQ-63 delegated, not granted** — it stays open under REQ-75 / plan 17-03. **REQ-74's governance contradiction is NOT closed by this** and remains Phase 17's. Full reasoning and the documents corrected: `13-CLOSE-RECORD.md`.
 
 ## Progress
 
@@ -918,6 +1254,61 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   and unintentionally undid concurrently-landing sibling commit 11-03's
   `11-CALLER-MAP.md` work, immediately restored verbatim as `a9fe820`. No data
   lost. See `11-04-SUMMARY.md` for full detail.
+- 13-05 (type-derived rubric + one evaluator/runner — `lib/engine/{rubric,evaluation,evaluation-runner}.ts`, additive `lib/report/structured.ts`, `scripts/verify-report-structure.ts` section 6): complete, wave 3 (parallel with 13-06). Commits `894eec9`, `2c48ed2`, `39dfa5a`. REQ-71/72 MET; Task 4 human verdict **identical**. REQ-59 left unchecked as split (evaluator/runner half only; session/report routes remain for 13-07/13-08). Legacy per-type evaluator modules kept until 13-13. See `13-05-SUMMARY.md`.
+- 13-07 (one session lifecycle — `lib/engine/session.ts`, `/api/practice/session/{start,checkpoint,finish}`, five legacy routes as thin delegations): complete, wave 4. Commits `10229ce`, `ac84db7`, `1a8957c`. Type-declared `checkpointing`/`finishPendingFlip` preserve Section-A divergences. Local sessions READY: interview `67737230-2573-47fb-b3ed-52d2a5531118`, case-study `f13011bb-2f76-48b3-8f6f-6ea93a01dd12`. REQ-59 session half MET (report-GET still 13-08); REQ-62/64 finish persistence MET. See `13-07-SUMMARY.md`.
+- 13-08 (one report GET/retry/list — `/api/practice/report/[reportId]{,/retry}`, `/api/practice/reports`, four legacy report routes as thin delegations, `lib/report/{handlers,legacy-adapters}.ts`, type-declared `supportsRetry`): complete, wave 5. Commits `53d8a25`, `fd7d282`, `b1e7db5`. Backfilled seed reports load through engine GET; retry interview-only; `/reports` stays interview-only (REQ-69). Screenshots in `screenshots/13-08/`. REQ-59 report-read half MET (pages/wizard still later). See `13-08-SUMMARY.md`.
+- 13-10 (PracticeSessionShell + `/practice/[type]` live session — `components/practice/PracticeSessionShell.tsx`, `app/practice/[type]/page.tsx`, chat engine.turnState): complete, wave 7. Commits `9e03aa2`, `189552e`. Human Task-3 verdict **shell verified**. Interview camera-ON checkpoints measured **8**; practice camera-ON assumed-not-measured; camera-off and typed-only practice runs OK. Finish URL still `/interview/.../report` until 13-12. See `13-10-SUMMARY.md`.
+- 13-09 (generic SetupWizard + single CameraConsentStep — `components/practice/*`, `app/practice/[type]/page.tsx`, populated `setupSteps` on registry): complete, wave 6. Commits `2aee0c2`, `f95100f`. Human Task-3 verdict **identical**. REQ-70 MET; REQ-68 groundwork (`/practice` for four presets); `createReportOnLaunch={false}` bridge until 13-10. See `13-09-SUMMARY.md`.
+- 13-06 (engine prompt assembly + generalized chat route — `lib/engine/{prompts,turn-control}.ts`, `app/api/interaction/chat/route.ts`, `scripts/verify-turn-control.ts` sections 6–10): complete, wave 3 (parallel with 13-05). Commits `df4487d`, `1053810`, `6b38995`, `c1f8e6a`. REQ-73 MET with byte-equality proof; legacy admin-case path preserved. REQ-59/62/63 left unchecked as split. See `13-06-SUMMARY.md`.
+- 13-04 (local InteractionReport backfill + REQ-67 handoff — `scripts/seed-legacy-reports.ts`, `scripts/backfill-interaction-reports.ts`, `scripts/verify-interaction-report-backfill.ts`, `13-MIGRATION-HANDOFF.md`): complete for the LOCAL half, wave 2. Commits `1eafa7b`, `981f835`, handoff in `a948326`. Seeded five fixed-uuid pre-Phase-13 shapes into the legacy tables only; backfilled 67 InterviewReport + 3 ScenarioReport → 70 InteractionReport against `leadership_avatar_dev` only; verifier exited 0 with count/field/null-preservation/idempotency sections all passing (70→70 on second run). Human ACKNOWLEDGED the handoff and DEFERRED the shared-DB half — OPEN phase-closure item under REQ-67; Phase 13 cannot close until a human runs `prisma migrate deploy` + backfill on Lightsail. REQ-66/REQ-67 not checked off in REQUIREMENTS.md. See `13-04-SUMMARY.md` for full detail.
+- 13-03 (engine runtime primitives — `lib/engine/{termination,visible-context,outcome,time-budget}.ts`, `scripts/verify-engine-primitives.ts`): complete, wave 2 (parallel with 13-04). Commits `2211c66`, `fb9b466`, `eeaaa36`. Four pure modules with zero consumer wiring; REQ-62/63/64 MET. See `13-03-SUMMARY.md` for full detail.
+- 13-02 (unified `InteractionReport` model, snapshot/score types, unified
+  report DTO — `prisma/schema.prisma`, `lib/report/snapshot.ts`,
+  `lib/report/dto.ts`): complete, wave 1. Commits `1462b89`, `6c224d5`,
+  `fafff49`. Added `model InteractionReport` and generated/applied
+  `prisma/migrations/20261004012908_add_interaction_report/migration.sql`
+  against the LOCAL dev DB only (REQ-67) — confirmed additive-only by eye and
+  by grep: one `CREATE TABLE`, two `CREATE INDEX`, one FK to `User`, zero
+  `DROP`, zero `ALTER TABLE` on `InterviewReport`/`ScenarioReport`; both
+  legacy models and tables untouched. `lib/report/snapshot.ts` declares the
+  `InputSnapshot` discriminated union (`kind: "interview" | "scenario"`) and
+  `ScoreMap`, with `asInputSnapshot`/`asScoreMap` narrowing garbage JSON to
+  `null` rather than throwing. `lib/report/dto.ts` exports `toReportDto()`,
+  unioning both legacy DTOs' fields and preserving the `cameraMode === null`
+  legacy null-guard exactly; sources its metrics block from
+  `lib/metrics/types.ts` only, no private duplicate shape. Verified end-to-end
+  against the local dev DB with three throwaway rows (interview-shaped,
+  scenario-shaped, all-null legacy), inserted/asserted/deleted via an
+  uncommitted `tsx` script. `npx tsc --noEmit` and `npx prisma validate`
+  clean throughout. **REQ-65 only partially addressed**: the additive half
+  (one table, JSON `inputSnapshot`, JSON `scores`) is done; the backfill
+  (plan 13-04) and the drop of `InterviewReport`/`ScenarioReport` (plan
+  13-15) are still required before REQ-65 can be marked met — not checked
+  off in `REQUIREMENTS.md` yet for that reason. See `13-02-SUMMARY.md` for
+  full detail.
+- 13-01 (engine config layer — `lib/engine/{types,registry,resolve}.ts`,
+  `scripts/verify-engine-config.ts`): complete, wave 1 (parallel with 13-02).
+  Commits `cd44e16`, `92727f5`, `e1a1236`. Declared `InteractionTypeConfig` /
+  `InstanceConfig` / `ResolvedSessionConfig` plus the four primitive config
+  shapes (`terminationPolicy`, `visibleContext`, `outcome`, `timeBudget`);
+  visual/vocal/content/behavioral are structurally un-removable — a type
+  record has no field through which to declare or shadow them, proven by the
+  verify script's rejected-duplicate-"visual" assertion. `ENGINE_TYPES`
+  transcribes the four interview presets field-for-field from
+  `lib/interview/types.ts` plus a fifth `case-study` record wired to the
+  existing `SCENARIO_EVALUATOR_PROMPT`; `resolveSessionConfig` is pure,
+  never throws on an unknown slug, and resolves interview customization
+  through the existing `resolveInterviewType`/`resolveCustomizationRecord`
+  rather than reimplementing validation. **REQ-60 and REQ-61 MET** — checked
+  off in `REQUIREMENTS.md`. Zero behavior change confirmed: `git diff --stat`
+  against `lib/interview/prompts.ts`, `lib/interview/types.ts`,
+  `lib/scenario/prompts.ts`, `lib/interactions/index.ts` is empty. `npx tsc
+  --noEmit` and `npx eslint lib/engine` clean; `npx tsx
+  scripts/verify-engine-config.ts` exits 0 across all 7 sections, including
+  a by-hand confirmation that deleting the shared "visual" dimension breaks
+  the script. Case-study's `liveSystemPrompt` is explicitly provisional and
+  unwired into any route — flagged for plan 13-06, which must also solve
+  per-avatar role selection. See `13-01-SUMMARY.md` for full detail.
 
 ## Phase 6 Status: COMPLETE
 
@@ -1569,3 +1960,80 @@ Open items carried into Phase 11+:
   open live-camera items from 12-05/12-06. See the
   `[Phase 12-embodied-visual-signals]` Decisions entry above and
   `12-07-SUMMARY.md` for full detail.
+
+## Session
+
+**Last Date:** 2026-10-04T18:01:37.395Z
+**Stopped At:** Phase 17 planned (7 plans, 3 waves, verification passed)
+**Resume File:** .planning/phases/17-v1-0-close-out/17-01-PLAN.md
+
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+### Phase 13 context (2026-10-02, `/gsd:discuss-phase 13`)
+
+Four areas discussed; all decisions in
+`.planning/phases/13-one-on-one-conversation-engine/13-CONTEXT.md`. The ones
+that bind other phases:
+
+- **One unified `InteractionReport` table**, existing `InterviewReport` and
+  `ScenarioReport` rows backfilled into it and the old tables dropped. Per-type
+  input becomes one JSON `inputSnapshot`; scores become a JSON map keyed by
+  dimension. Migration follows the `HANDOFF.md §3` human-run path — local dev
+  only, SQL handed over, a human runs `prisma migrate deploy` against the shared
+  DB. Phase 13 does not close until that happens.
+- **Legacy reports must render identically at their existing URLs** — the
+  acceptance test for the backfill.
+- **Phase 13 builds the primitives Phases 14-16 need** before anything uses
+  them: avatar-initiated termination with a recorded reason, a per-turn
+  visible-context slice (Phase 14's no-peeking-ahead slide rule generalized), a
+  type-declared outcome record, and an explicit time budget. The user chose this
+  over letting Phase 14 extend the engine.
+- **One `/practice/[type]` tree**; `/interview/*` and `/case-play/*` become
+  permanent redirects. Phase 13 is otherwise an INVISIBLE refactor —
+  pixel-identical session shell and report page, the changed URL being the only
+  sanctioned visible difference, and the two experiences' current divergences
+  preserved rather than converged.
+- **Four shared rubric dimensions plus type-declared extras**; Visual and Vocal
+  are never type-optional, which is how Phase 13's criterion 4 holds
+  structurally. `lib/report/structured.ts:109`'s hardcoded
+  `required: ["visual","vocal","content","behavioral"]` becomes type-derived.
+- Config is TypeScript records in code, in two layers: built-in TYPE (code) +
+  student-authored INSTANCE (S3 data), resolved into one session config.
+
+
+- **2026-10-02 — Phases 13, 14, 15 and 16 added** from the user's PDF brief
+  "Practice Pitch | Difficult Conversations | Networking Practice Initial Plan
+  Prompts", extracted and preserved at
+  `.planning/one-on-one-interactions-brief.md` (the source of record for all
+  four phases):
+  - **Phase 13: One-on-One Conversation Engine** — parameterize the interview
+    pipeline so a new one-on-one interaction type is a config record plus
+    prompts, not a duplicated route tree. The brief's own premise.
+  - **Phase 14: Practice Pitches** — elevator pitch (strict 30-60s, concision
+    and audience-tailoring drive avatar engagement, a tedious pitch can end the
+    conversation as a recorded failure) plus investor pitch deck (live
+    click-through, avatar sees only slides already shown, deck structure graded
+    alongside delivery, terms negotiation, 20-30 min from slide count).
+  - **Phase 15: Difficult Conversations** — role-assuming avatars, seeded
+    catalog plus student-authored scenarios publishable to all users.
+  - **Phase 16: Networking Practice** — persona from pasted LinkedIn/written/AI
+    text, or a default character.
+
+  Two decisions were taken at add-phase time, both the user's:
+  1. **Four phases, not one.** An engine phase first, then the three features.
+     Chosen over a three-phase (one per feature) and a single-phase split.
+  2. **All three deck formats in scope** for Phase 14's first pass — PDF, PPTX
+     and Google Slides — chosen over a PDF-only first pass. Google Slides
+     implies a Drive OAuth scope, token storage and a Drive API read; it is the
+     largest single piece of Phase 14 and was deliberately not deferred.
+
+  Phases 14, 15 and 16 depend only on Phase 13, not on each other, so the
+  execution order after 13 is the user's choice.
+
+  These four phases open the three `route: null`, `coming-soon` placeholders
+  that have sat in `lib/interactions/registry.ts` since Phase 7. Nothing about
+  Phase 12's remaining work (12-08) changed; Phase 12 is still the current
+  position.

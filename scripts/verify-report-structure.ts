@@ -9,8 +9,7 @@
  * it, and the composed markdown drifting out of the shape the study-plan
  * consumer scans for.
  */
-import { validateEvaluationResult } from "../lib/interview/evaluation";
-import { validateScenarioEvaluationResult } from "../lib/scenario/evaluation";
+import { validateEvaluationResult } from "../lib/engine/evaluation";
 import {
   composeReportMarkdown,
   parseStructuredReport,
@@ -25,6 +24,210 @@ import {
   findBodySignalWordingViolations,
   sanitizeBodySignalWording,
 } from "../lib/report/body-signal-validator";
+import { ENGINE_TYPES } from "../lib/engine/registry";
+import {
+  resolveFromTypeConfig,
+  resolveSessionConfig,
+} from "../lib/engine/resolve";
+import {
+  buildRubricJsonSchema,
+  parseOutcomeFields,
+  parseRubricScores,
+} from "../lib/engine/rubric";
+import {
+  buildImageAttachmentNote,
+  MAX_EVALUATOR_IMAGES,
+  sampleEvaluatorImages,
+} from "../lib/engine/evaluation";
+import { applyEarlyEndCap } from "../lib/pitch/score-caps";
+import type { InteractionTypeConfig } from "../lib/engine/types";
+import type { ScoreMap } from "../lib/report/snapshot";
+
+/**
+ * Pre-Phase-13 `EVALUATION_JSON_SCHEMA` from `lib/interview/evaluation.ts`,
+ * frozen verbatim as a permanent regression guard (plan 13-13). The live
+ * module was deleted when the engine's type-derived schema took over; this
+ * snapshot is the only remaining proof that `buildRubricJsonSchema` still
+ * produces today's interview bytes.
+ */
+const EVALUATION_JSON_SCHEMA = {
+  name: "interview_evaluation",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "visual_score",
+      "vocal_score",
+      "content_score",
+      "behavioral_score",
+      "overall_summary",
+      "strengths",
+      "growth_areas",
+      "category_notes",
+      "rubric_notes",
+      "practice_next",
+    ],
+    properties: {
+      visual_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      vocal_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      content_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      behavioral_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      overall_summary: { type: "string" },
+      strengths: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "detail", "evidence"],
+          properties: {
+            title: { type: "string" },
+            detail: { type: "string" },
+            evidence: { type: ["string", "null"] },
+          },
+        },
+      },
+      growth_areas: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "detail", "suggestion", "timecodes"],
+          properties: {
+            title: { type: "string" },
+            detail: { type: "string" },
+            suggestion: { type: "string" },
+            timecodes: { type: "array", items: { type: "string" } },
+          },
+        },
+      },
+      category_notes: {
+        type: "object",
+        additionalProperties: false,
+        required: ["visual", "vocal", "content", "behavioral"],
+        properties: {
+          visual: { type: ["string", "null"] },
+          vocal: { type: ["string", "null"] },
+          content: { type: ["string", "null"] },
+          behavioral: { type: ["string", "null"] },
+        },
+      },
+      rubric_notes: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["item", "note"],
+          properties: {
+            item: { type: "string" },
+            note: { type: "string" },
+          },
+        },
+      },
+      practice_next: { type: "string" },
+    },
+  },
+} as const;
+
+/**
+ * Pre-Phase-13 `SCENARIO_EVALUATION_JSON_SCHEMA` from `lib/scenario/evaluation.ts`,
+ * frozen verbatim as a permanent regression guard (plan 13-13). Same role as
+ * `EVALUATION_JSON_SCHEMA` above for the case-study schema name.
+ */
+const SCENARIO_EVALUATION_JSON_SCHEMA = {
+  name: "scenario_evaluation",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "visual_score",
+      "vocal_score",
+      "content_score",
+      "behavioral_score",
+      "overall_summary",
+      "strengths",
+      "growth_areas",
+      "category_notes",
+      "rubric_notes",
+      "practice_next",
+    ],
+    properties: {
+      visual_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      vocal_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      content_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      behavioral_score: { type: ["integer", "null"], minimum: 1, maximum: 5 },
+      overall_summary: { type: "string" },
+      strengths: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "detail", "evidence"],
+          properties: {
+            title: { type: "string" },
+            detail: { type: "string" },
+            evidence: { type: ["string", "null"] },
+          },
+        },
+      },
+      growth_areas: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "detail", "suggestion", "timecodes"],
+          properties: {
+            title: { type: "string" },
+            detail: { type: "string" },
+            suggestion: { type: "string" },
+            timecodes: { type: "array", items: { type: "string" } },
+          },
+        },
+      },
+      category_notes: {
+        type: "object",
+        additionalProperties: false,
+        required: ["visual", "vocal", "content", "behavioral"],
+        properties: {
+          visual: { type: ["string", "null"] },
+          vocal: { type: ["string", "null"] },
+          content: { type: ["string", "null"] },
+          behavioral: { type: ["string", "null"] },
+        },
+      },
+      rubric_notes: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["item", "note"],
+          properties: {
+            item: { type: "string" },
+            note: { type: "string" },
+          },
+        },
+      },
+      practice_next: { type: "string" },
+    },
+  },
+} as const;
+
+/** Resolve a general interview config for validator tests (engine replaces per-type modules). */
+function generalConfig() {
+  const resolved = resolveSessionConfig("general", {});
+  if (!resolved.ok) throw new Error(`resolve general failed: ${resolved.reason}`);
+  return resolved.config;
+}
+
+function validateInterviewLike(
+  raw: unknown,
+  opts: { hasVisualMetrics: boolean; hasVocalMetrics: boolean },
+) {
+  return validateEvaluationResult(raw, generalConfig(), opts, {
+    kind: "interview",
+  });
+}
 
 let failures = 0;
 
@@ -101,28 +304,28 @@ check("arrays are not structured reports", asStructuredReport([1, 2]), null);
 
 console.log("\n2. Validation — the FAILED path and metric gating");
 throws("an empty body still throws (FAILED, not a blank report)", () =>
-  validateEvaluationResult({ content_score: 4 }, { hasVisualMetrics: true, hasVocalMetrics: true }));
+  validateInterviewLike({ content_score: 4 }, { hasVisualMetrics: true, hasVocalMetrics: true }));
 {
-  const v = validateEvaluationResult(FULL, { hasVisualMetrics: true, hasVocalMetrics: true });
-  check("scores coerce", [v.visualScore, v.vocalScore, v.contentScore, v.behavioralScore], [3, 2, 4, 4]);
+  const v = validateInterviewLike(FULL, { hasVisualMetrics: true, hasVocalMetrics: true });
+  check("scores coerce", [v.scores.visual, v.scores.vocal, v.scores.content, v.scores.behavioral], [3, 2, 4, 4]);
   check("markdown is composed, not returned by the model", v.reportMarkdown.startsWith("### Interview Performance Report"), true);
   check("structured body is carried through", v.reportStructured.strengths.length, 2);
 }
 {
   // The gating that must survive the refactor: no metrics supplied => null,
   // whatever the model claimed.
-  const v = validateEvaluationResult(FULL, { hasVisualMetrics: false, hasVocalMetrics: false });
-  check("visual/vocal forced null when metrics were absent", [v.visualScore, v.vocalScore], [null, null]);
-  check("content/behavioral unaffected", [v.contentScore, v.behavioralScore], [4, 4]);
+  const v = validateInterviewLike(FULL, { hasVisualMetrics: false, hasVocalMetrics: false });
+  check("visual/vocal forced null when metrics were absent", [v.scores.visual, v.scores.vocal], [null, null]);
+  check("content/behavioral unaffected", [v.scores.content, v.scores.behavioral], [4, 4]);
   check("and the composed table reflects the STORED scores",
     v.reportMarkdown.includes("Not available — requires video/audio analysis"), true);
 }
 {
-  const v = validateEvaluationResult(
+  const v = validateInterviewLike(
     { ...FULL, content_score: "4", behavioral_score: 9 },
     { hasVisualMetrics: true, hasVocalMetrics: true }
   );
-  check("string and out-of-range scores become null", [v.contentScore, v.behavioralScore], [null, null]);
+  check("string and out-of-range scores become null", [v.scores.content, v.scores.behavioral], [null, null]);
 }
 
 console.log("\n3. Markdown composition");
@@ -243,9 +446,9 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
     findBodySignalWordingViolations(nonBodyFinding).length, 0);
 }
 {
-  // Both evaluator modules' own validate* functions must apply the
-  // sanitizer, not just the pure function in isolation — this is the actual
-  // enforcement path a live evaluation runs through.
+  // The engine's validateEvaluationResult must apply the sanitizer — this is
+  // the actual enforcement path a live evaluation runs through (legacy
+  // per-type validators deleted in 13-13).
   const withViolation = {
     ...FULL,
     category_notes: {
@@ -253,7 +456,7 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
       visual: "Remained still, which can seem flat over video.",
     },
   };
-  const interviewResult = validateEvaluationResult(withViolation, {
+  const interviewResult = validateInterviewLike(withViolation, {
     hasVisualMetrics: true,
     hasVocalMetrics: true,
   });
@@ -261,13 +464,30 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
     (interviewResult.reportStructured.category_notes.visual ?? "").includes("can seem flat over video"),
     false);
 
-  const scenarioResult = validateScenarioEvaluationResult(withViolation, {
-    hasVisualMetrics: true,
-    hasVocalMetrics: true,
+  const scenarioResolved = resolveSessionConfig("case-study", {
+    instance: {
+      kind: "case-study",
+      caseId: "verify-case",
+      caseName: "Verify",
+      background: "bg",
+      avatars: [{ name: "A", role: "R" }],
+      criteria: null,
+    },
   });
-  check("validateScenarioEvaluationResult strips the violation before returning it",
-    (scenarioResult.reportStructured.category_notes.visual ?? "").includes("can seem flat over video"),
-    false);
+  if (!scenarioResolved.ok) {
+    failures += 1;
+    console.log(`  FAIL resolve case-study for sanitizer check: ${scenarioResolved.reason}`);
+  } else {
+    const scenarioResult = validateEvaluationResult(
+      withViolation,
+      scenarioResolved.config,
+      { hasVisualMetrics: true, hasVocalMetrics: true },
+      { kind: "scenario" },
+    );
+    check("case-study validateEvaluationResult strips the violation before returning it",
+      (scenarioResult.reportStructured.category_notes.visual ?? "").includes("can seem flat over video"),
+      false);
+  }
 }
 
 {
@@ -320,6 +540,45 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
     findBodySignalWordingViolations(benign).length, 0);
 }
 {
+  // 12-09 Task 2 investigation of the 12-08 Task 3 sign-off's "Excessive
+  // gesturing at times" / "Try this:" / no-question observation. Reproduced
+  // directly: a growth area whose ENTIRE `detail` is one non-conforming
+  // sentence (no question mark, mentions a body signal) gets that sentence
+  // stripped to an empty string by the question-mark rule — `title` is
+  // never validated, so pre-fix this left a hollow entry (title +
+  // unconditional "Try this:" suggestion, no question anywhere) that
+  // reproduces the describe-then-ask violation one level up. The whole
+  // entry must be dropped, not left half-populated.
+  const hollowDetail = asStructuredReport({
+    ...FULL,
+    growth_areas: [
+      {
+        title: "Excessive gesturing at times",
+        detail: "Excessive gesturing at times",
+        suggestion: "Keep your hands relaxed at your sides when not actively gesturing.",
+        timecodes: ["1:26"],
+      },
+      {
+        title: "Hand-to-face movement",
+        detail: "Frequent hand-to-face movement — did you notice yourself doing this?",
+        suggestion: "Try keeping your hands in your lap when not gesturing.",
+        timecodes: ["2:10"],
+      },
+    ],
+  }) as StructuredReport;
+  const { report: sanitized } = sanitizeBodySignalWording(hollowDetail);
+  check(
+    "a growth area stripped down to an empty detail is dropped entirely, not left hollow",
+    sanitized.growth_areas.map((g) => g.title),
+    ["Hand-to-face movement"]
+  );
+  check(
+    "the compliant sibling entry survives untouched",
+    sanitized.growth_areas[0]?.detail,
+    "Frequent hand-to-face movement — did you notice yourself doing this?"
+  );
+}
+{
   // growth_areas[].suggestion is advisory, not a finding — it must NOT be
   // held to the question-mark rule, even though it mentions a body signal.
   const withAdvisorySuggestion = asStructuredReport({
@@ -335,6 +594,457 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
   }) as StructuredReport;
   check("an advisory suggestion without a question mark is not flagged",
     findBodySignalWordingViolations(withAdvisorySuggestion).length, 0);
+}
+
+// ---------------------------------------------------------------------------
+// 6. Type-derived rubric schema (plan 13-05 / REQ-71 / REQ-72)
+// ---------------------------------------------------------------------------
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+console.log("\n6. Type-derived rubric schema (13-05)");
+{
+  // 6.1 — every built-in type always requires visual_score and vocal_score.
+  for (const type of ENGINE_TYPES) {
+    const instance =
+      type.slug === "case-study"
+        ? {
+            kind: "case-study" as const,
+            caseId: "verify-case",
+            caseName: "Verify",
+            background: "bg",
+            avatars: [{ name: "A", role: "R" }],
+            criteria: null,
+          }
+        : type.slug === "pitch-elevator"
+          ? {
+              kind: "pitch-elevator" as const,
+              pitchSubject: "verify subject",
+              listenerKnowledge: "blind" as const,
+            }
+          : type.slug === "pitch-deck"
+            ? {
+                kind: "pitch-deck" as const,
+                deckId: "verify-deck",
+                slideCount: 2,
+                slideTexts: ["s1", "s2"],
+                askPriceUsd: 1_000_000,
+                askEquityPct: 10,
+                fairValueBand: {
+                  priceUsdMin: 800_000,
+                  priceUsdMax: 1_200_000,
+                  equityPctMin: 8,
+                  equityPctMax: 12,
+                },
+                proposedSeconds: 1200,
+              }
+            : type.slug === "difficult-conversation"
+              ? {
+                  kind: "difficult-conversation" as const,
+                  conversationId: "verify-dc",
+                  source: "seeded" as const,
+                  role: "Dana",
+                  studentRole: "manager",
+                  situation: "A performance conversation.",
+                  sharedBackstory: "Prior check-ins documented gaps.",
+                  hiddenPosition: "They will not own the slip.",
+                  studentObjective: "Get a written commitment.",
+                  stakes: "Release slips.",
+                  difficulty: "guarded" as const,
+                  avatarId: "avatar-test",
+                  voiceId: "voice-test",
+                }
+              : { kind: "none" as const };
+    const resolved = resolveSessionConfig(type.slug, { instance });
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve ${type.slug}: ${resolved.reason}`);
+      continue;
+    }
+    const schema = buildRubricJsonSchema(resolved.config);
+    check(
+      `"${type.slug}" required[] includes visual_score and vocal_score`,
+      [
+        schema.schema.required.includes("visual_score"),
+        schema.schema.required.includes("vocal_score"),
+      ],
+      [true, true],
+    );
+  }
+
+  // 6.2 — deep equality with today's hardcoded schemas (regression until 13-13).
+  for (const slug of ["general", "technical", "consulting", "early-career"]) {
+    const resolved = resolveSessionConfig(slug, {});
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve ${slug}: ${resolved.reason}`);
+      continue;
+    }
+    check(
+      `"${slug}" schema deeply equals EVALUATION_JSON_SCHEMA`,
+      deepEqual(buildRubricJsonSchema(resolved.config), EVALUATION_JSON_SCHEMA),
+      true,
+    );
+  }
+  {
+    const resolved = resolveSessionConfig("case-study", {
+      instance: {
+        kind: "case-study",
+        caseId: "verify-case",
+        caseName: "Verify",
+        background: "bg",
+        avatars: [{ name: "A", role: "R" }],
+        criteria: null,
+      },
+    });
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve case-study: ${resolved.reason}`);
+    } else {
+      check(
+        `case-study schema deeply equals SCENARIO_EVALUATION_JSON_SCHEMA`,
+        deepEqual(
+          buildRubricJsonSchema(resolved.config),
+          SCENARIO_EVALUATION_JSON_SCHEMA,
+        ),
+        true,
+      );
+    }
+  }
+
+  // 6.3 — extras append in order; colliding "visual" extra is rejected.
+  const withExtras: InteractionTypeConfig = {
+    ...ENGINE_TYPES[0],
+    slug: "synthetic-extras",
+    extraRubricDimensions: [
+      { key: "extraA", label: "Extra A", description: "A" },
+      { key: "extraB", label: "Extra B", description: "B" },
+    ],
+  };
+  const extrasResolved = resolveFromTypeConfig(withExtras, {});
+  if (!extrasResolved.ok) {
+    failures += 1;
+    console.log(`  FAIL resolve synthetic extras: ${extrasResolved.reason}`);
+  } else {
+    const schema = buildRubricJsonSchema(extrasResolved.config);
+    const scoreRequired = schema.schema.required.filter((k) =>
+      k.endsWith("_score"),
+    );
+    check(
+      "synthetic extras required score keys in order",
+      scoreRequired,
+      [
+        "visual_score",
+        "vocal_score",
+        "content_score",
+        "behavioral_score",
+        "extraA_score",
+        "extraB_score",
+      ],
+    );
+  }
+
+  const collidingVisual: InteractionTypeConfig = {
+    ...ENGINE_TYPES[0],
+    slug: "synthetic-collide-visual",
+    extraRubricDimensions: [
+      { key: "visual", label: "Shadow Visual", description: "must reject" },
+    ],
+  };
+  const collideResult = resolveFromTypeConfig(collidingVisual, {});
+  check(
+    "extra key colluding with visual is rejected at config resolve",
+    collideResult.ok,
+    false,
+  );
+
+  // 6.4 — parseRubricScores maps to ScoreMap; nulls stay null, not 0.
+  {
+    const resolved = resolveSessionConfig("general", {});
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve general for parseRubricScores: ${resolved.reason}`);
+    } else {
+      const scores = parseRubricScores(
+        {
+          visual_score: null,
+          vocal_score: 2,
+          content_score: 4,
+          behavioral_score: null,
+        },
+        resolved.config,
+      );
+      check(
+        "parseRubricScores keeps all four shared keys",
+        ["visual", "vocal", "content", "behavioral"].every((k) => k in scores),
+        true,
+      );
+      check(
+        "parseRubricScores preserves nulls (not 0)",
+        [scores.visual, scores.behavioral, scores.vocal, scores.content],
+        [null, null, 2, 4],
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 7. Outcome composition, image sampling, early-end score cap (plan 14-04)
+// ---------------------------------------------------------------------------
+
+console.log("\n7. Outcome / images / early-end cap (14-04)");
+{
+  // 7.1 — Phase 13 types remain deeply equal to the frozen snapshots.
+  for (const slug of ["general", "technical", "consulting", "early-career"]) {
+    const resolved = resolveSessionConfig(slug, {});
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve ${slug}: ${resolved.reason}`);
+      continue;
+    }
+    check(
+      `"${slug}" schema still deeply equals EVALUATION_JSON_SCHEMA after outcome composition`,
+      deepEqual(buildRubricJsonSchema(resolved.config), EVALUATION_JSON_SCHEMA),
+      true,
+    );
+  }
+  {
+    const resolved = resolveSessionConfig("case-study", {
+      instance: {
+        kind: "case-study",
+        caseId: "verify-case",
+        caseName: "Verify",
+        background: "bg",
+        avatars: [{ name: "A", role: "R" }],
+        criteria: null,
+      },
+    });
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve case-study: ${resolved.reason}`);
+    } else {
+      check(
+        "case-study schema still deeply equals SCENARIO_EVALUATION_JSON_SCHEMA after outcome composition",
+        deepEqual(
+          buildRubricJsonSchema(resolved.config),
+          SCENARIO_EVALUATION_JSON_SCHEMA,
+        ),
+        true,
+      );
+    }
+  }
+
+  // 7.2 — synthetic type with outcome fields produces the composed schema.
+  const withOutcome: InteractionTypeConfig = {
+    ...ENGINE_TYPES[0],
+    slug: "synthetic-outcome-fields",
+    outcome: {
+      fields: [
+        { key: "settledPriceUsd", label: "Settled price", kind: "number" },
+        { key: "settledEquityPct", label: "Settled equity", kind: "number" },
+        {
+          key: "dealReached",
+          label: "Deal reached",
+          kind: "boolean",
+          required: true,
+        },
+      ],
+    },
+  };
+  const outcomeResolved = resolveFromTypeConfig(withOutcome, {});
+  if (!outcomeResolved.ok) {
+    failures += 1;
+    console.log(`  FAIL resolve synthetic outcome: ${outcomeResolved.reason}`);
+  } else {
+    const schema = buildRubricJsonSchema(outcomeResolved.config);
+    const outcomeSchema = schema.schema.properties.outcome as {
+      additionalProperties?: boolean;
+      properties?: Record<string, { type: unknown }>;
+    };
+    check(
+      "synthetic outcome appears in required[]",
+      schema.schema.required.includes("outcome"),
+      true,
+    );
+    check(
+      "synthetic outcome.additionalProperties === false",
+      outcomeSchema.additionalProperties,
+      false,
+    );
+    check(
+      "settledPriceUsd typed [number,null]",
+      outcomeSchema.properties?.settledPriceUsd?.type,
+      ["number", "null"],
+    );
+  }
+
+  // 7.3 — outcome field key colliding with a rubric dimension property is rejected.
+  const collidingOutcome: InteractionTypeConfig = {
+    ...ENGINE_TYPES[0],
+    slug: "synthetic-outcome-collide",
+    outcome: {
+      fields: [
+        { key: "visual_score", label: "Collides", kind: "number" },
+      ],
+    },
+  };
+  const collideOutcomeResolved = resolveFromTypeConfig(collidingOutcome, {});
+  if (!collideOutcomeResolved.ok) {
+    failures += 1;
+    console.log(
+      `  FAIL resolve colliding outcome config: ${collideOutcomeResolved.reason}`,
+    );
+  } else {
+    throws(
+      "outcome field colliding with rubric score property is rejected at config level",
+      () => buildRubricJsonSchema(collideOutcomeResolved.config),
+    );
+  }
+
+  // 7.4 — parseOutcomeFields: empty declaration ignores a smuggled outcome key.
+  {
+    const general = resolveSessionConfig("general", {});
+    if (!general.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve general for parseOutcomeFields: ${general.reason}`);
+    } else {
+      check(
+        "parseOutcomeFields returns null for no-fields type even when outcome key present",
+        parseOutcomeFields(
+          { outcome: { settledPriceUsd: 100 }, visual_score: 3 },
+          general.config,
+        ),
+        null,
+      );
+    }
+    if (outcomeResolved.ok) {
+      check(
+        "parseOutcomeFields returns raw object for a type that declares fields",
+        parseOutcomeFields(
+          {
+            outcome: { settledPriceUsd: 100, settledEquityPct: null, dealReached: true },
+          },
+          outcomeResolved.config,
+        ),
+        { settledPriceUsd: 100, settledEquityPct: null, dealReached: true },
+      );
+    }
+  }
+
+  // 7.5 — Cap: only one dimension moves; no zeroing of shared dimensions.
+  {
+    const scores: ScoreMap = {
+      visual: 5,
+      vocal: 5,
+      content: 5,
+      behavioral: 5,
+      discovery_tailoring: 5,
+      structure: 5,
+    };
+    const capped = applyEarlyEndCap(scores, {
+      terminationReason: "lost_interest",
+    });
+    check("early-end cap lowers discovery_tailoring to 2", capped.discovery_tailoring, 2);
+    check(
+      "early-end cap leaves every other key exactly 5",
+      [
+        capped.visual,
+        capped.vocal,
+        capped.content,
+        capped.behavioral,
+        capped.structure,
+      ],
+      [5, 5, 5, 5, 5],
+    );
+    check(
+      "no-zeroing: visual/vocal/content/behavioral still present and non-null",
+      [
+        capped.visual !== null && capped.visual !== undefined,
+        capped.vocal !== null && capped.vocal !== undefined,
+        capped.content !== null && capped.content !== undefined,
+        capped.behavioral !== null && capped.behavioral !== undefined,
+      ],
+      [true, true, true, true],
+    );
+  }
+
+  // 7.6 — Cap is a ceiling, not a setter.
+  {
+    check(
+      "cap leaves discovery_tailoring at 1 when already below ceiling",
+      applyEarlyEndCap(
+        { discovery_tailoring: 1, visual: 4 },
+        { terminationReason: "walked_out" },
+      ).discovery_tailoring,
+      1,
+    );
+    check(
+      "cap leaves discovery_tailoring null (never invents a score)",
+      applyEarlyEndCap(
+        { discovery_tailoring: null, visual: 4 },
+        { terminationReason: "walked_out" },
+      ).discovery_tailoring,
+      null,
+    );
+  }
+
+  // 7.7 — Cap is inert on a normal finish.
+  {
+    const input: ScoreMap = {
+      visual: 4,
+      vocal: 3,
+      content: 5,
+      behavioral: 2,
+      discovery_tailoring: 5,
+    };
+    check(
+      "terminationReason null returns deeply equal scores",
+      deepEqual(applyEarlyEndCap(input, { terminationReason: null }), input),
+      true,
+    );
+  }
+
+  // 7.8 — Image capping and labelling.
+  {
+    const fake = Array.from({ length: 34 }, (_, i) => ({
+      dataUrl: `data:image/png;base64,${i}`,
+      label: `slide ${i + 1}`,
+    }));
+    const { sampled, sampledFromTotal } = sampleEvaluatorImages(fake);
+    check(
+      "sampleEvaluatorImages returns exactly MAX_EVALUATOR_IMAGES",
+      sampled.length,
+      MAX_EVALUATOR_IMAGES,
+    );
+    check(
+      "sampleEvaluatorImages includes the first of the original 34",
+      sampled[0]?.label,
+      "slide 1",
+    );
+    check(
+      "sampleEvaluatorImages includes the last of the original 34",
+      sampled[sampled.length - 1]?.label,
+      "slide 34",
+    );
+    check(
+      "sampleEvaluatorImages records the original total",
+      sampledFromTotal,
+      34,
+    );
+    const note = buildImageAttachmentNote(sampled, sampledFromTotal);
+    check(
+      "image attachment note names sampled slide labels",
+      sampled.every((img) => note.includes(img.label)),
+      true,
+    );
+    check(
+      "image attachment note mentions evenly sampled count",
+      note.includes("12 of 34 slides, evenly sampled"),
+      true,
+    );
+  }
 }
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
