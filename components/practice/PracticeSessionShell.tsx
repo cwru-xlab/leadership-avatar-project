@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -100,6 +101,21 @@ interface PracticeSessionShellProps {
    */
   caseStudy?: CaseStudy | null;
   interactionLog?: InteractionLog | null;
+  /**
+   * Optional type-specific in-session chrome (e.g. pitch timer). Rendered in
+   * the existing session header row — never a second shell. Pure presentation:
+   * panels here must not gate mic/send controls.
+   */
+  sessionPanel?: ReactNode;
+  /**
+   * Read-only opening-turn timing for soft first-turn windows (pitch-elevator).
+   * Fires when the student begins their first turn and again when that turn is
+   * delivered (phase → followups). Does not accept commands back.
+   */
+  onOpeningTurnTimingChange?: (state: {
+    turnStartedAt: number | null;
+    phase: "pitching" | "followups";
+  }) => void;
 }
 
 const HISTORY_TURNS = 10;
@@ -167,6 +183,8 @@ function PracticeInterviewRoom({
   language,
   onExit,
   onFinish,
+  sessionPanel,
+  onOpeningTurnTimingChange,
 }: PracticeSessionShellProps) {
   if (!avatarConfig) {
     throw new Error("PracticeInterviewRoom requires avatarConfig");
@@ -182,6 +200,30 @@ function PracticeInterviewRoom({
     9;
   const startingRef = useRef(false);
   const startedAtRef = useRef<number | null>(null);
+  // Soft first-turn window (pitch-elevator): when the student's opening turn
+  // began, and whether it has been delivered. Read-only to the page via
+  // onOpeningTurnTimingChange — never used to disable mic/send.
+  const openingTurnStartedAtRef = useRef<number | null>(null);
+  const [openingTurnPhase, setOpeningTurnPhase] = useState<
+    "pitching" | "followups"
+  >("pitching");
+  const markOpeningTurnStarted = useCallback(() => {
+    if (openingTurnStartedAtRef.current != null) return;
+    if (messagesRef.current.some((m) => m.role === "user")) return;
+    openingTurnStartedAtRef.current = Date.now();
+    onOpeningTurnTimingChange?.({
+      turnStartedAt: openingTurnStartedAtRef.current,
+      phase: "pitching",
+    });
+  }, [onOpeningTurnTimingChange]);
+  const markOpeningTurnDelivered = useCallback(() => {
+    if (openingTurnPhase === "followups") return;
+    setOpeningTurnPhase("followups");
+    onOpeningTurnTimingChange?.({
+      turnStartedAt: openingTurnStartedAtRef.current,
+      phase: "followups",
+    });
+  }, [onOpeningTurnTimingChange, openingTurnPhase]);
   const openingSentRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -455,7 +497,12 @@ function PracticeInterviewRoom({
         ...messagesRef.current,
         { ...userMessage, timestamp: Date.now() },
       ];
+      const priorUserTurns = messagesRef.current.filter((m) => m.role === "user").length;
+      markOpeningTurnStarted();
       appendMessage(userMessage);
+      if (priorUserTurns === 0) {
+        markOpeningTurnDelivered();
+      }
       setInput("");
       setSending(true);
       setStreamingText("");
@@ -487,6 +534,9 @@ function PracticeInterviewRoom({
               turnState: {
                 progress,
                 startedAt: startedAtRef.current ?? Date.now(),
+                firstTurnStartedAt: openingTurnStartedAtRef.current,
+                firstTurnDelivered:
+                  openingTurnPhase === "followups" || priorUserTurns === 0,
               },
             },
           }),
@@ -582,6 +632,9 @@ function PracticeInterviewRoom({
       customization,
       isPaused,
       language,
+      markOpeningTurnDelivered,
+      markOpeningTurnStarted,
+      openingTurnPhase,
       progress,
       resumeText,
       sending,
@@ -594,8 +647,14 @@ function PracticeInterviewRoom({
     openingSentRef.current = true;
     startedAtRef.current = Date.now();
     setElapsedSeconds(0);
+    // Soft first-turn window types (pitch-elevator): do NOT auto-send a
+    // canned student line — that would consume the opening window before the
+    // student speaks. The student begins when they record or type.
+    if (sessionConfig.timeBudget.firstTurnWindowSeconds != null) {
+      return;
+    }
     void sendMessage("I’m ready to begin the interview.");
-  }, [sendMessage]);
+  }, [sendMessage, sessionConfig.timeBudget.firstTurnWindowSeconds]);
 
   const handleAvatarStateChange = useCallback(
     (state: StreamingAvatarSessionState) => {
@@ -841,6 +900,7 @@ function PracticeInterviewRoom({
       avatarRef.current?.interrupt();
       startMetering(stream);
       recorder.start();
+      markOpeningTurnStarted();
       // Deliberately uncapped. A 45-second ceiling used to force-submit the
       // turn mid-sentence, with the toast arriving only AFTER the cut. None of
       // the real limits bind anywhere near it — OpenAI's 25MB file cap is
@@ -859,7 +919,7 @@ function PracticeInterviewRoom({
     } finally {
       recordingStartInFlightRef.current = false;
     }
-  }, [getMicrophone, isPaused, isTranscribing, sending, startMetering, stopMetering, transcribeRecording]);
+  }, [getMicrophone, isPaused, isTranscribing, markOpeningTurnStarted, sending, startMetering, stopMetering, transcribeRecording]);
 
   const stopRecording = useCallback(() => {
     const recorder = mediaRecorderRef.current;
@@ -1000,6 +1060,11 @@ function PracticeInterviewRoom({
             <span className="h-2 w-2 rounded-full bg-[#72d6b0]" />
             LIVE INTERVIEW
           </div>
+          {sessionPanel ? (
+            <div className="pointer-events-auto absolute left-1/2 top-4 z-30 -translate-x-1/2 sm:top-5">
+              {sessionPanel}
+            </div>
+          ) : null}
           <Tooltip content="End the interview">
             <Button
               isIconOnly

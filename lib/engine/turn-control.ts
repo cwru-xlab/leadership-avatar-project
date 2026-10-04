@@ -34,6 +34,7 @@ export interface ParseEngineTurnOptions {
   previousProgress?: InterviewProgress;
   hasResume?: boolean;
   targetQuestionCount?: number;
+  assistantTurnCount?: number;
 }
 
 export interface ParsedEngineTurn {
@@ -76,6 +77,7 @@ export function parseEngineTurn(
       policy: config.terminationPolicy,
       source: "avatar",
       reason: rawTermination.reason,
+      assistantTurnCount: options.assistantTurnCount,
     });
 
     if (resolved.ok) {

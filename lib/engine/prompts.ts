@@ -86,6 +86,8 @@ export interface EngineTurnState {
    */
   startedAt?: Date;
   now?: Date;
+  /** Soft first-turn window (pitch-elevator). Tail-block only — never system. */
+  firstTurn?: { startedAt: Date; deliveredAt?: Date };
   /** Opaque session context channels for the visible-context slice. */
   sessionState?: SessionContextState;
   /** Optional per-channel cursors for progressive reveal. */
@@ -283,10 +285,15 @@ export function buildTailBlock(
   // Interview types already encode elapsed/remaining minutes inside
   // buildProgressBlock. Appending the engine fragment there would break the
   // REQ-73 byte-identity guard against today's interview tail. Non-interview
-  // types that declare a budget get the fragment when startedAt/now are given.
+  // types that declare a session budget OR a first-turn soft window get the
+  // fragment when startedAt/now are given.
+  const hasSessionBudget = config.timeBudget.totalSeconds !== null;
+  const hasFirstTurnWindow =
+    config.timeBudget.firstTurnWindowSeconds != null &&
+    config.timeBudget.firstTurnWindowSeconds > 0;
   if (
     !isInterview &&
-    config.timeBudget.totalSeconds !== null &&
+    (hasSessionBudget || hasFirstTurnWindow) &&
     turnState.startedAt &&
     turnState.now
   ) {
@@ -295,6 +302,7 @@ export function buildTailBlock(
         config: config.timeBudget,
         startedAt: turnState.startedAt,
         now: turnState.now,
+        firstTurn: turnState.firstTurn,
       }),
     );
 

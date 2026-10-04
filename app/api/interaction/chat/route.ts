@@ -56,6 +56,10 @@ interface EngineRequestInput {
 interface EngineTurnStateInput {
   progress?: unknown;
   startedAt?: unknown;
+  /** Epoch ms when the student's opening turn began (soft first-turn window). */
+  firstTurnStartedAt?: unknown;
+  /** True once the opening turn has been delivered (follow-up phase). */
+  firstTurnDelivered?: unknown;
 }
 
 const MAX_MESSAGE_LENGTH = 20_000;
@@ -145,7 +149,14 @@ function isInstanceConfig(value: unknown): value is InstanceConfig {
   if (!value || typeof value !== "object") return false;
   const kind = (value as { kind?: unknown }).kind;
 
-  return kind === "none" || kind === "case-study";
+  return (
+    kind === "none" ||
+    kind === "case-study" ||
+    kind === "pitch-elevator" ||
+    kind === "pitch-deck" ||
+    kind === "networking-persona" ||
+    kind === "difficult-conversation"
+  );
 }
 
 /**
@@ -178,6 +189,7 @@ function attachTerminationToStream(
     previousProgress?: InterviewProgress;
     hasResume?: boolean;
     targetQuestionCount?: number;
+    assistantTurnCount?: number;
   },
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
@@ -369,6 +381,7 @@ export async function POST(request: NextRequest) {
       previousProgress?: InterviewProgress;
       hasResume?: boolean;
       targetQuestionCount?: number;
+      assistantTurnCount?: number;
     } = {};
 
     if (sessionConfig) {
@@ -415,6 +428,14 @@ export async function POST(request: NextRequest) {
           ? new Date(startedAt)
           : undefined;
 
+      const firstTurnStartedAtRaw = engineTurn?.firstTurnStartedAt;
+      const firstTurnStartedAtDate =
+        typeof firstTurnStartedAtRaw === "number" &&
+        Number.isFinite(firstTurnStartedAtRaw)
+          ? new Date(firstTurnStartedAtRaw)
+          : undefined;
+      const firstTurnDelivered = engineTurn?.firstTurnDelivered === true;
+
       const built = buildTurnMessages({
         config: sessionConfig,
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -433,11 +454,19 @@ export async function POST(request: NextRequest) {
                 : false;
             })(),
           },
-          // Non-interview types that declare a time budget read these in
-          // buildTailBlock; interview types ignore them (timing lives in
-          // buildProgressBlock).
+          // Non-interview types that declare a time budget / first-turn window
+          // read these in buildTailBlock; interview types ignore them (timing
+          // lives in buildProgressBlock).
           startedAt: startedAtDate,
           now: startedAtDate ? new Date() : undefined,
+          firstTurn: firstTurnStartedAtDate
+            ? {
+                startedAt: firstTurnStartedAtDate,
+                deliveredAt: firstTurnDelivered
+                  ? startedAtDate ?? new Date()
+                  : undefined,
+              }
+            : undefined,
         },
         language: attemptLanguage,
         resumeText,
@@ -447,6 +476,9 @@ export async function POST(request: NextRequest) {
       });
 
       fullMessages = built.messages;
+      // Include the assistant turn currently being produced (floor counts this reply).
+      const assistantTurnCount =
+        messages.filter((m) => m.role === "assistant").length + 1;
       parseOpts = {
         previousProgress: progress,
         hasResume: Boolean(resumeText.trim()),
@@ -454,6 +486,7 @@ export async function POST(request: NextRequest) {
           sessionConfig.limits.targetQuestionCount ??
           getInterviewType(sessionConfig.typeSlug)?.targetQuestionCount ??
           9,
+        assistantTurnCount,
       };
     } else {
       // Legacy admin/cohort case path — client-supplied strings, no engine type.
