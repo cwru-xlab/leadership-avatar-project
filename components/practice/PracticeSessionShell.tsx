@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type MutableRefObject,
   type ReactNode,
   useCallback,
   useEffect,
@@ -116,7 +117,32 @@ interface PracticeSessionShellProps {
     turnStartedAt: number | null;
     phase: "pitching" | "followups";
   }) => void;
+  /**
+   * Optional ref filled with a finish helper so type-contributed panels can
+   * end with an explicit terminationReason / terminationSource (15-08).
+   */
+  sessionFinishRef?: MutableRefObject<SessionFinishFn | null>;
+  /**
+   * When set, the shell's built-in End control finishes with this student
+   * reason (and source "student") instead of an unspecified end.
+   */
+  defaultStudentEndReason?: string;
+  /**
+   * Hide the shell's built-in End control when a type panel owns End-session
+   * (difficult-conversation SessionSafetyPanel).
+   */
+  hideDefaultEndControl?: boolean;
+  /**
+   * Avatar-accepted ends finish immediately with a neutral transition — no
+   * error toast, no "session ended unexpectedly" copy (15-08 walk-out).
+   */
+  autoFinishOnAvatarEnd?: boolean;
 }
+
+export type SessionFinishFn = (opts: {
+  reason: string;
+  source: "student" | "avatar";
+}) => Promise<void>;
 
 const HISTORY_TURNS = 10;
 const MIN_RECORDING_MS = 400;
@@ -185,6 +211,10 @@ function PracticeInterviewRoom({
   onFinish,
   sessionPanel,
   onOpeningTurnTimingChange,
+  sessionFinishRef,
+  defaultStudentEndReason,
+  hideDefaultEndControl = false,
+  autoFinishOnAvatarEnd = false,
 }: PracticeSessionShellProps) {
   if (!avatarConfig) {
     throw new Error("PracticeInterviewRoom requires avatarConfig");
@@ -265,6 +295,15 @@ function PracticeInterviewRoom({
   const [isPaused, setIsPaused] = useState(false);
   const [exitIntent, setExitIntent] = useState<null | "end" | "leave">(null);
   const [submitting, setSubmitting] = useState(false);
+  /** Pending termination from an accepted avatar end marker (or panel request). */
+  const pendingTerminationRef = useRef<{
+    reason: string;
+    source: "student" | "avatar";
+  } | null>(null);
+  // Stable ref so the chat turn handler can call the latest handleEnd without
+  // re-binding sendMessage on every render (avatar auto-finish path).
+  const handleEndRef = useRef<(() => Promise<void>) | null>(null);
+  const [avatarEndedNotice, setAvatarEndedNotice] = useState(false);
 
   const stageLabel = useMemo(
     () =>
@@ -605,12 +644,21 @@ function PracticeInterviewRoom({
         const nextProgress = parsedTurn.progress ?? progress;
         setProgress(nextProgress);
         checkpoint(nextProgress);
-        // parseEngineTurn already policy-gates termination; with
-        // avatarMayEnd:false on every built-in type today this is always null.
-        // When a future type permits it, honor by opening the end flow so the
-        // recorded reason rides on finish (REQ-62).
+        // parseEngineTurn already policy-gates termination. When accepted,
+        // record the reason for finish (REQ-62). Difficult-conversation
+        // auto-finishes with a neutral transition (15-08); other types keep
+        // the confirm modal.
         if (parsedTurn.termination) {
-          setExitIntent("end");
+          pendingTerminationRef.current = {
+            reason: parsedTurn.termination.reason,
+            source: "avatar",
+          };
+          if (autoFinishOnAvatarEnd) {
+            setAvatarEndedNotice(true);
+            void handleEndRef.current?.();
+          } else {
+            setExitIntent("end");
+          }
         }
       } catch (error) {
         console.error("Practice chat failed:", error);
@@ -632,6 +680,7 @@ function PracticeInterviewRoom({
       customization,
       isPaused,
       language,
+      autoFinishOnAvatarEnd,
       markOpeningTurnDelivered,
       markOpeningTurnStarted,
       openingTurnPhase,
@@ -950,6 +999,8 @@ function PracticeInterviewRoom({
   };
 
   const handleEnd = async () => {
+    // Interrupt mid-avatar-turn so End-session / walk-out never waits on speech.
+    avatarRef.current?.interrupt();
     // A null reportId has two very different causes, and conflating them
     // silently discards real interviews:
     //   1. Nothing was ever said — the student connected and pressed End
@@ -1019,6 +1070,8 @@ function PracticeInterviewRoom({
           turns: messagesRef.current,
           progress,
           metrics: { cameraMode, visual, vocal },
+          terminationReason: pendingTerminationRef.current?.reason ?? null,
+          terminationSource: pendingTerminationRef.current?.source ?? "student",
         }),
       });
       // 409 means it was already submitted — still the right destination.
@@ -1041,6 +1094,19 @@ function PracticeInterviewRoom({
       setExitIntent(null);
     }
   };
+
+  handleEndRef.current = handleEnd;
+
+  useEffect(() => {
+    if (!sessionFinishRef) return;
+    sessionFinishRef.current = async (opts) => {
+      pendingTerminationRef.current = opts;
+      await handleEndRef.current?.();
+    };
+    return () => {
+      sessionFinishRef.current = null;
+    };
+  }, [sessionFinishRef]);
 
   return (
     <main className="relative flex h-[100dvh] overflow-hidden bg-[#07131f] text-[#f4f8fb]">
@@ -1065,17 +1131,29 @@ function PracticeInterviewRoom({
               {sessionPanel}
             </div>
           ) : null}
+          {!hideDefaultEndControl ? (
           <Tooltip content="End the interview">
             <Button
               isIconOnly
               aria-label="End interview"
               variant="light"
               className="bg-[#07131f]/65 text-white backdrop-blur-md"
-              onPress={() => setExitIntent("end")}
+              onPress={() => {
+                if (defaultStudentEndReason) {
+                  pendingTerminationRef.current = {
+                    reason: defaultStudentEndReason,
+                    source: "student",
+                  };
+                }
+                setExitIntent("end");
+              }}
             >
               <CircleStop size={20} />
             </Button>
           </Tooltip>
+          ) : (
+            <div className="h-10 w-10" aria-hidden />
+          )}
         </header>
 
         <div className="absolute inset-0">
@@ -1228,6 +1306,17 @@ function PracticeInterviewRoom({
           </p>
         </div>
       </aside>
+
+      {avatarEndedNotice ? (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-20 z-40 flex justify-center px-4"
+          role="status"
+        >
+          <p className="rounded-full border border-white/15 bg-[#07131f]/80 px-4 py-2 text-sm text-[#d3e7f5] backdrop-blur-md">
+            The conversation ended.
+          </p>
+        </div>
+      ) : null}
 
       <Modal
         isOpen={exitIntent !== null}

@@ -1,30 +1,43 @@
 "use client";
 
 /**
- * Engine session page for types with `instance.required: true` (case-study).
+ * Engine session page for types with `instance.required: true`
+ * (case-study and difficult-conversation).
  *
- * Hosts SetupWizard (InstanceIntroStep → CameraConsentStep) then
- * PracticeSessionShell. Student-authored scenarios reach this URL either
- * directly or via the runtime dispatcher in `app/case-play/[caseId]/page.tsx`.
+ * Case-study: SetupWizard (InstanceIntroStep → CameraConsentStep) then
+ * PracticeSessionShell via CaseStudySessionView.
+ *
+ * Difficult-conversation: ConversationBriefingStep →
+ * ConversationDifficultyStep → CameraConsentStep, then the shell with
+ * SessionSafetyPanel + InCharacterClosePrompt in the existing sessionPanel
+ * slot (consumed from 14-10 / parallel Phase 14 — not a second mechanism).
  */
 
-import PracticeSessionShell from "@/components/practice/PracticeSessionShell";
+import PracticeSessionShell, {
+  type SessionFinishFn,
+} from "@/components/practice/PracticeSessionShell";
 import SetupWizard, {
   type SetupStepNav,
 } from "@/components/practice/SetupWizard";
+import InCharacterClosePrompt from "@/components/practice/panels/InCharacterClosePrompt";
+import SessionSafetyPanel from "@/components/practice/panels/SessionSafetyPanel";
+import ConversationBriefingStep from "@/components/practice/steps/ConversationBriefingStep";
+import ConversationDifficultyStep from "@/components/practice/steps/ConversationDifficultyStep";
 import InstanceIntroStep from "@/components/practice/steps/InstanceIntroStep";
 import { getEngineType } from "@/lib/engine/registry";
 import { resolveSessionConfig } from "@/lib/engine/resolve";
+import type { DifficultConversationInstance } from "@/lib/engine/types";
 import { useLayout } from "@/lib/layout-context";
+import type { DifficultyBand } from "@/lib/difficult-conversation/types";
 import type { CameraMode } from "@/lib/metrics/types";
-import type { CaseStudy, InteractionLog } from "@/types";
+import type { CaseStudy, InteractionLog, StartAvatarRequest } from "@/types";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
 import { addToast } from "@heroui/toast";
 import { ArrowLeft, CircleAlert } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type PagePhase = "wizard" | "session";
 
@@ -37,8 +50,14 @@ export default function PracticeInstancePage() {
   const instanceId = params.instanceId;
 
   const engineType = useMemo(() => getEngineType(typeSlug), [typeSlug]);
+  const isDifficultConversation =
+    engineType?.slug === "difficult-conversation";
 
   const [caseData, setCaseData] = useState<CaseStudy | null>(null);
+  const [dcInstance, setDcInstance] =
+    useState<DifficultConversationInstance | null>(null);
+  const [dcTitle, setDcTitle] = useState("");
+  const [difficulty, setDifficulty] = useState<DifficultyBand | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [avatarPortraits, setAvatarPortraits] = useState<
@@ -51,6 +70,8 @@ export default function PracticeInstancePage() {
   const [interactionLog, setInteractionLog] = useState<InteractionLog | null>(
     null,
   );
+  const [ending, setEnding] = useState(false);
+  const sessionFinishRef = useRef<SessionFinishFn | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,18 +79,45 @@ export default function PracticeInstancePage() {
       setLoading(true);
       setLoadError(null);
       try {
-        const res = await fetch(
-          `/api/case/get?id=${encodeURIComponent(instanceId)}`,
-        );
-        if (!res.ok) throw new Error("Case not found");
-        const data = await res.json();
-        if (cancelled) return;
-        setCaseData(data.caseStudy as CaseStudy);
+        if (typeSlug === "difficult-conversation") {
+          const res = await fetch(
+            `/api/difficult-conversation/play?id=${encodeURIComponent(instanceId)}`,
+          );
+          if (!res.ok) throw new Error("Conversation not found");
+          const data = (await res.json()) as {
+            instance: DifficultConversationInstance;
+            title: string;
+          };
+          if (cancelled) return;
+          setDcInstance(data.instance);
+          setDcTitle(data.title);
+          setDifficulty(data.instance.difficulty);
+          setCaseData(null);
+        } else {
+          const res = await fetch(
+            `/api/case/get?id=${encodeURIComponent(instanceId)}`,
+          );
+          if (!res.ok) throw new Error("Case not found");
+          const data = await res.json();
+          if (cancelled) return;
+          setCaseData(data.caseStudy as CaseStudy);
+          setDcInstance(null);
+        }
       } catch (err) {
-        console.error("Failed to load case:", err);
+        console.error("Failed to load instance:", err);
         if (!cancelled) {
-          setLoadError("This scenario is not available.");
-          addToast({ title: "Failed to load case", color: "danger" });
+          setLoadError(
+            typeSlug === "difficult-conversation"
+              ? "This conversation is not available."
+              : "This scenario is not available.",
+          );
+          addToast({
+            title:
+              typeSlug === "difficult-conversation"
+                ? "Failed to load conversation"
+                : "Failed to load case",
+            color: "danger",
+          });
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -78,9 +126,9 @@ export default function PracticeInstancePage() {
     return () => {
       cancelled = true;
     };
-  }, [instanceId]);
+  }, [instanceId, typeSlug]);
 
-  // Portrait fetch — same as today's case-play intro (profile-linked avatars).
+  // Portrait fetch — case-study only (profile-linked avatars).
   useEffect(() => {
     if (!caseData?.avatars) return;
     const withProfiles = caseData.avatars.filter((a) => a.profileId);
@@ -114,7 +162,16 @@ export default function PracticeInstancePage() {
     };
   }, [caseData]);
 
+  const effectiveDifficulty: DifficultyBand =
+    difficulty ?? dcInstance?.difficulty ?? "guarded";
+
   const sessionConfig = useMemo(() => {
+    if (isDifficultConversation && dcInstance) {
+      const resolved = resolveSessionConfig(typeSlug, {
+        instance: { ...dcInstance, difficulty: effectiveDifficulty },
+      });
+      return resolved.ok ? resolved.config : null;
+    }
     if (!caseData) return null;
     const resolved = resolveSessionConfig(typeSlug, {
       instance: {
@@ -131,7 +188,26 @@ export default function PracticeInstancePage() {
       },
     });
     return resolved.ok ? resolved.config : null;
-  }, [caseData, typeSlug]);
+  }, [
+    caseData,
+    dcInstance,
+    effectiveDifficulty,
+    isDifficultConversation,
+    typeSlug,
+  ]);
+
+  const dcAvatarConfig: StartAvatarRequest | null = useMemo(() => {
+    if (!dcInstance?.avatarId || !dcInstance.voiceId) return null;
+    return {
+      quality: "low",
+      avatarName: dcInstance.avatarId,
+      voice: {
+        voiceId: dcInstance.voiceId,
+        rate: 1.05,
+      },
+      language: "en",
+    };
+  }, [dcInstance]);
 
   useEffect(() => {
     setFullScreen(phase === "session");
@@ -164,12 +240,159 @@ export default function PracticeInstancePage() {
   if (loading) {
     return (
       <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa]">
-        <Spinner color="primary" label="Loading case..." />
+        <Spinner
+          color="primary"
+          label={
+            isDifficultConversation
+              ? "Loading conversation..."
+              : "Loading case..."
+          }
+        />
       </main>
     );
   }
 
-  // Same message today's case-play page shows for an unplayable / missing case.
+  if (isDifficultConversation) {
+    if (!dcInstance || loadError || !sessionConfig || !dcAvatarConfig) {
+      return (
+        <main className="mx-auto max-w-4xl px-5 py-12 text-center text-[#102331]">
+          <p className="mb-4 text-lg text-danger">
+            {loadError ?? "Conversation not found"}
+          </p>
+          <Button
+            onPress={() => router.push("/conversations")}
+            startContent={<ArrowLeft className="h-4 w-4" />}
+          >
+            Back to Conversations
+          </Button>
+        </main>
+      );
+    }
+
+    const briefingFields = {
+      role: dcInstance.role,
+      studentRole: dcInstance.studentRole,
+      situation: dcInstance.situation,
+      sharedBackstory: dcInstance.sharedBackstory,
+      studentObjective: dcInstance.studentObjective,
+      stakes: dcInstance.stakes,
+    };
+
+    const finishWith = async (opts: {
+      reason: string;
+      source: "student" | "avatar";
+    }) => {
+      setEnding(true);
+      try {
+        await sessionFinishRef.current?.(opts);
+      } finally {
+        setEnding(false);
+      }
+    };
+
+    if (phase === "session" && reportId) {
+      return (
+        <PracticeSessionShell
+          sessionConfig={sessionConfig}
+          reportId={reportId}
+          cameraMode={cameraMode}
+          avatarConfig={dcAvatarConfig}
+          interviewerName={dcInstance.role}
+          interviewerAvatarId={dcInstance.avatarId}
+          language="en"
+          hideDefaultEndControl
+          autoFinishOnAvatarEnd
+          sessionFinishRef={sessionFinishRef}
+          sessionPanel={
+            <div className="flex flex-col items-center gap-1">
+              <SessionSafetyPanel
+                isEnding={ending}
+                onEndSession={finishWith}
+              />
+              <InCharacterClosePrompt
+                isClosing={ending}
+                onConfirmClose={finishWith}
+              />
+            </div>
+          }
+          onExit={() => {
+            setPhase("wizard");
+            setReportId(null);
+            setFullScreen(false);
+          }}
+          onFinish={(finishedReportId) => {
+            setFullScreen(false);
+            router.push(
+              `/practice/difficult-conversation/report/${finishedReportId}`,
+            );
+          }}
+        />
+      );
+    }
+
+    return (
+      <main className="min-h-[100dvh] overflow-hidden bg-[#f5f8fa] text-[#102331]">
+        <div className="relative isolate overflow-hidden border-b border-[#d8e6ec] bg-[#eaf5f8]">
+          <div className="absolute -right-24 top-[-150px] h-96 w-96 rounded-full bg-[#a9ddeb]/60 blur-3xl" />
+          <div className="relative mx-auto max-w-6xl px-5 pb-10 pt-7 sm:px-8">
+            <button
+              type="button"
+              className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[#47616f] transition-colors hover:text-[#0a7391] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
+              onClick={() => router.push("/conversations")}
+            >
+              <ArrowLeft size={16} /> Back to Conversations
+            </button>
+          </div>
+        </div>
+
+        <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
+          <SetupWizard
+            typeSlug={engineType.slug}
+            steps={engineType.setupSteps}
+            createReportOnLaunch
+            progressAriaLabel="Conversation setup progress"
+            launchLabel="Start conversation"
+            buildStartPayload={() => ({
+              instanceId: dcInstance.conversationId,
+              difficulty: effectiveDifficulty,
+              language: "en",
+              interviewerAvatarId: dcInstance.avatarId,
+              interviewerName: dcInstance.role,
+            })}
+            onLaunch={({ reportId: launchedId, cameraMode: locked }) => {
+              setReportId(launchedId);
+              setCameraMode(locked);
+              setPhase("session");
+            }}
+            renderStep={(stepId: string, nav: SetupStepNav) => {
+              if (stepId === "conversation-briefing") {
+                return (
+                  <ConversationBriefingStep
+                    nav={nav}
+                    title={dcTitle}
+                    briefing={briefingFields}
+                  />
+                );
+              }
+              if (stepId === "conversation-difficulty") {
+                return (
+                  <ConversationDifficultyStep
+                    nav={nav}
+                    difficulty={difficulty}
+                    defaultDifficulty={dcInstance.difficulty}
+                    onSelect={setDifficulty}
+                  />
+                );
+              }
+              return null;
+            }}
+          />
+        </div>
+      </main>
+    );
+  }
+
+  // ---- case-study path (unchanged shape) ----
   if (!caseData || loadError || !sessionConfig) {
     return (
       <main className="mx-auto max-w-4xl px-5 py-12 text-center text-[#102331]">
@@ -220,9 +443,7 @@ export default function PracticeInstancePage() {
         }}
         onFinish={(finishedReportId) => {
           setFullScreen(false);
-          router.push(
-            `/practice/case-study/report/${finishedReportId}`,
-          );
+          router.push(`/practice/case-study/report/${finishedReportId}`);
         }}
       />
     );

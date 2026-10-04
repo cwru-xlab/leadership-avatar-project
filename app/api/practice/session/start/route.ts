@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
       resumeText,
       language,
       timeBudgetOverrideSeconds,
+      difficulty,
     } = body as Record<string, unknown>;
 
     if (typeof typeSlug !== "string" || !typeSlug) {
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
       resumeText,
       language,
       timeBudgetOverrideSeconds,
+      difficulty,
     });
 
     if (!result.ok) {
