@@ -619,7 +619,16 @@ result, it does not perform the keyboard pass itself.
      fixture agreeing on one source string rather than the assertion being loosened.
   4. The keyboard UAT deferred on Phases 15 and 16 has been run by a human, and its
      result — pass, or a logged defect — is recorded in each phase's validation file.
-**Plans:** TBD
+**Plans:** 7 plans
+
+Plans:
+- [ ] 17-01-PLAN.md — REQ-74 Part 1: human-run shared-DB migration + backfill, recorded (non-autonomous)
+- [ ] 17-02-PLAN.md — REQ-74 Part 2: human-run legacy DROP, gated on Part 1 verifying (non-autonomous)
+- [ ] 17-03-PLAN.md — REQ-75: deck visible-context sentinel harness + REQ-63 proof in Phase 13's directory
+- [ ] 17-04-PLAN.md — REQ-76: deck-intake fixture wiring fix (assertion unchanged)
+- [ ] 17-05-PLAN.md — REQ-77 Pass 1: human keyboard UAT of the Phases 15/16 deferred blocks (non-autonomous)
+- [ ] 17-06-PLAN.md — REQ-77 Pass 1 defect-volume checkpoint + approved repairs (non-autonomous)
+- [ ] 17-07-PLAN.md — Document amendments + phase close / REQ-74 split policy
 
 ### Phase 18: Avatar Disengagement & Walk-Out
 **Goal:** A session the avatar is visibly losing actually ends — today the avatar can
