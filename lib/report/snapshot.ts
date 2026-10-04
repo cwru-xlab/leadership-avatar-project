@@ -56,6 +56,33 @@ export interface ScenarioInputSnapshot {
 }
 
 /**
+ * 13-CONTEXT.md anticipated this member verbatim (`{kind:'pitch', deck,
+ * ask}`); REQ-65's design intent is that a new input shape needs no
+ * migration. Every field here is SESSION-CONSTANT, captured at start and
+ * never re-fetched — the mutable slide cursor lives in its own column
+ * (plan 14-05), not in here.
+ */
+export interface PitchInputSnapshot {
+  kind: "pitch";
+  pitchKind: "elevator" | "deck";
+  pitchSubject: string | null;
+  listenerKnowledge: "blind" | "name-role" | "full-profile" | null;
+  deckId: string | null;
+  slideCount: number | null;
+  askPriceUsd: number | null;
+  askEquityPct: number | null;
+  fairValueBand: {
+    priceUsdMin: number;
+    priceUsdMax: number;
+    equityPctMin: number;
+    equityPctMax: number;
+  } | null;
+  firstTurnWindowSeconds: number | null;
+  budgetSeconds: number | null;
+  listenerPersona: string | null;
+}
+
+/**
  * The difficult-conversation type's input snapshot.
  *
  * Field-for-field with DifficultConversationInstance minus hiddenPosition.
@@ -91,6 +118,7 @@ export interface DifficultConversationInputSnapshot {
 export type InputSnapshot =
   | InterviewInputSnapshot
   | ScenarioInputSnapshot
+  | PitchInputSnapshot
   | DifficultConversationInputSnapshot;
 
 /**
@@ -127,6 +155,24 @@ const SCENARIO_INPUT_KEYS: readonly (keyof ScenarioInputSnapshot)[] = [
   "criteria",
 ];
 
+const PITCH_KINDS = ["elevator", "deck"] as const;
+const LISTENER_KNOWLEDGE = ["blind", "name-role", "full-profile"] as const;
+
+const PITCH_INPUT_KEYS: readonly (keyof PitchInputSnapshot)[] = [
+  "kind",
+  "pitchKind",
+  "pitchSubject",
+  "listenerKnowledge",
+  "deckId",
+  "slideCount",
+  "askPriceUsd",
+  "askEquityPct",
+  "fairValueBand",
+  "firstTurnWindowSeconds",
+  "budgetSeconds",
+  "listenerPersona",
+];
+
 const DC_DIFFICULTY_BANDS = ["receptive", "guarded", "hostile"] as const;
 const DC_SOURCES = ["seeded", "authored"] as const;
 
@@ -148,6 +194,24 @@ const DIFFICULT_CONVERSATION_INPUT_KEYS: readonly (keyof DifficultConversationIn
 
 function hasAllKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   return keys.every((key) => key in value);
+}
+
+function isPitchKind(
+  value: unknown,
+): value is PitchInputSnapshot["pitchKind"] {
+  return (
+    typeof value === "string" &&
+    (PITCH_KINDS as readonly string[]).includes(value)
+  );
+}
+
+function isListenerKnowledge(
+  value: unknown,
+): value is NonNullable<PitchInputSnapshot["listenerKnowledge"]> {
+  return (
+    typeof value === "string" &&
+    (LISTENER_KNOWLEDGE as readonly string[]).includes(value)
+  );
 }
 
 function isDcDifficulty(
@@ -189,6 +253,22 @@ export function asInputSnapshot(value: unknown): InputSnapshot | null {
     Array.isArray(v.avatars)
   ) {
     return value as ScenarioInputSnapshot;
+  }
+  if (
+    v.kind === "pitch" &&
+    hasAllKeys(v, PITCH_INPUT_KEYS) &&
+    isPitchKind(v.pitchKind)
+  ) {
+    // Discriminant `pitchKind` is required; other fields may be null per
+    // the PitchInputSnapshot shape (elevator vs deck populate different
+    // subsets). Reject an incomplete bare `{ kind: "pitch" }` via hasAllKeys.
+    if (
+      v.listenerKnowledge !== null &&
+      !isListenerKnowledge(v.listenerKnowledge)
+    ) {
+      return null;
+    }
+    return value as PitchInputSnapshot;
   }
   if (
     v.kind === "difficult-conversation" &&
