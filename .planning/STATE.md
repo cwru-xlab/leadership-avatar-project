@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-10-04 (13-12 DELIVERED — one report page at `/practice/[type]/report/[reportId]`; human verdict **reports identical**. Dual shells until 13-13; Shared-DB migrate still deferred under REQ-67. See `13-12-SUMMARY.md`.)
+**Updated:** 2026-10-04 (13-13 DELIVERED — permanent redirects + per-type trees deleted; exactly one of each engine surface remains. Shared-DB migrate still deferred under REQ-67. See `13-13-SUMMARY.md`.)
 
 ## Current Position
 
-**Phase:** 13 — One-on-One Conversation Engine — IN PROGRESS (12 of 15 plans executed)
-**Current Plan:** 13-12 complete; next is 13-13
-**Stopped At:** Completed 13-12-PLAN.md
+**Phase:** 13 — One-on-One Conversation Engine — IN PROGRESS (13 of 15 plans executed)
+**Current Plan:** 13-13 complete; next is 13-14
+**Stopped At:** Completed 13-13-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -358,6 +358,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 13]: Report chrome values transcribed verbatim from legacy pages (interview 2s/120s/retry/401/strip vs case-study 3s/180s/check-again/no-401/no-strip); converging them is forbidden under REQ-69.
 - [Phase 13]: Unified report page builds scores from listRubricDimensionsForSlug; ReportScoreCards/ReportBody left untouched.
 - [Phase 13]: Finish nav from /practice sessions now lands on /practice/{type}/report/{id}; old report pages intact until 13-13.
+- [Phase 13]: Redirect segment constraint is ((?!new(?:/|$))[^/]+); plain (?!new$) fails under path-to-regexp
+- [Phase 13]: Dashboard tiles keep /interview and /case-play indexes; ScenarioCard launches /practice/case-study/{id}
 
 ## Progress
 
@@ -1818,8 +1820,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T03:29:43Z
-**Stopped At:** Completed 13-12-PLAN.md — unified `/practice/.../report`; human verdict **reports identical**. Next: 13-13.
+**Last Date:** 2026-10-04T03:38:15.707Z
+**Stopped At:** Completed 13-13-PLAN.md — permanent redirects + per-type trees deleted; one-of-each proven. Next: 13-14.
 **Resume File:** None
 
 

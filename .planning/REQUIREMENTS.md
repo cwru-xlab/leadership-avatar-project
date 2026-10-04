@@ -424,7 +424,7 @@ locked decisions in
 `.planning/phases/13-one-on-one-conversation-engine/13-CONTEXT.md`. They restate
 what was decided; they add no scope.
 
-- **REQ-59** — [ ] One engine serves every one-on-one interaction type. Exactly one
+- **REQ-59** — [x] One engine serves every one-on-one interaction type. Exactly one
   session-start, one checkpoint, one finish, one report-GET and one evaluation runner
   exist for all types. The per-type trees that exist today —
   `app/api/interview/session/*`, `app/api/scenario/session/*`,
@@ -468,12 +468,12 @@ what was decided; they add no scope.
   against the shared Lightsail DB (`HANDOFF.md §3` precedent). No agent applies it.
   Phase 13 does not close until a human has run it.
 
-- **REQ-68** — [ ] All engine-backed sessions live under one `/practice/[type]` tree —
+- **REQ-68** — [x] All engine-backed sessions live under one `/practice/[type]` tree —
   session at `/practice/[type]/[instanceId?]`, report at
   `/practice/[type]/report/[reportId]`. `/interview/*` and `/case-play/*` session and
   report paths become permanent redirects so existing deep links keep resolving.
 
-- **REQ-69** — [ ] Phase 13 is an INVISIBLE refactor. The shared session shell and
+- **REQ-69** — [x] Phase 13 is an INVISIBLE refactor. The shared session shell and
   report page reproduce today's interview and case-play appearance exactly; the changed
   URL is the only sanctioned visible difference. The two experiences' existing
   divergences (scenario has no checkpoint; report chrome differs) are PRESERVED, not
