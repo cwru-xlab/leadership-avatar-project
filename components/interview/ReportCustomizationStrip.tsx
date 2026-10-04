@@ -2,7 +2,16 @@
 
 import { Chip } from "@heroui/chip";
 import { getInterviewType } from "@/lib/interview/types";
-import type { InterviewReportDTO } from "@/lib/interview/report-dto";
+
+/** Customization fields the strip displays — matches InterviewInputSnapshot. */
+export interface ReportCustomizationFields {
+  industry: string | null;
+  roleTitle: string | null;
+  difficulty: string | null;
+  targetMinutes: number | null;
+  targetQuestionCount: number | null;
+  interviewerPersona: string | null;
+}
 
 /**
  * Compact strip shown between the report header and the score cards,
@@ -27,8 +36,8 @@ export default function ReportCustomizationStrip({
   typeSlug,
   customization,
 }: {
-  typeSlug: InterviewReportDTO["typeSlug"];
-  customization: InterviewReportDTO["customization"];
+  typeSlug: string;
+  customization: ReportCustomizationFields;
 }) {
   const { industry, roleTitle, difficulty, targetMinutes, targetQuestionCount, interviewerPersona } =
     customization;
