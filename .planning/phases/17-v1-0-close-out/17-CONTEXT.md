@@ -17,6 +17,78 @@ No new product capability. Phases 18 and 19 own the new work.
 
 </domain>
 
+<correction>
+## CORRECTION — 2026-10-04, after planning round 1
+
+**Everything this file originally said about REQ-74 was built on a stale document
+and is WITHDRAWN.** Read this section before the decisions below; where they
+conflict, this section wins.
+
+`13-MIGRATION-HANDOFF.md` says Part 1 is "DEFERRED by human — still OPEN." That is
+**STALE.** `HANDOFF.md §3` was rewritten in commit `9a53084` ("docs: correct the
+migration record after the shared-DB run") and records:
+
+- **All 14 migrations are applied to the shared Lightsail DB** as of 2026-10-04.
+  `Database schema is up to date!` Nothing pending, nothing held. **Part 1 AND
+  Part 2 are both DONE.** There is no migration to run, no DROP to sequence, and
+  no sequencing hazard.
+- **The shared DB was found EMPTY** — 0 users, 0 attempts, 0 audit rows, 0 reports
+  of either kind. Every risk framing built on "live student report rows" — this
+  file's original REQ-74 section, and all of `13-MIGRATION-HANDOFF.md` — was
+  counterfactual. The backfill was a no-op and was never run on shared. Its
+  verifier **cannot** pass there: it hard-asserts at least one legacy
+  `cameraMode IS NULL` row exists, and there are none.
+- **`vercel.json`'s `buildCommand` is**
+  `touch .env && prisma generate && prisma migrate deploy && next build`.
+  Migrations have been reaching the shared and preview databases automatically at
+  build time, unreviewed. A preview build on 2026-10-04 applied
+  `add_interaction_report_title` to a DB already holding the project's first
+  `DROP TABLE`, with no human run and no `pg_dump`.
+
+**Consequences:**
+
+1. **Plans 17-01 and 17-02 are OBSOLETE** — they plan work already completed.
+   Replace them. Do not revise them in place.
+2. The user's earlier answers "Team testing only / rows worth preserving",
+   "Part 2 in scope after Part 1 verifies", and the whole REQ-74 close-gate /
+   split-out discussion are all **MOOT**. The split policy has nothing left to
+   split. Phase 13 closes outright.
+3. **The no-agent-on-shared rule still binds ME** — the user reaffirmed it and it
+   is unchanged for agents. But it never bound CI, which bypasses it on every
+   deploy. The rule is not fiction; it is just narrower than the documents imply.
+
+**New decisions (2026-10-04), replacing the original REQ-74 scope:**
+
+- **REQ-74 becomes the governance reconciliation.** See the rewritten REQ-74 in
+  `REQUIREMENTS.md` for its full text — it is the authority.
+- **`prisma migrate deploy` is REMOVED from `vercel.json`'s `buildCommand`.** The
+  pipeline is changed to match the documented discipline, NOT the reverse. The user
+  was offered "amend the docs to say CI-applied" and rejected it.
+- **The removal alone is insufficient and must not ship alone.** Deploys stop
+  self-migrating, so a schema change must be applied deliberately BEFORE the deploy
+  depending on it or the app 500s on a missing column. A replacement procedure must
+  be documented in the same plan that removes the command. Phase 18 is its first
+  consumer.
+- **Safe to do now:** all 14 migrations are applied everywhere, so nothing is
+  pending at the moment of removal.
+- **Reconcile the stale documents** so they stop contradicting each other and
+  reality: `13-MIGRATION-HANDOFF.md` (says Part 1 open — it is not),
+  `HANDOFF.md §3` (correct, but its REQ-67 framing needs the CI note), and REQ-67
+  itself.
+- **Confirm what the Production `DATABASE_URL` secret points at.** Write-only
+  Vercel "Sensitive" type, no marketplace integrations on the account, `la_db_*`
+  secrets orphaned against a store that no longer exists. Never verified.
+- **REQ-66 and REQ-67 close with a RECORDED CAVEAT, not a passing test.** REQ-66's
+  acceptance test is unsatisfiable on shared by construction. It passed on local
+  (70 rows); that is the only place it ever could. Do not plan a task that tries to
+  make it pass on shared.
+
+**Unchanged by this correction:** every decision below for REQ-75, REQ-76 and
+REQ-77. Plans 17-03, 17-04, 17-05 and 17-06 stand as planned. 17-07's amendment
+list needs rework.
+
+</correction>
+
 <decisions>
 ## Implementation Decisions
 

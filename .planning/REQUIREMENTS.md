@@ -538,14 +538,47 @@ REQ-73.
 
 ### Phase 17 — v1.0 Close-Out
 
-- **REQ-74** — [ ] The Phase 13 shared-database half of REQ-67 is discharged: the
-  `CREATE TABLE` migration plus the `InteractionReport` backfill run against the
-  shared Lightsail DB by a **human**, and a verification pass confirms row counts,
-  field fidelity and null preservation match the local run. No agent applies the
-  migration. Phase 13 closes and REQ-66 / REQ-67 are checked off only after this.
+- **REQ-74** — [ ] **RE-SCOPED 2026-10-04.** The migration work this requirement
+  originally described is ALREADY DONE: `HANDOFF.md §3` (commit `9a53084`, "correct
+  the migration record after the shared-DB run") records all 14 migrations applied
+  to the shared Lightsail DB, `Database schema is up to date!`, nothing pending or
+  held. `13-MIGRATION-HANDOFF.md`'s "DEFERRED by human — still OPEN" is STALE.
 
-  **2026-10-04: migration DONE, verification VACUOUS.** Shared was empty, so the
-  backfill was a no-op and was never run there. See the REQ-66 note above.
+  What replaces it is the governance contradiction that run exposed:
+  `vercel.json`'s `buildCommand` is
+  `touch .env && prisma generate && prisma migrate deploy && next build`, so every
+  deployment applies pending migrations automatically and unreviewed. A preview
+  build on 2026-10-04 applied `add_interaction_report_title` to a database already
+  holding the first `DROP TABLE` in this project's history, with no human run and no
+  `pg_dump`. REQ-67's "no agent applies it; a human runs `prisma migrate deploy`"
+  therefore does not describe this project's actual behavior and has not since
+  `vercel.json` gained that command.
+
+  **Decided:** `prisma migrate deploy` is REMOVED from `buildCommand`, making the
+  pipeline match the documented discipline rather than amending the discipline to
+  match the pipeline.
+
+  **The removal is not sufficient on its own.** Deploys will stop self-migrating, so
+  a schema change must be applied deliberately BEFORE the deploy that depends on it,
+  or the app serves 500s on a missing column. This requirement is met only when the
+  replacement procedure is documented and the stale documents are reconciled —
+  `HANDOFF.md §3`, `13-MIGRATION-HANDOFF.md` and REQ-67 must stop contradicting each
+  other and reality. Safe to do now: all 14 migrations are applied everywhere, so
+  nothing is pending at the moment of removal. Phase 18 is the first consumer that
+  will need the new procedure.
+
+  Also closed under this requirement: **confirm what the Production `DATABASE_URL`
+  secret actually points at.** It is write-only (Vercel "Sensitive"), the account has
+  no marketplace integrations, and the `la_db_*` secrets are orphaned leftovers
+  pointing at a store that no longer exists. Nobody has verified it.
+
+  **REQ-66 and REQ-67 close under this requirement with a recorded caveat, not a
+  passing test.** The shared DB was found EMPTY (0 users, 0 reports of either kind),
+  so the `InteractionReport` backfill was a no-op and was never run against shared.
+  Its verifier *cannot* pass there — it hard-asserts at least one legacy
+  `cameraMode IS NULL` row exists, and there are none. REQ-66's acceptance test is
+  unsatisfiable on shared by construction; it passed on local (70 rows) and that is
+  the only place it ever could.
 
 - **REQ-75** — [ ] REQ-63's per-turn visible-context slice is verified against a real
   multi-channel session — the avatar's context provably contains only the declared
@@ -653,7 +686,9 @@ REQ-73.
 | Google Slides deck import | Permanently cut in Phase 14 — students export to PDF |
 | A networking-setting selector (conference, coffee chat) | Deferred at Phase 16 and not pulled into v1.1 |
 | Re-opening Phase 12 fidgeting measurement | Retired as unmeasurable, not deferred |
-| Part 2 of the shared-DB handoff (legacy `DROP TABLE`) | Declinable by the human after the Part 1 spot-check; not a v1.1 gate |
+| Running the shared-DB migration or backfill | **Already applied** 2026-10-04 (`HANDOFF.md §3`, commit `9a53084`) — all 14 migrations on shared, nothing pending. Both Part 1 and Part 2 are done. Nothing to run. |
+| Re-running the `InteractionReport` backfill verifier on shared | Unsatisfiable by construction — shared was empty (0 reports), so the backfill was a no-op and the verifier hard-asserts a legacy `cameraMode IS NULL` row that does not exist |
+| Amending the docs to bless CI-applied migrations | Rejected 2026-10-04 — the opposite was chosen: `prisma migrate deploy` comes OUT of `buildCommand` so the pipeline matches the discipline (REQ-74) |
 
 ## Traceability (v1.1)
 
