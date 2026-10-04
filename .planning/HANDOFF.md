@@ -40,6 +40,14 @@ the app will run against shared data perfectly happily and you will not notice
 until you have written test rows into the team's database. Check the connection
 string, do not wait for a symptom.
 
+**CORRECTED 2026-10-04.** `DATABASE_URL` as resolved from `.env` now points at the
+LOCAL dev DB, not shared — `npx prisma migrate status` with no inline prefix
+reports `leadership_avatar_dev at localhost:5432`. So the inline-prefix advice
+above is inverted today: a bare `npm run dev` runs against LOCAL, and reaching the
+shared Lightsail DB is what needs an explicit prefix. Verify with
+`npx prisma migrate status` before trusting either assumption — this has flipped
+once and can flip again.
+
 **Turbopack will refuse a second `next dev`** in this working directory even on a
 different port — all instances share one `.next/` cache and its lock. So you
 generally cannot leave a shared-DB server running and start a local-DB one beside
@@ -62,6 +70,16 @@ casually is how they get applied by accident.
 
 **`npx tsc --noEmit` is the authoritative check** in this project and is expected
 to be clean. Every phase used it as the gate.
+
+**It was NOT clean from roughly 2026-10-01 to 2026-10-04**, and nobody noticed:
+nine errors — one in shipped code (`app/api/interaction/chat/route.ts`, a lost
+`pitch-deck` narrowing) and eight in Phase 14–16 `scripts/verify-*.ts` harnesses
+that had drifted from the types they assert against. Every Vercel build failed on
+it for days. Two verify harnesses (`verify-turn-control`,
+`verify-pitch-surface-count`) were also failing independently of the type errors.
+All fixed 2026-10-04. The lesson is about the gate, not the errors: `tsc` being
+"the gate" is worth nothing unless something fails loudly when it breaks. Nothing
+did.
 
 ### 1.4 One "Console Error" in dev is not an error
 
@@ -155,27 +173,66 @@ Get the real values from the existing `.env.local` — they are not in git.
 
 ## 3. Migrations — the actual handoff item
 
-Migrations in `prisma/migrations/` (shared-DB status as of last human decision):
+**ALL 14 MIGRATIONS ARE APPLIED EVERYWHERE AS OF 2026-10-04.** The shared
+Lightsail DB reports `Database schema is up to date!` (14 of 14), run by a human.
+Nothing is pending or held. The table below is kept for history.
 
 | Migration | Phase | Applied to shared DB? |
 |---|---|---|
 | `20260228044702_init` | pre-GSD | yes |
 | `20260302180438_add_student_dashboard_fields` | pre-GSD | yes |
 | `20260916165041_add_user_and_auth_models` | pre-GSD | yes |
-| `20260920034855_add_interview_report` | 6 | yes (applied 2026-09-23) |
-| `20260921141342_add_interview_customization` | 8 | yes (applied 2026-09-23) |
-| `20260921201213_add_scenario_report` | 9 | yes (applied 2026-09-23) |
-| `20260922134512_add_video_audio_metrics` | 10 | yes (applied 2026-09-23) |
-| `20260930230000_add_report_structured` | 11 | check with human |
-| `20261004012908_add_interaction_report` | 13 | PENDING (REQ-67 Part 1 deferred) |
-| `20261004040000_drop_legacy_report_tables` | 13 | PENDING / declinable after Part 1 |
-| `20261101000000_add_networking_attestation` | 16 | **PENDING** — local only; hold shared (16-02, 2026-10-04) |
+| `20260920034855_add_interview_report` | 6 | yes (2026-09-23) |
+| `20260921141342_add_interview_customization` | 8 | yes (2026-09-23) |
+| `20260921201213_add_scenario_report` | 9 | yes (2026-09-23) |
+| `20260922134512_add_video_audio_metrics` | 10 | yes (2026-09-23) |
+| `20260924000000_add_study_plans` | 11 | yes (2026-10-04) |
+| `20260930230000_add_report_structured` | 11 | yes (2026-10-04) |
+| `20261004012908_add_interaction_report` | 13 | yes (2026-10-04) |
+| `20261004040000_drop_legacy_report_tables` | 13 | yes (2026-10-04) |
+| `20261004043007_add_pitch_session_columns` | 14 | yes (2026-10-04) |
+| `20261004143500_add_interaction_report_title` | 14 | yes (2026-10-04) |
+| `20261101000000_add_networking_attestation` | 16 | yes (2026-10-04) |
 
-**Queued for human (Phase 16):** `20261101000000_add_networking_attestation` —
-purely additive `CREATE TABLE "NetworkingAttestation"` + two indexes + FK.
-Applied to local `leadership_avatar_dev` only. Shared Lightsail run is
-**hold / PENDING** until a human decides (same discipline as REQ-67). Do not
-run `prisma migrate deploy` against shared from an agent.
+### What the 2026-10-04 run found — read this before trusting the rest of §3
+
+Three things turned out to be false, and they had been false for a while:
+
+1. **This table was missing `20260924000000_add_study_plans` entirely**, and that
+   migration had never been applied to shared. The shared DB sat one migration
+   behind `main` from 2026-09-24 onward. `add_report_structured` was also unapplied,
+   not merely "check with human".
+
+2. **The shared Lightsail DB was completely empty** — 0 users, 0 attempts, 0 audit
+   rows, 0 reports of either kind. Every risk framing built on "live student report
+   rows" (this section, and all of `13-MIGRATION-HANDOFF.md`) was counterfactual.
+   The `InteractionReport` backfill was therefore a no-op and was never run against
+   shared; its verifier cannot pass there, because it hard-asserts that at least one
+   legacy `cameraMode IS NULL` row exists to test. There are none.
+
+3. **`vercel.json`'s `buildCommand` runs `prisma migrate deploy` on every
+   deployment.** That is how migrations have actually been reaching the databases
+   behind Vercel's Preview and Production `DATABASE_URL` secrets — automatically, at
+   build time, unreviewed. A preview build on 2026-10-04 applied
+   `add_interaction_report_title` to a database that already held the other 13,
+   including the first `DROP TABLE` in this project's history. No human ran it and no
+   `pg_dump` preceded it.
+
+Point 3 is the one that matters going forward: **REQ-67's "no agent applies it; a
+human runs `prisma migrate deploy`" does not describe this project's actual
+behaviour** and has not since `vercel.json` gained that command. §1.2's "NEVER run
+`npm run setup`" was guarding one door while the build pipeline walked through
+another. Either remove `prisma migrate deploy` from `buildCommand` or amend REQ-67
+to say migrations are CI-applied — but do not leave the documented discipline and
+the real pipeline contradicting each other. This is harmless only while every
+database is empty and production stays SSO-gated with no users.
+
+Also unverified and worth closing: nobody has confirmed what the Production
+`DATABASE_URL` secret actually points at. It is write-only (Vercel "Sensitive"
+type), the account has no marketplace integrations, and the `la_db_*` secrets are
+orphaned leftovers pointing at a store that no longer exists. To settle it, deploy,
+sign in through the SSO-gated production URL, and check whether a `User` row lands
+in the Lightsail DB.
 
 **RESOLVED 2026-09-23 for the original seven.** Those four Phase 6–10 migrations
 were originally held back (applied to the local dev DB only) so the team could
