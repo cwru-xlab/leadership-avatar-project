@@ -180,6 +180,22 @@ export interface InteractionTypeConfig {
    * `true` for `case-study`; `false` for the interview presets, which run
    * off the type record alone (plus optional customization). */
   instance: { required: boolean };
+  /**
+   * Whether the client drives mid-session transcript checkpoints.
+   * `"client-driven"` — interview presets; client fires ~9-15 checkpoints.
+   * `"none"` — case-study; transcript lives in the S3 InteractionLog via
+   * `/api/interaction/save`. The engine must REJECT a checkpoint call for
+   * `"none"` types rather than silently accepting one (REQ-69).
+   */
+  checkpointing: "client-driven" | "none";
+  /**
+   * Where finish flips the row to PENDING (REQ-69 finish-side divergence):
+   * `"request-path"` — interview: finish handler writes PENDING before
+   *   scheduling evaluation.
+   * `"runner"` — case-study: finish does NOT flip status; the evaluation
+   *   runner writes PENDING as its first write.
+   */
+  finishPendingFlip: "request-path" | "runner";
   /** Declared steps for the generic pre-session setup wizard (plan 13-09).
    * Declaration only — this plan does not build the wizard. */
   setupSteps: SetupStepDeclaration[];
