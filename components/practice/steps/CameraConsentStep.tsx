@@ -53,6 +53,11 @@ export interface CameraConsentStepProps {
   onLaunch: (cameraMode: CameraMode) => void;
   /** True while the parent wizard is posting the start request. */
   launching?: boolean;
+  /**
+   * Primary CTA label. Interview presets use "Start interview"; case-study
+   * uses "Start" to match today's case-play intro (REQ-69).
+   */
+  launchLabel?: string;
 }
 
 export default function CameraConsentStep({
@@ -61,6 +66,7 @@ export default function CameraConsentStep({
   onBack,
   onLaunch,
   launching = false,
+  launchLabel = "Start interview",
 }: CameraConsentStepProps) {
   // Camera-mode decision, made BEFORE the session and LOCKED — see
   // 10-CONTEXT.md "Camera mode is locked at session start". Default OFF
@@ -239,7 +245,7 @@ export default function CameraConsentStep({
                       : chooseCameraOff()
                   }
                 >
-                  Start interview
+                  {launchLabel}
                 </Button>
               </div>
             </>

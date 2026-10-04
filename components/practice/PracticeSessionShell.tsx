@@ -51,7 +51,8 @@ import { createVocalCapture, type VocalCaptureHandle } from "@/lib/metrics/vocal
 import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 import { SelfViewThumbnail } from "@/components/metrics/SelfViewThumbnail";
 import { FaceDetectionBanner } from "@/components/metrics/FaceDetectionBanner";
-import type { StartAvatarRequest } from "@/types";
+import type { CaseStudy, InteractionLog, StartAvatarRequest } from "@/types";
+import CaseStudySessionView from "@/components/practice/CaseStudySessionView";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -78,21 +79,27 @@ interface PracticeSessionShellProps {
    * need to create a second row.
    */
   reportId: string;
-  interviewerName: string;
-  interviewerAvatarId: string;
-  avatarConfig: StartAvatarRequest;
+  interviewerName?: string;
+  interviewerAvatarId?: string;
+  avatarConfig?: StartAvatarRequest | null;
   /**
    * The camera-mode decision made and LOCKED in the setup wizard (REQ-35).
    * Deliberately a plain value, never a setter — this component has no
    * ability to change it, by the prop's type rather than by discipline.
    */
   cameraMode: CameraMode;
-  resumeText: string;
+  resumeText?: string;
   resumeFileName?: string;
-  resumeId: string | null;
+  resumeId?: string | null;
   language: string;
   onExit: () => void;
   onFinish: (reportId: string) => void;
+  /**
+   * Case-study only — full S3 CaseStudy (avatar ids / voice ids) and the
+   * InteractionLog returned by session start. Ignored for interview presets.
+   */
+  caseStudy?: CaseStudy | null;
+  interactionLog?: InteractionLog | null;
 }
 
 const HISTORY_TURNS = 10;
@@ -118,21 +125,52 @@ function formatElapsed(totalSeconds: number) {
  * of a per-type interview record. Calls only /api/practice/session/* and
  * /api/interaction/chat.
  */
-export default function PracticeSessionShell({
+
+/**
+ * One generic live-session shell for every engine-backed interaction type
+ * (REQ-59). Interview presets use the interview live room; case-study
+ * delegates to CaseStudySessionView so `/api/interaction/save` and the
+ * multi-role UI stay byte-identical to today's case-play session (REQ-69).
+ */
+export default function PracticeSessionShell(props: PracticeSessionShellProps) {
+  if (
+    props.sessionConfig.instance.kind === "case-study" &&
+    props.caseStudy &&
+    props.interactionLog
+  ) {
+    return (
+      <CaseStudySessionView
+        caseData={props.caseStudy}
+        reportId={props.reportId}
+        cameraMode={props.cameraMode}
+        initialLog={props.interactionLog}
+        language={props.language}
+        onExit={props.onExit}
+        onFinish={props.onFinish}
+      />
+    );
+  }
+  return <PracticeInterviewRoom {...props} />;
+}
+
+function PracticeInterviewRoom({
   sessionConfig,
   customization,
   reportId: initialReportId,
-  interviewerName,
-  interviewerAvatarId,
-  avatarConfig,
+  interviewerName = "",
+  interviewerAvatarId = "",
+  avatarConfig = null,
   cameraMode,
-  resumeText,
+  resumeText = "",
   resumeFileName,
-  resumeId,
+  resumeId = null,
   language,
   onExit,
   onFinish,
 }: PracticeSessionShellProps) {
+  if (!avatarConfig) {
+    throw new Error("PracticeInterviewRoom requires avatarConfig");
+  }
   const avatarRef = useRef<InteractiveAvatarRef>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const reportIdRef = useRef<string | null>(initialReportId || null);

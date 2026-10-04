@@ -13,6 +13,7 @@
 import CameraConsentStep from "@/components/practice/steps/CameraConsentStep";
 import type { SetupStepDeclaration } from "@/lib/engine/types";
 import type { CameraMode } from "@/lib/metrics/types";
+import type { InteractionLog } from "@/types";
 import { addToast } from "@heroui/toast";
 import { Check } from "lucide-react";
 import {
@@ -27,6 +28,8 @@ import {
 export interface SetupLaunchResult {
   reportId: string;
   cameraMode: CameraMode;
+  /** Present for case-study — the S3 InteractionLog the client keeps writing. */
+  log?: InteractionLog;
 }
 
 /**
@@ -70,6 +73,8 @@ export interface SetupWizardProps {
    * via onExit — matching today's interview page). Ignored if unknown.
    */
   initialStepId?: string;
+  /** Camera-gate primary CTA — forwarded to CameraConsentStep. */
+  launchLabel?: string;
 }
 
 export interface SetupStepNav {
@@ -96,6 +101,7 @@ export default function SetupWizard({
   createReportOnLaunch = true,
   progressAriaLabel = "Interview setup progress",
   initialStepId,
+  launchLabel,
 }: SetupWizardProps) {
   const allSteps = useMemo(
     () => [
@@ -158,6 +164,7 @@ export default function SetupWizard({
         const data = (await res.json().catch(() => ({}))) as {
           reportId?: string;
           cameraMode?: CameraMode;
+          log?: InteractionLog;
           error?: string;
         };
         if (!res.ok || !data.reportId) {
@@ -166,6 +173,7 @@ export default function SetupWizard({
         onLaunch({
           reportId: data.reportId,
           cameraMode: data.cameraMode ?? cameraMode,
+          log: data.log,
         });
       } catch (error) {
         addToast({
@@ -208,6 +216,7 @@ export default function SetupWizard({
           onBack={goBack}
           onLaunch={(mode) => void handleCameraLaunch(mode)}
           launching={launching}
+          launchLabel={launchLabel}
         />
       ) : (
         renderStep(current.id, {
