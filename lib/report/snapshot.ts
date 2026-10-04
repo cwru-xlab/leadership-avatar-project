@@ -192,13 +192,14 @@ const DIFFICULT_CONVERSATION_INPUT_KEYS: readonly (keyof DifficultConversationIn
     "avatarId",
   ];
 
-function hasAllKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+function hasAllKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
   return keys.every((key) => key in value);
 }
 
-function isPitchKind(
-  value: unknown,
-): value is PitchInputSnapshot["pitchKind"] {
+function isPitchKind(value: unknown): value is PitchInputSnapshot["pitchKind"] {
   return (
     typeof value === "string" &&
     (PITCH_KINDS as readonly string[]).includes(value)
@@ -226,7 +227,10 @@ function isDcDifficulty(
 function isDcSource(
   value: unknown,
 ): value is DifficultConversationInputSnapshot["source"] {
-  return typeof value === "string" && (DC_SOURCES as readonly string[]).includes(value);
+  return (
+    typeof value === "string" &&
+    (DC_SOURCES as readonly string[]).includes(value)
+  );
 }
 
 /**
@@ -268,6 +272,7 @@ export function asInputSnapshot(value: unknown): InputSnapshot | null {
     ) {
       return null;
     }
+
     return value as PitchInputSnapshot;
   }
   if (
@@ -287,6 +292,7 @@ export function asInputSnapshot(value: unknown): InputSnapshot | null {
   ) {
     return value as DifficultConversationInputSnapshot;
   }
+
   return null;
 }
 
@@ -299,8 +305,10 @@ export function asInputSnapshot(value: unknown): InputSnapshot | null {
 export function asScoreMap(value: unknown): ScoreMap | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const entries = Object.entries(value as Record<string, unknown>);
+
   for (const [, v] of entries) {
     if (v !== null && typeof v !== "number") return null;
   }
+
   return value as ScoreMap;
 }
