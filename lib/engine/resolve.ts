@@ -87,6 +87,21 @@ function resolveRubricDimensions(
 }
 
 /**
+ * Rubric dimension list for a type slug — shared four plus that type's
+ * extras — without requiring an instance. Used by the unified report page
+ * so score cards are driven by config, not a hardcoded key list (REQ-71).
+ * Returns null for an unknown slug or a type whose extras collide.
+ */
+export function listRubricDimensionsForSlug(
+  typeSlug: string | undefined | null,
+): RubricDimension[] | null {
+  const type = getEngineType(typeSlug);
+  if (!type) return null;
+  const result = resolveRubricDimensions(type);
+  return result.ok ? result.dimensions : null;
+}
+
+/**
  * Lower-level resolver that takes an `InteractionTypeConfig` record
  * directly rather than a slug. `resolveSessionConfig` below is the normal
  * entry point (it looks the record up by slug through the registry); this

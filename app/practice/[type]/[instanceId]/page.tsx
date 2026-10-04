@@ -220,9 +220,8 @@ export default function PracticeInstancePage() {
         }}
         onFinish={(finishedReportId) => {
           setFullScreen(false);
-          // Report URL stays on the legacy path until plan 13-12.
           router.push(
-            `/case-play/${caseData.id}/report/${finishedReportId}`,
+            `/practice/case-study/report/${finishedReportId}`,
           );
         }}
       />
