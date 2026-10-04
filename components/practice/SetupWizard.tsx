@@ -65,6 +65,11 @@ export interface SetupWizardProps {
   createReportOnLaunch?: boolean;
   /** Accessible label for the progress row. */
   progressAriaLabel?: string;
+  /**
+   * Step id to open on mount (e.g. `"resume"` when returning from a session
+   * via onExit — matching today's interview page). Ignored if unknown.
+   */
+  initialStepId?: string;
 }
 
 export interface SetupStepNav {
@@ -90,6 +95,7 @@ export default function SetupWizard({
   onLaunch,
   createReportOnLaunch = true,
   progressAriaLabel = "Interview setup progress",
+  initialStepId,
 }: SetupWizardProps) {
   const allSteps = useMemo(
     () => [
@@ -99,7 +105,13 @@ export default function SetupWizard({
     [steps],
   );
 
-  const [stepIndex, setStepIndex] = useState(0);
+  const initialIndex = useMemo(() => {
+    if (!initialStepId) return 0;
+    const idx = allSteps.findIndex((step) => step.id === initialStepId);
+    return idx >= 0 ? idx : 0;
+  }, [allSteps, initialStepId]);
+
+  const [stepIndex, setStepIndex] = useState(initialIndex);
   const [launching, setLaunching] = useState(false);
 
   const current = allSteps[stepIndex] ?? allSteps[0];
