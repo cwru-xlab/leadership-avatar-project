@@ -57,9 +57,11 @@ export function neutralizeDelimiters(text: string): string {
     /<<<\s*\/\s*AUTHORED[_\s-]*SCENARIO[_\s-]*FIELD\s*>>>/gi,
   ];
   let out = text;
+
   for (const re of patterns) {
     out = out.replace(re, "[neutralized-delimiter]");
   }
+
   return out;
 }
 
@@ -69,15 +71,18 @@ export function neutralizeDelimiters(text: string): string {
  * close delimiter → restatement.
  */
 export function buildAuthoredTextBlock(
-  fields: Record<string, string> | AuthoredTextFields
+  fields: Record<string, string> | AuthoredTextFields,
 ): string {
   const lines: string[] = [];
+
   lines.push(PREAMBLE);
   lines.push(AUTHORED_TEXT_DELIMITER);
 
   const bag = fields as Record<string, string | undefined>;
+
   for (const key of AUTHORED_FIELD_ORDER) {
     const raw = bag[key];
+
     if (typeof raw !== "string") continue;
     lines.push(`${key}: ${neutralizeDelimiters(raw)}`);
   }
@@ -91,6 +96,7 @@ export function buildAuthoredTextBlock(
 
   lines.push(AUTHORED_TEXT_DELIMITER);
   lines.push(RESTATEMENT);
+
   return lines.join("\n");
 }
 
@@ -99,7 +105,7 @@ export function buildAuthoredTextBlock(
  * so briefing / client-bound payloads cannot carry it even by mistake.
  */
 export function buildAuthoredTextBlockForStudent(
-  fields: StudentVisibleAuthoredFields
+  fields: StudentVisibleAuthoredFields,
 ): string {
   return buildAuthoredTextBlock(fields as Record<string, string>);
 }
