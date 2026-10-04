@@ -30,6 +30,7 @@ import type { Avatar, VersionManifest, AvatarVersion } from "./avatar-storage";
 import type { ChatSession, ChatMessage, ChatSessionMetadata, VideoAudioProfile, CaseStudy, InteractionLog } from "@/types";
 import type { Cohort } from "@/types/cohort";
 import type { InterviewTranscript } from "./interview/transcript";
+import type { DifficultConversationRecord } from "@/lib/difficult-conversation/types";
 
 // S3 client configuration - shared between avatar and chat storage
 const s3Client = new S3Client({
@@ -58,6 +59,20 @@ const PROFILE_INDEX_FILE = `${PROFILES_PREFIX}index.json`;
 // Case storage prefix and index
 const CASES_PREFIX = "cases/";
 const CASE_INDEX_FILE = `${CASES_PREFIX}index.json`;
+
+// Difficult-conversation storage prefix and index (NEW object type — not cases/)
+export const DIFFICULT_CONVERSATIONS_PREFIX = "difficult-conversations/";
+const DIFFICULT_CONVERSATION_INDEX_FILE = `${DIFFICULT_CONVERSATIONS_PREFIX}index.json`;
+
+export type DifficultConversationIndexEntry = {
+  id: string;
+  title: string;
+  avatarRole: string;
+  difficulty: string;
+  published: boolean;
+  ownerId: string | null;
+  updatedAt: string;
+};
 
 // Cohort storage prefix and index
 const COHORTS_PREFIX = "cohorts/";
@@ -1056,6 +1071,159 @@ export class S3AvatarStorage {
     });
     await s3Client.send(command);
   }
+
+
+  /**
+   * ==================================================================================
+   * DIFFICULT-CONVERSATION STORAGE METHODS
+   * ==================================================================================
+   *
+   * Storage Structure:
+   * difficult-conversations/{id}.json - Individual JSON files for each record
+   * difficult-conversations/index.json - Index of lightweight metadata for listing
+   *
+   * NEW object type — does not touch CASES_PREFIX or case helpers.
+   */
+
+  async saveDifficultConversationObject(
+    record: DifficultConversationRecord
+  ): Promise<void> {
+    const safeId = this.sanitizePathSegment(record.id, "difficultConversationId");
+    const key = `${DIFFICULT_CONVERSATIONS_PREFIX}${safeId}.json`;
+
+    const command = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: JSON.stringify(record, null, 2),
+      ContentType: "application/json",
+    });
+    await s3Client.send(command);
+
+    let index = await this.readDifficultConversationIndex();
+    index = index.filter((entry) => entry.id !== record.id);
+    index.push({
+      id: record.id,
+      title: record.title,
+      avatarRole: record.avatarRole,
+      difficulty: record.difficulty,
+      published: record.published,
+      ownerId: record.ownerId,
+      updatedAt: record.updatedAt,
+    });
+    index.sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+    await this.writeDifficultConversationIndex(index);
+  }
+
+  async getDifficultConversationObject(
+    id: string
+  ): Promise<DifficultConversationRecord | null> {
+    try {
+      const safeId = this.sanitizePathSegment(id, "difficultConversationId");
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: `${DIFFICULT_CONVERSATIONS_PREFIX}${safeId}.json`,
+      });
+
+      const response = await s3Client.send(command);
+      if (!response.Body) return null;
+
+      const content = await response.Body.transformToString();
+      return JSON.parse(content) as DifficultConversationRecord;
+    } catch (error: any) {
+      if (
+        error.name === "NoSuchKey" ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
+        return null;
+      }
+      // sanitizePathSegment throws on bad ids — treat as not found
+      if (
+        typeof error?.message === "string" &&
+        error.message.startsWith("Invalid difficultConversationId")
+      ) {
+        return null;
+      }
+      console.error(`Failed to get difficult conversation ${id}:`, error);
+      return null;
+    }
+  }
+
+  async listDifficultConversationObjects(): Promise<
+    DifficultConversationIndexEntry[]
+  > {
+    try {
+      return await this.readDifficultConversationIndex();
+    } catch (error) {
+      console.error("Failed to list difficult conversations:", error);
+      return [];
+    }
+  }
+
+  async deleteDifficultConversationObject(id: string): Promise<void> {
+    const safeId = this.sanitizePathSegment(id, "difficultConversationId");
+    const command = new DeleteObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: `${DIFFICULT_CONVERSATIONS_PREFIX}${safeId}.json`,
+    });
+    await s3Client.send(command);
+
+    let index = await this.readDifficultConversationIndex();
+    index = index.filter((entry) => entry.id !== id);
+    await this.writeDifficultConversationIndex(index);
+  }
+
+  async difficultConversationExists(id: string): Promise<boolean> {
+    try {
+      const safeId = this.sanitizePathSegment(id, "difficultConversationId");
+      const command = new HeadObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: `${DIFFICULT_CONVERSATIONS_PREFIX}${safeId}.json`,
+      });
+      await s3Client.send(command);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async readDifficultConversationIndex(): Promise<
+    DifficultConversationIndexEntry[]
+  > {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: DIFFICULT_CONVERSATION_INDEX_FILE,
+      });
+      const response = await s3Client.send(command);
+      if (!response.Body) return [];
+      const content = await response.Body.transformToString();
+      return JSON.parse(content) as DifficultConversationIndexEntry[];
+    } catch (error: any) {
+      if (
+        error.name === "NoSuchKey" ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  private async writeDifficultConversationIndex(
+    index: DifficultConversationIndexEntry[]
+  ): Promise<void> {
+    const command = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: DIFFICULT_CONVERSATION_INDEX_FILE,
+      Body: JSON.stringify(index, null, 2),
+      ContentType: "application/json",
+    });
+    await s3Client.send(command);
+  }
+
 
   /**
    * ==================================================================================
