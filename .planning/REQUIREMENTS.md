@@ -441,7 +441,7 @@ what was decided; they add no scope.
   INSTANCE (S3 data — role, situation, avatar, criteria). Phase 9's `CaseStudy`
   scenarios are instances under this model, not a separate pipeline.
 
-- **REQ-62** — [ ] `terminationPolicy` is an engine primitive: a type declares who may
+- **REQ-62** — [x] `terminationPolicy` is an engine primitive: a type declares who may
   end a session, including an AVATAR-INITIATED end, and the reason is recorded on the
   report. Nothing but the student can end a session today. Built in Phase 13 even
   though Phase 14 is its first consumer.
@@ -450,7 +450,7 @@ what was decided; they add no scope.
   controls what the avatar may see on a given turn, as distinct from everything the
   session knows. Modelled generally, not as slide bookkeeping.
 
-- **REQ-64** — [ ] A type-declared OUTCOME record (JSON) persists structured session
+- **REQ-64** — [x] A type-declared OUTCOME record (JSON) persists structured session
   results, and an explicit TIME BUDGET is an engine concept carried in the existing
   per-turn tail block, never in the system prompt.
 
