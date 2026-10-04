@@ -45,6 +45,7 @@ import type {
 } from "@/lib/report/snapshot";
 import { resolveDifficultConversationInstance } from "@/lib/difficult-conversation/resolve-instance";
 import { findSeededConversation } from "@/lib/difficult-conversation/seeded";
+import { ratchetHighWaterMark } from "@/lib/pitch/slide-reveal";
 import {
   DIFFICULTY_BANDS,
   type DifficultyBand,
@@ -800,26 +801,22 @@ export async function checkpointSession({
   if (isPitchDeckSnapshot(report.inputSnapshot)) {
     const slideCount = report.inputSnapshot.slideCount;
     const stored = report.slideHighWaterMark;
-    const requested =
-      typeof revealedSlideIndex === "number" &&
-      Number.isFinite(revealedSlideIndex)
-        ? Math.trunc(revealedSlideIndex)
-        : null;
+    // Single ratchet in the repo — lib/pitch/slide-reveal.ts (14-11).
+    const { mark, advanced } = ratchetHighWaterMark({
+      stored,
+      requested: revealedSlideIndex,
+      slideCount,
+    });
 
-    // Non-finite or negative input is ignored (not an error).
-    if (requested !== null && requested >= 0) {
-      const next = Math.max(
-        stored ?? -1,
-        Math.min(requested, slideCount - 1),
-      );
-      updateData.slideHighWaterMark = next;
+    if (mark !== null) {
+      updateData.slideHighWaterMark = mark;
 
-      if (next > (stored ?? -1)) {
+      if (advanced) {
         const prior: SlideRevealEvent[] = Array.isArray(report.slideReveals)
           ? (report.slideReveals as SlideRevealEvent[])
           : [];
         const event: SlideRevealEvent = {
-          index: next,
+          index: mark,
           atTurnIndex: turns.length,
           atElapsedSeconds: Math.round(
             (Date.now() - report.startedAt.getTime()) / 1000,
