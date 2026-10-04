@@ -41,6 +41,7 @@ import {
   type InterviewProgress,
   type InterviewType,
 } from "@/lib/interview/types";
+import { buildSlidesTailFragment } from "@/lib/pitch/slide-reveal";
 
 /** Byte-identical to the style guide in today's chat-route `else` branch. */
 export const CASE_STUDY_REPLY_STYLE_GUIDE = `## Reply Style
@@ -97,6 +98,13 @@ export interface EngineTurnState {
   sessionState?: SessionContextState;
   /** Optional per-channel cursors for progressive reveal. */
   visibleContextTurn?: VisibleContextTurn;
+  /**
+   * Pitch-deck admitted slides (server-ratcheted). Tail-block only — never
+   * system prompt (14-11 / REQ-73). Absent → byte-identical to pre-14-11.
+   */
+  revealedSlides?: { index: number; text: string }[];
+  /** Total slides in the deck; pairs with `revealedSlides` for the fragment. */
+  slideCount?: number;
 }
 
 const PER_TURN_KEY =
@@ -213,6 +221,9 @@ function assembleCaseStudySystemPrompt(opts: AssembleSystemPromptOpts): string {
  * Interview types delegate to `buildInterviewSystemPrompt` for byte-identity.
  * Case-study reproduces the route's legacy `else`-branch assembly, with
  * per-avatar role selection supplied at request time via `opts`.
+ *
+ * Slide reveal state is explicitly excluded — it lives in the tail block
+ * via `buildSlidesTailFragment` (14-11 / REQ-73). Do not move it here.
  */
 export function assembleSystemPrompt(
   config: ResolvedSessionConfig,
@@ -272,11 +283,14 @@ function renderVisibleContextFragment(admitted: SessionContextState): string {
  *   1. interview progress block (interview types only)
  *   2. engine time-budget fragment (non-interview types that declare a budget)
  *   3. visible-context slice rendering (only when the type restricts channels)
+ *   4. type-declared per-turn fragment (e.g. in-character reminder)
+ *   5. revealed-slides fragment (pitch-deck; appended — never reorders above)
  *
  * For today's five types this is byte-identical to `buildProgressBlock` alone
  * on interview turns, and the empty string on case-study turns — interview
  * timing already lives inside the progress block, case-study declares no
- * budget, and every type uses permissive `"*"` visible-context.
+ * budget, and every type uses permissive `"*"` visible-context. Slide fields
+ * absent → same bytes as before 14-11.
  */
 export function buildTailBlock(
   config: ResolvedSessionConfig,
@@ -299,6 +313,7 @@ export function buildTailBlock(
   const hasFirstTurnWindow =
     config.timeBudget.firstTurnWindowSeconds != null &&
     config.timeBudget.firstTurnWindowSeconds > 0;
+
   if (
     !isInterview &&
     (hasSessionBudget || hasFirstTurnWindow) &&
@@ -335,6 +350,15 @@ export function buildTailBlock(
   const tailFragment = type?.prompts.buildTailFragment?.(config);
 
   if (tailFragment) parts.push(tailFragment);
+
+  // Pitch-deck admitted slides — AFTER existing fragments. Absent fields → "".
+  if (turnState.revealedSlides && turnState.slideCount != null) {
+    const slidesFragment = buildSlidesTailFragment(turnState.revealedSlides, {
+      slideCount: turnState.slideCount,
+    });
+
+    if (slidesFragment) parts.push(slidesFragment);
+  }
 
   return parts.join("\n\n");
 }

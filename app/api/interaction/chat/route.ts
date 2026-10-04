@@ -2,6 +2,7 @@ import type { InterviewCustomizationInput } from "@/lib/interview/customization"
 import type { InstanceConfig, ResolvedSessionConfig } from "@/lib/engine/types";
 
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 
 import { createLLMStream, createSSEHeaders } from "../../llm/common";
 
@@ -18,6 +19,13 @@ import {
   isInterviewIntegrityRequest,
   parseEngineTurn,
 } from "@/lib/engine/turn-control";
+import { getCurrentUser } from "@/lib/auth";
+import { siteConfig } from "@/config/site";
+import { prisma } from "@/lib/prisma";
+import {
+  ratchetHighWaterMark,
+  resolveRevealedSlides,
+} from "@/lib/pitch/slide-reveal";
 
 export const maxDuration = 60;
 
@@ -309,8 +317,16 @@ function assembleLegacyCaseStudyPrompt(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { messages, systemPrompt, roleContext, language, interview, engine } =
-      body;
+    const {
+      messages,
+      systemPrompt,
+      roleContext,
+      language,
+      interview,
+      engine,
+      revealedSlideIndex,
+      reportId: rawReportId,
+    } = body;
     const attemptLanguage = resolveAttemptLanguage(language);
 
     if (
@@ -460,6 +476,106 @@ export async function POST(request: NextRequest) {
           ? rawCustomizationBag.personaDisplayName
           : null;
 
+      // Pitch-deck only: server-authoritative slide high-water mark → tail.
+      // Interview / case-study / elevator paths are untouched below.
+      let revealedSlides: { index: number; text: string }[] | undefined;
+      let slideCountForTail: number | undefined;
+
+      if (sessionConfig.instance.kind === "pitch-deck") {
+        const slideCount = sessionConfig.instance.slideCount;
+        let stored: number | null = null;
+        let reportStartedAt: Date | null = null;
+        let priorReveals: unknown = null;
+        let ownedReportId: string | null = null;
+
+        const reportId =
+          typeof rawReportId === "string" && rawReportId.length > 0
+            ? rawReportId
+            : null;
+
+        if (reportId) {
+          try {
+            const token = request.cookies.get(
+              siteConfig.auth.cookie.name,
+            )?.value;
+            const currentUser = await getCurrentUser(token || "");
+
+            if (currentUser) {
+              const report = await prisma.interactionReport.findFirst({
+                where: { id: reportId, userId: currentUser.id },
+                select: {
+                  id: true,
+                  slideHighWaterMark: true,
+                  slideReveals: true,
+                  startedAt: true,
+                },
+              });
+
+              if (report) {
+                ownedReportId = report.id;
+                stored = report.slideHighWaterMark;
+                priorReveals = report.slideReveals;
+                reportStartedAt = report.startedAt;
+              }
+            }
+          } catch (err) {
+            console.error(
+              "pitch-deck slide mark load failed; proceeding in-memory",
+              err,
+            );
+          }
+        }
+
+        // revealedSlideIndex is an INPUT to the ratchet only — never used raw.
+        const { mark, advanced } = ratchetHighWaterMark({
+          stored,
+          requested: revealedSlideIndex,
+          slideCount,
+        });
+
+        if (advanced && mark !== null && ownedReportId) {
+          try {
+            const prior = Array.isArray(priorReveals)
+              ? (priorReveals as Array<{
+                  index: number;
+                  atTurnIndex: number;
+                  atElapsedSeconds: number;
+                }>)
+              : [];
+            const atTurnIndex = messages.filter(
+              (m: { role: string }) => m.role === "user",
+            ).length;
+            const atElapsedSeconds = reportStartedAt
+              ? Math.round((Date.now() - reportStartedAt.getTime()) / 1000)
+              : 0;
+
+            await prisma.interactionReport.update({
+              where: { id: ownedReportId },
+              data: {
+                slideHighWaterMark: mark,
+                slideReveals: [
+                  ...prior,
+                  { index: mark, atTurnIndex, atElapsedSeconds },
+                ] as unknown as Prisma.InputJsonValue,
+              },
+            });
+          } catch (err) {
+            // Transient DB error must not drop the student's turn — checkpoint
+            // (14-05) is the durability backstop.
+            console.error(
+              "pitch-deck slide mark persist failed; using in-memory mark",
+              err,
+            );
+          }
+        }
+
+        revealedSlides = resolveRevealedSlides({
+          config: sessionConfig,
+          mark,
+        });
+        slideCountForTail = slideCount;
+      }
+
       const built = buildTurnMessages({
         config: sessionConfig,
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -487,10 +603,13 @@ export async function POST(request: NextRequest) {
             ? {
                 startedAt: firstTurnStartedAtDate,
                 deliveredAt: firstTurnDelivered
-                  ? startedAtDate ?? new Date()
+                  ? (startedAtDate ?? new Date())
                   : undefined,
               }
             : undefined,
+          ...(revealedSlides !== undefined
+            ? { revealedSlides, slideCount: slideCountForTail }
+            : {}),
         },
         language: attemptLanguage,
         resumeText,
@@ -506,6 +625,7 @@ export async function POST(request: NextRequest) {
       // Include the assistant turn currently being produced (floor counts this reply).
       const assistantTurnCount =
         messages.filter((m) => m.role === "assistant").length + 1;
+
       parseOpts = {
         previousProgress: progress,
         hasResume: Boolean(resumeText.trim()),
