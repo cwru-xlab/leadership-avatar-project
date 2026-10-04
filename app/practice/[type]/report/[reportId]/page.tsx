@@ -12,7 +12,10 @@ import ReportScoreCards, {
   type ReportScoreCardsProps,
 } from "@/components/interview/ReportScoreCards";
 import ReportBody from "@/components/report/ReportBody";
-import { getReportChrome } from "@/components/practice/ReportChrome";
+import {
+  getReportChrome,
+  renderReportExtras,
+} from "@/components/practice/ReportChrome";
 import { listRubricDimensionsForSlug } from "@/lib/engine/resolve";
 import type { ReportDTO } from "@/lib/report/dto";
 import type { ScoreMap } from "@/lib/report/snapshot";
@@ -282,10 +285,6 @@ export default function PracticeReportPage() {
     );
   }
 
-  // terminationReason: Phase 13 only RECORDS it (CONTEXT.md defers report
-  // copy to Phase 14). Render nothing for it here.
-  void report?.terminationReason;
-
   return (
     <ReportShell
       title={isInterviewChrome ? "Your interview report" : "Your practice report"}
@@ -328,6 +327,9 @@ export default function PracticeReportPage() {
           }}
         />
       )}
+
+      {/* Per-type extras (14-14 / 15-09). Generic — never branch on a slug. */}
+      {renderReportExtras(chrome, "above", report)}
 
       {/* Score cards live inside Overview once READY; until then they render
           alone so a pending session still shows placeholders above the skeleton. */}
@@ -408,6 +410,8 @@ export default function PracticeReportPage() {
           </div>
         )}
       </div>
+
+      {renderReportExtras(chrome, "below", report)}
     </ReportShell>
   );
 }
