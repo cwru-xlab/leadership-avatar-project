@@ -3,16 +3,15 @@
 /**
  * Engine session page for instance-less types (the four interview presets).
  *
- * Hosts SetupWizard → InterviewSessionShell in ONE page with a step
+ * Hosts SetupWizard → PracticeSessionShell in ONE page with a step
  * transition (no navigation between them — matching today's interview
- * experience). Plan 13-10 swaps InterviewSessionShell for
- * PracticeSessionShell; plan 13-11 owns `/practice/[type]/[instanceId]`.
+ * experience). Plan 13-11 owns `/practice/[type]/[instanceId]`.
  *
  * Do not edit `app/interview/[type]/page.tsx` from here — that page stays
- * live until 13-13 so humans can compare the two wizards side by side.
+ * live until 13-13 so humans can compare the two shells side by side.
  */
 
-import InterviewSessionShell from "@/components/interview/InterviewSessionShell";
+import PracticeSessionShell from "@/components/practice/PracticeSessionShell";
 import SetupWizard, {
   type SetupStepNav,
 } from "@/components/practice/SetupWizard";
@@ -23,6 +22,7 @@ import ResumeStep from "@/components/practice/steps/ResumeStep";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import { resolveInterviewType } from "@/lib/interview/customization";
 import { getEngineType } from "@/lib/engine/registry";
+import { resolveSessionConfig } from "@/lib/engine/resolve";
 import { useLayout } from "@/lib/layout-context";
 import type { CameraMode } from "@/lib/metrics/types";
 import type { StartAvatarRequest } from "@/types";
@@ -88,6 +88,13 @@ export default function PracticeTypePage() {
     [params.type, storedCustomization],
   );
 
+  const sessionConfig = useMemo(() => {
+    const resolved = resolveSessionConfig(params.type, {
+      customization: storedCustomization,
+    });
+    return resolved.ok ? resolved.config : null;
+  }, [params.type, storedCustomization]);
+
   const [phase, setPhase] = useState<PagePhase>("wizard");
   // When exiting a session, reopen the wizard on the resume step — same as
   // today's `setStep("resume")` on InterviewSessionShell onExit.
@@ -100,6 +107,7 @@ export default function PracticeTypePage() {
   const [resumeFileName, setResumeFileName] = useState<string | undefined>();
   const [resumeId, setResumeId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("OFF");
+  const [reportId, setReportId] = useState<string | null>(null);
 
   useEffect(() => {
     setFullScreen(phase === "session");
@@ -128,7 +136,12 @@ export default function PracticeTypePage() {
 
   // Unknown slug OR a type that requires an instance (those live at
   // /practice/[type]/[instanceId] — plan 13-11). Handled, never crashed.
-  if (!engineType || engineType.instance.required || !interviewType) {
+  if (
+    !engineType ||
+    engineType.instance.required ||
+    !interviewType ||
+    !sessionConfig
+  ) {
     return (
       <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa] p-6 text-[#102331]">
         <Card className="max-w-lg border border-[#d4e2e9] shadow-none">
@@ -152,12 +165,14 @@ export default function PracticeTypePage() {
   if (
     phase === "session" &&
     selectedInterviewer &&
-    avatarConfig
+    avatarConfig &&
+    reportId
   ) {
     return (
-      <InterviewSessionShell
-        interviewType={interviewType}
+      <PracticeSessionShell
+        sessionConfig={sessionConfig}
         customization={storedCustomization}
+        reportId={reportId}
         interviewerName={
           storedCustomization?.personaDisplayName?.trim() ||
           selectedInterviewer.name
@@ -172,13 +187,16 @@ export default function PracticeTypePage() {
         onExit={() => {
           setWizardStepId("resume");
           setPhase("wizard");
+          setReportId(null);
           setFullScreen(false);
         }}
-        onFinish={(reportId) => {
+        onFinish={(finishedReportId) => {
           setFullScreen(false);
           // Report URL stays on the legacy path until plan 13-12/13-13;
-          // only the wizard URL is sanctioned to change in this plan.
-          router.push(`/interview/${interviewType.slug}/report/${reportId}`);
+          // only the practice session URL is sanctioned to change here.
+          router.push(
+            `/interview/${interviewType.slug}/report/${finishedReportId}`,
+          );
         }}
       />
     );
@@ -234,12 +252,19 @@ export default function PracticeTypePage() {
           typeSlug={engineType.slug}
           steps={engineType.setupSteps}
           initialStepId={wizardStepId}
-          // Bridge: InterviewSessionShell still owns ensureReport via the
-          // legacy interview start route. Posting here would orphan a second
-          // IN_PROGRESS row. Plan 13-10 flips createReportOnLaunch to true
-          // when PracticeSessionShell consumes the wizard's reportId.
-          createReportOnLaunch={false}
-          onLaunch={({ cameraMode: locked }) => {
+          createReportOnLaunch
+          buildStartPayload={() => ({
+            customization: storedCustomization,
+            interviewerAvatarId: selectedInterviewer?.avatarId,
+            interviewerName:
+              storedCustomization?.personaDisplayName?.trim() ||
+              selectedInterviewer?.name,
+            resumeId,
+            resumeText,
+            language: "en",
+          })}
+          onLaunch={({ reportId: launchedId, cameraMode: locked }) => {
+            setReportId(launchedId);
             setCameraMode(locked);
             setPhase("session");
           }}
