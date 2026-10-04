@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-10-04 (13-11 DELIVERED — case-study on `/practice/case-study/{caseId}`; case-play runtime dispatcher; human verdict **both verified**. Report URLs still legacy until 13-12; dual shells until 13-13. Shared-DB migrate still deferred under REQ-67. See `13-11-SUMMARY.md`.)
+**Updated:** 2026-10-04 (13-12 DELIVERED — one report page at `/practice/[type]/report/[reportId]`; human verdict **reports identical**. Dual shells until 13-13; Shared-DB migrate still deferred under REQ-67. See `13-12-SUMMARY.md`.)
 
 ## Current Position
 
-**Phase:** 13 — One-on-One Conversation Engine — IN PROGRESS (11 of 15 plans executed)
-**Current Plan:** 13-11 complete; next is 13-12
-**Stopped At:** Completed 13-11-PLAN.md
+**Phase:** 13 — One-on-One Conversation Engine — IN PROGRESS (12 of 15 plans executed)
+**Current Plan:** 13-12 complete; next is 13-13
+**Stopped At:** Completed 13-12-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -355,6 +355,9 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 13]: Chat route prefers engine.turnState/resumeText with legacy interview fallback so both shells stay comparable
 - [Phase 13]: Case-study live UI is CaseStudySessionView behind PracticeSessionShell; save path stays /api/interaction/save with zero checkpoints.
 - [Phase 13]: case-play/{caseId} dispatches student scenarios at runtime via ownerId; legacy admin cases stay inline (no static redirect).
+- [Phase 13]: Report chrome values transcribed verbatim from legacy pages (interview 2s/120s/retry/401/strip vs case-study 3s/180s/check-again/no-401/no-strip); converging them is forbidden under REQ-69.
+- [Phase 13]: Unified report page builds scores from listRubricDimensionsForSlug; ReportScoreCards/ReportBody left untouched.
+- [Phase 13]: Finish nav from /practice sessions now lands on /practice/{type}/report/{id}; old report pages intact until 13-13.
 
 ## Progress
 
@@ -1815,8 +1818,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T03:20:54.976Z
-**Stopped At:** Completed 13-11-PLAN.md — case-study on engine + case-play dispatcher; human verdict **both verified**. Next: 13-12.
+**Last Date:** 2026-10-04T03:29:43Z
+**Stopped At:** Completed 13-12-PLAN.md — unified `/practice/.../report`; human verdict **reports identical**. Next: 13-13.
 **Resume File:** None
 
 
