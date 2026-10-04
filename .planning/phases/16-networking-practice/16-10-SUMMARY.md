@@ -75,7 +75,7 @@ Each task was committed atomically:
 2. **Task 2: Prove the surfaces, including every outcome case** — `c9940a4` (feat)
 3. **Task 3: Read a real networking report** — skipped (`skip_checkpoints`); automated evidence below (no separate commit)
 
-**Plan metadata:** (docs commit after this SUMMARY)
+**Plan metadata:** `4e93dda` (docs: complete plan)
 
 ## Files Created/Modified
 
