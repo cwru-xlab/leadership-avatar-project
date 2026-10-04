@@ -49,6 +49,7 @@ import {
   DIFFICULTY_BANDS,
   type DifficultyBand,
 } from "@/lib/difficult-conversation/types";
+import { buildNetworkingStartSnapshot } from "@/lib/networking/start-snapshot";
 import type { InteractionLog } from "@/types";
 
 import { runAndPersistEvaluation } from "./evaluation-runner";
@@ -312,6 +313,65 @@ export async function startSession({
     userId,
     cameraModeRequest,
   );
+
+  // ---- Networking: ONE Prisma write, ZERO S3 writes; NetworkingInputSnapshot
+  //      (evaluator-only private goal). Must run before the interview
+  //      fallthrough — networking also declares instance.required: false.
+  //      Snapshot assembly lives in lib/networking/ so lib/engine/ never
+  //      names a goal field (16-09 grep backstop). ----
+  if (type.slug === "networking") {
+    const built = await buildNetworkingStartSnapshot({
+      userId,
+      instanceId,
+      customization,
+      interviewerAvatarId:
+        typeof rawInterviewerAvatarId === "string"
+          ? truncate(rawInterviewerAvatarId, MAX_NAME_LENGTH)
+          : null,
+    });
+    if (!built.ok) {
+      return { ok: false, status: built.status, error: built.error };
+    }
+
+    const resolved = resolveSessionConfig(typeSlug, {
+      instance: built.resolveInstance,
+    });
+    if (!resolved.ok) {
+      return { ok: false, status: 400, error: resolved.reason };
+    }
+
+    const timeBudgetSeconds = resolvePersistedBudget(
+      resolved.config.timeBudget,
+      timeBudgetOverrideSeconds,
+    );
+    const inputSnapshot = {
+      ...built.snapshot,
+      budgetSeconds: timeBudgetSeconds,
+    };
+
+    const report = await prisma.interactionReport.create({
+      data: {
+        userId,
+        typeSlug: type.slug,
+        status: "IN_PROGRESS",
+        cameraMode,
+        metricsConsentAt: consentAt,
+        inputSnapshot: inputSnapshot as unknown as Prisma.InputJsonValue,
+        timeBudgetSeconds,
+      },
+      select: { id: true },
+    });
+
+    console.info("Engine networking report created", {
+      userId,
+      reportId: report.id,
+      typeSlug: type.slug,
+      cameraMode,
+      personaSource: inputSnapshot.personaSource,
+    });
+
+    return { ok: true, reportId: report.id, cameraMode };
+  }
 
   // ---- Interview presets: ONE Prisma write, ZERO S3 writes ----
   if (!type.instance.required) {
