@@ -9,6 +9,7 @@
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 16-11 complete (Phase 16 plans 11/11 done; keyboard sign-off UNVERIFIED under skip_checkpoints)
 **Phase 15:** Plans 11/11 complete — surface-count + VALIDATION delivered; keyboard UAT UNVERIFIED (`15-VALIDATION.md`, `/gsd/verify-work 15`)
+**Phase 15 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `15-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 15` for keyboard B–G + hostile probe 5.
 **Phase 16:** Plans 11/11 complete — tile live; human UAT UNVERIFIED (`16-VALIDATION.md`)
 **Phase 16 verification:** `human_needed` — 4/4 SC PASS-automated (0 FAIL); see `16-VERIFICATION.md` (2026-10-04). Next: `/gsd/verify-work 16` for keyboard B–G.
 **Stopped At:** Completed 15-11-PLAN.md
