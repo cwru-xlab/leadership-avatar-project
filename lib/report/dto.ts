@@ -54,13 +54,25 @@ export interface ReportDTO {
   };
   /** Per-type input snapshot (see `InputSnapshot`), discriminated on
    * `kind`. `null` on a legacy row or a row written before the snapshot
-   * was recorded. */
+   * was recorded. Includes `kind: "difficult-conversation"` when present
+   * (narrowed by `asInputSnapshot` — never cherry-picked here). */
   input: InputSnapshot | null;
   /** REQ-62: the recorded reason an avatar-initiated end produced. `null`
    * means the session ended normally. */
   terminationReason: string | null;
-  /** REQ-64: the type-declared outcome record. `null` when the type has
-   * none or the session never reached one. */
+  /** Session-clock seconds where termination turned, when recorded.
+   * `null` when the session ended without a stamped turn (or was rejected). */
+  terminationAtSeconds: number | null;
+  /**
+   * REQ-64: the type-declared outcome record. `null` when the type has
+   * none or the session never reached one. Passed through unchanged —
+   * keyed by the type's own field names, not a type-specific DTO shape.
+   *
+   * The outcome record is data the report RENDERS. It is never applied
+   * to a score here or anywhere else — CONTEXT.md rejects letting the
+   * outcome cap or lift a dimension. If you are adding arithmetic that
+   * reads `outcome` and writes a score, stop.
+   */
   outcome: unknown | null;
   /** Structured body (see `lib/report/structured.ts`). Null on pre-migration
    * rows, which fall back to rendering `reportMarkdown`. */
@@ -130,6 +142,119 @@ function asVocalUnscoredReason(value: string | null): VocalUnscoredReason | null
     : null;
 }
 
+/** Declared objective-status values for conversation outcome panels. */
+const OBJECTIVE_STATUSES = [
+  "met",
+  "partially_met",
+  "not_met",
+  "avatar_ended",
+] as const;
+
+export type ConversationObjectiveStatus = (typeof OBJECTIVE_STATUSES)[number];
+
+/** One causal turn cited by the character's private reaction. */
+export interface ConversationReactionCause {
+  timecodeSeconds: number;
+  quote: string;
+  effect: string;
+}
+
+/**
+ * Narrowed view of a conversation outcome record for report panels.
+ *
+ * Not a DTO field type — `ReportDTO.outcome` stays generic (`unknown`).
+ * Malformed fields degrade to absent; never throws. A partial outcome
+ * must still let scores render.
+ */
+export interface ConversationOutcomeView {
+  objectiveStatus: ConversationObjectiveStatus | null;
+  objectiveNote: string | null;
+  inRoleReaction: string | null;
+  reactionCauses: ConversationReactionCause[] | null;
+  endTurnReasons: string | null;
+  endTurnTimecodeSeconds: number | null;
+}
+
+function asObjectiveStatus(value: unknown): ConversationObjectiveStatus | null {
+  return typeof value === "string" &&
+    (OBJECTIVE_STATUSES as readonly string[]).includes(value)
+    ? (value as ConversationObjectiveStatus)
+    : null;
+}
+
+function asReactionCauses(value: unknown): ConversationReactionCause[] | null {
+  let raw: unknown = value;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    try {
+      raw = JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(raw)) return null;
+  const out: ConversationReactionCause[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const row = item as Record<string, unknown>;
+    if (
+      typeof row.timecodeSeconds !== "number" ||
+      !Number.isFinite(row.timecodeSeconds) ||
+      typeof row.quote !== "string" ||
+      typeof row.effect !== "string"
+    ) {
+      continue;
+    }
+    out.push({
+      timecodeSeconds: row.timecodeSeconds,
+      quote: row.quote,
+      effect: row.effect,
+    });
+  }
+  return out.length > 0 ? out : null;
+}
+
+/**
+ * Defensively narrows an unknown outcome JSON value into the conversation
+ * panel view. Any malformed field degrades to absent — never throws — so a
+ * report whose evaluator produced a partial outcome still renders its scores.
+ */
+export function asConversationOutcome(value: unknown): ConversationOutcomeView | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  const view: ConversationOutcomeView = {
+    objectiveStatus: asObjectiveStatus(v.objectiveStatus),
+    objectiveNote: typeof v.objectiveNote === "string" ? v.objectiveNote : null,
+    inRoleReaction:
+      typeof v.inRoleReaction === "string" && v.inRoleReaction.trim()
+        ? v.inRoleReaction
+        : null,
+    reactionCauses: asReactionCauses(v.reactionCauses),
+    endTurnReasons:
+      typeof v.endTurnReasons === "string" && v.endTurnReasons.trim()
+        ? v.endTurnReasons
+        : null,
+    endTurnTimecodeSeconds:
+      typeof v.endTurnTimecodeSeconds === "number" &&
+      Number.isFinite(v.endTurnTimecodeSeconds)
+        ? v.endTurnTimecodeSeconds
+        : null,
+  };
+  // If every field is absent, treat as no outcome rather than an empty shell.
+  if (
+    view.objectiveStatus === null &&
+    view.objectiveNote === null &&
+    view.inRoleReaction === null &&
+    view.reactionCauses === null &&
+    view.endTurnReasons === null &&
+    view.endTurnTimecodeSeconds === null
+  ) {
+    return null;
+  }
+  return view;
+}
+
 /**
  * Maps a Prisma `InteractionReport` row to the unified client-facing DTO.
  *
@@ -162,6 +287,8 @@ export function toReportDto(row: InteractionReport): ReportDTO {
     },
     input: asInputSnapshot(row.inputSnapshot),
     terminationReason: row.terminationReason,
+    terminationAtSeconds:
+      typeof row.terminationAtSeconds === "number" ? row.terminationAtSeconds : null,
     outcome: row.outcome,
     reportStructured: asStructuredReport(row.reportStructured),
     reportMarkdown: row.reportMarkdown,
