@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 16-08-PLAN.md
+**Stopped At:** Completed 15-09-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -395,6 +395,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 16]: Networking wizard goal length cap is 300 characters
 - [Phase 16]: 13-09 customComponent is a label only; page renderStep mounts NetworkingPerson/Goal steps
 - [Phase 16]: startSession networking InputSnapshot path deferred as 16-11 extension handoff (16-08 forbids engine edits)
+- [Phase 15]: ReportChrome extras slot added in 14-14 shape (above/below); DC panels register there
+- [Phase 15]: MomentsPanel not reused for reactionCauses; formatTimecode from bands reused instead
 
 ## Progress
 
@@ -1855,7 +1857,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:34:30.442Z
+**Last Date:** 2026-10-04T04:35:50.605Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
