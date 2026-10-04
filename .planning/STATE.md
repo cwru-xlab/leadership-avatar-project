@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 13-15-PLAN.md — awaiting human shared-DB Part 1 for phase close
+**Stopped At:** Completed 15-01-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -362,6 +362,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 13-one-on-one-conversation-engine / 13-14]: Human REQ-66 verdict **validation passed** (all nine items PASS on local DB). Admin fixture corrected to `/case-play/testing` after absent UUID `7bfbee05-…`. Shared-DB half of backfill still OPEN under REQ-67; REQ-66 left unchecked in REQUIREMENTS.md until shared rows exist.
 - [Phase 13-one-on-one-conversation-engine / 13-15]: Human ACK **drop handoff received**. Local DROP applied (`20261004040000_drop_legacy_report_tables`). Shared Part 1 still OPEN under REQ-67; Part 2 declinable. Study-plans retargeted off `interviewReport` before DROP.
 - [Phase 13]: Dashboard tiles keep /interview and /case-play indexes; ScenarioCard launches /practice/case-study/{id}
+- [Phase 15]: Gap 1: termination marker NOT extended with source; caller supplies source + reason codes
+- [Phase 15]: avatarEndFloor Case A from 14-02; floor enforcement committed by 15-01 under 14-02 shape
 
 ## Progress
 
@@ -1822,7 +1824,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:10:00.000Z
+**Last Date:** 2026-10-04T04:17:18.296Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 

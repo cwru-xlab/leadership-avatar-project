@@ -502,7 +502,7 @@ student-authored content).
      remains its owner.
   4. The report judges how the conversation was handled — clarity, empathy,
      holding the line — not merely that the student reached the end of it.
-**Plans:** 11 plans in 6 waves
+**Plans:** 1/11 plans executed
 **Gate:** every plan except 15-02, 15-03, 15-04 and 15-05 is blocked until Phase 13's
 15 plans have all executed and been signed off. Those four are the Phase-13-independent
 layer — the S3 record type and its validator, the authored-text structural injection
@@ -595,12 +595,7 @@ Plans:
 
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 16)
-
-Phases 14, 15 and 16 each depend only on Phase 13, not on each other — once the
-engine lands they can be planned and executed in any order, or in parallel.
-
-| Phase | Plans Complete | Status | Completed |
+**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 1/11 | In Progress|  | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Interview Registry & Prompts | - | Shipped (pre-roadmap) | 2026-09 |
 | 2. Interviewer Catalog | - | Shipped (pre-roadmap) | 2026-09 |
