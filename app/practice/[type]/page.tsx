@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Engine session page for instance-less types (the four interview presets).
+ * Engine session page for instance-less types (interview presets + networking).
  *
  * Hosts SetupWizard → PracticeSessionShell in ONE page with a step
  * transition (no navigation between them — matching today's interview
@@ -9,23 +9,17 @@
  *
  * Do not edit `app/interview/[type]/page.tsx` from here — that page stays
  * live until 13-13 so humans can compare the two shells side by side.
+ *
+ * Networking registration (16-08): wires NetworkingPersonStep /
+ * NetworkingGoalStep against the registry's setupSteps; reuses InterviewerStep
+ * and SetupWizard's CameraConsentStep. No networking-specific picker or
+ * consent gate.
  */
 
-import PracticeSessionShell from "@/components/practice/PracticeSessionShell";
-import SetupWizard, {
-  type SetupStepNav,
-} from "@/components/practice/SetupWizard";
-import InterviewerStep, {
-  type InterviewerOption,
-} from "@/components/practice/steps/InterviewerStep";
-import ResumeStep from "@/components/practice/steps/ResumeStep";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
-import { resolveInterviewType } from "@/lib/interview/customization";
-import { getEngineType } from "@/lib/engine/registry";
-import { resolveSessionConfig } from "@/lib/engine/resolve";
-import { useLayout } from "@/lib/layout-context";
 import type { CameraMode } from "@/lib/metrics/types";
 import type { StartAvatarRequest } from "@/types";
+
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
@@ -37,13 +31,22 @@ import {
   UsersRound,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import {
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+
+import PracticeSessionShell from "@/components/practice/PracticeSessionShell";
+import SetupWizard, {
+  type SetupStepNav,
+} from "@/components/practice/SetupWizard";
+import InterviewerStep, {
+  type InterviewerOption,
+} from "@/components/practice/steps/InterviewerStep";
+import NetworkingGoalStep from "@/components/practice/steps/NetworkingGoalStep";
+import NetworkingPersonStep from "@/components/practice/steps/NetworkingPersonStep";
+import ResumeStep from "@/components/practice/steps/ResumeStep";
+import { resolveInterviewType } from "@/lib/interview/customization";
+import { getEngineType } from "@/lib/engine/registry";
+import { resolveSessionConfig } from "@/lib/engine/resolve";
+import { useLayout } from "@/lib/layout-context";
 
 type PagePhase = "wizard" | "session";
 
@@ -52,15 +55,14 @@ export default function PracticeTypePage() {
   const router = useRouter();
   const { setFullScreen } = useLayout();
 
-  const engineType = useMemo(
-    () => getEngineType(params.type),
-    [params.type],
-  );
+  const engineType = useMemo(() => getEngineType(params.type), [params.type]);
+  const isNetworking = engineType?.slug === "networking";
 
   // Read-once-then-clear handoff from the picker (see app/interview/page.tsx),
   // guarded by a ref so React strict-mode's double-invoke of the mount effect
   // cannot read (and clear) the key twice. A parse failure is treated exactly
   // as absence — the wizard degrades to the preset's own defaults.
+  // Networking does not use this interview customization handoff.
   const handoffReadRef = useRef(false);
   const [storedCustomization, setStoredCustomization] =
     useState<InterviewCustomizationInput | null>(null);
@@ -69,9 +71,16 @@ export default function PracticeTypePage() {
   useEffect(() => {
     if (handoffReadRef.current) return;
     handoffReadRef.current = true;
+    if (params.type === "networking") {
+      setHandoffResolved(true);
+
+      return;
+    }
     const key = `interview:customization:${params.type}`;
+
     try {
       const raw = sessionStorage.getItem(key);
+
       sessionStorage.removeItem(key);
       if (raw) {
         setStoredCustomization(JSON.parse(raw) as InterviewCustomizationInput);
@@ -84,16 +93,20 @@ export default function PracticeTypePage() {
   }, [params.type]);
 
   const interviewType = useMemo(
-    () => resolveInterviewType(params.type, storedCustomization),
-    [params.type, storedCustomization],
+    () =>
+      isNetworking
+        ? null
+        : resolveInterviewType(params.type, storedCustomization),
+    [params.type, storedCustomization, isNetworking],
   );
 
   const sessionConfig = useMemo(() => {
     const resolved = resolveSessionConfig(params.type, {
-      customization: storedCustomization,
+      customization: isNetworking ? undefined : storedCustomization,
     });
+
     return resolved.ok ? resolved.config : null;
-  }, [params.type, storedCustomization]);
+  }, [params.type, storedCustomization, isNetworking]);
 
   const [phase, setPhase] = useState<PagePhase>("wizard");
   // When exiting a session, reopen the wizard on the resume step — same as
@@ -108,9 +121,18 @@ export default function PracticeTypePage() {
   const [resumeId, setResumeId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("OFF");
   const [reportId, setReportId] = useState<string | null>(null);
+  // Networking wizard state (16-08) — character XOR brought-in persona, plus goal.
+  const [networkingCharacterId, setNetworkingCharacterId] = useState<
+    string | null
+  >(null);
+  const [networkingInstanceId, setNetworkingInstanceId] = useState<
+    string | null
+  >(null);
+  const [networkingGoal, setNetworkingGoal] = useState("");
 
   useEffect(() => {
     setFullScreen(phase === "session");
+
     return () => setFullScreen(false);
   }, [setFullScreen, phase]);
 
@@ -135,23 +157,25 @@ export default function PracticeTypePage() {
   }
 
   // Unknown slug OR a type that requires an instance (those live at
-  // /practice/[type]/[instanceId] — plan 13-11). Handled, never crashed.
-  if (
-    !engineType ||
-    engineType.instance.required ||
-    !interviewType ||
-    !sessionConfig
-  ) {
+  // /practice/[type]/[instanceId] — plan 13-11). Networking is instance-
+  // optional and registered here; interview presets still need interviewType.
+  const typeAvailable =
+    !!engineType &&
+    !engineType.instance.required &&
+    !!sessionConfig &&
+    (isNetworking || !!interviewType);
+
+  if (!typeAvailable || !engineType || !sessionConfig) {
     return (
       <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa] p-6 text-[#102331]">
         <Card className="max-w-lg border border-[#d4e2e9] shadow-none">
           <CardBody className="items-start gap-4 p-8">
             <CircleAlert className="text-[#0a7391]" size={28} />
             <h1 className="font-serif text-3xl">
-              That interview type is not available.
+              That practice type is not available.
             </h1>
             <p className="text-[#526c7b]">
-              Choose a practice interview from your Leadership Avatar workspace.
+              Choose a practice session from your Leadership Avatar workspace.
             </p>
             <Button color="primary" onPress={() => router.push("/")}>
               Back to practice
@@ -162,39 +186,37 @@ export default function PracticeTypePage() {
     );
   }
 
-  if (
-    phase === "session" &&
-    selectedInterviewer &&
-    avatarConfig &&
-    reportId
-  ) {
+  const pageDescription = interviewType?.description ?? engineType.description;
+  const pageMinutes =
+    interviewType?.targetMinutes ?? engineType.limits.targetMinutes;
+  const reportTypeSlug = interviewType?.slug ?? engineType.slug;
+
+  if (phase === "session" && selectedInterviewer && avatarConfig && reportId) {
     return (
       <PracticeSessionShell
-        sessionConfig={sessionConfig}
+        avatarConfig={avatarConfig}
+        cameraMode={cameraMode}
         customization={storedCustomization}
-        reportId={reportId}
+        interviewerAvatarId={selectedInterviewer.avatarId}
         interviewerName={
           storedCustomization?.personaDisplayName?.trim() ||
           selectedInterviewer.name
         }
-        interviewerAvatarId={selectedInterviewer.avatarId}
-        avatarConfig={avatarConfig}
-        cameraMode={cameraMode}
-        resumeText={resumeText}
+        language="en"
+        reportId={reportId}
         resumeFileName={resumeFileName}
         resumeId={resumeId}
-        language="en"
+        resumeText={resumeText}
+        sessionConfig={sessionConfig}
         onExit={() => {
-          setWizardStepId("resume");
+          setWizardStepId(isNetworking ? "networking-person" : "resume");
           setPhase("wizard");
           setReportId(null);
           setFullScreen(false);
         }}
         onFinish={(finishedReportId) => {
           setFullScreen(false);
-          router.push(
-            `/practice/${interviewType.slug}/report/${finishedReportId}`,
-          );
+          router.push(`/practice/${reportTypeSlug}/report/${finishedReportId}`);
         }}
       />
     );
@@ -206,8 +228,8 @@ export default function PracticeTypePage() {
         <div className="absolute -right-24 top-[-150px] h-96 w-96 rounded-full bg-[#a9ddeb]/60 blur-3xl" />
         <div className="relative mx-auto max-w-6xl px-5 pb-12 pt-7 sm:px-8 sm:pb-16">
           <button
-            type="button"
             className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[#47616f] transition-colors hover:text-[#0a7391] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
+            type="button"
             onClick={() => router.push("/")}
           >
             <ArrowLeft size={16} /> Back to practice
@@ -215,30 +237,32 @@ export default function PracticeTypePage() {
           <div className="mt-12 grid gap-8 lg:grid-cols-[1fr_290px] lg:items-end">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0a7391]">
-                Interview studio
+                {isNetworking ? "Networking studio" : "Interview studio"}
               </p>
               <h1 className="mt-3 max-w-3xl font-serif text-4xl leading-[0.98] tracking-[-0.045em] text-[#102331] sm:text-6xl">
-                A focused space to practice how you lead.
+                {isNetworking
+                  ? "Practice the conversation before it counts."
+                  : "A focused space to practice how you lead."}
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-7 text-[#4e6977]">
-                {interviewType.description}
+                {pageDescription}
               </p>
             </div>
             <div className="grid gap-3 rounded-2xl border border-[#c8dde5] bg-white/80 p-5 shadow-sm backdrop-blur-sm sm:grid-cols-3 lg:grid-cols-1">
               <Stat
                 icon={<Clock3 size={18} />}
-                value={`${interviewType.targetMinutes} min`}
                 label="Practice"
+                value={`${pageMinutes} min`}
               />
               <Stat
                 icon={<UsersRound size={18} />}
+                label={isNetworking ? "Contact" : "Interviewer"}
                 value="Live avatar"
-                label="Interviewer"
               />
               <Stat
                 icon={<LockKeyhole size={18} />}
+                label={isNetworking ? "Goal" : "Resume"}
                 value="Private"
-                label="Resume"
               />
             </div>
           </div>
@@ -247,26 +271,59 @@ export default function PracticeTypePage() {
 
       <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
         <SetupWizard
-          typeSlug={engineType.slug}
-          steps={engineType.setupSteps}
-          initialStepId={wizardStepId}
           createReportOnLaunch
-          buildStartPayload={() => ({
-            customization: storedCustomization,
-            interviewerAvatarId: selectedInterviewer?.avatarId,
-            interviewerName:
-              storedCustomization?.personaDisplayName?.trim() ||
-              selectedInterviewer?.name,
-            resumeId,
-            resumeText,
-            language: "en",
-          })}
-          onLaunch={({ reportId: launchedId, cameraMode: locked }) => {
-            setReportId(launchedId);
-            setCameraMode(locked);
-            setPhase("session");
-          }}
+          buildStartPayload={() =>
+            isNetworking
+              ? {
+                  instanceId: networkingInstanceId,
+                  customization: {
+                    characterId: networkingCharacterId,
+                    goal: networkingGoal.trim(),
+                  },
+                  interviewerAvatarId: selectedInterviewer?.avatarId,
+                  interviewerName: selectedInterviewer?.name,
+                  language: "en",
+                }
+              : {
+                  customization: storedCustomization,
+                  interviewerAvatarId: selectedInterviewer?.avatarId,
+                  interviewerName:
+                    storedCustomization?.personaDisplayName?.trim() ||
+                    selectedInterviewer?.name,
+                  resumeId,
+                  resumeText,
+                  language: "en",
+                }
+          }
+          initialStepId={wizardStepId}
+          progressAriaLabel={
+            isNetworking
+              ? "Networking setup progress"
+              : "Interview setup progress"
+          }
           renderStep={(stepId: string, nav: SetupStepNav) => {
+            if (stepId === "networking-person") {
+              return (
+                <NetworkingPersonStep
+                  characterId={networkingCharacterId}
+                  instanceId={networkingInstanceId}
+                  nav={nav}
+                  onChange={({ characterId, instanceId }) => {
+                    setNetworkingCharacterId(characterId);
+                    setNetworkingInstanceId(instanceId);
+                  }}
+                />
+              );
+            }
+            if (stepId === "networking-goal") {
+              return (
+                <NetworkingGoalStep
+                  goal={networkingGoal}
+                  nav={nav}
+                  onChange={setNetworkingGoal}
+                />
+              );
+            }
             if (stepId === "interviewer") {
               return (
                 <InterviewerStep
@@ -280,8 +337,8 @@ export default function PracticeTypePage() {
               return (
                 <ResumeStep
                   nav={nav}
-                  resumeId={resumeId}
                   resumeFileName={resumeFileName}
+                  resumeId={resumeId}
                   onResumeChange={(next) => {
                     setResumeId(next.resumeId);
                     setResumeText(next.resumeText);
@@ -290,7 +347,15 @@ export default function PracticeTypePage() {
                 />
               );
             }
+
             return null;
+          }}
+          steps={engineType.setupSteps}
+          typeSlug={engineType.slug}
+          onLaunch={({ reportId: launchedId, cameraMode: locked }) => {
+            setReportId(launchedId);
+            setCameraMode(locked);
+            setPhase("session");
           }}
         />
       </div>
