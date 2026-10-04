@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-10-04 (13-06 DELIVERED — engine prompt assembly + generalized `/api/interaction/chat` onto `resolveSessionConfig` / `buildTurnMessages`; REQ-73 MET with byte-equality proof. 13-05 is running in parallel and may still lack a SUMMARY — do not clobber its entries. Prior: 13-04 LOCAL backfill delivered; shared-DB half deferred under REQ-67. See `13-06-SUMMARY.md`.)
+**Updated:** 2026-10-04 (13-05 DELIVERED — type-derived rubric schema + one evaluator/runner; REQ-71/72 MET; Task 4 human verdict **identical**. 13-06 also DELIVERED in parallel — REQ-73 MET. Prior: 13-04 LOCAL backfill; shared-DB half deferred under REQ-67. See `13-05-SUMMARY.md` and `13-06-SUMMARY.md`.)
 
 ## Current Position
 
-**Phase:** 13 — One-on-One Conversation Engine — IN PROGRESS (5 of 15 plans executed; 13-05 still in parallel / SUMMARY pending)
-**Current Plan:** 13-06 complete; 13-05 may still be finishing in parallel — do not assume 13-05 is done from this entry alone
-**Stopped At:** Completed 13-06-PLAN.md (engine prompt assembly + generalized chat route; REQ-73 MET)
+**Phase:** 13 — One-on-One Conversation Engine — IN PROGRESS (6 of 15 plans executed)
+**Current Plan:** 13-05 and 13-06 complete; next is 13-07
+**Stopped At:** Completed 13-05-PLAN.md (unified evaluator + type-derived rubric; failure-contract checkpoint identical)
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -340,6 +340,9 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 13-one-on-one-conversation-engine / 13-06]: Case-study live prompt assembly uses request-time `roleContext`/`systemPrompt` (per-avatar role chosen per scene), not the provisional registry `liveSystemPrompt` — solving the 13-01 carried-forward note.
 - [Phase 13-one-on-one-conversation-engine / 13-06]: Interview types skip the engine time-budget tail fragment even though 13-01 declared `timeBudget.totalSeconds` on them — timing already lives in `buildProgressBlock`, and REQ-73 byte-identity against today's interview tail is load-bearing.
 - [Phase 13-one-on-one-conversation-engine / 13-06]: The chat route accepts optional `engine: { typeSlug, instance, customization }` alongside the legacy `interview` payload; a request with neither still takes the byte-identical legacy admin-case path.
+- [Phase 13-one-on-one-conversation-engine / 13-05]: One `runEvaluation` / `runAndPersistEvaluation` for all types; schema from `buildRubricJsonSchema(config)` deeply equals today's hardcoded schemas for all five built-ins; visual/vocal structurally required + coverage always runs (REQ-71/72 MET).
+- [Phase 13-one-on-one-conversation-engine / 13-05]: Task 4 human checkpoint on collapsed evaluator failure contract: **identical** (user: "found them, looks like they match"). Accepted non-rendered delta: FAILED scenario rows now carry `evalModel`.
+- [Phase 13-one-on-one-conversation-engine / 13-05]: Prompts stay on the type record (`getEngineType`); `ResolvedSessionConfig` is not extended with `prompts` so the 13-01 resolve contract stays intact beside parallel 13-06.
 - [Phase 13-one-on-one-conversation-engine / 13-04]: Backfill is a TypeScript upsert-on-id script with `--dry-run` (not Prisma migration SQL) so null `cameraMode` / unscored-reason preservation and typed `InputSnapshot` construction stay explicit; ScenarioReport rows permanently get `typeSlug = "case-study"` (13-01 lock).
 
 ## Progress
@@ -1092,6 +1095,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   and unintentionally undid concurrently-landing sibling commit 11-03's
   `11-CALLER-MAP.md` work, immediately restored verbatim as `a9fe820`. No data
   lost. See `11-04-SUMMARY.md` for full detail.
+- 13-05 (type-derived rubric + one evaluator/runner — `lib/engine/{rubric,evaluation,evaluation-runner}.ts`, additive `lib/report/structured.ts`, `scripts/verify-report-structure.ts` section 6): complete, wave 3 (parallel with 13-06). Commits `894eec9`, `2c48ed2`, `39dfa5a`. REQ-71/72 MET; Task 4 human verdict **identical**. REQ-59 left unchecked as split (evaluator/runner half only; session/report routes remain for 13-07/13-08). Legacy per-type evaluator modules kept until 13-13. See `13-05-SUMMARY.md`.
 - 13-06 (engine prompt assembly + generalized chat route — `lib/engine/{prompts,turn-control}.ts`, `app/api/interaction/chat/route.ts`, `scripts/verify-turn-control.ts` sections 6–10): complete, wave 3 (parallel with 13-05). Commits `df4487d`, `1053810`, `6b38995`, `c1f8e6a`. REQ-73 MET with byte-equality proof; legacy admin-case path preserved. REQ-59/62/63 left unchecked as split. See `13-06-SUMMARY.md`.
 - 13-04 (local InteractionReport backfill + REQ-67 handoff — `scripts/seed-legacy-reports.ts`, `scripts/backfill-interaction-reports.ts`, `scripts/verify-interaction-report-backfill.ts`, `13-MIGRATION-HANDOFF.md`): complete for the LOCAL half, wave 2. Commits `1eafa7b`, `981f835`, handoff in `a948326`. Seeded five fixed-uuid pre-Phase-13 shapes into the legacy tables only; backfilled 67 InterviewReport + 3 ScenarioReport → 70 InteractionReport against `leadership_avatar_dev` only; verifier exited 0 with count/field/null-preservation/idempotency sections all passing (70→70 on second run). Human ACKNOWLEDGED the handoff and DEFERRED the shared-DB half — OPEN phase-closure item under REQ-67; Phase 13 cannot close until a human runs `prisma migrate deploy` + backfill on Lightsail. REQ-66/REQ-67 not checked off in REQUIREMENTS.md. See `13-04-SUMMARY.md` for full detail.
 - 13-03 (engine runtime primitives — `lib/engine/{termination,visible-context,outcome,time-budget}.ts`, `scripts/verify-engine-primitives.ts`): complete, wave 2 (parallel with 13-04). Commits `2211c66`, `fb9b466`, `eeaaa36`. Four pure modules with zero consumer wiring; REQ-62/63/64 MET. See `13-03-SUMMARY.md` for full detail.
@@ -1797,7 +1801,7 @@ Open items carried into Phase 11+:
 ## Session
 
 **Last Date:** 2026-10-04
-**Stopped At:** Completed 13-06-PLAN.md — chat route engine-config driven; REQ-73 MET. 13-05 may still be in parallel. Next: 13-07 (or finish 13-05 if its SUMMARY is not yet written).
+**Stopped At:** Completed 13-05-PLAN.md — unified evaluator + type-derived rubric; Task 4 verdict identical. Wave 3 closed (13-05 + 13-06). Next: 13-07.
 **Resume File:** None
 
 
