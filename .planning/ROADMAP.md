@@ -589,7 +589,7 @@ Plans:
 - [x] 16-07-PLAN.md — The `networking` TYPE record and prompts: seven dimensions, hidden-goal visible-context slice, outcome record, floor-gated walk-away
 - [x] 16-08-PLAN.md — Wizard steps: person choice with three bring-in modes and the attestation, the required goal, the reused avatar picker (human-verified)
 - [ ] 16-09-PLAN.md — Hidden-goal leak test: sentinel absent from every outbound payload on real turns, present in the evaluation context (human-verified)
-- [ ] 16-10-PLAN.md — Report surfaces: the ask/outcome/common-ground panel and the early-end feedback line (human-verified)
+- [x] 16-10-PLAN.md — Report surfaces: the ask/outcome/common-ground panel and the early-end feedback line (human-verified)
 - [ ] 16-11-PLAN.md — Phase validation: tile flip, surface-count and never-publishable guards, four criteria and every locked decision signed off (human-verified)
 
 
