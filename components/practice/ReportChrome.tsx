@@ -22,7 +22,10 @@ import type { ReportDTO } from "@/lib/report/dto";
 import NetworkingOutcomePanel from "@/components/practice/panels/NetworkingOutcomePanel";
 import ConversationEndBanner from "@/components/practice/report/ConversationEndBanner";
 import ConversationOutcomePanel from "@/components/practice/report/ConversationOutcomePanel";
+import DeckTimelinePanel from "@/components/practice/report/DeckTimelinePanel";
 import InRoleReactionPanel from "@/components/practice/report/InRoleReactionPanel";
+import NegotiationTriplePanel from "@/components/practice/report/NegotiationTriplePanel";
+import PitchOutcomeBanner from "@/components/practice/report/PitchOutcomeBanner";
 
 export type StalledAffordance = "retry" | "check-again";
 
@@ -108,6 +111,44 @@ const NETWORKING_CHROME: ReportChrome = {
   },
 };
 
+/**
+ * Pitch types — same poll discipline as interview. Early-end banner / ask-vs-
+ * fair extras land in 14-14; chrome must exist now so a READY elevator report
+ * does not render as "Report not found" (getReportChrome returned null).
+ *
+ * Coverage contract: every slug in ENGINE_TYPES must resolve here. Enforced by
+ * `scripts/verify-report-chrome-coverage.ts` (includes difficult-conversation
+ * and networking explicitly).
+ */
+const PITCH_ELEVATOR_CHROME: ReportChrome = {
+  pollIntervalMs: 2000,
+  giveUpAfterMs: 120_000,
+  stalledAffordance: "retry",
+  distinguishes401: true,
+  guardsRepollAfter404: false,
+  showsCustomizationStrip: false,
+  extras: {
+    above: (report) => <PitchOutcomeBanner report={report} />,
+  },
+};
+
+const PITCH_DECK_CHROME: ReportChrome = {
+  pollIntervalMs: 2000,
+  giveUpAfterMs: 120_000,
+  stalledAffordance: "retry",
+  distinguishes401: true,
+  guardsRepollAfter404: false,
+  showsCustomizationStrip: false,
+  extras: {
+    below: (report) => (
+      <>
+        <NegotiationTriplePanel report={report} />
+        <DeckTimelinePanel report={report} />
+      </>
+    ),
+  },
+};
+
 const INTERVIEW_PRESET_SLUGS = new Set([
   "general",
   "technical",
@@ -147,6 +188,8 @@ export function getReportChrome(
   if (slug === "case-study") return CASE_STUDY_CHROME;
   if (slug === "difficult-conversation") return DIFFICULT_CONVERSATION_CHROME;
   if (slug === "networking") return NETWORKING_CHROME;
+  if (slug === "pitch-elevator") return PITCH_ELEVATOR_CHROME;
+  if (slug === "pitch-deck") return PITCH_DECK_CHROME;
   if (INTERVIEW_PRESET_SLUGS.has(slug)) return INTERVIEW_CHROME;
 
   return null;
