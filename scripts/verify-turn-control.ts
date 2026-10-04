@@ -12,7 +12,26 @@ import {
   parseInterviewTurn,
   reduceInterviewProgress,
 } from "../lib/interview/turn-control";
-import { initialProgress, type InterviewProgress } from "../lib/interview/types";
+import {
+  initialProgress,
+  INTERVIEW_TYPES,
+  getInterviewType,
+  type InterviewProgress,
+} from "../lib/interview/types";
+import {
+  buildInterviewSystemPrompt,
+  buildProgressBlock,
+} from "../lib/interview/prompts";
+import { resolveAttemptLanguage } from "../lib/languages";
+import {
+  assembleSystemPrompt,
+  buildTailBlock,
+  buildTurnMessages,
+  CASE_STUDY_REPLY_STYLE_GUIDE,
+} from "../lib/engine/prompts";
+import { parseEngineTurn } from "../lib/engine/turn-control";
+import { resolveSessionConfig } from "../lib/engine/resolve";
+import { listEngineTypes } from "../lib/engine/registry";
 
 let failures = 0;
 
@@ -113,6 +132,320 @@ console.log("\n5. Legacy progress without the new counter");
   const next = reduceInterviewProgress(legacy, { kind: "planned" }, OPTS);
   check("resumes counting from the missing field without NaN",
     [next.questionsAsked, next.behavioralQuestionsAsked], [2, 1]);
+}
+
+// ── Phase 13-06: engine prompt assembly / turn-control byte-equality ────────
+// Sections below prove REQ-73: assembleSystemPrompt is byte-identical to
+// today's builders, and the system prompt stays session-constant across turns.
+
+function firstDiff(a: string, b: string): string {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    if (a[i] !== b[i]) {
+      return `first diff at index ${i}: engine=${JSON.stringify(a.slice(i, i + 40))} legacy=${JSON.stringify(b.slice(i, i + 40))}`;
+    }
+  }
+  if (a.length !== b.length) {
+    return `length mismatch: engine=${a.length} legacy=${b.length}`;
+  }
+  return "identical";
+}
+
+function checkString(name: string, actual: string, expected: string) {
+  if (actual === expected) {
+    console.log(`  ok   ${name}`);
+  } else {
+    failures += 1;
+    console.log(`  FAIL ${name}\n         ${firstDiff(actual, expected)}`);
+  }
+}
+
+const LANGUAGE = resolveAttemptLanguage("en");
+const RESUME = "Jane Doe\nSoftware Engineer at Acme\nLed a team of 4.";
+
+console.log("\n6. assembleSystemPrompt == buildInterviewSystemPrompt (four presets)");
+for (const slug of Object.keys(INTERVIEW_TYPES)) {
+  const interviewType = getInterviewType(slug)!;
+  const resolved = resolveSessionConfig(slug);
+  if (!resolved.ok) {
+    failures += 1;
+    console.log(`  FAIL resolve ${slug}: ${resolved.reason}`);
+    continue;
+  }
+  const engine = assembleSystemPrompt(resolved.config, {
+    language: LANGUAGE,
+    resumeText: RESUME,
+  });
+  const legacy = buildInterviewSystemPrompt(interviewType, {
+    resumeText: RESUME,
+    language: LANGUAGE,
+  });
+  checkString(`${slug} system prompt byte-identical`, engine, legacy);
+}
+
+console.log("\n7. case-study assembleSystemPrompt == frozen pre-Phase-13 else-branch");
+{
+  // Frozen snapshot of pre-Phase-13 `app/api/interaction/chat/route.ts` else
+  // branch composition order: style guide → language rule → role context →
+  // client systemPrompt. Do not "improve" this string — it is the regression
+  // oracle for REQ-73 / legacy admin-case bytes.
+  const roleContext = {
+    roleName: "Alex Chen",
+    additionalInfo: "You are a skeptical product manager.",
+  };
+  const clientSystemPrompt = "Case background: the launch is slipping.";
+  const languageRule =
+    `## Language\nConduct this conversation entirely in ${LANGUAGE.name}. ` +
+    `If a message appears to be in another language, treat it as a ` +
+    `speech-to-text error and continue in ${LANGUAGE.name}.`;
+  const expected = [
+    CASE_STUDY_REPLY_STYLE_GUIDE.trim(),
+    languageRule,
+    `You are playing the role of "${roleContext.roleName}" in a case study simulation.`,
+    roleContext.additionalInfo,
+    clientSystemPrompt,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const resolved = resolveSessionConfig("case-study", {
+    instance: {
+      kind: "case-study",
+      caseId: "scn-test",
+      caseName: "Launch Slip",
+      background: "The launch is slipping.",
+      avatars: [{ name: "Alex Chen", role: "PM", additionalInfo: roleContext.additionalInfo }],
+      criteria: null,
+    },
+  });
+  if (!resolved.ok) {
+    failures += 1;
+    console.log(`  FAIL resolve case-study: ${resolved.reason}`);
+  } else {
+    const engine = assembleSystemPrompt(resolved.config, {
+      language: LANGUAGE,
+      systemPrompt: clientSystemPrompt,
+      roleContext,
+    });
+    checkString("case-study system prompt byte-identical to frozen snapshot", engine, expected);
+  }
+}
+
+console.log("\n8. buildTailBlock == buildProgressBlock (interview) / empty (case-study)");
+{
+  const progress = initialProgress();
+  const timing = {
+    elapsedMinutes: 3,
+    targetMinutes: 15,
+    redirectMetaRequest: false,
+  };
+  const legacyTail = buildProgressBlock(progress, timing);
+
+  for (const slug of Object.keys(INTERVIEW_TYPES)) {
+    const resolved = resolveSessionConfig(slug);
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve ${slug}`);
+      continue;
+    }
+    const engineTail = buildTailBlock(resolved.config, { progress, timing });
+    checkString(`${slug} tail == buildProgressBlock`, engineTail, legacyTail);
+  }
+
+  const caseResolved = resolveSessionConfig("case-study", {
+    instance: {
+      kind: "case-study",
+      caseId: "scn-test",
+      caseName: "Launch Slip",
+      background: "bg",
+      avatars: [{ name: "A", role: "R" }],
+      criteria: null,
+    },
+  });
+  if (!caseResolved.ok) {
+    failures += 1;
+    console.log(`  FAIL resolve case-study for tail`);
+  } else {
+    checkString(
+      "case-study tail is empty string",
+      buildTailBlock(caseResolved.config, { progress, timing }),
+      "",
+    );
+  }
+}
+
+console.log("\n9. buildTurnMessages appends tail to LAST user message only; system prompt session-constant");
+{
+  const resolved = resolveSessionConfig("general");
+  if (!resolved.ok) {
+    failures += 1;
+    console.log(`  FAIL resolve general`);
+  } else {
+    const messages = [
+      { role: "assistant" as const, content: "Welcome." },
+      { role: "user" as const, content: "Thanks." },
+      { role: "assistant" as const, content: "Tell me about yourself." },
+      { role: "user" as const, content: "I am a student." },
+    ];
+    const turnStateA = {
+      progress: initialProgress(),
+      timing: { elapsedMinutes: 1, targetMinutes: 15 },
+    };
+    const turnStateB = {
+      progress: {
+        ...initialProgress(),
+        stage: "behavioral" as const,
+        questionsAsked: 3,
+        behavioralQuestionsAsked: 1,
+      },
+      timing: { elapsedMinutes: 8, targetMinutes: 15 },
+    };
+
+    const a = buildTurnMessages({
+      config: resolved.config,
+      messages,
+      turnState: turnStateA,
+      language: LANGUAGE,
+      resumeText: RESUME,
+    });
+    const b = buildTurnMessages({
+      config: resolved.config,
+      messages,
+      turnState: turnStateB,
+      language: LANGUAGE,
+      resumeText: RESUME,
+    });
+
+    checkString("system prompt identical across different turn states", a.systemPrompt, b.systemPrompt);
+    check("system message is messages[0]", a.messages[0]?.role, "system");
+    checkString("system message content == systemPrompt", a.messages[0]?.content ?? "", a.systemPrompt);
+
+    // Earlier messages unchanged (indices 1..n-1 relative to fullMessages =
+    // system + transcript). Transcript[0]=assistant Welcome, [1]=user Thanks,
+    // [2]=assistant Tell me… — only the last user should gain the tail.
+    checkString("earlier assistant unchanged", a.messages[1]?.content ?? "", "Welcome.");
+    checkString("earlier user unchanged", a.messages[2]?.content ?? "", "Thanks.");
+    checkString(
+      "earlier assistant Q unchanged",
+      a.messages[3]?.content ?? "",
+      "Tell me about yourself.",
+    );
+
+    const lastA = a.messages[a.messages.length - 1];
+    const expectedTail = buildTailBlock(resolved.config, turnStateA);
+    check(
+      "last message is user",
+      lastA?.role,
+      "user",
+    );
+    checkString(
+      "last user has original content + tail",
+      lastA?.content ?? "",
+      `I am a student.\n\n${expectedTail}`,
+    );
+    check(
+      "different turn states produce different last-user tails",
+      a.messages[a.messages.length - 1]?.content ===
+        b.messages[b.messages.length - 1]?.content,
+      false,
+    );
+  }
+}
+
+console.log("\n10. parseEngineTurn == parseInterviewTurn + reducer; termination null for all built-ins");
+{
+  const sequence = [
+    marker('kind="planned"'),
+    marker('kind="planned" category="teamwork"'),
+    marker('kind="planned" category="ambiguity"'),
+    marker('kind="planned"'),
+    'Wrap up.\n<interview-turn kind="closing" />\n<engine-end reason="tedious" />',
+  ];
+
+  for (const type of listEngineTypes()) {
+    const resolved = resolveSessionConfig(
+      type.slug,
+      type.slug === "case-study"
+        ? {
+            instance: {
+              kind: "case-study",
+              caseId: "scn-test",
+              caseName: "X",
+              background: "bg",
+              avatars: [{ name: "A", role: "R" }],
+              criteria: null,
+            },
+          }
+        : {},
+    );
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve ${type.slug}`);
+      continue;
+    }
+
+    // Even with an engine-end marker present, built-in types (avatarMayEnd:
+    // false) must report termination: null.
+    const withEnd = parseEngineTurn(
+      'Thanks for coming in.\n<engine-end reason="tedious" />',
+      resolved.config,
+    );
+    check(
+      `${type.slug} termination null despite marker (avatarMayEnd: false)`,
+      withEnd.termination,
+      null,
+    );
+    checkString(
+      `${type.slug} strips termination marker from cleanedText`,
+      withEnd.cleanedText,
+      "Thanks for coming in.",
+    );
+  }
+
+  // Progress reduction sequence for general — identical to parseInterviewTurn
+  // + reduceInterviewProgress.
+  const resolved = resolveSessionConfig("general");
+  if (!resolved.ok) {
+    failures += 1;
+    console.log("  FAIL resolve general for sequence");
+  } else {
+    let engineProgress = initialProgress();
+    let legacyProgress = initialProgress();
+    for (const text of sequence) {
+      const engine = parseEngineTurn(text, resolved.config, {
+        previousProgress: engineProgress,
+        hasResume: false,
+        targetQuestionCount: 9,
+      });
+      const legacyParsed = parseInterviewTurn(
+        // Strip trailing engine-end the same way parseEngineTurn does first,
+        // so the interview marker is still trailing for the legacy parser.
+        text.replace(/\s*<engine-end\b[^>]*\/?>(?:\s*)$/i, "").trimEnd(),
+      );
+      legacyProgress = reduceInterviewProgress(legacyProgress, legacyParsed.action, OPTS);
+      engineProgress = engine.progress ?? engineProgress;
+
+      check(
+        `progress matches after turn (q=${legacyProgress.questionsAsked}, stage=${legacyProgress.stage})`,
+        {
+          questionsAsked: engineProgress.questionsAsked,
+          stage: engineProgress.stage,
+          categoriesCovered: engineProgress.categoriesCovered,
+        },
+        {
+          questionsAsked: legacyProgress.questionsAsked,
+          stage: legacyProgress.stage,
+          categoriesCovered: legacyProgress.categoriesCovered,
+        },
+      );
+      checkString(
+        "cleaned content matches parseInterviewTurn.content",
+        engine.cleanedText,
+        legacyParsed.content,
+      );
+      check("termination stays null through interview sequence", engine.termination, null);
+    }
+  }
 }
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
