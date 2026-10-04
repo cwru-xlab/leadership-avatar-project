@@ -1,9 +1,9 @@
 /**
  * PDF → PNG rasterizer for Phase 14 Practice Pitches.
  *
- * Matches the 14-01 spike exactly:
  *   - pdfjs-dist legacy Node build (`pdfjs-dist/legacy/build/pdf.mjs`)
- *   - @napi-rs/canvas for the canvas surface
+ *   - @napi-rs/canvas via pdfjs's Node `canvasFactory` (required for Path2D
+ *     clip/fill on real decks — hand-rolled `createCanvas` whites out)
  *   - slide image: long edge ≈ 1600px
  *   - thumbnail: 240px wide (downscale from full-res — a second page.render
  *     on the same Node process segfaulted during the spike)
@@ -15,9 +15,26 @@
  */
 
 import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { join } from "path";
 
 /** Slide image long-edge target (px). */
 export const SLIDE_LONG_EDGE_PX = 1600;
+
+/**
+ * Local pdfjs asset roots (standard 14 fonts + CMaps).
+ * Plain filesystem paths with trailing slash — pdfjs Node fetch uses
+ * `fs.readFile`, not HTTP.
+ */
+function pdfjsAssetUrls(): {
+  standardFontDataUrl: string;
+  cMapUrl: string;
+} {
+  const root = join(process.cwd(), "node_modules", "pdfjs-dist");
+  return {
+    standardFontDataUrl: join(root, "standard_fonts") + "/",
+    cMapUrl: join(root, "cmaps") + "/",
+  };
+}
 
 /** Thumbnail width (px). Height follows aspect ratio. */
 export const THUMB_WIDTH_PX = 240;
@@ -31,6 +48,24 @@ export type RasterizedSlide = {
   heightPx: number;
   /** Set when this page failed to render; png/thumb are blank but sized. */
   renderFailed?: boolean;
+};
+
+/** pdfjs Node canvasFactory entry (`create` / `destroy`). */
+type CanvasFactoryEntry = {
+  canvas: {
+    toBuffer: (mime: string) => Buffer;
+    width: number;
+    height: number;
+  };
+  context: {
+    fillStyle: string;
+    fillRect: (x: number, y: number, w: number, h: number) => void;
+  };
+};
+
+type CanvasFactory = {
+  create: (width: number, height: number) => CanvasFactoryEntry;
+  destroy: (entry: CanvasFactoryEntry) => void;
 };
 
 function blankPng(width: number, height: number): Buffer {
@@ -79,8 +114,16 @@ async function downscaleThumb(
   }
 }
 
+/**
+ * Render one page using pdfjs's Node canvasFactory so Path2D polyfills match
+ * the canvas clip/fill implementation (@napi-rs/canvas). Hand-creating a
+ * canvas skips that setup and fails on Google Slides / complex path decks.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function renderPageToPng(page: any): Promise<{
+async function renderPageToPng(
+  page: any,
+  canvasFactory: CanvasFactory
+): Promise<{
   png: Buffer;
   width: number;
   height: number;
@@ -90,18 +133,27 @@ async function renderPageToPng(page: any): Promise<{
   const viewport = page.getViewport({ scale });
   const width = Math.ceil(viewport.width);
   const height = Math.ceil(viewport.height);
-  const canvas = createCanvas(width, height);
-  const canvasContext = canvas.getContext("2d");
-  await page.render({
-    canvasContext,
-    viewport,
-    canvas,
-  }).promise;
-  return {
-    png: Buffer.from(canvas.toBuffer("image/png")),
-    width,
-    height,
-  };
+  const entry = canvasFactory.create(width, height);
+  try {
+    entry.context.fillStyle = "#ffffff";
+    entry.context.fillRect(0, 0, width, height);
+    await page.render({
+      canvasContext: entry.context,
+      viewport,
+      canvas: entry.canvas,
+    }).promise;
+    return {
+      png: Buffer.from(entry.canvas.toBuffer("image/png")),
+      width,
+      height,
+    };
+  } finally {
+    try {
+      canvasFactory.destroy(entry);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /**
@@ -115,14 +167,20 @@ export async function rasterizePdf(buffer: Buffer): Promise<RasterizedSlide[]> {
 
   let doc;
   try {
+    // disableFontFace: true — Node/@napi-rs/canvas has no working FontFace
+    // path; false paints missing-glyph tofu boxes on Google Slides / real decks
+    // while shapes still render. Glyph-path mode matches mozilla's node pdf2png.
+    const { standardFontDataUrl, cMapUrl } = pdfjsAssetUrls();
     const loadingTask = pdfjs.getDocument({
       data,
       useSystemFonts: true,
       isEvalSupported: false,
-      // No standardFontDataUrl / CDN — accept built-ins so Vercel matches local.
-      disableFontFace: false,
+      disableFontFace: true,
       useWorkerFetch: false,
       isOffscreenCanvasSupported: false,
+      standardFontDataUrl,
+      cMapUrl,
+      cMapPacked: true,
     });
     doc = await loadingTask.promise;
   } catch (error) {
@@ -143,6 +201,7 @@ export async function rasterizePdf(buffer: Buffer): Promise<RasterizedSlide[]> {
     ];
   }
 
+  const canvasFactory = doc.canvasFactory as CanvasFactory;
   const slides: RasterizedSlide[] = [];
   const pageCount = doc.numPages;
 
@@ -150,7 +209,7 @@ export async function rasterizePdf(buffer: Buffer): Promise<RasterizedSlide[]> {
     const index = pageNumber - 1;
     try {
       const page = await doc.getPage(pageNumber);
-      const { png, width, height } = await renderPageToPng(page);
+      const { png, width, height } = await renderPageToPng(page, canvasFactory);
       const { thumbPng } = await downscaleThumb(png, width, height);
       slides.push({
         index,
