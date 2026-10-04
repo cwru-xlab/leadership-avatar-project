@@ -8,9 +8,12 @@ import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { BookOpenCheck, ChevronRight, Sparkles } from "lucide-react";
 
-import type { InterviewReportDTO } from "@/lib/interview/report-dto";
+import type { ReportDTO } from "@/lib/report/dto";
 import type { StudyPlanDTO, StudyPlanSummaryDTO } from "@/lib/study-plan/plan-dto";
 import type { StudyPlanContent } from "@/lib/study-plan/types";
+
+/** Interview-only list filter — same four presets `/reports` showed before Phase 13 (REQ-69). */
+const INTERVIEW_REPORT_TYPES = "general,technical,consulting,early-career";
 
 const TYPE_LABELS: Record<string, string> = {
   general: "General Interview",
@@ -27,8 +30,17 @@ function typeLabel(typeSlug: string): string {
   );
 }
 
+function interviewerName(report: ReportDTO): string | null {
+  return report.input?.kind === "interview" ? report.input.interviewerName : null;
+}
+
+function scoreOf(report: ReportDTO, key: string): number | null {
+  const value = report.scores?.[key];
+  return typeof value === "number" ? value : null;
+}
+
 const STATUS_CHIP: Record<
-  InterviewReportDTO["status"],
+  ReportDTO["status"],
   { label: string; color: "success" | "warning" | "danger" | "default" }
 > = {
   READY: { label: "Ready", color: "success" },
@@ -169,7 +181,7 @@ function PlanContent({ content }: { content: StudyPlanContent }) {
 
 export default function MyReportsPage() {
   const router = useRouter();
-  const [reports, setReports] = useState<InterviewReportDTO[] | null>(null);
+  const [reports, setReports] = useState<ReportDTO[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
   const [plans, setPlans] = useState<StudyPlanSummaryDTO[] | null>(null);
@@ -191,16 +203,19 @@ export default function MyReportsPage() {
 
     async function load() {
       try {
-        const response = await fetch("/api/interview/reports", {
-          cache: "no-store",
-          credentials: "include",
-        });
+        const response = await fetch(
+          `/api/practice/reports?types=${INTERVIEW_REPORT_TYPES}`,
+          {
+            cache: "no-store",
+            credentials: "include",
+          }
+        );
         if (response.status === 401) {
           if (!cancelled) setNeedsLogin(true);
           return;
         }
         const data = (await response.json().catch(() => ({}))) as {
-          reports?: InterviewReportDTO[];
+          reports?: ReportDTO[];
           error?: string;
         };
         if (!response.ok || !data.reports) {
@@ -457,13 +472,13 @@ export default function MyReportsPage() {
                       const chip = STATUS_CHIP[report.status];
                       const date = report.completedAt ?? report.startedAt;
                       return (
-                        <Card key={report.id} isPressable className="w-full border border-[#d4e2e9] shadow-[0_8px_24px_rgba(20,58,75,0.06)]" onPress={() => router.push(`/interview/${report.typeSlug}/report/${report.id}`)}>
+                        <Card key={report.id} isPressable className="w-full border border-[#d4e2e9] shadow-[0_8px_24px_rgba(20,58,75,0.06)]" onPress={() => router.push(`/practice/${report.typeSlug}/report/${report.id}`)}>
                           <CardBody className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex flex-col gap-1">
                               <div className="flex items-center gap-2"><span className="font-serif text-lg text-[#102331]">{typeLabel(report.typeSlug)}</span><Chip size="sm" color={chip.color} variant="flat">{chip.label}</Chip></div>
-                              <p className="text-sm text-[#58727f]">{report.interviewerName ? `With ${report.interviewerName}` : "—"}{" · "}{formatDate(date)}</p>
+                              <p className="text-sm text-[#58727f]">{interviewerName(report) ? `With ${interviewerName(report)}` : "—"}{" · "}{formatDate(date)}</p>
                             </div>
-                            <div className="flex gap-6"><ScoreBadge label="Content" score={report.scores.content} /><ScoreBadge label="Behavioral" score={report.scores.behavioral} /></div>
+                            <div className="flex gap-6"><ScoreBadge label="Content" score={scoreOf(report, "content")} /><ScoreBadge label="Behavioral" score={scoreOf(report, "behavioral")} /></div>
                           </CardBody>
                         </Card>
                       );
