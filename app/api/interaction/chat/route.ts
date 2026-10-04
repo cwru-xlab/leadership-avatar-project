@@ -43,7 +43,19 @@ interface EngineRequestInput {
   typeSlug?: unknown;
   instance?: unknown;
   customization?: unknown;
+  /** Session-constant resume text (mirrors interview.resumeText). */
+  resumeText?: unknown;
+  /**
+   * Per-turn state for the tail block. Clients send `{ progress, startedAt }`;
+   * the route maps that into EngineTurnState (timing + optional time-budget
+   * dates). Falls back to the legacy `interview` fields when absent.
+   */
   turnState?: unknown;
+}
+
+interface EngineTurnStateInput {
+  progress?: unknown;
+  startedAt?: unknown;
 }
 
 const MAX_MESSAGE_LENGTH = 20_000;
@@ -360,11 +372,24 @@ export async function POST(request: NextRequest) {
     } = {};
 
     if (sessionConfig) {
-      const resumeText =
-        typeof interviewInput?.resumeText === "string"
-          ? interviewInput.resumeText.slice(0, MAX_RESUME_TEXT_LENGTH)
-          : "";
-      const progress = normalizeProgress(interviewInput?.progress);
+      // Prefer engine-descriptor fields (13-10+ clients); fall back to the
+      // legacy interview payload so InterviewSessionShell stays byte-stable
+      // until 13-13 deletes it.
+      const engineTurn =
+        engineInput?.turnState && typeof engineInput.turnState === "object"
+          ? (engineInput.turnState as EngineTurnStateInput)
+          : undefined;
+      const rawResume =
+        typeof engineInput?.resumeText === "string"
+          ? engineInput.resumeText
+          : typeof interviewInput?.resumeText === "string"
+            ? interviewInput.resumeText
+            : "";
+      const resumeText = rawResume.slice(0, MAX_RESUME_TEXT_LENGTH);
+      const progress = normalizeProgress(
+        engineTurn?.progress ?? interviewInput?.progress,
+      );
+      const startedAt = engineTurn?.startedAt ?? interviewInput?.startedAt;
       const isInterview = Boolean(getInterviewType(sessionConfig.typeSlug));
 
       interviewStyleTurnControl = isInterview;
@@ -385,13 +410,18 @@ export async function POST(request: NextRequest) {
         getInterviewType(sessionConfig.typeSlug)?.targetMinutes ??
         0;
 
+      const startedAtDate =
+        typeof startedAt === "number" && Number.isFinite(startedAt)
+          ? new Date(startedAt)
+          : undefined;
+
       const built = buildTurnMessages({
         config: sessionConfig,
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
         turnState: {
           progress,
           timing: {
-            elapsedMinutes: elapsedMinutes(interviewInput?.startedAt),
+            elapsedMinutes: elapsedMinutes(startedAt),
             targetMinutes,
             redirectMetaRequest: (() => {
               const latestUser = [...messages]
@@ -403,6 +433,11 @@ export async function POST(request: NextRequest) {
                 : false;
             })(),
           },
+          // Non-interview types that declare a time budget read these in
+          // buildTailBlock; interview types ignore them (timing lives in
+          // buildProgressBlock).
+          startedAt: startedAtDate,
+          now: startedAtDate ? new Date() : undefined,
         },
         language: attemptLanguage,
         resumeText,
