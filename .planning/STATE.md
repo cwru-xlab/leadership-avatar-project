@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 16-09-PLAN.md
+**Stopped At:** Completed 15-10-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -401,6 +401,9 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 16]: Networking report: Phase 15 outcome-panel idiom; early-end inside below panel; never-asked same weight as other landings
 - [Phase 16]: Hidden-goal leak: sentinel absent from live assembly; start snapshot via lib/networking/start-snapshot.ts
 - [Phase 16]: 16-09 human leak/walk-away blocks UNVERIFIED under skip_checkpoints — not a silent pass for 16-11
+- [Phase 16]: Networking tile live at /practice/networking; surface-count guards never-publishable and never-stored-paste
+- [Phase 16]: skip_checkpoints: 16-11 human B–G UNVERIFIED; Phase 16 keyboard sign-off not completed
+- [Phase 15]: 15-10: deny-the-frame is FAIL; unused end-turn outcome fields must be empty string/0 not null
 
 ## Progress
 
@@ -1861,7 +1864,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:40:41.244Z
+**Last Date:** 2026-10-04T04:45:16.039Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
