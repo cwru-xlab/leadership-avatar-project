@@ -36,7 +36,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 9: Student-Authored Scenarios** - Students create their own practice scenarios (completed 2026-09-21)
 - [x] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
 - [x] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality) (completed 2026-09-23)
-- [ ] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (8/11 plans; fidgeting retired as unmeasurable; sign-off item 1/7 PASSED at 12-10 after defeating two attempts — criterion 3 holds. 12-11 settles whether a slump is measurable at all, and decides the phone threshold)
+- [ ] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (9/11 plans; fidgeting retired as unmeasurable; criterion 3 holds since 12-10. 12-11 settled posture drift — the row now responds correctly in BOTH directions and REQ-51 is MET. NOT complete: criterion 1 is only PARTIALLY met because PHONE_SCORE_THRESHOLD has never been validated against a phone-held session, and 12-03's unchecked box is almost certainly stale — flagged, not flipped)
 - [ ] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record
 - [ ] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
 - [ ] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios
@@ -260,7 +260,7 @@ report restructure (REQ-53's scored-vs-descriptive distinction gates REQ-52).
   3. Nothing the pipeline cannot observe is described as absent, and nothing reported
      descriptively is scored.
 
-**Plans:** 8/11 plans executed
+**Plans:** 9/11 plans executed
 
 Plans:
 - [x] 12-01-PLAN.md — Async stop() teardown + per-tick frame-budget instrumentation
@@ -284,7 +284,6 @@ Plans:
       checks whether a landmark is inside the frame, so an extrapolated skeleton
       built off one visible arm cleared both gates. Gap carried by 12-10.)
 - [x] 12-10-PLAN.md — Frame-bounds landmark gating, measured-first, item-1 third attempt
-- [ ] 12-11-PLAN.md — Is a slump measurable at all? Drift series + phone distribution, then repair or retire
       (DELIVERED `307c96d`/`69ed830`. **Sign-off item 1 PASSES at last** — the
       off-camera session that defeated 12-08 and 12-09 now correctly reports the
       body as unreadable, so criterion 3 holds against it and REQ-53 is met.
@@ -301,12 +300,55 @@ Plans:
       Both need a raw dump first and are handed to a follow-up plan. REQ-51
       stays open on the drift-scoring clause. See `12-10-SUMMARY.md` and
       `12-TUNING.md`.)
+- [x] 12-11-PLAN.md — Is a slump measurable at all? Drift series + phone distribution, then repair or retire
+      (DELIVERED `a854519`/`df02eee`. **A frontal webcam sees a slump fine —
+      `forward_head` saturated its clamp — and two nested means were burying it.**
+      Branch R: repaired, not retired. `computePostureDrift` now takes the WORST
+      AXIS (a single-axis slump is capped at exactly 0.500 under a mean, so no
+      cutoff could ever have caught it), `bandPostureDrift` now reads
+      `posture_drift_max_s`, and `POSTURE_DRIFT_SUSTAINED_S` went 15 -> 8 and was
+      wired up for the first time after being read by NOTHING for three plans —
+      at 15 the genuine 12.0s slump would still have failed, proven by reverting
+      that constant alone. **Task 4 PASSED in full: the first time in the phase
+      the scored posture row has been seen to respond correctly in BOTH
+      directions on one build**, with the independent episode path agreeing.
+      REQ-51 is **MET**. 12-10's "the sign may be backwards" claim about
+      `forwardHeadOffset` is WITHDRAWN — it was the strongest responder.
+      CARRIED FORWARD: `PHONE_SCORE_THRESHOLD` is still undecided (its
+      true-positive side has never been observed in any plan; the dump was
+      deliberately KEPT this time) and `forward_head` saturates, so the channel
+      cannot support severity wording. See `12-11-SUMMARY.md` and `12-TUNING.md`.)
 
-**Phase 12 is NOT complete.** Two gaps remain and both are measurement-blocked
-rather than analysis-blocked: the posture-drift true positive (item 3) and
-`PHONE_SCORE_THRESHOLD` (item 4). A follow-up plan (12-11) must capture a raw
-per-tick drift series on a deliberate-slump session and re-add the phone dump
-before either constant is touched. 12-03 also remains unexecuted.
+**Phase 12 is NOT complete.** What remains:
+
+1. **`PHONE_SCORE_THRESHOLD` is unvalidated, and it blocks criterion 1.** The
+   only phone data that exists is the no-phone false-positive floor (two sessions,
+   zero detections at or above 0.5, 0.0s correctly reported). The true-positive
+   side has never been observed across 12-07, 12-09, 12-10 or 12-11, and the user
+   earlier observed a sustained in-frame phone reported as "about 2 seconds",
+   which suggests UNDER-detection. One timed phone-held session with
+   `NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP=1` settles it; the dump is in place and
+   must not be removed first.
+2. **12-03's checkbox is almost certainly STALE — FLAGGED, NOT FLIPPED.** It is
+   listed `[ ]` above, but `12-03-SUMMARY.md` exists in the phase directory AND
+   `STATE.md` records it as *complete* with three commits (`962c647`, `3f5e6c1`,
+   `c83f6d6`), noting the Task 1 spike settled the ES-module worker question on
+   the first attempt. So the worker migration very likely shipped and this
+   checkbox was never updated — but 12-11's executor did not flip it, because
+   changing a phase's executed-plan count on inference rather than instruction is
+   exactly the kind of unearned claim this phase has been burned by. **It needs a
+   human confirmation, and it changes the plan count from 9/11 to 10/11.**
+3. **The posture evidence base is two sessions**, one per direction, labelled SET
+   FROM ONE REAL SESSION rather than TUNED. `POSTURE_DRIFT_SUSTAINED_S` is
+   bounded from above only. Re-tuning against real student sessions is carried in
+   `deferred-items.md`.
+
+**Criterion assessment at 12-11's close.** Criterion 2 MET (12-08: `meanTickMs`
+35.6 against a 166.7ms interval). Criterion 3 MET (12-10 item 1, reconfirmed
+here). **Criterion 1 PARTIALLY MET** — arm movement and posture are both measured
+and timecoded and now demonstrably work; the phone is measured and timecoded but
+its threshold has never been checked against a true positive, which is the exact
+claim 12-11's Task 4 had to be run to establish for posture. Not rubber-stamped.
 
 ### Phase 13: One-on-One Conversation Engine
 **Goal:** Generalize the interview pipeline into a parameterized one-on-one
@@ -544,7 +586,7 @@ engine lands they can be planned and executed in any order, or in parallel.
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
-| 12. Embodied Visual Signals | 8/11 | In Progress|  |
+| 12. Embodied Visual Signals | 9/11 | In Progress|  |
 | 13. One-on-One Conversation Engine | 0/0 | Not planned |  |
 | 14. Practice Pitches | 0/15 | Planned     |  |
 | 15. Difficult Conversations | 0/11 | Planned     |  |

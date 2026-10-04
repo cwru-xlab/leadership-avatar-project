@@ -329,11 +329,38 @@ was decided, they do not add scope.*
   vocabulary cannot identify a specific or offensive gesture and must never be described as
   doing so.
 
-- **REQ-51** — [ ] Body posture is measured from body landmarks — shoulder-line tilt,
-  forward-head, torso lean and openness. The SCORE comes from drift against the student's
-  own opening posture, never against a fixed upright ideal; the absolute reading is
-  reported but not graded. A partially visible body is scored on the landmarks that ARE
-  available rather than skipped, and every posture comment states which were measured.
+- **REQ-51** — [x] **MET (12-11 Task 4, 2026-10-03).** Body posture is measured from body
+  landmarks — shoulder-line tilt, forward-head, torso lean and openness. The SCORE comes
+  from drift against the student's own opening posture, never against a fixed upright
+  ideal; the absolute reading is reported but not graded. A partially visible body is
+  scored on the landmarks that ARE available rather than skipped, and every posture
+  comment states which were measured.
+
+  Clause by clause: all four signals are computed and only the genuinely in-frame ones
+  are scored (12-10's frame-bounds gating); the score is `abs(current - baseline)`
+  against a baseline established in the first `POSTURE_BASELINE_WINDOW_S`, never an
+  ideal; the absolute reading lives in the unscored Observations section (12-04/12-07)
+  and nothing scored reads it; the partial-visibility clause passed at 12-10 Task 4
+  item 2 and was confirmed un-regressed at 12-11 Task 4 item 3; and the "Measured from"
+  row renders unconditionally (`bands.ts:524`).
+
+  **What held this open until now was one thing only:** the drift-scoring mechanism had
+  never been observed to respond correctly to the behaviour it grades — three "Held
+  steady" readings on genuine slumps (12-08, 12-09, 12-10 item 3) and one "Shifted" that
+  was 12-09's false positive on an extrapolated skeleton, with the false-positive side
+  never tested at all. 12-11 found the cause by measurement (the band read a session-wide
+  mean of a cross-signal mean, and a single-axis slump is capped at 0.500 per tick under
+  that mean regardless of the cutoff), repaired both aggregations, and wired up
+  `POSTURE_DRIFT_SUSTAINED_S`, which had been read by nothing for three plans. 12-11
+  Task 4 then demonstrated the row responding correctly in **both** directions on the
+  same build — a slump reported with a matching timecode (`0:48-1:26`), an ordinary
+  session reported as steady with no episode — with the independent episode code path
+  agreeing in both directions.
+
+  **Evidence base, stated honestly: one slump session and one ordinary session.** The
+  constants are labelled SET FROM ONE REAL SESSION, not TUNED. Re-tuning against real
+  student sessions is expected work, carried in `deferred-items.md`. See
+  `12-11-SUMMARY.md` and `12-TUNING.md`.
 
 - **REQ-52** — [ ] **NOT MET** (12-08 Task 1 checkpoint, deliberate — this is not a gap
   pending more work, it is a measurement-capability limit this pipeline cannot clear at

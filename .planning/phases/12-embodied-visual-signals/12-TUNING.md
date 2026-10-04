@@ -605,3 +605,115 @@ this instrument in its Task 3 and then found at its own Task 4 item 4 that there
 was nothing left to read; that is the mistake the retention avoids repeating.
 **A future phone decision requires this dump, so do not remove it until a
 phone-held session's distribution is recorded here.**
+
+## 12-11 Task 4: the first BOTH-DIRECTIONS validation in the phase (2026-10-03)
+
+Run by the user against a freshly rebuilt dev server. **All items PASS.** This is
+the section to read if the question is "has the scored posture-drift row ever
+been observed to work?" — the answer was no until these two sessions.
+
+### The true positive — slump session
+
+Fully in frame, upright, then a hard held slump.
+
+- `Posture drift: **Shifted from the opening posture**`
+- `Measured from: Shoulder line and Head position`
+- Moments: `0:43-1:26 [Camera] Looking away` ·
+  **`0:48-1:26 [Body language] Posture shifted from the start of the session`** ·
+  `1:04-1:26 [Camera] Off centre in frame`
+- ON CAMERA: Eye contact Solid · Attention Intermittent · Framing Mostly centred ·
+  On camera Present throughout · Lighting Clear · Steadiness Steady
+- Narrative: "Face appeared on camera 99% of the time, and the camera was
+  well-centered 78% of the session. However, forward-facing attention was low at
+  56%..."
+
+### The false positive — ordinary session
+
+Sat normally, ordinary small shifts.
+
+- `Posture drift: **Held steady from the opening posture**`
+- `Measured from: Shoulder line and Head position`
+- **No Moments content at all** — no episode fired. Correct: the Moments tab only
+  populates when an episode fires, and the user confirmed they "didn't do
+  anything unnatural".
+
+### Why the pair matters, and what it does NOT establish
+
+Prior history of this row, completely: **three** "Held steady" readings on
+genuine slumps (12-08, 12-09, 12-10 item 3), and **one** "Shifted" which was
+12-09's FALSE POSITIVE on an extrapolated skeleton. **The false-positive side had
+never been tested in any plan.** These two sessions are the first time the row
+has been seen to respond correctly in both directions on the SAME build.
+
+Unasked-for corroboration: the episode detector (`0:48-1:26`) uses a per-window
+drift mean (`visual-capture.ts:1050`) while the band compares
+`posture_drift_max_s >= POSTURE_DRIFT_SUSTAINED_S`. **Independent code paths**,
+and they agreed in both directions.
+
+What this does NOT establish: the ordinary session is **one** reading on the
+false-positive side, and the slump session is **one** on the true-positive side.
+`POSTURE_DRIFT_TRIP` (0.5) and `POSTURE_DRIFT_SUSTAINED_S` (8) stay labelled
+**SET FROM ONE REAL SESSION, not TUNED**. `POSTURE_DRIFT_SUSTAINED_S` in
+particular is bounded from ABOVE only (Session A's 12.0s streak); nothing bounds
+it from below, so how short a genuine shift can be before it is missed is
+unknown.
+
+### The stale-server false alarm, and the second slump dataset it produced
+
+The user's FIRST attempt at the slump item ran against the **pre-`df02eee` dev
+server process**. It reported "Held steady" and still printed the posture dump
+that Task 3 removed, whose text carried the pre-fix wording "computed but NOT
+read by the band". Those two tells — a removed instrument still printing, and its
+text describing behaviour that no longer existed — are what caught it, and the
+user restarted before anything was read into the result.
+
+**A stale dev server is a live failure mode for every `NEXT_PUBLIC_*`-gated
+reading recorded in this file.** A hot reload does not pick up a build-time
+inlined var or a recompiled module. Future dumps should print a build marker.
+
+That session's readings are a valid **SECOND slump dataset under the OLD
+aggregation**, and they corroborate the cross-signal dilution independently of
+Session A:
+
+```
+baseline: tilt=1.324 fwdHead=0.7924
+session:  sessionSeconds=95.5   112 post-baseline ticks
+max per-signal delta forward_head  = 1.000 at t=43.4
+max per-signal delta shoulder_line = 0.997 at t=54.7
+old cross-signal mean peaked at      0.798
+posture_drift_mean  = 0.330
+posture_drift_max_s = 0.7
+phone: 47 object ticks, ZERO cell-phone detections
+```
+
+Both axes nearly saturated — at *different moments*, which is the whole point —
+and the mean still peaked at only 0.798, with a sustained streak of **0.7s**
+against the 15s constant then in force. Under the repaired worst-axis reduction
+this session would have produced a long streak. It is the clearest single
+demonstration in the record that the mean, not the cutoff, was the defect.
+
+### PHONE_SCORE_THRESHOLD after Task 4 — STILL UNDECIDED
+
+Task 4 item 4 was **deliberately not run**: Task 3 set no threshold, so there was
+nothing to validate. For the fourth plan running, this constant is unset by
+design.
+
+The dataset, stated completely — **both sides of it are the same side**:
+
+| Session | Phone held? | Object ticks | Detections | Confidence | Reported |
+|---|---|---|---|---|---|
+| 12-11 Session A | no | 53 | 4 spurious | min 0.058 / med 0.081 / max 0.163; none >=0.5 | 0.0s (correct) |
+| 12-11 stale-server slump | no | 47 | 0 | — | 0.0s (correct) |
+
+So the **false-positive floor is now doubly confirmed** and 0.5 refuses spurious
+detections with ~3x margin. **The true-positive side has never been observed in
+any plan** (12-07, 12-09, 12-10, 12-11). A one-sided reading can only justify
+RAISING a cutoff, and nothing points that way. There is a concrete reason to
+suspect the opposite: the user earlier observed a sustained in-frame phone
+reported as "about 2 seconds", which looks like **under**-detection — a false
+negative in exactly the shape posture drift turned out to be.
+
+**What is needed: one timed phone-held session with
+`NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP=1`.** The dump is still in place for
+precisely this. **Do not remove it until that distribution is recorded here.**
+This reading also blocks Phase 12 ROADMAP criterion 1 — see `12-11-SUMMARY.md`.

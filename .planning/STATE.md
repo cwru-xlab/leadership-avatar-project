@@ -2,145 +2,189 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-10-04 (12-11 Tasks 1-3 committed, paused at its Task 4 blocking sign-off checkpoint — see Current Position. Task 2's readings landed and put Task 3 on Branch R: the posture-drift aggregation was repaired, not retired. 12-10 DELIVERED and closed. Phase 12 is NOT complete: 12-11's sign-off is outstanding, PHONE_SCORE_THRESHOLD is still undecided, and 12-03 remains unexecuted. Phases 13-16 were separately added to the v1.0 roadmap from the user's one-on-one interactions brief — see "Roadmap Evolution" at the end of this file.)
+**Updated:** 2026-10-03 (12-11 DELIVERED and closed — Task 4's human sign-off PASSED IN FULL, including the false-positive side that had never been tested in any plan. The scored posture-drift row now responds correctly in BOTH directions on one build, and **REQ-51 is MET**. Phase 12 is still NOT complete: ROADMAP criterion 1 is only PARTIALLY met because `PHONE_SCORE_THRESHOLD` has never been validated against a phone-held session, and 12-03 is unexecuted with a checkbox that contradicts the disk. Phases 13-16 were separately added to the v1.0 roadmap from the user's one-on-one interactions brief — see "Roadmap Evolution" at the end of this file.)
 
 ## Current Position
 
-**Phase:** 12 — Embodied Visual Signals — IN PROGRESS
-**Current Plan:** **12-11 IN FLIGHT, PAUSED at its Task 4 blocking human
-sign-off checkpoint.** Tasks 1-3 are committed (`a854519`, `df02eee`).
+**Phase:** 12 — Embodied Visual Signals — IN PROGRESS (9 of 11 plans executed)
+**Current Plan:** **12-11 is DELIVERED and closed** (`a854519`, `df02eee`, docs
+`39eceba`, `dbf5c5d`, `c5d2d87`); see `12-11-SUMMARY.md`. No plan is in flight.
+Phase verification has NOT been run.
 
-**Task 2's readings arrived and decided the plan.** Session A — fully in frame,
-upright ~20s, then a hard held slump (108.0s, 162 pose ticks, baseline
-tilt=4.307deg fwdHead=0.7681) — showed the signals see a slump perfectly well:
-`forward_head`'s delta SATURATED at the clamp ceiling (1.000), `shoulder_line`
-reached 0.508, peak per-tick drift 0.643, and a 12.0s sustained streak above the
-0.5 trip. The session mean the band actually read was 0.373, so the report said
-"Held steady". **Branch R: the aggregation was burying it. The scored row was
-repaired, NOT retired** — 12-08's fidgeting precedent did not apply, because the
-geometry was never the problem.
+### What 12-11 settled
 
-**Task 3, committed as `df02eee`.** Two dilutions, both fixed:
-`computePostureDrift` now takes the WORST AXIS instead of the cross-signal mean
-(the mean was wrong in kind — a pure slump with still shoulders averages to
-exactly 0.500, not `> 0.5`, so no trip value could ever have caught it), and
-`bandPostureDrift` now reads `posture_drift_max_s` instead of
+The question was: *can a frontal webcam see a slump at all through the signals
+this pipeline computes?* **Yes, easily.** Task 2's Session A (fully in frame,
+upright ~20s, then a hard held slump; 108.0s, 162 pose ticks, baseline
+`tilt=4.307deg` `fwdHead=0.7681`, 131 scored ticks) showed `forward_head`'s delta
+**SATURATING the clamp ceiling at 1.000**, `shoulder_line` reaching 0.508, peak
+per-tick drift 0.643, and a 12.0s sustained streak above the 0.5 trip — while the
+session mean the band actually read was 0.373, so the report said "Held steady".
+**Branch R: the aggregation was burying it. The row was REPAIRED, not retired** —
+12-08's fidgeting precedent did not apply, because the geometry was never the
+problem. Session B (lateral lean) became moot; Session A answered its question.
+
+**Task 3 (`df02eee`) — two nested means removed.** `computePostureDrift` now
+takes the **WORST AXIS** instead of the cross-signal mean, and
+`bandPostureDrift` now reads **`posture_drift_max_s`** instead of
 `posture_drift_mean` (a session opens upright BY DESIGN, so a session-wide mean
-dilutes a slump against a mandatory upright opening).
-**`POSTURE_DRIFT_SUSTAINED_S` 15 -> 8 and wired up for the first time** — it had
-been exported and read by NOTHING for three plans. At 15 the genuine 12.0s slump
-would STILL have failed; that was verified empirically by reverting the constant
-alone, not assumed. `POSTURE_DRIFT_TRIP` retained at 0.5, now bounded on both
-sides for the first time (ordinary <=0.252, slump >=0.508).
-`POSTURE_COVERAGE_MIN_RATIO` retained at 0.60 — the fully-in-frame ceiling
-reading exists but lands above the decision band, so it cannot narrow it, which
-corrects 12-10's expectation. All readings are recorded in `12-TUNING.md`; the
-posture dev dump is removed. 27 replay assertions were added from the real
-numbers and the 11 load-bearing ones confirmed to FAIL against reverted
-behaviour with exports intact.
+dilutes any later slump against a mandatory upright opening).
+**`POSTURE_DRIFT_SUSTAINED_S` 15 -> 8 and wired up for the first time** — a grep
+across `lib`, `scripts` and `app` had matched only its own declaration for three
+plans, under a file header certifying every constant as achievable. At 15 the
+genuine 12.0s slump would STILL have failed, and that was verified by reverting
+the constant alone and watching the assertion fail, not assumed.
+`POSTURE_DRIFT_TRIP` retained at 0.5 — never the defect, now bounded both sides
+(ordinary <=0.252, slump >=0.508). `POSTURE_COVERAGE_MIN_RATIO` retained at 0.60:
+the fully-in-frame ceiling reading now exists but lands ABOVE the decision band,
+so it cannot narrow it, which corrects 12-10's expectation. 27 replay assertions
+added from the real numbers, the 11 load-bearing ones confirmed to FAIL against
+reverted behaviour with exports intact. The posture dev dump was removed.
 
-**Correction carried into the ledger:** 12-10's claim that `forwardHeadOffset`'s
-sign "may be backwards relative to the behaviour being graded" is WITHDRAWN.
-`fwdHead` does decrease during a slump (the metric is a head-to-shoulder
-DISTANCE, not anterior displacement — a genuine misnomer), but drift scores the
-ABSOLUTE delta, so direction cannot affect magnitude. The channel was never
-blind; it was the strongest responder in the session. Labelling defect only.
+**The pure-slump argument, as CORRECTED (`c5d2d87`).** A single-axis slump —
+`forward_head` at 1.000, shoulders perfectly still at 0.000 — averages under the
+old mean to **exactly 0.500**. The ledger's first wording concluded this "is not
+`> 0.5`", which was **wrong**: the pre-12-11 comparator was `>=`, so 0.500 would
+have satisfied it. **The conclusion survives by a stronger route** — the band
+read the SESSION-WIDE mean, which also averages in the mandatory upright opening
+(Session A's upright rows run ~0.07-0.09), so a real pure-slump session sits
+STRICTLY BELOW the 0.500 per-tick ceiling, never at it. Lowering
+`POSTURE_DRIFT_TRIP` could never have fixed it: the ceiling is a property of the
+mean, not of the cutoff. **Carry the corrected version, not the original.**
 
-**Two things deliberately NOT done.** `PHONE_SCORE_THRESHOLD` is **still
-undecided** — Session C (phone held) was not run, so only the no-phone
-false-positive floor exists (4 of 53 object ticks spurious, max 0.163, none
->=0.5, 0.0s correctly reported). The true-positive side has never been observed
-in any plan, and a one-sided reading can only justify raising a cutoff. **The
-phone half of the dev dump was KEPT for that reading** (now
-`NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP`) — 12-10 removed it before taking the
-reading and then had nothing to read at its own sign-off. Session B (lateral
-lean) was also not run but is now moot: Session A answered what it was for.
+**Task 4 sign-off, run by the user 2026-10-03 — ALL ITEMS PASS.**
+  - **Item 1, true positive:** `Posture drift: Shifted from the opening posture`,
+    `Measured from: Shoulder line and Head position`, Moments
+    `0:48-1:26 [Body language] Posture shifted from the start of the session`
+    alongside `0:43-1:26 Looking away` and `1:04-1:26 Off centre in frame`.
+  - **Item 2, false positive:** ordinary session -> `Held steady from the opening
+    posture`, and **no Moments content at all** (correct — Moments only populates
+    when an episode fires).
+  - **Item 3:** "Measured from" still names the genuinely-in-frame signals. PASS.
+  - **Item 4 (phone):** deliberately not run; Task 3 set no threshold.
 
-**Evidence base is ONE slump session**, labelled SET FROM ONE REAL SESSION
-rather than TUNED, matching 12-10's honesty about its own 0.60. The
-false-positive side of the worst-axis change is NOT yet observed — 12-TUNING's
-S1-S4 ordinary readings predate 12-10's frame-bounds gating and are contaminated
-by extrapolated skeletons, so Task 4's ordinary-session check is its first real
-test. A known limit is on the record: `forward_head` saturated at 1.000, so the
-true magnitude is unrecoverable and the 0.3 scale may be too small to
-discriminate a moderate slump from an extreme one; it cannot support severity
-wording.
+**This is the first time in the entire phase that the scored posture row has been
+seen to respond correctly in BOTH directions on the same build.** Prior history:
+three "Held steady" readings on genuine slumps (12-08, 12-09, 12-10 item 3) and
+one "Shifted" that was 12-09's false positive on an extrapolated skeleton; the
+false-positive side had never been tested at all. Unasked-for corroboration: the
+episode detector (per-window drift mean, `visual-capture.ts:1050`) and the band
+(`posture_drift_max_s >= POSTURE_DRIFT_SUSTAINED_S`) are **independent code
+paths** and agreed in both directions.
 
-No SUMMARY exists for 12-11 yet, by design — Task 4 must be signed off first.
+**A stale dev server produced one false item-1 failure, and it was caught.** The
+first attempt ran against the pre-`df02eee` process: it reported "Held steady"
+and still printed the removed posture dump, whose text carried the pre-fix
+wording "computed but NOT read by the band". Those two tells caught it and the
+user restarted before anything was concluded. Its readings were retained in
+`12-TUNING.md` as a valid SECOND slump dataset under the OLD aggregation — both
+axes nearly saturated at DIFFERENT moments (`forward_head` 1.000 at t=43.4,
+`shoulder_line` 0.997 at t=54.7) yet the old mean peaked at only 0.798 and the
+streak was 0.7s. **A stale dev server is a live failure mode for every
+`NEXT_PUBLIC_*`-gated reading this phase has taken; future dumps should print a
+build marker.**
 
-**12-10 is DELIVERED and closed**
-(`307c96d`, `69ed830`, docs `9595ba2`, `9994209`); see `12-10-SUMMARY.md`.
-12-01 through 12-09 are as previously recorded — 12-01 through 12-07 shipped the
-capture engine, type contract, worker migration, report surfacing and both the
-scored and descriptive derived signals; 12-08 tuned every threshold from five
-real sessions (PROVISIONAL count 0) but deviated from its own four-session
-protocol and failed its sign-off on item 7; 12-09's coverage gate did not close
-it. **12-03 remains unexecuted.**
+**Corrections carried into the record.** 12-10's claim that `forwardHeadOffset`'s
+sign "may be backwards relative to the behaviour being graded" is **WITHDRAWN**.
+`fwdHead` does decrease during a slump (it is a head-to-shoulder DISTANCE, not
+anterior displacement — a genuine misnomer), but drift scores the ABSOLUTE delta,
+so direction cannot affect magnitude. The channel was never blind; it was the
+strongest responder in the session and the only one to saturate. Labelling defect
+only. The name was NOT changed — it is load-bearing across the worker, two type
+contracts, the signal key, the "Head position" display wording and every recorded
+reading; `headToShoulderDistance` is the accurate name if it is ever renamed.
 
-**What 12-10 settled.** `isVisible` now requires in-frame normalized coordinates
-AND the visibility floor — MediaPipe's `visibility` is a model PREDICTION, not an
-observation — extracted to a new `lib/metrics/landmark-visibility.ts` so the
-verify script can assert the predicate from Node. `POSTURE_COVERAGE_MIN_RATIO`
-moved 0.25 -> 0.60, set from two sessions the user dumped rather than reasoned,
-and recorded as not well-characterised. Out-of-frame wrists are dropped in
+**A known limit on the record.** `forward_head` peaked at exactly 1.000, which is
+the clamp, not a measurement, so the true magnitude is unrecoverable and the 0.3
+scale **may be too small to discriminate a moderate slump from an extreme one**.
+Detection is unaffected and proven, but the channel has no dynamic range above
+the cutoff and **cannot support any severity or degree-of-slump wording.** 0.3
+was deliberately not raised: that would desensitise a detection only just proven,
+for a gradation nothing has asked for. What is needed first is an UNCLAMPED
+per-signal delta series across a moderate slump and a hard one.
+
+### Requirements after 12-11
+
+- **REQ-51 — MET** (12-11 Task 4). Every clause is satisfied and observed: body
+  landmarks, drift against the student's OWN opening posture, absolute reading
+  reported-but-ungraded in the Observations section, a partially visible body
+  scored on available landmarks (12-10 item 2, un-regressed), the unconditional
+  "Measured from" row, and now a mechanism demonstrated correct in both
+  directions. 12-10 held it open on that last point ALONE.
+  **Evidence base: one slump session and one ordinary session — labelled SET
+  FROM ONE REAL SESSION, not TUNED.**
+- **REQ-52 — NOT MET, unchanged.** Fidgeting is permanently not-measured by the
+  deliberate 12-08 decision (an aliasing limit at the hands model's ~1.5 Hz
+  sample rate). 12-11 touched neither the sample rate nor the fidget path.
+- **REQ-53 — MET, undisturbed.** 12-11 made the posture row more sensitive, not
+  less honest: the renderer refusal, episode filter and frame-bounds gating were
+  untouched, and `posture_drift_mean` survives only as a descriptive aggregate
+  that nothing scored reads (pinned by an assertion).
+
+### Phase 12 is NOT complete — what remains
+
+1. **`PHONE_SCORE_THRESHOLD` is unvalidated, and it blocks ROADMAP criterion 1.**
+   Still 0.5, still labelled undecided, for the fourth plan running. The only
+   data is the no-phone **false-positive floor**, now doubly confirmed (12-11
+   Session A: 53 object ticks, 4 spurious detections, max 0.163, none >=0.5,
+   0.0s correctly reported; the stale-server session: 47 ticks, zero detections).
+   **The true-positive side has never been observed in any plan** (12-07, 12-09,
+   12-10, 12-11), and a one-sided reading can only justify RAISING a cutoff —
+   while the user earlier observed a sustained in-frame phone reported as "about
+   2 seconds", which points at UNDER-detection, a false negative in exactly the
+   shape posture drift turned out to be. **The phone half of the dev dump was
+   deliberately KEPT** (`NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP`) — 12-10 removed
+   it before taking its reading and then had nothing to read. **Do not remove it
+   until a phone-held distribution is recorded in `12-TUNING.md`.** One timed
+   session settles this.
+2. **12-03's ROADMAP checkbox is almost certainly STALE — FLAGGED, NOT
+   FLIPPED.** The ROADMAP lists it `[ ]`, but `12-03-SUMMARY.md` exists on disk
+   AND this file's own Progress/decisions record says "12-03 (worker migration +
+   frame budget): **complete**. Commits `962c647`, `3f5e6c1`, `c83f6d6`". The
+   worker migration very likely shipped and the checkbox was never updated.
+   12-11's executor did NOT flip it: changing a phase's executed-plan count on
+   inference is the kind of unearned claim this phase has been burned by.
+   **Needs a human confirmation; it would move the count 9/11 -> 10/11.**
+3. **Open readings, none blocking:** an unclamped `forward_head` delta series; a
+   session genuinely 43-75% in frame (the only thing that can narrow
+   `POSTURE_COVERAGE_MIN_RATIO`); a positive hands-visible reading to bound
+   `HANDS_COVERAGE_MIN_RATIO` from above; and a LOWER bound for
+   `POSTURE_DRIFT_SUSTAINED_S`, which is bounded from above only.
+
+**Criterion assessment at 12-11's close.** Criterion 2 **MET** (12-08:
+`meanTickMs` 35.6 against a 166.7ms interval). Criterion 3 **MET** (12-10 item 1,
+reconfirmed here). **Criterion 1 PARTIALLY MET** — arm movement and posture are
+measured, timecoded and now demonstrably working; the phone is measured and
+timecoded but its threshold has never been checked against a true positive, which
+is the exact claim Task 4 had to be run to establish for posture. Not
+rubber-stamped.
+
+### Prior plans in this phase
+
+12-01 through 12-07 shipped the capture engine, type contract, worker migration,
+report surfacing and both the scored and descriptive derived signals. 12-08 tuned
+every threshold from five real sessions (PROVISIONAL count 0) but deviated from
+its own four-session protocol and failed its sign-off on item 7. 12-09's coverage
+gate did not close it; its root cause was one layer down — `isVisible` trusted
+MediaPipe's PREDICTED visibility and never checked frame bounds, so an
+extrapolated skeleton built off one visible arm cleared both gates. **12-10
+(`307c96d`, `69ed830`, docs `9595ba2`, `9994209`, `342e8d4`) fixed that**:
+`isVisible` now requires in-frame coordinates AND the visibility floor, extracted
+to `lib/metrics/landmark-visibility.ts` so the predicate is assertable from Node;
+`POSTURE_COVERAGE_MIN_RATIO` moved 0.25 -> 0.60 from two dumped sessions and was
+recorded as not well-characterised; out-of-frame wrists are dropped in
 `detectHands`. Both halves were confirmed load-bearing by reverting each alone.
-
-**Task 4 sign-off, run by the user 2026-10-03.** Item 1 **PASS** — first time in
-three attempts: the off-camera session with one arm in shot now reports the body
-as unreadable, with no posture verdict in either previous wording. Item 2
-**PASS** — a partially visible body is still scored on what was in frame, so the
-0.60 ratio did not overcorrect. Item 3 **FAIL, recorded as a finding** — a
-fully-in-frame session in which the user "slumped a lot" still reported "Posture
-drift: Held steady from the opening posture". Item 4 **NOT RUN** — its dump was
-removed in Task 3 and its readings were never captured.
-
-**Two defects the plan did not anticipate, both found in the readings, not the
-code.** 12-09's hands coverage gate was completely **inert** (fed `handSamples`,
-the count of ticks the hands model RAN, ~100% of expected on any live session,
-rather than detections — now `handsDetectedSamples`), which is why the
-off-camera session kept reporting "Gesturing: Well judged" after 12-09 claimed to
-have closed that path. And `LANDMARK_VISIBILITY_FLOOR` is near-inert: the
-per-tick visible flags are indistinguishable between a 0%-face session and a
-genuine one. The plan's own fix was also falsified in its simple form by its own
-Task 2 readings — a per-tick in-frame test ALONE would have left the off-camera
-session's `forward_head` in frame on 43.4% of ticks, clearing 12-09's 0.25 ratio,
-and item 1 would have failed a third time. The measure-first sequencing is what
-caught that.
-
-**Requirements.** REQ-53 is now **MET** — item 1 was its sole outstanding
-blocker and ROADMAP criterion 3 holds against the exact session that defeated two
-attempts. REQ-51 remains **NOT MET**: its partial-visibility and "Measured from"
-clauses are satisfied, but its drift-scoring clause is not — `POSTURE_DRIFT_TRIP`
-has now produced one false positive (12-09, on an extrapolated skeleton) and one
-false negative (item 3, on a real slump) and has never been observed to respond
-correctly to the behaviour it grades. REQ-52 stays NOT MET by deliberate decision.
-
-**Next action: plan 12-11.** Two gaps, both measurement-blocked rather than
-analysis-blocked, which is why they belong in one measure-first plan:
-  1. **The posture-drift true positive.** Capture a raw per-tick drift series on
-     a deliberate-slump session — per-signal deltas, the baselines, the session
-     mean, the streak — BEFORE changing anything. An unverified hypothesis is
-     recorded in `12-10-SUMMARY.md` and `12-TUNING.md`: `computePostureDrift`
-     averages the per-signal deltas, `shoulder_line` measures left-right TILT
-     which a vertical slump barely moves, and the scored row then averages again
-     across the whole session — so a single-signal change is diluted twice. The
-     forward-head channel may also be a 2D distance that cannot see sagittal
-     movement from a frontal webcam at all. **Nothing may be changed on that
-     hypothesis's authority.** `POSTURE_DRIFT_TRIP` must not be lowered to make
-     the symptom disappear.
-  2. **`PHONE_SCORE_THRESHOLD`.** Re-add the removed phone dump and take the
-     ~30s reading. It has no dataset of any kind behind it across 12-07, 12-09
-     and 12-10.
-  A fully-in-frame gesturing session would also bound `POSTURE_COVERAGE_MIN_RATIO`
-  from above and set `HANDS_COVERAGE_MIN_RATIO` from a positive reading — it is
-  the same capture as gap 1 and should be collected together.
+Its readings also exposed that **12-09's hands coverage gate had been entirely
+inert** (fed `handSamples`, the count of ticks the model RAN, rather than
+detections) and that `LANDMARK_VISIBILITY_FLOOR` is near-inert. See
+`12-10-SUMMARY.md`.
 
 **Previous phase:** 11 — Cohort & Staff Teardown — COMPLETE. All 7 plans
 executed and signed off, including the 11-07 human walkthrough; see "Phase 11
 Status: COMPLETE" below and `.planning/phases/11-cohort-staff-teardown/` on
 disk for full detail.
-**Status:** Phase 12 IN PROGRESS (9 plans complete: 12-01 through 12-09;
-12-10 in progress, paused at a blocking checkpoint).
+**Status:** Phase 12 IN PROGRESS — 9 of 11 plans executed (12-01 through 12-02,
+12-04 through 12-11). 12-03 unexecuted; phase verification not yet run.
 **Branch:** feature/visual-analysis-expansion
 
 Phases 1-5 (interview registry, interviewer catalog, resume ingestion, setup flow,
@@ -184,6 +228,14 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 12-embodied-visual-signals / 12-10]: `HANDS_COVERAGE_MIN_RATIO` deliberately RETAINED at 0.25 rather than raised to match posture. Hands legitimately leave frame all session (lap, below the laptop edge) while shoulders do not, so no positive reading bounds it from above; raising it blind risked silencing gesturing for most real sessions.
 - [Phase 12-embodied-visual-signals / 12-10]: Measure-first sequencing is now proven, not just preferred. The plan's own stated fix was falsified by its own Task 2 readings before being shipped; had Task 1's dump been skipped, the phase would have shipped a confident, well-reasoned, wrong fix for the third consecutive time.
 - [Phase 12-embodied-visual-signals / 12-10]: `POSTURE_DRIFT_TRIP` and `computePostureDrift`'s aggregation were deliberately NOT touched despite a plausible code-reading hypothesis for the item-3 false negative, because zero measurements exist. No posture-drift constant may be changed before a raw per-tick drift series is captured on a deliberate-slump session.
+- [Phase 12-embodied-visual-signals / 12-11]: Branch R, not Branch X — the scored posture-drift row was REPAIRED rather than retired, because Session A's readings showed `forward_head` saturating the clamp (1.000) during a held slump. 12-08's fidgeting retirement precedent was genuinely on the table and was excluded by a measurement, not by preference: the geometry was never the problem.
+- [Phase 12-embodied-visual-signals / 12-11]: `computePostureDrift` reduces across signals by WORST AXIS, not arithmetic mean. The four posture signals are roughly orthogonal axes, not repeated measurements of one quantity, so a mean gave a student half credit for the axis they did not move — and capped a pure single-axis slump at exactly 0.500 per tick. Corrected argument (`c5d2d87`): 0.500 WOULD have satisfied the old `>=` comparator; what made it undetectable is that the band read the SESSION-WIDE mean, which also averages in the mandatory upright opening, putting a real pure-slump session strictly below the ceiling. Either way, no choice of `POSTURE_DRIFT_TRIP` could have fixed it.
+- [Phase 12-embodied-visual-signals / 12-11]: `bandPostureDrift` reads `posture_drift_max_s` (the longest sustained run above the trip), not `posture_drift_mean`. A session is required BY DESIGN to open upright, so a session-wide mean dilutes any later slump against that opening — the longer a student holds good posture before slumping, the lower the score the slump produces. A sustained run is what a slump actually IS.
+- [Phase 12-embodied-visual-signals / 12-11]: `POSTURE_DRIFT_SUSTAINED_S` 15 -> 8, and wired up for the first time after being read by NOTHING across three plans while the file header certified it achievable. The insufficiency of the aggregation fix alone was PROVEN by reverting that constant and watching the assertion fail — at 15 the genuine 12.0s slump would still have reported "Held steady", a second silent false negative one layer down with the repair appearing to have changed nothing.
+- [Phase 12-embodied-visual-signals / 12-11]: `POSTURE_FORWARD_HEAD_DRIFT_SCALE` left at 0.3 DESPITE saturating. Raising it to recover dynamic range would desensitise a detection only just proven, for a severity gradation nothing has asked for. The restraint is the decision; an UNCLAMPED delta series across a moderate and a hard slump is the reading needed first.
+- [Phase 12-embodied-visual-signals / 12-11]: `PHONE_SCORE_THRESHOLD` stays 0.5 and stays labelled UNDECIDED. Only the no-phone false-positive floor has ever been observed (now two sessions); a one-sided reading can only justify RAISING a cutoff, and a user observation of a sustained phone reported as "about 2 seconds" points the other way. The phone half of the dev dump was deliberately KEPT this time, because 12-10 removed the instrument before taking its reading and then had nothing to read at its own sign-off.
+- [Phase 12-embodied-visual-signals / 12-11]: 12-10's claim that `forwardHeadOffset`'s sign "may be backwards relative to the behaviour being graded" is WITHDRAWN. Drift scores the ABSOLUTE delta, so a decrease registers exactly as strongly as an increase; the channel was the strongest responder in the session. The misnomer is real, the blindness was not. `forwardHeadOffset` was deliberately NOT renamed — the name is load-bearing across the worker, two type contracts, the signal key, display wording and every recorded reading, and a transcription error in this phase has already cost three wrong posture verdicts.
+- [Phase 12-embodied-visual-signals / 12-11]: A stale dev server is a recognised failure mode for `NEXT_PUBLIC_*`-gated readings — it produced a false item-1 failure, caught only because a removed dump was still printing text describing pre-fix behaviour. Future dev dumps should print a build marker.
 
 - **Individual-only product model.** Cohorts, assignments, and staff/admin
   oversight are being removed. New schema must not carry `cohortId`, assignment
@@ -1666,8 +1718,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T00:31:51.718Z
-**Stopped At:** 12-11 Task 3 committed (df02eee); PAUSED at Task 4 blocking sign-off checkpoint
+**Last Date:** 2026-10-03
+**Stopped At:** Completed 12-11-PLAN.md — Task 4 sign-off PASSED in full, SUMMARY written, REQ-51 marked MET. Phase 12 verification not yet run.
 **Resume File:** None
 
 
