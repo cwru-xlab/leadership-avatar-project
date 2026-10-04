@@ -580,17 +580,17 @@ migration, applied to the LOCAL dev DB only with a declinable human handoff for 
 shared Lightsail DB.
 
 Plans:
-- [ ] 16-01-PLAN.md — AI person-generation route and prompt; generate → edit → distill proven against the Phase 8 route (safe before Phase 13; human-verified)
-- [ ] 16-02-PLAN.md — Attestation store: append-only table, additive local-only migration, versioned wording registry, single-use consume primitive (human-verified)
-- [ ] 16-03-PLAN.md — Engine config extensions: networking-persona instance member with no publishable concept, networking snapshot member, avatar-end-floor reconciliation
-- [ ] 16-04-PLAN.md — Owner-scoped persona store and three routes; cross-student 404; no publish surface
-- [ ] 16-05-PLAN.md — Shared distiller extraction, attestation route, and the gated networking distill route: consume before any model call
-- [ ] 16-06-PLAN.md — Five named fictional characters as code records, varied by seniority and field (human-verified)
+- [x] 16-01-PLAN.md — AI person-generation route and prompt; generate → edit → distill proven against the Phase 8 route (safe before Phase 13; human-verified)
+- [x] 16-02-PLAN.md — Attestation store: append-only table, additive local-only migration, versioned wording registry, single-use consume primitive (human-verified)
+- [x] 16-03-PLAN.md — Engine config extensions: networking-persona instance member with no publishable concept, networking snapshot member, avatar-end-floor reconciliation
+- [x] 16-04-PLAN.md — Owner-scoped persona store and three routes; cross-student 404; no publish surface
+- [x] 16-05-PLAN.md — Shared distiller extraction, attestation route, and the gated networking distill route: consume before any model call
+- [x] 16-06-PLAN.md — Five named fictional characters as code records, varied by seniority and field (human-verified)
 - [x] 16-07-PLAN.md — The `networking` TYPE record and prompts: seven dimensions, hidden-goal visible-context slice, outcome record, floor-gated walk-away
 - [x] 16-08-PLAN.md — Wizard steps: person choice with three bring-in modes and the attestation, the required goal, the reused avatar picker (human-verified)
 - [x] 16-09-PLAN.md — Hidden-goal leak test: sentinel absent from every outbound payload on real turns, present in the evaluation context (human-verified)
 - [x] 16-10-PLAN.md — Report surfaces: the ask/outcome/common-ground panel and the early-end feedback line (human-verified)
-- [ ] 16-11-PLAN.md — Phase validation: tile flip, surface-count and never-publishable guards, four criteria and every locked decision signed off (human-verified)
+- [x] 16-11-PLAN.md — Phase validation: tile flip, surface-count and never-publishable guards, four criteria and every locked decision signed off (human-verified)
 
 
 ## Progress
