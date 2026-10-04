@@ -39,7 +39,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (10/11 plans; fidgeting retired as unmeasurable; criterion 3 holds since 12-10. 12-11 settled posture drift — the row now responds correctly in BOTH directions and REQ-51 is MET. All three success criteria MET (criterion 1 carries a recorded phone duration under-count the user accepted). 12-08/12-09 remain [~] partially delivered — their work landed but their own sign-offs failed, and successors closed the gaps. 12-03's stale checkbox was corrected 2026-10-03) (completed 2026-10-04)
 - [x] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record (plans complete 2026-10-04; REQ-67 shared Part 1 still OPEN — see STATE.md)
 - [ ] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
-- [ ] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios
+- [x] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios (completed 2026-10-04)
 - [x] **Phase 16: Networking Practice** - Practice against a described real person or a default character (completed 2026-10-04)
 
 ## Phase Details
@@ -502,7 +502,7 @@ student-authored content).
      remains its owner.
   4. The report judges how the conversation was handled — clarity, empathy,
      holding the line — not merely that the student reached the end of it.
-**Plans:** 10/11 plans executed
+**Plans:** 11/11 plans complete
 **Gate:** every plan except 15-02, 15-03, 15-04 and 15-05 is blocked until Phase 13's
 15 plans have all executed and been signed off. Those four are the Phase-13-independent
 layer — the S3 record type and its validator, the authored-text structural injection
@@ -533,7 +533,7 @@ Plans:
 - [x] 15-08-PLAN.md — Briefing and difficulty steps, always-visible End-session control and support note, in-character close confirm (human-verified)
 - [x] 15-09-PLAN.md — Report surfaces: eight dimensions, unscored outcome record, avatar-end banner, in-role reaction (human-verified)
 - [x] 15-10-PLAN.md — Adversarial drift probe and approach-vs-result harnesses (human-verified)
-- [ ] 15-11-PLAN.md — Phase validation: four criteria and every locked decision signed off; surface-count guard (human-verified)
+- [x] 15-11-PLAN.md — Phase validation: four criteria and every locked decision signed off; surface-count guard (keyboard UAT deferred under skip_checkpoints → /gsd/verify-work 15)
 
 ### Phase 16: Networking Practice
 **Goal:** Ship networking practice against a person the student brings in —
@@ -595,9 +595,7 @@ Plans:
 
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 16)
-
-| Phase | Plans | Status | Completed |
+**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 11/11 | Complete   | 2026-10-04 | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Interview Registry & Prompts | - | Shipped (pre-roadmap) | 2026-09 |
 | 2. Interviewer Catalog | - | Shipped (pre-roadmap) | 2026-09 |
