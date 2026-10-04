@@ -7,11 +7,20 @@ import {
   createStudyPlanDraftToken,
   hasStudyPlanDraftSecret,
 } from "@/lib/study-plan/draft-token";
+import { asScoreMap } from "@/lib/report/snapshot";
 import {
   extractBehavioralSignals,
   generateStudyPlan,
   type AnonymousBehavioralReport,
 } from "@/lib/study-plan/generate";
+
+/** Interview practice typeSlugs — study plans synthesize interview feedback only. */
+const INTERVIEW_TYPE_SLUGS = [
+  "general",
+  "technical",
+  "consulting",
+  "early-career",
+] as const;
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -44,11 +53,12 @@ export async function POST(request: NextRequest) {
       return response({ error: "Study-plan previews are not configured." }, 503);
     }
 
-    const rows = await prisma.interviewReport.findMany({
+    const rows = await prisma.interactionReport.findMany({
       where: {
         userId: currentUser.id,
         status: "READY",
         reportMarkdown: { not: null },
+        typeSlug: { in: [...INTERVIEW_TYPE_SLUGS] },
       },
       orderBy: { completedAt: "asc" },
       // Fetch one extra row so a large history is refused rather than silently
@@ -56,8 +66,7 @@ export async function POST(request: NextRequest) {
       take: MAX_SOURCE_REPORTS + 1,
       select: {
         id: true,
-        contentScore: true,
-        behavioralScore: true,
+        scores: true,
         reportMarkdown: true,
       },
     });
@@ -80,12 +89,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const reports: AnonymousBehavioralReport[] = eligibleRows.map((row, index) => ({
-      reportNumber: index + 1,
-      contentScore: row.contentScore,
-      behavioralScore: row.behavioralScore,
-      behavioralFeedbackSignals: extractBehavioralSignals(row),
-    }));
+    const reports: AnonymousBehavioralReport[] = eligibleRows.map((row, index) => {
+      const scores = asScoreMap(row.scores);
+      return {
+        reportNumber: index + 1,
+        contentScore: scores?.content ?? null,
+        behavioralScore: scores?.behavioral ?? null,
+        behavioralFeedbackSignals: extractBehavioralSignals(row),
+      };
+    });
 
     // Refuse to silently omit older reports. The model source contains only the
     // anonymous data above, but every eligible report is still represented.

@@ -1,25 +1,94 @@
 /**
- * Backfill `InteractionReport` from `InterviewReport` + `ScenarioReport`.
+ * Backfill `InteractionReport` from legacy `InterviewReport` + `ScenarioReport`.
  *
- * Idempotent, `upsert`-on-id TypeScript backfill — follows the
- * `scripts/sync-s3-to-db.ts` precedent (plain `tsx`, explicit logging) with
- * an added `--dry-run` flag.
+ * PRE-DROP TOOLING — retained for the shared-DB Part 1 run (REQ-67). Plan 13-15
+ * removed the Prisma models; this script reads the legacy tables via `$queryRaw`
+ * so it still compiles and still works against a database that still has those
+ * tables (shared Lightsail before Part 2 DROP). After local DROP it will fail
+ * locally with "relation does not exist" — that is expected.
  *
- * Run (LOCAL DB ONLY):
- *   DATABASE_URL="postgresql://ajabreu79@localhost:5432/leadership_avatar_dev" npx tsx scripts/backfill-interaction-reports.ts [--dry-run]
+ * Idempotent, `upsert`-on-id. Never writes to or deletes from the legacy tables.
  *
- * REQ-67: this script must NEVER be pointed at the shared Lightsail
- * database by an agent. No DATABASE_URL fallback is read from `.env` —
- * the caller must pass it inline, matching every other Phase 13 script.
- * It never writes to or deletes from the legacy tables.
+ * Run (HUMAN ONLY against shared DB after reading 13-MIGRATION-HANDOFF.md):
+ *   DATABASE_URL="<shared>" npx tsx scripts/backfill-interaction-reports.ts [--dry-run]
+ *
+ * Agents must NEVER point this at the shared Lightsail database.
  */
-import { PrismaClient } from "@prisma/client";
-import type { Prisma } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import type { InputSnapshot, ScoreMap } from "../lib/report/snapshot";
 
 const prisma = new PrismaClient();
 
 const DRY_RUN = process.argv.includes("--dry-run");
+
+type InterviewLegacyRow = {
+  id: string;
+  userId: string;
+  typeSlug: string;
+  interviewerAvatarId: string | null;
+  interviewerName: string | null;
+  resumeId: string | null;
+  resumeText: string | null;
+  transcriptKey: string | null;
+  turnCount: number;
+  status: "IN_PROGRESS" | "PENDING" | "READY" | "FAILED";
+  visualScore: number | null;
+  vocalScore: number | null;
+  contentScore: number | null;
+  behavioralScore: number | null;
+  cameraMode: string | null;
+  visualMetrics: Prisma.JsonValue | null;
+  vocalMetrics: Prisma.JsonValue | null;
+  visualUnscoredReason: string | null;
+  vocalUnscoredReason: string | null;
+  metricsConsentAt: Date | null;
+  reportStructured: Prisma.JsonValue | null;
+  reportMarkdown: string | null;
+  failureReason: string | null;
+  evalModel: string | null;
+  industry: string | null;
+  roleTitle: string | null;
+  difficulty: string | null;
+  targetMinutes: number | null;
+  targetQuestionCount: number | null;
+  interviewerPersona: string | null;
+  startedAt: Date;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type ScenarioLegacyRow = {
+  id: string;
+  userId: string;
+  caseId: string;
+  interactionLogId: string | null;
+  studentEmail: string | null;
+  status: "IN_PROGRESS" | "PENDING" | "READY" | "FAILED";
+  turnCount: number;
+  visualScore: number | null;
+  vocalScore: number | null;
+  contentScore: number | null;
+  behavioralScore: number | null;
+  cameraMode: string | null;
+  visualMetrics: Prisma.JsonValue | null;
+  vocalMetrics: Prisma.JsonValue | null;
+  visualUnscoredReason: string | null;
+  vocalUnscoredReason: string | null;
+  metricsConsentAt: Date | null;
+  reportStructured: Prisma.JsonValue | null;
+  reportMarkdown: string | null;
+  failureReason: string | null;
+  evalModel: string | null;
+  caseName: string;
+  backgroundSnapshot: string;
+  avatarsSnapshot: Prisma.JsonValue;
+  criteriaSnapshot: string | null;
+  startedAt: Date;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 function buildScoreMap(row: {
   visualScore: number | null;
@@ -27,8 +96,6 @@ function buildScoreMap(row: {
   contentScore: number | null;
   behavioralScore: number | null;
 }): ScoreMap {
-  // Nulls preserved as JSON nulls deliberately — a null score must stay
-  // distinguishable from a real 0 score.
   return {
     visual: row.visualScore,
     vocal: row.vocalScore,
@@ -37,18 +104,7 @@ function buildScoreMap(row: {
   };
 }
 
-function interviewInputSnapshot(row: {
-  interviewerAvatarId: string | null;
-  interviewerName: string | null;
-  resumeId: string | null;
-  resumeText: string | null;
-  industry: string | null;
-  roleTitle: string | null;
-  difficulty: string | null;
-  targetMinutes: number | null;
-  targetQuestionCount: number | null;
-  interviewerPersona: string | null;
-}): InputSnapshot {
+function interviewInputSnapshot(row: InterviewLegacyRow): InputSnapshot {
   return {
     kind: "interview",
     interviewerAvatarId: row.interviewerAvatarId,
@@ -64,13 +120,7 @@ function interviewInputSnapshot(row: {
   };
 }
 
-function scenarioInputSnapshot(row: {
-  caseId: string;
-  caseName: string;
-  backgroundSnapshot: string;
-  avatarsSnapshot: Prisma.JsonValue;
-  criteriaSnapshot: string | null;
-}): InputSnapshot {
+function scenarioInputSnapshot(row: ScenarioLegacyRow): InputSnapshot {
   return {
     kind: "scenario",
     caseId: row.caseId,
@@ -81,8 +131,17 @@ function scenarioInputSnapshot(row: {
   };
 }
 
+async function loadInterviewRows(): Promise<InterviewLegacyRow[]> {
+  // Raw SQL: Prisma models for these tables were removed in 13-15.
+  return prisma.$queryRaw<InterviewLegacyRow[]>`SELECT * FROM "InterviewReport"`;
+}
+
+async function loadScenarioRows(): Promise<ScenarioLegacyRow[]> {
+  return prisma.$queryRaw<ScenarioLegacyRow[]>`SELECT * FROM "ScenarioReport"`;
+}
+
 async function backfillInterviews() {
-  const rows = await prisma.interviewReport.findMany();
+  const rows = await loadInterviewRows();
   let created = 0;
   let updated = 0;
   let inProgress = 0;
@@ -97,8 +156,8 @@ async function backfillInterviews() {
       inputSnapshot: interviewInputSnapshot(row) as unknown as Prisma.InputJsonValue,
       scores: buildScoreMap(row) as unknown as Prisma.InputJsonValue,
       transcriptKey: row.transcriptKey,
-      interactionLogId: null,
-      studentEmail: null,
+      interactionLogId: null as string | null,
+      studentEmail: null as string | null,
       turnCount: row.turnCount,
       cameraMode: row.cameraMode,
       visualMetrics: (row.visualMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
@@ -110,8 +169,8 @@ async function backfillInterviews() {
       reportMarkdown: row.reportMarkdown,
       failureReason: row.failureReason,
       evalModel: row.evalModel,
-      terminationReason: null,
-      outcome: undefined,
+      terminationReason: null as string | null,
+      outcome: undefined as Prisma.InputJsonValue | undefined,
       startedAt: row.startedAt,
       completedAt: row.completedAt,
       createdAt: row.createdAt,
@@ -139,7 +198,7 @@ async function backfillInterviews() {
 }
 
 async function backfillScenarios() {
-  const rows = await prisma.scenarioReport.findMany();
+  const rows = await loadScenarioRows();
   let created = 0;
   let updated = 0;
   let inProgress = 0;
@@ -153,7 +212,7 @@ async function backfillScenarios() {
       status: row.status,
       inputSnapshot: scenarioInputSnapshot(row) as unknown as Prisma.InputJsonValue,
       scores: buildScoreMap(row) as unknown as Prisma.InputJsonValue,
-      transcriptKey: null,
+      transcriptKey: null as string | null,
       interactionLogId: row.interactionLogId,
       studentEmail: row.studentEmail,
       turnCount: row.turnCount,
@@ -167,8 +226,8 @@ async function backfillScenarios() {
       reportMarkdown: row.reportMarkdown,
       failureReason: row.failureReason,
       evalModel: row.evalModel,
-      terminationReason: null,
-      outcome: undefined,
+      terminationReason: null as string | null,
+      outcome: undefined as Prisma.InputJsonValue | undefined,
       startedAt: row.startedAt,
       completedAt: row.completedAt,
       createdAt: row.createdAt,
@@ -196,8 +255,12 @@ async function backfillScenarios() {
 }
 
 async function main() {
-  console.log(`Backfill InteractionReport from InterviewReport + ScenarioReport${DRY_RUN ? " (DRY RUN — no writes)" : ""}`);
-  console.log("Never writes to or deletes from the legacy tables. Never touches the shared DB.\n");
+  console.log(
+    `Backfill InteractionReport from InterviewReport + ScenarioReport${DRY_RUN ? " (DRY RUN — no writes)" : ""}`
+  );
+  console.log(
+    "PRE-DROP TOOLING: reads legacy tables via $queryRaw. Never writes to or deletes from them.\n"
+  );
 
   const verb = DRY_RUN ? "would " : "";
   const iv = await backfillInterviews();

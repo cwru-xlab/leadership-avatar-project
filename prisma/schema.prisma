@@ -75,8 +75,6 @@ model User {
   createdCohorts    Cohort[]         @relation("CohortCreator")
   createdCases      Case[]           @relation("CaseCreator")
   auditLogs         AuditLog[]
-  interviewReports  InterviewReport[]
-  scenarioReports   ScenarioReport[]
   interactionReports InteractionReport[]
   studyPlans        StudyPlan[]
 
@@ -289,142 +287,18 @@ enum InterviewReportStatus {
   FAILED
 }
 
-model InterviewReport {
-  id                  String                @id @default(uuid())
-  userId              String
-  typeSlug            String
-  interviewerAvatarId String?
-  interviewerName     String?
-
-  // Resume context snapshot — makes a report reproducible without re-parsing the PDF.
-  // resumeText is a snapshot, NOT a pointer; the PDF itself is never exposed.
-  resumeId            String?
-  resumeText          String?               @db.Text
-
-  // Canonical transcript lives in S3; this is the server-derived key.
-  transcriptKey       String?
-  turnCount           Int                   @default(0)
-
-  status              InterviewReportStatus  @default(IN_PROGRESS)
-
-  // Nullable by design. Visual and Vocal stay null until a real metrics pipeline exists.
-  visualScore         Int?
-  vocalScore          Int?
-  contentScore        Int?
-  behavioralScore     Int?
-
-  // Phase 10 video/audio metrics. All nullable: a row written before Phase 10
-  // has every field null, which is exactly the "Not yet measured" legacy state.
-  // Only DERIVED NUMBERS are stored here — never media (REQ-38).
-  cameraMode           String?   // "ON" | "OFF"; null = pre-Phase-10 row
-  visualMetrics        Json?
-  vocalMetrics         Json?
-  visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
-  vocalUnscoredReason  String?   // "TYPED_ONLY" | "SPEECH_TOO_SHORT" | "INSUFFICIENT_DATA"
-  metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
-
-  /// Structured report body — see `lib/report/structured.ts`. Null on every row
-  /// written before the evaluator returned structured output; those rows still
-  /// render from `reportMarkdown`, which is now COMPOSED from this rather than
-  /// returned by the model.
-  reportStructured    Json?
-  reportMarkdown      String?               @db.Text
-  failureReason       String?               @db.Text
-  evalModel           String?
-
-  // Resolved customization snapshot — what this session actually ran with, not the
-  // preset's defaults. Nullable: rows written before Phase 8 have none.
-  industry            String?
-  roleTitle           String?
-  difficulty          String?
-  targetMinutes       Int?
-  targetQuestionCount Int?
-  interviewerPersona  String?               @db.Text
-
-  startedAt           DateTime              @default(now())
-  completedAt         DateTime?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-  @@index([userId, typeSlug])
-}
-
-model ScenarioReport {
-  id                 String                @id @default(uuid())
-  userId             String
-
-  // The S3 CaseStudy id this run played. Deliberately a bare String and NOT a
-  // Prisma relation — the scenario lives in S3, not Postgres, and REQ-34 requires
-  // this report to survive that scenario's deletion. There is nothing to cascade.
-  caseId             String
-
-  // Pointer back to the S3 InteractionLog this run produced, so the evaluator can
-  // re-read the transcript without a second copy being written.
-  // interactions/{studentEmail}/{caseId}/{logId}.json
-  interactionLogId   String?
-  studentEmail       String?
-
-  status             InterviewReportStatus @default(IN_PROGRESS)
-
-  turnCount          Int                   @default(0)
-
-  // Nullable by design. Visual and Vocal stay null until Phase 10 builds a real
-  // video/audio metrics pipeline. Enforced in code, never trusted from the model.
-  visualScore        Int?
-  vocalScore         Int?
-  contentScore       Int?
-  behavioralScore    Int?
-
-  // Phase 10 video/audio metrics. All nullable: a row written before Phase 10
-  // has every field null, which is exactly the "Not yet measured" legacy state.
-  // Only DERIVED NUMBERS are stored here — never media (REQ-38).
-  cameraMode           String?   // "ON" | "OFF"; null = pre-Phase-10 row
-  visualMetrics        Json?
-  vocalMetrics         Json?
-  visualUnscoredReason String?   // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
-  vocalUnscoredReason  String?   // "TYPED_ONLY" | "SPEECH_TOO_SHORT" | "INSUFFICIENT_DATA"
-  metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
-
-  /// Structured report body — see `lib/report/structured.ts`. Null on every row
-  /// written before the evaluator returned structured output; those rows still
-  /// render from `reportMarkdown`, which is now COMPOSED from this rather than
-  /// returned by the model.
-  reportStructured   Json?
-  reportMarkdown     String?               @db.Text
-  failureReason      String?               @db.Text
-  evalModel          String?
-
-  // REQ-33 run-time snapshot. Written once when the run is recorded; never updated
-  // when the underlying scenario is later edited or deleted.
-  caseName           String
-  backgroundSnapshot String                @db.Text
-  avatarsSnapshot    Json
-  criteriaSnapshot   String?               @db.Text
-
-  startedAt          DateTime              @default(now())
-  completedAt        DateTime?
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-  @@index([userId, caseId])
-}
+// `InterviewReport` and `ScenarioReport` models were removed in plan 13-15
+// (DROP TABLE migration). Their data lives in `InteractionReport` after backfill.
+// `enum InterviewReportStatus` is retained — name is historical (shared by both
+// legacy tables and the unified model).
 
 // ============================================================================
 // INTERACTION REPORT (Phase 13 unified report — REQ-65)
 // ============================================================================
 //
-// Replaces BOTH `InterviewReport` and `ScenarioReport` for all NEW rows going
-// forward. This is purely additive: the old two models/tables stay in the
-// schema and keep serving their existing rows until a separate, later,
-// human-reviewed migration backfills (plan 13-04) and drops them (plan
-// 13-15). That split exists so a human can accept the additive half here and
-// decline or defer the destructive half independently.
+// Unified report table for every interaction type. Legacy `InterviewReport`
+// and `ScenarioReport` tables were dropped in plan 13-15 after the 13-04
+// backfill. Shared-DB DROP remains a human-run, declinable handoff (REQ-67).
 //
 // `typeSlug` carries the engine type ("general" | "technical" | "consulting"
 // | "early-career" | "case-study", and later Phase 14-16 additions) so one
