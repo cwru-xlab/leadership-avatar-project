@@ -405,7 +405,7 @@ rebuilding infrastructure per type.
      renders them without knowing which interaction produced them.
   4. Visual, vocal and body metrics from Phases 10 and 12 reach every
      engine-backed interaction without per-type wiring.
-**Plans:** 10/15 plans executed
+**Plans:** 11/15 plans executed
 
 Plans:
 - [x] 13-01-PLAN.md — Engine config layer: TYPE records + INSTANCE resolver
@@ -418,7 +418,7 @@ Plans:
 - [x] 13-08-PLAN.md — One report GET/retry/list, legacy report routes delegate
 - [x] 13-09-PLAN.md — One generic pre-session wizard with a single camera consent gate
 - [x] 13-10-PLAN.md — One generic session shell, `/practice/[type]` switched onto it
-- [ ] 13-11-PLAN.md — Case-study type on the engine; case-play becomes a dispatcher, legacy branch untouched
+- [x] 13-11-PLAN.md — Case-study type on the engine; case-play becomes a dispatcher, legacy branch untouched
 - [ ] 13-12-PLAN.md — One report page rendering config-declared rubric dimensions
 - [ ] 13-13-PLAN.md — Permanent redirects, link rewiring, deletion of the per-type trees
 - [ ] 13-14-PLAN.md — REQ-66 acceptance test: pre-Phase-13 reports at their OLD URLs (non-autonomous)
@@ -614,7 +614,7 @@ engine lands they can be planned and executed in any order, or in parallel.
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
 | 12. Embodied Visual Signals | 10/11 | Complete    | 2026-10-04 |
-| 13. One-on-One Conversation Engine | 10/15 | In Progress|  |
+| 13. One-on-One Conversation Engine | 11/15 | In Progress|  |
 | 14. Practice Pitches | 0/15 | Planned     |  |
 | 15. Difficult Conversations | 0/11 | Planned     |  |
 | 16. Networking Practice | 0/11 | Planned     |  |
