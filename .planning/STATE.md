@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 16-04-PLAN.md
+**Stopped At:** Completed 15-04-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -380,6 +380,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 14]: buildEvaluationImages/postProcessScores looked up via getEngineType (not on ResolvedSessionConfig)
 - [Phase 16]: No Phase 13 shared instance helper; copied saveCase/getCase pattern with owner-partitioned keys networking-personas/{ownerId}/{personaId}.json
 - [Phase 16]: POST /api/networking/persona requires already-consumed owned attestationId as receipt (decision 8 second enforcement)
+- [Phase 15]: Seeded DC default difficulty is guarded; three neighbours cover outward/peer/upward-refusal
+- [Phase 15]: assignSeededAvatar resolves from live ACTIVE catalog; no hardcoded avatar ids in seeded records
 
 ## Progress
 
@@ -1840,7 +1842,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:26:58.233Z
+**Last Date:** 2026-10-04T04:27:55.879Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
