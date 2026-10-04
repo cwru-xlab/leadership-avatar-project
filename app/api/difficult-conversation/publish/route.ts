@@ -5,11 +5,9 @@ import { siteConfig } from "@/config/site";
 import { s3Storage } from "@/lib/s3-client";
 import { loadOwnedDifficultConversation } from "@/lib/difficult-conversation/store";
 import {
-  runPrePublishCheck,
+  runPrePublishCheck as screenForPublish,
   type PrePublishVerdict,
 } from "@/lib/difficult-conversation/prepublish-check";
-
-const screenForPublish = runPrePublishCheck;
 import type {
   DifficultConversationLastCheck,
   DifficultConversationRecord,

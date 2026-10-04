@@ -6,11 +6,9 @@ import { s3Storage } from "@/lib/s3-client";
 import { loadOwnedDifficultConversation } from "@/lib/difficult-conversation/store";
 import { validateDifficultConversationInput } from "@/lib/difficult-conversation/validation";
 import {
-  runPrePublishCheck,
+  runPrePublishCheck as screenForPublish,
   type PrePublishVerdict,
 } from "@/lib/difficult-conversation/prepublish-check";
-
-const screenForPublish = runPrePublishCheck;
 import type {
   DifficultConversationLastCheck,
   DifficultConversationRecord,
