@@ -686,10 +686,19 @@
         "15-09"
       ],
       "timestamp": "2026-10-04T04:37:01Z",
-      "status": "spawned",
-      "files_modified": [],
-      "completion_timestamp": null,
-      "deviations": []
+      "status": "completed",
+      "files_modified": [
+        "scripts/dc-drift-probe.ts",
+        "scripts/dc-approach-vs-result.ts",
+        "lib/difficult-conversation/conversation-prompts.ts",
+        ".planning/phases/15-difficult-conversations/15-DRIFT.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:46:02Z",
+      "deviations": [
+        "eval outcome fields",
+        "prompt harden after drift FAILs",
+        "hostile probe 5 deferred"
+      ]
     },
     {
       "agent_id": "14fb62a7-977a-40b0-89f3-98a1753a5056",
@@ -711,6 +720,27 @@
         ".planning/phases/16-networking-practice/16-VALIDATION.md"
       ],
       "completion_timestamp": "2026-10-04T04:45:48Z",
+      "deviations": []
+    },
+    {
+      "agent_id": "4067a41a-6552-4be1-b123-32b6930dcc91",
+      "task_description": "Parallel: Execute 15-11-PLAN.md",
+      "phase": "15",
+      "plan": "11",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 6,
+      "depends_on": [
+        "15-07",
+        "15-10"
+      ],
+      "timestamp": "2026-10-04T04:46:09Z",
+      "status": "completed",
+      "files_modified": [
+        "scripts/verify-dc-surface-count.ts",
+        ".planning/phases/15-difficult-conversations/15-VALIDATION.md"
+      ],
+      "completion_timestamp": "2026-10-04T04:50:17Z",
       "deviations": []
     }
   ]
