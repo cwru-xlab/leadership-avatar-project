@@ -480,7 +480,7 @@ what was decided; they add no scope.
   converged. A divergence that cannot be preserved is a CHECKPOINT, not an executor
   judgment call.
 
-- **REQ-70** — [ ] One generic pre-session wizard owns step machinery, progress,
+- **REQ-70** — [x] One generic pre-session wizard owns step machinery, progress,
   back/forward, the camera-mode consent gate and launch. A type declares its steps; a
   step needing custom UI supplies its own component. The consent gate exists once, not
   once per type.
