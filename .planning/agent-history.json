@@ -482,10 +482,17 @@
         "16-07"
       ],
       "timestamp": "2026-10-04T04:28:30Z",
-      "status": "spawned",
-      "files_modified": [],
-      "completion_timestamp": null,
-      "deviations": []
+      "status": "completed",
+      "files_modified": [
+        "lib/networking/wizard-client.ts",
+        "components/practice/steps/NetworkingPersonStep.tsx",
+        "components/practice/steps/NetworkingGoalStep.tsx",
+        "app/practice/[type]/page.tsx"
+      ],
+      "completion_timestamp": "2026-10-04T04:34:53Z",
+      "deviations": [
+        "re-registered networking steps after 14-10 overwrite"
+      ]
     },
     {
       "agent_id": "ca442f75-346f-4390-b15a-4d19bb138eeb",
@@ -499,10 +506,22 @@
         "15-05"
       ],
       "timestamp": "2026-10-04T04:29:25Z",
-      "status": "spawned",
-      "files_modified": [],
-      "completion_timestamp": null,
-      "deviations": []
+      "status": "completed",
+      "files_modified": [
+        "app/conversations/page.tsx",
+        "app/conversations/new/page.tsx",
+        "app/conversations/[id]/page.tsx",
+        "components/difficult-conversation/ConversationCard.tsx",
+        "components/difficult-conversation/ConversationBuilder.tsx",
+        "lib/interactions/index.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:34:05Z",
+      "deviations": [
+        "list hydrate",
+        "middleware STUDENT_ROUTES",
+        "difficulty cards",
+        "registry path index.ts"
+      ]
     },
     {
       "agent_id": "9b0ba847-8193-41a3-a686-cbb78aa40a3d",
@@ -516,10 +535,19 @@
         "14-08"
       ],
       "timestamp": "2026-10-04T04:29:39Z",
-      "status": "spawned",
+      "status": "checkpoint_waiting",
       "files_modified": [],
       "completion_timestamp": null,
-      "deviations": []
+      "deviations": [],
+      "checkpoint": {
+        "type": "human-verify",
+        "resume_signal": "approved",
+        "task_commits": [
+          "4791e32",
+          "0f14cbe"
+        ]
+      },
+      "timestamp_checkpoint": "2026-10-04T04:34:08Z"
     },
     {
       "agent_id": "QUEUED-14-09",
@@ -554,10 +582,22 @@
         "15-06"
       ],
       "timestamp": "2026-10-04T04:32:15Z",
-      "status": "spawned",
-      "files_modified": [],
-      "completion_timestamp": null,
-      "deviations": []
+      "status": "completed",
+      "files_modified": [
+        "components/practice/steps/ConversationBriefingStep.tsx",
+        "components/practice/steps/ConversationDifficultyStep.tsx",
+        "components/practice/panels/SessionSafetyPanel.tsx",
+        "components/practice/panels/InCharacterClosePrompt.tsx",
+        "components/practice/PracticeSessionShell.tsx",
+        "app/practice/[type]/[instanceId]/page.tsx"
+      ],
+      "completion_timestamp": "2026-10-04T04:36:52Z",
+      "deviations": [
+        "startSession DC branch",
+        "play route",
+        "human-verify skipped",
+        "sessionPanel consumed"
+      ]
     },
     {
       "agent_id": "0a2623f7-32f5-4689-959f-70a159b25364",
@@ -571,6 +611,69 @@
         "15-06"
       ],
       "timestamp": "2026-10-04T04:32:15Z",
+      "status": "completed",
+      "files_modified": [
+        "lib/report/dto.ts",
+        "components/practice/ReportChrome.tsx",
+        "components/practice/report/ConversationEndBanner.tsx",
+        "components/practice/report/ConversationOutcomePanel.tsx",
+        "components/practice/report/InRoleReactionPanel.tsx",
+        "scripts/verify-dc-report.ts"
+      ],
+      "completion_timestamp": "2026-10-04T04:36:05Z",
+      "deviations": [
+        "wired renderReportExtras",
+        "extras slot added in 14-14 shape",
+        "human-verify skipped"
+      ]
+    },
+    {
+      "agent_id": "ca3b4f43-a8f4-464d-a082-504abc5bd9d5",
+      "task_description": "Parallel: Execute 16-09-PLAN.md",
+      "phase": "16",
+      "plan": "09",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 5,
+      "depends_on": [
+        "16-08"
+      ],
+      "timestamp": "2026-10-04T04:35:05Z",
+      "status": "spawned",
+      "files_modified": [],
+      "completion_timestamp": null,
+      "deviations": []
+    },
+    {
+      "agent_id": "9e0e1049-e45c-4380-8e9e-0be8de011836",
+      "task_description": "Parallel: Execute 16-10-PLAN.md",
+      "phase": "16",
+      "plan": "10",
+      "parallel_group": "pg-20261004001321-c7ef807f",
+      "granularity": "plan",
+      "wave": 5,
+      "depends_on": [
+        "16-08"
+      ],
+      "timestamp": "2026-10-04T04:35:05Z",
+      "status": "spawned",
+      "files_modified": [],
+      "completion_timestamp": null,
+      "deviations": []
+    },
+    {
+      "agent_id": "324118de-9383-419d-90d1-2a60e91f66d8",
+      "task_description": "Parallel: Execute 15-10-PLAN.md",
+      "phase": "15",
+      "plan": "10",
+      "parallel_group": "pg-20261004001258-a43edb88",
+      "granularity": "plan",
+      "wave": 5,
+      "depends_on": [
+        "15-08",
+        "15-09"
+      ],
+      "timestamp": "2026-10-04T04:37:01Z",
       "status": "spawned",
       "files_modified": [],
       "completion_timestamp": null,
