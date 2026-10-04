@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 16-10-PLAN.md
+**Stopped At:** Completed 16-09-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -399,6 +399,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 15]: MomentsPanel not reused for reactionCauses; formatTimecode from bands reused instead
 - [Phase 15]: Shell sessionPanel slot consumed (Phase 14 shape); DC End-session vs in-character close use distinct reason codes
 - [Phase 16]: Networking report: Phase 15 outcome-panel idiom; early-end inside below panel; never-asked same weight as other landings
+- [Phase 16]: Hidden-goal leak: sentinel absent from live assembly; start snapshot via lib/networking/start-snapshot.ts
+- [Phase 16]: 16-09 human leak/walk-away blocks UNVERIFIED under skip_checkpoints — not a silent pass for 16-11
 
 ## Progress
 
@@ -1859,7 +1861,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:37:17.601Z
+**Last Date:** 2026-10-04T04:40:41.244Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
