@@ -53,12 +53,22 @@ import NetworkingGoalStep from "@/components/practice/steps/NetworkingGoalStep";
 import NetworkingPersonStep from "@/components/practice/steps/NetworkingPersonStep";
 import PitchSubjectStep from "@/components/practice/steps/PitchSubjectStep";
 import ResumeStep from "@/components/practice/steps/ResumeStep";
+import DeckUploadStep, {
+  type DeckUploadValue,
+} from "@/components/practice/steps/DeckUploadStep";
+import NegotiationAskStep, {
+  type NegotiationAskValue,
+} from "@/components/practice/steps/NegotiationAskStep";
+import SessionLengthStep, {
+  type SessionLengthValue,
+} from "@/components/practice/steps/SessionLengthStep";
 import { resolveInterviewType } from "@/lib/interview/customization";
 import { getEngineType } from "@/lib/engine/registry";
 import { resolveSessionConfig } from "@/lib/engine/resolve";
 import { useLayout } from "@/lib/layout-context";
 import { getNetworkingCharacter } from "@/lib/networking/characters";
 import { ELEVATOR_LISTENER_PERSONA } from "@/lib/pitch/elevator-prompts";
+import { proposeDeckSeconds } from "@/lib/pitch/session-length";
 
 type PagePhase = "wizard" | "session";
 
@@ -69,6 +79,8 @@ export default function PracticeTypePage() {
 
   const engineType = useMemo(() => getEngineType(params.type), [params.type]);
   const isPitchElevator = engineType?.slug === "pitch-elevator";
+  const isPitchDeck = engineType?.slug === "pitch-deck";
+  const isPitch = isPitchElevator || isPitchDeck;
   const isNetworking = engineType?.slug === "networking";
   const authoredInWizard = Boolean(engineType?.instance.authoredInWizard);
 
@@ -84,7 +96,11 @@ export default function PracticeTypePage() {
   useEffect(() => {
     if (handoffReadRef.current) return;
     handoffReadRef.current = true;
-    if (params.type === "pitch-elevator" || params.type === "networking") {
+    if (
+      params.type === "pitch-elevator" ||
+      params.type === "pitch-deck" ||
+      params.type === "networking"
+    ) {
       setHandoffResolved(true);
       return;
     }
@@ -104,10 +120,10 @@ export default function PracticeTypePage() {
 
   const interviewType = useMemo(
     () =>
-      isPitchElevator || isNetworking
+      isPitch || isNetworking
         ? null
         : resolveInterviewType(params.type, storedCustomization),
-    [params.type, storedCustomization, isPitchElevator, isNetworking],
+    [params.type, storedCustomization, isPitch, isNetworking],
   );
 
   const [phase, setPhase] = useState<PagePhase>("wizard");
@@ -127,6 +143,13 @@ export default function PracticeTypePage() {
   const [pitchSubject, setPitchSubject] = useState("");
   const [listenerKnowledge, setListenerKnowledge] =
     useState<ListenerKnowledge | null>(null);
+
+  // Pitch-deck wizard state — keys match setupSteps; fair band is server-only.
+  const [deckUpload, setDeckUpload] = useState<DeckUploadValue | null>(null);
+  const [negotiationAsk, setNegotiationAsk] =
+    useState<NegotiationAskValue | null>(null);
+  const [sessionLength, setSessionLength] =
+    useState<SessionLengthValue | null>(null);
 
   // Networking wizard state (16-08) — character XOR brought-in persona, plus goal.
   const [networkingCharacterId, setNetworkingCharacterId] = useState<
@@ -161,11 +184,39 @@ export default function PracticeTypePage() {
     };
   }, [isPitchElevator, pitchSubject, listenerKnowledge]);
 
+  // Client-side resolve for shell chrome only. Slide text and the hidden
+  // fair band are NOT held here — startSession fetches text and injects the
+  // band server-side (14-12). Cast omits the band field on purpose.
+  const deckInstanceForShell: InstanceConfig | null = useMemo(() => {
+    if (!isPitchDeck || !deckUpload || !negotiationAsk || !sessionLength) {
+      return null;
+    }
+    return {
+      kind: "pitch-deck",
+      deckId: deckUpload.deckId,
+      slideCount: deckUpload.slideCount,
+      slideTexts: [],
+      askPriceUsd: negotiationAsk.askPriceUsd,
+      askEquityPct: negotiationAsk.askEquityPct,
+      proposedSeconds:
+        sessionLength.budgetSeconds ||
+        proposeDeckSeconds(deckUpload.slideCount),
+      // Server injects the hidden band at startSession — omitted on purpose.
+    } as unknown as InstanceConfig;
+  }, [isPitchDeck, deckUpload, negotiationAsk, sessionLength]);
+
   const sessionConfig = useMemo(() => {
     if (isPitchElevator) {
       if (!elevatorInstance) return null;
       const resolved = resolveSessionConfig(params.type, {
         instance: elevatorInstance,
+      });
+      return resolved.ok ? resolved.config : null;
+    }
+    if (isPitchDeck) {
+      if (!deckInstanceForShell) return null;
+      const resolved = resolveSessionConfig(params.type, {
+        instance: deckInstanceForShell,
       });
       return resolved.ok ? resolved.config : null;
     }
@@ -181,8 +232,10 @@ export default function PracticeTypePage() {
     params.type,
     storedCustomization,
     isPitchElevator,
+    isPitchDeck,
     isNetworking,
     elevatorInstance,
+    deckInstanceForShell,
   ]);
 
   // Resent verbatim on every networking chat turn so liveSystemPrompt can
@@ -239,9 +292,10 @@ export default function PracticeTypePage() {
   }, [isNetworking, networkingInstanceId, networkingCharacterId]);
 
   // Pitch has no interviewer step — auto-pick a catalog avatar for HeyGen while
-  // the live prompt plays Dana Reyes. Fetched once when the pitch type mounts.
+  // the live prompt plays the listener/investor. Fetched once when the pitch
+  // type mounts.
   useEffect(() => {
-    if (!isPitchElevator || selectedInterviewer) return;
+    if (!isPitch || selectedInterviewer) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -260,7 +314,7 @@ export default function PracticeTypePage() {
     return () => {
       cancelled = true;
     };
-  }, [isPitchElevator, selectedInterviewer]);
+  }, [isPitch, selectedInterviewer]);
 
   useEffect(() => {
     setFullScreen(phase === "session");
@@ -293,7 +347,7 @@ export default function PracticeTypePage() {
   const typeAvailable =
     !!engineType &&
     (!engineType.instance.required || authoredInWizard) &&
-    (isPitchElevator ||
+    (isPitch ||
       isNetworking ||
       (!!interviewType && !!sessionConfig));
 
@@ -331,7 +385,9 @@ export default function PracticeTypePage() {
     ? listenerKnowledge === "blind"
       ? "Your listener"
       : ELEVATOR_LISTENER_PERSONA.name
-    : isNetworking
+    : isPitchDeck
+      ? "Your investor"
+      : isNetworking
       ? networkingCharacter?.displayName ||
         networkingBroughtInLive?.displayName ||
         selectedInterviewer?.name ||
@@ -353,7 +409,7 @@ export default function PracticeTypePage() {
       <PracticeSessionShell
         sessionConfig={sessionConfig}
         customization={
-          isPitchElevator
+          isPitch
             ? undefined
             : isNetworking
               ? networkingCustomization
@@ -364,12 +420,29 @@ export default function PracticeTypePage() {
         interviewerAvatarId={selectedInterviewer.avatarId}
         avatarConfig={avatarConfig}
         cameraMode={cameraMode}
-        resumeText={isPitchElevator || isNetworking ? "" : resumeText}
+        resumeText={isPitch || isNetworking ? "" : resumeText}
         resumeFileName={
-          isPitchElevator || isNetworking ? undefined : resumeFileName
+          isPitch || isNetworking ? undefined : resumeFileName
         }
-        resumeId={isPitchElevator || isNetworking ? null : resumeId}
+        resumeId={isPitch || isNetworking ? null : resumeId}
         language="en"
+        defaultReportTitle={
+          isPitchElevator
+            ? pitchSubject.trim()
+              ? `Elevator pitch · ${pitchSubject.trim().slice(0, 60)}`
+              : "Elevator pitch"
+            : isPitchDeck
+              ? deckUpload
+                ? `Investor pitch · ${deckUpload.slideCount} slides`
+                : "Investor pitch"
+              : isNetworking
+              ? networkingGoal.trim()
+                ? `Networking · ${networkingGoal.trim().slice(0, 60)}`
+                : "Networking practice"
+              : listenerDisplayName
+                ? `Interview · with ${listenerDisplayName}`
+                : "Practice interview"
+        }
         sessionPanel={
           isPitchElevator ? (
             <PitchTimerPanel
@@ -391,9 +464,11 @@ export default function PracticeTypePage() {
           setWizardStepId(
             isPitchElevator
               ? "pitch-subject"
-              : isNetworking
-                ? "networking-person"
-                : "resume",
+              : isPitchDeck
+                ? "deck-upload"
+                : isNetworking
+                  ? "networking-person"
+                  : "resume",
           );
           setPhase("wizard");
           setReportId(null);
@@ -424,7 +499,7 @@ export default function PracticeTypePage() {
           <div className="mt-12 grid gap-8 lg:grid-cols-[1fr_290px] lg:items-end">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0a7391]">
-                {isPitchElevator
+                {isPitch
                   ? "Pitch studio"
                   : isNetworking
                     ? "Networking studio"
@@ -433,7 +508,9 @@ export default function PracticeTypePage() {
               <h1 className="mt-3 max-w-3xl font-serif text-4xl leading-[0.98] tracking-[-0.045em] text-[#102331] sm:text-6xl">
                 {isPitchElevator
                   ? "Sixty seconds to find common ground."
-                  : isNetworking
+                  : isPitchDeck
+                    ? "Walk an investor through your deck."
+                    : isNetworking
                     ? "Practice the conversation before it counts."
                     : "A focused space to practice how you lead."}
               </h1>
@@ -447,7 +524,9 @@ export default function PracticeTypePage() {
                 value={
                   isPitchElevator
                     ? "30–60 s"
-                    : `${pageMinutes ?? "—"} min`
+                    : isPitchDeck
+                      ? "20–30 min"
+                      : `${pageMinutes ?? "—"} min`
                 }
                 label="Practice"
               />
@@ -457,7 +536,9 @@ export default function PracticeTypePage() {
                 label={
                   isPitchElevator
                     ? "Listener"
-                    : isNetworking
+                    : isPitchDeck
+                      ? "Investor"
+                      : isNetworking
                       ? "Contact"
                       : "Interviewer"
                 }
@@ -468,7 +549,9 @@ export default function PracticeTypePage() {
                 label={
                   isPitchElevator
                     ? "Subject"
-                    : isNetworking
+                    : isPitchDeck
+                      ? "Deck"
+                      : isNetworking
                       ? "Goal"
                       : "Resume"
                 }
@@ -487,40 +570,89 @@ export default function PracticeTypePage() {
           progressAriaLabel={
             isPitchElevator
               ? "Elevator pitch setup progress"
-              : isNetworking
+              : isPitchDeck
+                ? "Investor pitch setup progress"
+                : isNetworking
                 ? "Networking setup progress"
                 : "Interview setup progress"
           }
-          buildStartPayload={() =>
-            isPitchElevator
-              ? {
-                  instance: elevatorInstance,
-                  interviewerAvatarId: selectedInterviewer?.avatarId,
-                  interviewerName: listenerDisplayName,
-                  language: "en",
-                }
-              : isNetworking
-                ? {
-                    instanceId: networkingInstanceId,
-                    customization: {
-                      characterId: networkingCharacterId,
-                      goal: networkingGoal.trim(),
-                    },
-                    interviewerAvatarId: selectedInterviewer?.avatarId,
-                    interviewerName: selectedInterviewer?.name,
-                    language: "en",
-                  }
-                : {
-                    customization: storedCustomization,
-                    interviewerAvatarId: selectedInterviewer?.avatarId,
-                    interviewerName:
-                      storedCustomization?.personaDisplayName?.trim() ||
-                      selectedInterviewer?.name,
-                    resumeId,
-                    resumeText,
-                    language: "en",
-                  }
-          }
+          onBackFromStart={() => router.push("/")}
+          buildStartPayload={async () => {
+            if (isPitchElevator) {
+              return {
+                instance: elevatorInstance,
+                interviewerAvatarId: selectedInterviewer?.avatarId,
+                interviewerName: listenerDisplayName,
+                language: "en",
+              };
+            }
+            if (isPitchDeck) {
+              if (!deckUpload || !negotiationAsk || !sessionLength) {
+                throw new Error(
+                  "Finish uploading your deck, your ask, and the session length before starting.",
+                );
+              }
+              // Slide text is fetched at launch from the owner-only manifest —
+              // never held in wizard state for the whole flow (14-12).
+              const manifestRes = await fetch(
+                `/api/practice/deck/${deckUpload.deckId}`,
+                { cache: "no-store" },
+              );
+              const manifest = (await manifestRes.json().catch(() => ({}))) as {
+                slides?: Array<{ text?: unknown }>;
+                error?: string;
+              };
+              if (!manifestRes.ok || !Array.isArray(manifest.slides)) {
+                throw new Error(
+                  manifest.error ||
+                    "We could not load your deck. Go back and re-upload it.",
+                );
+              }
+              const slideTexts = manifest.slides.map((slide) =>
+                typeof slide.text === "string" ? slide.text : "",
+              );
+              const proposedSeconds = proposeDeckSeconds(deckUpload.slideCount);
+              // Hidden investor band is injected server-side only (14-12) —
+              // never sent from this page under any circumstances.
+              return {
+                instance: {
+                  kind: "pitch-deck",
+                  deckId: deckUpload.deckId,
+                  slideCount: deckUpload.slideCount,
+                  slideTexts,
+                  askPriceUsd: negotiationAsk.askPriceUsd,
+                  askEquityPct: negotiationAsk.askEquityPct,
+                  proposedSeconds,
+                } as unknown as InstanceConfig,
+                timeBudgetOverrideSeconds: sessionLength.budgetSeconds,
+                interviewerAvatarId: selectedInterviewer?.avatarId,
+                interviewerName: listenerDisplayName,
+                language: "en",
+              };
+            }
+            if (isNetworking) {
+              return {
+                instanceId: networkingInstanceId,
+                customization: {
+                  characterId: networkingCharacterId,
+                  goal: networkingGoal.trim(),
+                },
+                interviewerAvatarId: selectedInterviewer?.avatarId,
+                interviewerName: selectedInterviewer?.name,
+                language: "en",
+              };
+            }
+            return {
+              customization: storedCustomization,
+              interviewerAvatarId: selectedInterviewer?.avatarId,
+              interviewerName:
+                storedCustomization?.personaDisplayName?.trim() ||
+                selectedInterviewer?.name,
+              resumeId,
+              resumeText,
+              language: "en",
+            };
+          }}
           onLaunch={({ reportId: launchedId, cameraMode: locked }) => {
             setReportId(launchedId);
             setCameraMode(locked);
@@ -529,6 +661,34 @@ export default function PracticeTypePage() {
             setPhase("session");
           }}
           renderStep={(stepId: string, nav: SetupStepNav) => {
+            if (stepId === "deck-upload") {
+              return (
+                <DeckUploadStep
+                  nav={nav}
+                  deck={deckUpload}
+                  onChange={setDeckUpload}
+                />
+              );
+            }
+            if (stepId === "negotiation-ask") {
+              return (
+                <NegotiationAskStep
+                  nav={nav}
+                  ask={negotiationAsk}
+                  onChange={setNegotiationAsk}
+                />
+              );
+            }
+            if (stepId === "session-length") {
+              return (
+                <SessionLengthStep
+                  nav={nav}
+                  slideCount={deckUpload?.slideCount ?? null}
+                  sessionLength={sessionLength}
+                  onChange={setSessionLength}
+                />
+              );
+            }
             if (stepId === "pitch-subject") {
               return (
                 <PitchSubjectStep
