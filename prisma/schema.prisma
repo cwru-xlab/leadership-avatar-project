@@ -378,6 +378,33 @@ model InteractionReport {
   // equity). Nullable; shape is per-type and enforced in code only.
   outcome Json?
 
+  // Zero-based index of the highest slide ever revealed to the avatar.
+  // SERVER-WRITTEN ONLY, monotonic non-decreasing. Null for every type that
+  // has no deck AND for a deck session that has not revealed anything yet
+  // (null means "nothing revealed" — never persist -1). A client never writes
+  // this value directly — see lib/engine/session.ts's ratchet. Backward
+  // navigation never lowers it (Phase 14 CONTEXT.md: the investor already
+  // saw those slides).
+  slideHighWaterMark Int?
+
+  // Ordered append-only trail of
+  // `{ index, atTurnIndex, atElapsedSeconds }` reveal events. Feeds
+  // Criterion 4's slide/speech correlation scoring and the report's
+  // timeline. Append-only: entries are never rewritten or removed.
+  slideReveals Json?
+
+  // The session's resolved time budget in seconds, after the student's
+  // adjustment was clamped into the type's declared adjustableRangeSeconds.
+  // Null for types with no budget. The budget is SOFT: nothing in the app
+  // stops a session when it is exhausted; the overrun is noted in the report.
+  timeBudgetSeconds Int?
+
+  // Elapsed seconds at the moment an avatar-initiated end was ACCEPTED, so
+  // the report can show the timecode where interest dropped (Phase 14
+  // CONTEXT.md). Null when the session ended normally. Pairs with the
+  // existing terminationReason column.
+  terminationAtSeconds Int?
+
   startedAt   DateTime  @default(now())
   completedAt DateTime?
   createdAt   DateTime  @default(now())
