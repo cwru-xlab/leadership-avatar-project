@@ -332,6 +332,40 @@ async function createHandLandmarkerModel(
   });
 }
 
+/**
+ * TEMPORARY, DEV-ONLY (12-11 Task 1). `PHONE_SCORE_THRESHOLD` has never had a
+ * dataset behind it: 12-09 built a dump for it, 12-10 removed that dump
+ * before it was ever run. The reading cannot be taken at all without this
+ * flag, because the detector's OWN `scoreThreshold` is set to
+ * `PHONE_SCORE_THRESHOLD`, so no detection scoring below 0.5 has ever
+ * crossed back to this process — "the count below the current threshold"
+ * that 12-11 Task 1 asks for is unobservable by construction on a normal
+ * build.
+ *
+ * When this flag is on, and ONLY then, the object detector is created with
+ * `PHONE_DEV_DUMP_SCORE_FLOOR` instead, so the full confidence distribution
+ * is visible. The session VERDICT is unchanged: `detectObject` now states
+ * `phonePresent` as `bestScore >= PHONE_SCORE_THRESHOLD` explicitly, which
+ * is exactly equivalent to the previous `bestScore > 0` on a normal build
+ * (where the model already filtered everything under 0.5 out), and keeps the
+ * production threshold authoritative while the flag is on. Nothing else in
+ * the pipeline reads `phoneScore`.
+ *
+ * Set `NEXT_PUBLIC_POSTURE_DRIFT_DEV_DUMP=1` and restart `npm run dev`
+ * (a `NEXT_PUBLIC_*` var is inlined at build time). REMOVE this flag, the
+ * floor below, and the branch in `createObjectDetectorModel` once 12-11 Task
+ * 2's readings are recorded in `12-TUNING.md` — scaffolding, not a feature.
+ */
+const POSTURE_DRIFT_DEV_DUMP =
+  process.env.NEXT_PUBLIC_POSTURE_DRIFT_DEV_DUMP === "1";
+
+/** TEMPORARY, DEV-ONLY (12-11 Task 1) — see `POSTURE_DRIFT_DEV_DUMP`. Low
+ * enough to show the left tail of the "cell phone" confidence distribution
+ * without flooding the dump with every speck the detector will guess at.
+ * Mirrored as a literal in `visual-capture.ts`'s dump note; both go away
+ * together. */
+const PHONE_DEV_DUMP_SCORE_FLOOR = 0.05;
+
 async function createObjectDetectorModel(
   resolver: WasmFileset,
   delegate: "GPU" | "CPU"
@@ -343,8 +377,14 @@ async function createObjectDetectorModel(
     },
     runningMode: "VIDEO",
     // Detection-time filter, not a scoring verdict - see this file's header
-    // comment on the three accepted body-thresholds.ts imports.
-    scoreThreshold: PHONE_SCORE_THRESHOLD,
+    // comment on the three accepted body-thresholds.ts imports. The
+    // DEV-ONLY branch (12-11 Task 1, off by default) lowers only what the
+    // detector will REPORT, so the sub-threshold tail is observable; the
+    // phonePresent verdict in `detectObject` still uses
+    // PHONE_SCORE_THRESHOLD either way.
+    scoreThreshold: POSTURE_DRIFT_DEV_DUMP
+      ? PHONE_DEV_DUMP_SCORE_FLOOR
+      : PHONE_SCORE_THRESHOLD,
   });
 }
 
@@ -817,7 +857,15 @@ function detectObject(
       }
     }
   }
-  return { phonePresent: bestScore > 0, phoneScore: bestScore };
+  // `>= PHONE_SCORE_THRESHOLD` rather than `> 0`: identical on a normal
+  // build (the model's own `scoreThreshold` already removed everything
+  // below), and it keeps the production verdict authoritative when the
+  // DEV-ONLY dump lowers that model-side filter — see
+  // `POSTURE_DRIFT_DEV_DUMP`.
+  return {
+    phonePresent: bestScore >= PHONE_SCORE_THRESHOLD,
+    phoneScore: bestScore,
+  };
 }
 
 self.onmessage = (event: MessageEvent<InboundMessage>) => {

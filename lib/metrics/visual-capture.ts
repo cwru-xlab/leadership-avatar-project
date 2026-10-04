@@ -63,6 +63,12 @@ import {
   HANDS_NEAR_FACE_TRIP_PCT,
   PHONE_EPISODE_TRIP_PCT,
   PHONE_MIN_VISIBLE_S,
+  // TEMPORARY (12-11 Task 1): read ONLY by the dev-only phone confidence
+  // dump's output, so the printed cutoff can never go stale against the real
+  // constant. Nothing on this thread gates on it — the verdict is the
+  // worker's (see `visual-capture.worker.ts`'s header on its three accepted
+  // body-thresholds imports). Remove with the dump.
+  PHONE_SCORE_THRESHOLD,
   POSTURE_BASELINE_MIN_SAMPLES,
   POSTURE_BASELINE_WINDOW_S,
   POSTURE_COVERAGE_MIN_RATIO,
@@ -295,6 +301,57 @@ const POSE_SCHEDULE_SHARE =
  */
 const HANDS_SCHEDULE_SHARE =
   SCHEDULE.filter((model) => model === "hands").length / SCHEDULE.length;
+
+/**
+ * TEMPORARY, DEV-ONLY (12-11 Task 1). The scored "Posture drift" row has
+ * reported "Held steady" on a genuine, well-framed, deliberately hard slump
+ * (12-10 sign-off item 3) and has never once been observed to respond
+ * correctly to the behaviour it grades. 12-10's close named three candidate
+ * causes — the per-signal mean, the second session-wide mean, and the
+ * possibility that `forwardHeadOffset` (a 2D distance from the shoulder
+ * midpoint to the nose) cannot represent a slump at all and may even
+ * DECREASE during one — and verified all three in code while measuring none
+ * of them. No per-tick drift series has ever been captured.
+ *
+ * This flag, OFF by default, captures that series and nothing else: per
+ * post-baseline pose tick the raw reading per signal, the per-signal
+ * normalized delta and the averaged `driftMagnitude`; per session the
+ * baseline window's own readings, the baseline values, the maxima over the
+ * COMPLETE tick set, `posture_drift_mean` and `posture_drift_max_s`. It also
+ * restores 12-09's never-run phone confidence distribution (see
+ * `POSTURE_DRIFT_DEV_DUMP` in `visual-capture.worker.ts`, which widens what
+ * the detector reports so a sub-threshold score is observable at all).
+ *
+ * Nothing here changes a threshold, a scale, an aggregation or a gate —
+ * 12-11 Task 1 is observation only, and the readings are the sole input to
+ * Task 3's branch. `console.info`, NOT `console.debug`: Chrome hides
+ * `debug` behind the Verbose level, which cost 12-09 and 12-10 a round trip
+ * each.
+ *
+ * Set `NEXT_PUBLIC_POSTURE_DRIFT_DEV_DUMP=1` and restart `npm run dev` (a
+ * `NEXT_PUBLIC_*` var is inlined at build time, so a hot reload will not
+ * pick it up). REMOVE this flag, its three call sites and the `stop()`
+ * summary once the Task 2 readings are recorded in `12-TUNING.md`
+ * (12-11-PLAN.md Task 3) — scaffolding, not a shipped feature.
+ */
+const POSTURE_DRIFT_DEV_DUMP =
+  process.env.NEXT_PUBLIC_POSTURE_DRIFT_DEV_DUMP === "1";
+
+/** TEMPORARY, DEV-ONLY (12-11 Task 1). The printed drift series is thinned
+ * to at most this many rows so it stays copy-pasteable. The per-session
+ * MAXIMA are never thinned — they are computed over every tick, because a
+ * sampled maximum would make a signal that CAN see the slump (large peak
+ * delta, small session mean) look identical to one that cannot, and that is
+ * precisely the distinction Task 3 branches on. */
+const POSTURE_DRIFT_DEV_DUMP_MAX_ROWS = 150;
+
+/** TEMPORARY, DEV-ONLY (12-11 Task 1). Must match
+ * `PHONE_DEV_DUMP_SCORE_FLOOR` in `visual-capture.worker.ts` — reported in
+ * the dump so the reader knows the distribution's left edge is the
+ * instrument's, not the detector's ceiling. Not imported from the worker
+ * module: importing a value from it would pull the worker's
+ * `self.onmessage` installation into the main bundle. */
+const POSTURE_DRIFT_DEV_DUMP_PHONE_FLOOR = 0.05;
 
 /** How long `start()` will wait for the worker's `ready`/`init-error` reply
  * before giving up and falling back to the main-thread landmarker path. A
@@ -1265,6 +1322,19 @@ export function createVisualCapture(
   let postureDriftStreakStartS: number | null = null;
   let postureDriftMaxS = 0;
 
+  // --- 12-11 Task 1, DEV-ONLY: the drift series nobody has ever captured.
+  // Only ever written to when `POSTURE_DRIFT_DEV_DUMP` is on, read only by
+  // the summary at the end of `stop()`, and fed to no accumulator any
+  // gating, banding or episode path reads — observation only, by
+  // construction. See `POSTURE_DRIFT_DEV_DUMP`'s own comment.
+  const devDriftTicks: Array<{
+    reading: PostureReading;
+    perSignal: Partial<Record<VisualPostureSignal, number>>;
+    driftMagnitude: number | null;
+  }> = [];
+  const devBaselineWindowReadings: PostureReading[] = [];
+  const devPhoneScores: number[] = [];
+
   // --- 12-05 hands accumulators.
   let handSamples = 0;
   let handsDetectedSamples = 0;
@@ -1657,6 +1727,13 @@ export function createVisualCapture(
       torsoOpennessRatio: result.torsoOpennessRatio,
     };
 
+    // 12-11 Task 1, DEV-ONLY. Captured BEFORE the baseline branch below, so
+    // the tick whose tS closes the window appears here AND (correctly) as
+    // the first scored tick of the series — it is both.
+    if (POSTURE_DRIFT_DEV_DUMP && postureBaseline === null) {
+      devBaselineWindowReadings.push(reading);
+    }
+
     if (postureBaseline === null) {
       const hasAnySignal = POSTURE_SIGNAL_TABLE.some(
         ({ read }) => read(reading) !== null
@@ -1700,7 +1777,20 @@ export function createVisualCapture(
       // post-baseline reading, not part of the window itself.
     }
 
-    const { driftMagnitude } = computePostureDrift(reading, postureBaseline);
+    const { driftMagnitude, perSignal } = computePostureDrift(
+      reading,
+      postureBaseline
+    );
+
+    // 12-11 Task 1, DEV-ONLY. Recorded BEFORE the null-drift return below so
+    // a tick the pipeline could not score still appears in the series —
+    // "nothing was measurable here" is itself a reading. `perSignal` is
+    // otherwise unused by the runtime path; `computePostureDrift` already
+    // returned it.
+    if (POSTURE_DRIFT_DEV_DUMP) {
+      devDriftTicks.push({ reading, perSignal, driftMagnitude });
+    }
+
     if (driftMagnitude === null) return;
 
     postureDriftSum += driftMagnitude;
@@ -1796,6 +1886,12 @@ export function createVisualCapture(
   function applyObjectResult(result: ObjectDetectResult) {
     phoneSamples += 1;
     winPhoneProcessed += 1;
+
+    // 12-11 Task 1, DEV-ONLY: every object tick, detection or not, so the
+    // distribution printed at `stop()` is the full one rather than only the
+    // ticks that already cleared the threshold. `phoneScore` is read by
+    // nothing else in this file.
+    if (POSTURE_DRIFT_DEV_DUMP) devPhoneScores.push(result.phoneScore);
     if (result.phonePresent) {
       phoneVisibleSamples += 1;
       winPhoneCount += 1;
@@ -2239,6 +2335,18 @@ export function createVisualCapture(
 
     // One line, once per session, so a walkthrough can confirm at a glance
     // which delegate AND which thread is actually doing the work.
+    // 12-11 Task 1, DEV-ONLY: confirm activation at the TOP of the session.
+    // The readings themselves only print at `stop()`, and a NEXT_PUBLIC_ var
+    // needs a dev-server restart to take effect — without this line a user
+    // would not learn the flag never took until after recording the whole
+    // session, which is a wasted session and a wasted round trip.
+    if (POSTURE_DRIFT_DEV_DUMP) {
+      console.info(
+        "[visual-capture][dev] 12-11 posture-drift + phone-confidence dump ACTIVE" +
+          " — the readings print when the session ends (two [dev] 12-11 lines)"
+      );
+    }
+
     console.info("[visual-capture] engine started", {
       delegate: delegateInUse,
       thread: usingWorker ? "worker" : "main",
@@ -2587,6 +2695,182 @@ export function createVisualCapture(
       };
     }
 
+    // --- 12-11 Task 1, DEV-ONLY: the session summary. Skipped entirely when
+    // the flag is off (every array it reads is then empty and unwritten).
+    // Emitted with `console.info` — `console.debug` is hidden behind
+    // Chrome's Verbose level and cost 12-09 and 12-10 a round trip each —
+    // and as ONE newline-joined string per dump rather than an object, so it
+    // can be copied out of the console whole. See `POSTURE_DRIFT_DEV_DUMP`.
+    if (POSTURE_DRIFT_DEV_DUMP) {
+      const fmt = (v: number | null | undefined, digits = 3): string =>
+        v === null || v === undefined ? "-" : v.toFixed(digits);
+
+      // MAXIMA OVER THE COMPLETE TICK SET — never over the thinned series
+      // below. See `POSTURE_DRIFT_DEV_DUMP_MAX_ROWS`.
+      let maxDrift = -1;
+      let maxDriftAtS: number | null = null;
+      const maxDelta: Record<
+        VisualPostureSignal,
+        { value: number; tS: number | null }
+      > = {
+        shoulder_line: { value: -1, tS: null },
+        forward_head: { value: -1, tS: null },
+        torso_lean: { value: -1, tS: null },
+        torso_openness: { value: -1, tS: null },
+      };
+      for (const tick of devDriftTicks) {
+        if (tick.driftMagnitude !== null && tick.driftMagnitude > maxDrift) {
+          maxDrift = tick.driftMagnitude;
+          maxDriftAtS = tick.reading.tS;
+        }
+        for (const signal of VISUAL_POSTURE_SIGNALS) {
+          const delta = tick.perSignal[signal];
+          if (delta !== undefined && delta > maxDelta[signal].value) {
+            maxDelta[signal] = { value: delta, tS: tick.reading.tS };
+          }
+        }
+      }
+      let peakSignal: VisualPostureSignal | null = null;
+      for (const signal of VISUAL_POSTURE_SIGNALS) {
+        if (maxDelta[signal].value < 0) continue;
+        if (
+          peakSignal === null ||
+          maxDelta[signal].value > maxDelta[peakSignal].value
+        ) {
+          peakSignal = signal;
+        }
+      }
+
+      const stride = Math.max(
+        1,
+        Math.ceil(devDriftTicks.length / POSTURE_DRIFT_DEV_DUMP_MAX_ROWS)
+      );
+      const seriesRows: string[] = [];
+      for (let i = 0; i < devDriftTicks.length; i += stride) {
+        const t = devDriftTicks[i];
+        seriesRows.push(
+          `  t=${fmt(t.reading.tS, 1)}` +
+            ` raw[tilt=${fmt(t.reading.shoulderTiltDeg, 2)}` +
+            ` fwdHead=${fmt(t.reading.forwardHeadOffset, 4)}` +
+            ` lean=${fmt(t.reading.torsoLeanDeg, 2)}` +
+            ` open=${fmt(t.reading.torsoOpennessRatio, 4)}]` +
+            ` delta[tilt=${fmt(t.perSignal.shoulder_line)}` +
+            ` fwdHead=${fmt(t.perSignal.forward_head)}` +
+            ` lean=${fmt(t.perSignal.torso_lean)}` +
+            ` open=${fmt(t.perSignal.torso_openness)}]` +
+            ` drift=${fmt(t.driftMagnitude)}`
+        );
+      }
+
+      const baselineStride = Math.max(
+        1,
+        Math.ceil(devBaselineWindowReadings.length / 40)
+      );
+      const baselineRows: string[] = [];
+      for (let i = 0; i < devBaselineWindowReadings.length; i += baselineStride) {
+        const r = devBaselineWindowReadings[i];
+        baselineRows.push(
+          `  t=${fmt(r.tS, 1)} tilt=${fmt(r.shoulderTiltDeg, 2)}` +
+            ` fwdHead=${fmt(r.forwardHeadOffset, 4)}` +
+            ` lean=${fmt(r.torsoLeanDeg, 2)}` +
+            ` open=${fmt(r.torsoOpennessRatio, 4)}`
+        );
+      }
+
+      console.info(
+        [
+          "[visual-capture][dev] 12-11 POSTURE DRIFT SERIES",
+          `scales: shoulder_line=${POSTURE_SHOULDER_TILT_DRIFT_SCALE_DEG}deg` +
+            ` forward_head=${POSTURE_FORWARD_HEAD_DRIFT_SCALE}` +
+            ` torso_lean=${POSTURE_TORSO_LEAN_DRIFT_SCALE_DEG}deg` +
+            ` torso_openness=${POSTURE_TORSO_OPENNESS_DRIFT_SCALE}` +
+            `; POSTURE_DRIFT_TRIP=${POSTURE_DRIFT_TRIP}` +
+            `; POSTURE_BASELINE_WINDOW_S=${POSTURE_BASELINE_WINDOW_S}`,
+          `session: sessionSeconds=${fmt(sessionSeconds, 1)}` +
+            ` poseTicks=${poseSamples}` +
+            ` postureSignalsMeasured=[${postureSignalsMeasured.join(", ")}]`,
+          `baseline: calibrated=${postureBaseline !== null}` +
+            ` anchorTS=${fmt(postureBaselineAnchorTS, 1)}` +
+            ` signals=[${postureBaseline?.signals.join(", ") ?? ""}]` +
+            ` sampleCount=${postureBaseline?.sampleCount ?? 0}`,
+          `baseline values: tilt=${fmt(postureBaseline?.shoulderTiltDeg, 3)}` +
+            ` fwdHead=${fmt(postureBaseline?.forwardHeadOffset, 4)}` +
+            ` lean=${fmt(postureBaseline?.torsoLeanDeg, 3)}` +
+            ` open=${fmt(postureBaseline?.torsoOpennessRatio, 4)}`,
+          `baseline window readings: ${devBaselineWindowReadings.length}` +
+            ` captured, ${baselineRows.length} shown` +
+            ` (every ${baselineStride === 1 ? "reading" : `${baselineStride}th reading`})`,
+          ...baselineRows,
+          `MAXIMA over ALL ${devDriftTicks.length} post-baseline ticks (NOT sampled):`,
+          `  max per-tick driftMagnitude = ${maxDrift >= 0 ? fmt(maxDrift) : "-"}` +
+            ` at t=${fmt(maxDriftAtS, 1)}`,
+          `  max per-signal delta = ${
+            peakSignal === null
+              ? "-"
+              : `${fmt(maxDelta[peakSignal].value)} (${peakSignal}) at t=${fmt(maxDelta[peakSignal].tS, 1)}`
+          }`,
+          ...VISUAL_POSTURE_SIGNALS.map(
+            (signal) =>
+              `    max delta ${signal} = ${
+                maxDelta[signal].value >= 0 ? fmt(maxDelta[signal].value) : "-"
+              } at t=${fmt(maxDelta[signal].tS, 1)}`
+          ),
+          `  posture_drift_mean = ${
+            postureDriftSamples > 0
+              ? fmt(postureDriftSum / postureDriftSamples)
+              : "-"
+          } (over ${postureDriftSamples} scored ticks)`,
+          `  posture_drift_max_s = ${fmt(postureDriftMaxS, 1)}` +
+            " (sustained streak above the trip; computed but NOT read by the band)",
+          `SERIES: ${seriesRows.length} of ${devDriftTicks.length} ticks shown` +
+            ` (every ${stride === 1 ? "tick — no sampling" : `${stride}th tick`});` +
+            " raw readings are unsmoothed, and a DECREASING fwdHead during a" +
+            " slump is a real possible outcome, not a glitch",
+          ...seriesRows,
+        ].join("\n")
+      );
+
+      const phoneSorted = [...devPhoneScores].sort((a, b) => a - b);
+      const detections = phoneSorted.filter((score) => score > 0);
+      const histogram = new Array<number>(10).fill(0);
+      for (const score of detections) {
+        histogram[Math.min(9, Math.floor(score * 10))] += 1;
+      }
+      console.info(
+        [
+          "[visual-capture][dev] 12-11 PHONE CONFIDENCE DISTRIBUTION",
+          `objectTicks=${devPhoneScores.length}` +
+            ` ticksWithACellPhoneDetection=${detections.length}` +
+            ` ticksWithNone=${devPhoneScores.length - detections.length}`,
+          `INSTRUMENT NOTE: with this dump active the detector's own` +
+            ` scoreThreshold is lowered to ${POSTURE_DRIFT_DEV_DUMP_PHONE_FLOOR}` +
+            ` so sub-threshold scores are observable at all (on a normal build` +
+            ` nothing below PHONE_SCORE_THRESHOLD ever reaches this process,` +
+            ` which is why "the count below 0.5" has never existed).` +
+            ` phonePresent still requires >= PHONE_SCORE_THRESHOLD` +
+            ` (${PHONE_SCORE_THRESHOLD}), so the session verdict is unchanged.`,
+          `min=${fmt(detections[0])}` +
+            ` median=${fmt(detections[Math.floor(detections.length / 2)])}` +
+            ` max=${fmt(detections[detections.length - 1])}`,
+          `atOrAbove ${PHONE_SCORE_THRESHOLD} = ${
+            detections.filter((score) => score >= PHONE_SCORE_THRESHOLD).length
+          }; below ${PHONE_SCORE_THRESHOLD} (and above the ${POSTURE_DRIFT_DEV_DUMP_PHONE_FLOOR} dump floor) = ${
+            detections.filter((score) => score < PHONE_SCORE_THRESHOLD).length
+          }`,
+          `histogram (0.1 buckets, detections only): ${histogram
+            .map(
+              (count, i) =>
+                `${(i / 10).toFixed(1)}-${((i + 1) / 10).toFixed(1)}:${count}`
+            )
+            .join(" ")}`,
+          `phone_visible_seconds (as the pipeline would report it) =` +
+            ` ${fmt(observations?.phone_visible_seconds, 1)}`,
+          `raw per-tick phoneScore, in tick order: ${devPhoneScores
+            .map((score) => score.toFixed(3))
+            .join(", ")}`,
+        ].join("\n")
+      );
+    }
 
     return {
       eye_contact_pct: rates.eyeContactPct,
