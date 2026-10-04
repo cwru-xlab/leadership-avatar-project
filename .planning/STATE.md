@@ -7,7 +7,7 @@
 ## Current Position
 
 **Phase:** 12 — Embodied Visual Signals — IN PROGRESS (9 of 11 plans executed)
-**Current Plan:** **12-11 is DELIVERED and closed** (`a854519`, `df02eee`, docs
+**Current Plan:** Not started
 `39eceba`, `dbf5c5d`, `c5d2d87`); see `12-11-SUMMARY.md`. No plan is in flight.
 Phase verification has NOT been run.
 
@@ -183,7 +183,7 @@ detections) and that `LANDMARK_VISIBILITY_FLOOR` is near-inert. See
 executed and signed off, including the 11-07 human walkthrough; see "Phase 11
 Status: COMPLETE" below and `.planning/phases/11-cohort-staff-teardown/` on
 disk for full detail.
-**Status:** Phase 12 IN PROGRESS — 9 of 11 plans executed (12-01 through 12-02,
+**Status:** Ready to plan
 12-04 through 12-11). 12-03 unexecuted; phase verification not yet run.
 **Branch:** feature/visual-analysis-expansion
 
