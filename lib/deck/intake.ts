@@ -23,6 +23,7 @@ import {
 
 function reject(code: DeckRejectionCode): DeckRejection {
   const copy = DECK_REJECTIONS[code];
+
   return { ok: false, code, reason: copy.reason, fix: copy.fix };
 }
 
@@ -44,12 +45,16 @@ export function detectDeckFormat(buffer: Buffer): DeckFormat | null {
   ) {
     return "pptx";
   }
+
   return null;
 }
 
 function looksPasswordProtected(error: unknown, buffer: Buffer): boolean {
   const message =
-    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    error instanceof Error
+      ? error.message.toLowerCase()
+      : String(error).toLowerCase();
+
   if (
     message.includes("password") ||
     message.includes("encrypted") ||
@@ -58,7 +63,10 @@ function looksPasswordProtected(error: unknown, buffer: Buffer): boolean {
     return true;
   }
   // PDF encryption dictionary marker (best-effort; corrupt files may also contain it).
-  const head = buffer.subarray(0, Math.min(buffer.length, 64 * 1024)).toString("latin1");
+  const head = buffer
+    .subarray(0, Math.min(buffer.length, 64 * 1024))
+    .toString("latin1");
+
   return head.includes("/Encrypt");
 }
 
@@ -68,7 +76,7 @@ function looksPasswordProtected(error: unknown, buffer: Buffer): boolean {
  */
 export async function validateAndExtractDeck(
   buffer: Buffer,
-  _filename?: string
+  _filename?: string,
 ): Promise<DeckExtraction | DeckRejection> {
   if (buffer.length === 0) {
     return reject("empty");
@@ -78,6 +86,7 @@ export async function validateAndExtractDeck(
   }
 
   const format = detectDeckFormat(buffer);
+
   if (format === null) {
     return reject("unknown-format");
   }
@@ -93,11 +102,13 @@ export async function validateAndExtractDeck(
     }
 
     const slides: DeckSlide[] = texts.map((text, index) => ({ index, text }));
+
     return { ok: true, format, slides };
   } catch (error) {
     if (looksPasswordProtected(error, buffer)) {
       return reject("password-protected");
     }
+
     return reject(format === "pdf" ? "corrupt-pdf" : "corrupt-pptx");
   }
 }

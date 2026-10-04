@@ -1,60 +1,64 @@
 /**
  * Per-page PDF text extraction for Phase 14 deck intake.
  *
- * This is a restructuring of the existing pdf2json loop in
- * `lib/rag/document-processor.ts` (14-RESEARCH.md Pattern 2): that module
- * walks `pdfData.Pages` and JOINS every page into one string. Here we push
- * each page's accumulated text into an array instead.
- *
- * `lib/rag/document-processor.ts` is deliberately NOT edited — it is shared
- * by the RAG pipeline and has its own callers.
+ * Shape follows 14-RESEARCH.md Pattern 2 (one string per `Pages` entry instead
+ * of a joined blob). Implementation uses `pdfjs-dist` rather than in-process
+ * `pdf2json`: pdf2json's fake worker keeps process-global state that returns
+ * stale pages from a prior buffer under sequential load — verified against
+ * the 14-03 fixtures. `lib/rag/document-processor.ts` is deliberately NOT
+ * edited (still pdf2json for the RAG pipeline).
  */
-
-import PDFParser from "pdf2json";
 
 import { normalizeDeckWhitespace } from "./pptx-extract";
 
 /**
  * Extract one text string per PDF page, in page order.
- * Rejects (throws) on corrupt PDFs via pdf2json's error event — intake maps
- * the throw to `corrupt-pdf` / `password-protected`.
+ * Rejects (throws) on corrupt PDFs — intake maps the throw to
+ * `corrupt-pdf` / `password-protected`.
  */
 export async function extractPerPageText(buffer: Buffer): Promise<string[]> {
   try {
-    const pdfParser = new PDFParser();
-
-    return new Promise((resolve, reject) => {
-      pdfParser.on("pdfParser_dataError", (errData: any) => {
-        reject(new Error(`PDF parsing error: ${errData.parserError}`));
-      });
-
-      pdfParser.on("pdfParser_dataReady", (pdfData: any) => {
-        try {
-          const pages: string[] = [];
-
-          pdfData.Pages.forEach((page: any) => {
-            let pageText = "";
-
-            page.Texts.forEach((text: any) => {
-              text.R.forEach((run: any) => {
-                try {
-                  pageText += decodeURIComponent(run.T);
-                } catch {
-                  pageText += run.T;
-                }
-              });
-            });
-            pages.push(normalizeDeckWhitespace(pageText));
-          });
-          resolve(pages);
-        } catch (error) {
-          reject(new Error(`Failed to extract text from PDF data: ${error}`));
-        }
-      });
-
-      pdfParser.parseBuffer(buffer);
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    // Copy — pdfjs may transfer/detach the underlying ArrayBuffer.
+    const data = new Uint8Array(buffer);
+    const loadingTask = pdfjs.getDocument({
+      data,
+      // Node: no browser worker; disable to keep extraction in-process.
+      useSystemFonts: true,
+      isEvalSupported: false,
     });
-  } catch {
-    throw new Error("Failed to extract text from PDF");
+    const doc = await loadingTask.promise;
+    const pages: string[] = [];
+
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      const pieces: string[] = [];
+
+      for (const item of content.items) {
+        if (item && typeof item === "object" && "str" in item) {
+          const str = (item as { str?: string }).str;
+
+          if (typeof str === "string" && str.length > 0) {
+            pieces.push(str);
+          }
+        }
+      }
+
+      pages.push(normalizeDeckWhitespace(pieces.join(" ")));
+    }
+
+    await doc.destroy();
+
+    return pages;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    // Normalize so intake's password / corrupt mapping still works.
+    if (/password|encrypted|encrypt/i.test(message)) {
+      throw new Error(`PDF parsing error: ${message}`);
+    }
+
+    throw new Error(`PDF parsing error: ${message}`);
   }
 }

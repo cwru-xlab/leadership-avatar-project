@@ -2,8 +2,8 @@
  * Shared deck intake types for Phase 14 (Practice Pitches).
  *
  * Validation is MINIMUM ONLY (CONTEXT.md): genuine PDF/PPTX, within size,
- * pages/slides extract. No page-shape or slide-count rejection. No warning
- * tier and no "start without a deck" path — the result is a binary union.
+ * pages/slides extract. No page-shape or slide-count rejection. Result is a
+ * binary accept/reject union — no soft middle tier and no deck-less escape.
  */
 
 /**
