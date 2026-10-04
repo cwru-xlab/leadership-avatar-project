@@ -236,6 +236,10 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 13-one-on-one-conversation-engine / 13-02]: `transcriptKey`/`interactionLogId`/`studentEmail` stay as three separate nullable columns on `InteractionReport`, not converged into one tagged pointer — they resolve through different `S3Storage` accessors (`getInterviewTranscript(userId, reportId)` vs `getInteractionLog(studentEmail, caseId, logId)`) with genuinely different required context.
 - [Phase 13-one-on-one-conversation-engine / 13-02]: `InterviewReportStatus` enum kept its historical name on `InteractionReport` rather than being renamed. It is already shared by both legacy tables; renaming touches every importer for zero behavioral gain.
 - [Phase 13-one-on-one-conversation-engine / 13-02]: The real migration directory is `20261004012908_add_interaction_report` — Prisma's actual generated timestamp, not the `20261003000000` placeholder the plan's `files_modified` frontmatter listed.
+- [Phase 13-one-on-one-conversation-engine / 13-01]: `liveSystemPrompt` is typed as `(config: ResolvedSessionConfig, extra: LiveSystemPromptExtra) => string` — an interview's resume text and attempt language travel as a sibling "extra" parameter rather than folding into `ResolvedSessionConfig`, because `lib/interview/customization.ts` already treats them as outside the TYPE/INSTANCE layer this plan resolves. Still strictly session-constant, never a turn index or timestamp.
+- [Phase 13-one-on-one-conversation-engine / 13-01]: Whether a type is "interview-shaped" (and so accepts a customization payload) is answered implicitly — `resolve.ts` probes the LEGACY `lib/interview/types.ts` registry by slug — rather than adding a new flag to `InteractionTypeConfig`. Keeps `lib/interview/customization.ts` the single validator of picker fields.
+- [Phase 13-one-on-one-conversation-engine / 13-01]: `resolveFromTypeConfig(type, input)` is exported alongside the by-slug `resolveSessionConfig` specifically so `scripts/verify-engine-config.ts` can exercise the duplicate-rubric-key rejection path against a synthetic record — none of the five built-in records declare a colliding extra, so the by-slug entry point alone could not test it.
+- [Phase 13-one-on-one-conversation-engine / 13-01]: `case-study`'s `liveSystemPrompt` is a provisional, best-effort assembly mirroring `app/api/interaction/chat/route.ts`'s existing inline case-study branch, deliberately NOT wired into any route by this plan. Deferred to plan 13-06, which must also solve per-avatar role selection (chosen per-scene at request time today, not at type-resolution time).
 - [Phase 12-embodied-visual-signals / 12-11]: `PHONE_SCORE_THRESHOLD` stays 0.5 and stays labelled UNDECIDED. Only the no-phone false-positive floor has ever been observed (now two sessions); a one-sided reading can only justify RAISING a cutoff, and a user observation of a sustained phone reported as "about 2 seconds" points the other way. The phone half of the dev dump was deliberately KEPT this time, because 12-10 removed the instrument before taking its reading and then had nothing to read at its own sign-off.
 - [Phase 12-embodied-visual-signals / 12-11]: 12-10's claim that `forwardHeadOffset`'s sign "may be backwards relative to the behaviour being graded" is WITHDRAWN. Drift scores the ABSOLUTE delta, so a decrease registers exactly as strongly as an increase; the channel was the strongest responder in the session. The misnomer is real, the blindness was not. `forwardHeadOffset` was deliberately NOT renamed — the name is load-bearing across the worker, two type contracts, the signal key, display wording and every recorded reading, and a transcription error in this phase has already cost three wrong posture verdicts.
 - [Phase 12-embodied-visual-signals / 12-11]: A stale dev server is a recognised failure mode for `NEXT_PUBLIC_*`-gated readings — it produced a false item-1 failure, caught only because a removed dump was still printing text describing pre-fix behaviour. Future dev dumps should print a build marker.
@@ -1091,6 +1095,29 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
   13-15) are still required before REQ-65 can be marked met — not checked
   off in `REQUIREMENTS.md` yet for that reason. See `13-02-SUMMARY.md` for
   full detail.
+- 13-01 (engine config layer — `lib/engine/{types,registry,resolve}.ts`,
+  `scripts/verify-engine-config.ts`): complete, wave 1 (parallel with 13-02).
+  Commits `cd44e16`, `92727f5`, `e1a1236`. Declared `InteractionTypeConfig` /
+  `InstanceConfig` / `ResolvedSessionConfig` plus the four primitive config
+  shapes (`terminationPolicy`, `visibleContext`, `outcome`, `timeBudget`);
+  visual/vocal/content/behavioral are structurally un-removable — a type
+  record has no field through which to declare or shadow them, proven by the
+  verify script's rejected-duplicate-"visual" assertion. `ENGINE_TYPES`
+  transcribes the four interview presets field-for-field from
+  `lib/interview/types.ts` plus a fifth `case-study` record wired to the
+  existing `SCENARIO_EVALUATOR_PROMPT`; `resolveSessionConfig` is pure,
+  never throws on an unknown slug, and resolves interview customization
+  through the existing `resolveInterviewType`/`resolveCustomizationRecord`
+  rather than reimplementing validation. **REQ-60 and REQ-61 MET** — checked
+  off in `REQUIREMENTS.md`. Zero behavior change confirmed: `git diff --stat`
+  against `lib/interview/prompts.ts`, `lib/interview/types.ts`,
+  `lib/scenario/prompts.ts`, `lib/interactions/index.ts` is empty. `npx tsc
+  --noEmit` and `npx eslint lib/engine` clean; `npx tsx
+  scripts/verify-engine-config.ts` exits 0 across all 7 sections, including
+  a by-hand confirmation that deleting the shared "visual" dimension breaks
+  the script. Case-study's `liveSystemPrompt` is explicitly provisional and
+  unwired into any route — flagged for plan 13-06, which must also solve
+  per-avatar role selection. See `13-01-SUMMARY.md` for full detail.
 
 ## Phase 6 Status: COMPLETE
 
