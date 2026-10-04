@@ -196,6 +196,15 @@ export interface InteractionPromptsConfig {
   buildEvaluationImages?: (ctx: {
     config: ResolvedSessionConfig;
   }) => Promise<EvaluatorImage[]>;
+  /**
+   * Optional per-turn tail fragment contributed by the type (e.g. an
+   * in-character reminder). Composed into `buildTailBlock` only — never into
+   * the session-constant system prompt — so the OpenAI prefix cache still
+   * hits (REQ-73). Against 13-06: same delivery mechanism as the time-budget
+   * and progress fragments; types declare the fragment, the engine does not
+   * branch on slug.
+   */
+  buildTailFragment?: (config: ResolvedSessionConfig) => string;
 }
 
 /** A type's limits, stated to the model, not enforced as a hard cutoff

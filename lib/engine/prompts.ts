@@ -29,6 +29,7 @@ import {
   type VisibleContextTurn,
 } from "./visible-context";
 import { buildTimeBudgetFragment, computeTimeBudgetState } from "./time-budget";
+import { getEngineType } from "./registry";
 
 import {
   buildInterviewSystemPrompt,
@@ -226,7 +227,16 @@ export function assembleSystemPrompt(
   }
 
   // Future engine types: fall through to the type record's own builder.
-  // No built-in type reaches here today.
+  // Type-driven — no slug branch for pitch / networking / difficult-conversation.
+  const type = getEngineType(config.typeSlug);
+
+  if (type) {
+    return type.prompts.liveSystemPrompt(config, {
+      resumeText: opts.resumeText,
+      language: opts.language,
+    });
+  }
+
   throw new Error(
     `assembleSystemPrompt: no live prompt assembly for type "${config.typeSlug}"`,
   );
@@ -301,6 +311,14 @@ export function buildTailBlock(
 
     if (fragment) parts.push(fragment);
   }
+
+  // Type-declared per-turn fragment (e.g. in-character reminder). Same
+  // compose-if-nonempty style as the time-budget fragment above — never
+  // branched on slug; the type record opts in via prompts.buildTailFragment.
+  const type = getEngineType(config.typeSlug);
+  const tailFragment = type?.prompts.buildTailFragment?.(config);
+
+  if (tailFragment) parts.push(tailFragment);
 
   return parts.join("\n\n");
 }
