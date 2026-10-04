@@ -120,7 +120,7 @@ async function main() {
   userToken = await createToken({
     id: user.id,
     email: user.email,
-    name: user.name,
+    name: user.name ?? "",
     role: "student",
   });
 
@@ -135,7 +135,7 @@ async function main() {
   otherToken = await createToken({
     id: other.id,
     email: other.email,
-    name: other.name,
+    name: other.name ?? "",
     role: "student",
   });
 

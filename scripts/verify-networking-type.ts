@@ -276,7 +276,7 @@ console.log("\n7. GOAL EXCLUSION, signature level");
   const withExtraKey = buildNetworkingSystemPrompt({
     persona: "A persona sentence.",
     displayName: "Test Person",
-    // @ts-expect-error — goal must be structurally ignored if smuggled
+    // `goal` is smuggled in deliberately — it must be structurally ignored.
     goal: SENTINEL_GOAL,
   } as Parameters<typeof buildNetworkingSystemPrompt>[0] & {
     goal: string;

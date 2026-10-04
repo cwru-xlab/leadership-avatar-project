@@ -422,9 +422,8 @@ async function section6FailClosed() {
   for (const c of cases) {
     const v: PrePublishVerdict = await runPrePublishCheck(sample, c.deps);
     if (v.status !== "unavailable") {
+      // Covers "passed" too: a fail-closed path must never report success.
       fail("fail-closed", `${c.name}: expected unavailable, got ${v.status}`);
-    } else if (v.status === "passed") {
-      fail("fail-closed", `${c.name}: must never return passed`);
     } else {
       pass("fail-closed", `${c.name} → unavailable`);
     }

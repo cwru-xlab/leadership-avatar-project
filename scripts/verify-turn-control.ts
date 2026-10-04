@@ -352,6 +352,79 @@ console.log("\n9. buildTurnMessages appends tail to LAST user message only; syst
   }
 }
 
+/**
+ * Every instance-requiring type needs a synthetic instance or it cannot
+ * resolve. Shapes mirror scripts/verify-dc-surface-count.ts and
+ * scripts/verify-pitch-surface-count.ts.
+ */
+function syntheticInit(slug: string): Parameters<typeof resolveSessionConfig>[1] {
+  if (slug === "case-study") {
+    return {
+      instance: {
+        kind: "case-study",
+        caseId: "scn-test",
+        caseName: "X",
+        background: "bg",
+        avatars: [{ name: "A", role: "R" }],
+        criteria: null,
+      },
+    };
+  }
+  if (slug === "pitch-elevator") {
+    return {
+      instance: {
+        kind: "pitch-elevator",
+        pitchSubject: "A campus sustainability startup seeking a pilot partner.",
+        listenerKnowledge: "name-role",
+      },
+    };
+  }
+  if (slug === "pitch-deck") {
+    return {
+      instance: {
+        kind: "pitch-deck",
+        deckId: "deck-test",
+        slideCount: 8,
+        slideTexts: Array.from({ length: 8 }, (_, i) => `Slide ${i + 1} text`),
+        askPriceUsd: 500000,
+        askEquityPct: 10,
+        fairValueBand: {
+          priceUsdMin: 400000,
+          priceUsdMax: 600000,
+          equityPctMin: 8,
+          equityPctMax: 12,
+        },
+        proposedSeconds: 600,
+      },
+    };
+  }
+  if (slug === "difficult-conversation") {
+    return {
+      instance: {
+        kind: "difficult-conversation",
+        conversationId: "confront-low-performer",
+        source: "seeded",
+        role: "Dana, your direct report",
+        studentRole: "their manager",
+        situation:
+          "A performance conversation about missed deadlines and unclear ownership.",
+        sharedBackstory:
+          "Two prior check-ins documented the same delivery gaps; the project is at risk.",
+        hiddenPosition:
+          "They believe the handoff process is broken and will not own the whole slip.",
+        studentObjective:
+          "Get a written commitment to a checkpoint plan this week.",
+        stakes:
+          "If this fails, the work escalates to HR and the release slips again.",
+        difficulty: "guarded",
+        avatarId: "avatar-test",
+        voiceId: "voice-test",
+      },
+    };
+  }
+  return {};
+}
+
 console.log("\n10. parseEngineTurn == parseInterviewTurn + reducer; termination null for all built-ins");
 {
   const sequence = [
@@ -363,21 +436,7 @@ console.log("\n10. parseEngineTurn == parseInterviewTurn + reducer; termination 
   ];
 
   for (const type of listEngineTypes()) {
-    const resolved = resolveSessionConfig(
-      type.slug,
-      type.slug === "case-study"
-        ? {
-            instance: {
-              kind: "case-study",
-              caseId: "scn-test",
-              caseName: "X",
-              background: "bg",
-              avatars: [{ name: "A", role: "R" }],
-              criteria: null,
-            },
-          }
-        : {},
-    );
+    const resolved = resolveSessionConfig(type.slug, syntheticInit(type.slug));
     if (!resolved.ok) {
       failures += 1;
       console.log(`  FAIL resolve ${type.slug}`);
