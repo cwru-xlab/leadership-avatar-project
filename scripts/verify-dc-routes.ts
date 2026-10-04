@@ -131,12 +131,16 @@ function jsonRequest(
   method: string,
   body?: unknown
 ): NextRequest {
-  const init: RequestInit = { method };
-  if (body !== undefined) {
-    init.body = JSON.stringify(body);
-    init.headers = { "content-type": "application/json" };
-  }
-  return new NextRequest(new URL(url, "http://localhost"), init);
+  return new NextRequest(
+    new URL(url, "http://localhost"),
+    body === undefined
+      ? { method }
+      : {
+          method,
+          body: JSON.stringify(body),
+          headers: { "content-type": "application/json" },
+        }
+  );
 }
 
 async function readJson(
@@ -438,7 +442,6 @@ async function main() {
         "6",
         status === 503 &&
           body.blocked === "unavailable" &&
-          body.blocked !== "rejected" &&
           unavailMsg.length > 0 &&
           rejectMsg.length > 0 &&
           unavailMsg !== rejectMsg &&

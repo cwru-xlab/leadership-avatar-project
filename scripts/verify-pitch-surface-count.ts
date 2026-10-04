@@ -427,6 +427,9 @@ console.log("\n5. No type-slug branching in the engine (pitch)");
     // Reports list groups the two pitch slugs under one filter tab — not a
     // second session/report surface. Parallel to networking/dc filter ids.
     "app/reports/page.tsx",
+    // Entry picker: two cards that route into the shared `[type]` wizard.
+    // Navigation only — it owns no session or report surface of its own.
+    "app/practice/pitches/page.tsx",
   ]);
 
   const unexpectedTsx = typeAwareTsx.filter(

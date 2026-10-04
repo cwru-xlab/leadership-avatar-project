@@ -501,7 +501,10 @@ async function main() {
     >) {
       const copy = PPTX_CONVERT_FAILURES[code];
       assert(copy.reason.length > 0 && copy.fix.length > 0, `PPTX_CONVERT_FAILURES.${code} populated`);
-      assert(copy.reason !== copy.fix, `PPTX_CONVERT_FAILURES.${code} reason !== fix`);
+      assert(
+        String(copy.reason) !== String(copy.fix),
+        `PPTX_CONVERT_FAILURES.${code} reason !== fix`
+      );
     }
 
     const uploadSrc = readFileSync(UPLOAD_ROUTE_SRC, "utf8");

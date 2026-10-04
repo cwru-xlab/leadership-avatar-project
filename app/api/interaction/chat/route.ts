@@ -491,6 +491,10 @@ export async function POST(request: NextRequest) {
         let priorReveals: unknown = null;
         let ownedReportId: string | null = null;
         let deckOwnerId: string | null = null;
+        // The `kind === "pitch-deck"` narrowing above is lost at the
+        // `sessionConfig` reassignment below, so carry the slide count in a
+        // local the compiler can still see. Hydration updates both.
+        let deckSlideCount = sessionConfig.instance.slideCount;
 
         const reportId =
           typeof rawReportId === "string" && rawReportId.length > 0
@@ -555,6 +559,7 @@ export async function POST(request: NextRequest) {
                   }),
                 },
               };
+              deckSlideCount = manifest.slideCount;
             }
           } catch (err) {
             console.error(
@@ -564,7 +569,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        const slideCount = sessionConfig.instance.slideCount;
+        const slideCount = deckSlideCount;
 
         // revealedSlideIndex is an INPUT to the ratchet only — never used raw.
         const { mark, advanced } = ratchetHighWaterMark({

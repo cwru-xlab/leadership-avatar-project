@@ -67,8 +67,10 @@ function instanceForType(type: InteractionTypeConfig): InstanceConfig | null {
       displayName: "Test Person",
       persona: "A senior engineer who values concise asks.",
       source: "generated",
-      avatarId: "avatar-test",
-      voiceId: "voice-test",
+      attestationId: "attest-test",
+      attestedAt: "2026-10-04T00:00:00.000Z",
+      attestedWordingVersion: "v1",
+      createdAt: "2026-10-04T00:00:00.000Z",
     };
   }
   if (type.slug === "pitch-elevator" || type.slug === "pitch-deck") {
