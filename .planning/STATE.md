@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.0
-**Updated:** 2026-10-04 (13-13 DELIVERED — permanent redirects + per-type trees deleted; exactly one of each engine surface remains. Shared-DB migrate still deferred under REQ-67. See `13-13-SUMMARY.md`.)
+**Updated:** 2026-10-04 (13-14 DELIVERED — REQ-66 local acceptance `validation passed`; surface-count guard green. Shared-DB migrate still deferred under REQ-67. See `13-14-SUMMARY.md` / `13-VALIDATION.md`.)
 
 ## Current Position
 
-**Phase:** 13 — One-on-One Conversation Engine — IN PROGRESS (13 of 15 plans executed)
-**Current Plan:** 13-13 complete; next is 13-14
-**Stopped At:** Completed 13-13-PLAN.md
+**Phase:** 13 — One-on-One Conversation Engine — IN PROGRESS (14 of 15 plans executed)
+**Current Plan:** 13-14 complete; next is 13-15
+**Stopped At:** Completed 13-14-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -359,6 +359,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 13]: Unified report page builds scores from listRubricDimensionsForSlug; ReportScoreCards/ReportBody left untouched.
 - [Phase 13]: Finish nav from /practice sessions now lands on /practice/{type}/report/{id}; old report pages intact until 13-13.
 - [Phase 13]: Redirect segment constraint is ((?!new(?:/|$))[^/]+); plain (?!new$) fails under path-to-regexp
+- [Phase 13-one-on-one-conversation-engine / 13-14]: Human REQ-66 verdict **validation passed** (all nine items PASS on local DB). Admin fixture corrected to `/case-play/testing` after absent UUID `7bfbee05-…`. Shared-DB half of backfill still OPEN under REQ-67; REQ-66 left unchecked in REQUIREMENTS.md until shared rows exist.
 - [Phase 13]: Dashboard tiles keep /interview and /case-play indexes; ScenarioCard launches /practice/case-study/{id}
 
 ## Progress
@@ -1820,8 +1821,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T03:38:15.707Z
-**Stopped At:** Completed 13-13-PLAN.md — permanent redirects + per-type trees deleted; one-of-each proven. Next: 13-14.
+**Last Date:** 2026-10-04T03:55:00.000Z
+**Stopped At:** Completed 13-14-PLAN.md — REQ-66 local validation passed; next is 13-15 DROP TABLE handoff. Shared-DB REQ-67 still OPEN.
 **Resume File:** None
 
 
