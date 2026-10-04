@@ -589,7 +589,9 @@ console.log("\n7. No parallel gating mechanism in lib/pitch/");
   const pitchDir = resolve(ROOT, "lib/pitch");
   const files = readdirSync(pitchDir).filter((f) => f.endsWith(".ts"));
   for (const file of files) {
-    if (file === "slides-channel.ts") continue;
+    // slides-channel: channel adapter only. slide-reveal (14-11): the one
+    // live ratchet + applyVisibleContext call site — not a parallel filter.
+    if (file === "slides-channel.ts" || file === "slide-reveal.ts") continue;
     const src = readFileSync(join(pitchDir, file), "utf8");
     // deck-prompts may name slideHighWaterMark / "high-water" for post-session
     // eval bounding only — not a live gate. elevator-type's 14-08 comment
