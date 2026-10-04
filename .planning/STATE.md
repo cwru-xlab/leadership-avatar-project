@@ -8,7 +8,7 @@
 
 **Phase:** 13 — One-on-One Conversation Engine — PLANS COMPLETE (15 of 15); PHASE CLOSE BLOCKED on REQ-67 shared Part 1
 **Current Plan:** 13-15 complete
-**Stopped At:** Completed 14-08-PLAN.md
+**Stopped At:** Completed 15-06-PLAN.md
 
 ### Open phase-closure item (REQ-67) — BLOCKS PHASE CLOSE ONLY
 
@@ -390,6 +390,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 15]: Publish outcomes use distinct HTTP statuses 200/422/503 so UI never parses prose
 - [Phase 14]: pitch-elevator avatarEndReasons: pitch_too_long, no_common_ground, unclear_ask, lost_interest; floor minAssistantTurns:2; soft firstTurnWindowSeconds:60
 - [Phase 14]: Elevator listener persona is built-in Dana Reyes (VP Ops); disclosure branches on listenerKnowledge, persona always full in live prompt
+- [Phase 15]: DC type: marker <engine-end reason/>; floor minAssistantTurns:4; buildTailFragment hook; approach-not-result objective_achieved
 
 ## Progress
 
@@ -1850,7 +1851,7 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T04:29:18.840Z
+**Last Date:** 2026-10-04T04:31:49.594Z
 **Stopped At:** Completed 13-15-PLAN.md — drop handoff received. Phase close blocked on shared Part 1 (REQ-67).
 **Resume File:** None
 
