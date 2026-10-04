@@ -9,8 +9,11 @@
  * it, and the composed markdown drifting out of the shape the study-plan
  * consumer scans for.
  */
-import { validateEvaluationResult } from "../lib/interview/evaluation";
-import { validateScenarioEvaluationResult } from "../lib/scenario/evaluation";
+import { validateEvaluationResult, EVALUATION_JSON_SCHEMA } from "../lib/interview/evaluation";
+import {
+  validateScenarioEvaluationResult,
+  SCENARIO_EVALUATION_JSON_SCHEMA,
+} from "../lib/scenario/evaluation";
 import {
   composeReportMarkdown,
   parseStructuredReport,
@@ -25,6 +28,16 @@ import {
   findBodySignalWordingViolations,
   sanitizeBodySignalWording,
 } from "../lib/report/body-signal-validator";
+import { ENGINE_TYPES } from "../lib/engine/registry";
+import {
+  resolveFromTypeConfig,
+  resolveSessionConfig,
+} from "../lib/engine/resolve";
+import {
+  buildRubricJsonSchema,
+  parseRubricScores,
+} from "../lib/engine/rubric";
+import type { InteractionTypeConfig } from "../lib/engine/types";
 
 let failures = 0;
 
@@ -374,6 +387,162 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
   }) as StructuredReport;
   check("an advisory suggestion without a question mark is not flagged",
     findBodySignalWordingViolations(withAdvisorySuggestion).length, 0);
+}
+
+// ---------------------------------------------------------------------------
+// 6. Type-derived rubric schema (plan 13-05 / REQ-71 / REQ-72)
+// ---------------------------------------------------------------------------
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+console.log("\n6. Type-derived rubric schema (13-05)");
+{
+  // 6.1 — every built-in type always requires visual_score and vocal_score.
+  for (const type of ENGINE_TYPES) {
+    const instance =
+      type.slug === "case-study"
+        ? {
+            kind: "case-study" as const,
+            caseId: "verify-case",
+            caseName: "Verify",
+            background: "bg",
+            avatars: [{ name: "A", role: "R" }],
+            criteria: null,
+          }
+        : { kind: "none" as const };
+    const resolved = resolveSessionConfig(type.slug, { instance });
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve ${type.slug}: ${resolved.reason}`);
+      continue;
+    }
+    const schema = buildRubricJsonSchema(resolved.config);
+    check(
+      `"${type.slug}" required[] includes visual_score and vocal_score`,
+      [
+        schema.schema.required.includes("visual_score"),
+        schema.schema.required.includes("vocal_score"),
+      ],
+      [true, true],
+    );
+  }
+
+  // 6.2 — deep equality with today's hardcoded schemas (regression until 13-13).
+  for (const slug of ["general", "technical", "consulting", "early-career"]) {
+    const resolved = resolveSessionConfig(slug, {});
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve ${slug}: ${resolved.reason}`);
+      continue;
+    }
+    check(
+      `"${slug}" schema deeply equals EVALUATION_JSON_SCHEMA`,
+      deepEqual(buildRubricJsonSchema(resolved.config), EVALUATION_JSON_SCHEMA),
+      true,
+    );
+  }
+  {
+    const resolved = resolveSessionConfig("case-study", {
+      instance: {
+        kind: "case-study",
+        caseId: "verify-case",
+        caseName: "Verify",
+        background: "bg",
+        avatars: [{ name: "A", role: "R" }],
+        criteria: null,
+      },
+    });
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve case-study: ${resolved.reason}`);
+    } else {
+      check(
+        `case-study schema deeply equals SCENARIO_EVALUATION_JSON_SCHEMA`,
+        deepEqual(
+          buildRubricJsonSchema(resolved.config),
+          SCENARIO_EVALUATION_JSON_SCHEMA,
+        ),
+        true,
+      );
+    }
+  }
+
+  // 6.3 — extras append in order; colliding "visual" extra is rejected.
+  const withExtras: InteractionTypeConfig = {
+    ...ENGINE_TYPES[0],
+    slug: "synthetic-extras",
+    extraRubricDimensions: [
+      { key: "extraA", label: "Extra A", description: "A" },
+      { key: "extraB", label: "Extra B", description: "B" },
+    ],
+  };
+  const extrasResolved = resolveFromTypeConfig(withExtras, {});
+  if (!extrasResolved.ok) {
+    failures += 1;
+    console.log(`  FAIL resolve synthetic extras: ${extrasResolved.reason}`);
+  } else {
+    const schema = buildRubricJsonSchema(extrasResolved.config);
+    const scoreRequired = schema.schema.required.filter((k) =>
+      k.endsWith("_score"),
+    );
+    check(
+      "synthetic extras required score keys in order",
+      scoreRequired,
+      [
+        "visual_score",
+        "vocal_score",
+        "content_score",
+        "behavioral_score",
+        "extraA_score",
+        "extraB_score",
+      ],
+    );
+  }
+
+  const collidingVisual: InteractionTypeConfig = {
+    ...ENGINE_TYPES[0],
+    slug: "synthetic-collide-visual",
+    extraRubricDimensions: [
+      { key: "visual", label: "Shadow Visual", description: "must reject" },
+    ],
+  };
+  const collideResult = resolveFromTypeConfig(collidingVisual, {});
+  check(
+    "extra key colluding with visual is rejected at config resolve",
+    collideResult.ok,
+    false,
+  );
+
+  // 6.4 — parseRubricScores maps to ScoreMap; nulls stay null, not 0.
+  {
+    const resolved = resolveSessionConfig("general", {});
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve general for parseRubricScores: ${resolved.reason}`);
+    } else {
+      const scores = parseRubricScores(
+        {
+          visual_score: null,
+          vocal_score: 2,
+          content_score: 4,
+          behavioral_score: null,
+        },
+        resolved.config,
+      );
+      check(
+        "parseRubricScores keeps all four shared keys",
+        ["visual", "vocal", "content", "behavioral"].every((k) => k in scores),
+        true,
+      );
+      check(
+        "parseRubricScores preserves nulls (not 0)",
+        [scores.visual, scores.behavioral, scores.vocal, scores.content],
+        [null, null, 2, 4],
+      );
+    }
+  }
 }
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
