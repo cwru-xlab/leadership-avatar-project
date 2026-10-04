@@ -77,6 +77,7 @@ model User {
   auditLogs         AuditLog[]
   interviewReports  InterviewReport[]
   scenarioReports   ScenarioReport[]
+  interactionReports InteractionReport[]
   studyPlans        StudyPlan[]
 
   @@index([email])
@@ -412,6 +413,103 @@ model ScenarioReport {
 
   @@index([userId, createdAt])
   @@index([userId, caseId])
+}
+
+// ============================================================================
+// INTERACTION REPORT (Phase 13 unified report — REQ-65)
+// ============================================================================
+//
+// Replaces BOTH `InterviewReport` and `ScenarioReport` for all NEW rows going
+// forward. This is purely additive: the old two models/tables stay in the
+// schema and keep serving their existing rows until a separate, later,
+// human-reviewed migration backfills (plan 13-04) and drops them (plan
+// 13-15). That split exists so a human can accept the additive half here and
+// decline or defer the destructive half independently.
+//
+// `typeSlug` carries the engine type ("general" | "technical" | "consulting"
+// | "early-career" | "case-study", and later Phase 14-16 additions) so one
+// table serves every interaction type without a migration per type.
+// `inputSnapshot` and `scores` are JSON precisely so a new type or a new
+// rubric dimension needs zero columns and zero migration — see
+// `lib/report/snapshot.ts` for their TypeScript shapes.
+
+model InteractionReport {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Engine type slug: "general" | "technical" | "consulting" |
+  // "early-career" | "case-study", extended by Phases 14-16.
+  typeSlug String
+
+  // Name is historical: this enum was already shared by `InterviewReport`
+  // and `ScenarioReport` before this model existed. Renaming it here would
+  // touch every importer of the existing enum for no behavioral gain, so
+  // Phase 13 deliberately keeps the name `InterviewReportStatus`.
+  status InterviewReportStatus @default(IN_PROGRESS)
+
+  // Per-type input, typed in TypeScript (see `lib/report/snapshot.ts`
+  // `InputSnapshot`), discriminated on `kind`. Nullable so an IN_PROGRESS
+  // row can exist before the snapshot is complete — matching today's
+  // behavior where snapshot columns are written at session start.
+  inputSnapshot Json?
+
+  // Dimension-keyed score map, e.g. {visual, vocal, content, behavioral,
+  // deck_quality}. A new rubric dimension needs no migration.
+  scores Json?
+
+  // Three separate nullable pointers, deliberately NOT converged into one
+  // tagged-union pointer (discretion item, decided here): `transcriptKey`
+  // (interview) and `interactionLogId` (scenario) resolve through different
+  // S3Storage accessors with different required context —
+  // `getInterviewTranscript(userId, reportId)` vs
+  // `getInteractionLog(studentEmail, caseId, logId)` — so converging them
+  // would buy a tagged union and cost read-path branching for no
+  // requirement. `studentEmail` is retained precisely because the scenario
+  // S3 read cannot resolve without it.
+  transcriptKey    String?
+  interactionLogId String?
+  studentEmail     String?
+
+  turnCount Int @default(0)
+
+  // Phase 10 video/audio metrics. All nullable: a row written before
+  // Phase 10 has every field null, which is exactly the "Not yet measured"
+  // legacy state. Only DERIVED NUMBERS are stored here — never media
+  // (REQ-38). `cameraMode === null` means "pre-Phase-10 row, do not
+  // synthesize an unscored reason" (REQ-48) — nothing may coerce null to
+  // "OFF".
+  cameraMode           String? // "ON" | "OFF"; null = pre-Phase-10 row
+  visualMetrics        Json?
+  vocalMetrics         Json?
+  visualUnscoredReason String? // "CAMERA_OFF_OPTOUT" | "INSUFFICIENT_DATA"
+  vocalUnscoredReason  String? // "TYPED_ONLY" | "SPEECH_TOO_SHORT" | "INSUFFICIENT_DATA"
+  metricsConsentAt     DateTime? // snapshot of the account-level consent in force for this run
+
+  /// Structured report body — see `lib/report/structured.ts`. Null on every
+  /// row written before the evaluator returned structured output; those
+  /// rows still render from `reportMarkdown`, which is now COMPOSED from
+  /// this rather than returned by the model.
+  reportStructured Json?
+  reportMarkdown   String? @db.Text
+  failureReason    String? @db.Text
+  evalModel        String?
+
+  // REQ-62: the recorded reason an avatar-initiated end produces. Nullable;
+  // null means the session ended normally (student- or system-initiated).
+  terminationReason String?
+
+  // REQ-64: the type-declared outcome record (e.g. negotiated price and
+  // equity). Nullable; shape is per-type and enforced in code only.
+  outcome Json?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([userId, typeSlug])
 }
 
 // ============================================================================
