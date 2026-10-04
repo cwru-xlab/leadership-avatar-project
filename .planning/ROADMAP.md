@@ -41,6 +41,9 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
 - [x] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios (completed 2026-10-04)
 - [x] **Phase 16: Networking Practice** - Practice against a described real person or a default character (completed 2026-10-04)
+- [ ] **Phase 17: v1.0 Close-Out** - Discharge the shared-DB migration, REQ-63 verification, deck-intake fixture fix and deferred keyboard UAT
+- [ ] **Phase 18: Avatar Disengagement & Walk-Out** - A session the avatar is losing actually ends, as a recorded failure with an explained decline
+- [ ] **Phase 19: Deck-Led Pitch Family** - Four more deck-led pitch modes alongside the investor deck, sharing one deck capability
 
 ## Phase Details
 
@@ -593,9 +596,110 @@ Plans:
 - [x] 16-11-PLAN.md — Phase validation: tile flip, surface-count and never-publishable guards, four criteria and every locked decision signed off (human-verified)
 
 
+### Phase 17: v1.0 Close-Out
+**Goal:** Discharge the four loose ends v1.0 left open — the human-run shared-database
+migration, the never-verified visible-context primitive, a known fixture mismatch, and
+the keyboard UAT deferred under `skip_checkpoints` on Phases 15 and 16 — so v1.0's
+bookkeeping is actually closed rather than carried forward a second time.
+**Depends on:** Nothing (independent of Phase 18; may run in parallel with it)
+**Requirements:** REQ-74, REQ-75, REQ-76, REQ-77
+**Human-gated scope note:** REQ-74 and REQ-77 require a human. No agent may apply a
+migration to the shared Lightsail database — this is the `HANDOFF.md` §3 precedent,
+already documented in `13-MIGRATION-HANDOFF.md`, and it governs REQ-74 unchanged here.
+REQ-77's keyboard UAT is likewise a human action (non-autonomous); an agent records the
+result, it does not perform the keyboard pass itself.
+**Success Criteria** (what must be TRUE):
+  1. The shared Lightsail `InteractionReport` table and backfill exist, applied by a
+     human, and a verification pass confirms row counts, field fidelity and null
+     preservation match the local run — only then do REQ-66 and REQ-67 check off.
+  2. A real multi-channel session proves the avatar's per-turn context provably
+     contains only the declared visible channels for that turn, discharging REQ-63 as
+     verification evidence rather than new construction.
+  3. `scripts/verify-deck-intake.ts` passes every assertion, with the harness and its
+     fixture agreeing on one source string rather than the assertion being loosened.
+  4. The keyboard UAT deferred on Phases 15 and 16 has been run by a human, and its
+     result — pass, or a logged defect — is recorded in each phase's validation file.
+**Plans:** TBD
+
+### Phase 18: Avatar Disengagement & Walk-Out
+**Goal:** A session the avatar is visibly losing actually ends — today the avatar can
+say in words that it is leaving while the session keeps running. A per-turn
+disengagement value, computed from observable signals and accelerated (never replaced)
+by the avatar's own self-report cue, crosses a type-declared threshold, plays one
+final uninterruptible statement, and then ends the session automatically as a
+recorded failure that explains the decline on the session clock.
+**Depends on:** Phase 13 (extends the `terminationPolicy` / `avatarEndFloor` engine
+primitives already in `lib/engine/types.ts` and `lib/engine/termination.ts` rather than
+adding a parallel mechanism)
+**Requirements:** REQ-78, REQ-79, REQ-80, REQ-81, REQ-82, REQ-83, REQ-84, REQ-85, REQ-86
+**Locked scope notes (do not re-litigate in planning):**
+  - Temperature/disengagement is derived from observable signals and is ACCELERATED,
+    not replaced, by an avatar self-report cue — the role-playing model never has sole
+    authority over its own patience (REQ-79).
+  - Temperature/disengagement is INVISIBLE during the session: no meter, indicator or
+    warning anywhere in the session shell (REQ-85).
+  - This mechanism EXTENDS Phase 13's `terminationPolicy` / `avatarEndFloor` rather than
+    adding a parallel mechanism. `lib/pitch/deck-type.ts` currently sets
+    `avatarEndFloor: null` and must gain a real floor (REQ-84).
+**Success Criteria** (what must be TRUE):
+  1. A session where the student stalls, repeats, or never establishes common ground
+     visibly loses the avatar's engagement over time, computed deterministically from
+     observable signals, with no live indicator ever shown to the student.
+  2. When the avatar's own structured per-turn output signals disengagement, that
+     signal measurably accelerates the walk-out but can never by itself end the
+     session.
+  3. Crossing a type's declared disengagement threshold plays exactly one
+     uninterruptible final avatar statement — push-to-talk and text input both close
+     for its duration — and the session then ends automatically and generates a
+     report without the student pressing End-session.
+  4. The auto-ended session is recorded as a FAILURE with an avatar-initiated
+     termination reason, reusing Phase 13's `terminationPolicy` outcome record, and the
+     report explains when engagement fell and what the student was doing at those
+     points on the session clock.
+  5. A type that declares no threshold behaves exactly as it does today, and a
+     walk-out can never fire before a type's `avatarEndFloor` minimum turns.
+**Plans:** TBD
+
+### Phase 19: Deck-Led Pitch Family
+**Goal:** Widen the deck pitch from investor-negotiation-only into a family of
+deck-led modes — a funding request, a product pitch, a deck-led talk, and a general
+deck pitch with no mode-specific constraints — each playable alongside the existing
+investor `pitch-deck`, sharing one deck capability rather than duplicating it per
+mode, and each inheriting the walk-out from Phase 18 rather than needing it
+retrofitted.
+**Depends on:** Phase 18 (new deck modes inherit the disengagement/walk-out mechanism
+rather than needing it added after the fact); Phase 14 (the shared deck capability —
+upload, slide cursor, visible-context slice, soft timer — being widened here)
+**Requirements:** REQ-87, REQ-88, REQ-89, REQ-90, REQ-91, REQ-92, REQ-93, REQ-94
+**Locked scope notes (do not re-litigate in planning):**
+  - One TYPE record per deck mode, not one widened `pitch-deck` with a mode field
+    (REQ-87, REQ-93) — honors REQ-60's config-record contract under its first real
+    multi-mode test since the engine shipped.
+**Success Criteria** (what must be TRUE):
+  1. Four new deck-led types — funding request, product pitch, deck-led talk, and a
+     general deck pitch — are playable alongside the existing investor `pitch-deck`,
+     each with its purpose distinguishable on the Practice Pitches picker before a
+     student commits to one.
+  2. Negotiation inputs (ask price, offered equity) are simply ABSENT — not disabled,
+     not hidden — from any mode that has no terms to negotiate.
+  3. Each mode is scored against its own declared rubric dimensions and produces its
+     own outcome shape, so a funding request is never scored against an equity split
+     and a deck-led talk is never scored against a close.
+  4. A student reaching any deck mode goes through the one generic pre-session wizard
+     with mode-appropriate steps and the one existing camera-consent gate — no second
+     wizard, no new consent gate.
+  5. The one report page renders every mode's outcome through the existing
+     `ReportChrome` extras slot, and a mechanical surface-count guard (in the spirit of
+     Phase 16's) proves that adding these four modes touched no engine module, route,
+     evaluator or report page.
+**Plans:** TBD
+
+
 ## Progress
 
 **Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 16)
+
+**v1.1 Execution Order:** 17 (parallel) | 18 → 19
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -615,3 +719,6 @@ Plans:
 | 14. Practice Pitches | 15/15 | Complete   | 2026-10-04 |
 | 15. Difficult Conversations | 11/11 | Complete*  | 2026-10-04 |
 | 16. Networking Practice | 11/11 | Complete   | 2026-10-04 |
+| 17. v1.0 Close-Out | 0/TBD | Not started | - |
+| 18. Avatar Disengagement & Walk-Out | 0/TBD | Not started | - |
+| 19. Deck-Led Pitch Family | 0/TBD | Not started | - |
