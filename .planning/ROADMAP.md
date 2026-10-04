@@ -40,7 +40,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record (plans complete 2026-10-04; REQ-67 shared Part 1 still OPEN — see STATE.md)
 - [ ] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
 - [ ] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios
-- [ ] **Phase 16: Networking Practice** - Practice against a described real person or a default character
+- [x] **Phase 16: Networking Practice** - Practice against a described real person or a default character (completed 2026-10-04)
 
 ## Phase Details
 
@@ -502,7 +502,7 @@ student-authored content).
      remains its owner.
   4. The report judges how the conversation was handled — clarity, empathy,
      holding the line — not merely that the student reached the end of it.
-**Plans:** 9/11 plans executed
+**Plans:** 10/11 plans executed
 **Gate:** every plan except 15-02, 15-03, 15-04 and 15-05 is blocked until Phase 13's
 15 plans have all executed and been signed off. Those four are the Phase-13-independent
 layer — the S3 record type and its validator, the authored-text structural injection
@@ -556,7 +556,7 @@ networking SETTING (conference, coffee chat, …) is deferred, not built. See
      student's session.
   4. The report judges rapport-building and the clarity of the student's
      self-introduction, not interview-style answer quality.
-**Plans:** 10/11 plans executed
+**Plans:** 11/11 plans complete
 **Gate:** every plan except 16-01 is blocked until Phase 13's 15 plans have all
 executed and been signed off. 16-01 — the AI person-generation route — is the one
 plan safe to run before Phase 13 lands: it touches no engine file and its only
@@ -595,7 +595,7 @@ Plans:
 
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 9/11 | In Progress|  | Status | Completed |
+**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 10/11 | In Progress|  | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Interview Registry & Prompts | - | Shipped (pre-roadmap) | 2026-09 |
 | 2. Interviewer Catalog | - | Shipped (pre-roadmap) | 2026-09 |
@@ -612,4 +612,4 @@ Plans:
 | 13. One-on-One Conversation Engine | 15/15 | Complete*  | 2026-10-04 |
 | 14. Practice Pitches | 4/15 | In Progress|  |
 | 15. Difficult Conversations | 0/11 | Planned     |  |
-| 16. Networking Practice | 10/11 | In Progress|  |
+| 16. Networking Practice | 11/11 | Complete   | 2026-10-04 |
