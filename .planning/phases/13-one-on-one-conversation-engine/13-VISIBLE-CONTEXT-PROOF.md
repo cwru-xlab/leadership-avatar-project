@@ -53,8 +53,8 @@ one-channel cursor-gated path is the effective control being proven.
 - **Hostile inputs, section 5 — PASS:** malformed, negative, non-finite, and
   oversized values cannot advance beyond the bounded server mark.
 - **Source backstop, section 7 — PASS:** only the documented browser,
-  chat-route, checkpoint-route, session, and ratchet locations reference
-  `revealedSlideIndex` or `ratchetHighWaterMark`.
+  practice-shell forwarding, chat-route, checkpoint-route, session, and
+  ratchet locations reference `revealedSlideIndex` or `ratchetHighWaterMark`.
 - **Evaluator/prompt scope, sections 8–9 — PASS:** the evaluator intentionally
   retains the full configured deck, while permissive types do not render an
   arbitrary generic `sessionState` into their live prompt tail.

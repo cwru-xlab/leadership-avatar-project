@@ -5,7 +5,10 @@
  * stepped material. Session state is an opaque keyed record of context
  * channels — a type names channels in `VisibleContextConfig.visibleChannels`
  * to admit them, and `"*"` (the permissive default every built-in type uses
- * today) admits every channel the session happens to carry.
+ * today) admits every channel the session happens to carry when this primitive
+ * is called. `buildTailBlock` deliberately does not render generic state for
+ * that permissive mode; pitch-deck supplies its cursor-gated `revealedSlides`
+ * through its dedicated tail path instead.
  *
  * A channel's value may itself be an ordered array of entries. A turn can
  * carry a cursor for that channel, naming how far into the array the
