@@ -93,4 +93,4 @@ actually did, not scripted.
 | One TYPE record per deck mode (v1.1) | Honors REQ-60 and lets each mode carry its own rubric and outcome shape instead of branching inside one record | — Pending |
 
 ---
-*Last updated: 2026-10-05 at the start of milestone v1.1*
+*Last updated: 2026-10-04 at the start of milestone v1.1*
