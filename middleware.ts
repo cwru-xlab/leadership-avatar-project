@@ -56,7 +56,9 @@ const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
  *   - /api/auth/login: User login processing
  *   - /api/auth/logout: User logout processing
  *   - /api/auth/me: Current user information
+ *   - /api/auth/cwru-sso-start: CWRU SSO initiation
  *   - /api/auth/cwru-sso-callback: CWRU SSO integration
+ *   - /api/auth/cwru-sso-redeem: Preview handoff redemption
  *
  * Security consideration:
  * Keep this list minimal to maintain security by default.
@@ -67,7 +69,9 @@ const PUBLIC_ROUTES = [
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/me",
+  "/api/auth/cwru-sso-start",
   "/api/auth/cwru-sso-callback",
+  "/api/auth/cwru-sso-redeem",
   "/api/auth/kiosk-auto-login",
   // CTA (Call to Action) public endpoints
   "/api/cta/validate-session", // Session validation for CTA forms
@@ -267,8 +271,16 @@ export async function middleware(request: NextRequest) {
    * This enforces authentication for all protected routes.
    */
   if (!token) {
-    // Redirect to login if no token
-    return NextResponse.redirect(new URL("/login", request.url));
+    // Preserve only same-origin page destinations. API callers should handle
+    // their normal authentication response rather than receiving a return URL.
+    const loginUrl = new URL("/login", request.url);
+    if (!pathname.startsWith("/api/")) {
+      loginUrl.searchParams.set(
+        "returnTo",
+        `${request.nextUrl.pathname}${request.nextUrl.search}`
+      );
+    }
+    return NextResponse.redirect(loginUrl);
   }
 
   try {
@@ -467,7 +479,14 @@ export async function middleware(request: NextRequest) {
      * Removes the invalid token from cookies and redirects to login.
      * Uses centralized cookie configuration for consistency.
      */
-    const response = NextResponse.redirect(new URL("/login", request.url));
+    const loginUrl = new URL("/login", request.url);
+    if (!pathname.startsWith("/api/")) {
+      loginUrl.searchParams.set(
+        "returnTo",
+        `${request.nextUrl.pathname}${request.nextUrl.search}`
+      );
+    }
+    const response = NextResponse.redirect(loginUrl);
     response.cookies.delete(siteConfig.auth.cookie.name);
 
     return response;

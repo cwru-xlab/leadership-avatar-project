@@ -71,6 +71,16 @@ shape; then the human applies the migration; then Deploy 2 may remove the old
 shape. `20261004040000_drop_legacy_report_tables` is this project's precedent:
 it was safe only because both tables were empty.
 
+## Auth handoff migration (20261102000000_add_auth_handoffs)
+
+`20261102000000_add_auth_handoffs` is an **additive** migration that creates the
+short-lived `AuthHandoff` table used by the fixed-production CWRU CAS callback
+and Vercel Preview redemption flow. It must be applied through the human
+procedure above to every Preview or Production database before a deployment
+that handles `/api/auth/cwru-sso-start`, `/api/auth/cwru-sso-callback`, or
+`/api/auth/cwru-sso-redeem`. Do not add `prisma migrate deploy` back to
+`vercel.json`; the table is a deliberate manual apply-ahead checkpoint.
+
 ## If deployment beats the migration
 
 A 500 referring to an unknown column or relation immediately after deployment

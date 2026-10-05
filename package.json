@@ -7,7 +7,8 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint --fix",
-    "setup": "node scripts/setup.mjs"
+    "setup": "node scripts/setup.mjs",
+    "verify:sso-handoff": "tsx scripts/verify-cwru-sso-handoff.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
