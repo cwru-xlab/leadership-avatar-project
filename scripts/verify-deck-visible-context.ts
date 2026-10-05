@@ -50,10 +50,13 @@ const deckInstance: InstanceConfig = {
   proposedSeconds: 1_500,
 };
 
+const SOURCE_READER_PATHS = ["app", "components", "lib"];
 const ALLOWED_CLIENT_INDEX_READERS = new Set([
   "app/api/interaction/chat/route.ts",
   "app/api/practice/session/checkpoint/route.ts",
   "app/practice/[type]/page.tsx",
+  // Forwards the untrusted hint in the checkpoint request; it never computes a mark.
+  "components/practice/PracticeSessionShell.tsx",
   "lib/engine/session.ts",
   "lib/pitch/slide-reveal.ts",
 ]);
@@ -104,11 +107,11 @@ function sourceIndexReaders(): string[] {
       "git",
       [
         "grep",
+        "--untracked",
         "-lE",
         "revealedSlideIndex|ratchetHighWaterMark",
         "--",
-        "app",
-        "lib",
+        ...SOURCE_READER_PATHS,
       ],
       { cwd: ROOT, encoding: "utf8" },
     ).trim();

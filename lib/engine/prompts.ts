@@ -332,6 +332,9 @@ export function buildTailBlock(
     if (fragment) parts.push(fragment);
   }
 
+  // `"*"` is the permissive type default, but generic session-state rendering
+  // is deliberately disabled for it. Pitch-deck uses its own cursor-gated
+  // `revealedSlides` tail below; do not change this into an all-channel render.
   if (config.visibleContext.visibleChannels !== "*") {
     const admitted = applyVisibleContext(
       config.visibleContext,

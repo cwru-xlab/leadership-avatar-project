@@ -38,11 +38,16 @@ asserts the effective boundary and negative source allow-list instead.
 
 - The verifier passes resolved config into its turn serializer, removing an
   ordering dependency on a captured `const` binding.
-- Its source guard searches `revealedSlideIndex|ratchetHighWaterMark` and fails
-  if a reader exists outside the approved browser, chat route, checkpoint route,
-  engine session, and `slide-reveal` locations.
+- Its source guard searches tracked and untracked `app`, `components`, and
+  `lib` source for `revealedSlideIndex|ratchetHighWaterMark`, then fails if a
+  reader exists outside the approved browser, practice-shell forwarding, chat
+  route, checkpoint route, engine-session, and `slide-reveal` locations.
 - It recognizes `checkpointSession` as a second authorized caller of the same
-  ratchet primitive; it does not claim a database-backed checkpoint test.
+  ratchet primitive and the practice shell as a forwarding-only client reader;
+  it does not claim a database-backed checkpoint test.
+- Comments in prompt assembly and visible-context admission preserve why the
+  permissive `"*"` configuration suppresses generic rendering and why the deck
+  uses its dedicated cursor-gated tail path instead.
 - It proves the evaluator intentionally receives the full deck and that a
   permissive type's generic `sessionState` is not rendered in its live tail.
 
