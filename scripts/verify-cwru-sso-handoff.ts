@@ -61,10 +61,13 @@ async function main() {
   const savedEnv = {
     VERCEL_ENV: process.env.VERCEL_ENV,
     VERCEL_URL: process.env.VERCEL_URL,
+    VERCEL_BRANCH_URL: process.env.VERCEL_BRANCH_URL,
     CWRU_ALLOWED_PREVIEW_HOST_PREFIX: process.env.CWRU_ALLOWED_PREVIEW_HOST_PREFIX,
   };
   process.env.VERCEL_ENV = "preview";
   process.env.VERCEL_URL = "leadership-avatar-project-feature-123.vercel.app";
+  process.env.VERCEL_BRANCH_URL =
+    "leadership-avatar-project-git-dev-xlabs-projects-66a26c8d.vercel.app";
   const browserNonce = handoff.createPreviewBrowserNonce();
   const assertion = await handoff.createPreviewInitiation(
     "https://leadership-avatar-project-feature-123.vercel.app/reports",
@@ -78,6 +81,19 @@ async function main() {
     "signs and verifies the exact preview origin and local path"
   );
   check(Boolean(claims.browserNonceHash), "binds assertion to a preview-browser nonce");
+
+  const branchAssertion = await handoff.createPreviewInitiation(
+    "https://leadership-avatar-project-git-dev-xlabs-projects-66a26c8d.vercel.app/reports",
+    "/reports?view=recent",
+    browserNonce
+  );
+  const branchClaims = await handoff.verifyPreviewInitiation(branchAssertion);
+  check(
+    branchClaims.targetOrigin ===
+      "https://leadership-avatar-project-git-dev-xlabs-projects-66a26c8d.vercel.app",
+    "accepts the git branch alias via VERCEL_BRANCH_URL"
+  );
+
   process.env.CWRU_ALLOWED_PREVIEW_HOST_PREFIX = "different-project-";
   await rejects(
     () => handoff.verifyPreviewInitiation(assertion),
@@ -86,7 +102,7 @@ async function main() {
   process.env.CWRU_ALLOWED_PREVIEW_HOST_PREFIX = savedEnv.CWRU_ALLOWED_PREVIEW_HOST_PREFIX;
   await rejects(
     () => handoff.createPreviewInitiation("https://other-team.vercel.app/", "/", browserNonce),
-    "rejects a request host that does not equal VERCEL_URL"
+    "rejects a request host that is not a platform preview host"
   );
   await rejects(
     () => handoff.verifyPreviewInitiation(`${assertion.slice(0, -1)}x`),
@@ -95,6 +111,7 @@ async function main() {
 
   process.env.VERCEL_ENV = savedEnv.VERCEL_ENV;
   process.env.VERCEL_URL = savedEnv.VERCEL_URL;
+  process.env.VERCEL_BRANCH_URL = savedEnv.VERCEL_BRANCH_URL;
 
   const originalCallback = process.env.CWRU_CAS_CALLBACK_URL;
   process.env.CWRU_CAS_CALLBACK_URL = "https://avatar.example.edu/other";

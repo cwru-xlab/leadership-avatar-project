@@ -160,26 +160,42 @@ function allowedPreviewHost(hostname: string): boolean {
   return hostname.toLowerCase().startsWith(prefix) && hostname.endsWith(".vercel.app");
 }
 
+function platformPreviewHosts(): Set<string> {
+  // VERCEL_URL is the unique deployment host (…-abc123-….vercel.app).
+  // VERCEL_BRANCH_URL is the stable git-branch alias (…-git-dev-….vercel.app).
+  // Users almost always open the branch alias, so both must be accepted.
+  const hosts = new Set<string>();
+  for (const value of [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL]) {
+    const host = value?.trim().toLowerCase();
+    if (!host || host.includes("://") || host.includes("/")) continue;
+    hosts.add(host);
+  }
+  return hosts;
+}
+
 function verifiedPreviewOrigin(requestUrl: string): string {
   if (process.env.VERCEL_ENV !== "preview") {
     throw new AuthHandoffError("Preview handoff is only available in Vercel previews");
   }
 
-  const vercelHost = process.env.VERCEL_URL?.trim();
-  if (!vercelHost || vercelHost.includes("://") || vercelHost.includes("/")) {
+  const platformHosts = platformPreviewHosts();
+  if (platformHosts.size === 0) {
     throw new AuthHandoffError("VERCEL_URL is not configured as a host");
   }
 
   const request = new URL(requestUrl);
+  const requestHost = request.host.toLowerCase();
+  // Return the origin the browser actually used so the redeem redirect and
+  // preview-nonce cookie stay on the same host (branch alias vs deployment URL).
   if (
     request.protocol !== "https:" ||
-    request.host !== vercelHost ||
-    !allowedPreviewHost(vercelHost)
+    !platformHosts.has(requestHost) ||
+    !allowedPreviewHost(requestHost)
   ) {
     throw new AuthHandoffError("Preview request host is not an allowed Vercel deployment");
   }
 
-  return `https://${vercelHost}`;
+  return `https://${requestHost}`;
 }
 
 export async function createPreviewInitiation(
