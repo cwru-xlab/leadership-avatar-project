@@ -1,61 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
 import { get } from "@vercel/edge-config";
 import {
-  validateCWRUTicket,
   createOrUpdateCWRUUser,
-  createToken,
+  validateCWRUTicket,
 } from "@/lib/auth";
-import { siteConfig } from "@/config/site";
+import {
+  AuthHandoffError,
+  CAS_REDEEM_PATH,
+  CAS_STATE_COOKIE,
+  getCanonicalCallbackUrl,
+  getPendingHandoff,
+  isCanonicalRequest,
+  issueHandoffCode,
+  stateCookieOptions,
+} from "@/lib/auth-handoff";
+
+function callbackError(request: NextRequest, error: string) {
+  const response = NextResponse.redirect(new URL(`/login?error=${error}`, request.url));
+  response.cookies.set(CAS_STATE_COOKIE, "", { ...stateCookieOptions(), maxAge: 0 });
+  response.headers.set("Cache-Control", "no-store, max-age=0");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const ticket = searchParams.get("ticket");
-    const serviceUrl = request.url.split("?")[0]; // Remove query params to get service URL
-
-    if (!ticket) {
-      return NextResponse.redirect(
-        new URL("/login?error=missing_ticket", request.url)
-      );
+    if (!isCanonicalRequest(request.url)) {
+      throw new AuthHandoffError("CAS callback did not reach the canonical origin");
     }
 
-    // Validate the CAS ticket with CWRU
-    const validationResult = await validateCWRUTicket(ticket, serviceUrl);
+    const ticket = request.nextUrl.searchParams.get("ticket");
+    const state = request.cookies.get(CAS_STATE_COOKIE)?.value;
+    if (!ticket || !state) {
+      return callbackError(request, "sso_session_expired");
+    }
+
+    // The state record holds the only trusted return destination. We intentionally
+    // use the registered callback URL exactly as configured, never request headers.
+    const pending = await getPendingHandoff(state);
+    const validationResult = await validateCWRUTicket(
+      ticket,
+      getCanonicalCallbackUrl().toString()
+    );
 
     if (!validationResult.success || !validationResult.userInfo) {
       console.error("CWRU SSO validation failed:", validationResult.error);
-      return NextResponse.redirect(
-        new URL(
-          `/login?error=${encodeURIComponent(validationResult.error || "SSO validation failed")}`,
-          request.url
-        )
-      );
+      return callbackError(request, "sso_sign_in_failed");
     }
 
-    // Get admin users list from Edge Config.
-    //
-    // This lookup decides PRIVILEGE, not IDENTITY — the CAS ticket above has
-    // already proven who this person is. So it must never be able to fail the
-    // login itself: if Edge Config is unreachable or misconfigured, every user
-    // signs in as a normal user rather than nobody signing in at all.
-    //
-    // This is not hypothetical. On 2026-09-24 an empty `EDGE_CONFIG`
-    // connection string in production made `get()` throw, the outer catch
-    // turned it into `?error=sso_error`, and SSO was down for everyone.
+    // This lookup decides privilege, not identity. Preserve the existing
+    // availability behavior: a temporary Edge Config issue must not block SSO.
     let isAdmin = false;
     let adminStatusKnown = true;
-
     try {
       const adminUsersString = await get("adminUsersCaseIds");
-
       if (adminUsersString && typeof adminUsersString === "string") {
         const adminIds = adminUsersString.split(",").map((id) => id.trim());
         isAdmin = adminIds.includes(validationResult.userInfo.studentId);
       }
     } catch (adminLookupError) {
-      // Degrade, do not fail. Admin status is UNKNOWN here, not false —
-      // `adminStatusKnown: false` below stops the upsert from demoting a real
-      // admin just because the config store was briefly unreachable.
       adminStatusKnown = false;
       console.error(
         "CWRU SSO: admin list lookup failed, continuing without admin privileges:",
@@ -63,38 +66,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Determine role based on admin list
-    const role = isAdmin ? "admin" : "user";
+    const user = await createOrUpdateCWRUUser(
+      validationResult.userInfo,
+      isAdmin ? "admin" : "user",
+      { adminStatusKnown }
+    );
+    const code = await issueHandoffCode(state, user.id);
+    const redeemUrl = new URL(CAS_REDEEM_PATH, pending.targetOrigin);
+    redeemUrl.searchParams.set("code", code);
 
-    // Create or update user based on CWRU data
-    const user = await createOrUpdateCWRUUser(validationResult.userInfo, role, {
-      adminStatusKnown,
-    });
-
-    // Create JWT token
-    const token = await createToken(user);
-
-    // Create redirect response to home page
-    const response = NextResponse.redirect(new URL("/", request.url));
-
-    // Set HTTP-only cookie with JWT token using centralized config
-    response.cookies.set(siteConfig.auth.cookie.name, token, {
-      ...siteConfig.auth.cookie,
-      maxAge: siteConfig.auth.cookieMaxAge,
-    });
-
+    const response = NextResponse.redirect(redeemUrl);
+    response.cookies.set(CAS_STATE_COOKIE, "", { ...stateCookieOptions(), maxAge: 0 });
+    response.headers.set("Cache-Control", "no-store, max-age=0");
+    response.headers.set("Referrer-Policy", "no-referrer");
     return response;
   } catch (error) {
-    // Log the real cause. `sso_error` is deliberately opaque to the browser,
-    // so without this the runtime log is the only way to tell a CAS failure
-    // from a database outage from a misconfigured environment variable.
     console.error(
       "CWRU SSO callback error:",
       error instanceof Error ? `${error.name}: ${error.message}` : error,
       error instanceof Error ? error.stack : undefined
     );
-    return NextResponse.redirect(
-      new URL("/login?error=sso_error", request.url)
-    );
+    return callbackError(request, "sso_error");
   }
 }

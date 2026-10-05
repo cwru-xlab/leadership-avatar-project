@@ -79,6 +79,9 @@ that is the case. It refuses to run with `NODE_ENV=production` unless passed `--
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string |
 | `JWT_SECRET` | Signs auth cookies |
+| `CWRU_CAS_CALLBACK_URL` | Exact registered production CAS callback URL; Preview and Production use the same value |
+| `CWRU_ALLOWED_PREVIEW_HOST_PREFIX` | Project-specific Vercel deployment hostname prefix authorized to receive a preview handoff |
+| `AUTH_HANDOFF_SECRET` | At least 32-byte, server-only secret shared by Preview and Production to sign five-minute SSO handoff assertions |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | S3 access |
 | `AWS_REGION` / `AWS_S3_BUCKET_NAME` | Which bucket holds cases and profiles |
 | `OPENAI_API_KEY` | Chat + speech-to-text |
@@ -135,10 +138,10 @@ The application integrates with Case Western Reserve University's SSO system usi
 1. User clicks "Sign in with CWRU SSO" on the login page
 2. User is redirected to `https://login.case.edu/cas/login`
 3. User authenticates with their CWRU credentials
-4. CWRU redirects back to the application with a CAS ticket
-5. The application validates the ticket with CWRU's CAS server
-6. Upon successful validation, user information is extracted and a JWT token is created
-7. User is logged in and redirected to the main application
+4. CWRU redirects to the single registered production callback with a CAS ticket
+5. The production callback validates the ticket with CWRU's CAS server
+6. For a preview login, production redirects back to that exact preview with a five-minute, single-use opaque handoff code
+7. The target deployment redeems the code, creates its own host-only JWT cookie, and restores the original page
 
 #### CWRU SSO Features:
 
@@ -147,7 +150,9 @@ The application integrates with Case Western Reserve University's SSO system usi
 - Secure token-based session management
 - Seamless integration with existing JWT authentication system
 
-The SSO callback endpoint is available at `/api/auth/cwru-sso-callback` and handles the CAS ticket validation process.
+The SSO callback endpoint is available at `/api/auth/cwru-sso-callback` and must exactly match `CWRU_CAS_CALLBACK_URL`, the URL registered with CWRU CAS. Every deployment starts at `/api/auth/cwru-sso-start`; a Vercel Preview proves its exact deployment origin with a server-signed assertion, while the production callback remains the only CAS service URL. The callback never shares cookies across domains or places the 45-day JWT in a URL. Instead it uses a short-lived, one-time handoff code redeemed only by the original deployment.
+
+Configure `CWRU_CAS_CALLBACK_URL`, `CWRU_ALLOWED_PREVIEW_HOST_PREFIX`, and `AUTH_HANDOFF_SECRET` in both Vercel Production and Preview. Set the prefix to the project-specific beginning of Vercel’s generated deployment hostname (including the trailing `-`), not merely `.vercel.app`; this prevents the registered production callback from redirecting to another Vercel project. Keep `AUTH_HANDOFF_SECRET` server-only, at least 32 bytes, and identical in those two environments. Previews also need their normal `DATABASE_URL` and `JWT_SECRET` because they issue their own local auth cookie after redemption.
 
 ### JWT
 
@@ -156,3 +161,20 @@ Generate a new JWT with this command
 ```bash
 openssl rand -base64 48
 ```
+
+### Preview SSO deployment checklist
+
+Before deploying code that uses the CAS handoff, a human must apply
+`20261102000000_add_auth_handoffs` to the target database using
+[`docs/MIGRATIONS.md`](docs/MIGRATIONS.md). Then set `CWRU_CAS_CALLBACK_URL`
+to the already registered production callback and set the same
+`AUTH_HANDOFF_SECRET` in the Vercel **Production** and **Preview**
+environments.
+
+For a real CWRU CAS smoke test, open a protected route on a preview deployment
+in a fresh browser profile and verify: preview login → production CAS callback →
+the same preview’s `/api/auth/cwru-sso-redeem` endpoint → the original route.
+Confirm the preview receives an `auth-token` cookie, the browser redirect URL
+never contains that JWT, a copied redemption URL cannot be used twice, and the
+same production-domain flow still succeeds. Vercel Deployment Protection must
+allow the browser to reach the preview redemption endpoint.

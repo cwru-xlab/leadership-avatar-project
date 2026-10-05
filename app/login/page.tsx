@@ -45,15 +45,26 @@ export default function LoginPage() {
   };
 
   const handleCWRULogin = () => {
-    loginWithCWRU();
+    const params = new URLSearchParams(window.location.search);
+    loginWithCWRU(params.get("returnTo") || "/");
   };
 
-  // Check for error in URL params (from SSO callback)
+  // Error values are stable application codes, never reflected CAS responses.
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
+    const messages: Record<string, string> = {
+      sso_unavailable: "CWRU SSO is unavailable right now. Please try again shortly.",
+      sso_session_expired: "Your sign-in session expired. Please start again.",
+      sso_sign_in_failed: "CWRU could not complete your sign-in. Please try again.",
+      sso_handoff_invalid: "Your preview sign-in link expired. Please start again.",
+      sso_error: "We could not complete your CWRU sign-in. Please try again.",
+      missing_ticket: "A kiosk sign-in ticket is required.",
+      invalid_ticket: "That kiosk sign-in ticket is invalid or expired.",
+      kiosk_auto_login_error: "We could not complete kiosk sign-in. Please try again.",
+    };
     const urlError = urlParams.get("error");
-    if (urlError) {
-      setError(decodeURIComponent(urlError));
+    if (urlError && messages[urlError]) {
+      setError(messages[urlError]);
     }
   }, []);
 

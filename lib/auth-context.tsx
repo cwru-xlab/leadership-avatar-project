@@ -18,7 +18,7 @@ interface AuthContextType {
     email: string,
     password: string
   ) => Promise<{ success: boolean; error?: string }>;
-  loginWithCWRU: () => void;
+  loginWithCWRU: (returnTo?: string) => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -75,12 +75,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const loginWithCWRU = () => {
-    // Generate CWRU SSO login URL and redirect
-    const baseUrl = window.location.origin;
-    const callbackUrl = `${baseUrl}/api/auth/cwru-sso-callback`;
-    const loginUrl = `https://login.case.edu/cas/login?service=${encodeURIComponent(callbackUrl)}`;
-    window.location.href = loginUrl;
+  const loginWithCWRU = (returnTo = "/") => {
+    // Start locally. The server delegates CAS to the configured production
+    // callback and safely returns to this deployment after authentication.
+    const startUrl = new URL("/api/auth/cwru-sso-start", window.location.origin);
+    startUrl.searchParams.set("returnTo", returnTo);
+    window.location.href = startUrl.toString();
   };
 
   const logout = async () => {

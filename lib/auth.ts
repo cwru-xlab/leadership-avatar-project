@@ -199,15 +199,6 @@ export async function authenticateUser(
 }
 
 /**
- * Generate CWRU SSO login URL
- */
-export function generateCWRUSSOLoginURL(baseUrl: string): string {
-  const callbackUrl = `${baseUrl}/api/auth/cwru-sso-callback`;
-  const loginUrl = `https://login.case.edu/cas/login?service=${encodeURIComponent(callbackUrl)}`;
-  return loginUrl;
-}
-
-/**
  * Validate CWRU CAS ticket
  */
 export async function validateCWRUTicket(

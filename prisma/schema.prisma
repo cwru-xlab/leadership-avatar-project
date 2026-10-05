@@ -78,6 +78,7 @@ model User {
   interactionReports InteractionReport[]
   studyPlans        StudyPlan[]
   networkingAttestations NetworkingAttestation[]
+  authHandoffs          AuthHandoff[]
 
   @@index([email])
   @@index([role])
@@ -97,6 +98,28 @@ model Session {
   @@index([userId])
   @@index([token])
   @@index([expiresAt])
+}
+
+// A short-lived, single-use bridge from the fixed production CAS callback to
+// the deployment (usually a Vercel preview) that initiated login. Raw state and
+// code values never reach the database: only SHA-256 hashes are stored here.
+model AuthHandoff {
+  id           String    @id @default(uuid())
+  stateHash        String    @unique
+  codeHash         String?   @unique
+  browserNonceHash String?
+  userId           String?
+  targetOrigin String
+  targetPath   String
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([consumedAt])
 }
 
 model PasswordResetToken {
