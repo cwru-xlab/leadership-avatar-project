@@ -86,8 +86,17 @@ export default function CasePlayIndexPage() {
     void loadScenarios();
   }, [loadCases, loadScenarios]);
 
-  const handlePlay = (caseId: string) => {
+  /** Admin case studies stay on the legacy /case-play runtime branch. */
+  const handlePlayAdminCase = (caseId: string) => {
     router.push(`/case-play/${caseId}`);
+  };
+
+  /**
+   * Student scenarios: ScenarioCard navigates to /practice/case-study/{id}
+   * itself. This callback is retained for the prop contract only.
+   */
+  const handlePlayScenario = (_caseId: string) => {
+    // no-op — ScenarioCard owns the launch route
   };
 
   const hasAnyScenario = mine.length > 0 || shared.length > 0;
@@ -151,7 +160,7 @@ export default function CasePlayIndexPage() {
                 key={scenario.id}
                 scenario={scenario}
                 owned
-                onPlay={handlePlay}
+                onPlay={handlePlayScenario}
                 onChanged={loadScenarios}
               />
             ))}
@@ -160,7 +169,7 @@ export default function CasePlayIndexPage() {
                 key={scenario.id}
                 scenario={scenario}
                 owned={false}
-                onPlay={handlePlay}
+                onPlay={handlePlayScenario}
                 onChanged={loadScenarios}
               />
             ))}
@@ -222,7 +231,7 @@ export default function CasePlayIndexPage() {
               <CaseCard
                 key={caseStudy.id}
                 caseStudy={caseStudy}
-                onClick={handlePlay}
+                onClick={handlePlayAdminCase}
               />
             ))}
           </div>

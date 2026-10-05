@@ -9,6 +9,10 @@ performance report afterward. Phases 1-5 shipped the live interview itself;
 Phase 6 makes the interview produce a durable, evaluated report. Later phases
 open the launcher, add real video/audio metrics, and retire the
 cohort/staff-oversight model the codebase inherited from its case-study origins.
+Phases 13-16 generalize the one-on-one pipeline into a configurable engine and
+then open the three interaction types that have sat as `coming-soon`
+placeholders since Phase 7: practice pitches, difficult conversations and
+networking practice.
 
 **Note on provenance:** this roadmap was reconstructed on 2026-09-19 during a
 mid-project handoff. Phases 1-5 are recorded from the shipped code on
@@ -32,6 +36,14 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 9: Student-Authored Scenarios** - Students create their own practice scenarios (completed 2026-09-21)
 - [x] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
 - [x] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality) (completed 2026-09-23)
+- [x] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (10/11 plans; fidgeting retired as unmeasurable; criterion 3 holds since 12-10. 12-11 settled posture drift — the row now responds correctly in BOTH directions and REQ-51 is MET. All three success criteria MET (criterion 1 carries a recorded phone duration under-count the user accepted). 12-08/12-09 remain [~] partially delivered — their work landed but their own sign-offs failed, and successors closed the gaps. 12-03's stale checkbox was corrected 2026-10-03) (completed 2026-10-04)
+- [x] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record (15/15 plans; **CLOSED 2026-10-04** — REQ-66/REQ-67 closed with a recorded caveat; REQ-63 verified by Phase 17's REQ-75; see `13-CLOSE-RECORD.md` and `17-CLOSE-RECORD.md`)
+- [x] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
+- [x] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios (completed 2026-10-04)
+- [x] **Phase 16: Networking Practice** - Practice against a described real person or a default character (completed 2026-10-04)
+- [ ] **Phase 17: v1.0 Close-Out** - Discharge the shared-DB migration, REQ-63 verification, deck-intake fixture fix and deferred keyboard UAT
+- [ ] **Phase 18: Avatar Disengagement & Walk-Out** - A session the avatar is losing actually ends, as a recorded failure with an explained decline
+- [ ] **Phase 19: Deck-Led Pitch Family** - Four more deck-led pitch modes alongside the investor deck, sharing one deck capability
 
 ## Phase Details
 
@@ -228,9 +240,497 @@ Plans:
 - [x] 11-06-PLAN.md — Sweep the remaining isPrivileged and role === "student" call sites onto the helper
 - [x] 11-07-PLAN.md — Static constraint sweep + human end-to-end walkthrough + phase close
 
+### Phase 12: Embodied Visual Signals
+**Goal:** Make the body measurable. Phase 10's pipeline can only see a face, so hand
+movement, posture, fidgeting and a phone in frame are invisible by construction — a
+session spent waving both arms produced a report that said nothing about it.
+**Outcome note (12-08):** three of the four landed. Fidgeting was found to be
+unmeasurable at the hands model's achievable ~1.5 Hz sample rate — small, fast
+motion cannot be resolved by a sampler whose observable reversal ceiling is
+~0.75/s, so the readings were aliasing rather than measuring. It was retired to
+permanently not-measured rather than shipped as a number that could not mean
+what it said; REQ-52 is recorded NOT MET for that reason, and the capability
+gap is carried in `deferred-items.md`. The three Success Criteria below are
+unaffected — none of them names fidgeting.
+**Depends on:** Phase 10 (metric contract, episode timeline, consent posture) and the
+report restructure (REQ-53's scored-vs-descriptive distinction gates REQ-52).
+**Requirements:** REQ-50, REQ-51, REQ-52, REQ-53, REQ-54, REQ-55, REQ-56, REQ-57, REQ-58
+**Success Criteria** (what must be TRUE):
+  1. Arm movement, posture and a visible phone are measured and tied to timecodes, not
+     inferred from the transcript.
+  2. A camera-on session running four models is indistinguishable from a camera-off run
+     in avatar smoothness and response latency.
+  3. Nothing the pipeline cannot observe is described as absent, and nothing reported
+     descriptively is scored.
+
+**Plans:** 11/11 plans complete — keyboard UAT deferred under skip_checkpoints → `/gsd/verify-work 15`
+
+Plans:
+- [x] 12-01-PLAN.md — Async stop() teardown + per-tick frame-budget instrumentation
+- [x] 12-02-PLAN.md — Metric contract: scored body fields, structurally unscorable observations, provisional thresholds
+- [x] 12-03-PLAN.md — Web Worker migration of face inference + staggered scheduler (REQ-57 gate)
+      (checkbox was stale; corrected 2026-10-03 on four independent confirmations —
+      `12-03-SUMMARY.md` on disk, commits `962c647`/`3f5e6c1`/`c83f6d6` all present,
+      STATE.md recording it complete, and `gsd-tools phase-plan-index` never once
+      listing it as incomplete across the 12-09/12-10/12-11 runs.)
+- [x] 12-04-PLAN.md — Report surfacing: Body language subheading, unscored Observations section, kind-tagged Moments, evaluator contract
+- [x] 12-05-PLAN.md — Vendor pose/hand/object models and run all four staggered in the worker
+- [x] 12-06-PLAN.md — Scored derivations: posture baseline + drift, gesture curve, hands near face, new episodes
+- [x] 12-07-PLAN.md — Descriptive derivations: fidgeting, phone in frame, absolute posture reading
+- [~] 12-08-PLAN.md — Threshold tuning from real recordings + end-to-end phase sign-off
+      (tuning complete; Task 3 sign-off RUN 2026-10-02 and FAILED on item 7 —
+      an off-camera session reported "Posture drift: Held steady" and credited
+      posture it never observed. Items 1-6 and criterion 2 passed; the frame
+      budget came in at meanTickMs 35.6 against a 166.7ms interval.)
+- [~] 12-09-PLAN.md — Posture-coverage gate + unreadable posture band + item-7 re-run
+      (Tasks 1-2 shipped `91c85b3`/`a9a507f` — renderer refusal, episode filter and
+      behaviourally-proven replay assertions all stand. Task 3 run 2026-10-02 and
+      FAILED: the off-camera session's false "Held steady" became a false
+      "Shifted from the opening posture" with timecodes. Root cause was one layer
+      down — `isVisible` trusts MediaPipe's PREDICTED visibility score and never
+      checks whether a landmark is inside the frame, so an extrapolated skeleton
+      built off one visible arm cleared both gates. Gap carried by 12-10.)
+- [x] 12-10-PLAN.md — Frame-bounds landmark gating, measured-first, item-1 third attempt
+      (DELIVERED `307c96d`/`69ed830`. **Sign-off item 1 PASSES at last** — the
+      off-camera session that defeated 12-08 and 12-09 now correctly reports the
+      body as unreadable, so criterion 3 holds against it and REQ-53 is met.
+      Item 2 passes, so a partially visible body is still scored. `isVisible`
+      now requires in-frame coordinates AND the visibility floor, and
+      `POSTURE_COVERAGE_MIN_RATIO` moved 0.25 -> 0.60 from two real dumped
+      sessions; both halves were confirmed load-bearing. The plan's own fix was
+      falsified in its simple form by its own Task 2 readings, and the readings
+      exposed that 12-09's hands coverage gate had been entirely inert.
+      CARRIED FORWARD: item 3 — a fully-in-frame deliberate slump still reported
+      "Held steady", a false NEGATIVE on correctly-observed signals, so
+      `POSTURE_DRIFT_TRIP`'s true-positive side has now been tested once and
+      failed; and item 4 — phone confidence, never run, its dump removed unused.
+      Both need a raw dump first and are handed to a follow-up plan. REQ-51
+      stays open on the drift-scoring clause. See `12-10-SUMMARY.md` and
+      `12-TUNING.md`.)
+- [x] 12-11-PLAN.md — Is a slump measurable at all? Drift series + phone distribution, then repair or retire
+      (DELIVERED `a854519`/`df02eee`. **A frontal webcam sees a slump fine —
+      `forward_head` saturated its clamp — and two nested means were burying it.**
+      Branch R: repaired, not retired. `computePostureDrift` now takes the WORST
+      AXIS (a single-axis slump is capped at exactly 0.500 under a mean, so no
+      cutoff could ever have caught it), `bandPostureDrift` now reads
+      `posture_drift_max_s`, and `POSTURE_DRIFT_SUSTAINED_S` went 15 -> 8 and was
+      wired up for the first time after being read by NOTHING for three plans —
+      at 15 the genuine 12.0s slump would still have failed, proven by reverting
+      that constant alone. **Task 4 PASSED in full: the first time in the phase
+      the scored posture row has been seen to respond correctly in BOTH
+      directions on one build**, with the independent episode path agreeing.
+      REQ-51 is **MET**. 12-10's "the sign may be backwards" claim about
+      `forwardHeadOffset` is WITHDRAWN — it was the strongest responder.
+      CARRIED FORWARD: `PHONE_SCORE_THRESHOLD` is still undecided (its
+      true-positive side has never been observed in any plan; the dump was
+      deliberately KEPT this time) and `forward_head` saturates, so the channel
+      cannot support severity wording. See `12-11-SUMMARY.md` and `12-TUNING.md`.)
+
+**Phase 12 is NOT complete.** What remains:
+
+1. **`PHONE_SCORE_THRESHOLD` is unvalidated, and it blocks criterion 1.** The
+   only phone data that exists is the no-phone false-positive floor (two sessions,
+   zero detections at or above 0.5, 0.0s correctly reported). The true-positive
+   side has never been observed across 12-07, 12-09, 12-10 or 12-11, and the user
+   earlier observed a sustained in-frame phone reported as "about 2 seconds",
+   which suggests UNDER-detection. One timed phone-held session with
+   `NEXT_PUBLIC_PHONE_CONFIDENCE_DEV_DUMP=1` settles it; the dump is in place and
+   must not be removed first.
+2. **12-03's checkbox is almost certainly STALE — FLAGGED, NOT FLIPPED.** It is
+   listed `[ ]` above, but `12-03-SUMMARY.md` exists in the phase directory AND
+   `STATE.md` records it as *complete* with three commits (`962c647`, `3f5e6c1`,
+   `c83f6d6`), noting the Task 1 spike settled the ES-module worker question on
+   the first attempt. So the worker migration very likely shipped and this
+   checkbox was never updated — but 12-11's executor did not flip it, because
+   changing a phase's executed-plan count on inference rather than instruction is
+   exactly the kind of unearned claim this phase has been burned by. **It needs a
+   human confirmation, and it changes the plan count from 9/11 to 10/11.**
+3. **The posture evidence base is two sessions**, one per direction, labelled SET
+   FROM ONE REAL SESSION rather than TUNED. `POSTURE_DRIFT_SUSTAINED_S` is
+   bounded from above only. Re-tuning against real student sessions is carried in
+   `deferred-items.md`.
+
+**Criterion assessment at 12-11's close, amended 2026-10-03.** Criterion 2 MET
+(12-08: `meanTickMs` 35.6 against a 166.7ms interval; reconfirmed at 12-10 and
+12-11 at 25.2 and 31.9). Criterion 3 MET (12-10 item 1, reconfirmed at 12-11).
+
+**Criterion 1 — MET, with one limitation recorded.** Arm movement and posture are
+measured, timecoded, and now demonstrably work in both directions. The phone's
+true positive was finally run on 2026-10-03 and it fires: "A phone was visible
+for about 8 seconds" with a `0:11-0:21 [Observation] Phone visible` Moments row.
+
+The reported duration UNDER-COUNTS a longer real hold. The user reviewed this and
+accepted it — *"as long as it's generally accurate, it's really not the most
+important of things"* — a deliberate scope decision, not an unexamined pass.
+
+This was assessed as PARTIALLY MET before that session, on the reasoning that the
+phase had twice shipped a signal literally "measured and timecoded" while unable
+to report the behaviour it named. That concern does not survive contact with the
+result, for a reason specific to this signal: the phone is a `12-07` DESCRIPTIVE
+observation — rendered under "These do not affect any score", tagged
+`Observation` rather than `Body language`, and structurally barred from feeding
+any scored field. An imprecise duration there is a precision defect. Posture
+drift's false negatives were categorically worse: a SCORED row praising a student
+for behaviour they did not exhibit.
+
+`PHONE_SCORE_THRESHOLD` stays at 0.5 — false-positive side well bounded (spurious
+ceiling 0.163 across two no-phone sessions), true-positive side now demonstrated.
+The under-count's cause was NOT isolated: it may be the threshold, or the object
+model's ~0.5 Hz sampling (53 ticks in 108s), and the raw confidence series for a
+phone-held session was never captured. See `12-TUNING.md` — a future attempt must
+re-add the dump rather than assume the threshold is at fault.
+
+### Phase 13: One-on-One Conversation Engine
+**Goal:** Generalize the interview pipeline into a parameterized one-on-one
+conversation engine, so that a new one-on-one interaction type is a
+configuration record plus prompts rather than a duplicated route tree. Today
+`pitches`, `difficult-conversations` and `networking` sit in
+`lib/interactions/registry.ts` as `route: null`, `coming-soon` placeholders;
+the session start/checkpoint/finish routes, the evaluator and the report page
+all exist twice already (interview and scenario) and must not exist five times.
+**Depends on:** Phase 12 (the body-metric contract and worker scheduler are the
+last pieces the engine has to carry for every type), Phase 8 (persona
+distillation and the session-constant prompt resolver), Phase 10 (metric
+ingestion).
+**Requirements:** REQ-59, REQ-60, REQ-61, REQ-62, REQ-63, REQ-64, REQ-65, REQ-66,
+REQ-67, REQ-68, REQ-69, REQ-70, REQ-71, REQ-72, REQ-73
+**Source:** derived from the user's brief —
+`.planning/one-on-one-interactions-brief.md` — whose premise is that any
+one-on-one interaction is configurable through parameterized requests without
+rebuilding infrastructure per type.
+**Success Criteria** (what must be TRUE):
+  1. A new one-on-one interaction type ships as a config record plus prompts — no
+     new session route, finish route, evaluator module or report page per type.
+  2. The existing interview and case-play experiences run on the shared engine
+     with no behavior regression: same prompts, same OpenAI prefix-cache hit,
+     same metric ingestion.
+  3. Per-type rubric dimensions are declared in config, and the report page
+     renders them without knowing which interaction produced them.
+  4. Visual, vocal and body metrics from Phases 10 and 12 reach every
+     engine-backed interaction without per-type wiring.
+**Plans:** 15/15 plans complete
+**Status:** **CLOSED 2026-10-04** — see `13-CLOSE-RECORD.md`. REQ-66 and REQ-67
+closed with a recorded caveat rather than a passing test (the shared DB was empty,
+so the backfill acceptance test is unsatisfiable there and passed on local only;
+REQ-67 closed on its human-run clause, not on "no agent applies it", which
+`vercel.json` had been violating). **REQ-63 was verified 2026-10-04** by Phase 17
+REQ-75 / plan 17-03; `13-VISIBLE-CONTEXT-PROOF.md` records the cursor-gated deck
+turn-assembly proof. See `17-CLOSE-RECORD.md`.
+
+Plans:
+- [x] 13-01-PLAN.md — Engine config layer: TYPE records + INSTANCE resolver
+- [x] 13-02-PLAN.md — `InteractionReport` model, additive CREATE TABLE migration, unified DTO
+- [x] 13-03-PLAN.md — Engine primitives: terminationPolicy, visible-context slice, outcome record, time budget
+- [x] 13-04-PLAN.md — Backfill script, local backfill run, row-for-row verification, REQ-67 human handoff
+- [x] 13-05-PLAN.md — Type-derived rubric schema, one evaluator, one evaluation runner
+- [x] 13-06-PLAN.md — Generalize the chat/turn endpoint onto engine config (prefix cache preserved)
+- [x] 13-07-PLAN.md — One session lifecycle: start/checkpoint/finish, legacy routes delegate
+- [x] 13-08-PLAN.md — One report GET/retry/list, legacy report routes delegate
+- [x] 13-09-PLAN.md — One generic pre-session wizard with a single camera consent gate
+- [x] 13-10-PLAN.md — One generic session shell, `/practice/[type]` switched onto it
+- [x] 13-11-PLAN.md — Case-study type on the engine; case-play becomes a dispatcher, legacy branch untouched
+- [x] 13-12-PLAN.md — One report page rendering config-declared rubric dimensions
+- [x] 13-13-PLAN.md — Permanent redirects, link rewiring, deletion of the per-type trees
+- [x] 13-14-PLAN.md — REQ-66 acceptance test: pre-Phase-13 reports at their OLD URLs (non-autonomous)
+- [x] 13-15-PLAN.md — DROP TABLE migration as its own declinable step + human handoff
+
+### Phase 14: Practice Pitches
+**Goal:** Ship the Practice Pitches interaction with its two sublayers — a strict
+30-60 second elevator pitch judged on concision and on tailoring to the specific
+listener, and a timed investor pitch-deck session where the student clicks
+through an uploaded deck while the avatar sees only the slides shown so far and
+negotiates terms.
+**Depends on:** Phase 13
+**Scope note (2026-10-02, SUPERSEDED):** the original note recorded PDF,
+PowerPoint and Google Slides all in scope, with the Drive OAuth scope, token
+storage and Drive API read called out as the largest single piece of the phase.
+**Scope note (2026-10-02, amended during `/gsd:discuss-phase 14`):** Google
+Slides is CUT — permanently, not deferred. Deck upload accepts **PDF and PPTX
+only**; no Drive OAuth scope, no stored Drive tokens, no Drive API read. A
+student with a Slides deck exports to PDF. Criteria 2, 3 and 5 below were
+amended in the same session; see `14-CONTEXT.md`.
+**Success Criteria** (what must be TRUE):
+  1. The elevator pitch enforces a 30-60 second window; avatar engagement follows
+     from concision and from whether the student found common ground first, and a
+     tedious pitch can end the conversation early as a recorded failure rather
+     than a neutral finish.
+  2. A deck uploaded as PDF or PPTX becomes per-slide text plus server-rendered
+     slide images stored privately, and a file that is not a readable deck is
+     rejected with a reason and a fix instead of a broken session.
+  3. The student advances slides live, and the avatar's context contains only
+     slides the student has actually shown — never content from a slide not yet
+     reached, and navigating backward does not un-show what the avatar already
+     saw.
+  4. The report scores deck structure, text density and the appearance of the
+     rendered slides alongside vocal delivery, and the negotiation outcome is
+     recorded as the student's ask versus the settled terms versus the scenario's
+     fair-value band.
+  5. Session length is proposed from slide count within a 20-30 minute envelope
+     and is student-adjustable before starting; the remaining time is visible
+     during the session and can be hidden by the student.
+**Plans:** 15/15 plans executed — Phase signed off 2026-10-04
+**Gate:** every plan except 14-01, 14-03, 14-06 and 14-07 is blocked until Phase 13's
+15 plans have all executed and been signed off. Phase 14 has no REQ IDs; each plan
+names the Success Criteria it serves as `P14-SC1`..`P14-SC5` in its `requirements`
+frontmatter. 14-01 is the one plan safe to run before Phase 13 lands, and it is the
+one whose outcome the whole deck pipeline depends on. Four plans declare explicit
+Phase 13 extensions (most notably `pitch-deck` → `checkpointing: "client-driven"`,
+which Phase 13 withheld from `case-study`); 14-15 Section 4 collects them as the
+Phase 13 revision handoff.
+
+Plans:
+- [x] 14-01-PLAN.md — Deck-rendering spike: prove PDF→PNG on Vercel, select the PPTX conversion backend (decision checkpoint)
+- [x] 14-02-PLAN.md — Engine config extensions: avatar-end floor, soft first-turn window, adjustable budget range, pitch instance + snapshot members
+- [x] 14-03-PLAN.md — Deck intake: magic-byte validation, reason-plus-fix rejections, per-slide PDF and PPTX text
+- [x] 14-04-PLAN.md — Evaluator extensions: slide images as vision input, outcome composed into the one JSON schema, type-declared score cap
+- [x] 14-05-PLAN.md — Server-authoritative slide cursor: four nullable columns, additive local migration, checkpoint ratchet, clamped budget (human-verified)
+- [x] 14-06-PLAN.md — PPTX→PDF conversion driver, PDF→PNG rasterizer, private deck storage and manifest
+- [x] 14-07-PLAN.md — Deck upload route, manifest route, authenticated owner-only slide-image byte route (human-verified)
+- [x] 14-08-PLAN.md — `pitch-elevator` type record and prompts: six dimensions, soft 60s window, floor-gated walk-out
+- [x] 14-09-PLAN.md — `pitch-deck` type record and prompts: nine dimensions, slides channel, ask/fair band, session-length proposal
+- [x] 14-10-PLAN.md — Elevator wizard steps and collapsible pitch timer, three real sessions judged (human-verified)
+- [x] 14-11-PLAN.md — High-water mark in the live turn: ratchet, visible-context slice, tail-block delivery, prefix cache preserved
+- [x] 14-12-PLAN.md — Deck wizard steps: upload with progress and specific errors, the ask, the adjustable length
+- [x] 14-13-PLAN.md — Live deck viewer, thumbnail strip, soft session timer, real investor pitch leak test (human-verified)
+- [x] 14-14-PLAN.md — Report surfaces: early-end outcome banner, ask vs settled vs fair, slide timeline and overrun (human-verified)
+- [x] 14-15-PLAN.md — Phase validation: five criteria and every locked decision signed off; surface-count guard (human-verified)
+
+### Phase 15: Difficult Conversations
+**Goal:** Ship role-specific difficult conversations in which the avatar fully
+assumes a stated role — confronting a low performer, firing someone, asking a
+manager for a raise, challenging a professor over a grade — with a seeded
+catalog plus student-authored scenarios that can be published to all users.
+**Depends on:** Phase 13 (and reuses Phase 9's ownership/publish posture for
+student-authored content).
+**Success Criteria** (what must be TRUE):
+  1. A seeded catalog of role-specific conversations is playable, and the avatar
+     holds its role for the whole session instead of drifting into a coaching or
+     narrator voice.
+  2. A student can author their own difficult-conversation scenario and practice
+     it immediately; it stays private until they deliberately publish it.
+  3. A published scenario is playable by any user, and the authoring student
+     remains its owner.
+  4. The report judges how the conversation was handled — clarity, empathy,
+     holding the line — not merely that the student reached the end of it.
+**Plans:** 11/11 plans complete
+**Gate:** every plan except 15-02, 15-03, 15-04 and 15-05 is blocked until Phase 13's
+15 plans have all executed and been signed off. Those four are the Phase-13-independent
+layer — the S3 record type and its validator, the authored-text structural injection
+defense and the pre-publish check, the seeded catalog, and the five authoring routes —
+and none of them imports `lib/engine/`. Phase 15 has no REQ IDs; each plan names the
+Success Criteria it serves as `P15-SC1`..`P15-SC4` in its `requirements` frontmatter.
+Four plans declare explicit Phase 13 extensions (the `InstanceConfig` and `InputSnapshot`
+union members, the seeded-first instance resolver, a tail-block in-character reminder
+fragment, a session-shell panel slot, and outcome surfacing on the one report DTO);
+15-11 Section 4 collects them as the Phase 13 revision handoff. Phase 14's
+`avatarEndFloor` (14-02) and `ReportChrome` extras slot (14-14) are **CONSUMED, not
+re-declared** — because Phases 14 and 15 may execute in either order, 15-01 and 15-09
+each carry a conditional: consume the field/slot if Phase 14 landed, otherwise add it in
+Phase 14's exact declared shape so whichever phase lands second consumes it rather than
+adding a parallel mechanism. Research Gap 1 is resolved in 15-01: the termination marker
+gains **no** `source` attribute; an assistant-emitted marker always means
+`source: "avatar"`, and the student's decisive in-character close is an explicit confirm
+action distinguished from the out-of-band End-session control by its reason code.
+
+Plans:
+- [x] 15-01-PLAN.md — Engine extensions: instance + snapshot union members, avatar-end floor consumed, termination `source` resolved
+- [x] 15-02-PLAN.md — New S3 record type, one validator, owner-scoped store, published-is-discovery-only play path
+- [x] 15-03-PLAN.md — Structural injection defense (delimited, instruction-hierarchy authored text) + the two-thing fail-closed pre-publish check
+- [x] 15-04-PLAN.md — Seven seeded conversations as code records, with live-catalog avatar assignment
+- [x] 15-05-PLAN.md — Five authoring routes; the check re-runs on every publish-visible save
+- [x] 15-06-PLAN.md — The `difficult-conversation` type record and prompts: anti-drift prohibition, per-turn tail reminder, eight dimensions, unscored outcome
+- [x] 15-07-PLAN.md — Three-section catalog and six-field builder with honest publish verdicts (human-verified)
+- [x] 15-08-PLAN.md — Briefing and difficulty steps, always-visible End-session control and support note, in-character close confirm (human-verified)
+- [x] 15-09-PLAN.md — Report surfaces: eight dimensions, unscored outcome record, avatar-end banner, in-role reaction (human-verified)
+- [x] 15-10-PLAN.md — Adversarial drift probe and approach-vs-result harnesses (human-verified)
+- [x] 15-11-PLAN.md — Phase validation: four criteria and every locked decision signed off; surface-count guard (keyboard UAT deferred under skip_checkpoints → /gsd/verify-work 15)
+
+### Phase 16: Networking Practice
+**Goal:** Ship networking practice against a person the student brings in —
+pasted LinkedIn text, their own written description, or AI-generated text —
+distilled into an avatar persona, or picked from a set of default characters.
+**Depends on:** Phase 13 (and reuses Phase 8's one-shot persona distillation
+endpoint rather than adding a second distillation path).
+**Scope note (2026-10-03, from `/gsd:discuss-phase 16`):** criterion 3's "stored
+privately" refers to the DISTILLED persona, not the raw paste. The raw pasted
+text stays ephemeral — the existing distill route's never-persisted contract is
+preserved — and the distilled persona is saved as an owner-scoped, never
+publishable instance. An attestation is recorded before a paste is accepted. The
+networking SETTING (conference, coffee chat, …) is deferred, not built. See
+`16-CONTEXT.md`.
+**Success Criteria** (what must be TRUE):
+  1. A student can paste a description of a real person and practice against a
+     persona distilled from it, through the existing distillation path.
+  2. A curated set of default characters is playable with no input at all.
+  3. Pasted third-party text is stored privately and never appears in another
+     student's session.
+  4. The report judges rapport-building and the clarity of the student's
+     self-introduction, not interview-style answer quality.
+**Plans:** 11/11 plans complete
+**Gate:** every plan except 16-01 is blocked until Phase 13's 15 plans have all
+executed and been signed off. 16-01 — the AI person-generation route — is the one
+plan safe to run before Phase 13 lands: it touches no engine file and its only
+external dependency, `/api/interview/persona/distill`, already shipped in Phase 8,
+so generate → edit → distill can be proven end to end today. Phase 16 has no REQ
+IDs; each plan names the Success Criteria it serves as `P16-SC1`..`P16-SC4` in its
+`requirements` frontmatter. Phase 16 declares two Phase 13 extensions — a
+`kind:"networking-persona"` member on `InstanceConfig` (deliberately with NO
+`published` field) and a `kind:"networking"` member on `InputSnapshot` — both landed
+by 16-03, which also reconciles Phase 14's `avatarEndFloor` (14-02): whichever phase
+executes first adds the field, the other reuses it, and 16-03 fails loudly if the
+field exists without 14-02's enforcement. 16-11 Section 4 collects the extension list
+as the Phase 13 revision handoff. **Decision 7's never-publishable requirement is
+enforced by ABSENCE** — no `published` field, no publish route — guarded mechanically
+by 16-11's surface-count script so a later reviewer cannot add parity with
+`CaseStudy`. **The attestation is a new append-only `NetworkingAttestation` table**
+(user + timestamp + wording version, single-use), not a `User` column: the research's
+store-it-on-the-instance recommendation cannot gate the distill call because the
+instance is created FROM the distilled persona. 16-02 carries the one additive
+migration, applied to the LOCAL dev DB only with a declinable human handoff for the
+shared Lightsail DB.
+
+Plans:
+- [x] 16-01-PLAN.md — AI person-generation route and prompt; generate → edit → distill proven against the Phase 8 route (safe before Phase 13; human-verified)
+- [x] 16-02-PLAN.md — Attestation store: append-only table, additive local-only migration, versioned wording registry, single-use consume primitive (human-verified)
+- [x] 16-03-PLAN.md — Engine config extensions: networking-persona instance member with no publishable concept, networking snapshot member, avatar-end-floor reconciliation
+- [x] 16-04-PLAN.md — Owner-scoped persona store and three routes; cross-student 404; no publish surface
+- [x] 16-05-PLAN.md — Shared distiller extraction, attestation route, and the gated networking distill route: consume before any model call
+- [x] 16-06-PLAN.md — Five named fictional characters as code records, varied by seniority and field (human-verified)
+- [x] 16-07-PLAN.md — The `networking` TYPE record and prompts: seven dimensions, hidden-goal visible-context slice, outcome record, floor-gated walk-away
+- [x] 16-08-PLAN.md — Wizard steps: person choice with three bring-in modes and the attestation, the required goal, the reused avatar picker (human-verified)
+- [x] 16-09-PLAN.md — Hidden-goal leak test: sentinel absent from every outbound payload on real turns, present in the evaluation context (human-verified)
+- [x] 16-10-PLAN.md — Report surfaces: the ask/outcome/common-ground panel and the early-end feedback line (human-verified)
+- [x] 16-11-PLAN.md — Phase validation: tile flip, surface-count and never-publishable guards, four criteria and every locked decision signed off (human-verified)
+
+
+### Phase 17: v1.0 Close-Out
+**Goal:** Close v1.0's evidence and governance gaps: prevent deployment-time schema
+migration, prove the existing deck visible-context boundary, repair canonical fixture
+ownership, and record the deferred Phase 15/16 keyboard UAT.
+**Depends on:** Nothing (independent of Phase 18; may run in parallel with it)
+**Requirements:** REQ-74, REQ-75, REQ-76, REQ-77
+**Human-gated scope note:** No agent connects to shared Lightsail, Preview, or
+Production at all, including for a read-only `SELECT`. That boundary never bound CI:
+Vercel's former `buildCommand` applied migrations automatically. REQ-74 closes that
+gap by removing the command rather than weakening the boundary. REQ-77's keyboard UAT
+is human-reported; the agent records its result and does not observe the deployment.
+**Success Criteria** (what must be TRUE):
+  1. `prisma migrate deploy` is absent from Vercel's `buildCommand`; `docs/MIGRATIONS.md`
+     documents deliberate human migration before dependent application deployment; stale
+     migration records are reconciled, including the `SUPERSEDED` handoff. There is no
+     shared migration to run: it was human-applied 2026-10-04 (`HANDOFF.md` §3,
+     commit `9a53084`). Production's target is human-reported as shared Lightsail; see
+     `17-CLOSE-RECORD.md`.
+  2. The deck's real turn-assembly path proves no unrevealed slide text reaches the
+     avatar, discharging REQ-63 as verification evidence rather than new construction.
+  3. `scripts/verify-deck-intake.ts` passes every assertion, with the harness and its
+     canonical fixture agreeing on one source string rather than the assertion weakening.
+  4. **Pass 1** is exactly the Phase 15/16 deferred B–G keyboard blocks plus Phase 15
+     hostile probe 5, human-reported and recorded in each validation file. Any Pass 1
+     defect is fixed in Phase 17 after a repair-volume checkpoint. **Pass 2**, covering
+     surfaces Phases 18 and 19 add, is excluded from Phase 17 and is Phase 19's closing
+     obligation.
+**Plans:** 7/7 plans complete — closed 2026-10-05; see `17-CLOSE-RECORD.md`
+
+Plans:
+- [x] 17-01-PLAN.md — REQ-74: remove `prisma migrate deploy` from `vercel.json` and document the replacement procedure
+- [x] 17-02-PLAN.md — REQ-74: reconcile stale migration records and record Production target confirmation
+- [x] 17-03-PLAN.md — REQ-75: deck visible-context sentinel harness + REQ-63 proof in Phase 13's directory
+- [x] 17-04-PLAN.md — REQ-76: deck-intake fixture ownership repair (assertion unchanged)
+- [x] 17-05-PLAN.md — REQ-77 Pass 1: human keyboard UAT of the Phase 15/16 deferred blocks
+- [x] 17-06-PLAN.md — REQ-77 Pass 1 zero-defect checkpoint and disposition
+- [x] 17-07-PLAN.md — documentation reconciliation and Phase 17 close
+
+### Phase 18: Avatar Disengagement & Walk-Out
+**Goal:** A session the avatar is visibly losing actually ends — today the avatar can
+say in words that it is leaving while the session keeps running. A per-turn
+disengagement value, computed from observable signals and accelerated (never replaced)
+by the avatar's own self-report cue, crosses a type-declared threshold, plays one
+final uninterruptible statement, and then ends the session automatically as a
+recorded failure that explains the decline on the session clock.
+**Depends on:** Phase 13 (extends the `terminationPolicy` / `avatarEndFloor` engine
+primitives already in `lib/engine/types.ts` and `lib/engine/termination.ts` rather than
+adding a parallel mechanism)
+**Requirements:** REQ-78, REQ-79, REQ-80, REQ-81, REQ-82, REQ-83, REQ-84, REQ-85, REQ-86
+**Locked scope notes (do not re-litigate in planning):**
+  - Temperature/disengagement is derived from observable signals and is ACCELERATED,
+    not replaced, by an avatar self-report cue — the role-playing model never has sole
+    authority over its own patience (REQ-79).
+  - Temperature/disengagement is INVISIBLE during the session: no meter, indicator or
+    warning anywhere in the session shell (REQ-85).
+  - This mechanism EXTENDS Phase 13's `terminationPolicy` / `avatarEndFloor` rather than
+    adding a parallel mechanism. `lib/pitch/deck-type.ts` currently sets
+    `avatarEndFloor: null` and must gain a real floor (REQ-84).
+**Success Criteria** (what must be TRUE):
+  1. A session where the student stalls, repeats, or never establishes common ground
+     visibly loses the avatar's engagement over time, computed deterministically from
+     observable signals, with no live indicator ever shown to the student.
+  2. When the avatar's own structured per-turn output signals disengagement, that
+     signal measurably accelerates the walk-out but can never by itself end the
+     session.
+  3. Crossing a type's declared disengagement threshold plays exactly one
+     uninterruptible final avatar statement — push-to-talk and text input both close
+     for its duration — and the session then ends automatically and generates a
+     report without the student pressing End-session.
+  4. The auto-ended session is recorded as a FAILURE with an avatar-initiated
+     termination reason, reusing Phase 13's `terminationPolicy` outcome record, and the
+     report explains when engagement fell and what the student was doing at those
+     points on the session clock.
+  5. A type that declares no threshold behaves exactly as it does today, and a
+     walk-out can never fire before a type's `avatarEndFloor` minimum turns.
+**Plans:** 5 plans
+
+Plans:
+- [ ] 18-01-PLAN.md — Opt-in disengagementThreshold + pure computeDisengagement (REQ-78, REQ-80)
+- [ ] 18-02-PLAN.md — Cue acceleration, resolveTermination gate, pitch-deck floor + type opt-ins (REQ-79, REQ-83, REQ-84)
+- [ ] 18-03-PLAN.md — Live walk-out lock, final statement, auto-finish, no meter (REQ-81, REQ-82, REQ-85)
+- [ ] 18-04-PLAN.md — Report decline on session clock from stored episodes (REQ-86)
+- [ ] 18-05-PLAN.md — Human UAT + 18-VALIDATION.md against SC1–5 / REQ-78–86
+
+### Phase 19: Deck-Led Pitch Family
+**Goal:** Widen the deck pitch from investor-negotiation-only into a family of
+deck-led modes — a funding request, a product pitch, a deck-led talk, and a general
+deck pitch with no mode-specific constraints — each playable alongside the existing
+investor `pitch-deck`, sharing one deck capability rather than duplicating it per
+mode, and each inheriting the walk-out from Phase 18 rather than needing it
+retrofitted.
+**Depends on:** Phase 18 (new deck modes inherit the disengagement/walk-out mechanism
+rather than needing it added after the fact); Phase 14 (the shared deck capability —
+upload, slide cursor, visible-context slice, soft timer — being widened here)
+**Requirements:** REQ-87, REQ-88, REQ-89, REQ-90, REQ-91, REQ-92, REQ-93, REQ-94
+**Locked scope notes (do not re-litigate in planning):**
+  - One TYPE record per deck mode, not one widened `pitch-deck` with a mode field
+    (REQ-87, REQ-93) — honors REQ-60's config-record contract under its first real
+    multi-mode test since the engine shipped.
+  - Pass 2 keyboard UAT, carried from Phase 17, is a Phase 19 closing obligation
+    for the surfaces Phases 18 and 19 add.
+**Success Criteria** (what must be TRUE):
+  1. Four new deck-led types — funding request, product pitch, deck-led talk, and a
+     general deck pitch — are playable alongside the existing investor `pitch-deck`,
+     each with its purpose distinguishable on the Practice Pitches picker before a
+     student commits to one.
+  2. Negotiation inputs (ask price, offered equity) are simply ABSENT — not disabled,
+     not hidden — from any mode that has no terms to negotiate.
+  3. Each mode is scored against its own declared rubric dimensions and produces its
+     own outcome shape, so a funding request is never scored against an equity split
+     and a deck-led talk is never scored against a close.
+  4. A student reaching any deck mode goes through the one generic pre-session wizard
+     with mode-appropriate steps and the one existing camera-consent gate — no second
+     wizard, no new consent gate.
+  5. The one report page renders every mode's outcome through the existing
+     `ReportChrome` extras slot, and a mechanical surface-count guard (in the spirit of
+     Phase 16's) proves that adding these four modes touched no engine module, route,
+     evaluator or report page.
+  6. Pass 2 keyboard UAT for the surfaces Phases 18 and 19 add is run by a human in
+     Phase 19's closing plan and recorded in the Phase 18 and Phase 19 validation files.
+**Plans:** TBD
+
+
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
+**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 16)
+
+**v1.1 Execution Order:** 17 (parallel) | 18 → 19
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -245,3 +745,20 @@ Plans:
 | 9. Student-Authored Scenarios | 9/9 | Complete    | 2026-09-21 |
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
+| 12. Embodied Visual Signals | 10/11 | Complete    | 2026-10-04 |
+| 13. One-on-One Conversation Engine | 15/15 | Complete | 2026-10-04 |
+| 14. Practice Pitches | 15/15 | Complete   | 2026-10-04 |
+| 15. Difficult Conversations | 11/11 | Complete  | 2026-10-04 |
+| 16. Networking Practice | 11/11 | Complete  | 2026-10-04 |
+| 17. v1.0 Close-Out | 7/7 | Complete | 2026-10-05 |
+| 18. Avatar Disengagement & Walk-Out | 0/TBD | Not started | - |
+| 19. Deck-Led Pitch Family | 0/TBD | Not started | - |
+
+Phase 13's REQ-66/REQ-67 caveat remains recorded in `13-CLOSE-RECORD.md`: the
+backfill acceptance test is unsatisfiable on the empty shared DB and passed locally
+only. Phase 17 separately verified REQ-63 through its deck visible-context proof and
+closed its own work in `17-CLOSE-RECORD.md`.
+
+Phases 15 and 16 completed their deferred Pass 1 keyboard UAT as a human-reported
+PASS on 2026-10-05. The record remains evidence-PARTIAL because IDs and item-level
+notes were not supplied; see `17-KEYBOARD-PASS-1.md`.

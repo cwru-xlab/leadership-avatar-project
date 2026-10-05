@@ -1,5 +1,5 @@
 {
-  "buildCommand": "touch .env && prisma generate && prisma migrate deploy && next build",
+  "buildCommand": "touch .env && prisma generate && next build",
   "installCommand": "npm install",
   "framework": "nextjs",
   "regions": ["iad1"],
@@ -9,9 +9,7 @@
     }
   },
   "git": {
-    "deploymentEnabled": {
-      "main": true
-    }
+    "deploymentEnabled": true
   },
   "github": {
     "silent": false,

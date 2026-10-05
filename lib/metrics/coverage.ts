@@ -138,7 +138,10 @@ export function resolveVisualOutcome(
  * speaking is a different modality (REQ-44), never a penalty, so a
  * fully-typed session resolves to `TYPED_ONLY` rather than
  * `INSUFFICIENT_DATA` even though structurally it also means "no usable
- * signal."
+ * signal." A session that DID speak but not enough to score reliably is a
+ * third, distinct outcome (`SPEECH_TOO_SHORT`, 12-08 Task 1 checkpoint,
+ * Defect F) — collapsing it into `TYPED_ONLY` asserts a specific false
+ * fact about what the student did.
  */
 export function resolveVocalOutcome(vocal: VocalMetrics | null): VocalOutcome {
   // 1. No block at all — measurement was attempted but nothing came back.
@@ -166,11 +169,20 @@ export function resolveVocalOutcome(vocal: VocalMetrics | null): VocalOutcome {
     return { scored: false, reason: "INSUFFICIENT_DATA" };
   }
 
-  // 5. Under half a minute of speech in a mostly-typed session is too thin
-  //    to score reliably. This is a modality outcome, not a technical
-  //    failure and not weak delivery, so it resolves to TYPED_ONLY.
+  // 5. Under half a minute of speech is too thin to score reliably.
+  //
+  //    BUG FIX (12-08 Task 1 checkpoint, Defect F): this used to also
+  //    return `TYPED_ONLY`, collapsing "the student never spoke" (rule 2,
+  //    `spoken_turns === 0`) and "the student spoke, but only a little"
+  //    (this rule, `spoken_turns > 0` by construction — rule 2 already
+  //    returned above otherwise) into one reason code. A real session with
+  //    three real spoken answers landed here and the report told the
+  //    student they had typed. This is a modality outcome, not a technical
+  //    failure and not weak delivery, but it is NOT the same modality
+  //    outcome as never speaking at all — `SPEECH_TOO_SHORT` says so
+  //    honestly instead.
   if (coverage.spoken_seconds < MIN_SPOKEN_SECONDS_TO_SCORE) {
-    return { scored: false, reason: "TYPED_ONLY" };
+    return { scored: false, reason: "SPEECH_TOO_SHORT" };
   }
 
   // 6. Otherwise scored. A mixed typed/spoken session is scored on its
