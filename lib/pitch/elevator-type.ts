@@ -14,6 +14,9 @@ import {
   buildElevatorSystemPrompt,
 } from "@/lib/pitch/elevator-prompts";
 
+/** Tuned only through recorded Phase 18 calibration evidence. */
+export const ELEVATOR_DISENGAGEMENT_THRESHOLD = 0.72;
+
 export const PITCH_ELEVATOR_TYPE: InteractionTypeConfig = {
   slug: "pitch-elevator",
   name: "Elevator Pitch",
@@ -63,6 +66,7 @@ export const PITCH_ELEVATOR_TYPE: InteractionTypeConfig = {
     // back-and-forth to grade (CONTEXT.md: "the pitch plus at least one
     // exchange").
     avatarEndFloor: { minAssistantTurns: 2 },
+    disengagementThreshold: ELEVATOR_DISENGAGEMENT_THRESHOLD,
   },
   // Permissive default — there is no document to gate.
   visibleContext: { visibleChannels: "*" },

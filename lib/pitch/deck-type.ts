@@ -17,6 +17,9 @@ import {
 import { DECK_ENVELOPE_SECONDS } from "@/lib/pitch/session-length";
 import { DECK_VISIBLE_CONTEXT } from "@/lib/pitch/slides-channel";
 
+/** Tuned only through recorded Phase 18 calibration evidence. */
+export const DECK_DISENGAGEMENT_THRESHOLD = 0.75;
+
 export const PITCH_DECK_TYPE: InteractionTypeConfig = {
   slug: "pitch-deck",
   name: "Investor Pitch Deck",
@@ -68,15 +71,20 @@ export const PITCH_DECK_TYPE: InteractionTypeConfig = {
     targetMinutes: null,
     targetQuestionCount: null,
   },
-  // CONTEXT.md: no hard finish, no in-character meeting close that ends the
-  // session. avatarMayEnd: false makes that STRUCTURAL — even if a model
-  // emits a termination marker, resolveTermination rejects it. Deliberately
-  // the opposite of pitch-elevator.
+  // Phase 18 permits an in-character exit only after the engine verifies both
+  // the four-assistant-turn floor and a derived disengagement threshold. A
+  // model marker alone remains insufficient to end the session.
   terminationPolicy: {
     studentMayEnd: true,
-    avatarMayEnd: false,
-    avatarEndReasons: [],
-    avatarEndFloor: null,
+    avatarMayEnd: true,
+    avatarEndReasons: [
+      "pitch_too_long",
+      "no_common_ground",
+      "unclear_ask",
+      "lost_interest",
+    ],
+    avatarEndFloor: { minAssistantTurns: 4 },
+    disengagementThreshold: DECK_DISENGAGEMENT_THRESHOLD,
   },
   visibleContext: DECK_VISIBLE_CONTEXT,
   // Ask and fair band are deliberately ABSENT — they are instance config,
