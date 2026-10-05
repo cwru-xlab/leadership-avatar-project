@@ -12,6 +12,7 @@
 
 import type { ResolvedSessionConfig } from "./types";
 
+import { parseDisengagementCue, type DisengagementCue } from "./disengagement";
 import { parseTerminationMarker, resolveTermination } from "./termination";
 
 import {
@@ -35,6 +36,8 @@ export interface ParseEngineTurnOptions {
   hasResume?: boolean;
   targetQuestionCount?: number;
   assistantTurnCount?: number;
+  /** Trusted derived value supplied by the chat path for threshold-enabled types. */
+  disengagementValue?: number;
 }
 
 export interface ParsedEngineTurn {
@@ -48,11 +51,12 @@ export interface ParsedEngineTurn {
   action: InterviewTurnAction | null;
   malformed: boolean;
   /**
-   * Accepted avatar termination only. With `avatarMayEnd: false` on every
-   * built-in type today this is always `null`, even when the model emits a
-   * marker — the marker is still stripped from `cleanedText`.
+   * Accepted avatar termination only. An avatar marker is still stripped when
+   * policy, floor, or derived disengagement rejects it.
    */
   termination: { reason: string } | null;
+  /** Parsed model self-report; never independently accepts an avatar end. */
+  disengagementCue: DisengagementCue | null;
 }
 
 /**
@@ -65,10 +69,12 @@ export function parseEngineTurn(
   config: ResolvedSessionConfig,
   options: ParseEngineTurnOptions = {},
 ): ParsedEngineTurn {
-  // Termination marker is trailing-only. Strip it first so a co-emitted
-  // interview marker (also trailing) can still be recognized on the remainder.
+  // Strip the cue first. It is allowed immediately before a trailing end marker,
+  // so termination remains trailing after removal; interview parsing runs last.
+  const { cleanedText: afterCue, cue: disengagementCue } =
+    parseDisengagementCue(assistantText);
   const { cleanedText: afterTermination, termination: rawTermination } =
-    parseTerminationMarker(assistantText);
+    parseTerminationMarker(afterCue);
 
   let termination: { reason: string } | null = null;
 
@@ -78,6 +84,7 @@ export function parseEngineTurn(
       source: "avatar",
       reason: rawTermination.reason,
       assistantTurnCount: options.assistantTurnCount,
+      disengagementValue: options.disengagementValue,
     });
 
     if (resolved.ok) {
@@ -94,6 +101,7 @@ export function parseEngineTurn(
       action: null,
       malformed: false,
       termination,
+      disengagementCue,
     };
   }
 
@@ -114,5 +122,6 @@ export function parseEngineTurn(
     action: parsed.action,
     malformed: parsed.malformed,
     termination,
+    disengagementCue,
   };
 }

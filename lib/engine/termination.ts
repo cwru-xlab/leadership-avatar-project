@@ -66,7 +66,11 @@ export function parseTerminationMarker(
 
 export type TerminationResolution =
   | { ok: true; recordedReason: string }
-  | { ok: false; recordedReason: null; reason?: "floor-not-met" };
+  | {
+      ok: false;
+      recordedReason: null;
+      reason?: "floor-not-met" | "disengagement-below-threshold";
+    };
 
 /**
  * Decides whether a termination attempt is accepted under a type's
@@ -81,18 +85,21 @@ export type TerminationResolution =
  *    `assistantTurnCount >= policy.avatarEndFloor.minAssistantTurns`.
  *    When the floor is set and `assistantTurnCount` is missing, FAIL CLOSED
  *    (reject) rather than letting an unmeasured session end.
+ * 4. If `policy.disengagementThreshold` is set, require a trusted derived
+ *    `disengagementValue` at or above it. A missing value fails closed.
  *
  * - `source: "student"` is accepted iff `policy.studentMayEnd` (no floor).
  *
  * A rejected result means the session continues; it never throws. With
- * `avatarMayEnd: false` (every built-in type today), no avatar-sourced call
- * can ever succeed regardless of the reason supplied.
+ * `avatarMayEnd: false`, no avatar-sourced call can ever succeed regardless
+ * of the reason supplied.
  */
 export function resolveTermination({
   policy,
   source,
   reason,
   assistantTurnCount,
+  disengagementValue,
 }: {
   policy: TerminationPolicyConfig;
   source: "student" | "avatar";
@@ -100,6 +107,8 @@ export function resolveTermination({
   /** Optional so Phase 13 call sites compile unchanged. Required when a
    * floor is configured — omission fails closed. */
   assistantTurnCount?: number;
+  /** Required only by a threshold-enabled policy; otherwise ignored. */
+  disengagementValue?: number;
 }): TerminationResolution {
   if (source === "student") {
     if (!policy.studentMayEnd) {
@@ -130,6 +139,22 @@ export function resolveTermination({
     ) {
       return { ok: false, recordedReason: null, reason: "floor-not-met" };
     }
+  }
+
+  // (4) threshold-enabled policies require engine-owned derived evidence.
+  const threshold = policy.disengagementThreshold;
+
+  if (
+    threshold != null &&
+    (disengagementValue === undefined ||
+      !Number.isFinite(disengagementValue) ||
+      disengagementValue < threshold)
+  ) {
+    return {
+      ok: false,
+      recordedReason: null,
+      reason: "disengagement-below-threshold",
+    };
   }
 
   return { ok: true, recordedReason: reason };

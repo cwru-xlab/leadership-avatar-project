@@ -20,6 +20,56 @@ export const DISENGAGEMENT_CAUSES = [
 
 export type DisengagementCause = (typeof DISENGAGEMENT_CAUSES)[number];
 
+export type DisengagementCue = "rising" | "high";
+
+/**
+ * The compact structured cue is a model self-report, not a termination command.
+ * `high` remains below either pitch type's opt-in threshold from a cold start.
+ */
+export const DISENGAGEMENT_CUE_ACCELERATION: Record<DisengagementCue, number> =
+  {
+    rising: 0.5,
+    high: 1,
+  };
+
+const CUE_MARKER = /\s*<engine-cue\b([^>]*)\/?>(?=\s*(?:<engine-end\b|$))/i;
+const DISENGAGEMENT_ATTRIBUTE = /\bdisengagement=(?:"([^"]*)"|'([^']*)')/i;
+
+export interface ParsedDisengagementCue {
+  cleanedText: string;
+  cue: DisengagementCue | null;
+}
+
+/**
+ * Removes one suffix cue before termination parsing. A cue may precede a
+ * trailing engine-end marker, which keeps that marker trailing after cue
+ * removal. Invalid cue values are stripped but never become evidence.
+ */
+export function parseDisengagementCue(
+  assistantText: string,
+): ParsedDisengagementCue {
+  const marker = assistantText.match(CUE_MARKER);
+
+  if (!marker || marker.index === undefined) {
+    return { cleanedText: assistantText, cue: null };
+  }
+
+  const attribute = marker[1].match(DISENGAGEMENT_ATTRIBUTE);
+  const value = attribute ? (attribute[1] ?? attribute[2] ?? "") : "";
+  const cue: DisengagementCue | null =
+    value === "rising" || value === "high" ? value : null;
+
+  return {
+    cleanedText:
+      `${assistantText.slice(0, marker.index)}${assistantText.slice(marker.index + marker[0].length)}`.trim(),
+    cue,
+  };
+}
+
+export function cueAcceleration(cue: DisengagementCue | null): number {
+  return cue == null ? 0 : DISENGAGEMENT_CUE_ACCELERATION[cue];
+}
+
 export interface DisengagementSignals {
   elapsedSeconds: number;
   budgetSeconds: number | null;
