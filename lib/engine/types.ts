@@ -60,11 +60,11 @@ export type SharedRubricKey = (typeof SHARED_RUBRIC_DIMENSION_KEYS)[number];
 /**
  * Who may end a session, and why.
  *
- * Today nothing but the student can end an interview or scenario session —
- * `studentMayEnd: true, avatarMayEnd: false` on every built-in record
- * preserves that exactly. `avatarMayEnd` plus `avatarEndReasons` exists so a
- * future type (Phase 14's tedious pitch) can let the avatar end the session
- * with a recorded reason, without the engine needing a second shape later.
+ * `avatarMayEnd` plus `avatarEndReasons` lets an eligible type accept a
+ * marker-based avatar end with a recorded reason. Threshold-null types retain
+ * that Phase 13/14 behavior. A Phase 18 threshold-enabled type additionally
+ * requires derived disengagement before its avatar end is accepted; the
+ * engine still owns that gate rather than trusting the model's judgment alone.
  */
 export interface TerminationPolicyConfig {
   studentMayEnd: boolean;
@@ -72,12 +72,19 @@ export interface TerminationPolicyConfig {
   /** Closed list of reasons the avatar may cite when it ends a session. */
   avatarEndReasons: string[];
   /**
-   * An avatar-initiated end is the model's own judgment (CONTEXT.md 14), but
-   * it must never land before enough has happened to grade. `null` / omitted
-   * means no floor, which is correct for the five Phase 13 types because all
-   * of them have `avatarMayEnd: false` and can never terminate at all.
+   * An avatar-initiated end must never land before enough has happened to
+   * grade. `null` / omitted means no floor.
    */
   avatarEndFloor?: { minAssistantTurns: number } | null;
+  /**
+   * Opt-in derived walk-out threshold on [0, 1]. When null/omitted, behavior
+   * is identical to today — avatar ends only via the existing marker +
+   * avatarMayEnd / avatarEndReasons / avatarEndFloor path (REQ-80). When set,
+   * Phase 18's computeDisengagement value must reach this threshold
+   * (accelerated by a cue in later plans) before an avatar-initiated end is
+   * accepted.
+   */
+  disengagementThreshold?: number | null;
 }
 
 /**
