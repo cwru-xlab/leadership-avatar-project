@@ -37,7 +37,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 10: Video & Audio Metrics** - Populate the Visual and Vocal rubric categories
 - [x] **Phase 11: Cohort & Staff Teardown** - Remove the assignment/monitoring wrapper (not case functionality) (completed 2026-09-23)
 - [x] **Phase 12: Embodied Visual Signals** - Measure arms, posture and a visible phone (10/11 plans; fidgeting retired as unmeasurable; criterion 3 holds since 12-10. 12-11 settled posture drift — the row now responds correctly in BOTH directions and REQ-51 is MET. All three success criteria MET (criterion 1 carries a recorded phone duration under-count the user accepted). 12-08/12-09 remain [~] partially delivered — their work landed but their own sign-offs failed, and successors closed the gaps. 12-03's stale checkbox was corrected 2026-10-03) (completed 2026-10-04)
-- [x] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record (15/15 plans; **CLOSED 2026-10-04** — REQ-66/REQ-67 closed with a recorded caveat, REQ-63 delegated to Phase 17's REQ-75; see `13-CLOSE-RECORD.md`)
+- [x] **Phase 13: One-on-One Conversation Engine** - Parameterize the interview pipeline so a new interaction type is a config record (15/15 plans; **CLOSED 2026-10-04** — REQ-66/REQ-67 closed with a recorded caveat; REQ-63 verified by Phase 17's REQ-75; see `13-CLOSE-RECORD.md` and `17-CLOSE-RECORD.md`)
 - [x] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
 - [x] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios (completed 2026-10-04)
 - [x] **Phase 16: Networking Practice** - Practice against a described real person or a default character (completed 2026-10-04)
@@ -413,9 +413,9 @@ rebuilding infrastructure per type.
 closed with a recorded caveat rather than a passing test (the shared DB was empty,
 so the backfill acceptance test is unsatisfiable there and passed on local only;
 REQ-67 closed on its human-run clause, not on "no agent applies it", which
-`vercel.json` had been violating). **REQ-63 remains open** — implemented but never
-verified, delegated to Phase 17's REQ-75 / plan 17-03, which files
-`13-VISIBLE-CONTEXT-PROOF.md` in this phase's directory and ticks it then.
+`vercel.json` had been violating). **REQ-63 was verified 2026-10-04** by Phase 17
+REQ-75 / plan 17-03; `13-VISIBLE-CONTEXT-PROOF.md` records the cursor-gated deck
+turn-assembly proof. See `17-CLOSE-RECORD.md`.
 
 Plans:
 - [x] 13-01-PLAN.md — Engine config layer: TYPE records + INSTANCE resolver
@@ -604,38 +604,42 @@ Plans:
 
 
 ### Phase 17: v1.0 Close-Out
-**Goal:** Discharge the four loose ends v1.0 left open — the human-run shared-database
-migration, the never-verified visible-context primitive, a known fixture mismatch, and
-the keyboard UAT deferred under `skip_checkpoints` on Phases 15 and 16 — so v1.0's
-bookkeeping is actually closed rather than carried forward a second time.
+**Goal:** Close v1.0's evidence and governance gaps: prevent deployment-time schema
+migration, prove the existing deck visible-context boundary, repair canonical fixture
+ownership, and record the deferred Phase 15/16 keyboard UAT.
 **Depends on:** Nothing (independent of Phase 18; may run in parallel with it)
 **Requirements:** REQ-74, REQ-75, REQ-76, REQ-77
-**Human-gated scope note:** REQ-74 and REQ-77 require a human. No agent may apply a
-migration to the shared Lightsail database — this is the `HANDOFF.md` §3 precedent,
-already documented in `13-MIGRATION-HANDOFF.md`, and it governs REQ-74 unchanged here.
-REQ-77's keyboard UAT is likewise a human action (non-autonomous); an agent records the
-result, it does not perform the keyboard pass itself.
+**Human-gated scope note:** No agent connects to shared Lightsail, Preview, or
+Production at all, including for a read-only `SELECT`. That boundary never bound CI:
+Vercel's former `buildCommand` applied migrations automatically. REQ-74 closes that
+gap by removing the command rather than weakening the boundary. REQ-77's keyboard UAT
+is human-reported; the agent records its result and does not observe the deployment.
 **Success Criteria** (what must be TRUE):
-  1. The shared Lightsail `InteractionReport` table and backfill exist, applied by a
-     human, and a verification pass confirms row counts, field fidelity and null
-     preservation match the local run — only then do REQ-66 and REQ-67 check off.
-  2. A real multi-channel session proves the avatar's per-turn context provably
-     contains only the declared visible channels for that turn, discharging REQ-63 as
-     verification evidence rather than new construction.
+  1. `prisma migrate deploy` is absent from Vercel's `buildCommand`; `docs/MIGRATIONS.md`
+     documents deliberate human migration before dependent application deployment; stale
+     migration records are reconciled, including the `SUPERSEDED` handoff. There is no
+     shared migration to run: it was human-applied 2026-10-04 (`HANDOFF.md` §3,
+     commit `9a53084`). Production's target is human-reported as shared Lightsail; see
+     `17-CLOSE-RECORD.md`.
+  2. The deck's real turn-assembly path proves no unrevealed slide text reaches the
+     avatar, discharging REQ-63 as verification evidence rather than new construction.
   3. `scripts/verify-deck-intake.ts` passes every assertion, with the harness and its
-     fixture agreeing on one source string rather than the assertion being loosened.
-  4. The keyboard UAT deferred on Phases 15 and 16 has been run by a human, and its
-     result — pass, or a logged defect — is recorded in each phase's validation file.
-**Plans:** 7 plans
+     canonical fixture agreeing on one source string rather than the assertion weakening.
+  4. **Pass 1** is exactly the Phase 15/16 deferred B–G keyboard blocks plus Phase 15
+     hostile probe 5, human-reported and recorded in each validation file. Any Pass 1
+     defect is fixed in Phase 17 after a repair-volume checkpoint. **Pass 2**, covering
+     surfaces Phases 18 and 19 add, is excluded from Phase 17 and is Phase 19's closing
+     obligation.
+**Plans:** 7/7 plans complete — closed 2026-10-05; see `17-CLOSE-RECORD.md`
 
 Plans:
-- [ ] 17-01-PLAN.md — REQ-74: remove `prisma migrate deploy` from vercel.json + document the replacement procedure (non-autonomous)
-- [ ] 17-02-PLAN.md — REQ-74: reconcile the stale migration documents + confirm the Production DATABASE_URL secret (non-autonomous)
-- [ ] 17-03-PLAN.md — REQ-75: deck visible-context sentinel harness + REQ-63 proof in Phase 13's directory
-- [ ] 17-04-PLAN.md — REQ-76: deck-intake fixture wiring fix (assertion unchanged)
-- [ ] 17-05-PLAN.md — REQ-77 Pass 1: human keyboard UAT of the Phases 15/16 deferred blocks (non-autonomous)
-- [ ] 17-06-PLAN.md — REQ-77 Pass 1 defect-volume checkpoint + approved repairs (non-autonomous)
-- [ ] 17-07-PLAN.md — Document amendments + phase close (REQ-66/REQ-67 caveat, Phase 13 closes outright)
+- [x] 17-01-PLAN.md — REQ-74: remove `prisma migrate deploy` from `vercel.json` and document the replacement procedure
+- [x] 17-02-PLAN.md — REQ-74: reconcile stale migration records and record Production target confirmation
+- [x] 17-03-PLAN.md — REQ-75: deck visible-context sentinel harness + REQ-63 proof in Phase 13's directory
+- [x] 17-04-PLAN.md — REQ-76: deck-intake fixture ownership repair (assertion unchanged)
+- [x] 17-05-PLAN.md — REQ-77 Pass 1: human keyboard UAT of the Phase 15/16 deferred blocks
+- [x] 17-06-PLAN.md — REQ-77 Pass 1 zero-defect checkpoint and disposition
+- [x] 17-07-PLAN.md — documentation reconciliation and Phase 17 close
 
 ### Phase 18: Avatar Disengagement & Walk-Out
 **Goal:** A session the avatar is visibly losing actually ends — today the avatar can
@@ -698,6 +702,8 @@ upload, slide cursor, visible-context slice, soft timer — being widened here)
   - One TYPE record per deck mode, not one widened `pitch-deck` with a mode field
     (REQ-87, REQ-93) — honors REQ-60's config-record contract under its first real
     multi-mode test since the engine shipped.
+  - Pass 2 keyboard UAT, carried from Phase 17, is a Phase 19 closing obligation
+    for the surfaces Phases 18 and 19 add.
 **Success Criteria** (what must be TRUE):
   1. Four new deck-led types — funding request, product pitch, deck-led talk, and a
      general deck pitch — are playable alongside the existing investor `pitch-deck`,
@@ -715,6 +721,8 @@ upload, slide cursor, visible-context slice, soft timer — being widened here)
      `ReportChrome` extras slot, and a mechanical surface-count guard (in the spirit of
      Phase 16's) proves that adding these four modes touched no engine module, route,
      evaluator or report page.
+  6. Pass 2 keyboard UAT for the surfaces Phases 18 and 19 add is run by a human in
+     Phase 19's closing plan and recorded in the Phase 18 and Phase 19 validation files.
 **Plans:** TBD
 
 
@@ -738,20 +746,19 @@ upload, slide cursor, visible-context slice, soft timer — being widened here)
 | 10. Video & Audio Metrics | 11/11 | Complete    | 2026-09-22 |
 | 11. Cohort & Staff Teardown | 7/7 | Complete   | 2026-09-23 |
 | 12. Embodied Visual Signals | 10/11 | Complete    | 2026-10-04 |
-| 13. One-on-One Conversation Engine | 15/15 | Closed†   | 2026-10-04 |
+| 13. One-on-One Conversation Engine | 15/15 | Complete | 2026-10-04 |
 | 14. Practice Pitches | 15/15 | Complete   | 2026-10-04 |
-| 15. Difficult Conversations | 11/11 | Complete*  | 2026-10-04 |
-| 16. Networking Practice | 11/11 | Complete   | 2026-10-04 |
-| 17. v1.0 Close-Out | 0/TBD | Not started | - |
+| 15. Difficult Conversations | 11/11 | Complete  | 2026-10-04 |
+| 16. Networking Practice | 11/11 | Complete  | 2026-10-04 |
+| 17. v1.0 Close-Out | 7/7 | Complete | 2026-10-05 |
 | 18. Avatar Disengagement & Walk-Out | 0/TBD | Not started | - |
 | 19. Deck-Led Pitch Family | 0/TBD | Not started | - |
 
-† **Phase 13** closed with a recorded caveat rather than a passing test — REQ-66's
-backfill acceptance test is unsatisfiable on the shared DB by construction (it was
-empty) and passed on local only; REQ-67 closed on its human-run clause alone, not on
-its "no agent applies it" clause, which `vercel.json` had been violating. REQ-63 stays
-open and is delegated to Phase 17's REQ-75. Full reasoning: `13-CLOSE-RECORD.md`.
+Phase 13's REQ-66/REQ-67 caveat remains recorded in `13-CLOSE-RECORD.md`: the
+backfill acceptance test is unsatisfiable on the empty shared DB and passed locally
+only. Phase 17 separately verified REQ-63 through its deck visible-context proof and
+closed its own work in `17-CLOSE-RECORD.md`.
 
-\* **Phase 15** (and Phase 16) completed under `skip_checkpoints` with 4/4 success
-criteria PASS-automated each, but the human keyboard UAT was deferred and is
-undischarged — Phase 17's REQ-77 / plans 17-05 and 17-06 own it.
+Phases 15 and 16 completed their deferred Pass 1 keyboard UAT as a human-reported
+PASS on 2026-10-05. The record remains evidence-PARTIAL because IDs and item-level
+notes were not supplied; see `17-KEYBOARD-PASS-1.md`.

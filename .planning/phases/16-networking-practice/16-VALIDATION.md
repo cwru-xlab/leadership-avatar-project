@@ -149,7 +149,7 @@ Handoff for anyone revising Phase 13 (mirror of 14-15 Section 4). Fold these int
 |---|---|
 | Attestation migration on **shared** DB (16-02 Task 3) | **PENDING / hold** — local `leadership_avatar_dev` only; see `.planning/HANDOFF.md` |
 | Attestation wording human product/legal approval | **DRAFT v1** — not human-finalized under skip |
-| Human real-session UAT (walk-away, never-asked panel, narrative SC4) | **UNVERIFIED** — 16-09 B–E, 16-10 Task 3, 16-11 B–G |
+| Human real-session UAT (walk-away, never-asked panel, narrative SC4) | **PASS (human-reported; evidence PARTIAL)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] items 8–10; session/report IDs and detailed observations not supplied. |
 | `verify-report-structure.ts` vs `difficult-conversation` required instance | Deferred — see `deferred-items.md` (Phase 15 gap) |
 
 ---
@@ -195,14 +195,14 @@ If a later human keyboard pass marks any Success Criterion **FAIL**, add an entr
 
 | Block | Status |
 |---|---|
-| B — Tile live on dashboard | **UNVERIFIED** (`skip_checkpoints`) |
-| C — Fresh character session + SC4 narrative | **UNVERIFIED** |
-| D — Brought-in person + SC3 UI half | **UNVERIFIED** |
-| E — Raw-paste acceptance + leak citation | Automated halves cited above; human acceptance **UNVERIFIED** |
-| F — Calibration keep/change | **UNVERIFIED** — no tuning applied |
-| G — Regression keyboard + row sign-off | **UNVERIFIED** |
+| B — Tile live on dashboard | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 7. |
+| C — Fresh character session + SC4 narrative | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 8; session ID not supplied. |
+| D — Brought-in person + SC3 UI half | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 9; session ID not supplied. |
+| E — Raw-paste acceptance + leak citation | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 10. |
+| F — Calibration keep/change | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 11; no change requested. |
+| G — Regression keyboard + row sign-off | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 12; session ID and detailed notes not supplied. |
 
-**Phase 16 keyboard sign-off:** **NOT completed** under `skip_checkpoints`. Automated guards and prior-plan evidence support shipping the tile + config-as-surfaces claim; human UAT remains open.
+**Phase 16 keyboard sign-off:** all six planned blocks were reported PASS by the human on 2026-10-05; see [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]]. The record remains evidence-**PARTIAL** because no session/report IDs, item-level notes, calibration detail, or run-environment detail was supplied.
 
 ### Task 3 disposition (2026-10-04)
 

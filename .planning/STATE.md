@@ -2,32 +2,33 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.1 — Consequence & Deck Breadth
-**Updated:** 2026-10-04 (Phase 13 CLOSED — REQ-66/REQ-67 ticked with a recorded caveat, REQ-63 delegated to REQ-75; see `13-CLOSE-RECORD.md`. Phase 18 planned — 5 plans for Avatar Disengagement & Walk-Out. Milestone v1.1; v1.0 shipped Phases 1–16.)
+**Updated:** 2026-10-05 (Phase 17 CLOSED — REQ-74 through REQ-77 Pass 1 complete; Phase 13's REQ-63 proof verified. Phase 18 is next; Phase 19 depends on it. Milestone v1.1; v1.0 shipped Phases 1–17.)
 
 ## Current Position
 
-**Phase:** 18 — Avatar Disengagement & Walk-Out (plans ready; Phase 17 — v1.0 Close-Out may run in parallel; Phase 19 depends on Phase 18)
+**Phase:** 18 — Avatar Disengagement & Walk-Out (Phase 17 closed; Phase 19 depends on Phase 18)
 **Plan:** 18-01 (next to execute)
-**Status:** Phase 18 planned (5 plans, waves 1–5); ready for `/gsd:execute-phase 18`
-**Last activity:** 2026-10-04 — Phase 18 plans created (18-01..18-05) covering REQ-78–86
+**Status:** Phase 18 implementation begins on `feature/phase-18-avatar-walkout`; no Prisma migration is required.
+**Last activity:** 2026-10-05 — Phase 17 closed with REQ-74–77 Pass 1 recorded; see `17-CLOSE-RECORD.md`.
 
 ### Carried into v1.1 from v1.0
 
 - **~~REQ-67 — Phase 13 close BLOCKED~~ — PHASE 13 IS CLOSED (2026-10-04).**
   REQ-66 and REQ-67 are ticked with a recorded caveat, not a passing test: the
-  shared DB was found EMPTY so the backfill acceptance test is unsatisfiable there
-  by construction and passed on local only (70 rows), and REQ-67 closed on its
-  human-run clause alone. Full reasoning: `13-CLOSE-RECORD.md`.
-  **Still carried, and NOT closed by that:** `vercel.json`'s `buildCommand` runs
-  `prisma migrate deploy` on every deployment, so deploys self-migrate unreviewed.
-  That is REQ-74 / plan 17-01. The no-agent-on-shared rule still binds agents.
-- **REQ-63** is implemented in the engine (`lib/engine/types.ts` `visibleContext`,
-  sliced in `lib/engine/prompts.ts`) but was never verified and checked off. Phase
-  13 closed with this **delegated to REQ-75 / plan 17-03**, not granted.
-- **Phases 15 and 16 keyboard UAT undischarged** — both completed under
-  `skip_checkpoints`; 4/4 SC PASS-automated each. `/gsd:verify-work 15`, `16`.
-- **`scripts/verify-deck-intake.ts` fails one assertion** — fixture/assertion
-  mismatch between `generate-deck-fixtures.ts` and `spike-deck-render.ts`.
+  shared DB was found EMPTY, so the backfill acceptance test is unsatisfiable there
+  by construction and passed on local only (70 rows). Full reasoning:
+  `13-CLOSE-RECORD.md` §3 and `17-CLOSE-RECORD.md` §2. REQ-74 removed automatic
+  migration from `vercel.json`; the no-agent-on-shared rule now holds for the
+  pipeline as well as agents.
+- **~~REQ-63 implemented but unverified~~ — VERIFIED 2026-10-04.**
+  `scripts/verify-deck-visible-context.ts` proves the cursor-gated deck path;
+  see `13-VISIBLE-CONTEXT-PROOF.md` and `17-03-SUMMARY.md`.
+- **~~Phases 15 and 16 keyboard UAT undischarged~~ — Pass 1 recorded
+  human-reported PASS on 2026-10-05.** The evidence remains PARTIAL because no
+  IDs or item-level notes were supplied; see `17-KEYBOARD-PASS-1.md`.
+- **~~`scripts/verify-deck-intake.ts` fixture mismatch~~ — PASS.** Canonical
+  `deck-two-slide.pptx` ownership preserves the strict assertion; see
+  `17-04-SUMMARY.md`. Pass 2 for Phase 18/19 surfaces remains Phase 19 work.
 
 ---
 
@@ -87,9 +88,10 @@ parts are done, nothing is held, and **Phase 13 is closed**:
 `13-CLOSE-RECORD.md`. `13-MIGRATION-HANDOFF.md` carries the same correction as a
 banner.
 
-**The no-agent-on-shared rule still binds agents** — unchanged. What it never
-bound is CI: `vercel.json` self-migrates on every deploy, which is REQ-74 /
-plan 17-01, still open.
+**The no-agent-on-shared rule still binds agents** — unchanged. It now also
+holds for CI: Phase 17 removed `prisma migrate deploy` from `vercel.json` and
+recorded the human-before-dependent-deploy procedure in `docs/MIGRATIONS.md`.
+See `17-CLOSE-RECORD.md`.
 
 > *Original text, superseded:* All 15 Phase 13 plans are executed. Local CREATE +
 > backfill + DROP are done. Human ACK'd Part 2 handoff (`drop handoff received`)

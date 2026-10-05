@@ -165,8 +165,8 @@ Handoff for anyone revising Phase 13 (mirror of 14-15 / 16-11 Section 4). Fold t
 
 | Item | Status |
 |---|---|
-| Hostile drift probe 5 human sign-off | **DEFERRED → /gsd/verify-work 15** (`15-DRIFT.md`) |
-| Human UAT from 15-07 / 15-08 / 15-09 / 15-10 / 15-11 B–G | **DEFERRED → /gsd/verify-work 15** — checklists below |
+| Hostile drift probe 5 human sign-off | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 13; item-level observation not supplied. |
+| Human UAT from 15-07 / 15-08 / 15-09 / 15-10 / 15-11 B–G | **PASS (human-reported; evidence PARTIAL)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] items 1–6; session/report IDs and detailed observations not supplied. |
 | `verify-report-structure.ts` vs `difficult-conversation` requires instance | Pre-existing tooling gap (also noted in 16-VALIDATION) — **not** a Phase 15 product FAIL |
 
 ---
@@ -207,9 +207,9 @@ If a later human keyboard pass marks any Success Criterion **FAIL**, add an entr
 | `dc-approach-vs-result` | PASS |
 | `verify-report-structure` | **FAIL** (pre-existing: `resolve difficult-conversation: requires an instance` — tooling debt, not a SC failure) |
 
-### Human blocks B–G — DEFERRED → /gsd/verify-work 15
+### Human blocks B–G — completed 2026-10-05
 
-Copied/linked from prior plan checklists. **Do not invent PASS.**
+The human reported all six planned blocks PASS. The individual session/report IDs, observations, calibration decision, and concrete environment details were not supplied; see [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]].
 
 #### From 15-07 (catalog / author / publish / second account)
 
@@ -237,14 +237,14 @@ See `15-DRIFT.md` — reconfirm every probe row after a full human session; espe
 
 | Block | Status |
 |---|---|
-| B — Fresh seeded conversation (fire-team-member or decline-senior-request) at guarded | **DEFERRED → /gsd/verify-work 15** |
-| C — Author, publish, second account plays | **DEFERRED → /gsd/verify-work 15** |
-| D — Drift record reconfirm after full session | **DEFERRED → /gsd/verify-work 15** (automated table stands; human sentence pending) |
-| E — Phase 13 regression keyboard | **DEFERRED → /gsd/verify-work 15** |
-| F — Calibration keep/change | **DEFERRED** — no tuning applied under skip |
-| G — Row-by-row mark of Sections 1–2 | Automated rows marked; human rows left DEFERRED |
+| B — Fresh seeded conversation (fire-team-member or decline-senior-request) at guarded | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 1; session ID not supplied. |
+| C — Author, publish, second account plays | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 2; session ID not supplied. |
+| D — Drift record reconfirm after full session | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 3; item-level drift sentence not supplied. |
+| E — Phase 13 regression keyboard | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 4; IDs/old URL not supplied. |
+| F — Calibration keep/change | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 5; no change requested. |
+| G — Row-by-row mark of Sections 1–2 | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 6; no disputed row supplied. |
 
-**Phase 15 keyboard sign-off:** **NOT completed** under `skip_checkpoints`. Automated guards + prior-plan evidence support the config-as-surfaces claim and the four criteria' automated halves; human UAT remains open via `/gsd/verify-work 15`.
+**Phase 15 keyboard sign-off:** all six planned blocks were reported PASS by the human on 2026-10-05; see [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]]. The record remains evidence-**PARTIAL** because no session/report IDs, item-level notes, calibration detail, or run-environment detail was supplied.
 
 ### Task 3 disposition (2026-10-04)
 

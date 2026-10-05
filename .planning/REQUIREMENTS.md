@@ -446,16 +446,15 @@ what was decided; they add no scope.
   report. Nothing but the student can end a session today. Built in Phase 13 even
   though Phase 14 is its first consumer.
 
-- **REQ-63** — [ ] A per-turn VISIBLE-CONTEXT slice is an engine primitive: a type
+- **REQ-63** — [x] A per-turn VISIBLE-CONTEXT slice is an engine primitive: a type
   controls what the avatar may see on a given turn, as distinct from everything the
   session knows. Modelled generally, not as slide bookkeeping.
 
-  **IMPLEMENTED BUT UNVERIFIED — deliberately still open after Phase 13 closed.**
-  The primitive exists (`lib/engine/types.ts` `visibleContext`, sliced in
-  `lib/engine/prompts.ts`); it was never proven against a real multi-channel
-  session. Phase 13 closed 2026-10-04 with this box **delegated, not granted** —
-  REQ-75 / plan 17-03 owns the proof (`13-VISIBLE-CONTEXT-PROOF.md`) and ticks this
-  box then. See `13-CLOSE-RECORD.md` §4.
+  **VERIFIED 2026-10-04.** `scripts/verify-deck-visible-context.ts` passes the
+  real deck turn-assembly boundary: no deck text before reveal, only the revealed
+  prefix afterward, a monotonic high-water mark, hostile-index rejection, and no
+  sentinel in the byte-identical system prompt. The proof is recorded in
+  `13-VISIBLE-CONTEXT-PROOF.md`; see `17-03-SUMMARY.md` for its precise scope.
 
 - **REQ-64** — [x] A type-declared OUTCOME record (JSON) persists structured session
   results, and an explicit TIME BUDGET is an engine concept carried in the existing
@@ -562,7 +561,7 @@ REQ-73.
 
 ### Phase 17 — v1.0 Close-Out
 
-- **REQ-74** — [ ] **RE-SCOPED 2026-10-04.** The migration work this requirement
+- **REQ-74** — [x] **RE-SCOPED 2026-10-04.** The migration work this requirement
   originally described is ALREADY DONE: `HANDOFF.md §3` (commit `9a53084`, "correct
   the migration record after the shared-DB run") records all 14 migrations applied
   to the shared Lightsail DB, `Database schema is up to date!`, nothing pending or
@@ -594,7 +593,9 @@ REQ-73.
   Also closed under this requirement: **confirm what the Production `DATABASE_URL`
   secret actually points at.** It is write-only (Vercel "Sensitive"), the account has
   no marketplace integrations, and the `la_db_*` secrets are orphaned leftovers
-  pointing at a store that no longer exists. Nobody has verified it.
+  pointing at a store that no longer exists. **CONFIRMED 2026-10-04 by human report:**
+  Production `DATABASE_URL` points at shared Lightsail; see `17-02-SUMMARY.md` and
+  `17-CLOSE-RECORD.md`.
 
   **SUPERSEDED 2026-10-04 — REQ-66 and REQ-67 no longer close under this
   requirement.** They were closed directly against Phase 13 with the recorded
@@ -604,26 +605,31 @@ REQ-73.
   was never run against shared, its verifier *cannot* pass there, and REQ-66's
   acceptance test passed on local (70 rows) — the only place it ever could.
 
-  **What REQ-74 still owns** is everything above this paragraph: the `buildCommand`
-  removal, the replacement procedure, the stale-document reconciliation, and the
-  Production `DATABASE_URL` confirmation. REQ-67's tick does NOT mean that work is
-  done.
+  **REQ-74 is complete**: the `buildCommand` removal, replacement procedure,
+  stale-document reconciliation, and human-reported Production `DATABASE_URL`
+  confirmation are recorded above and in `17-CLOSE-RECORD.md`. REQ-67's earlier
+  tick did not itself establish this governance work.
 
-- **REQ-75** — [ ] REQ-63's per-turn visible-context slice is verified against a real
+- **REQ-75** — [x] REQ-63's per-turn visible-context slice is verified against a real
   multi-channel session — the avatar's context provably contains only the declared
   visible channels for that turn — and REQ-63 is checked off. The primitive already
   exists (`lib/engine/types.ts` `visibleContext`, sliced in `lib/engine/prompts.ts`);
-  this requirement is evidence, not construction.
+  this requirement is evidence, not construction. Evidence:
+  `13-VISIBLE-CONTEXT-PROOF.md` and `scripts/verify-deck-visible-context.ts`.
 
-- **REQ-76** — [ ] `scripts/verify-deck-intake.ts` passes every assertion. The
+- **REQ-76** — [x] `scripts/verify-deck-intake.ts` passes every assertion. The
   fixture/assertion mismatch between `scripts/generate-deck-fixtures.ts`
   (`"Spike Deck Title"`) and `scripts/spike-deck-render.ts`
   (`"Spike Deck Slide 1"`) is resolved by making the harness and its fixture agree
-  on one source, not by loosening the assertion.
+  on one source, not by loosening the assertion. Evidence: `17-04-SUMMARY.md`,
+  `scripts/verify-deck-intake.ts`, and `scripts/fixtures/deck-two-slide.pptx`.
 
-- **REQ-77** — [ ] The keyboard UAT deferred under `skip_checkpoints` on Phases 15
+- **REQ-77** — [x] The keyboard UAT deferred under `skip_checkpoints` on Phases 15
   and 16 is discharged, with the result recorded in each phase's validation file.
   A failure found here is logged as a defect, not silently repaired as part of UAT.
+  Pass 1's thirteen checks were human-reported PASS with no reported defects;
+  `17-KEYBOARD-PASS-1.md` records the evidence limitation and no-op repair ledger.
+  Pass 2 for the surfaces Phases 18 and 19 add is Phase 19's closing obligation.
 
 ### Phase 18 — Avatar Disengagement & Walk-Out
 
@@ -723,10 +729,10 @@ REQ-73.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REQ-74 | Phase 17 | Pending |
-| REQ-75 | Phase 17 | Pending |
-| REQ-76 | Phase 17 | Pending |
-| REQ-77 | Phase 17 | Pending |
+| REQ-74 | Phase 17 | Complete |
+| REQ-75 | Phase 17 | Complete |
+| REQ-76 | Phase 17 | Complete |
+| REQ-77 | Phase 17 | Complete |
 | REQ-78 | Phase 18 | Pending |
 | REQ-79 | Phase 18 | Pending |
 | REQ-80 | Phase 18 | Pending |
