@@ -19,6 +19,16 @@ import {
   isInterviewIntegrityRequest,
   parseEngineTurn,
 } from "@/lib/engine/turn-control";
+import {
+  computeDisengagement,
+  cueAcceleration,
+  extractDisengagementSignals,
+  parseDisengagementCue,
+} from "@/lib/engine/disengagement";
+import {
+  createWalkOutProof,
+  verifyWalkOutProof,
+} from "@/lib/engine/walk-out-proof";
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { prisma } from "@/lib/prisma";
@@ -70,6 +80,10 @@ interface EngineTurnStateInput {
   firstTurnStartedAt?: unknown;
   /** True once the opening turn has been delivered (follow-up phase). */
   firstTurnDelivered?: unknown;
+  /** One-shot client request after a server-confirmed crossing. */
+  forceWalkOutFarewell?: unknown;
+  /** Short-lived proof returned by the server for that crossing. */
+  walkOutProof?: unknown;
 }
 
 const MAX_MESSAGE_LENGTH = 20_000;
@@ -200,6 +214,11 @@ function attachTerminationToStream(
     hasResume?: boolean;
     targetQuestionCount?: number;
     assistantTurnCount?: number;
+    transcript: ChatMessageInput[];
+    elapsedSeconds: number;
+    budgetSeconds: number | null;
+    commonGroundAbsent: boolean;
+    walkOutProofContext?: { userId: string; reportId: string };
   },
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
@@ -237,15 +256,51 @@ function attachTerminationToStream(
                   accumulated += event.delta;
                 }
                 if (event.type === "end") {
-                  const parsed = parseEngineTurn(
-                    accumulated,
-                    config,
-                    parseOpts,
-                  );
+                  // The provider output is not an authority. Its optional cue
+                  // can only accelerate pressure already derived from the
+                  // observed transcript, count, and server-side route state.
+                  const cue = parseDisengagementCue(accumulated).cue;
+                  const disengagement = computeDisengagement({
+                    signals: extractDisengagementSignals({
+                      transcript: parseOpts.transcript,
+                      elapsedSeconds: parseOpts.elapsedSeconds,
+                      budgetSeconds: parseOpts.budgetSeconds,
+                      assistantTurnCount: parseOpts.assistantTurnCount ?? 0,
+                      commonGroundAbsent: parseOpts.commonGroundAbsent,
+                    }),
+                    threshold: config.terminationPolicy.disengagementThreshold,
+                    cueAccel: cueAcceleration(cue),
+                  });
+                  const parsed = parseEngineTurn(accumulated, config, {
+                    ...parseOpts,
+                    disengagementValue: disengagement.value,
+                  });
+
+                  const minimumTurns =
+                    config.terminationPolicy.avatarEndFloor?.minAssistantTurns ??
+                    0;
+                  const walkOutFinal =
+                    config.terminationPolicy.disengagementThreshold != null &&
+                    disengagement.crossed &&
+                    (parseOpts.assistantTurnCount ?? 0) >= minimumTurns;
+                  const walkOutProof =
+                    walkOutFinal && parseOpts.walkOutProofContext
+                      ? await createWalkOutProof({
+                          ...parseOpts.walkOutProofContext,
+                          disengagement,
+                          cue: parsed.disengagementCue,
+                          assistantTurnCount:
+                            parseOpts.assistantTurnCount ?? 0,
+                        })
+                      : null;
 
                   event.metadata = {
                     ...(event.metadata ?? {}),
                     termination: parsed.termination,
+                    disengagement,
+                    disengagementCue: parsed.disengagementCue,
+                    walkOutFinal,
+                    walkOutProof,
                   };
                   controller.enqueue(
                     encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
@@ -329,6 +384,8 @@ export async function POST(request: NextRequest) {
       revealedSlideIndex,
       reportId: rawReportId,
     } = body;
+    const token = request.cookies.get(siteConfig.auth.cookie.name)?.value;
+    const currentUser = await getCurrentUser(token || "");
     const attemptLanguage = resolveAttemptLanguage(language);
 
     if (
@@ -400,7 +457,12 @@ export async function POST(request: NextRequest) {
       hasResume?: boolean;
       targetQuestionCount?: number;
       assistantTurnCount?: number;
-    } = {};
+      transcript: ChatMessageInput[];
+      elapsedSeconds: number;
+      budgetSeconds: number | null;
+      commonGroundAbsent: boolean;
+      walkOutProofContext?: { userId: string; reportId: string };
+    } | null = null;
 
     if (sessionConfig) {
       // Prefer engine-descriptor fields (13-10+ clients); fall back to the
@@ -453,6 +515,17 @@ export async function POST(request: NextRequest) {
           ? new Date(firstTurnStartedAtRaw)
           : undefined;
       const firstTurnDelivered = engineTurn?.firstTurnDelivered === true;
+      const forceWalkOutFarewell =
+        engineTurn?.forceWalkOutFarewell === true &&
+        currentUser !== null &&
+        typeof rawReportId === "string" &&
+        Boolean(
+          await verifyWalkOutProof({
+            token: engineTurn?.walkOutProof,
+            userId: currentUser.id,
+            reportId: rawReportId,
+          }),
+        );
 
       // Networking (16-07/16-08): characterId and brought-in persona text travel
       // in the wizard customization bag — not on InterviewCustomizationInput —
@@ -502,10 +575,6 @@ export async function POST(request: NextRequest) {
             : null;
 
         try {
-          const token = request.cookies.get(
-            siteConfig.auth.cookie.name,
-          )?.value;
-          const currentUser = await getCurrentUser(token || "");
           if (currentUser) {
             deckOwnerId = currentUser.id;
 
@@ -621,6 +690,38 @@ export async function POST(request: NextRequest) {
         slideCountForTail = slideCount;
       }
 
+      // Include the assistant reply now being produced: the policy floor counts
+      // this reply, and the near-threshold directive must use server-derived
+      // transcript facts rather than a browser-provided score.
+      const assistantTurnCount =
+        messages.filter((m) => m.role === "assistant").length + 1;
+      const elapsedSeconds = startedAtDate
+        ? Math.max(0, Math.round((Date.now() - startedAtDate.getTime()) / 1000))
+        : 0;
+      const commonGroundAbsent =
+        assistantTurnCount >= 2 &&
+        !messages.some(
+          (message) =>
+            message.role === "user" &&
+            /\b(common ground|align(?:s|ed|ment)?|fit|relevant|priority|interest)\b/i.test(
+              message.content,
+            ),
+        );
+      const disengagementThreshold =
+        sessionConfig.terminationPolicy.disengagementThreshold;
+      const nearWalkOutThreshold =
+        disengagementThreshold != null &&
+        computeDisengagement({
+          signals: extractDisengagementSignals({
+            transcript: messages,
+            elapsedSeconds,
+            budgetSeconds: sessionConfig.timeBudget.totalSeconds,
+            assistantTurnCount,
+            commonGroundAbsent,
+          }),
+          threshold: disengagementThreshold,
+        }).value >= Math.max(0, disengagementThreshold - 0.1);
+
       const built = buildTurnMessages({
         config: sessionConfig,
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -652,6 +753,14 @@ export async function POST(request: NextRequest) {
                   : undefined,
               }
             : undefined,
+          ...(nearWalkOutThreshold || forceWalkOutFarewell
+            ? {
+                walkOut: {
+                  nearThreshold: nearWalkOutThreshold,
+                  forceFarewell: forceWalkOutFarewell,
+                },
+              }
+            : {}),
           ...(revealedSlides !== undefined
             ? { revealedSlides, slideCount: slideCountForTail }
             : {}),
@@ -667,10 +776,6 @@ export async function POST(request: NextRequest) {
       });
 
       fullMessages = built.messages;
-      // Include the assistant turn currently being produced (floor counts this reply).
-      const assistantTurnCount =
-        messages.filter((m) => m.role === "assistant").length + 1;
-
       parseOpts = {
         previousProgress: progress,
         hasResume: Boolean(resumeText.trim()),
@@ -679,6 +784,18 @@ export async function POST(request: NextRequest) {
           getInterviewType(sessionConfig.typeSlug)?.targetQuestionCount ??
           9,
         assistantTurnCount,
+        transcript: messages,
+        elapsedSeconds,
+        budgetSeconds: sessionConfig.timeBudget.totalSeconds,
+        commonGroundAbsent,
+        ...(currentUser && typeof rawReportId === "string"
+          ? {
+              walkOutProofContext: {
+                userId: currentUser.id,
+                reportId: rawReportId,
+              },
+            }
+          : {}),
       };
     } else {
       // Legacy admin/cohort case path — client-supplied strings, no engine type.
@@ -703,7 +820,7 @@ export async function POST(request: NextRequest) {
       maxTokens: interviewStyleTurnControl ? 520 : 1000,
     });
 
-    const responseStream = sessionConfig
+    const responseStream = sessionConfig && parseOpts
       ? attachTerminationToStream(stream, sessionConfig, parseOpts)
       : stream;
 
