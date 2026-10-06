@@ -12,6 +12,7 @@
  */
 
 import type { ResolvedSessionConfig } from "@/lib/engine/types";
+import type { DisengagementDeclineRecord } from "@/lib/report/dto";
 
 /**
  * Built-in listener the avatar always plays. Student-facing disclosure is
@@ -130,7 +131,7 @@ OUTCOME RECORD (factual, not a score — fill honestly after scoring):
 - earlyEndReasons (string or null): if the listener ended the conversation early, the specific prose reasons and the approximate point at which interest dropped; otherwise null.
 - commonGroundFound (boolean): whether the student actually established common ground with this listener.
 
-If the listener ended the conversation early, still score every dimension on what did happen, and state the specific reasons and the approximate point at which interest dropped in the structured body. Do not zero any dimension because of an early end — the ceiling, if any, is applied in code, not by you.`;
+If the listener ended the conversation early, still score every dimension on what did happen, and state the specific reasons and the approximate point at which interest dropped in the structured body. When evaluation context includes disengagementDecline episodes, cite only their provided session-clock timestamps and observable causes. Do not infer the listener's feelings, motivations, or any cause absent from those episodes. Do not zero any dimension because of an early end — the ceiling, if any, is applied in code, not by you.`;
 
 export type ElevatorEvaluationContext = {
   kind: "pitch-elevator";
@@ -140,6 +141,7 @@ export type ElevatorEvaluationContext = {
   firstTurnWindowSeconds: number | null;
   terminationReason: string | null;
   terminationAtSeconds: number | null;
+  disengagementDecline: DisengagementDeclineRecord | null;
 };
 
 /**
@@ -161,5 +163,6 @@ export function buildElevatorEvaluationContext(
     firstTurnWindowSeconds: config.timeBudget.firstTurnWindowSeconds ?? null,
     terminationReason: null,
     terminationAtSeconds: null,
+    disengagementDecline: null,
   };
 }

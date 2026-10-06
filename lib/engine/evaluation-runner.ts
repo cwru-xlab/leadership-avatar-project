@@ -38,6 +38,7 @@ import {
   type PitchInputSnapshot,
   type ScenarioInputSnapshot,
 } from "@/lib/report/snapshot";
+import { asDisengagementDeclineRecord } from "@/lib/report/dto";
 import type { InteractionLog, InteractionEvent } from "@/types";
 
 import { runEvaluation } from "./evaluation";
@@ -320,6 +321,7 @@ function buildEvaluationContextForReport(
     reason: string | null;
     atSeconds: number | null;
   },
+  outcome?: unknown,
 ): Record<string, unknown> {
   const type = getEngineType(config.typeSlug);
   if (!type) {
@@ -353,6 +355,25 @@ function buildEvaluationContextForReport(
           presetCustomization?.interviewerPersona ??
           "",
       },
+    };
+  }
+
+  // Finish owns termination and signed decline evidence. Supply pitch graders
+  // only the narrowed server-owned episode slice, never arbitrary outcome JSON.
+  if (
+    (base.kind === "pitch-elevator" || base.kind === "pitch-deck") &&
+    termination &&
+    typeof base === "object"
+  ) {
+    const outcomeRecord =
+      outcome && typeof outcome === "object" && !Array.isArray(outcome)
+        ? (outcome as Record<string, unknown>)
+        : null;
+    return {
+      ...base,
+      terminationReason: termination.reason,
+      terminationAtSeconds: termination.atSeconds,
+      disengagementDecline: asDisengagementDeclineRecord(outcomeRecord?.disengagementDecline),
     };
   }
 
@@ -539,6 +560,7 @@ export async function runAndPersistEvaluation({
         reason: report.terminationReason,
         atSeconds: report.terminationAtSeconds,
       },
+      report.outcome,
     );
 
     // Type-declared images (looked up via the type record — ResolvedSessionConfig
@@ -587,20 +609,30 @@ export async function runAndPersistEvaluation({
       // non-null outcome the finish route already set unless the evaluator
       // produced one.
       const produced = outcome.producedOutcome;
+      const storedOutcome =
+        report.outcome && typeof report.outcome === "object" && !Array.isArray(report.outcome)
+          ? (report.outcome as Record<string, unknown>)
+          : null;
+      const storedDecline = asDisengagementDeclineRecord(storedOutcome?.disengagementDecline);
       let outcomeToPersist: Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined;
       let validatedOutcome: Record<string, unknown> | null = null;
 
       if (produced !== null) {
         const validated = validateOutcome(resolved.config.outcome, produced);
         if (validated.ok) {
-          validatedOutcome = validated.outcome;
-          outcomeToPersist = validated.outcome as unknown as Prisma.InputJsonValue;
+          validatedOutcome = {
+            ...validated.outcome,
+            ...(storedDecline ? { disengagementDecline: storedDecline } : {}),
+          };
+          outcomeToPersist = validatedOutcome as unknown as Prisma.InputJsonValue;
         } else {
           console.warn(
-            "Engine evaluation: produced outcome failed validateOutcome; persisting null",
+            "Engine evaluation: produced outcome failed validateOutcome; preserving engine-owned decline evidence",
             { reportId, errors: validated.errors },
           );
-          outcomeToPersist = Prisma.JsonNull;
+          outcomeToPersist = storedDecline
+            ? ({ disengagementDecline: storedDecline } as unknown as Prisma.InputJsonValue)
+            : Prisma.JsonNull;
         }
       } else if (report.outcome == null) {
         // Evaluator produced nothing and finish left nothing — leave as-is
