@@ -65,8 +65,7 @@ import { getEngineType } from "./registry";
 import { resolveSessionConfig } from "./resolve";
 import { resolveTermination } from "./termination";
 import {
-  computeDisengagement,
-  extractDisengagementSignals,
+  computeDisengagementOverTranscript,
   type DisengagementComputeResult,
 } from "./disengagement";
 import { verifyWalkOutProof } from "./walk-out-proof";
@@ -195,25 +194,17 @@ function deriveFinishDisengagement({
   budgetSeconds: number | null;
   threshold: number | null | undefined;
 }): DisengagementComputeResult {
-  const assistantTurnCount = turns.filter((turn) => turn.role === "assistant").length;
-  const commonGroundAbsent =
-    assistantTurnCount >= 2 &&
-    !turns.some(
-      (turn) =>
-        turn.role === "user" &&
-        /\b(common ground|align(?:s|ed|ment)?|fit|relevant|priority|interest)\b/i.test(
-          turn.content,
-        ),
-    );
+  const assistantTurnCount = turns.filter(
+    (turn) => turn.role === "assistant",
+  ).length;
 
-  return computeDisengagement({
-    signals: extractDisengagementSignals({
-      transcript: turns,
-      elapsedSeconds: Math.max(0, Math.trunc(elapsedSeconds)),
-      budgetSeconds,
-      assistantTurnCount,
-      commonGroundAbsent,
-    }),
+  // Replays the transcript so the recorded value matches the ratcheted value
+  // the chat route streamed, rather than a from-scratch final-turn snapshot.
+  return computeDisengagementOverTranscript({
+    transcript: turns,
+    elapsedSeconds: Math.max(0, Math.trunc(elapsedSeconds)),
+    budgetSeconds,
+    assistantTurnCount,
     threshold,
   });
 }

@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import {
   computeDisengagement,
+  computeDisengagementOverTranscript,
   extractDisengagementSignals,
 } from "../lib/engine/disengagement";
 
@@ -211,6 +212,88 @@ console.log("\n5. Dependency boundary");
     "the primitive contains no model, network, or database dependency markers",
     !/\b(?:fetch|OpenAI|prisma)\b/i.test(source),
     "found a forbidden dependency marker",
+  );
+}
+
+console.log("\n6. Transcript replay ratchets across turns");
+{
+  // Observed in UAT: a stalled, repetitive transcript reached 0.6, then one
+  // novel reply ("Cheese") dropped it to 0.4, because each request recomputed
+  // from scratch and repetition scores only the latest message.
+  const stalled = [
+    { role: "assistant", content: "What are you pitching?" },
+    { role: "user", content: "a startup thing" },
+    { role: "assistant", content: "Tell me more about it." },
+    { role: "user", content: "a startup thing" },
+    { role: "assistant", content: "What makes it different?" },
+    { role: "user", content: "a startup thing" },
+  ];
+  const withNovelReply = [
+    ...stalled,
+    { role: "assistant", content: "Anything specific you need?" },
+    { role: "user", content: "Cheese" },
+  ];
+  const base = { elapsedSeconds: 120, budgetSeconds: 300, threshold: 0.72 };
+  const before = computeDisengagementOverTranscript({
+    ...base,
+    transcript: stalled,
+    assistantTurnCount: 3,
+  });
+  const after = computeDisengagementOverTranscript({
+    ...base,
+    transcript: withNovelReply,
+    assistantTurnCount: 4,
+  });
+
+  check(
+    "a novel reply never lowers the value earned by earlier turns",
+    after.value >= before.value,
+    `before ${before.value} -> after ${after.value}`,
+  );
+  check(
+    "the from-scratch computation this replaces does drop on the same input",
+    computeDisengagement({
+      signals: extractDisengagementSignals({
+        transcript: withNovelReply,
+        elapsedSeconds: 120,
+        budgetSeconds: 300,
+        assistantTurnCount: 4,
+      }),
+      threshold: 0.72,
+    }).value < before.value,
+    "the regression fixture no longer reproduces the original defect",
+  );
+  check(
+    "replay is deterministic",
+    JSON.stringify(
+      computeDisengagementOverTranscript({
+        ...base,
+        transcript: withNovelReply,
+        assistantTurnCount: 4,
+      }),
+    ) === JSON.stringify(after),
+    "same transcript produced different results",
+  );
+  check(
+    "an established common ground cannot erase an earlier absence",
+    computeDisengagementOverTranscript({
+      ...base,
+      transcript: [
+        ...withNovelReply,
+        { role: "assistant", content: "So what is the fit here?" },
+        { role: "user", content: "our priority is a relevant fit for you" },
+      ],
+      assistantTurnCount: 5,
+    }).value >= after.value,
+    "a late common-ground mention lowered the ratcheted value",
+  );
+  check(
+    "episodes span the replayed session, not only the final turn",
+    before.episodes.length > 0 &&
+      before.episodes.every(
+        (episode) => episode.start_s >= 0 && episode.start_s <= 120,
+      ),
+    JSON.stringify(before.episodes),
   );
 }
 

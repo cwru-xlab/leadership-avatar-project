@@ -102,6 +102,35 @@ for (const term of visibleMeterTerms) {
   check(!pitchUi.includes(term), `no learner-facing ${term} UI`);
 }
 
+// The ratchet lives in priorValue, which every caller must thread. Calling the
+// bare primitive per request silently recomputes from zero: a session reached
+// 0.6 in UAT, then a single novel reply dropped it to 0.4. Both server callers
+// must replay the transcript instead.
+for (const [name, source] of [
+  ["chat route", chatRoute],
+  ["finish re-derivation", session],
+] as const) {
+  check(
+    source.includes("computeDisengagementOverTranscript"),
+    `${name} derives disengagement by replaying the transcript`,
+  );
+  check(
+    !/\bcomputeDisengagement\s*\(/.test(source),
+    `${name} does not call the un-ratcheted primitive directly`,
+  );
+}
+
+// The farewell must end on the avatar's own speech-ended event. A word-count
+// estimate overshot real speech and left the student on a locked screen.
+check(
+  shell.includes("waitForSpeechEnd"),
+  "walk-out finish waits for the avatar speech-ended signal",
+);
+check(
+  !shell.includes("finalSpeechMs"),
+  "walk-out finish no longer drives auto-finish from a guessed duration",
+);
+
 if (failures > 0) {
   console.error(`\n${failures} walk-out shell check(s) failed.`);
   process.exit(1);
