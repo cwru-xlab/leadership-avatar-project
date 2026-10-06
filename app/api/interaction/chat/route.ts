@@ -20,9 +20,8 @@ import {
   parseEngineTurn,
 } from "@/lib/engine/turn-control";
 import {
-  computeDisengagement,
+  computeDisengagementOverTranscript,
   cueAcceleration,
-  extractDisengagementSignals,
   parseDisengagementCue,
 } from "@/lib/engine/disengagement";
 import {
@@ -217,7 +216,6 @@ function attachTerminationToStream(
     transcript: ChatMessageInput[];
     elapsedSeconds: number;
     budgetSeconds: number | null;
-    commonGroundAbsent: boolean;
     walkOutProofContext?: { userId: string; reportId: string };
   },
 ): ReadableStream<Uint8Array> {
@@ -260,14 +258,11 @@ function attachTerminationToStream(
                   // can only accelerate pressure already derived from the
                   // observed transcript, count, and server-side route state.
                   const cue = parseDisengagementCue(accumulated).cue;
-                  const disengagement = computeDisengagement({
-                    signals: extractDisengagementSignals({
-                      transcript: parseOpts.transcript,
-                      elapsedSeconds: parseOpts.elapsedSeconds,
-                      budgetSeconds: parseOpts.budgetSeconds,
-                      assistantTurnCount: parseOpts.assistantTurnCount ?? 0,
-                      commonGroundAbsent: parseOpts.commonGroundAbsent,
-                    }),
+                  const disengagement = computeDisengagementOverTranscript({
+                    transcript: parseOpts.transcript,
+                    elapsedSeconds: parseOpts.elapsedSeconds,
+                    budgetSeconds: parseOpts.budgetSeconds,
+                    assistantTurnCount: parseOpts.assistantTurnCount ?? 0,
                     threshold: config.terminationPolicy.disengagementThreshold,
                     cueAccel: cueAcceleration(cue),
                   });
@@ -481,7 +476,6 @@ export async function POST(request: NextRequest) {
       transcript: ChatMessageInput[];
       elapsedSeconds: number;
       budgetSeconds: number | null;
-      commonGroundAbsent: boolean;
       walkOutProofContext?: { userId: string; reportId: string };
     } | null = null;
 
@@ -722,29 +716,17 @@ export async function POST(request: NextRequest) {
       const elapsedSeconds = walkOutStartedAt
         ? Math.max(0, Math.round((Date.now() - walkOutStartedAt.getTime()) / 1000))
         : 0;
-      const commonGroundAbsent =
-        assistantTurnCount >= 2 &&
-        !messages.some(
-          (message) =>
-            message.role === "user" &&
-            /\b(common ground|align(?:s|ed|ment)?|fit|relevant|priority|interest)\b/i.test(
-              message.content,
-            ),
-        );
       const disengagementThreshold =
         sessionConfig.terminationPolicy.disengagementThreshold;
       const nearWalkOutThreshold =
         disengagementThreshold != null &&
-        computeDisengagement({
-          signals: extractDisengagementSignals({
-            transcript: messages,
-            elapsedSeconds,
-            budgetSeconds:
-              walkOutReport?.timeBudgetSeconds ??
-              sessionConfig.timeBudget.totalSeconds,
-            assistantTurnCount,
-            commonGroundAbsent,
-          }),
+        computeDisengagementOverTranscript({
+          transcript: messages,
+          elapsedSeconds,
+          budgetSeconds:
+            walkOutReport?.timeBudgetSeconds ??
+            sessionConfig.timeBudget.totalSeconds,
+          assistantTurnCount,
           threshold: disengagementThreshold,
         }).value >= Math.max(0, disengagementThreshold - 0.1);
 
@@ -815,7 +797,6 @@ export async function POST(request: NextRequest) {
         budgetSeconds:
           walkOutReport?.timeBudgetSeconds ??
           sessionConfig.timeBudget.totalSeconds,
-        commonGroundAbsent,
         ...(walkOutReport
           ? {
               walkOutProofContext: {

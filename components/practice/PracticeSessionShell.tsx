@@ -389,7 +389,8 @@ function PracticeInterviewRoom({
   const [walkOutLock, setWalkOutLock] = useState(false);
   const walkOutLockRef = useRef(false);
   const forcedFarewellRequestedRef = useRef(false);
-  const walkOutFinishTimerRef = useRef<number | null>(null);
+  /** Set on unmount so a resolved farewell wait cannot finish a dead session. */
+  const walkOutFinishCancelledRef = useRef(false);
   const disengagementRef = useRef<DisengagementComputeResult | null>(null);
   const walkOutProofRef = useRef<string | null>(null);
   /** Pending termination from an accepted avatar end marker (or panel request). */
@@ -404,6 +405,33 @@ function PracticeInterviewRoom({
   // Stable ref so the chat turn handler can call the latest handleEnd without
   // re-binding sendMessage on every render (avatar auto-finish path).
   const handleEndRef = useRef<((title?: string) => Promise<void>) | null>(null);
+
+  /**
+   * Ends the session once the farewell has actually finished playing.
+   *
+   * REQ-82 requires the final statement to complete before auto-finish, but the
+   * avatar is the only thing that knows when it stopped talking. A word-count
+   * estimate (the previous `words * 500ms`, capped at 15s) overshot real speech
+   * badly enough to look hung, so this waits on the avatar speech-ended signal
+   * and keeps a bounded ceiling only for a dropped event.
+   */
+  const finishAfterFarewell = useCallback((farewellText: string) => {
+    const words = farewellText.trim().split(/\s+/).filter(Boolean).length;
+    const ceilingMs = Math.min(20_000, Math.max(3_000, words * 600 + 2_000));
+    const avatar = avatarRef.current;
+
+    if (!avatar) {
+      // The avatar never mounted, so there is no speech to wait on.
+      void handleEndRef.current?.();
+
+      return;
+    }
+
+    void avatar.waitForSpeechEnd(ceilingMs).then(() => {
+      if (walkOutFinishCancelledRef.current) return;
+      void handleEndRef.current?.();
+    });
+  }, []);
   const sendMessageRef = useRef<
     ((candidateMessage: string, forceWalkOutFarewell?: boolean) => Promise<void>) | null
   >(null);
@@ -587,9 +615,7 @@ function PracticeInterviewRoom({
 
   useEffect(() => {
     return () => {
-      if (walkOutFinishTimerRef.current != null) {
-        clearTimeout(walkOutFinishTimerRef.current);
-      }
+      walkOutFinishCancelledRef.current = true;
       releaseMicrophone();
       releaseVisualCapture();
       vocalCaptureRef.current?.detachStream();
@@ -815,17 +841,7 @@ function PracticeInterviewRoom({
           };
           setStreamingText(parsedTurn.cleanedText);
           avatarRef.current?.speak(parsedTurn.cleanedText);
-          const words = parsedTurn.cleanedText
-            .trim()
-            .split(/\s+/)
-            .filter(Boolean).length;
-          const finalSpeechMs = Math.min(
-            15_000,
-            Math.max(1_500, words * 500 + 1_000),
-          );
-          walkOutFinishTimerRef.current = window.setTimeout(() => {
-            void handleEndRef.current?.();
-          }, finalSpeechMs);
+          finishAfterFarewell(parsedTurn.cleanedText);
           return;
         }
 
@@ -840,17 +856,7 @@ function PracticeInterviewRoom({
             walkOutLockRef.current = true;
             setWalkOutLock(true);
             setAvatarEndedNotice(true);
-            const words = parsedTurn.cleanedText
-              .trim()
-              .split(/\s+/)
-              .filter(Boolean).length;
-            const finalSpeechMs = Math.min(
-              15_000,
-              Math.max(1_500, words * 500 + 1_000),
-            );
-            walkOutFinishTimerRef.current = window.setTimeout(() => {
-              void handleEndRef.current?.();
-            }, finalSpeechMs);
+            finishAfterFarewell(parsedTurn.cleanedText);
           } else {
             setExitIntent("end");
           }

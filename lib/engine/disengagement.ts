@@ -301,3 +301,107 @@ export function computeDisengagement({
 
   return { value, crossed, episodes, dominantCauses };
 }
+
+/**
+ * Observable evidence that the student never established common ground. Shared
+ * by the chat route and the finish re-derivation so both agree on one rule, and
+ * applied per transcript prefix by `computeDisengagementOverTranscript` so an
+ * early absence ratchets instead of being erased by one later mention.
+ */
+const COMMON_GROUND_PATTERN =
+  /\b(common ground|align(?:s|ed|ment)?|fit|relevant|priority|interest)\b/i;
+
+export function deriveCommonGroundAbsent(
+  turns: Array<{ role: string; content: string }>,
+): boolean {
+  const assistantTurnCount = turns.filter(
+    (turn) => turn.role === "assistant",
+  ).length;
+
+  return (
+    assistantTurnCount >= 2 &&
+    !turns.some(
+      (turn) =>
+        turn.role === "user" && COMMON_GROUND_PATTERN.test(turn.content),
+    )
+  );
+}
+
+/**
+ * Computes the one-way disengagement value across a whole transcript.
+ *
+ * `computeDisengagement` only ratchets when the caller threads `priorValue`
+ * forward, and a single request holds no memory of earlier turns. Replaying the
+ * transcript prefix by prefix reconstructs that history from the transcript
+ * itself, so the value is monotonic without session state, extra storage, or a
+ * browser-supplied prior — a novel reply can no longer erase pressure already
+ * earned by repetition, stalling, or an absent common ground (REQ-78).
+ *
+ * The session clock is interpolated linearly across intermediate prefixes
+ * because per-turn timestamps are not recorded; the final step always uses the
+ * caller's server-stamped elapsed value, assistant turn count, and cue, so the
+ * returned value stays bound to server evidence. Deterministic and replay-safe:
+ * the same transcript and elapsed time always produce the same result.
+ */
+export function computeDisengagementOverTranscript({
+  transcript,
+  elapsedSeconds,
+  budgetSeconds,
+  assistantTurnCount,
+  threshold,
+  cueAccel = 0,
+}: {
+  transcript: Array<{ role: string; content: string }>;
+  elapsedSeconds: number;
+  budgetSeconds: number | null;
+  assistantTurnCount: number;
+  threshold?: DisengagementThreshold;
+  cueAccel?: number;
+}): DisengagementComputeResult {
+  const total = transcript.length;
+  const elapsed = Math.max(0, elapsedSeconds);
+
+  if (total === 0) {
+    return computeDisengagement({
+      signals: extractDisengagementSignals({
+        transcript,
+        elapsedSeconds: elapsed,
+        budgetSeconds,
+        assistantTurnCount,
+        commonGroundAbsent: false,
+      }),
+      threshold,
+      cueAccel,
+    });
+  }
+
+  const episodes: DisengagementEpisode[] = [];
+  let priorValue = 0;
+  let latest: DisengagementComputeResult | null = null;
+
+  for (let end = 1; end <= total; end += 1) {
+    const prefix = transcript.slice(0, end);
+    const isFinal = end === total;
+
+    latest = computeDisengagement({
+      signals: extractDisengagementSignals({
+        transcript: prefix,
+        elapsedSeconds: isFinal ? elapsed : Math.round((elapsed * end) / total),
+        budgetSeconds,
+        assistantTurnCount: isFinal
+          ? assistantTurnCount
+          : prefix.filter((turn) => turn.role === "assistant").length,
+        commonGroundAbsent: deriveCommonGroundAbsent(prefix),
+        priorValue,
+      }),
+      threshold,
+      // The cue describes the turn being streamed, never a replayed prefix.
+      cueAccel: isFinal ? cueAccel : 0,
+    });
+    priorValue = latest.value;
+    episodes.push(...latest.episodes);
+  }
+
+  // Episodes span the replayed session, not only the final turn.
+  return { ...(latest as DisengagementComputeResult), episodes };
+}

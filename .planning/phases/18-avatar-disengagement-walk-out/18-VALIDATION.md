@@ -101,6 +101,76 @@ TypeScript check listed above.
    turns. Otherwise record: "deck floor covered by
    verify-disengagement-termination.ts".
 
+## UAT findings and repairs (2026-10-06)
+
+Human UAT of the elevator stall run surfaced two defects that the automated
+battery passed over. Both are fixed; neither changed a threshold, weight, or
+cue acceleration, so the calibration policy below was not engaged.
+
+### Finding 1 — the disengagement ratchet never engaged (REQ-78)
+
+Observed: a stalled, repetitive session reached 0.6, then a single novel reply
+("Cheese") dropped it to 0.4.
+
+Cause: the one-way guarantee in `computeDisengagement` is
+`Math.max(priorValue, computed)`, and `priorValue` had **no callers** — both the
+chat route and the finish re-derivation recomputed from scratch each request, so
+it always defaulted to 0. `repetitionPressure` scores only the latest student
+message, so one unlike reply zeroed the whole `repeatedResponse` term (0.25).
+
+Why the battery missed it: `verify-disengagement.ts` proved the ratchet by
+passing `priorValue` into the primitive directly. Nothing asserted that a real
+caller supplies it — the contract was proven in the unit and unenforced at the
+integration seam.
+
+Fix: `computeDisengagementOverTranscript` replays the transcript prefix by
+prefix, threading each step's value into the next. Monotonic without session
+state, schema change, or a browser-supplied prior; deterministic and replay-safe,
+and the final step still uses the server-stamped elapsed time, assistant turn
+count, and cue. The duplicated common-ground rule moved into the shared
+`deriveCommonGroundAbsent`, applied per prefix so an early absence ratchets
+instead of being erased by one late mention of "fit".
+
+### Finding 2 — dead wait before auto-finish (REQ-82)
+
+Observed: a long, idle pause between the avatar going quiet and the report
+appearing.
+
+Cause: `PracticeSessionShell` guessed the farewell's duration as
+`words * 500ms + 1000ms`, capped at 15s, and finished on that timer. The
+estimate ran well past real speech; the server was idle throughout
+(`session/finish` returned 202 in 273ms).
+
+Fix: the avatar handle now exposes `isTalking()` and `waitForSpeechEnd(maxMs)`,
+backed by the `AVATAR_SPEAK_STARTED` / `AVATAR_SPEAK_ENDED` events the session
+already tracked. The shell awaits the real end of speech; the computed duration
+survives only as a ceiling against a dropped event, and the watcher is cleared
+on unmount.
+
+### Regression coverage added
+
+| Check | Script |
+|---|---|
+| A novel reply never lowers the ratcheted value | `verify-disengagement.ts` |
+| The replaced from-scratch path still drops on that fixture | `verify-disengagement.ts` |
+| Replay is deterministic | `verify-disengagement.ts` |
+| Late common ground cannot erase an earlier absence | `verify-disengagement.ts` |
+| Episodes span the replayed session | `verify-disengagement.ts` |
+| Both server callers replay the transcript | `verify-disengagement-walkout-shell.ts` |
+| Neither caller calls the un-ratcheted primitive | `verify-disengagement-walkout-shell.ts` |
+| Auto-finish waits on the avatar speech-ended signal | `verify-disengagement-walkout-shell.ts` |
+| Auto-finish no longer uses a guessed duration | `verify-disengagement-walkout-shell.ts` |
+
+Battery after the repairs: all four verifiers exit 0 and `npx tsc --noEmit`
+is clean. No agent connected to a database, Preview, Production, Vercel, or any
+deployed service.
+
+### UAT status
+
+SC1 / REQ-78 and REQ-82 must be re-observed in a live session before a verdict
+is recorded; the earlier run demonstrated the defects, not the fixed behavior.
+SC2, SC3, SC4, SC5 and the remaining requirements stay **PENDING**.
+
 ## Calibration policy
 
 Do not retune thresholds, weights, or cue acceleration without explicit human

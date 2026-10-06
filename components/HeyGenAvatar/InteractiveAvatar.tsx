@@ -13,6 +13,7 @@ import { AvatarVideo } from "./AvatarSession/AvatarVideo";
 import { useStreamingAvatarSession } from "./logic/useStreamingAvatarSession";
 import { useTextChat } from "./logic/useTextChat";
 import { useInterrupt } from "./logic/useInterrupt";
+import { useConversationState } from "./logic/useConversationState";
 import { StreamingAvatarProvider, StreamingAvatarSessionState } from "./logic";
 import { LoaderCircle, Circle, Square } from "lucide-react";
 import { MessageHistory } from "./AvatarSession/MessageHistory";
@@ -27,6 +28,11 @@ import {
 // api.liveavatar.com requires UUID avatar/voice ids and rejects legacy HeyGen
 // avatar names (e.g. "Ann_Therapist_public") with a 422. These are Scott Cowen
 // and his default voice, from GET /v1/avatars on this account.
+/** How often the farewell watcher samples avatar speech state. */
+const SPEECH_POLL_MS = 150;
+/** How long to wait for AVATAR_SPEAK_STARTED before giving up on the wait. */
+const SPEECH_START_GRACE_MS = 3_000;
+
 const DEFAULT_CONFIG: StartAvatarRequest = {
   quality: "low",
   avatarName: "52b24044-7b0c-4211-b113-239443801a5b",
@@ -41,6 +47,14 @@ const DEFAULT_CONFIG: StartAvatarRequest = {
 
 export interface InteractiveAvatarRef {
   speak: (text: string) => void;
+  /** True while the avatar is mid-utterance (AVATAR_SPEAK_STARTED/ENDED). */
+  isTalking: () => boolean;
+  /**
+   * Resolves once the avatar has finished its current utterance, or after
+   * `maxMs` as a ceiling. Lets a caller end a session on the real end of
+   * speech instead of guessing a duration from word count.
+   */
+  waitForSpeechEnd: (maxMs: number) => Promise<void>;
   startSession: () => Promise<void>;
   stopSession: () => void;
   interrupt: () => void;
@@ -147,10 +161,53 @@ const ActiveSession = forwardRef<
     }
   }, [onProgrammaticSpeak, repeatMessage, sessionState]);
 
+  // The walk-out farewell must finish speaking before the session auto-ends.
+  // AVATAR_SPEAK_ENDED is the only truthful signal for that; a word-count
+  // estimate either cuts the avatar off or strands the student on a locked
+  // screen long after it went quiet.
+  const { isAvatarTalking } = useConversationState();
+  const isAvatarTalkingRef = useRef(isAvatarTalking);
+  const speechWatcherRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    isAvatarTalkingRef.current = isAvatarTalking;
+  }, [isAvatarTalking]);
+
   useImperativeHandle(
     ref,
     () => ({
       speak: (text: string) => repeatMessage(text),
+      isTalking: () => isAvatarTalkingRef.current,
+      /**
+       * Resolves when the avatar has started and then finished speaking, or
+       * when `maxMs` elapses. The ceiling keeps a dropped or missing
+       * SPEAK_ENDED event from trapping the session forever.
+       */
+      waitForSpeechEnd: (maxMs: number) =>
+        new Promise<void>((resolve) => {
+          const startedAt = Date.now();
+          let sawSpeech = isAvatarTalkingRef.current;
+
+          speechWatcherRef.current = window.setInterval(() => {
+            if (isAvatarTalkingRef.current) sawSpeech = true;
+            const timedOut = Date.now() - startedAt >= maxMs;
+            // Allow a short window for SPEAK_STARTED to arrive after speak().
+            const neverStarted =
+              !sawSpeech && Date.now() - startedAt >= SPEECH_START_GRACE_MS;
+
+            if (
+              (sawSpeech && !isAvatarTalkingRef.current) ||
+              timedOut ||
+              neverStarted
+            ) {
+              if (speechWatcherRef.current != null) {
+                window.clearInterval(speechWatcherRef.current);
+                speechWatcherRef.current = null;
+              }
+              resolve();
+            }
+          }, SPEECH_POLL_MS);
+        }),
       startSession: async () => { await startSession(); },
       stopSession: () => stopAvatar(),
       interrupt: () => interrupt(),
@@ -160,6 +217,10 @@ const ActiveSession = forwardRef<
   );
 
   useUnmount(() => {
+    if (speechWatcherRef.current != null) {
+      window.clearInterval(speechWatcherRef.current);
+      speechWatcherRef.current = null;
+    }
     if (isRecording) stopRecording();
     stopAvatar();
   });
@@ -318,6 +379,10 @@ const InteractiveAvatarWrapper = forwardRef<
     ref,
     () => ({
       speak: (text: string) => innerRef.current?.speak(text),
+      isTalking: () => innerRef.current?.isTalking() ?? false,
+      waitForSpeechEnd: async (maxMs: number) => {
+        await innerRef.current?.waitForSpeechEnd(maxMs);
+      },
       startSession: triggerStart,
       stopSession: handleStop,
       interrupt: () => innerRef.current?.interrupt(),
