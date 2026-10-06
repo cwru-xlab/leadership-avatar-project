@@ -45,7 +45,9 @@ export async function POST(request: NextRequest) {
       log,
       terminationReason,
       terminationSource,
+      terminationAtSeconds,
       outcome,
+      walkOutProof,
       title,
     } = body as Record<string, unknown>;
 
@@ -67,7 +69,9 @@ export async function POST(request: NextRequest) {
         terminationSource === "avatar" || terminationSource === "student"
           ? terminationSource
           : "student",
+      terminationAtSeconds,
       outcome,
+      walkOutProof,
       title,
     });
 

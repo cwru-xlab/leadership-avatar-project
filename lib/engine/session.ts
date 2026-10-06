@@ -64,6 +64,12 @@ import { validateOutcome } from "./outcome";
 import { getEngineType } from "./registry";
 import { resolveSessionConfig } from "./resolve";
 import { resolveTermination } from "./termination";
+import {
+  computeDisengagement,
+  extractDisengagementSignals,
+  type DisengagementComputeResult,
+} from "./disengagement";
+import { verifyWalkOutProof } from "./walk-out-proof";
 import { clampAdjustableBudget } from "./time-budget";
 import type {
   DifficultConversationInstance,
@@ -175,6 +181,51 @@ function isValidProgress(value: unknown): value is InterviewProgress {
     Array.isArray(candidate.dodgedCategories) &&
     typeof candidate.followUpsUsed === "number"
   );
+}
+
+function deriveFinishDisengagement({
+  turns,
+  elapsedSeconds,
+  budgetSeconds,
+  threshold,
+}: {
+  turns: Array<{ role: string; content: string }>;
+  /** Server-stamped walk-out clock, never request handling wall-clock. */
+  elapsedSeconds: number;
+  budgetSeconds: number | null;
+  threshold: number | null | undefined;
+}): DisengagementComputeResult {
+  const assistantTurnCount = turns.filter((turn) => turn.role === "assistant").length;
+  const commonGroundAbsent =
+    assistantTurnCount >= 2 &&
+    !turns.some(
+      (turn) =>
+        turn.role === "user" &&
+        /\b(common ground|align(?:s|ed|ment)?|fit|relevant|priority|interest)\b/i.test(
+          turn.content,
+        ),
+    );
+
+  return computeDisengagement({
+    signals: extractDisengagementSignals({
+      transcript: turns,
+      elapsedSeconds: Math.max(0, Math.trunc(elapsedSeconds)),
+      budgetSeconds,
+      assistantTurnCount,
+      commonGroundAbsent,
+    }),
+    threshold,
+  });
+}
+
+function declaredOutcomeFields(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const { disengagementDecline: _engineOwned, ...declared } = value as Record<
+    string,
+    unknown
+  >;
+  return declared;
 }
 
 // ---------------------------------------------------------------------------
@@ -879,6 +930,7 @@ export async function finishSession({
   terminationSource,
   terminationAtSeconds: rawTerminationAtSeconds,
   outcome: rawOutcome,
+  walkOutProof: rawWalkOutProof,
   title: rawTitle,
 }: {
   userId: string;
@@ -893,6 +945,8 @@ export async function finishSession({
   /** Elapsed seconds when an avatar-initiated end was accepted. */
   terminationAtSeconds?: unknown;
   outcome?: unknown;
+  /** Short-lived signed server proof of an accepted threshold crossing. */
+  walkOutProof?: unknown;
   /** Optional student-chosen My Reports title. */
   title?: unknown;
 }): Promise<FinishSessionResult> {
@@ -931,34 +985,88 @@ export async function finishSession({
   }
 
   // ---- terminationReason + outcome (REQ-62 / REQ-64) ----
+  // A signed proof authorizes a walk-out record, but never supplies the value
+  // persisted or passed to termination policy. Re-derive that from the
+  // submitted transcript at the server-stamped proof clock.
+  const normalizedTurns = normalizeTurns(rawTurns);
+  const assistantTurnCount = normalizedTurns.filter(
+    (turn) => turn.role === "assistant",
+  ).length;
+  const serverElapsedSeconds = Math.max(
+    0,
+    Math.round((Date.now() - report.startedAt.getTime()) / 1000),
+  );
+  const normalizedTerminationAtSeconds =
+    typeof rawTerminationAtSeconds === "number" &&
+    Number.isFinite(rawTerminationAtSeconds)
+      ? Math.min(
+          serverElapsedSeconds,
+          Math.max(0, Math.trunc(rawTerminationAtSeconds)),
+        )
+      : null;
+  const walkOutProof = await verifyWalkOutProof({
+    token: rawWalkOutProof,
+    userId,
+    reportId: report.id,
+  });
+  const proofMatchesTranscript =
+    walkOutProof !== null &&
+    walkOutProof.assistantTurnCount <= assistantTurnCount;
+  const derivedDisengagement = deriveFinishDisengagement({
+    turns: normalizedTurns,
+    elapsedSeconds:
+      walkOutProof?.elapsedSeconds ??
+      normalizedTerminationAtSeconds ??
+      serverElapsedSeconds,
+    budgetSeconds: report.timeBudgetSeconds,
+    threshold: type.terminationPolicy.disengagementThreshold,
+  });
   const source = terminationSource ?? "student";
+  const needsWalkOutProof =
+    source === "avatar" &&
+    type.terminationPolicy.disengagementThreshold != null;
   const termination = resolveTermination({
     policy: type.terminationPolicy,
     source,
     reason: terminationReason ?? null,
+    assistantTurnCount,
+    disengagementValue:
+      needsWalkOutProof && !proofMatchesTranscript
+        ? undefined
+        : derivedDisengagement.value,
   });
   // Rejected terminations write both reason and timecode as null (13-07).
   const recordedTerminationReason = termination.ok
     ? termination.recordedReason
     : null;
   const recordedTerminationAtSeconds =
-    termination.ok &&
-    typeof rawTerminationAtSeconds === "number" &&
-    Number.isFinite(rawTerminationAtSeconds)
-      ? Math.max(0, Math.trunc(rawTerminationAtSeconds))
+    termination.ok
+      ? walkOutProof?.elapsedSeconds ?? normalizedTerminationAtSeconds
       : null;
 
   let recordedOutcome: Record<string, unknown> | null = null;
-  if (
-    rawOutcome &&
-    typeof rawOutcome === "object" &&
-    !Array.isArray(rawOutcome)
-  ) {
-    const validated = validateOutcome(
-      type.outcome,
-      rawOutcome as Record<string, unknown>,
-    );
+  // `disengagementDecline` is engine-owned operational evidence, never a
+  // type-declared learner outcome. Remove a forged copy but still retain valid
+  // ordinary outcome fields such as a pitch's negotiated terms.
+  const declaredOutcome = declaredOutcomeFields(rawOutcome);
+  if (declaredOutcome) {
+    const validated = validateOutcome(type.outcome, declaredOutcome);
     recordedOutcome = validated.ok ? validated.outcome : null;
+  }
+
+  if (
+    source === "avatar" &&
+    termination.ok &&
+    type.terminationPolicy.disengagementThreshold != null &&
+    proofMatchesTranscript
+  ) {
+    recordedOutcome = {
+      ...(recordedOutcome ?? {}),
+      disengagementDecline: {
+        value: derivedDisengagement.value,
+        episodes: derivedDisengagement.episodes,
+      },
+    };
   }
 
   const snapshot = asInputSnapshot(report.inputSnapshot);
@@ -976,7 +1084,7 @@ export async function finishSession({
 
   // ---- Interview finish shape (finishPendingFlip: "request-path") ----
   if (type.finishPendingFlip === "request-path") {
-    const turns = normalizeTurns(rawTurns);
+    const turns = normalizedTurns;
     if (turns.length === 0) {
       return {
         ok: false,

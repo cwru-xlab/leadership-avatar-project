@@ -466,10 +466,14 @@ export default function PracticeTypePage() {
             : undefined
         }
         extraChatBody={
-          isPitchDeck
-            ? { revealedSlideIndex: furthestSlide, reportId }
+          isPitch
+            ? {
+                reportId,
+                ...(isPitchDeck ? { revealedSlideIndex: furthestSlide } : {}),
+              }
             : undefined
         }
+        autoFinishOnAvatarEnd={isPitch}
         sessionPanel={
           isPitchElevator ? (
             <PitchTimerPanel

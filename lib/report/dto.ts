@@ -1,5 +1,6 @@
 import { asStructuredReport, type StructuredReport } from "@/lib/report/structured";
 import { asInputSnapshot, asScoreMap, type InputSnapshot, type ScoreMap } from "@/lib/report/snapshot";
+import { DISENGAGEMENT_CAUSES, type DisengagementEpisode } from "@/lib/engine/disengagement";
 import type { InteractionReport } from "@prisma/client";
 import type {
   CameraMode,
@@ -293,6 +294,48 @@ export function asConversationOutcome(value: unknown): ConversationOutcomeView |
 export function asOutcomeRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+}
+
+/** Server-owned evidence for a proof-backed pitch walk-out. */
+export interface DisengagementDeclineRecord {
+  value: number;
+  episodes: DisengagementEpisode[];
+}
+
+/**
+ * Narrow the engine-owned decline envelope before passing it to report UI or
+ * evaluator context. Invalid episodes are dropped; empty evidence is absent.
+ */
+export function asDisengagementDeclineRecord(value: unknown): DisengagementDeclineRecord | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.value !== "number" || !Number.isFinite(record.value) || record.value < 0 || record.value > 1 || !Array.isArray(record.episodes)) {
+    return null;
+  }
+
+  const episodes: DisengagementEpisode[] = [];
+  for (const item of record.episodes) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const episode = item as Record<string, unknown>;
+    if (
+      (episode.kind !== "disengagement_rise" && episode.kind !== "disengagement_cross") ||
+      typeof episode.start_s !== "number" || !Number.isFinite(episode.start_s) ||
+      typeof episode.end_s !== "number" || !Number.isFinite(episode.end_s) ||
+      episode.end_s < episode.start_s ||
+      !Array.isArray(episode.causes) ||
+      episode.causes.length === 0 ||
+      !episode.causes.every((cause) => typeof cause === "string" && (DISENGAGEMENT_CAUSES as readonly string[]).includes(cause))
+    ) continue;
+
+    episodes.push({
+      kind: episode.kind,
+      start_s: episode.start_s,
+      end_s: episode.end_s,
+      causes: [...episode.causes] as DisengagementEpisode["causes"],
+    });
+  }
+
+  return episodes.length > 0 ? { value: record.value, episodes } : null;
 }
 
 /**
