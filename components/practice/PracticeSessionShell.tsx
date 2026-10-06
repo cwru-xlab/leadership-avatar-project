@@ -44,6 +44,10 @@ import {
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import { getEngineType } from "@/lib/engine/registry";
 import { parseEngineTurn } from "@/lib/engine/turn-control";
+import type {
+  DisengagementComputeResult,
+  DisengagementCue,
+} from "@/lib/engine/disengagement";
 import type { ResolvedSessionConfig } from "@/lib/engine/types";
 import {
   createVisualCapture,
@@ -61,6 +65,14 @@ type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+};
+
+type WalkOutMetadata = {
+  termination?: { reason: string } | null;
+  disengagement?: DisengagementComputeResult;
+  disengagementCue?: DisengagementCue | null;
+  walkOutFinal?: boolean;
+  walkOutProof?: string | null;
 };
 
 interface PracticeSessionShellProps {
@@ -372,6 +384,14 @@ function PracticeInterviewRoom({
   const [exitIntent, setExitIntent] = useState<null | "end" | "leave">(null);
   const [reportTitleDraft, setReportTitleDraft] = useState(defaultReportTitle);
   const [submitting, setSubmitting] = useState(false);
+  // Walk-outs are a terminal state: no typed, voice, pause, exit, or interrupt
+  // action may cut the single final avatar statement short.
+  const [walkOutLock, setWalkOutLock] = useState(false);
+  const walkOutLockRef = useRef(false);
+  const forcedFarewellRequestedRef = useRef(false);
+  const walkOutFinishTimerRef = useRef<number | null>(null);
+  const disengagementRef = useRef<DisengagementComputeResult | null>(null);
+  const walkOutProofRef = useRef<string | null>(null);
   /** Pending termination from an accepted avatar end marker (or panel request). */
   const pendingTerminationRef = useRef<{
     reason: string;
@@ -384,6 +404,9 @@ function PracticeInterviewRoom({
   // Stable ref so the chat turn handler can call the latest handleEnd without
   // re-binding sendMessage on every render (avatar auto-finish path).
   const handleEndRef = useRef<((title?: string) => Promise<void>) | null>(null);
+  const sendMessageRef = useRef<
+    ((candidateMessage: string, forceWalkOutFarewell?: boolean) => Promise<void>) | null
+  >(null);
   const [avatarEndedNotice, setAvatarEndedNotice] = useState(false);
 
   const stageLabel = useMemo(
@@ -564,6 +587,9 @@ function PracticeInterviewRoom({
 
   useEffect(() => {
     return () => {
+      if (walkOutFinishTimerRef.current != null) {
+        clearTimeout(walkOutFinishTimerRef.current);
+      }
       releaseMicrophone();
       releaseVisualCapture();
       vocalCaptureRef.current?.detachStream();
@@ -612,25 +638,39 @@ function PracticeInterviewRoom({
   }, [isRecording]);
 
   const sendMessage = useCallback(
-    async (candidateMessage: string) => {
+    async (candidateMessage: string, forceWalkOutFarewell = false) => {
       const content = candidateMessage.trim();
-      if (!content || sending || isPaused) return;
+      if (
+        (!content && !forceWalkOutFarewell) ||
+        sending ||
+        isPaused ||
+        (walkOutLockRef.current && !forceWalkOutFarewell)
+      ) {
+        return;
+      }
 
       const userMessage = { role: "user" as const, content };
-      const messageHistory = [
-        ...messagesRef.current,
-        { ...userMessage, timestamp: Date.now() },
-      ];
-      markOpeningTurnStarted();
+      const messageHistory = forceWalkOutFarewell
+        ? messagesRef.current
+        : [
+            ...messagesRef.current,
+            { ...userMessage, timestamp: Date.now() },
+          ];
+      if (!forceWalkOutFarewell) {
+        markOpeningTurnStarted();
+      }
       // Capture before deliver — short discovery clears the ref so the timer
       // can restart, but this chat turn still needs the start timestamp.
       const firstTurnStartedAtForPayload = openingTurnStartedAtRef.current;
-      appendMessage(userMessage);
+      if (!forceWalkOutFarewell) {
+        appendMessage(userMessage);
+      }
       // While still pitching, decide whether THIS turn was the pitch (voice
       // duration / substantial typed text) or just discovery — do not freeze
       // the 60s window on a 4-second intro.
-      const pitchWindowConcluded =
-        openingTurnPhase === "followups"
+      const pitchWindowConcluded = forceWalkOutFarewell
+        ? true
+        : openingTurnPhase === "followups"
           ? true
           : markOpeningTurnDelivered(content);
       setInput("");
@@ -666,6 +706,8 @@ function PracticeInterviewRoom({
                 startedAt: startedAtRef.current ?? Date.now(),
                 firstTurnStartedAt: firstTurnStartedAtForPayload,
                 firstTurnDelivered: pitchWindowConcluded,
+                forceWalkOutFarewell,
+                walkOutProof: walkOutProofRef.current,
               },
             },
             ...(extraChatBodyRef.current ?? {}),
@@ -680,6 +722,7 @@ function PracticeInterviewRoom({
         let buffer = "";
         let rawAnswer = "";
         let streamErrored = false;
+        let walkOutMetadata: WalkOutMetadata | null = null;
 
         for (;;) {
           const { done, value } = await reader.read();
@@ -694,9 +737,12 @@ function PracticeInterviewRoom({
               const event = JSON.parse(line.slice(6)) as {
                 type?: string;
                 delta?: string;
+                metadata?: WalkOutMetadata;
               };
               if (event.type === "content" && event.delta) {
                 rawAnswer += event.delta;
+              } else if (event.type === "end" && event.metadata) {
+                walkOutMetadata = event.metadata;
               } else if (event.type === "error") {
                 streamErrored = true;
               }
@@ -706,10 +752,14 @@ function PracticeInterviewRoom({
           }
         }
 
+        const assistantTurnCount =
+          messageHistory.filter((message) => message.role === "assistant").length + 1;
         const parsedTurn = parseEngineTurn(rawAnswer, sessionConfig, {
           previousProgress: progress,
           hasResume: Boolean(resumeText.trim()),
           targetQuestionCount,
+          assistantTurnCount,
+          disengagementValue: walkOutMetadata?.disengagement?.value,
         });
         if (parsedTurn.malformed) {
           // Progress is entirely model-driven: no marker means no advance,
@@ -729,31 +779,95 @@ function PracticeInterviewRoom({
         // Sending one complete, clean response to the provider avoids concurrent
         // sentence chunks being reordered or split around a comma. It also makes
         // it impossible for hidden controller metadata to reach the avatar.
-        setStreamingText(parsedTurn.cleanedText);
-        avatarRef.current?.speak(parsedTurn.cleanedText);
+        if (walkOutMetadata?.disengagement) {
+          disengagementRef.current = walkOutMetadata.disengagement;
+        }
+        if (typeof walkOutMetadata?.walkOutProof === "string") {
+          walkOutProofRef.current = walkOutMetadata.walkOutProof;
+        }
         appendMessage({ role: "assistant", content: parsedTurn.cleanedText });
         const nextProgress = parsedTurn.progress ?? progress;
         setProgress(nextProgress);
         checkpoint(nextProgress);
-        // parseEngineTurn already policy-gates termination. When accepted,
-        // record the reason for finish (REQ-62). Difficult-conversation
-        // auto-finishes with a neutral transition (15-08); other types keep
-        // the confirm modal.
-        if (parsedTurn.termination) {
+
+        const acceptedTermination =
+          walkOutMetadata?.termination ?? parsedTurn.termination;
+        const isWalkOut = walkOutMetadata?.walkOutFinal === true;
+
+        if (isWalkOut) {
+          walkOutLockRef.current = true;
+          setWalkOutLock(true);
+          setAvatarEndedNotice(true);
+
+          if (!acceptedTermination && !forcedFarewellRequestedRef.current) {
+            // Do not speak a crossing reply that is not the final statement.
+            // The one-shot follow-up keeps the avatar's audible close singular.
+            forcedFarewellRequestedRef.current = true;
+            window.setTimeout(() => {
+              void sendMessageRef.current?.("", true);
+            }, 0);
+            return;
+          }
+
           pendingTerminationRef.current = {
-            reason: parsedTurn.termination.reason,
+            reason: acceptedTermination?.reason ?? "lost_interest",
+            source: "avatar",
+          };
+          setStreamingText(parsedTurn.cleanedText);
+          avatarRef.current?.speak(parsedTurn.cleanedText);
+          const words = parsedTurn.cleanedText
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean).length;
+          const finalSpeechMs = Math.min(
+            15_000,
+            Math.max(1_500, words * 500 + 1_000),
+          );
+          walkOutFinishTimerRef.current = window.setTimeout(() => {
+            void handleEndRef.current?.();
+          }, finalSpeechMs);
+          return;
+        }
+
+        setStreamingText(parsedTurn.cleanedText);
+        avatarRef.current?.speak(parsedTurn.cleanedText);
+        if (acceptedTermination) {
+          pendingTerminationRef.current = {
+            reason: acceptedTermination.reason,
             source: "avatar",
           };
           if (autoFinishOnAvatarEnd) {
+            walkOutLockRef.current = true;
+            setWalkOutLock(true);
             setAvatarEndedNotice(true);
-            void handleEndRef.current?.();
+            const words = parsedTurn.cleanedText
+              .trim()
+              .split(/\s+/)
+              .filter(Boolean).length;
+            const finalSpeechMs = Math.min(
+              15_000,
+              Math.max(1_500, words * 500 + 1_000),
+            );
+            walkOutFinishTimerRef.current = window.setTimeout(() => {
+              void handleEndRef.current?.();
+            }, finalSpeechMs);
           } else {
             setExitIntent("end");
           }
         }
       } catch (error) {
         console.error("Practice chat failed:", error);
-        avatarRef.current?.interrupt();
+        if (forceWalkOutFarewell) {
+          // The forced request has one attempt only. Re-open the session rather
+          // than trapping the student behind a failed network request.
+          forcedFarewellRequestedRef.current = false;
+          walkOutLockRef.current = false;
+          setWalkOutLock(false);
+          setAvatarEndedNotice(false);
+        }
+        if (!walkOutLockRef.current) {
+          avatarRef.current?.interrupt();
+        }
         addToast({
           title: "The interviewer lost the connection",
           description: "Your answer is still visible. Try sending it again.",
@@ -781,6 +895,8 @@ function PracticeInterviewRoom({
       targetQuestionCount,
     ]
   );
+
+  sendMessageRef.current = sendMessage;
 
   const startOpening = useCallback(() => {
     if (openingSentRef.current) return;
@@ -996,7 +1112,7 @@ function PracticeInterviewRoom({
   // path submits its own spoken turn inside transcribeRecording and must
   // never also count as typed.
   const sendTypedMessage = useCallback(() => {
-    if (!input.trim()) return;
+    if (walkOutLockRef.current || !input.trim()) return;
     vocalCaptureRef.current?.recordTypedTurn();
     void sendMessage(input);
   }, [input, sendMessage]);
@@ -1006,6 +1122,7 @@ function PracticeInterviewRoom({
       sending ||
       isTranscribing ||
       isPaused ||
+      walkOutLockRef.current ||
       recordingStartInFlightRef.current ||
       mediaRecorderRef.current?.state === "recording"
     ) {
@@ -1014,7 +1131,7 @@ function PracticeInterviewRoom({
     recordingStartInFlightRef.current = true;
     try {
       const stream = await getMicrophone();
-      if (sending || isTranscribing || isPaused) {
+      if (sending || isTranscribing || isPaused || walkOutLockRef.current) {
         return;
       }
       const recorder = new MediaRecorder(stream, {
@@ -1069,6 +1186,7 @@ function PracticeInterviewRoom({
   }, []);
 
   const toggleRecording = useCallback(() => {
+    if (walkOutLockRef.current) return;
     if (mediaRecorderRef.current?.state === "recording") {
       stopRecording();
       return;
@@ -1082,6 +1200,7 @@ function PracticeInterviewRoom({
   );
 
   const handleLeave = () => {
+    if (walkOutLockRef.current) return;
     releaseMicrophone();
     releaseVisualCapture();
     vocalCaptureRef.current?.detachStream();
@@ -1090,8 +1209,11 @@ function PracticeInterviewRoom({
   };
 
   const handleEnd = async (titleOverride?: string) => {
-    // Interrupt mid-avatar-turn so End-session / walk-out never waits on speech.
-    avatarRef.current?.interrupt();
+    // A normal student end interrupts immediately. The walk-out timer calls this
+    // only after the final line's bounded speaking window, so never cut it off.
+    if (!walkOutLockRef.current) {
+      avatarRef.current?.interrupt();
+    }
     // A null reportId has two very different causes, and conflating them
     // silently discards real interviews:
     //   1. Nothing was ever said — the student connected and pressed End
@@ -1163,6 +1285,11 @@ function PracticeInterviewRoom({
           metrics: { cameraMode, visual, vocal },
           terminationReason: pendingTerminationRef.current?.reason ?? null,
           terminationSource: pendingTerminationRef.current?.source ?? "student",
+          terminationAtSeconds:
+            pendingTerminationRef.current?.source === "avatar"
+              ? elapsedSeconds
+              : null,
+          walkOutProof: walkOutProofRef.current,
           title:
             typeof titleOverride === "string"
               ? titleOverride
@@ -1180,6 +1307,13 @@ function PracticeInterviewRoom({
       avatarRef.current?.stopSession();
       onFinish(reportId);
     } catch {
+      // The automatic finish can fail independently of the completed final
+      // statement. Restore controls so the student can retry submission; the
+      // pending avatar termination and signed proof remain intact.
+      if (walkOutLockRef.current) {
+        walkOutLockRef.current = false;
+        setWalkOutLock(false);
+      }
       addToast({
         title: "We couldn't end the interview",
         description: "Your transcript is safe. Try ending again in a moment.",
@@ -1213,7 +1347,10 @@ function PracticeInterviewRoom({
             aria-label="Leave interview"
             variant="light"
             className="bg-[#07131f]/65 text-white backdrop-blur-md"
-            onPress={() => setExitIntent("leave")}
+            isDisabled={walkOutLock}
+            onPress={() => {
+              if (!walkOutLockRef.current) setExitIntent("leave");
+            }}
           >
             <ChevronLeft size={20} />
           </Button>
@@ -1240,7 +1377,9 @@ function PracticeInterviewRoom({
               aria-label="End interview"
               variant="light"
               className="bg-[#07131f]/65 text-white backdrop-blur-md"
+              isDisabled={walkOutLock}
               onPress={() => {
+                if (walkOutLockRef.current) return;
                 if (defaultStudentEndReason) {
                   pendingTerminationRef.current = {
                     reason: defaultStudentEndReason,
@@ -1401,7 +1540,9 @@ function PracticeInterviewRoom({
                       sendTypedMessage();
                     }
                   }}
-                  disabled={sending || isTranscribing || !avatarReady}
+                  disabled={
+                    walkOutLock || sending || isTranscribing || !avatarReady
+                  }
                   rows={2}
                   placeholder={avatarReady ? "Type your answer, or tap the mic to record…" : "Connecting to your interviewer…"}
                   className="min-h-14 flex-1 resize-none rounded-xl border border-white/15 bg-[#102a3a] px-3 py-3 text-sm text-white outline-none placeholder:text-[#89aabd] focus:border-[#71c9e7] focus:ring-2 focus:ring-[#71c9e7]/30 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1411,7 +1552,13 @@ function PracticeInterviewRoom({
                   aria-label="Send answer"
                   color="primary"
                   isLoading={sending}
-                  isDisabled={!input.trim() || sending || isTranscribing || !avatarReady}
+                  isDisabled={
+                    walkOutLock ||
+                    !input.trim() ||
+                    sending ||
+                    isTranscribing ||
+                    !avatarReady
+                  }
                   className="h-14 w-14 self-end"
                   onPress={sendTypedMessage}
                 >
@@ -1424,7 +1571,9 @@ function PracticeInterviewRoom({
                   variant={isRecording ? "solid" : "flat"}
                   color={isRecording ? "danger" : "default"}
                   className="font-medium text-[#d7eaf3]"
-                  isDisabled={sending || isTranscribing || !avatarReady}
+                  isDisabled={
+                    walkOutLock || sending || isTranscribing || !avatarReady
+                  }
                   onPress={toggleRecording}
                   aria-label={isRecording ? "Stop recording and send answer" : "Start recording answer"}
                   startContent={isRecording ? <MicOff size={15} /> : <Mic size={15} />}
@@ -1436,7 +1585,10 @@ function PracticeInterviewRoom({
                   variant="light"
                   className="text-[#afcad9]"
                   startContent={<Pause size={14} />}
-                  onPress={() => setIsPaused(true)}
+                  isDisabled={walkOutLock}
+                  onPress={() => {
+                    if (!walkOutLockRef.current) setIsPaused(true);
+                  }}
                 >
                   Pause
                 </Button>

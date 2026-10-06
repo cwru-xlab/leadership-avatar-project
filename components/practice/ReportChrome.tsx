@@ -23,6 +23,7 @@ import NetworkingOutcomePanel from "@/components/practice/panels/NetworkingOutco
 import ConversationEndBanner from "@/components/practice/report/ConversationEndBanner";
 import ConversationOutcomePanel from "@/components/practice/report/ConversationOutcomePanel";
 import DeckTimelinePanel from "@/components/practice/report/DeckTimelinePanel";
+import { DisengagementDeclinePanel } from "@/components/practice/report/DisengagementDeclinePanel";
 import InRoleReactionPanel from "@/components/practice/report/InRoleReactionPanel";
 import NegotiationTriplePanel from "@/components/practice/report/NegotiationTriplePanel";
 import PitchOutcomeBanner from "@/components/practice/report/PitchOutcomeBanner";
@@ -128,7 +129,7 @@ const PITCH_ELEVATOR_CHROME: ReportChrome = {
   guardsRepollAfter404: false,
   showsCustomizationStrip: false,
   extras: {
-    above: (report) => <PitchOutcomeBanner report={report} />,
+    above: (report) => <><PitchOutcomeBanner report={report} /><DisengagementDeclinePanel report={report} /></>,
   },
 };
 
@@ -140,6 +141,7 @@ const PITCH_DECK_CHROME: ReportChrome = {
   guardsRepollAfter404: false,
   showsCustomizationStrip: false,
   extras: {
+    above: (report) => <><PitchOutcomeBanner report={report} /><DisengagementDeclinePanel report={report} /></>,
     below: (report) => (
       <>
         <NegotiationTriplePanel report={report} />
