@@ -15,7 +15,7 @@ import type {
   DisengagementCue,
 } from "./disengagement";
 
-const WALK_OUT_PROOF_TTL = "10m";
+const WALK_OUT_PROOF_TTL = "2m";
 const WALK_OUT_PROOF_KIND = "engine-walk-out-v1";
 const WALK_OUT_PROOF_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 
@@ -23,6 +23,7 @@ export type VerifiedWalkOutProof = {
   disengagement: DisengagementComputeResult;
   cue: DisengagementCue | null;
   assistantTurnCount: number;
+  elapsedSeconds: number;
 };
 
 function isDisengagementCue(value: unknown): value is DisengagementCue {
@@ -50,12 +51,14 @@ export async function createWalkOutProof({
   disengagement,
   cue,
   assistantTurnCount,
+  elapsedSeconds,
 }: {
   userId: string;
   reportId: string;
   disengagement: DisengagementComputeResult;
   cue: DisengagementCue | null;
   assistantTurnCount: number;
+  elapsedSeconds: number;
 }): Promise<string> {
   return new SignJWT({
     kind: WALK_OUT_PROOF_KIND,
@@ -63,6 +66,7 @@ export async function createWalkOutProof({
     disengagement,
     cue,
     assistantTurnCount,
+    elapsedSeconds,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
@@ -93,7 +97,10 @@ export async function verifyWalkOutProof({
       !payload.disengagement.crossed ||
       (!isDisengagementCue(payload.cue) && payload.cue !== null) ||
       typeof payload.assistantTurnCount !== "number" ||
-      !Number.isFinite(payload.assistantTurnCount)
+      !Number.isFinite(payload.assistantTurnCount) ||
+      typeof payload.elapsedSeconds !== "number" ||
+      !Number.isFinite(payload.elapsedSeconds) ||
+      payload.elapsedSeconds < 0
     ) {
       return null;
     }
@@ -102,6 +109,7 @@ export async function verifyWalkOutProof({
       disengagement: payload.disengagement,
       cue: payload.cue,
       assistantTurnCount: Math.max(0, Math.trunc(payload.assistantTurnCount)),
+      elapsedSeconds: Math.max(0, Math.trunc(payload.elapsedSeconds)),
     };
   } catch {
     return null;

@@ -66,6 +66,24 @@ deployed application.
 - [ ] Human tested deck floor, or recorded the automated-verifier fallback if a
   deck fixture is unavailable.
 
+## Review repairs before UAT
+
+A read-only code review found authority and replay weaknesses in the initial
+walk-out proof flow. Before human UAT, the implementation now:
+
+- mints a proof only for an authenticated caller's owned, `IN_PROGRESS` report;
+- derives chat-time enforcement clocks from that persisted report, not a browser
+  timestamp;
+- uses a proof as permission only, then re-derives the persisted threshold value
+  from the submitted transcript at the server-stamped proof time;
+- requires proof assistant-turn count not to exceed the submitted transcript;
+- records a bounded termination timecode; and
+- releases the one-shot farewell lock on that follow-up request's failure.
+
+The proof TTL is two minutes. The authority invariants are covered by the
+updated `verify-disengagement-walkout-shell.ts` source-level guard and by the
+TypeScript check listed above.
+
 ## Human UAT protocol
 
 1. Run a pitch-elevator session with short, repetitive, non-tailored answers.
