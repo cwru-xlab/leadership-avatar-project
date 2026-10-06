@@ -68,6 +68,18 @@ check(
   "finish verifies and persists engine-owned decline evidence",
 );
 check(
+  /status:\s*"IN_PROGRESS"/.test(chatRoute) &&
+    /userId:\s*currentUser\.id/.test(chatRoute) &&
+    /walkOutReport\?\.startedAt/.test(chatRoute),
+  "proofs bind only to an owned in-progress report and its server clock",
+);
+check(
+  /proofMatchesTranscript/.test(session) &&
+    /derivedDisengagement\.value/.test(session) &&
+    !/walkOutProof\?\.disengagement\s*\?\?\s*derivedDisengagement/.test(session),
+  "finish treats the proof as permission and re-derives the recorded value",
+);
+check(
   /autoFinishOnAvatarEnd=\{isPitch\}/.test(pitchPage) &&
     /reportId/.test(pitchPage),
   "both pitch launchers opt into auto-finish with a report binding",

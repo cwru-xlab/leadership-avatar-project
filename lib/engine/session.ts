@@ -185,12 +185,13 @@ function isValidProgress(value: unknown): value is InterviewProgress {
 
 function deriveFinishDisengagement({
   turns,
-  startedAt,
+  elapsedSeconds,
   budgetSeconds,
   threshold,
 }: {
   turns: Array<{ role: string; content: string }>;
-  startedAt: Date;
+  /** Server-stamped walk-out clock, never request handling wall-clock. */
+  elapsedSeconds: number;
   budgetSeconds: number | null;
   threshold: number | null | undefined;
 }): DisengagementComputeResult {
@@ -208,7 +209,7 @@ function deriveFinishDisengagement({
   return computeDisengagement({
     signals: extractDisengagementSignals({
       transcript: turns,
-      elapsedSeconds: Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 1000)),
+      elapsedSeconds: Math.max(0, Math.trunc(elapsedSeconds)),
       budgetSeconds,
       assistantTurnCount,
       commonGroundAbsent,
@@ -984,39 +985,63 @@ export async function finishSession({
   }
 
   // ---- terminationReason + outcome (REQ-62 / REQ-64) ----
-  // Re-derive the threshold input from the stored session clock and normalized
-  // transcript. Browser metadata can help its control flow, but cannot forge a
-  // recorded avatar end or the protected outcome envelope.
+  // A signed proof authorizes a walk-out record, but never supplies the value
+  // persisted or passed to termination policy. Re-derive that from the
+  // submitted transcript at the server-stamped proof clock.
   const normalizedTurns = normalizeTurns(rawTurns);
-  const derivedDisengagement = deriveFinishDisengagement({
-    turns: normalizedTurns,
-    startedAt: report.startedAt,
-    budgetSeconds: report.timeBudgetSeconds,
-    threshold: type.terminationPolicy.disengagementThreshold,
-  });
+  const assistantTurnCount = normalizedTurns.filter(
+    (turn) => turn.role === "assistant",
+  ).length;
+  const serverElapsedSeconds = Math.max(
+    0,
+    Math.round((Date.now() - report.startedAt.getTime()) / 1000),
+  );
+  const normalizedTerminationAtSeconds =
+    typeof rawTerminationAtSeconds === "number" &&
+    Number.isFinite(rawTerminationAtSeconds)
+      ? Math.min(
+          serverElapsedSeconds,
+          Math.max(0, Math.trunc(rawTerminationAtSeconds)),
+        )
+      : null;
   const walkOutProof = await verifyWalkOutProof({
     token: rawWalkOutProof,
     userId,
     reportId: report.id,
   });
-  const trustedDisengagement = walkOutProof?.disengagement ?? derivedDisengagement;
+  const proofMatchesTranscript =
+    walkOutProof !== null &&
+    walkOutProof.assistantTurnCount <= assistantTurnCount;
+  const derivedDisengagement = deriveFinishDisengagement({
+    turns: normalizedTurns,
+    elapsedSeconds:
+      walkOutProof?.elapsedSeconds ??
+      normalizedTerminationAtSeconds ??
+      serverElapsedSeconds,
+    budgetSeconds: report.timeBudgetSeconds,
+    threshold: type.terminationPolicy.disengagementThreshold,
+  });
   const source = terminationSource ?? "student";
+  const needsWalkOutProof =
+    source === "avatar" &&
+    type.terminationPolicy.disengagementThreshold != null;
   const termination = resolveTermination({
     policy: type.terminationPolicy,
     source,
     reason: terminationReason ?? null,
-    assistantTurnCount: normalizedTurns.filter((turn) => turn.role === "assistant").length,
-    disengagementValue: trustedDisengagement.value,
+    assistantTurnCount,
+    disengagementValue:
+      needsWalkOutProof && !proofMatchesTranscript
+        ? undefined
+        : derivedDisengagement.value,
   });
   // Rejected terminations write both reason and timecode as null (13-07).
   const recordedTerminationReason = termination.ok
     ? termination.recordedReason
     : null;
   const recordedTerminationAtSeconds =
-    termination.ok &&
-    typeof rawTerminationAtSeconds === "number" &&
-    Number.isFinite(rawTerminationAtSeconds)
-      ? Math.max(0, Math.trunc(rawTerminationAtSeconds))
+    termination.ok
+      ? walkOutProof?.elapsedSeconds ?? normalizedTerminationAtSeconds
       : null;
 
   let recordedOutcome: Record<string, unknown> | null = null;
@@ -1033,13 +1058,13 @@ export async function finishSession({
     source === "avatar" &&
     termination.ok &&
     type.terminationPolicy.disengagementThreshold != null &&
-    walkOutProof
+    proofMatchesTranscript
   ) {
     recordedOutcome = {
       ...(recordedOutcome ?? {}),
       disengagementDecline: {
-        value: trustedDisengagement.value,
-        episodes: trustedDisengagement.episodes,
+        value: derivedDisengagement.value,
+        episodes: derivedDisengagement.episodes,
       },
     };
   }

@@ -291,6 +291,7 @@ function attachTerminationToStream(
                           cue: parsed.disengagementCue,
                           assistantTurnCount:
                             parseOpts.assistantTurnCount ?? 0,
+                          elapsedSeconds: parseOpts.elapsedSeconds,
                         })
                       : null;
 
@@ -447,6 +448,26 @@ export async function POST(request: NextRequest) {
       sessionConfig = resolved.config;
     }
 
+    // A proof may bind only to an in-progress report the authenticated caller
+    // owns. Never sign a raw browser-supplied report id.
+    const walkOutReport =
+      sessionConfig?.terminationPolicy.disengagementThreshold != null &&
+      currentUser &&
+      typeof rawReportId === "string"
+        ? await prisma.interactionReport.findFirst({
+            where: {
+              id: rawReportId,
+              userId: currentUser.id,
+              status: "IN_PROGRESS",
+            },
+            select: {
+              id: true,
+              startedAt: true,
+              timeBudgetSeconds: true,
+            },
+          })
+        : null;
+
     let fullMessages: Array<{
       role: "system" | "user" | "assistant";
       content: string;
@@ -507,6 +528,9 @@ export async function POST(request: NextRequest) {
         typeof startedAt === "number" && Number.isFinite(startedAt)
           ? new Date(startedAt)
           : undefined;
+      // Enforcement inputs use the report's persisted clock, never the client
+      // timing state that still exists solely to phrase the prompt tail.
+      const walkOutStartedAt = walkOutReport?.startedAt;
 
       const firstTurnStartedAtRaw = engineTurn?.firstTurnStartedAt;
       const firstTurnStartedAtDate =
@@ -695,8 +719,8 @@ export async function POST(request: NextRequest) {
       // transcript facts rather than a browser-provided score.
       const assistantTurnCount =
         messages.filter((m) => m.role === "assistant").length + 1;
-      const elapsedSeconds = startedAtDate
-        ? Math.max(0, Math.round((Date.now() - startedAtDate.getTime()) / 1000))
+      const elapsedSeconds = walkOutStartedAt
+        ? Math.max(0, Math.round((Date.now() - walkOutStartedAt.getTime()) / 1000))
         : 0;
       const commonGroundAbsent =
         assistantTurnCount >= 2 &&
@@ -715,7 +739,9 @@ export async function POST(request: NextRequest) {
           signals: extractDisengagementSignals({
             transcript: messages,
             elapsedSeconds,
-            budgetSeconds: sessionConfig.timeBudget.totalSeconds,
+            budgetSeconds:
+              walkOutReport?.timeBudgetSeconds ??
+              sessionConfig.timeBudget.totalSeconds,
             assistantTurnCount,
             commonGroundAbsent,
           }),
@@ -786,13 +812,15 @@ export async function POST(request: NextRequest) {
         assistantTurnCount,
         transcript: messages,
         elapsedSeconds,
-        budgetSeconds: sessionConfig.timeBudget.totalSeconds,
+        budgetSeconds:
+          walkOutReport?.timeBudgetSeconds ??
+          sessionConfig.timeBudget.totalSeconds,
         commonGroundAbsent,
-        ...(currentUser && typeof rawReportId === "string"
+        ...(walkOutReport
           ? {
               walkOutProofContext: {
-                userId: currentUser.id,
-                reportId: rawReportId,
+                userId: currentUser!.id,
+                reportId: walkOutReport.id,
               },
             }
           : {}),
