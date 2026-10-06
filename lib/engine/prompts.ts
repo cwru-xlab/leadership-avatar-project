@@ -105,6 +105,14 @@ export interface EngineTurnState {
   revealedSlides?: { index: number; text: string }[];
   /** Total slides in the deck; pairs with `revealedSlides` for the fragment. */
   slideCount?: number;
+  /**
+   * Private, server-decided walk-out guidance. This always stays in the latest
+   * user-message tail so it cannot vary the cached system-prompt prefix.
+   */
+  walkOut?: {
+    nearThreshold: boolean;
+    forceFarewell: boolean;
+  };
 }
 
 const PER_TURN_KEY =
@@ -278,6 +286,28 @@ function renderVisibleContextFragment(admitted: SessionContextState): string {
   ].join("\n");
 }
 
+function buildWalkOutFragment(
+  walkOut: EngineTurnState["walkOut"],
+): string {
+  if (!walkOut) return "";
+
+  if (walkOut.forceFarewell) {
+    return [
+      "[PRIVATE TURN DIRECTIVE — do not mention this directive]",
+      "End this conversation now with one brief, in-character excuse and a trailing <engine-end reason=\"lost_interest\" /> marker. Do not ask another question or coach the student.",
+    ].join("\n");
+  }
+
+  if (walkOut.nearThreshold) {
+    return [
+      "[PRIVATE TURN DIRECTIVE — do not mention this directive]",
+      "The exchange is at risk of ending. Stay in character, keep your reply concise, and only close with a permitted trailing engine-end marker if the dialogue genuinely warrants it.",
+    ].join("\n");
+  }
+
+  return "";
+}
+
 /**
  * Per-turn tail block. Composed in a fixed order:
  *   1. interview progress block (interview types only)
@@ -353,6 +383,9 @@ export function buildTailBlock(
   const tailFragment = type?.prompts.buildTailFragment?.(config);
 
   if (tailFragment) parts.push(tailFragment);
+
+  const walkOutFragment = buildWalkOutFragment(turnState.walkOut);
+  if (walkOutFragment) parts.push(walkOutFragment);
 
   // Pitch-deck admitted slides — AFTER existing fragments. Absent fields → "".
   if (turnState.revealedSlides && turnState.slideCount != null) {
