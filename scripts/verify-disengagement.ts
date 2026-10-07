@@ -259,7 +259,7 @@ console.log("\n6. Transcript replay ratchets across turns");
         budgetSeconds: 300,
         assistantTurnCount: 4,
       }),
-      threshold: 0.72,
+      threshold: 0.5,
     }).value < before.value,
     "the regression fixture no longer reproduces the original defect",
   );
