@@ -7,15 +7,15 @@
  */
 
 import type { InteractionTypeConfig } from "@/lib/engine/types";
-import { applyEarlyEndCap } from "@/lib/pitch/score-caps";
 import {
   ELEVATOR_EVALUATOR_PROMPT,
   buildElevatorEvaluationContext,
   buildElevatorSystemPrompt,
 } from "@/lib/pitch/elevator-prompts";
+import { applyEarlyEndCap } from "@/lib/pitch/score-caps";
 
 /** Tuned only through recorded Phase 18 calibration evidence. */
-export const ELEVATOR_DISENGAGEMENT_THRESHOLD = 0.72;
+export const ELEVATOR_DISENGAGEMENT_THRESHOLD = 0.5;
 
 export const PITCH_ELEVATOR_TYPE: InteractionTypeConfig = {
   slug: "pitch-elevator",
