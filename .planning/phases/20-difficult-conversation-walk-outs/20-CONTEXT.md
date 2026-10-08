@@ -1,7 +1,7 @@
 # Phase 20: Difficult Conversation Walk-Outs - Context
 
 **Gathered:** 2026-10-08
-**Status:** Ready for planning — with two areas deliberately left open (see Open Questions)
+**Status:** Ready for planning — both open questions SETTLED 2026-10-08 (see Settled Questions)
 
 <domain>
 ## Phase Boundary
@@ -151,28 +151,41 @@ live evidence merely because it exists.
 </specifics>
 
 <open>
-## Open Questions — deliberately not decided
+## Settled Questions — both closed 2026-10-08
 
-Two gray areas were identified and the user chose not to settle them. They are
-NOT Claude's Discretion; they are real decisions that research and planning
-should surface for a human, and they are likely worth a
-`/gsd:discuss-phase 20` follow-up or an in-plan checkpoint.
+The two areas the user skipped during discussion were put to them at the start of
+`/gsd:plan-phase 20` rather than guessed. Both are now LOCKED, and REQ-95 through
+REQ-102 were derived from them (Phase 20's roadmap entry previously read
+`Requirements: TBD` and `Success Criteria: 1. TBD`).
 
-1. **In-character ending vs breaking frame.** When a student crosses a real line,
-   does the avatar leave in character (*"We're done here"*) or does the app break
-   frame with a safety message? These are materially different products for the
-   severe category specifically. Phase 15's **support note** and
-   **always-visible End-session control** must survive either answer — a walk-out
-   must never leave a student with no exit and no explanation. Planning should
-   NOT pick one silently.
-2. **Scenario opt-in and report treatment.** Do all seven seeded conversations
-   plus student-authored ones get a threshold, or only some? May an author set
-   their own? Does Phase 15's difficulty step modulate it? And in the report:
-   does it quote the offending line back, and does an offense-triggered end cap
-   scores? Note Phase 15's outcome record is **unscored** by deliberate decision
-   (`15-06` omits `postProcessScores` on purpose, with a comment saying so), and
-   Phase 14's early-end score cap was explicitly NOT reused — so any capping here
-   would reverse a recorded decision and needs to be argued, not assumed.
+1. **In-character ending vs breaking frame → ALWAYS IN CHARACTER.** The avatar
+   leaves as the person it is playing for every trigger, severe content included.
+   One ending path; **no break-frame branch in the session shell** and nothing
+   extra to UAT. The seriousness is carried by the report afterward, not by
+   stopping the roleplay. (REQ-101)
+
+2. **Scenario opt-in → ONE TYPE-LEVEL THRESHOLD.** It lives on the
+   `difficult-conversation` TYPE record, so all seven seeded conversations and
+   every student-authored scenario inherit it. **No per-scenario field, no
+   authoring surface, no difficulty modulation** — an author never tunes a
+   safety-adjacent number, and there is no new validation surface. (REQ-95)
+
+3. **Report quoting → QUOTE WITH TIMECODE, BUT SANITIZE EXPLICIT CONTENT.**
+   Reuses Phase 15's existing `reactionCauses` `{ timecodeSeconds, quote, effect }[]`
+   shape so the student can see what tipped it, **but a slur or comparably
+   explicit remark is never recited back verbatim** — it is masked or
+   characterized while keeping the timecode and effect. The user's words:
+   *"yes, with timecode, but sanitize particularly explicit content so that it is
+   not deliberately recited back if it's a slur or something."* Planning must
+   treat the sanitizer as a real requirement with its own test, not as prompt
+   guidance to the evaluator — an evaluator instructed not to quote a slur is not
+   a guarantee. (REQ-102)
+
+4. **Score capping → NO CAP.** `postProcessScores` stays absent, preserving
+   Phase 15's deliberate omission and Phase 14's explicitly-not-reused early-end
+   cap. A student who swore already scores badly on `holding_the_line` ("caved or
+   escalated into attack") and `empathy` on those dimensions' own evidence; a cap
+   would double-count. (REQ-102)
 
 </open>
 

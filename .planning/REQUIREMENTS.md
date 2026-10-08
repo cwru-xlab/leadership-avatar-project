@@ -711,6 +711,55 @@ REQ-73.
   elevator pitch and the investor deck, with each mode's purpose distinguishable
   before a student commits to one.
 
+### Phase 20 — Difficult Conversation Walk-Outs
+
+- **REQ-95** — [ ] The `difficult-conversation` TYPE record declares a
+  `disengagementThreshold`, so all seven seeded conversations and every
+  student-authored scenario inherit the walk-out from one type-level number. No
+  per-scenario field, no authoring surface, nothing for an author to
+  misconfigure.
+
+- **REQ-96** — [ ] Hostility signals are added to the engine's observable cause
+  vocabulary — insults and profanity directed at the avatar, escalation and
+  aggression, stonewalling, and slurs/harassment as a separate severe category —
+  computed DETERMINISTICALLY. The avatar's structured cue may accelerate the
+  value but can never end a session on its own (REQ-79's invariant holds).
+
+- **REQ-97** — [ ] Firm, uncomfortable, non-hostile language never trips the
+  walk-out. Only language targeting the PERSON counts, never language targeting
+  the position or performance. Proven against the register the seven seeded
+  confrontation scenarios actually require.
+
+- **REQ-98** — [ ] A caller-supplied, observable signal records that the student
+  never acknowledged the avatar's position — the live twin of Phase 15's
+  `empathy` dimension — defaulting to false so no model prose counts as live
+  evidence merely by existing (REQ-80's posture).
+
+- **REQ-99** — [ ] Ordinary hostility ACCUMULATES across turns and the value
+  ratchets one-way. There is no decay and no apology-driven recovery, preserving
+  Phase 18's `computeDisengagementOverTranscript` fix.
+
+- **REQ-100** — [ ] Severe content — slurs, harassment, threats — ends the
+  session regardless of `avatarEndFloor`, as a NAMED, enumerated, tested
+  carve-out in `resolveTermination`. Phase 18 Success Criterion 5 and
+  `scripts/verify-disengagement-termination.ts` are amended deliberately to
+  record the exception, never weakened or deleted. The floor stays at
+  `minAssistantTurns: 4` for every other trigger.
+
+- **REQ-101** — [ ] The avatar always leaves IN CHARACTER, for every trigger
+  including severe content — one ending path, no break-frame branch in the
+  session shell. Reason codes distinguish the cause: hostility → `escalated`,
+  stonewalling → `nothing_left_to_discuss`, plus one new reason for the severe
+  category. Phase 15's support note and always-visible End-session control
+  survive an avatar-initiated ending.
+
+- **REQ-102** — [ ] The report explains what tipped the conversation on the
+  session clock through Phase 15's existing `reactionCauses`
+  `{ timecodeSeconds, quote, effect }[]` shape, with **explicit content
+  sanitized rather than recited verbatim** — a slur is never reproduced back to
+  the student. No rubric dimension is capped: `postProcessScores` stays absent,
+  preserving Phase 15's recorded decision.
+
 ## Out of Scope (v1.1)
 
 | Feature | Reason |
@@ -721,6 +770,10 @@ REQ-73.
 | Google Slides deck import | Permanently cut in Phase 14 — students export to PDF |
 | A networking-setting selector (conference, coffee chat) | Deferred at Phase 16 and not pulled into v1.1 |
 | Re-opening Phase 12 fidgeting measurement | Retired as unmeasurable, not deferred |
+| Breaking character on a severe walk-out | Rejected 2026-10-08 — the avatar always leaves in character; a second ending path through the shell is not worth the clarity (REQ-101) |
+| Per-scenario or author-settable disengagement thresholds | Rejected 2026-10-08 — one type-level threshold; authors do not tune a safety-adjacent number (REQ-95) |
+| Capping rubric scores on an offense-triggered end | Rejected 2026-10-08 — `holding_the_line` and `empathy` already punish it on their own evidence; a cap double-counts and reverses Phase 15's deliberate `postProcessScores` omission (REQ-102) |
+| Apology-driven recovery of the disengagement value | Rejected 2026-10-08 — a decaying value reverses Phase 18's ratchet fix (REQ-99) |
 | Running the shared-DB migration or backfill | **Already applied** 2026-10-04 (`HANDOFF.md §3`, commit `9a53084`) — all 14 migrations on shared, nothing pending. Both Part 1 and Part 2 are done. Nothing to run. |
 | Re-running the `InteractionReport` backfill verifier on shared | Unsatisfiable by construction — shared was empty (0 reports), so the backfill was a no-op and the verifier hard-asserts a legacy `cameraMode IS NULL` row that does not exist |
 | Amending the docs to bless CI-applied migrations | Rejected 2026-10-04 — the opposite was chosen: `prisma migrate deploy` comes OUT of `buildCommand` so the pipeline matches the discipline (REQ-74) |
@@ -750,8 +803,20 @@ REQ-73.
 | REQ-92 | Phase 19 | Pending |
 | REQ-93 | Phase 19 | Pending |
 | REQ-94 | Phase 19 | Pending |
+| REQ-95 | Phase 20 | Pending |
+| REQ-96 | Phase 20 | Pending |
+| REQ-97 | Phase 20 | Pending |
+| REQ-98 | Phase 20 | Pending |
+| REQ-99 | Phase 20 | Pending |
+| REQ-100 | Phase 20 | Pending |
+| REQ-101 | Phase 20 | Pending |
+| REQ-102 | Phase 20 | Pending |
 
 **Coverage:**
-- v1.1 requirements: 21 total
-- Mapped to phases: 21
+- v1.1 requirements: 29 total
+- Mapped to phases: 29
 - Unmapped: 0 ✓
+
+REQ-95..REQ-102 were derived 2026-10-08 from `20-CONTEXT.md` after the user
+settled its two open questions. Phase 20's roadmap entry had carried
+`Requirements: TBD`.
