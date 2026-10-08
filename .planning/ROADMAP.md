@@ -803,7 +803,9 @@ walk-out lock, auto-finish and report-decline machinery are reused, never
 duplicated); Phase 15 (the `difficult-conversation` type record, its eight
 rubric dimensions, its unscored outcome record and its anti-drift prompt layer
 are what gain the threshold)
-**Requirements:** TBD — assign during `/gsd:plan-phase 20`
+**Requirements:** REQ-95, REQ-96, REQ-97, REQ-98, REQ-99, REQ-100, REQ-101, REQ-102
+(derived 2026-10-08 from `20-CONTEXT.md` once the user settled its two open
+questions; this line previously read TBD)
 **Scope notes (captured 2026-10-08 at the user's request, from the Phase 19
 discussion):**
   - The trigger is the student losing control of the avatar's emotional state —
@@ -817,8 +819,37 @@ discussion):**
   - Phase 15's support note and always-visible End-session control must survive
     an avatar-initiated ending; a walk-out must never leave a student with no
     exit and no explanation.
+**Locked decisions (settled 2026-10-08, do not re-litigate in planning):**
+  - The avatar always leaves **IN CHARACTER**, severe content included. One
+    ending path; no break-frame branch in the session shell.
+  - **One type-level threshold** on the `difficult-conversation` TYPE record. All
+    seeded and authored scenarios inherit it. No per-scenario field, no authoring
+    surface, no difficulty modulation.
+  - The report **quotes with timecode but SANITIZES explicit content** — a slur is
+    never recited back to the student.
+  - **No score cap.** `postProcessScores` stays absent, preserving Phase 15's
+    deliberate omission.
+  - Hostility **accumulates and ratchets one-way**. No apology-driven recovery.
+  - Detection is **deterministic**; the avatar cue only accelerates (REQ-79 holds).
 **Success Criteria** (what must be TRUE):
-  1. TBD — derive during `/gsd:discuss-phase 20` and `/gsd:plan-phase 20`.
+  1. A student who insults, escalates or stonewalls visibly loses the avatar over
+     time and has the conversation ended on them, computed deterministically from
+     observable signals, with the avatar's own cue able to accelerate but never to
+     decide.
+  2. Firm, uncomfortable but non-hostile language — the register the seven seeded
+     confrontation scenarios actually require, such as *"your performance has been
+     unacceptable and this is your final warning"* — never triggers a walk-out.
+  3. Severe content (slurs, harassment, threats) ends the session regardless of the
+     four-assistant-turn floor, as a named and enumerated carve-out, with Phase 18's
+     SC5 and `scripts/verify-disengagement-termination.ts` amended deliberately
+     rather than weakened.
+  4. The avatar always leaves in character, and the session records an
+     avatar-initiated failure whose reason code distinguishes hostility,
+     stonewalling and severe content. Phase 15's support note and End-session
+     control survive the ending.
+  5. The report explains what tipped the conversation on the session clock with
+     quoted, timecoded causes, explicit content sanitized rather than recited, and
+     no rubric dimension capped.
 **Plans:** TBD
 
 
