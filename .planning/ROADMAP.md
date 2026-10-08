@@ -758,9 +758,14 @@ does not. **No deck mode walks out** — the four new modes declare no
 18's mechanism stays intact and un-deleted; the deck types simply stop opting in,
 which Phase 18 Success Criterion 5 explicitly permits. The walk-out's intended
 home is the new **Phase 20** (difficult conversations).
-**Depends on:** Phase 18 (new deck modes inherit the disengagement/walk-out mechanism
-rather than needing it added after the fact); Phase 14 (the shared deck capability —
-upload, slide cursor, visible-context slice, soft timer — being widened here)
+**Depends on:** Phase 18 (AMENDED 2026-10-08 — the new deck modes do NOT inherit the
+walk-out; the dependency is now that Phase 18's opt-in and its
+`verify-disengagement-termination.ts` assertions must already exist so plan 19-03 can
+switch `pitch-deck`'s opt-in OFF and invert those assertions deliberately. Phase 18's
+plans 18-01..18-04 have landed on this branch; 18-05's human UAT is still outstanding
+and is exercised on `pitch-elevator`, the only remaining opted-in type); Phase 14 (the
+shared deck capability — upload, slide cursor, visible-context slice, soft timer —
+being widened here)
 **Requirements:** REQ-87, REQ-88, REQ-89, REQ-90, REQ-91, REQ-92, REQ-93, REQ-94
 **Locked scope notes (do not re-litigate in planning):**
   - One TYPE record per deck mode, not one widened `pitch-deck` with a mode field
@@ -787,7 +792,20 @@ upload, slide cursor, visible-context slice, soft timer — being widened here)
      evaluator or report page.
   6. Pass 2 keyboard UAT for the surfaces Phases 18 and 19 add is run by a human in
      Phase 19's closing plan and recorded in the Phase 18 and Phase 19 validation files.
-**Plans:** TBD
+**Plans:** 11 plans
+
+Plans:
+- [ ] 19-01-PLAN.md — Deck-mode table, shared deck rubric, per-mode session-length envelopes
+- [ ] 19-02-PLAN.md — One mode-agnostic plumbing widening: optional negotiation fields, modeInputs, back-compatible snapshot
+- [ ] 19-03-PLAN.md — Walk-out OFF for the investor deck; the two verifier assertions INVERTED, not deleted
+- [ ] 19-04-PLAN.md — `pitch-funding` and `pitch-product` TYPE records and prompts
+- [ ] 19-05-PLAN.md — `pitch-talk` and `pitch-general` TYPE records and prompts; all five registered
+- [ ] 19-06-PLAN.md — FundingAskStep, BuyerProfileStep, TalkAudienceStep — required mode inputs
+- [ ] 19-07-PLAN.md — Generalize the one wizard off the mode table; no mode slug left in the page
+- [ ] 19-08-PLAN.md — Picker: two top cards, "With a deck" expands in place to five mode cards
+- [ ] 19-09-PLAN.md — Descriptive unscored verdicts through the existing ReportChrome extras slot
+- [ ] 19-10-PLAN.md — Surface-count guard proving no engine module, route, evaluator or report page was touched
+- [ ] 19-11-PLAN.md — Phase validation + Pass 2 keyboard UAT recorded in BOTH 18- and 19-VALIDATION (human-verified)
 
 
 ### Phase 20: Difficult Conversation Walk-Outs
