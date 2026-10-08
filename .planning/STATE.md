@@ -1974,6 +1974,17 @@ Open items carried into Phase 11+:
 
 ### Roadmap Evolution
 
+- **Phase 18 roadmap entry reconciled 2026-10-08.** It had read `**Plans:** 5
+  plans` with all five boxes unchecked and `0/TBD | Not started` in the Progress
+  table, while 18-01 through 18-04 had all shipped (`848c613`, `4a7c68f`,
+  `3d6f80a`, `32c2fa1`, repaired by `3479921`/`62bf512`) with SUMMARY files on
+  disk. Now 4/5 with per-plan commits recorded. 18-05 is `[~]`: the human UAT RAN
+  on 2026-10-06 and FAILED on two defects the all-green automated battery had
+  passed over — the ratchet's `priorValue` had no callers, and auto-finish waited
+  on a guessed speech duration. Both repaired without retuning any threshold.
+  SC1/REQ-78 and REQ-82 need live re-observation; all five SC verdicts remain
+  PENDING and REQ-78..REQ-86 stay open. Phase 18 is NOT closed.
+
 - **Phase 20 added 2026-10-08: Difficult Conversation Walk-Outs.** The avatar
   ends a difficult conversation when the student loses control of its hostility
   (escalation, offensive content). Raised as a deferred idea during
