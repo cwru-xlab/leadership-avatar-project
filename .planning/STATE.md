@@ -6,10 +6,10 @@
 
 ## Current Position
 
-**Phase:** 18 — Avatar Disengagement & Walk-Out (Phase 17 closed; Phase 19 depends on Phase 18)
-**Plan:** 18-01 (next to execute)
-**Status:** Phase 18 implementation begins on `feature/phase-18-avatar-walkout`; no Prisma migration is required.
-**Last activity:** 2026-10-05 — Phase 17 closed with REQ-74–77 Pass 1 recorded; see `17-CLOSE-RECORD.md`.
+**Phase:** 19 — Deck-Led Pitch Family (Phase 18 implementation shipped, 18-05 human UAT pending; Phase 20 added 2026-10-08, depends on Phase 18+15)
+**Plan:** 19-01 complete; 19-02 next to execute
+**Status:** 19-01 shipped the deck-mode data table (`lib/pitch/deck-modes.ts`, `lib/pitch/deck-rubric.ts`), the generalized `proposeDeckSeconds`, and `scripts/verify-deck-mode-table.ts` (ALL PASS). `deck-type.ts` untouched by design — plan 19-03 owns switching it to the shared constant and off its walk-out.
+**Last activity:** 2026-10-08 — 19-01 complete; see `19-01-SUMMARY.md`.
 
 ### Carried into v1.1 from v1.0
 
@@ -497,7 +497,9 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 14]: proposeDeckSeconds anchors ≤8→1200s ≥25→1800s linear round-60 between; ask+fair instance config, settled-only outcome; avatarMayEnd false
 - [Phase 14]: Chat revealedSlideIndex is ratchet input only; slide text in tail block (REQ-73); one ratchetHighWaterMark shared with checkpoint
 - [Phase 14]: Deck routes: opaque deckId only; PPTX unconfigured → 502 reason+fix; real PDF raster needs canvasFactory + disableFontFace fonts
-- [Phase 14]: Fair-value band is per-type constant ($800k-$1.2M / 8-12%), ask-independent, injected only in startSession
+- [Phase 14]: Fair-value band is per-type constant ($800k-## Decisions
+
+.2M / 8-12%), ask-independent, injected only in startSession
 - [Phase 14]: Deck wizard keys: deckUpload, negotiationAsk, sessionLength; slideTexts fetched at launch from manifest
 - [Phase 14]: 14-10: wizard keys pitchSubject + listenerKnowledge; shell sessionPanel + opening-turn timing; short discovery turns do not conclude soft window
 - [Phase 14]: 14-13: shell extraChatBody + mediaLayout deck-primary (slides stage, avatar PiP); start returns clamped timeBudgetSeconds
@@ -505,6 +507,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 14]: Ask/settled/fair stay three distinct sources; overrun is noted fact with no score dimension
 - [Phase 14]: Phase SIGNED OFF 2026-10-04 — 15/15 plans; `14-VALIDATION.md` all PASS; no calibration changes; deferred-items.md remains parked (not new plans)
 - [Phase 13 / close]: **Phase 13 CLOSED 2026-10-04 by human decision**, standalone rather than waiting for Phase 17's plan 17-07. REQ-66 and REQ-67 ticked with a **recorded caveat, not a passing test** — the shared Lightsail DB was found EMPTY, so REQ-66's backfill acceptance test is unsatisfiable there by construction (the verifier hard-asserts a legacy `cameraMode IS NULL` row exists) and passed on LOCAL only (67 InterviewReport + 3 ScenarioReport → 70 InteractionReport, verifier exit 0, idempotent 70→70, commits `1eafa7b`/`981f835`, 13-14 human acceptance 9/9 PASS). REQ-67 closed on its **human-run clause alone** and explicitly NOT on "no agent applies it" — `vercel.json`'s `buildCommand` had been self-migrating every deploy for days. Chosen over the other two options in REQ-66's note (rewrite the requirements to match the real pipeline; keep them open until a populated DB exists) because the legacy tables are dropped, so no future pre-Phase-13 row can ever appear to re-open the test. **REQ-63 delegated, not granted** — it stays open under REQ-75 / plan 17-03. **REQ-74's governance contradiction is NOT closed by this** and remains Phase 17's. Full reasoning and the documents corrected: `13-CLOSE-RECORD.md`.
+- [Phase 19]: 19-01: DECK_MODES table imports DECK_ENVELOPE_SECONDS for pitch-deck's envelope rather than duplicating the literal, so the two can never drift
 
 ## Progress
 
@@ -1965,9 +1968,9 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-08T20:02:07.808Z
-**Stopped At:** Phase 20 context gathered
-**Resume File:** .planning/phases/20-difficult-conversation-walk-outs/20-CONTEXT.md
+**Last Date:** 2026-10-08T20:27:46.681Z
+**Stopped At:** Completed 19-01-PLAN.md
+**Resume File:** None
 
 
 ## Accumulated Context
