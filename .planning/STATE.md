@@ -1965,9 +1965,9 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-08T19:41:50.080Z
-**Stopped At:** Phase 19 context gathered
-**Resume File:** .planning/phases/19-deck-led-pitch-family/19-CONTEXT.md
+**Last Date:** 2026-10-08T20:02:07.808Z
+**Stopped At:** Phase 20 context gathered
+**Resume File:** .planning/phases/20-difficult-conversation-walk-outs/20-CONTEXT.md
 
 
 ## Accumulated Context
