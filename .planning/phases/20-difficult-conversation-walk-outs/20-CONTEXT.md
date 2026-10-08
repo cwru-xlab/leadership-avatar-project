@@ -208,3 +208,22 @@ REQ-102 were derived from them (Phase 20's roadmap entry previously read
 
 *Phase: 20-difficult-conversation-walk-outs*
 *Context gathered: 2026-10-08*
+
+---
+
+## Gating decision (user, 2026-10-08)
+
+**20-07's human adversarial UAT is gated on Phase 18's 18-05 UAT, and 18-05 runs
+FIRST.** The user chose this over the plan's alternative of running 20-07 anyway
+and recording Phase 18 observations back into `18-VALIDATION.md`.
+
+Reasoning on the record: 20-07's live runs exercise the same one-way ratchet and
+the same `waitForSpeechEnd()` auto-finish that Phase 18's single UAT run
+(2026-10-06) broke on. Signing Phase 20 off on a session that silently
+re-demonstrates a Phase 18 defect would be worthless. 18-05 also needs doing
+regardless — `18-VALIDATION.md` is `awaiting-human-uat` with all five SC verdicts
+PENDING and REQ-78 through REQ-86 still open.
+
+**Consequence for execution:** plans 20-01 through 20-06 are fixture-verified and
+ungated, so they may execute freely. **Execution must STOP before 20-07** until
+18-05 has been run by a human and `18-VALIDATION.md` carries real verdicts.
