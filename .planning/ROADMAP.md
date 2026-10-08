@@ -688,14 +688,61 @@ adding a parallel mechanism)
      points on the session clock.
   5. A type that declares no threshold behaves exactly as it does today, and a
      walk-out can never fire before a type's `avatarEndFloor` minimum turns.
-**Plans:** 5 plans
+**Plans:** 4/5 plans complete — **entry reconciled 2026-10-08** against the four
+SUMMARY files, the commits on this branch and `18-VALIDATION.md`. It had read
+`5 plans` with every box unchecked and `0/TBD Not started` in the Progress table
+while 18-01 through 18-04 had all shipped.
+**Status:** implementation COMPLETE, phase NOT closed. `18-VALIDATION.md` carries
+`status: awaiting-human-uat`; its automated battery is five-for-five green
+(`verify-disengagement`, `-termination`, `-walkout-shell`, `-report`, `tsc
+--noEmit`) but every Success Criterion verdict is **PENDING**. The file's own
+closing line governs: *do not mark Phase 18 complete or update requirement
+checkboxes until human UAT evidence is supplied.* REQ-78 through REQ-86 stay
+open.
 
 Plans:
-- [ ] 18-01-PLAN.md — Opt-in disengagementThreshold + pure computeDisengagement (REQ-78, REQ-80)
-- [ ] 18-02-PLAN.md — Cue acceleration, resolveTermination gate, pitch-deck floor + type opt-ins (REQ-79, REQ-83, REQ-84)
-- [ ] 18-03-PLAN.md — Live walk-out lock, final statement, auto-finish, no meter (REQ-81, REQ-82, REQ-85)
-- [ ] 18-04-PLAN.md — Report decline on session clock from stored episodes (REQ-86)
-- [ ] 18-05-PLAN.md — Human UAT + 18-VALIDATION.md against SC1–5 / REQ-78–86
+- [x] 18-01-PLAN.md — Opt-in disengagementThreshold + pure computeDisengagement (REQ-78, REQ-80)
+      (`848c613` — `lib/engine/disengagement.ts`, nullable `disengagementThreshold`
+      on `TerminationPolicyConfig`, `scripts/verify-disengagement.ts`)
+- [x] 18-02-PLAN.md — Cue acceleration, resolveTermination gate, pitch-deck floor + type opt-ins (REQ-79, REQ-83, REQ-84)
+      (`4a7c68f` — `<engine-cue>` parsing stripped before the end marker, the
+      `high` cue capped at +0.20 so it cannot cross from a cold start, the
+      `resolveTermination` fail-closed gate, and both pitch types opted in.
+      **NOTE:** Phase 19 reverses the pitch-deck half of this plan per the
+      2026-10-08 amendment above; the elevator's opt-in stands.)
+- [x] 18-03-PLAN.md — Live walk-out lock, final statement, auto-finish, no meter (REQ-81, REQ-82, REQ-85)
+      (`3d6f80a`, repaired by `3479921` — server-signed `lib/engine/walk-out-proof.ts`
+      so the browser cannot forge report evidence; typing, Send, PTT, pause and
+      leave all lock for the one final statement)
+- [x] 18-04-PLAN.md — Report decline on session clock from stored episodes (REQ-86)
+      (`32c2fa1` — `DisengagementDeclinePanel`, the `DisengagementDeclineRecord`
+      narrower, and both evaluator prompts constrained to cite only supplied
+      session-clock episodes and the closed observable-cause vocabulary)
+- [~] 18-05-PLAN.md — Human UAT + 18-VALIDATION.md against SC1–5 / REQ-78–86
+      (`d97422a` prepared the file. **RUN once on 2026-10-06 and it FAILED**,
+      surfacing two defects the green battery had passed over — both since
+      repaired in `3479921`/`62bf512`, neither by retuning a threshold:
+      **(1) the disengagement ratchet never engaged (REQ-78)** — a stalled
+      session reached 0.6 and one novel reply ("Cheese") dropped it to 0.4,
+      because `computeDisengagement`'s `Math.max(priorValue, computed)` one-way
+      guarantee had **no callers**; both the chat route and the finish
+      re-derivation recomputed from scratch, so `priorValue` always defaulted to
+      0. `verify-disengagement.ts` had proven the ratchet by passing `priorValue`
+      in directly — the contract was proven in the unit and unenforced at the
+      integration seam. Fixed by `computeDisengagementOverTranscript`, which
+      replays the transcript prefix by prefix. **(2) a dead wait before
+      auto-finish (REQ-82)** — the shell guessed the farewell as
+      `words * 500ms + 1000ms` and finished on that timer, running well past real
+      speech while the server sat idle (`session/finish` returned 202 in 273ms).
+      Fixed with `isTalking()` / `waitForSpeechEnd()` on the avatar handle, the
+      estimate surviving only as a ceiling. SC1/REQ-78 and REQ-82 must be
+      **re-observed live** — the earlier run demonstrated the defects, not the
+      fixed behavior. `524544e` then lowered
+      `ELEVATOR_DISENGAGEMENT_THRESHOLD` 0.72 → 0.5.)
+
+**Calibration policy, recorded in `18-VALIDATION.md`:** do not retune
+thresholds, weights or cue acceleration without explicit human calibration
+approval.
 
 ### Phase 19: Deck-Led Pitch Family
 **Goal:** Widen the deck pitch from investor-negotiation-only into a family of
@@ -800,7 +847,7 @@ discussion):**
 | 15. Difficult Conversations | 11/11 | Complete  | 2026-10-04 |
 | 16. Networking Practice | 11/11 | Complete  | 2026-10-04 |
 | 17. v1.0 Close-Out | 7/7 | Complete | 2026-10-05 |
-| 18. Avatar Disengagement & Walk-Out | 0/TBD | Not started | - |
+| 18. Avatar Disengagement & Walk-Out | 4/5 | Implementation done, human UAT pending re-run | - |
 | 19. Deck-Led Pitch Family | 0/TBD | Not started | - |
 | 20. Difficult Conversation Walk-Outs | 0/TBD | Not started | - |
 
