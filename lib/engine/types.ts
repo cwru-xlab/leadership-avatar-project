@@ -20,6 +20,7 @@
 
 import type { AttemptLanguage } from "@/lib/languages";
 import type { ScoreMap } from "@/lib/report/snapshot";
+import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
 
 /** A single scored dimension on the report. */
 export interface RubricDimension {
@@ -401,29 +402,48 @@ export type InstanceConfig =
       listenerKnowledge: "blind" | "name-role" | "full-profile";
     }
   /**
-   * `askPriceUsd`/`askEquityPct` are captured as plain wizard form fields,
-   * not extracted by a model — they are session-constant and safe in the
-   * system prompt from turn one (14-RESEARCH.md Open Question 3).
-   * `fairValueBand` is instance config the avatar knows and the student
-   * does not; it is never model-produced and never part of the outcome
-   * record. `slideTexts` is the per-slide extracted text; the live
-   * visible-context cursor decides how much of it the avatar sees on a
-   * given turn, and that cursor is server-authoritative (plan 14-11).
+   * Shared by ALL FIVE deck modes (REQ-88, REQ-93): the existing investor
+   * `pitch-deck`, plus Phase 19's `pitch-funding` / `pitch-product` /
+   * `pitch-talk` / `pitch-general`. One `kind` for all five is deliberate —
+   * a new `kind` would force edits to the chat route's `isInstanceConfig`
+   * allow-list and slide-hydration branch, `session.ts`'s snapshot/ratchet
+   * path and the evaluation runner's reconstruction, exactly the surfaces
+   * REQ-93 forbids touching for a sixth mode.
+   *
+   * `askPriceUsd`/`askEquityPct`/`fairValueBand` are captured as plain
+   * wizard form fields, not extracted by a model — they are session-constant
+   * and safe in the system prompt from turn one (14-RESEARCH.md Open
+   * Question 3). They are PRESENT ONLY for the one negotiating mode
+   * (`pitch-deck`); every other mode carries NONE of the three fields at
+   * all — absent, not zero, not null. A reader must never assume they
+   * exist; check for presence before reading. `fairValueBand` is instance
+   * config the avatar knows and the student does not; it is never
+   * model-produced and never part of the outcome record.
+   *
+   * `slideTexts` is the per-slide extracted text; the live visible-context
+   * cursor decides how much of it the avatar sees on a given turn, and that
+   * cursor is server-authoritative (plan 14-11).
+   *
+   * `modeInputs` is the one extension point for per-mode wizard data (the
+   * funding amount/use-of-funds, the buyer profile, the talk audience and
+   * takeaway). A sixth deck mode adds a `DeckModeInputs` member under
+   * `lib/pitch/deck-modes.ts` and never needs a new field here.
    */
   | {
       kind: "pitch-deck";
       deckId: string;
       slideCount: number;
       slideTexts: string[];
-      askPriceUsd: number;
-      askEquityPct: number;
-      fairValueBand: {
+      askPriceUsd?: number;
+      askEquityPct?: number;
+      fairValueBand?: {
         priceUsdMin: number;
         priceUsdMax: number;
         equityPctMin: number;
         equityPctMax: number;
       };
       proposedSeconds: number;
+      modeInputs?: DeckModeInputs;
     }
   | DifficultConversationInstance
   /**
