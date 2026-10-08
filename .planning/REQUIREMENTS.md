@@ -797,11 +797,11 @@ REQ-73.
 | REQ-86 | Phase 18 | Pending |
 | REQ-87 | Phase 19 | Pending |
 | REQ-88 | Phase 19 | Complete |
-| REQ-89 | Phase 19 | Pending |
+| REQ-89 | Phase 19 | Complete |
 | REQ-90 | Phase 19 | Complete |
 | REQ-91 | Phase 19 | Pending |
 | REQ-92 | Phase 19 | Pending |
-| REQ-93 | Phase 19 | Pending |
+| REQ-93 | Phase 19 | Complete |
 | REQ-94 | Phase 19 | Complete |
 | REQ-95 | Phase 20 | Pending |
 | REQ-96 | Phase 20 | Pending |
