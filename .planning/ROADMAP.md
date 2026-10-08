@@ -44,6 +44,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [ ] **Phase 17: v1.0 Close-Out** - Discharge the shared-DB migration, REQ-63 verification, deck-intake fixture fix and deferred keyboard UAT
 - [ ] **Phase 18: Avatar Disengagement & Walk-Out** - A session the avatar is losing actually ends, as a recorded failure with an explained decline
 - [ ] **Phase 19: Deck-Led Pitch Family** - Four more deck-led pitch modes alongside the investor deck, sharing one deck capability
+- [ ] **Phase 20: Difficult Conversation Walk-Outs** - The avatar leaves a difficult conversation when the student loses control of its hostility
 
 ## Phase Details
 
@@ -661,6 +662,12 @@ adding a parallel mechanism)
   - This mechanism EXTENDS Phase 13's `terminationPolicy` / `avatarEndFloor` rather than
     adding a parallel mechanism. `lib/pitch/deck-type.ts` currently sets
     `avatarEndFloor: null` and must gain a real floor (REQ-84).
+    **AMENDED 2026-10-08 by Phase 19 (user decision):** the deck half of REQ-84 is
+    reversed — `pitch-deck` ends up with NO walk-out. Phase 19 removes
+    `DECK_DISENGAGEMENT_THRESHOLD` from the deck type's opt-in and updates
+    `scripts/verify-disengagement-termination.ts`'s two pitch-deck assertions to
+    the new intent (deliberately, not by weakening them). The mechanism itself is
+    unaffected and its intended home is **Phase 20**.
 **Success Criteria** (what must be TRUE):
   1. A session where the student stalls, repeats, or never establishes common ground
      visibly loses the avatar's engagement over time, computed deterministically from
@@ -692,8 +699,15 @@ Plans:
 deck-led modes — a funding request, a product pitch, a deck-led talk, and a general
 deck pitch with no mode-specific constraints — each playable alongside the existing
 investor `pitch-deck`, sharing one deck capability rather than duplicating it per
-mode, and each inheriting the walk-out from Phase 18 rather than needing it
-retrofitted.
+mode.
+**Walk-out AMENDED 2026-10-08** (user decision in `/gsd:discuss-phase 19`): the
+original goal said each new mode would *inherit the walk-out from Phase 18*. It
+does not. **No deck mode walks out** — the four new modes declare no
+`disengagementThreshold`, and Phase 19 also switches the existing investor
+`pitch-deck`'s walk-out OFF, reverting the deck half of Phase 18's REQ-84. Phase
+18's mechanism stays intact and un-deleted; the deck types simply stop opting in,
+which Phase 18 Success Criterion 5 explicitly permits. The walk-out's intended
+home is the new **Phase 20** (difficult conversations).
 **Depends on:** Phase 18 (new deck modes inherit the disengagement/walk-out mechanism
 rather than needing it added after the fact); Phase 14 (the shared deck capability —
 upload, slide cursor, visible-context slice, soft timer — being widened here)
@@ -726,11 +740,43 @@ upload, slide cursor, visible-context slice, soft timer — being widened here)
 **Plans:** TBD
 
 
+### Phase 20: Difficult Conversation Walk-Outs
+**Goal:** Apply Phase 18's disengagement/walk-out mechanism to the Phase 15
+`difficult-conversation` types, where losing the room is the point. A student who
+fails to control the avatar's emotions or hostility — who escalates, stonewalls,
+or says something offensive — has the conversation ended on them by the avatar,
+recorded as a failure that explains what tipped it. This is the home the user
+intended for the Phase 18 mechanism; Phase 19 switched every deck mode's
+walk-out OFF for exactly this reason (see `19-CONTEXT.md`).
+**Depends on:** Phase 18 (the `disengagementThreshold`, `computeDisengagement`,
+walk-out lock, auto-finish and report-decline machinery are reused, never
+duplicated); Phase 15 (the `difficult-conversation` type record, its eight
+rubric dimensions, its unscored outcome record and its anti-drift prompt layer
+are what gain the threshold)
+**Requirements:** TBD — assign during `/gsd:plan-phase 20`
+**Scope notes (captured 2026-10-08 at the user's request, from the Phase 19
+discussion):**
+  - The trigger is the student losing control of the avatar's emotional state —
+    escalation, hostility, and offensive content specifically — not merely a
+    stalled or low-energy conversation as in Phase 18's generic signal set.
+  - Offensive content is a FIRST-CLASS trigger and needs its own observable
+    signal. Phase 18's stall/repeat/no-common-ground signals do not detect it.
+  - Seeded and student-authored scenarios both participate. Whether every seeded
+    conversation opts in, and whether an author may set their own threshold, is
+    an open question for `/gsd:discuss-phase 20`.
+  - Phase 15's support note and always-visible End-session control must survive
+    an avatar-initiated ending; a walk-out must never leave a student with no
+    exit and no explanation.
+**Success Criteria** (what must be TRUE):
+  1. TBD — derive during `/gsd:discuss-phase 20` and `/gsd:plan-phase 20`.
+**Plans:** TBD
+
+
 ## Progress
 
 **Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → (14 | 15 | 16)
 
-**v1.1 Execution Order:** 17 (parallel) | 18 → 19
+**v1.1 Execution Order:** 17 (parallel) | 18 → 19 → 20
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -753,6 +799,7 @@ upload, slide cursor, visible-context slice, soft timer — being widened here)
 | 17. v1.0 Close-Out | 7/7 | Complete | 2026-10-05 |
 | 18. Avatar Disengagement & Walk-Out | 0/TBD | Not started | - |
 | 19. Deck-Led Pitch Family | 0/TBD | Not started | - |
+| 20. Difficult Conversation Walk-Outs | 0/TBD | Not started | - |
 
 Phase 13's REQ-66/REQ-67 caveat remains recorded in `13-CLOSE-RECORD.md`: the
 backfill acceptance test is unsatisfiable on the empty shared DB and passed locally

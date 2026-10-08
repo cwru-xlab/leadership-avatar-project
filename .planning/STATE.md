@@ -1974,6 +1974,20 @@ Open items carried into Phase 11+:
 
 ### Roadmap Evolution
 
+- **Phase 20 added 2026-10-08: Difficult Conversation Walk-Outs.** The avatar
+  ends a difficult conversation when the student loses control of its hostility
+  (escalation, offensive content). Raised as a deferred idea during
+  `/gsd:discuss-phase 19` and added at the user's request in the same session.
+  Depends on Phase 18 (mechanism) and Phase 15 (the type that gains it).
+- **Phase 18/19 walk-out amendment 2026-10-08 (user decision).** No deck mode
+  walks out. The four new Phase 19 modes declare no `disengagementThreshold`,
+  and Phase 19 also switches the existing investor `pitch-deck`'s walk-out OFF,
+  reversing the deck half of REQ-84. Phase 18's mechanism is kept intact — only
+  the deck types stop opting in (permitted by Phase 18 SC5) — and
+  `scripts/verify-disengagement-termination.ts`'s two pitch-deck assertions must
+  be deliberately updated, not weakened. Both roadmap entries carry the
+  amendment inline.
+
 ### Phase 13 context (2026-10-02, `/gsd:discuss-phase 13`)
 
 Four areas discussed; all decisions in
