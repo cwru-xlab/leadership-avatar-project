@@ -133,12 +133,13 @@ function pitchSnapshotFromInstance(
       listenerKnowledge: null,
       deckId: instance.deckId,
       slideCount: instance.slideCount,
-      askPriceUsd: instance.askPriceUsd,
-      askEquityPct: instance.askEquityPct,
-      fairValueBand: instance.fairValueBand,
+      askPriceUsd: instance.askPriceUsd ?? null,
+      askEquityPct: instance.askEquityPct ?? null,
+      fairValueBand: instance.fairValueBand ?? null,
       firstTurnWindowSeconds: null,
       budgetSeconds,
       listenerPersona: null,
+      deckModeInputs: instance.modeInputs ?? null,
     };
   }
   return null;
@@ -517,15 +518,26 @@ export async function startSession({
     // pitch-deck: fairValueBand is server-only. Always overwrite (or inject)
     // so a client-supplied band cannot let a student negotiate against a
     // band they chose (14-12). Ask-independent constant — see
-    // lib/pitch/fair-value-band.ts.
+    // lib/pitch/fair-value-band.ts. All five deck modes share this `kind`
+    // (Phase 19); only the negotiating mode gets a band — for every other
+    // mode, strip any client-supplied band/ask/equity entirely (the server,
+    // not the client, decides whether terms exist).
     let wizardInstance = rawInstance ?? undefined;
     if (wizardInstance?.kind === "pitch-deck") {
-      wizardInstance = {
-        ...wizardInstance,
-        fairValueBand: resolveDeckFairValueBand({
-          slideCount: wizardInstance.slideCount,
-        }),
-      };
+      const band = resolveDeckFairValueBand(typeSlug, {
+        slideCount: wizardInstance.slideCount,
+      });
+      if (band) {
+        wizardInstance = { ...wizardInstance, fairValueBand: band };
+      } else {
+        const {
+          fairValueBand: _band,
+          askPriceUsd: _ask,
+          askEquityPct: _equity,
+          ...rest
+        } = wizardInstance;
+        wizardInstance = rest;
+      }
     }
 
     const resolved = resolveSessionConfig(typeSlug, {
