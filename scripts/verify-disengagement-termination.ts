@@ -1,6 +1,14 @@
 /**
  * Proves Phase 18's cue parsing and threshold/floor termination contract with
  * fixed fixtures only. Run: npx tsx scripts/verify-disengagement-termination.ts
+ *
+ * AMENDED 2026-10-08 (Phase 19 plan 19-03): 19-CONTEXT.md reverses the deck
+ * half of Phase 18's REQ-84 — no deck mode opts into the walk-out anymore.
+ * Section 4's deck assertions were INVERTED (never deleted) to assert the
+ * new intent, and the section 3 `belowFloor` fixture was re-pointed at a
+ * synthetic policy since it can no longer borrow `PITCH_DECK_TYPE` to prove
+ * the floor gate. `pitch-elevator` is untouched and is now the ONLY type
+ * that opts into disengagement.
  */
 import {
   computeDisengagement,
@@ -8,16 +16,15 @@ import {
   extractDisengagementSignals,
   parseDisengagementCue,
 } from "../lib/engine/disengagement";
+import { getEngineType } from "../lib/engine/registry";
 import { parseEngineTurn } from "../lib/engine/turn-control";
 import { resolveTermination } from "../lib/engine/termination";
 import type {
   ResolvedSessionConfig,
   TerminationPolicyConfig,
 } from "../lib/engine/types";
-import {
-  DECK_DISENGAGEMENT_THRESHOLD,
-  PITCH_DECK_TYPE,
-} from "../lib/pitch/deck-type";
+import { listDeckModes } from "../lib/pitch/deck-modes";
+import { PITCH_DECK_TYPE } from "../lib/pitch/deck-type";
 import {
   ELEVATOR_DISENGAGEMENT_THRESHOLD,
   PITCH_ELEVATOR_TYPE,
@@ -184,11 +191,33 @@ console.log("\n3. Threshold and floor gates");
     assistantTurnCount: 2,
     disengagementValue: ELEVATOR_DISENGAGEMENT_THRESHOLD,
   });
+  // A locally-declared synthetic policy, NOT PITCH_DECK_TYPE's — the deck no
+  // longer opts in (avatarMayEnd: false), so borrowing its policy here would
+  // be rejected by gate 1 before the floor gate is ever reached. This
+  // fixture exists purely to keep proving the floor-before-threshold gate
+  // order; it makes no claim about any real type.
+  const syntheticFloorPolicy: TerminationPolicyConfig = {
+    studentMayEnd: true,
+    avatarMayEnd: true,
+    avatarEndReasons: ["lost_interest"],
+    avatarEndFloor: { minAssistantTurns: 4 },
+    disengagementThreshold: 0.5,
+  };
   const belowFloor = resolveTermination({
-    policy: PITCH_DECK_TYPE.terminationPolicy,
+    policy: syntheticFloorPolicy,
     source: "avatar",
     reason: "lost_interest",
     assistantTurnCount: 3,
+    disengagementValue: 1,
+  });
+  // Direct proof that a maximally disengaged investor still cannot walk out:
+  // avatarMayEnd: false rejects at gate 1, before the floor or threshold
+  // gates are even consulted.
+  const maximallyDisengagedInvestor = resolveTermination({
+    policy: PITCH_DECK_TYPE.terminationPolicy,
+    source: "avatar",
+    reason: "lost_interest",
+    assistantTurnCount: 12,
     disengagementValue: 1,
   });
   const nullThresholdPolicy: TerminationPolicyConfig = {
@@ -217,9 +246,15 @@ console.log("\n3. Threshold and floor gates");
     JSON.stringify(accepted),
   );
   check(
-    "deck floor rejects before four assistant turns even at maximum disengagement",
+    "synthetic policy's floor rejects before four assistant turns even at maximum disengagement",
     belowFloor.ok === false && belowFloor.reason === "floor-not-met",
     JSON.stringify(belowFloor),
+  );
+  check(
+    "a maximally disengaged investor still cannot walk out (avatarMayEnd: false)",
+    maximallyDisengagedInvestor.ok === false &&
+      maximallyDisengagedInvestor.recordedReason === null,
+    JSON.stringify(maximallyDisengagedInvestor),
   );
   check(
     "null threshold preserves the existing avatar-end path without a value",
@@ -231,16 +266,36 @@ console.log("\n3. Threshold and floor gates");
 
 console.log("\n4. Pitch policy opt-ins");
 {
+  // Only resolve modes actually registered yet — 19-04/19-05 add the other
+  // four deck modes to the registry; written this way, these two checks
+  // automatically cover them as soon as they land, and fail the moment any
+  // deck mode re-adds a threshold or re-opts in.
+  const resolvedDeckTypes = listDeckModes()
+    .map((mode) => getEngineType(mode.slug))
+    .filter((type): type is NonNullable<typeof type> => type !== null);
+
   check(
-    "pitch-deck has a real four-turn avatar floor",
-    PITCH_DECK_TYPE.terminationPolicy.avatarEndFloor?.minAssistantTurns === 4,
-    JSON.stringify(PITCH_DECK_TYPE.terminationPolicy.avatarEndFloor),
+    "at least one deck mode is registered to check (pitch-deck)",
+    resolvedDeckTypes.length >= 1,
+    JSON.stringify(resolvedDeckTypes.map((t) => t.slug)),
   );
   check(
-    "pitch-deck has a numeric disengagement threshold",
-    PITCH_DECK_TYPE.terminationPolicy.disengagementThreshold ===
-      DECK_DISENGAGEMENT_THRESHOLD,
-    JSON.stringify(PITCH_DECK_TYPE.terminationPolicy),
+    "no deck mode opts into disengagement",
+    resolvedDeckTypes.every(
+      (type) =>
+        type.terminationPolicy.disengagementThreshold == null &&
+        type.terminationPolicy.avatarMayEnd === false &&
+        type.terminationPolicy.avatarEndReasons.length === 0,
+    ),
+    JSON.stringify(resolvedDeckTypes.map((t) => t.terminationPolicy)),
+  );
+  check(
+    "every deck mode keeps a dormant four-turn floor (19-CONTEXT.md walk-out decision)",
+    resolvedDeckTypes.every(
+      (type) =>
+        (type.terminationPolicy.avatarEndFloor?.minAssistantTurns ?? 0) >= 4,
+    ),
+    JSON.stringify(resolvedDeckTypes.map((t) => t.terminationPolicy.avatarEndFloor)),
   );
   check(
     "pitch-elevator retains its existing floor and opts into disengagement",
