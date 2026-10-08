@@ -104,8 +104,12 @@ function resolvePersistedBudget(
   return clampAdjustableBudget(config, override).seconds;
 }
 
-/** Build a PitchInputSnapshot from a pitch instance when one is supplied. */
-function pitchSnapshotFromInstance(
+/**
+ * Build a PitchInputSnapshot from a pitch instance when one is supplied.
+ * Exported for `scripts/verify-deck-family-plumbing.ts`'s fixture-only
+ * absence/back-compat proof.
+ */
+export function pitchSnapshotFromInstance(
   instance: InstanceConfig,
   budgetSeconds: number | null,
 ): PitchInputSnapshot | null {

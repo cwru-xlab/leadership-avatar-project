@@ -189,11 +189,16 @@ function instanceFromScenarioSnapshot(
  * Pitch instances are reconstructible from the input snapshot. Elevator is
  * fully self-contained; deck reloads `slideTexts` from private deck storage
  * (texts are not duplicated into the snapshot).
+ *
+ * Exported for `scripts/verify-deck-family-plumbing.ts`, which passes a
+ * fixture `manifestLoader` so the proof needs no S3/network access. The
+ * real evaluation path always uses the default (`loadDeckManifest`).
  */
-async function instanceFromPitchSnapshot(
+export async function instanceFromPitchSnapshot(
   snapshot: PitchInputSnapshot,
   userId: string,
   typeSlug: string,
+  manifestLoader: typeof loadDeckManifest = loadDeckManifest,
 ): Promise<InstanceConfig | null> {
   if (snapshot.pitchKind === "elevator") {
     if (
@@ -225,7 +230,7 @@ async function instanceFromPitchSnapshot(
     return null;
   }
 
-  const manifest = await loadDeckManifest(userId, snapshot.deckId);
+  const manifest = await manifestLoader(userId, snapshot.deckId);
   const slideTexts =
     manifest?.slides.map((slide) =>
       typeof slide.text === "string" ? slide.text : "",
