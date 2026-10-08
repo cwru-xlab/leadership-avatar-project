@@ -10,6 +10,9 @@
  * columns.
  */
 
+import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
+import { isDeckModeSlug } from "@/lib/pitch/deck-modes";
+
 /**
  * The interview type's input snapshot — the union of every typed
  * customization column `InterviewReport` carries today
@@ -64,6 +67,12 @@ export interface ScenarioInputSnapshot {
  */
 export interface PitchInputSnapshot {
   kind: "pitch";
+  /**
+   * All five deck modes (Phase 19: `pitch-deck`, `pitch-funding`,
+   * `pitch-product`, `pitch-talk`, `pitch-general`) are `pitchKind: "deck"`.
+   * WHICH mode a report was is recoverable from `InteractionReport.typeSlug`
+   * — this field is deliberately not a second discriminant.
+   */
   pitchKind: "elevator" | "deck";
   pitchSubject: string | null;
   listenerKnowledge: "blind" | "name-role" | "full-profile" | null;
@@ -80,6 +89,13 @@ export interface PitchInputSnapshot {
   firstTurnWindowSeconds: number | null;
   budgetSeconds: number | null;
   listenerPersona: string | null;
+  /**
+   * Per-mode wizard inputs (Phase 19), riding alongside the negotiation
+   * fields above. Deliberately NOT added to `PITCH_INPUT_KEYS` below — doing
+   * so would make every pre-Phase-19 stored pitch report fail `hasAllKeys`
+   * and stop rendering. Absent/`null` on every report that predates it.
+   */
+  deckModeInputs?: DeckModeInputs | null;
 }
 
 /**
@@ -278,6 +294,21 @@ function isListenerKnowledge(
   );
 }
 
+/**
+ * Defensive-only: accept absent/`null`, accept a plain object whose `mode`
+ * is a known deck-mode slug, degrade anything else (a string, an array, an
+ * object with an unrecognized `mode`) to `null`. A malformed mode-input
+ * blob must never fail the whole snapshot — same posture
+ * `asConversationOutcome` takes in `lib/report/dto.ts`.
+ */
+function asDeckModeInputs(value: unknown): DeckModeInputs | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object" || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  if (typeof v.mode !== "string" || !isDeckModeSlug(v.mode)) return null;
+  return value as DeckModeInputs;
+}
+
 function isDcDifficulty(
   value: unknown,
 ): value is DifficultConversationInputSnapshot["difficulty"] {
@@ -336,7 +367,10 @@ export function asInputSnapshot(value: unknown): InputSnapshot | null {
       return null;
     }
 
-    return value as PitchInputSnapshot;
+    return {
+      ...(value as PitchInputSnapshot),
+      deckModeInputs: asDeckModeInputs(v.deckModeInputs),
+    };
   }
   if (
     v.kind === "difficult-conversation" &&
