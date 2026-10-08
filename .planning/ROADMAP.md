@@ -792,7 +792,61 @@ being widened here)
      evaluator or report page.
   6. Pass 2 keyboard UAT for the surfaces Phases 18 and 19 add is run by a human in
      Phase 19's closing plan and recorded in the Phase 18 and Phase 19 validation files.
-**Plans:** 11 plans
+**Plans:** 11 plans in 7 waves — planned 2026-10-08 (`8ffff55`), revised `4ce3b85`,
+plan-checker **VERIFICATION PASSED**. All eight REQs covered; SC1-SC6 tagged
+`P19-SC*`, SC6 its own non-autonomous closing plan.
+
+**Planning finding — REQ-93 cannot be met literally, and the plans disclose it
+rather than hide it.** `kind: "pitch-deck"` is the `InstanceConfig` discriminant
+checked in `app/api/interaction/chat/route.ts:179,579`,
+`lib/engine/session.ts:128,522,859` and
+`lib/engine/evaluation-runner.ts:233,364` — call sites independently confirmed by
+the plan-checker. Giving any new mode its own instance kind would force edits to
+exactly the surfaces REQ-93 forbids, so **all five modes share the one
+`pitch-deck` instance kind**, at the cost of one deliberate mode-agnostic
+widening in 19-02. 19-10's guard therefore asserts the STRONGER checkable claim —
+no engine module, route, evaluator or report page contains any new mode's literal
+name or a mode-specific branch — with `lib/engine/registry.ts` the only sanctioned
+exception, itself asserted to contain no `===` comparison, plus a documented
+negative test (plant `"pitch-funding"` in an engine file, confirm the script
+fails, revert). Two traps recorded in 19-02: `PITCH_INPUT_KEYS` drives a
+`hasAllKeys` narrowing, so adding the new key there would stop every
+pre-Phase-19 pitch report from rendering; and `instanceFromPitchSnapshot`
+hard-requires finite ask numbers, which would make every non-investor deck
+session unevaluable.
+
+**Planning finding — switching the walk-out off takes more than dropping the
+threshold.** `resolveTermination` evaluates its disengagement gate only
+`if (threshold != null)`, so a type declaring none falls through to `ok: true`
+for any accepted reason past the floor: the naive change would have left the
+investor deck still able to walk out. 19-03 therefore also sets
+`avatarMayEnd: false` / `avatarEndReasons: []` and strips the exit and cue
+instructions from the investor prompt — restoring the intent Phase 14 wrote into
+`deck-type.ts` ("this type cannot end early") before Phase 18 contradicted it.
+The four-turn floor is kept as dormant safety. A third touch point the amendment
+had not named: `verify-disengagement-termination.ts`'s `belowFloor` fixture
+reuses `PITCH_DECK_TYPE.terminationPolicy` and stops exercising the floor gate
+once `avatarMayEnd` flips false (gate 1 returns no `reason` field, so the
+assertion fails outright rather than passing hollowly). 19-03 re-points it at a
+synthetic policy and adds a direct proof that a maximally disengaged investor
+still cannot walk out, with the `check(` count required to stay equal or higher.
+`lib/pitch/elevator-type.ts` is read-only across all 11 plans, and 19-11 may only
+APPEND to `18-VALIDATION.md` — never alter its frontmatter or its five PENDING
+verdicts.
+
+**Avatar step AMENDED 2026-10-08 (user decision during `/gsd:plan-phase 19`):**
+the investor `pitch-deck` DOES gain the `interviewer` avatar/voice step, so all
+five deck modes behave consistently. "Investor deck unchanged" governs its
+ask/equity inputs and its rubric, NOT its avatar selection. 19-07 retires the
+page's auto-pick effect **generically rather than by deletion** — gated on
+`engineType.setupSteps.some(s => s.id === "interviewer")` — because
+`pitch-elevator` declares no picker and the session render gate requires
+`selectedInterviewer && avatarConfig`, so deleting the effect outright would
+leave the elevator unable to start. `InterviewerStep` was found to fully subsume
+the effect (same endpoint, same `interviewers[0]` default) and additionally
+surfaces a catalog error the page effect silently swallows. This deliberately
+touches a Phase-14-signed-off wizard surface; 19-11 sign-off block **E2** covers
+it as a re-tested surface.
 
 Plans:
 - [ ] 19-01-PLAN.md — Deck-mode table, shared deck rubric, per-mode session-length envelopes
@@ -897,7 +951,7 @@ discussion):**
 | 16. Networking Practice | 11/11 | Complete  | 2026-10-04 |
 | 17. v1.0 Close-Out | 7/7 | Complete | 2026-10-05 |
 | 18. Avatar Disengagement & Walk-Out | 4/5 | Implementation done, human UAT pending re-run | - |
-| 19. Deck-Led Pitch Family | 0/TBD | Not started | - |
+| 19. Deck-Led Pitch Family | 0/11 | Planned, verified | - |
 | 20. Difficult Conversation Walk-Outs | 0/TBD | Not started | - |
 
 Phase 13's REQ-66/REQ-67 caveat remains recorded in `13-CLOSE-RECORD.md`: the
