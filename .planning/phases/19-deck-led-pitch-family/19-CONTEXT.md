@@ -60,8 +60,16 @@ cannot be judged without it.
 - **Deck-led talk:** **audience** + the one **takeaway** they should leave with.
 - **General deck pitch:** no mode-specific input. Deck upload and session length
   only.
-- **Investor deck:** unchanged — the existing ask/equity step stays exactly as
-  Phase 14 shipped it.
+- **Investor deck:** the existing ask/equity step stays exactly as Phase 14
+  shipped it.
+  **AMENDED 2026-10-08 (user decision during `/gsd:plan-phase 19`):** the
+  investor deck DOES gain the avatar-picker step, so all five deck modes behave
+  consistently. "Investor deck unchanged" governs its ask/equity inputs and its
+  rubric, NOT its avatar selection. The investor deck currently auto-picks its
+  avatar; Phase 19 adds the same `interviewer` step the four new modes use (the
+  Phase 13 step id networking already reuses). This is a deliberate touch of a
+  Phase-14-signed-off wizard surface and must be re-tested as such — plan 19-11's
+  human sign-off covers it.
 
 ### The listener per mode
 
