@@ -86,6 +86,14 @@ investor `pitch-deck`. The four new modes declare **no `disengagementThreshold`*
 threshold behaves exactly as it does today), and Phase 19 also turns the
 investor deck's walk-out **off**.
 
+**`pitch-elevator` KEEPS its walk-out** (confirmed by the user 2026-10-08 during
+planning). The decision is scoped to DECK modes only: the elevator is not a deck,
+Phase 14 Success Criterion 1 explicitly requires a tedious elevator pitch to be
+able to end early as a recorded failure, and `ELEVATOR_DISENGAGEMENT_THRESHOLD`
+was deliberately tuned to 0.5 in commit `524544e`. After Phase 19, the elevator
+is the only type that opts in — which keeps Phase 18's pending human UAT
+runnable.
+
 This is a deliberate **amendment to Phase 18**, which named `pitch-deck`'s floor
 in REQ-84 and currently ships `DECK_DISENGAGEMENT_THRESHOLD = 0.75` in
 `lib/pitch/deck-type.ts`, asserted by `scripts/verify-disengagement-termination.ts`.

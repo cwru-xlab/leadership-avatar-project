@@ -667,7 +667,10 @@ adding a parallel mechanism)
     `DECK_DISENGAGEMENT_THRESHOLD` from the deck type's opt-in and updates
     `scripts/verify-disengagement-termination.ts`'s two pitch-deck assertions to
     the new intent (deliberately, not by weakening them). The mechanism itself is
-    unaffected and its intended home is **Phase 20**.
+    unaffected and its intended home is **Phase 20**. `pitch-elevator` KEEPS its
+    walk-out (`ELEVATOR_DISENGAGEMENT_THRESHOLD` 0.5, commit `524544e`) and is the
+    only opted-in type after Phase 19, which keeps Phase 18's pending human UAT
+    runnable.
 **Success Criteria** (what must be TRUE):
   1. A session where the student stalls, repeats, or never establishes common ground
      visibly loses the avatar's engagement over time, computed deterministically from
