@@ -635,15 +635,16 @@ export async function POST(request: NextRequest) {
               const slideTexts = manifest.slides.map((slide) =>
                 typeof slide.text === "string" ? slide.text : "",
               );
+              const band = resolveDeckFairValueBand(sessionConfig.typeSlug, {
+                slideCount: manifest.slideCount,
+              });
               sessionConfig = {
                 ...sessionConfig,
                 instance: {
                   ...sessionConfig.instance,
                   slideCount: manifest.slideCount,
                   slideTexts,
-                  fairValueBand: resolveDeckFairValueBand({
-                    slideCount: manifest.slideCount,
-                  }),
+                  ...(band ? { fairValueBand: band } : {}),
                 },
               };
               deckSlideCount = manifest.slideCount;

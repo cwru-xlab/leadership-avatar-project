@@ -30,6 +30,7 @@ import type { CameraMode } from "@/lib/metrics/types";
 import { loadDeckManifest } from "@/lib/deck/store";
 import { resolveDifficultConversationInstance } from "@/lib/difficult-conversation/resolve-instance";
 import { resolveDeckFairValueBand } from "@/lib/pitch/fair-value-band";
+import { deckModeNegotiates } from "@/lib/pitch/deck-modes";
 import { DECK_ENVELOPE_SECONDS } from "@/lib/pitch/session-length";
 import {
   asInputSnapshot,
@@ -192,6 +193,7 @@ function instanceFromScenarioSnapshot(
 async function instanceFromPitchSnapshot(
   snapshot: PitchInputSnapshot,
   userId: string,
+  typeSlug: string,
 ): Promise<InstanceConfig | null> {
   if (snapshot.pitchKind === "elevator") {
     if (
@@ -209,16 +211,16 @@ async function instanceFromPitchSnapshot(
 
   if (snapshot.pitchKind !== "deck") return null;
 
+  // Phase 19: all five deck modes share pitchKind "deck". The negotiation
+  // fields (askPriceUsd/askEquityPct) are no longer a hard precondition —
+  // requiring them here made every non-investor deck session unevaluable.
+  // Only deckId and a usable slideCount are required to reconstruct.
   if (
     typeof snapshot.deckId !== "string" ||
     !snapshot.deckId ||
     typeof snapshot.slideCount !== "number" ||
     !Number.isFinite(snapshot.slideCount) ||
-    snapshot.slideCount <= 0 ||
-    typeof snapshot.askPriceUsd !== "number" ||
-    !Number.isFinite(snapshot.askPriceUsd) ||
-    typeof snapshot.askEquityPct !== "number" ||
-    !Number.isFinite(snapshot.askEquityPct)
+    snapshot.slideCount <= 0
   ) {
     return null;
   }
@@ -229,22 +231,34 @@ async function instanceFromPitchSnapshot(
       typeof slide.text === "string" ? slide.text : "",
     ) ?? Array.from({ length: Math.trunc(snapshot.slideCount) }, () => "");
 
+  const hasAsk =
+    typeof snapshot.askPriceUsd === "number" &&
+    Number.isFinite(snapshot.askPriceUsd);
+  const hasEquity =
+    typeof snapshot.askEquityPct === "number" &&
+    Number.isFinite(snapshot.askEquityPct);
+
+  const negotiates = deckModeNegotiates(typeSlug);
+  const fairValueBand = negotiates
+    ? snapshot.fairValueBand ??
+      resolveDeckFairValueBand(typeSlug, { slideCount: snapshot.slideCount })
+    : undefined;
+
   return {
     kind: "pitch-deck",
     deckId: snapshot.deckId,
     slideCount: Math.trunc(snapshot.slideCount),
     slideTexts,
-    askPriceUsd: snapshot.askPriceUsd,
-    askEquityPct: snapshot.askEquityPct,
-    fairValueBand:
-      snapshot.fairValueBand ??
-      resolveDeckFairValueBand({ slideCount: snapshot.slideCount }),
+    ...(hasAsk ? { askPriceUsd: snapshot.askPriceUsd as number } : {}),
+    ...(hasEquity ? { askEquityPct: snapshot.askEquityPct as number } : {}),
+    ...(fairValueBand ? { fairValueBand } : {}),
     proposedSeconds:
       typeof snapshot.budgetSeconds === "number" &&
       Number.isFinite(snapshot.budgetSeconds) &&
       snapshot.budgetSeconds > 0
         ? Math.trunc(snapshot.budgetSeconds)
         : DECK_ENVELOPE_SECONDS[0],
+    modeInputs: snapshot.deckModeInputs ?? undefined,
   };
 }
 
@@ -293,7 +307,11 @@ async function resolveConfigForReport(
   }
 
   if (snapshot?.kind === "pitch") {
-    const instance = await instanceFromPitchSnapshot(snapshot, userId);
+    const instance = await instanceFromPitchSnapshot(
+      snapshot,
+      userId,
+      typeSlug,
+    );
     if (!instance) {
       return {
         ok: false,
