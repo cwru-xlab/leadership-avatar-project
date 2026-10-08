@@ -4,21 +4,56 @@
  * One config record plus prompts — no route, no evaluator module, no report
  * page. Adding this type is the registry entry in lib/engine/registry.ts and
  * nowhere else (REQ-60).
+ *
+ * AMENDED 2026-10-08 (19-CONTEXT.md, Phase 19 plan 19-03): this type no
+ * longer opts into Phase 18's disengagement walk-out. The mechanism itself
+ * (lib/engine/disengagement.ts, lib/engine/termination.ts) is untouched and
+ * still lives for `pitch-elevator` and for Phase 20's difficult
+ * conversations — a pitch rehearsal is simply not where an avatar should
+ * abandon a student. `avatarMayEnd: false` and no `disengagementThreshold`
+ * key restore the intent Phase 14 originally wrote here, which Phase 18
+ * contradicted.
+ *
+ * AMENDED 2026-10-08 (19-CONTEXT.md amendment, user decision): the investor
+ * deck now also declares the shared Phase 13 `interviewer` setup step so all
+ * five deck modes pick an avatar the same way. "Investor deck unchanged"
+ * governs its ask/equity inputs and its rubric, not its avatar selection.
  */
 
 import type { InteractionTypeConfig } from "@/lib/engine/types";
 
+import { getDeckMode } from "@/lib/pitch/deck-modes";
 import {
   DECK_EVALUATOR_PROMPT,
   buildDeckEvaluationContext,
   buildDeckEvaluationImages,
   buildDeckSystemPrompt,
 } from "@/lib/pitch/deck-prompts";
-import { DECK_ENVELOPE_SECONDS } from "@/lib/pitch/session-length";
+import { SHARED_DECK_DIMENSIONS } from "@/lib/pitch/deck-rubric";
 import { DECK_VISIBLE_CONTEXT } from "@/lib/pitch/slides-channel";
 
-/** Tuned only through recorded Phase 18 calibration evidence. */
-export const DECK_DISENGAGEMENT_THRESHOLD = 0.75;
+// `negotiation` is investor-only per 19-CONTEXT.md and must not migrate into
+// the shared SHARED_DECK_DIMENSIONS module — declared here, inline, verbatim.
+const NEGOTIATION_DIMENSION: InteractionTypeConfig["extraRubricDimensions"][number] =
+  {
+    key: "negotiation",
+    label: "Negotiation",
+    description:
+      "Did the founder manage the negotiation, defend the ask with evidence, and land somewhere defensible. 1: folded or never engaged. 5: evidence-backed path to a defensible settlement.",
+  };
+
+// The picker, the wizard and this record must not be able to disagree about
+// the investor envelope — same fail-loud posture as a missing registry
+// preset (lib/engine/registry.ts).
+const INVESTOR_DECK_MODE = getDeckMode("pitch-deck");
+
+if (!INVESTOR_DECK_MODE) {
+  throw new Error(
+    'lib/pitch/deck-type.ts: getDeckMode("pitch-deck") returned null — DECK_MODES is missing its investor row',
+  );
+}
+
+const DECK_ENVELOPE_SECONDS = INVESTOR_DECK_MODE.envelopeSeconds;
 
 export const PITCH_DECK_TYPE: InteractionTypeConfig = {
   slug: "pitch-deck",
@@ -26,39 +61,11 @@ export const PITCH_DECK_TYPE: InteractionTypeConfig = {
   description:
     "Walk an investor through your deck, defend your ask with evidence, and negotiate price and equity in a timed practice meeting.",
   // Five extras as FIRST-CLASS dimensions. 13-CONTEXT.md explicitly rejected
-  // folding deck quality into `content` as a sub-point.
-  extraRubricDimensions: [
-    {
-      key: "deck_structure",
-      label: "Deck structure",
-      description:
-        "Narrative arc and ordering — whether the essential investor questions are answered and in a sensible order. 1: slides feel random or skip the ask. 5: clear arc that builds to a defensible ask.",
-    },
-    {
-      key: "deck_text_density",
-      label: "Slide text density",
-      description:
-        "Wordiness per slide — walls of text, bullet overload, judged from extracted text. 1: dense slides the audience cannot scan. 5: spare, readable slides that support speech.",
-    },
-    {
-      key: "deck_visual_quality",
-      label: "Slide visual appearance",
-      description:
-        "Hierarchy, legibility, alignment, consistency — judged from the rendered slide images, not from word counts. 1: careless or illegible. 5: look made with care and read at a glance.",
-    },
-    {
-      key: "slide_speech_correlation",
-      label: "Slide / speech correlation",
-      description:
-        "Did the talk track track the slide on screen (and slides shown so far), unless a question pulled the conversation elsewhere. 1: speech ignored the deck. 5: speech and slides stayed aligned.",
-    },
-    {
-      key: "negotiation",
-      label: "Negotiation",
-      description:
-        "Did the founder manage the negotiation, defend the ask with evidence, and land somewhere defensible. 1: folded or never engaged. 5: evidence-backed path to a defensible settlement.",
-    },
-  ],
+  // folding deck quality into `content` as a sub-point. The four shared deck
+  // dimensions now come from deck-rubric.ts (19-01) so every deck mode
+  // reuses the exact same text; `negotiation` stays investor-only, declared
+  // above in this file.
+  extraRubricDimensions: [...SHARED_DECK_DIMENSIONS, NEGOTIATION_DIMENSION],
   prompts: {
     liveSystemPrompt: buildDeckSystemPrompt,
     evaluatorPrompt: DECK_EVALUATOR_PROMPT,
@@ -71,20 +78,19 @@ export const PITCH_DECK_TYPE: InteractionTypeConfig = {
     targetMinutes: null,
     targetQuestionCount: null,
   },
-  // Phase 18 permits an in-character exit only after the engine verifies both
-  // the four-assistant-turn floor and a derived disengagement threshold. A
-  // model marker alone remains insufficient to end the session.
+  // 19-CONTEXT.md: the deck does not opt into Phase 18's disengagement
+  // walk-out. The avatar cannot end this session itself — the founder ends
+  // it. No `disengagementThreshold` key: gate 4 of resolveTermination is
+  // simply skipped for a type that declares no threshold, which is why
+  // `avatarMayEnd: false` + an empty `avatarEndReasons` is also required —
+  // dropping the threshold alone would not be enough.
   terminationPolicy: {
     studentMayEnd: true,
-    avatarMayEnd: true,
-    avatarEndReasons: [
-      "pitch_too_long",
-      "no_common_ground",
-      "unclear_ask",
-      "lost_interest",
-    ],
+    avatarMayEnd: false,
+    avatarEndReasons: [],
+    // Redundant-by-design while avatarMayEnd is false: kept so any future
+    // re-opt-in starts from a safe floor instead of firing on turn one.
     avatarEndFloor: { minAssistantTurns: 4 },
-    disengagementThreshold: DECK_DISENGAGEMENT_THRESHOLD,
   },
   visibleContext: DECK_VISIBLE_CONTEXT,
   // Ask and fair band are deliberately ABSENT — they are instance config,
@@ -158,6 +164,11 @@ export const PITCH_DECK_TYPE: InteractionTypeConfig = {
       id: "session-length",
       label: "Session length",
       customComponent: "SessionLengthStep",
+    },
+    {
+      id: "interviewer",
+      label: "Avatar & voice",
+      customComponent: "InterviewerStep",
     },
   ],
   // No postProcessScores — the early-end cap is an elevator concern; this
