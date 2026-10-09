@@ -8,6 +8,12 @@ const CAUSE_LABELS: Record<DisengagementCause, string> = {
   repeated_response: "a response repeated earlier points",
   short_response_streak: "several responses were very short",
   no_common_ground: "no shared relevance had been established",
+  hostility: "the exchange turned personal",
+  severe_content:
+    "a remark crossed a line the character would not continue past",
+  position_unacknowledged:
+    "the other person's position was never acknowledged",
+  stonewalling: "the other person stopped engaging with what was said",
 };
 
 export interface DisengagementDeclinePanelProps {

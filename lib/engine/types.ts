@@ -21,6 +21,10 @@
 import type { AttemptLanguage } from "@/lib/languages";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
+import type {
+  DisengagementCause,
+  DisengagementWeights,
+} from "./disengagement";
 
 /** A single scored dimension on the report. */
 export interface RubricDimension {
@@ -86,6 +90,21 @@ export interface TerminationPolicyConfig {
    * accepted.
    */
   disengagementThreshold?: number | null;
+  /**
+   * Optional per-type override of DEFAULT_DISENGAGEMENT_WEIGHTS. Omitted ->
+   * the shared defaults, byte-identical to Phase 18. A type whose timeBudget
+   * is null declares this so its dead budgetPressure weight is redistributed
+   * deliberately rather than silently inherited (Phase 20).
+   */
+  disengagementWeights?: Partial<DisengagementWeights> | null;
+  /**
+   * Optional map from a dominant observable cause to the reason this type's
+   * avatar cites when that cause ends the session. Every value MUST already
+   * be a member of avatarEndReasons — the engine never invents a reason.
+   * Omitted -> the existing behaviour, where the model's own marker reason
+   * is used.
+   */
+  avatarEndReasonByCause?: Partial<Record<DisengagementCause, string>> | null;
 }
 
 /**
