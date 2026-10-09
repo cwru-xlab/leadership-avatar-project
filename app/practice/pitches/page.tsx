@@ -76,16 +76,24 @@ export default function PracticePitchesPickerPage() {
   // listeners (jsx-a11y/no-noninteractive-element-interactions). The listener
   // exists only while the panel is open, so it cannot swallow Escape anywhere
   // else in the app.
+  //
+  // CAPTURE phase deliberately: a bubble-phase listener on `document` is the
+  // LAST to see the event, so any ancestor (a UI-library overlay, a layout
+  // wrapper) that calls stopPropagation on Escape would silently swallow it.
+  // Capture runs before any descendant handler, so the disclosure closes
+  // regardless of what sits between it and the document.
   useEffect(() => {
     if (!deckExpanded) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") collapseDeckPanel();
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      collapseDeckPanel();
     };
 
-    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
 
-    return () => document.removeEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [deckExpanded, collapseDeckPanel]);
 
   const toggleDeckExpanded = () => {
