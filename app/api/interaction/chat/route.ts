@@ -217,6 +217,17 @@ function attachTerminationToStream(
     elapsedSeconds: number;
     budgetSeconds: number | null;
     walkOutProofContext?: { userId: string; reportId: string };
+    /**
+     * True when the client requested the one-shot forced walk-out farewell
+     * on THIS turn (`engineTurn.forceWalkOutFarewell === true`), regardless
+     * of whether its proof verified. Lets the stream wrapper say so in
+     * metadata when it did not verify, instead of silently degrading into
+     * what looks like an ordinary reply (debug: elevator-walkout-dead-end).
+     */
+    walkOutFarewellRequested?: boolean;
+    /** True once `forceWalkOutFarewell` verified and the directive was
+     * actually injected into this turn's prompt. */
+    walkOutFarewellVerified?: boolean;
   },
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
@@ -243,68 +254,108 @@ function attachTerminationToStream(
 
           for (const line of lines) {
             if (line.startsWith("data: ")) {
-              try {
-                const event = JSON.parse(line.slice(6)) as {
-                  type?: string;
-                  delta?: string;
-                  metadata?: Record<string, unknown>;
-                };
+              let event: {
+                type?: string;
+                delta?: string;
+                metadata?: Record<string, unknown>;
+              } | null = null;
 
+              try {
+                event = JSON.parse(line.slice(6));
+              } catch {
+                // Pass through a malformed frame unchanged.
+              }
+
+              if (event) {
                 if (event.type === "content" && event.delta) {
                   accumulated += event.delta;
                 }
                 if (event.type === "end") {
-                  // The provider output is not an authority. Its optional cue
-                  // can only accelerate pressure already derived from the
-                  // observed transcript, count, and server-side route state.
-                  const cue = parseDisengagementCue(accumulated).cue;
-                  const disengagement = computeDisengagementOverTranscript({
-                    transcript: parseOpts.transcript,
-                    elapsedSeconds: parseOpts.elapsedSeconds,
-                    budgetSeconds: parseOpts.budgetSeconds,
-                    assistantTurnCount: parseOpts.assistantTurnCount ?? 0,
-                    threshold: config.terminationPolicy.disengagementThreshold,
-                    cueAccel: cueAcceleration(cue),
-                  });
-                  const parsed = parseEngineTurn(accumulated, config, {
-                    ...parseOpts,
-                    disengagementValue: disengagement.value,
-                  });
+                  try {
+                    // The provider output is not an authority. Its optional cue
+                    // can only accelerate pressure already derived from the
+                    // observed transcript, count, and server-side route state.
+                    const cue = parseDisengagementCue(accumulated).cue;
+                    const disengagement = computeDisengagementOverTranscript({
+                      transcript: parseOpts.transcript,
+                      elapsedSeconds: parseOpts.elapsedSeconds,
+                      budgetSeconds: parseOpts.budgetSeconds,
+                      assistantTurnCount: parseOpts.assistantTurnCount ?? 0,
+                      threshold:
+                        config.terminationPolicy.disengagementThreshold,
+                      cueAccel: cueAcceleration(cue),
+                    });
+                    const parsed = parseEngineTurn(accumulated, config, {
+                      ...parseOpts,
+                      disengagementValue: disengagement.value,
+                    });
 
-                  const minimumTurns =
-                    config.terminationPolicy.avatarEndFloor?.minAssistantTurns ??
-                    0;
-                  const walkOutFinal =
-                    config.terminationPolicy.disengagementThreshold != null &&
-                    disengagement.crossed &&
-                    (parseOpts.assistantTurnCount ?? 0) >= minimumTurns;
-                  const walkOutProof =
-                    walkOutFinal && parseOpts.walkOutProofContext
-                      ? await createWalkOutProof({
-                          ...parseOpts.walkOutProofContext,
-                          disengagement,
-                          cue: parsed.disengagementCue,
-                          assistantTurnCount:
-                            parseOpts.assistantTurnCount ?? 0,
-                          elapsedSeconds: parseOpts.elapsedSeconds,
-                        })
-                      : null;
+                    const minimumTurns =
+                      config.terminationPolicy.avatarEndFloor
+                        ?.minAssistantTurns ?? 0;
+                    const walkOutFinal =
+                      config.terminationPolicy.disengagementThreshold !=
+                        null &&
+                      disengagement.crossed &&
+                      (parseOpts.assistantTurnCount ?? 0) >= minimumTurns;
+                    const walkOutProof =
+                      walkOutFinal && parseOpts.walkOutProofContext
+                        ? await createWalkOutProof({
+                            ...parseOpts.walkOutProofContext,
+                            disengagement,
+                            cue: parsed.disengagementCue,
+                            assistantTurnCount:
+                              parseOpts.assistantTurnCount ?? 0,
+                            elapsedSeconds: parseOpts.elapsedSeconds,
+                          })
+                        : null;
+                    // A client that asked for the one-shot forced farewell
+                    // but whose proof did not verify must be told so in
+                    // metadata, not served a reply that LOOKS like an
+                    // ordinary turn (debug: elevator-walkout-dead-end).
+                    const walkOutFarewellDeclined =
+                      parseOpts.walkOutFarewellRequested === true &&
+                      parseOpts.walkOutFarewellVerified !== true;
 
-                  event.metadata = {
-                    ...(event.metadata ?? {}),
-                    termination: parsed.termination,
-                    disengagement,
-                    disengagementCue: parsed.disengagementCue,
-                    walkOutFinal,
-                    walkOutProof,
-                  };
-                  controller.enqueue(
-                    encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
-                  );
-                  continue;
+                    event.metadata = {
+                      ...(event.metadata ?? {}),
+                      termination: parsed.termination,
+                      disengagement,
+                      disengagementCue: parsed.disengagementCue,
+                      walkOutFinal,
+                      walkOutProof,
+                      ...(walkOutFarewellDeclined
+                        ? { walkOutFarewellDeclined: true }
+                        : {}),
+                    };
+                    controller.enqueue(
+                      encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+                    );
+                    continue;
+                  } catch (err) {
+                    // Never silently drop a turn's end-of-stream metadata. A
+                    // dropped "end" frame is indistinguishable, on the
+                    // client, from an ordinary reply — and if that happens
+                    // after a server-verified walk-out crossing already
+                    // locked the controls, the student is trapped with no
+                    // error anywhere (debug: elevator-walkout-dead-end).
+                    console.error(
+                      "walk-out end-of-turn metadata computation failed",
+                      err,
+                    );
+                    event.metadata = {
+                      ...(event.metadata ?? {}),
+                      walkOutMetadataError: true,
+                      ...(parseOpts.walkOutFarewellRequested === true
+                        ? { walkOutFarewellDeclined: true }
+                        : {}),
+                    };
+                    controller.enqueue(
+                      encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+                    );
+                    continue;
+                  }
                 }
-              } catch {
-                // Pass through malformed frames unchanged.
               }
             }
             controller.enqueue(encoder.encode(`${line}\n`));
@@ -477,6 +528,8 @@ export async function POST(request: NextRequest) {
       elapsedSeconds: number;
       budgetSeconds: number | null;
       walkOutProofContext?: { userId: string; reportId: string };
+      walkOutFarewellRequested?: boolean;
+      walkOutFarewellVerified?: boolean;
     } | null = null;
 
     if (sessionConfig) {
@@ -798,6 +851,8 @@ export async function POST(request: NextRequest) {
         budgetSeconds:
           walkOutReport?.timeBudgetSeconds ??
           sessionConfig.timeBudget.totalSeconds,
+        walkOutFarewellRequested: engineTurn?.forceWalkOutFarewell === true,
+        walkOutFarewellVerified: forceWalkOutFarewell,
         ...(walkOutReport
           ? {
               walkOutProofContext: {

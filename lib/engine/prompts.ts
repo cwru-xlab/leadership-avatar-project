@@ -454,10 +454,27 @@ export function buildTurnMessages({
   const tail = buildTailBlock(config, turnState);
 
   if (tail) {
-    transcript[latestUser.index] = {
-      ...latestUser.message,
-      content: `${latestUser.message.content.trim()}\n\n${tail}`,
-    };
+    const lastIndex = transcript.length - 1;
+    const endsOnUserTurn = transcript[lastIndex]?.role === "user";
+
+    if (endsOnUserTurn) {
+      transcript[lastIndex] = {
+        ...transcript[lastIndex],
+        content: `${transcript[lastIndex].content.trim()}\n\n${tail}`,
+      };
+    } else {
+      // The one-shot forced walk-out farewell (and any other turn with no new
+      // student message) resends history unchanged, so it ends on an
+      // assistant turn. Splicing the tail onto the latest USER message —
+      // found above for the required-user-message check — would bury a live
+      // directive (forceFarewell, in particular) behind the model's own
+      // already-answered prior reply: it is no longer "now" to the model,
+      // which is exactly why a forced farewell silently degraded into an
+      // ordinary, unrelated turn (debug: elevator-walkout-dead-end). Append a
+      // synthetic trailing user turn instead, so the directive is the last
+      // thing the model sees.
+      transcript.push({ role: "user", content: tail });
+    }
   }
 
   return {

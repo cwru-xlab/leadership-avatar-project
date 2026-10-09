@@ -73,6 +73,10 @@ type WalkOutMetadata = {
   disengagementCue?: DisengagementCue | null;
   walkOutFinal?: boolean;
   walkOutProof?: string | null;
+  /** Server declined the one-shot forced farewell this turn asked for
+   * (proof missing/invalid, or an end-of-turn metadata computation failed).
+   * See debug: elevator-walkout-dead-end. */
+  walkOutFarewellDeclined?: boolean;
 };
 
 interface PracticeSessionShellProps {
@@ -823,12 +827,26 @@ function PracticeInterviewRoom({
           walkOutMetadata?.termination ?? parsedTurn.termination;
         const isWalkOut = walkOutMetadata?.walkOutFinal === true;
 
-        if (isWalkOut) {
+        // This request IS the one-shot forced farewell whenever
+        // `forceWalkOutFarewell` is true — the only caller of this branch is
+        // the self-retry below. Enter the terminal block even if the server
+        // declined the directive (missing/invalid proof) or dropped its
+        // metadata outright: the crossing it would be honouring was already
+        // server-verified on the FIRST request, which is what set
+        // `walkOutLockRef.current` in the first place. Falling through to
+        // the ordinary reply path here is exactly how a locked session was
+        // left with no exit (debug: elevator-walkout-dead-end) — trapping
+        // the student is strictly worse than an imperfect ending.
+        if (isWalkOut || forceWalkOutFarewell) {
           walkOutLockRef.current = true;
           setWalkOutLock(true);
           setAvatarEndedNotice(true);
 
-          if (!acceptedTermination && !forcedFarewellRequestedRef.current) {
+          if (
+            !acceptedTermination &&
+            !forceWalkOutFarewell &&
+            !forcedFarewellRequestedRef.current
+          ) {
             // Do not speak a crossing reply that is not the final statement.
             // The one-shot follow-up keeps the avatar's audible close singular.
             forcedFarewellRequestedRef.current = true;
@@ -842,9 +860,17 @@ function PracticeInterviewRoom({
             reason: acceptedTermination?.reason ?? "lost_interest",
             source: "avatar",
           };
-          setStreamingText(parsedTurn.cleanedText);
-          avatarRef.current?.speak(parsedTurn.cleanedText);
-          finishAfterFarewell(parsedTurn.cleanedText);
+          // A declined or dropped forced farewell can still carry an
+          // unrelated reply (or none at all) — never speak dead air, and
+          // never let an empty string leave the avatar silent with the
+          // session still finishing.
+          const farewellText =
+            parsedTurn.cleanedText && parsedTurn.cleanedText.trim().length > 0
+              ? parsedTurn.cleanedText
+              : "Thanks for the conversation — I need to step away.";
+          setStreamingText(farewellText);
+          avatarRef.current?.speak(farewellText);
+          finishAfterFarewell(farewellText);
           return;
         }
 
