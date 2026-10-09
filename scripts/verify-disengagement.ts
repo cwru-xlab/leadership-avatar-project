@@ -7,7 +7,11 @@ import {
   computeDisengagement,
   computeDisengagementOverTranscript,
   extractDisengagementSignals,
+  DEFAULT_DISENGAGEMENT_WEIGHTS,
+  type DisengagementCause,
+  type DisengagementWeights,
 } from "../lib/engine/disengagement";
+import { SEVERE_PLACEHOLDER_TOKENS } from "../lib/engine/hostility";
 
 let failures = 0;
 
@@ -294,6 +298,456 @@ console.log("\n6. Transcript replay ratchets across turns");
         (episode) => episode.start_s >= 0 && episode.start_s <= 120,
       ),
     JSON.stringify(before.episodes),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Phase 20 additions (20-02): hostility, severe content, acknowledgement
+// absence, and the stonewalling amendment. Additive only — nothing above
+// this line is edited, weakened, or deleted; Phase 18's regression rows
+// (the "Cheese" ratchet rows especially) stay byte-identical.
+// ---------------------------------------------------------------------------
+
+/**
+ * A PROVISIONAL UNTIL CALIBRATED weight profile for this suite's own
+ * fixtures only — NOT the difficult-conversation type's actual declared
+ * profile (20-03 owns that). Built in the register of 20-01's `HOSTILE` /
+ * `STONEWALLING_CANDIDATES` corpora (not imported, so the two batteries stay
+ * independently runnable). `budgetPressure` and `severeContent` stay 0:
+ * `budgetPressure` is dead for a null time budget, and severe content's
+ * floor-override carve-out (20-04) is a separate mechanism from this
+ * weighted accumulation. The only evidence behind every non-zero number here
+ * is this file's own fixtures below.
+ */
+const PHASE_20_TEST_WEIGHTS: Partial<DisengagementWeights> = {
+  budgetPressure: 0,
+  turnCountPressure: 0,
+  repeatedResponse: 0,
+  shortResponseStreak: 0.05,
+  noCommonGround: 0.1,
+  positionUnacknowledged: 0.15,
+  hostility: 0.4,
+  severeContent: 0,
+  stonewalling: 0.3,
+};
+
+/** Builds an alternating assistant/student transcript from student lines only. */
+function alternatingTranscript(
+  studentLines: string[],
+): Array<{ role: string; content: string }> {
+  const transcript: Array<{ role: string; content: string }> = [];
+  studentLines.forEach((line, index) => {
+    transcript.push({
+      role: "assistant",
+      content: `Can you walk me through your side of this? (prompt ${index})`,
+    });
+    transcript.push({ role: "user", content: line });
+  });
+  return transcript;
+}
+
+/** Register from 20-01's HOSTILE corpus, not imported (see note above). */
+const HOSTILE_LINE_1 =
+  "You are an idiot and you clearly don't know what you're doing.";
+const HOSTILE_LINE_2 = "Screw you, I'm not listening to this.";
+const WARM_LINE = "That's fair, I understand why you'd see it that way.";
+
+console.log("\n7. Hostility accumulates");
+{
+  // Hostile on turns 1, 3 and 5; cooperative in between so only hostility
+  // (not short-response streak) is driving the rise.
+  const transcript = alternatingTranscript([
+    HOSTILE_LINE_1,
+    "Okay, I can look at the numbers again.",
+    HOSTILE_LINE_2,
+    "Sure, let's go through the timeline.",
+    "You are the problem here, not me.",
+  ]);
+  const base = { elapsedSeconds: 150, budgetSeconds: null, threshold: 0.6 };
+
+  const afterOne = computeDisengagementOverTranscript({
+    ...base,
+    transcript: transcript.slice(0, 2),
+    assistantTurnCount: 1,
+    weights: PHASE_20_TEST_WEIGHTS,
+  });
+  const afterThree = computeDisengagementOverTranscript({
+    ...base,
+    transcript,
+    assistantTurnCount: 5,
+    weights: PHASE_20_TEST_WEIGHTS,
+  });
+
+  check(
+    "value after three hostile turns exceeds the value after one",
+    afterThree.value > afterOne.value,
+    `after 1: ${afterOne.value}, after 3: ${afterThree.value}`,
+  );
+  check(
+    "one sharp remark does not end a heated conversation",
+    afterOne.value < 0.6,
+    `value was ${afterOne.value}`,
+  );
+}
+
+console.log("\n8. Hostility ratchets one-way");
+{
+  const hostileTranscript = alternatingTranscript([
+    HOSTILE_LINE_1,
+    HOSTILE_LINE_2,
+    "You are the problem here, not me.",
+  ]);
+  const warmTail = [
+    { role: "assistant", content: "Can we find some common ground here?" },
+    { role: "user", content: WARM_LINE },
+    { role: "assistant", content: "What would help move this forward?" },
+    { role: "user", content: "I appreciate you hearing me out on this." },
+  ];
+  const base = { elapsedSeconds: 150, budgetSeconds: null, threshold: 0.6 };
+
+  const shorter = computeDisengagementOverTranscript({
+    ...base,
+    transcript: hostileTranscript,
+    assistantTurnCount: 3,
+    weights: PHASE_20_TEST_WEIGHTS,
+  });
+  const longer = computeDisengagementOverTranscript({
+    ...base,
+    transcript: [...hostileTranscript, ...warmTail],
+    assistantTurnCount: 5,
+    weights: PHASE_20_TEST_WEIGHTS,
+  });
+
+  check(
+    "two warm, acknowledging turns never lower the value hostility already earned",
+    longer.value >= shorter.value,
+    `shorter: ${shorter.value}, longer: ${longer.value}`,
+  );
+
+  // Negative control (Phase 18's lesson, reapplied): a single computeDisengagement
+  // call built from only the final prefix's signals (no priorValue) must
+  // produce a LOWER value, proving the ratchet in computeDisengagementOverTranscript
+  // is doing real work and is not an accident of the fixture.
+  const finalPrefix = [...hostileTranscript, ...warmTail];
+  const fromScratch = computeDisengagement({
+    signals: extractDisengagementSignals({
+      transcript: finalPrefix,
+      elapsedSeconds: 150,
+      budgetSeconds: null,
+      assistantTurnCount: 5,
+    }),
+    threshold: 0.6,
+    weights: PHASE_20_TEST_WEIGHTS,
+  });
+  check(
+    "the from-scratch computation this ratchet replaces does drop on the same input",
+    fromScratch.value < longer.value,
+    `from-scratch: ${fromScratch.value}, ratcheted: ${longer.value}`,
+  );
+}
+
+console.log("\n9. No apology-driven recovery");
+{
+  // Rejected 2026-10-08 per REQUIREMENTS.md's Out of Scope table: "Apology-
+  // driven recovery of the disengagement value — a decaying value reverses
+  // Phase 18's ratchet fix (REQ-99)." This is not an oversight.
+  const hostileTranscript = alternatingTranscript([
+    HOSTILE_LINE_1,
+    HOSTILE_LINE_2,
+    "You are the problem here, not me.",
+  ]);
+  const apologyTail = [
+    {
+      role: "assistant",
+      content: "I'd like to understand where you're coming from.",
+    },
+    { role: "user", content: "I'm sorry, that was out of line." },
+  ];
+  const base = { elapsedSeconds: 150, budgetSeconds: null, threshold: 0.6 };
+
+  const before = computeDisengagementOverTranscript({
+    ...base,
+    transcript: hostileTranscript,
+    assistantTurnCount: 3,
+    weights: PHASE_20_TEST_WEIGHTS,
+  });
+  const after = computeDisengagementOverTranscript({
+    ...base,
+    transcript: [...hostileTranscript, ...apologyTail],
+    assistantTurnCount: 4,
+    weights: PHASE_20_TEST_WEIGHTS,
+  });
+
+  check(
+    "an explicit apology does not decrease the value",
+    after.value >= before.value,
+    `before: ${before.value}, after: ${after.value}`,
+  );
+}
+
+console.log("\n10. Acknowledgement absence ratchets");
+{
+  // Mirrors the existing "an established common ground cannot erase an
+  // earlier absence" row (Section 6) for the new acknowledgement signal.
+  const noAckTranscript = alternatingTranscript([
+    "I need a decision today.",
+    "That's not going to change my position.",
+    "I've said what I came to say.",
+    "Let's just finish this.",
+  ]);
+  const ackTail = [
+    { role: "assistant", content: "Can you see this from my side at all?" },
+    { role: "user", content: WARM_LINE },
+  ];
+  const base = { elapsedSeconds: 120, budgetSeconds: null, threshold: 0.6 };
+
+  const beforeAck = computeDisengagementOverTranscript({
+    ...base,
+    transcript: noAckTranscript,
+    assistantTurnCount: 4,
+    weights: PHASE_20_TEST_WEIGHTS,
+  });
+  const afterAck = computeDisengagementOverTranscript({
+    ...base,
+    transcript: [...noAckTranscript, ...ackTail],
+    assistantTurnCount: 5,
+    weights: PHASE_20_TEST_WEIGHTS,
+  });
+
+  check(
+    "a late acknowledgement cannot erase an earlier absence",
+    afterAck.value >= beforeAck.value,
+    `before: ${beforeAck.value}, after: ${afterAck.value}`,
+  );
+}
+
+console.log("\n11. Severe content is carried forward");
+{
+  const severeThenBenign = alternatingTranscript([
+    `That's a ${SEVERE_PLACEHOLDER_TOKENS[0]} and you know it.`,
+    "Can we get back to the schedule?",
+    "Sure, that works for me.",
+  ]);
+
+  const result = computeDisengagementOverTranscript({
+    transcript: severeThenBenign,
+    elapsedSeconds: 90,
+    budgetSeconds: null,
+    assistantTurnCount: 3,
+    threshold: 0.6,
+  });
+
+  check(
+    "a severe turn 1 is never erased by benign turns that follow",
+    result.severe === true,
+    JSON.stringify(result),
+  );
+}
+
+console.log("\n12. Default weights leave Phase 18 types unchanged");
+{
+  const transcript = alternatingTranscript([
+    HOSTILE_LINE_1,
+    HOSTILE_LINE_2,
+    "You are the problem here, not me.",
+  ]);
+  const base = { elapsedSeconds: 150, budgetSeconds: null, threshold: 0.6 };
+
+  const withNoWeightsArg = computeDisengagementOverTranscript({
+    ...base,
+    transcript,
+    assistantTurnCount: 3,
+  });
+  const withNewCausesForcedZero = computeDisengagementOverTranscript({
+    ...base,
+    transcript,
+    assistantTurnCount: 3,
+    weights: {
+      hostility: 0,
+      severeContent: 0,
+      positionUnacknowledged: 0,
+      stonewalling: 0,
+    },
+  });
+
+  check(
+    "an omitted weights argument equals every new cause forced to zero",
+    withNoWeightsArg.value === withNewCausesForcedZero.value,
+    `omitted: ${withNoWeightsArg.value}, forced-zero: ${withNewCausesForcedZero.value}`,
+  );
+  const NEW_CAUSES: DisengagementCause[] = [
+    "hostility",
+    "severe_content",
+    "position_unacknowledged",
+    "stonewalling",
+  ];
+  check(
+    "none of the four new causes appears in dominantCauses by default",
+    NEW_CAUSES.every(
+      (cause) => !withNoWeightsArg.dominantCauses.includes(cause),
+    ),
+    JSON.stringify(withNoWeightsArg.dominantCauses),
+  );
+  check(
+    "DEFAULT_DISENGAGEMENT_WEIGHTS.hostility is explicitly 0",
+    DEFAULT_DISENGAGEMENT_WEIGHTS.hostility === 0,
+    `was ${DEFAULT_DISENGAGEMENT_WEIGHTS.hostility}`,
+  );
+  check(
+    "DEFAULT_DISENGAGEMENT_WEIGHTS.severeContent is explicitly 0",
+    DEFAULT_DISENGAGEMENT_WEIGHTS.severeContent === 0,
+  );
+  check(
+    "DEFAULT_DISENGAGEMENT_WEIGHTS.positionUnacknowledged is explicitly 0",
+    DEFAULT_DISENGAGEMENT_WEIGHTS.positionUnacknowledged === 0,
+  );
+  check(
+    "DEFAULT_DISENGAGEMENT_WEIGHTS.stonewalling is explicitly 0",
+    DEFAULT_DISENGAGEMENT_WEIGHTS.stonewalling === 0,
+  );
+}
+
+console.log("\n13. A weight profile sums as declared");
+{
+  const { maxCueAcceleration, ...contributingWeights } =
+    PHASE_20_TEST_WEIGHTS as DisengagementWeights;
+  const sum = Object.values(contributingWeights).reduce(
+    (total, weight) => total + weight,
+    0,
+  );
+
+  check(
+    "the test profile's active weights sum to 1 within floating-point tolerance",
+    Math.abs(sum - 1) < 1e-9,
+    `sum was ${sum}`,
+  );
+  check(
+    "maxCueAcceleration is excluded from that sum (it accelerates, it does not contribute)",
+    maxCueAcceleration === undefined,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AMENDMENT (2026-10-08): stonewalling must be able to end a session alone.
+// This reverses 20-01's "no new signal needed" finding (0.425 measured
+// against a 0.6 threshold using only Phase 18's existing stall signals).
+// Both facts below are proven in this ONE script run, alongside
+// `scripts/verify-hostility-detector.ts`'s unmodified 24-row
+// FIRM_NOT_HOSTILE corpus (run in the same verification pass, not imported
+// here, so the two batteries stay independently runnable — see the header
+// note above).
+// ---------------------------------------------------------------------------
+
+/** Register from 20-01's STONEWALLING_CANDIDATES corpus, not imported. */
+const STONEWALL_LINES = [
+  "No comment.",
+  "I already told you.",
+  "Whatever.",
+  "I'm not discussing this.",
+  "Fine. Whatever you say.",
+  "I have nothing more to say about it.",
+];
+
+const SUSTAINED_HOSTILE_LINES = [
+  HOSTILE_LINE_1,
+  HOSTILE_LINE_2,
+  "You are the problem here, not me.",
+  "This is pathetic and you are useless at your job.",
+];
+
+/**
+ * Returns the 1-indexed student turn at which a threshold is first crossed
+ * when the transcript is replayed prefix by prefix via
+ * `computeDisengagementOverTranscript` — the same replay real callers
+ * (`lib/engine/session.ts`'s `deriveFinishDisengagement`,
+ * `app/api/interaction/chat/route.ts`) use, never the un-ratcheted
+ * `computeDisengagement` primitive called directly. `null` if it never
+ * crosses within the given lines.
+ */
+function firstCrossingTurn(
+  studentLines: string[],
+  weights: Partial<DisengagementWeights>,
+  threshold: number,
+): number | null {
+  for (let turnCount = 1; turnCount <= studentLines.length; turnCount += 1) {
+    const prefixLines = studentLines.slice(0, turnCount);
+    const result = computeDisengagementOverTranscript({
+      transcript: alternatingTranscript(prefixLines),
+      elapsedSeconds: 30 * turnCount,
+      budgetSeconds: null,
+      assistantTurnCount: turnCount,
+      threshold,
+      weights,
+    });
+    if (result.crossed) return turnCount;
+  }
+  return null;
+}
+
+console.log("\n14. Sustained pure stonewalling crosses the threshold alone");
+{
+  const result = computeDisengagementOverTranscript({
+    transcript: alternatingTranscript(STONEWALL_LINES),
+    elapsedSeconds: 180,
+    budgetSeconds: null,
+    assistantTurnCount: STONEWALL_LINES.length,
+    threshold: 0.6,
+    weights: PHASE_20_TEST_WEIGHTS,
+  });
+
+  console.log(
+    `         sustained stonewalling disengagement value: ${result.value} (crossed 0.6: ${result.crossed})`,
+  );
+  check(
+    "a sustained pure-refusal transcript crosses the 0.6 threshold",
+    result.crossed === true,
+    `value was ${result.value}`,
+  );
+  check(
+    "stonewalling is a dominant cause behind the crossing",
+    result.dominantCauses.includes("stonewalling"),
+    JSON.stringify(result.dominantCauses),
+  );
+  check(
+    "none of the six pure-refusal lines registers as hostile",
+    extractDisengagementSignals({
+      transcript: alternatingTranscript(STONEWALL_LINES),
+      elapsedSeconds: 180,
+      budgetSeconds: null,
+      assistantTurnCount: STONEWALL_LINES.length,
+    }).hostileTurnCount === 0,
+    "a stonewalling line was misclassified as hostile — tier:\"none\" for " +
+      "stonewalling (20-01's finding) must stay correct; the new signal " +
+      "belongs in the cause vocabulary, not the hostility tiers",
+  );
+}
+
+console.log(
+  "\n15. Hostility reaches the threshold at least as fast as stonewalling",
+);
+{
+  const stonewallCrossTurn = firstCrossingTurn(
+    STONEWALL_LINES,
+    PHASE_20_TEST_WEIGHTS,
+    0.6,
+  );
+  const hostileCrossTurn = firstCrossingTurn(
+    SUSTAINED_HOSTILE_LINES,
+    PHASE_20_TEST_WEIGHTS,
+    0.6,
+  );
+
+  check(
+    "both fixtures cross the threshold within their own length",
+    stonewallCrossTurn !== null && hostileCrossTurn !== null,
+    `stonewall: ${stonewallCrossTurn}, hostile: ${hostileCrossTurn}`,
+  );
+  check(
+    "hostility crosses at or before the turn stonewalling needs — never slower",
+    hostileCrossTurn !== null &&
+      stonewallCrossTurn !== null &&
+      hostileCrossTurn <= stonewallCrossTurn,
+    `stonewall crossed at turn ${stonewallCrossTurn}, hostility at turn ${hostileCrossTurn}`,
   );
 }
 

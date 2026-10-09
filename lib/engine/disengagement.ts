@@ -6,6 +6,7 @@
  */
 
 import type { TerminationPolicyConfig } from "./types";
+
 import { detectHostility } from "./hostility";
 
 /** The policy-owned opt-in gate; null/omitted preserves existing behavior. */
@@ -199,7 +200,10 @@ export const DEFAULT_DISENGAGEMENT_WEIGHTS = {
   maxCueAcceleration: 0.2,
 } as const;
 
-export type DisengagementWeights = typeof DEFAULT_DISENGAGEMENT_WEIGHTS;
+export type DisengagementWeights = Record<
+  keyof typeof DEFAULT_DISENGAGEMENT_WEIGHTS,
+  number
+>;
 
 const RISE_BANDS = [0.25, 0.5, 0.75] as const;
 const SHORT_RESPONSE_WORDS = 8;
@@ -207,6 +211,7 @@ const REPEAT_SIMILARITY = 0.75;
 
 function clamp(value: number, minimum = 0, maximum = 1): number {
   if (!Number.isFinite(value)) return minimum;
+
   return Math.min(Math.max(value, minimum), maximum);
 }
 
@@ -225,6 +230,7 @@ function similarity(left: string, right: string): number {
   if (leftWords.size === 0 || rightWords.size === 0) return 0;
 
   let shared = 0;
+
   for (const word of leftWords) {
     if (rightWords.has(word)) shared += 1;
   }
@@ -387,10 +393,7 @@ export function computeDisengagement({
       clamp(signals.hostileTurnCount / HOSTILITY_ACCUMULATION_TURNS) *
         w.hostility,
     ],
-    [
-      "severe_content",
-      (signals.severeContent ? 1 : 0) * w.severeContent,
-    ],
+    ["severe_content", (signals.severeContent ? 1 : 0) * w.severeContent],
     [
       "position_unacknowledged",
       (signals.positionUnacknowledged ? 1 : 0) * w.positionUnacknowledged,
@@ -591,5 +594,9 @@ export function computeDisengagementOverTranscript({
   }
 
   // Episodes span the replayed session, not only the final turn.
-  return { ...(latest as DisengagementComputeResult), episodes, severe: everSevere };
+  return {
+    ...(latest as DisengagementComputeResult),
+    episodes,
+    severe: everSevere,
+  };
 }

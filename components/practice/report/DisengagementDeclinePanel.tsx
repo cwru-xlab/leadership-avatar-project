@@ -1,6 +1,7 @@
+import type { DisengagementCause } from "@/lib/engine/disengagement";
+
 import { formatTimecode } from "@/lib/metrics/bands";
 import { asDisengagementDeclineRecord, type ReportDTO } from "@/lib/report/dto";
-import type { DisengagementCause } from "@/lib/engine/disengagement";
 
 const CAUSE_LABELS: Record<DisengagementCause, string> = {
   budget_pressure: "the session was running long",
@@ -11,8 +12,7 @@ const CAUSE_LABELS: Record<DisengagementCause, string> = {
   hostility: "the exchange turned personal",
   severe_content:
     "a remark crossed a line the character would not continue past",
-  position_unacknowledged:
-    "the other person's position was never acknowledged",
+  position_unacknowledged: "the other person's position was never acknowledged",
   stonewalling: "the other person stopped engaging with what was said",
 };
 
@@ -31,6 +31,7 @@ export function DisengagementDeclinePanel({
   const decline = asDisengagementDeclineRecord(
     report.outcome?.disengagementDecline,
   );
+
   if (!decline) return null;
 
   return (
@@ -49,8 +50,8 @@ export function DisengagementDeclinePanel({
       <ol className="mt-4 space-y-3">
         {decline.episodes.map((episode, index) => (
           <li
-            className="border-l-2 border-[#0a7391]/35 pl-3 text-sm leading-relaxed text-[#3a5563]"
             key={`${episode.kind}-${episode.start_s}-${episode.end_s}-${index}`}
+            className="border-l-2 border-[#0a7391]/35 pl-3 text-sm leading-relaxed text-[#3a5563]"
           >
             <span className="font-mono tabular-nums text-[#102331]">
               {formatTimecode(episode.start_s)}–{formatTimecode(episode.end_s)}
