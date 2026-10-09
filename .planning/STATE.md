@@ -1984,6 +1984,36 @@ Open items carried into Phase 11+:
 
 ### Roadmap Evolution
 
+### Phase 20 planned (2026-10-08)
+
+Phase 20 — Difficult Conversation Walk-Outs is PLANNED and VERIFIED: 7 plans in
+6 waves (`7f0726d`), REQ-95..REQ-102 all covered, nothing from the four Phase 20
+Out-of-Scope rejections planned. Plan dir:
+`.planning/phases/20-difficult-conversation-walk-outs/`.
+
+Three planning findings worth carrying:
+1. **Live defect found, fix planned in 20-05:** `buildWalkOutFragment`
+   (`lib/engine/prompts.ts:297`) hardcodes `reason="lost_interest"`, which is not
+   in `difficult-conversation`'s `avatarEndReasons` — a forced farewell would be
+   rejected by `resolveTermination`'s closed-reason gate and the session would
+   never end. Confirmed independently by the plan-checker. Affects any future
+   type whose reason vocabulary differs from the pitch types'.
+2. **No Phase 18 number is retuned.** The three new causes carry weight 0 in
+   `DEFAULT_DISENGAGEMENT_WEIGHTS`; a new optional type-level
+   `disengagementWeights` profile carries the DC arithmetic (hostility 0.5,
+   `budgetPressure` 0 since `timeBudget.totalSeconds` is null, active weights sum
+   to exactly 1). Threshold 0.6, the `/3` accumulation curve and the severe
+   lexicon are PROVISIONAL UNTIL CALIBRATED.
+3. **The REQ-102 sanitizer runs in `toReportDto`**, not in a component —
+   `ReportDTO.outcome` ships as a generic record narrowed in the browser, so
+   render-time sanitizing would still put the verbatim text in the payload.
+
+**Gate:** 20-07's live UAT is gated on 18-05 passing. **The user chose
+18-05-FIRST on 2026-10-08**, so execution stops before 20-07.
+**Phase 18 amendment declared:** SC5's `avatarEndFloor` clause gains the named
+severe-content carve-out (REQ-100); the floor stays at `minAssistantTurns: 4`
+for every other trigger.
+
 - **Phase 18 roadmap entry reconciled 2026-10-08.** It had read `**Plans:** 5
   plans` with all five boxes unchecked and `0/TBD | Not started` in the Progress
   table, while 18-01 through 18-04 had all shipped (`848c613`, `4a7c68f`,
