@@ -924,7 +924,7 @@ discussion):**
      no rubric dimension capped.
 **Plans:** 7 plans in 6 waves — planned 2026-10-08 (`7f0726d`), plan-checker
 **VERIFICATION PASSED** with every substantive claim confirmed against source.
-**Progress:** 3/7 plans executed. 20-01 complete 2026-10-08 — `lib/engine/hostility.ts`
+**Progress:** 5/7 plans executed. 20-01 complete 2026-10-08 — `lib/engine/hostility.ts`
 + `scripts/verify-hostility-detector.ts` shipped: deterministic hostility/severe
 detector, the 24-row false-positive corpus derived from all seven seeded scenarios
 (REQ-97), and the stonewalling discretion finding (0.425 under Phase 18's existing
@@ -984,7 +984,34 @@ difficult-conversation signal path will ever pass `severeContent: true`),
 not from a type-level declaration — so the elevator "unaffected" assertion
 was written as two true, narrower checks rather than the plan's literally-
 specified floor-level deep-equal, which this design makes false for any
-type with a floor. See `20-04-SUMMARY.md`.
+type with a floor. See `20-04-SUMMARY.md`. **20-06 complete 2026-10-09** —
+`lib/report/quote-sanitizer.ts`'s `sanitizeQuote`/`sanitizeOutcomeQuotes`
+source "explicit" exclusively from 20-01's `detectHostility` SEVERE tier (no
+second private lexicon), replacing a severe quote — or a severe
+`inRoleReaction`/`endTurnReasons` field — in its ENTIRETY with a rule-group
+characterization (e.g. "[a slur directed at the character — not repeated
+here]"), never a partial mask, while `timecodeSeconds`/`effect`/non-severe
+text pass through byte-identical. Wired into `toReportDto` — the one server
+exit for an outcome record — not a component, since `ReportDTO.outcome`
+ships generic and is narrowed client-side. `CONVERSATION_EVALUATOR_PROMPT`
+aligned to ask for characterization over quoting and to name hostility/
+stonewalling/offensive triggers in the existing no-cap rule.
+`scripts/verify-dc-walkout-report.ts`'s 6-section battery proves it against
+the real `toReportDto`, including an adversarial payload that embeds the
+severe token mid-sentence, repeated twice, and once each inside
+`inRoleReaction`/`endTurnReasons` — none survive — plus confirms
+`postProcessScores` stays absent and a full-scores avatar-ended row is
+unchanged. The negative test was run for real: with `toReportDto`'s
+sanitizer call temporarily reverted, sections 1/2/4 failed (6 checks, exit
+1) exactly as predicted, then restored to ALL PASS. One disclosed
+deviation (module relocated to `lib/report/quote-sanitizer.ts`, per the
+plan's own documented fallback, to avoid `lib/report/` importing a
+type-specific module — `lib/report/dto.ts` and its siblings only ever
+import `lib/engine/`/`lib/metrics/`) and one disclosed git-staging race
+(Task 3's battery file landed correctly but was swept into a concurrent
+20-04-agent commit rather than its own, due to both plan executors sharing
+one working tree — content verified byte-identical, no history rewrite).
+See `20-06-SUMMARY.md`.
 **Gate:** 20-07 (human adversarial UAT) is gated on Phase 18's 18-05 human UAT.
 `18-VALIDATION.md` is `awaiting-human-uat` and its one run FAILED on two
 since-repaired defects, so Phase 20's live run must either follow 18-05 or record
@@ -1052,7 +1079,7 @@ Plans:
 - [x] 20-03-PLAN.md — One type-level threshold + weight profile + severe reason code, with the no-per-scenario-surface guard (REQ-95, REQ-101) — complete 2026-10-08, see `20-03-SUMMARY.md`
 - [x] 20-04-PLAN.md — Named severe-content carve-out in resolveTermination + cause-to-reason resolver + deliberate verifier amendment (REQ-100, REQ-101) — complete 2026-10-09, see `20-04-SUMMARY.md`
 - [ ] 20-05-PLAN.md — Live wiring at both server callers, policy-supplied forced-farewell reason, single in-character ending path guarded (REQ-96, REQ-99, REQ-100, REQ-101)
-- [ ] 20-06-PLAN.md — Server-side quote sanitizer on the way out of toReportDto, with its own adversarial battery; no score cap (REQ-102)
+- [x] 20-06-PLAN.md — Server-side quote sanitizer on the way out of toReportDto, with its own adversarial battery; no score cap (REQ-102) — complete 2026-10-09, see `20-06-SUMMARY.md`
 - [ ] 20-07-PLAN.md — Human adversarial UAT + 20-VALIDATION.md, Phase 18 revision handoff, calibration record (all eight REQs, human-verified; GATED on 18-05)
 
 
