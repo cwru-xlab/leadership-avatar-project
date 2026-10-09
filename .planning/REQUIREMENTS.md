@@ -690,7 +690,7 @@ REQ-73.
   to negotiate — no ask price and no offered equity on a product pitch or a deck-led
   talk — rather than present-but-optional or hidden behind a disabled field.
 
-- **REQ-90** — [ ] Each mode declares its own rubric dimensions and its own outcome
+- **REQ-90** — [x] Each mode declares its own rubric dimensions and its own outcome
   shape, so a funding request is not scored against an equity split and a deck-led
   talk is not scored against a close.
 
@@ -698,11 +698,11 @@ REQ-73.
   pre-session wizard with mode-appropriate steps. No second wizard and no new
   camera-consent gate is introduced (REQ-70 unchanged).
 
-- **REQ-92** — [ ] The one report page renders every mode's outcome through the
+- **REQ-92** — [x] The one report page renders every mode's outcome through the
   existing `ReportChrome` extras slot. No per-mode report page and no edit to the
   shared report page is required to add a mode.
 
-- **REQ-93** — [ ] Adding these four modes touches no engine module, no route, no
+- **REQ-93** — [x] Adding these four modes touches no engine module, no route, no
   evaluator and no report page — REQ-60 holds under its first real test since the
   engine shipped. A mechanical guard proves it, in the spirit of Phase 16's
   surface-count script.
@@ -800,7 +800,7 @@ REQ-73.
 | REQ-89 | Phase 19 | Complete |
 | REQ-90 | Phase 19 | Complete |
 | REQ-91 | Phase 19 | Complete |
-| REQ-92 | Phase 19 | Pending |
+| REQ-92 | Phase 19 | Complete |
 | REQ-93 | Phase 19 | Complete |
 | REQ-94 | Phase 19 | Complete |
 | REQ-95 | Phase 20 | Pending |
