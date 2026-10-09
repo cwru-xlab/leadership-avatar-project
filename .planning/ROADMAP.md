@@ -924,6 +924,11 @@ discussion):**
      no rubric dimension capped.
 **Plans:** 7 plans in 6 waves — planned 2026-10-08 (`7f0726d`), plan-checker
 **VERIFICATION PASSED** with every substantive claim confirmed against source.
+**Progress:** 1/7 plans executed. 20-01 complete 2026-10-08 — `lib/engine/hostility.ts`
++ `scripts/verify-hostility-detector.ts` shipped: deterministic hostility/severe
+detector, the 24-row false-positive corpus derived from all seven seeded scenarios
+(REQ-97), and the stonewalling discretion finding (0.425 under Phase 18's existing
+stall signals — no new signal needed). See `20-01-SUMMARY.md`.
 **Gate:** 20-07 (human adversarial UAT) is gated on Phase 18's 18-05 human UAT.
 `18-VALIDATION.md` is `awaiting-human-uat` and its one run FAILED on two
 since-repaired defects, so Phase 20's live run must either follow 18-05 or record
@@ -977,7 +982,7 @@ already have put the verbatim slur in the page payload. 20-06 applies it inside
 payload that **deliberately disobeys** the prompt, plus a negative test.
 
 Plans:
-- [ ] 20-01-PLAN.md — Deterministic hostility/severe detector + the seeded-register false-positive corpus (REQ-96, REQ-97)
+- [x] 20-01-PLAN.md — Deterministic hostility/severe detector + the seeded-register false-positive corpus (REQ-96, REQ-97) — complete 2026-10-08, see `20-01-SUMMARY.md`
 - [ ] 20-02-PLAN.md — Three new observable causes, per-type weight profile, hostility accumulation + one-way ratchet, acknowledgement-absent signal (REQ-96, REQ-98, REQ-99)
 - [ ] 20-03-PLAN.md — One type-level threshold + weight profile + severe reason code, with the no-per-scenario-surface guard (REQ-95, REQ-101)
 - [ ] 20-04-PLAN.md — Named severe-content carve-out in resolveTermination + cause-to-reason resolver + deliberate verifier amendment (REQ-100, REQ-101)
@@ -1013,7 +1018,7 @@ Plans:
 | 17. v1.0 Close-Out | 7/7 | Complete | 2026-10-05 |
 | 18. Avatar Disengagement & Walk-Out | 4/5 | Implementation done, human UAT pending re-run | - |
 | 19. Deck-Led Pitch Family | 10/11 | In Progress|  |
-| 20. Difficult Conversation Walk-Outs | 0/7 | Planned, verified | - |
+| 20. Difficult Conversation Walk-Outs | 1/7 | In Progress | - |
 
 Phase 13's REQ-66/REQ-67 caveat remains recorded in `13-CLOSE-RECORD.md`: the
 backfill acceptance test is unsatisfiable on the empty shared DB and passed locally

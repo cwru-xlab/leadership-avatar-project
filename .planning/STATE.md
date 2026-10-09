@@ -2,12 +2,12 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.1 — Consequence & Deck Breadth
-**Updated:** 2026-10-08 (Phase 19 plan 19-10 complete — deck family surface-count guard shipped, ALL PASS, negative test proven to bite; the 4 red `verify-report-structure.ts` failures Phase 19 caused are now fixed. Phase 18 is next in sequence for UAT; Phase 19 depends on it. Milestone v1.1; v1.0 shipped Phases 1–17.)
+**Updated:** 2026-10-08 (Phase 20 plan 20-01 complete — deterministic hostility/severe detector shipped with its false-positive corpus; see below. Phase 19 plan 19-10 complete — deck family surface-count guard shipped, ALL PASS, negative test proven to bite; the 4 red `verify-report-structure.ts` failures Phase 19 caused are now fixed. Phase 18 is next in sequence for UAT; Phase 19 depends on it. Milestone v1.1; v1.0 shipped Phases 1–17.)
 
 ## Current Position
 
-**Phase:** 19 — Deck-Led Pitch Family (Phase 18 implementation shipped, 18-05 human UAT pending; Phase 20 added 2026-10-08, depends on Phase 18+15)
-**Plan:** 19-01 through 19-10 complete; 19-11 next to execute (final plan in phase)
+**Phase:** 19 — Deck-Led Pitch Family (Phase 18 implementation shipped, 18-05 human UAT pending; Phase 20 added 2026-10-08, depends on Phase 18+15) — Phase 20's plans 20-01..20-06 are fixture-verified and NOT gated on 18-05, so 20-01 executed ahead of 19-11/18-05 in sequence; execution must still STOP before 20-07.
+**Plan:** 19-01 through 19-10 complete; 19-11 next to execute (final plan in phase). Separately, Phase 20: 20-01 complete (`lib/engine/hostility.ts` + `scripts/verify-hostility-detector.ts`, ALL PASS); 20-02 next to execute for that phase.
 **Status:** 19-10 shipped `scripts/verify-deck-family-surface-count.ts` (724 lines, 7 sections, ALL PASS) mechanically proving the four new deck modes added no engine module, route, evaluator or report page, that all five deck modes share one deck capability (shared `visibleContext` identity, one InstanceConfig `kind`, one ratchet, one gating primitive, 3 deck routes, one evaluator path, `buildEvaluationImages` identity reuse), and that the walk-out stays off for all five. `lib/engine/registry.ts` is the one sanctioned exception, asserted to contain no `===` comparison against any deck slug. Negative test performed: planting a literal `"pitch-funding"` in `lib/engine/session.ts` made the script FAIL (exit 1); reverted, script returned to ALL CHECKS PASSED (exit 0) — both outputs recorded in `19-10-SUMMARY.md`. Also absorbed an assigned Rule 3 blocking deviation (`19-UNOWNED-RED-SCRIPT.md`): `scripts/verify-report-structure.ts`'s generic resolve-loop was missing instance fixtures for the four new instance-required deck slugs (4 FAIL → 0 FAIL), following the exact precedent 19-04/19-05 set in `verify-pitch-types.ts`. The one remaining red script in the suite is `scripts/verify-pitch-types.ts`'s single Phase-18-owned elevator failure (`18-PITCH-TYPES-REGRESSION.md`) — out of scope, unchanged, carried forward for 19-11 to state as an open defect.
 **Last activity:** 2026-10-08 — 19-10 complete; see `19-10-SUMMARY.md`.
 
@@ -319,6 +319,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 
 ## Decisions
 
+- [Phase 20-difficult-conversation-walk-outs / 20-01]: `detectHostility` separates HOSTILE from firm confrontation language entirely through clause-level TARGETING (an attack term only counts when a second-person reference appears in the same clause) plus two named veto patterns (`POSITION_OBJECT_PATTERN` for judgement-of-work/decision/process, `PROCESS_CONSEQUENCE_PATTERN` for HR/escalation/formal-process consequences) rather than any score threshold — proven against a 24-row corpus built from all seven seeded confrontation scenarios' own register (`"your performance has been unacceptable and this is your final warning"` never trips it). SEVERE is checked first and independent of targeting (a slur does not need a "you"), using masked placeholder tokens in the test fixture so no real slur text is committed to the repo. Stonewalling needs NO new signal: feeding `STONEWALLING_CANDIDATES` through Phase 18's real `computeDisengagementOverTranscript` produced 0.425 (materially non-zero against the 0.6 threshold), so `detectHostility` deliberately returns `tier: "none"` for pure refusal-to-engage text — it is a stall signal Phase 18 already measures, not an attack. Every constant introduced (shouting caps-ratio/length/word floors, the leet map, separator-evasion collapse) is labelled PROVISIONAL UNTIL CALIBRATED, quoting Phase 18's calibration policy verbatim, with the only evidence named as this plan's fixture corpus. REQ-97 marked complete; REQ-96 deliberately left open since its full text ("added to the engine's observable cause vocabulary") is only completed once 20-02 wires this detector into `DISENGAGEMENT_CAUSES`. No caller exists yet (`detectHostility` has zero callers outside its own module and verifier, confirmed by grep) — this plan ships the detector and its proof, nothing wired.
 - [Phase 12-embodied-visual-signals / 12-10]: `isVisible` means OBSERVED IN FRAME, not model-confident. MediaPipe's `visibility` is a predicted probability and was shown to be near-useless as a gate (98-99% "visible" on a session with the face detected 0% of the time), so a landmark must now clear the visibility floor AND have in-frame normalized coordinates. Extracted to `lib/metrics/landmark-visibility.ts` so the predicate is assertable from Node.
 - [Phase 12-embodied-visual-signals / 12-10]: `POSTURE_COVERAGE_MIN_RATIO` 0.25 -> 0.60, set from two real dumped sessions and documented as NOT well-characterised — any cutoff from ~0.44 to ~0.75 produces identical verdicts on the only two readings that exist, and there is no fully-in-frame reading to bound the band from above.
 - [Phase 12-embodied-visual-signals / 12-10]: `HANDS_COVERAGE_MIN_RATIO` deliberately RETAINED at 0.25 rather than raised to match posture. Hands legitimately leave frame all session (lap, below the laptop edge) while shoulders do not, so no positive reading bounds it from above; raising it blind risked silencing gesturing for most real sessions.
@@ -1975,8 +1976,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-09T01:28:52.673Z
-**Stopped At:** Completed 19-10-PLAN.md
+**Last Date:** 2026-10-09T01:37:44Z
+**Stopped At:** Completed 20-01-PLAN.md (Phase 20; Phase 19's own sequence is still stopped at 19-10, with 19-11 next)
 **Resume File:** None
 
 
@@ -2024,6 +2025,30 @@ for every other trigger.
   on a guessed speech duration. Both repaired without retuning any threshold.
   SC1/REQ-78 and REQ-82 need live re-observation; all five SC verdicts remain
   PENDING and REQ-78..REQ-86 stay open. Phase 18 is NOT closed.
+
+### Phase 20 plan 20-01 complete (2026-10-08)
+
+Executed ahead of Phase 19's own sequence (19-11 still pending) and ahead of the
+18-05-FIRST gate, since 20-01..20-06 are fixture-verified and explicitly NOT
+gated. Shipped `lib/engine/hostility.ts` (`detectHostility`, `HOSTILITY_TIERS`,
+`HostilityVerdict`) and `scripts/verify-hostility-detector.ts` (ALL PASS, 50
+corpus assertions across 7 sections). The false-positive corpus (`FIRM_NOT_HOSTILE`,
+24 rows) is derived from all seven seeded scenarios' own register and is the
+load-bearing proof for REQ-97. The stonewalling discretion question from
+`20-CONTEXT.md` is now settled with a real number: feeding
+`STONEWALLING_CANDIDATES` through Phase 18's own `computeDisengagementOverTranscript`
+produced 0.425 against a 0.6 threshold — materially non-zero, so no new
+stonewalling signal is needed; `detectHostility` deliberately returns `tier:
+"none"` for it. REQ-97 marked complete in `REQUIREMENTS.md`. REQ-96 deliberately
+left open — its full text requires the detector to be wired into the engine's
+observable cause vocabulary, which is 20-02's job. No caller of `detectHostility`
+exists outside its own module/verifier yet, confirmed by grep — exactly the
+"ships the detector and its proof, nothing wired" boundary 20-01 specifies.
+See `20-01-SUMMARY.md` for full detail, including two small auto-fixes (a
+too-narrow severe-harassment regex range, and a scoped `eslint --fix` on the
+one new module) and a caught-and-reverted premature `gsd-tools roadmap
+update-plan-progress` run that would have overwritten this phase's hand-written
+roadmap prose before any SUMMARY existed.
 
 - **Phase 20 added 2026-10-08: Difficult Conversation Walk-Outs.** The avatar
   ends a difficult conversation when the student loses control of its hostility
