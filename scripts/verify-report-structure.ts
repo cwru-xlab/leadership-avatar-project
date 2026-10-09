@@ -656,7 +656,53 @@ console.log("\n6. Type-derived rubric schema (13-05)");
                   avatarId: "avatar-test",
                   voiceId: "voice-test",
                 }
-              : { kind: "none" as const };
+              : type.slug === "pitch-funding"
+                ? {
+                    kind: "pitch-deck" as const,
+                    deckId: "verify-funding-id",
+                    slideCount: 5,
+                    slideTexts: ["s1", "s2", "s3", "s4", "s5"],
+                    proposedSeconds: 900,
+                    modeInputs: {
+                      mode: "pitch-funding" as const,
+                      requestedAmountUsd: 50_000,
+                      useOfFunds: "Six months of runway for a pilot cohort.",
+                    },
+                  }
+                : type.slug === "pitch-product"
+                  ? {
+                      kind: "pitch-deck" as const,
+                      deckId: "verify-product-id",
+                      slideCount: 5,
+                      slideTexts: ["s1", "s2", "s3", "s4", "s5"],
+                      proposedSeconds: 600,
+                      modeInputs: {
+                        mode: "pitch-product" as const,
+                        buyerProfile: "VP of Ops at a mid-market SaaS co",
+                      },
+                    }
+                  : type.slug === "pitch-talk"
+                    ? {
+                        kind: "pitch-deck" as const,
+                        deckId: "verify-talk-id",
+                        slideCount: 5,
+                        slideTexts: ["s1", "s2", "s3", "s4", "s5"],
+                        proposedSeconds: 600,
+                        modeInputs: {
+                          mode: "pitch-talk" as const,
+                          talkAudience: "A campus sustainability conference",
+                          talkTakeaway: "Reuse beats recycling for carbon payback.",
+                        },
+                      }
+                    : type.slug === "pitch-general"
+                      ? {
+                          kind: "pitch-deck" as const,
+                          deckId: "verify-general-id",
+                          slideCount: 5,
+                          slideTexts: ["s1", "s2", "s3", "s4", "s5"],
+                          proposedSeconds: 600,
+                        }
+                      : { kind: "none" as const };
     const resolved = resolveSessionConfig(type.slug, { instance });
     if (!resolved.ok) {
       failures += 1;
