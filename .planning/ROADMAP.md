@@ -849,16 +849,16 @@ touches a Phase-14-signed-off wizard surface; 19-11 sign-off block **E2** covers
 it as a re-tested surface.
 
 Plans:
-- [ ] 19-01-PLAN.md — Deck-mode table, shared deck rubric, per-mode session-length envelopes
-- [ ] 19-02-PLAN.md — One mode-agnostic plumbing widening: optional negotiation fields, modeInputs, back-compatible snapshot
-- [ ] 19-03-PLAN.md — Walk-out OFF for the investor deck; the two verifier assertions INVERTED, not deleted
-- [ ] 19-04-PLAN.md — `pitch-funding` and `pitch-product` TYPE records and prompts
-- [ ] 19-05-PLAN.md — `pitch-talk` and `pitch-general` TYPE records and prompts; all five registered
-- [ ] 19-06-PLAN.md — FundingAskStep, BuyerProfileStep, TalkAudienceStep — required mode inputs
-- [ ] 19-07-PLAN.md — Generalize the one wizard off the mode table; no mode slug left in the page
-- [ ] 19-08-PLAN.md — Picker: two top cards, "With a deck" expands in place to five mode cards
-- [ ] 19-09-PLAN.md — Descriptive unscored verdicts through the existing ReportChrome extras slot
-- [ ] 19-10-PLAN.md — Surface-count guard proving no engine module, route, evaluator or report page was touched
+- [x] 19-01-PLAN.md — Deck-mode table, shared deck rubric, per-mode session-length envelopes
+- [x] 19-02-PLAN.md — One mode-agnostic plumbing widening: optional negotiation fields, modeInputs, back-compatible snapshot
+- [x] 19-03-PLAN.md — Walk-out OFF for the investor deck; the two verifier assertions INVERTED, not deleted
+- [x] 19-04-PLAN.md — `pitch-funding` and `pitch-product` TYPE records and prompts
+- [x] 19-05-PLAN.md — `pitch-talk` and `pitch-general` TYPE records and prompts; all five registered
+- [x] 19-06-PLAN.md — FundingAskStep, BuyerProfileStep, TalkAudienceStep — required mode inputs
+- [x] 19-07-PLAN.md — Generalize the one wizard off the mode table; no mode slug left in the page
+- [x] 19-08-PLAN.md — Picker: two top cards, "With a deck" expands in place to five mode cards
+- [x] 19-09-PLAN.md — Descriptive unscored verdicts through the existing ReportChrome extras slot
+- [x] 19-10-PLAN.md — Surface-count guard proving no engine module, route, evaluator or report page was touched
 - [ ] 19-11-PLAN.md — Phase validation + Pass 2 keyboard UAT recorded in BOTH 18- and 19-VALIDATION (human-verified)
 
 
@@ -1031,7 +1031,7 @@ Plans:
 | 16. Networking Practice | 11/11 | Complete  | 2026-10-04 |
 | 17. v1.0 Close-Out | 7/7 | Complete | 2026-10-05 |
 | 18. Avatar Disengagement & Walk-Out | 4/5 | Implementation done, human UAT pending re-run | - |
-| 19. Deck-Led Pitch Family | 10/11 | In Progress|  |
+| 19. Deck-Led Pitch Family | 10/11 | Autonomous plans done; 19-11 human UAT pending | - |
 | 20. Difficult Conversation Walk-Outs | 1/7 | In Progress | - |
 
 Phase 13's REQ-66/REQ-67 caveat remains recorded in `13-CLOSE-RECORD.md`: the
