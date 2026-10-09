@@ -675,7 +675,7 @@ REQ-73.
 
 ### Phase 19 — Deck-Led Pitch Family
 
-- **REQ-87** — [ ] Four new deck-led TYPE records are playable alongside the
+- **REQ-87** — [x] Four new deck-led TYPE records are playable alongside the
   existing investor `pitch-deck`: a funding request (an ask amount, no equity and no
   valuation band), a product pitch (outcome is interest and objections, not terms),
   a deck-led talk (a presentation with Q&A, no ask), and a general deck pitch with
@@ -686,7 +686,7 @@ REQ-73.
   visible-context slice and the soft session timer. The shared behavior is reused
   from Phase 14, not duplicated per mode.
 
-- **REQ-89** — [ ] Negotiation inputs are ABSENT from the types that have no terms
+- **REQ-89** — [x] Negotiation inputs are ABSENT from the types that have no terms
   to negotiate — no ask price and no offered equity on a product pitch or a deck-led
   talk — rather than present-but-optional or hidden behind a disabled field.
 
@@ -694,7 +694,7 @@ REQ-73.
   shape, so a funding request is not scored against an equity split and a deck-led
   talk is not scored against a close.
 
-- **REQ-91** — [ ] A student reaching a deck mode goes through the one generic
+- **REQ-91** — [x] A student reaching a deck mode goes through the one generic
   pre-session wizard with mode-appropriate steps. No second wizard and no new
   camera-consent gate is introduced (REQ-70 unchanged).
 
