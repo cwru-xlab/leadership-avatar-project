@@ -38,6 +38,8 @@ import {
 } from "../networking/prompts";
 import { PITCH_ELEVATOR_TYPE } from "../pitch/elevator-type";
 import { PITCH_DECK_TYPE } from "../pitch/deck-type";
+import { PITCH_FUNDING_TYPE } from "../pitch/funding-type";
+import { PITCH_PRODUCT_TYPE } from "../pitch/product-type";
 import { DIFFICULT_CONVERSATION_TYPE } from "../difficult-conversation/conversation-type";
 
 /**
@@ -355,6 +357,8 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   NETWORKING,
   PITCH_ELEVATOR_TYPE,
   PITCH_DECK_TYPE,
+  PITCH_FUNDING_TYPE,
+  PITCH_PRODUCT_TYPE,
   DIFFICULT_CONVERSATION_TYPE,
 ];
 
