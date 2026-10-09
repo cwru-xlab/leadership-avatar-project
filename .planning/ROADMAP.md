@@ -1055,7 +1055,7 @@ Plans:
 | 17. v1.0 Close-Out | 7/7 | Complete | 2026-10-05 |
 | 18. Avatar Disengagement & Walk-Out | 4/5 | Implementation done, human UAT pending re-run | - |
 | 19. Deck-Led Pitch Family | 10/11 | Autonomous plans done; 19-11 human UAT pending | - |
-| 20. Difficult Conversation Walk-Outs | 1/7 | In Progress | - |
+| 20. Difficult Conversation Walk-Outs | 3/7 | In Progress | - |
 
 Phase 13's REQ-66/REQ-67 caveat remains recorded in `13-CLOSE-RECORD.md`: the
 backfill acceptance test is unsatisfiable on the empty shared DB and passed locally
