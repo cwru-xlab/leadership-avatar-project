@@ -924,11 +924,25 @@ discussion):**
      no rubric dimension capped.
 **Plans:** 7 plans in 6 waves — planned 2026-10-08 (`7f0726d`), plan-checker
 **VERIFICATION PASSED** with every substantive claim confirmed against source.
-**Progress:** 1/7 plans executed. 20-01 complete 2026-10-08 — `lib/engine/hostility.ts`
+**Progress:** 2/7 plans executed. 20-01 complete 2026-10-08 — `lib/engine/hostility.ts`
 + `scripts/verify-hostility-detector.ts` shipped: deterministic hostility/severe
 detector, the 24-row false-positive corpus derived from all seven seeded scenarios
 (REQ-97), and the stonewalling discretion finding (0.425 under Phase 18's existing
-stall signals — no new signal needed). See `20-01-SUMMARY.md`.
+stall signals — no new signal needed). See `20-01-SUMMARY.md`. **20-02 complete
+2026-10-08 — the AMENDED finding reverses 20-01's conclusion**: a 2026-10-08 user
+amendment to `20-CONTEXT.md` requires stonewalling to be able to end a session on
+its own, not merely nudge toward it. `lib/engine/disengagement.ts` gained four new
+causes (`hostility`, `severe_content`, `position_unacknowledged`, and the
+amendment-driven `stonewalling`), all weight-0 by default so every existing type
+(pitch-elevator included) computes byte-identically; a per-type
+`disengagementWeights` override and `deriveAcknowledgementAbsent` (the live twin
+of Phase 15's `empathy` dimension) were added. `scripts/verify-disengagement.ts`
+proves hostility accumulation, the one-way ratchet under hostility (with a
+negative control), no apology-driven recovery, severe-content carry-forward,
+unchanged defaults, a weight-profile arithmetic assertion, and — the amendment's
+two required facts in one run — a sustained pure-stonewalling transcript now
+crosses 0.6 on its own while hostility still crosses at or before the same turn
+count. See `20-02-SUMMARY.md`.
 **Gate:** 20-07 (human adversarial UAT) is gated on Phase 18's 18-05 human UAT.
 `18-VALIDATION.md` is `awaiting-human-uat` and its one run FAILED on two
 since-repaired defects, so Phase 20's live run must either follow 18-05 or record
