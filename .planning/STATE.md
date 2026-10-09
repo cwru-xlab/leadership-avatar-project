@@ -2,14 +2,14 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.1 — Consequence & Deck Breadth
-**Updated:** 2026-10-08 (Phase 20 plan 20-01 complete — deterministic hostility/severe detector shipped with its false-positive corpus; see below. Phase 19 plan 19-10 complete — deck family surface-count guard shipped, ALL PASS, negative test proven to bite; the 4 red `verify-report-structure.ts` failures Phase 19 caused are now fixed. Phase 18 is next in sequence for UAT; Phase 19 depends on it. Milestone v1.1; v1.0 shipped Phases 1–17.)
+**Updated:** 2026-10-08 (Phase 20 plan 20-02 complete — hostility/severe-content/position-unacknowledged/stonewalling causes added to the engine's disengagement vocabulary, with a per-type weight-profile opt-in and the 2026-10-08 CONTEXT.md amendment's stonewalling-alone-crosses-threshold requirement proven; see below. Phase 20 plan 20-01 complete — deterministic hostility/severe detector shipped with its false-positive corpus. Phase 19 plan 19-10 complete — deck family surface-count guard shipped, ALL PASS, negative test proven to bite; the 4 red `verify-report-structure.ts` failures Phase 19 caused are now fixed. Phase 18 is next in sequence for UAT; Phase 19 depends on it. Milestone v1.1; v1.0 shipped Phases 1–17.)
 
 ## Current Position
 
-**Phase:** 19 — Deck-Led Pitch Family (Phase 18 implementation shipped, 18-05 human UAT pending; Phase 20 added 2026-10-08, depends on Phase 18+15) — Phase 20's plans 20-01..20-06 are fixture-verified and NOT gated on 18-05, so 20-01 executed ahead of 19-11/18-05 in sequence; execution must still STOP before 20-07.
-**Plan:** 19-01 through 19-10 complete; 19-11 next to execute (final plan in phase). Separately, Phase 20: 20-01 complete (`lib/engine/hostility.ts` + `scripts/verify-hostility-detector.ts`, ALL PASS); 20-02 next to execute for that phase.
+**Phase:** 19 — Deck-Led Pitch Family (Phase 18 implementation shipped, 18-05 human UAT pending; Phase 20 added 2026-10-08, depends on Phase 18+15) — Phase 20's plans 20-01..20-06 are fixture-verified and NOT gated on 18-05, so 20-01/20-02 executed ahead of 19-11/18-05 in sequence; execution must still STOP before 20-07.
+**Plan:** 19-01 through 19-10 complete; 19-11 next to execute (final plan in phase). Separately, Phase 20: 20-01 and 20-02 complete (`lib/engine/hostility.ts`, `lib/engine/disengagement.ts`'s four new causes, `scripts/verify-hostility-detector.ts`, `scripts/verify-disengagement.ts`, ALL PASS); 20-03 next to execute for that phase.
 **Status:** 19-10 shipped `scripts/verify-deck-family-surface-count.ts` (724 lines, 7 sections, ALL PASS) mechanically proving the four new deck modes added no engine module, route, evaluator or report page, that all five deck modes share one deck capability (shared `visibleContext` identity, one InstanceConfig `kind`, one ratchet, one gating primitive, 3 deck routes, one evaluator path, `buildEvaluationImages` identity reuse), and that the walk-out stays off for all five. `lib/engine/registry.ts` is the one sanctioned exception, asserted to contain no `===` comparison against any deck slug. Negative test performed: planting a literal `"pitch-funding"` in `lib/engine/session.ts` made the script FAIL (exit 1); reverted, script returned to ALL CHECKS PASSED (exit 0) — both outputs recorded in `19-10-SUMMARY.md`. Also absorbed an assigned Rule 3 blocking deviation (`19-UNOWNED-RED-SCRIPT.md`): `scripts/verify-report-structure.ts`'s generic resolve-loop was missing instance fixtures for the four new instance-required deck slugs (4 FAIL → 0 FAIL), following the exact precedent 19-04/19-05 set in `verify-pitch-types.ts`. The one remaining red script in the suite is `scripts/verify-pitch-types.ts`'s single Phase-18-owned elevator failure (`18-PITCH-TYPES-REGRESSION.md`) — out of scope, unchanged, carried forward for 19-11 to state as an open defect.
-**Last activity:** 2026-10-08 — 19-10 complete; see `19-10-SUMMARY.md`.
+**Last activity:** 2026-10-08 — 20-02 complete; see `20-02-SUMMARY.md`.
 
 ### Carried into v1.1 from v1.0
 
@@ -516,6 +516,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 19]: 19-05: scoped the name/description-must-match-DECK_MODES assertion to exclude pitch-deck (its hand-written copy predates the table and 19-03 left it untouched); REQ-87 flipped to Complete after verifying all four new deck types in lib/engine/registry.ts's ENGINE_TYPES array.
 - [Phase 19]: 19-07: generalized `app/practice/[type]/page.tsx` off `getDeckMode()` — zero `pitch-deck` slug comparisons remain; collapsed per-mode wizard state into one `deckModeInput` slot; `askPriceUsd`/`askEquityPct`/`modeInputs` spread in conditionally (absent, not zeroed, for non-negotiating modes); avatar auto-pick retired generically via `declaresInterviewerStep` (not a slug) so `pitch-elevator`'s fallback stays reachable while all five deck modes are owned by the shared `InterviewerStep`. Added `lib/pitch/deck-modes.ts#tagModeInput` (outside the plan's stated files_modified, Rule 3 deviation) so the one `mode: "pitch-..."` discriminator literal a mode-input value needs lives in the one data table, never in the wizard page. New `scripts/verify-deck-wizard-generic.ts` (38 assertions) ALL PASS. See `19-07-SUMMARY.md`.
 - [Phase 19]: 19-10: surface-count guard distinguishes shared InstanceConfig kind discriminant from per-mode slug branch; absorbed 19-UNOWNED-RED-SCRIPT.md Rule 3 deviation fixing verify-report-structure.ts's resolve-loop
+- [Phase 20]: Reversed 20-01's stonewalling finding per user amendment: added a dedicated stonewalling disengagement cause so sustained pure refusal can cross a type's threshold alone, with hostility proven to cross at least as fast
 
 ## Progress
 
@@ -1976,8 +1977,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-09T01:37:44Z
-**Stopped At:** Completed 20-01-PLAN.md (Phase 20; Phase 19's own sequence is still stopped at 19-10, with 19-11 next)
+**Last Date:** 2026-10-09T02:03:24.115Z
+**Stopped At:** Completed 20-02-PLAN.md
 **Resume File:** None
 
 

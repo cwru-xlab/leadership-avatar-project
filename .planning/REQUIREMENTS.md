@@ -804,10 +804,10 @@ REQ-73.
 | REQ-93 | Phase 19 | Complete |
 | REQ-94 | Phase 19 | Complete |
 | REQ-95 | Phase 20 | Pending |
-| REQ-96 | Phase 20 | Pending |
+| REQ-96 | Phase 20 | Complete |
 | REQ-97 | Phase 20 | Complete |
-| REQ-98 | Phase 20 | Pending |
-| REQ-99 | Phase 20 | Pending |
+| REQ-98 | Phase 20 | Complete |
+| REQ-99 | Phase 20 | Complete |
 | REQ-100 | Phase 20 | Pending |
 | REQ-101 | Phase 20 | Pending |
 | REQ-102 | Phase 20 | Pending |
