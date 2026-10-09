@@ -2,14 +2,14 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.1 — Consequence & Deck Breadth
-**Updated:** 2026-10-05 (Phase 17 CLOSED — REQ-74 through REQ-77 Pass 1 complete; Phase 13's REQ-63 proof verified. Phase 18 is next; Phase 19 depends on it. Milestone v1.1; v1.0 shipped Phases 1–17.)
+**Updated:** 2026-10-08 (Phase 19 plan 19-10 complete — deck family surface-count guard shipped, ALL PASS, negative test proven to bite; the 4 red `verify-report-structure.ts` failures Phase 19 caused are now fixed. Phase 18 is next in sequence for UAT; Phase 19 depends on it. Milestone v1.1; v1.0 shipped Phases 1–17.)
 
 ## Current Position
 
 **Phase:** 19 — Deck-Led Pitch Family (Phase 18 implementation shipped, 18-05 human UAT pending; Phase 20 added 2026-10-08, depends on Phase 18+15)
-**Plan:** 19-01 through 19-09 complete; 19-10 next to execute (19-11 remains after)
-**Status:** 19-09 closed the report-chrome gap all five deck modes have carried since 19-04: `DeckVerdictPanel` (one component, internal mode switch) renders the funding/product/talk descriptive, UNSCORED verdicts through the existing extras slot; `ReportChrome.tsx`'s `getReportChrome` now resolves all five deck modes through one `isDeckModeSlug` + `deckChromeFor(slug)` lookup instead of a single `pitch-deck` branch; report titles and the `/reports` Pitches filter are table-driven for all five slugs. `scripts/verify-report-chrome-coverage.ts` flipped from 4 FAIL to "All 13 engine types have report chrome + dimensions." New `scripts/verify-deck-verdict-panels.ts` (10 assertion groups) ALL PASS; `verify-pitch-report-panels.ts` unaffected; the shared report page (`app/practice/[type]/report/[reportId]/page.tsx`) was not touched (mechanically asserted). The one pre-existing elevator `verify-pitch-types.ts` failure (Phase 18 regression) and the 4 pre-existing `verify-report-structure.ts` "requires an instance" failures (predate this plan, confirmed via a disposable worktree at the pre-19-09 commit) are both unchanged and out of this plan's scope.
-**Last activity:** 2026-10-09 — 19-09 complete; see `19-09-SUMMARY.md`.
+**Plan:** 19-01 through 19-10 complete; 19-11 next to execute (final plan in phase)
+**Status:** 19-10 shipped `scripts/verify-deck-family-surface-count.ts` (724 lines, 7 sections, ALL PASS) mechanically proving the four new deck modes added no engine module, route, evaluator or report page, that all five deck modes share one deck capability (shared `visibleContext` identity, one InstanceConfig `kind`, one ratchet, one gating primitive, 3 deck routes, one evaluator path, `buildEvaluationImages` identity reuse), and that the walk-out stays off for all five. `lib/engine/registry.ts` is the one sanctioned exception, asserted to contain no `===` comparison against any deck slug. Negative test performed: planting a literal `"pitch-funding"` in `lib/engine/session.ts` made the script FAIL (exit 1); reverted, script returned to ALL CHECKS PASSED (exit 0) — both outputs recorded in `19-10-SUMMARY.md`. Also absorbed an assigned Rule 3 blocking deviation (`19-UNOWNED-RED-SCRIPT.md`): `scripts/verify-report-structure.ts`'s generic resolve-loop was missing instance fixtures for the four new instance-required deck slugs (4 FAIL → 0 FAIL), following the exact precedent 19-04/19-05 set in `verify-pitch-types.ts`. The one remaining red script in the suite is `scripts/verify-pitch-types.ts`'s single Phase-18-owned elevator failure (`18-PITCH-TYPES-REGRESSION.md`) — out of scope, unchanged, carried forward for 19-11 to state as an open defect.
+**Last activity:** 2026-10-08 — 19-10 complete; see `19-10-SUMMARY.md`.
 
 ### Carried into v1.1 from v1.0
 
@@ -514,6 +514,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 19]: 19-04: `PITCH_FUNDING_TYPE`/`PITCH_PRODUCT_TYPE` registered as peers of `deck-type.ts`; both reuse `buildDeckEvaluationImages` verbatim and read their envelope from `getDeckMode(slug)` (fail-loud if missing). The plan's own quick-check grep (`equity|valuation|fairValue` returns nothing) is literally unsatisfiable against any file that also legitimately says `evaluation`/`EvaluationContext` — resolved by treating the formal per-mode verify script's literal-token + case-insensitive-`equity` check as authoritative, and by writing "ownership stake" instead of the literal word "equity" in prose. New `scripts/verify-deck-family-types.ts` iterates `listDeckModes()` and skips unregistered modes, so 19-05 extends its own coverage by registration alone. Two Rule-3 fixes to the pre-existing `scripts/verify-pitch-types.ts` (new instance fixtures for the two new required-instance slugs; extended the cursor/high-water-mark file exemption list to the two new prompts files) — both scoped to that verify script only. See `19-04-SUMMARY.md`.
 - [Phase 19]: 19-05: scoped the name/description-must-match-DECK_MODES assertion to exclude pitch-deck (its hand-written copy predates the table and 19-03 left it untouched); REQ-87 flipped to Complete after verifying all four new deck types in lib/engine/registry.ts's ENGINE_TYPES array.
 - [Phase 19]: 19-07: generalized `app/practice/[type]/page.tsx` off `getDeckMode()` — zero `pitch-deck` slug comparisons remain; collapsed per-mode wizard state into one `deckModeInput` slot; `askPriceUsd`/`askEquityPct`/`modeInputs` spread in conditionally (absent, not zeroed, for non-negotiating modes); avatar auto-pick retired generically via `declaresInterviewerStep` (not a slug) so `pitch-elevator`'s fallback stays reachable while all five deck modes are owned by the shared `InterviewerStep`. Added `lib/pitch/deck-modes.ts#tagModeInput` (outside the plan's stated files_modified, Rule 3 deviation) so the one `mode: "pitch-..."` discriminator literal a mode-input value needs lives in the one data table, never in the wizard page. New `scripts/verify-deck-wizard-generic.ts` (38 assertions) ALL PASS. See `19-07-SUMMARY.md`.
+- [Phase 19]: 19-10: surface-count guard distinguishes shared InstanceConfig kind discriminant from per-mode slug branch; absorbed 19-UNOWNED-RED-SCRIPT.md Rule 3 deviation fixing verify-report-structure.ts's resolve-loop
 
 ## Progress
 
@@ -1974,8 +1975,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-09T00:47:08.581Z
-**Stopped At:** Completed 19-05-PLAN.md
+**Last Date:** 2026-10-09T01:28:52.673Z
+**Stopped At:** Completed 19-10-PLAN.md
 **Resume File:** None
 
 
