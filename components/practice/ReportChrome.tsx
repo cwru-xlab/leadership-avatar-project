@@ -19,10 +19,13 @@
 import type { ReactNode } from "react";
 import type { ReportDTO } from "@/lib/report/dto";
 
+import { deckModeNegotiates, isDeckModeSlug, type DeckModeSlug } from "@/lib/pitch/deck-modes";
+
 import NetworkingOutcomePanel from "@/components/practice/panels/NetworkingOutcomePanel";
 import ConversationEndBanner from "@/components/practice/report/ConversationEndBanner";
 import ConversationOutcomePanel from "@/components/practice/report/ConversationOutcomePanel";
 import DeckTimelinePanel from "@/components/practice/report/DeckTimelinePanel";
+import DeckVerdictPanel from "@/components/practice/report/DeckVerdictPanel";
 import { DisengagementDeclinePanel } from "@/components/practice/report/DisengagementDeclinePanel";
 import InRoleReactionPanel from "@/components/practice/report/InRoleReactionPanel";
 import NegotiationTriplePanel from "@/components/practice/report/NegotiationTriplePanel";
@@ -120,6 +123,12 @@ const NETWORKING_CHROME: ReportChrome = {
  * Coverage contract: every slug in ENGINE_TYPES must resolve here. Enforced by
  * `scripts/verify-report-chrome-coverage.ts` (includes difficult-conversation
  * and networking explicitly).
+ *
+ * This map plus `app/practice/[type]/page.tsx` are the only places a type
+ * slug may appear in a `.tsx` file outside a type's own components. All
+ * five deck modes (19-01's `DECK_MODES` table) arrive here through
+ * `isDeckModeSlug` rather than one line per mode — a sixth deck mode needs
+ * no edit to this file.
  */
 const PITCH_ELEVATOR_CHROME: ReportChrome = {
   pollIntervalMs: 2000,
@@ -133,23 +142,53 @@ const PITCH_ELEVATOR_CHROME: ReportChrome = {
   },
 };
 
-const PITCH_DECK_CHROME: ReportChrome = {
-  pollIntervalMs: 2000,
-  giveUpAfterMs: 120_000,
-  stalledAffordance: "retry",
-  distinguishes401: true,
-  guardsRepollAfter404: false,
-  showsCustomizationStrip: false,
-  extras: {
-    above: (report) => <><PitchOutcomeBanner report={report} /><DisengagementDeclinePanel report={report} /></>,
-    below: (report) => (
-      <>
-        <NegotiationTriplePanel report={report} />
-        <DeckTimelinePanel report={report} />
-      </>
-    ),
-  },
-};
+/**
+ * Deck-mode chrome — one factory for all five deck modes (investor, funding,
+ * product, talk, general), resolved through `DECK_MODES` rather than one
+ * `if (slug === "pitch-...")` per mode. Same interview poll discipline the
+ * pitch chromes already use. Memoized per slug so `getReportChrome` returns
+ * referentially-stable chrome across renders, matching the named-constant
+ * shape every other chrome above uses.
+ *
+ * `extras.above`: `PitchOutcomeBanner` + `DisengagementDeclinePanel` for all
+ * five modes — both already return null when their data is absent, and
+ * with walk-out off (19-03) the four new modes simply have none. Kept
+ * uniform rather than removed, so the slot shape never depends on the mode.
+ *
+ * `extras.below`: `DeckTimelinePanel` for all five (slide coverage/overrun
+ * is shared deck capability), `NegotiationTriplePanel` ONLY when the mode
+ * negotiates (`pitch-deck` today), and `DeckVerdictPanel` always — it
+ * self-nulls for `pitch-deck` (owned by `NegotiationTriplePanel`) and
+ * `pitch-general` (no outcome panel at all).
+ */
+const DECK_CHROME_CACHE = new Map<DeckModeSlug, ReportChrome>();
+
+function deckChromeFor(slug: DeckModeSlug): ReportChrome {
+  const cached = DECK_CHROME_CACHE.get(slug);
+  if (cached) return cached;
+
+  const chrome: ReportChrome = {
+    pollIntervalMs: 2000,
+    giveUpAfterMs: 120_000,
+    stalledAffordance: "retry",
+    distinguishes401: true,
+    guardsRepollAfter404: false,
+    showsCustomizationStrip: false,
+    extras: {
+      above: (report) => <><PitchOutcomeBanner report={report} /><DisengagementDeclinePanel report={report} /></>,
+      below: (report) => (
+        <>
+          <DeckTimelinePanel report={report} />
+          {deckModeNegotiates(slug) ? <NegotiationTriplePanel report={report} /> : null}
+          <DeckVerdictPanel report={report} />
+        </>
+      ),
+    },
+  };
+
+  DECK_CHROME_CACHE.set(slug, chrome);
+  return chrome;
+}
 
 const INTERVIEW_PRESET_SLUGS = new Set([
   "general",
@@ -191,7 +230,7 @@ export function getReportChrome(
   if (slug === "difficult-conversation") return DIFFICULT_CONVERSATION_CHROME;
   if (slug === "networking") return NETWORKING_CHROME;
   if (slug === "pitch-elevator") return PITCH_ELEVATOR_CHROME;
-  if (slug === "pitch-deck") return PITCH_DECK_CHROME;
+  if (isDeckModeSlug(slug)) return deckChromeFor(slug);
   if (INTERVIEW_PRESET_SLUGS.has(slug)) return INTERVIEW_CHROME;
 
   return null;
