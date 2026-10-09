@@ -957,7 +957,34 @@ weight profile had summed its stonewalling-fixture contributors to exactly 0.6,
 so the crossing in Section 14 depended on which way IEEE-754 addition's last bit
 fell (a 1e-16 margin). Rebalanced to a 0.05 margin for both the stonewalling and
 sustained-hostility fixtures, with explicit margin assertions added to Sections
-14-15. See `20-03-SUMMARY.md`.
+14-15. See `20-03-SUMMARY.md`. **20-04 complete 2026-10-09** —
+`lib/engine/termination.ts`'s `resolveTermination` gained the named
+`severeContent` carve-out at gate 3 ONLY: when `true`, the `avatarEndFloor`
+check is skipped, but `avatarMayEnd` (gate 1), the closed reason vocabulary
+(gate 2), and the disengagement-threshold check (gate 4) are all still
+enforced in full — the carve-out is narrow, not a bypass of the engine's
+authority. `resolveWalkOutReason` was added beside it, deriving a walk-out's
+recorded reason from `policy.avatarEndReasonByCause`: severe content first,
+then the dominant observable cause in contribution order, returning `null`
+(never an invented string) when nothing is mapped.
+`scripts/verify-disengagement-termination.ts` gained a purely-additive
+Section 5 against the real `DIFFICULT_CONVERSATION_TYPE` and
+`PITCH_ELEVATOR_TYPE` records (never `PITCH_DECK_TYPE`), proving: the floor
+still rejects an ordinary trigger at turns 0-3 and accepts at turn 4 (SC5's
+unchanged half); the carve-out fires only with `severeContent: true` (the
+INVERTED assertion recording the SC5 amendment); three negative rows proving
+the carve-out skips the floor and nothing else; the elevator's gate-2 and
+ordinary-pass behavior is unaffected; and the full `resolveWalkOutReason`
+mapping plus a guard that every `avatarEndReasonByCause` value stays a
+declared `avatarEndReasons` member. `check(` count 16 → 32, Sections 1-4
+untouched except the import line. One disclosed deviation: the carve-out is
+a gate-level skip global to `resolveTermination`, not scoped per type —
+narrowness comes from caller discipline (only 20-05/20-06's
+difficult-conversation signal path will ever pass `severeContent: true`),
+not from a type-level declaration — so the elevator "unaffected" assertion
+was written as two true, narrower checks rather than the plan's literally-
+specified floor-level deep-equal, which this design makes false for any
+type with a floor. See `20-04-SUMMARY.md`.
 **Gate:** 20-07 (human adversarial UAT) is gated on Phase 18's 18-05 human UAT.
 `18-VALIDATION.md` is `awaiting-human-uat` and its one run FAILED on two
 since-repaired defects, so Phase 20's live run must either follow 18-05 or record
@@ -968,10 +995,11 @@ NOT gated; execution must STOP before 20-07 until 18-05 has real verdicts. Each
 plan names the criteria it serves as `P20-SC1`..`P20-SC5` alongside its REQ IDs,
 matching Phases 14/15/16.
 
-**Phase 19 file overlap (resolved):** 20-04 appends a new section 5 to
-`scripts/verify-disengagement-termination.ts` and touches no existing section;
+**Phase 19 file overlap (resolved):** 20-04 appended a new section 5 to
+`scripts/verify-disengagement-termination.ts` and touched no existing section;
 19-03 owned section 3's `belowFloor` fixture and section 4's pitch-deck
-assertions and has already landed, taking that file's `check(` count 14 -> 16.
+assertions and had already landed, having taken that file's `check(` count
+14 -> 16. 20-04's own section 5 then took it 16 -> 32.
 
 **Declared Phase 18 amendment:** SC5's floor clause gains the named
 severe-content carve-out (REQ-100), collected as the Phase 18 revision handoff in
@@ -1022,7 +1050,7 @@ Plans:
 - [x] 20-01-PLAN.md — Deterministic hostility/severe detector + the seeded-register false-positive corpus (REQ-96, REQ-97) — complete 2026-10-08, see `20-01-SUMMARY.md`
 - [x] 20-02-PLAN.md — Three new observable causes, per-type weight profile, hostility accumulation + one-way ratchet, acknowledgement-absent signal (REQ-96, REQ-98, REQ-99) — complete 2026-10-08, see `20-02-SUMMARY.md`
 - [x] 20-03-PLAN.md — One type-level threshold + weight profile + severe reason code, with the no-per-scenario-surface guard (REQ-95, REQ-101) — complete 2026-10-08, see `20-03-SUMMARY.md`
-- [ ] 20-04-PLAN.md — Named severe-content carve-out in resolveTermination + cause-to-reason resolver + deliberate verifier amendment (REQ-100, REQ-101)
+- [x] 20-04-PLAN.md — Named severe-content carve-out in resolveTermination + cause-to-reason resolver + deliberate verifier amendment (REQ-100, REQ-101) — complete 2026-10-09, see `20-04-SUMMARY.md`
 - [ ] 20-05-PLAN.md — Live wiring at both server callers, policy-supplied forced-farewell reason, single in-character ending path guarded (REQ-96, REQ-99, REQ-100, REQ-101)
 - [ ] 20-06-PLAN.md — Server-side quote sanitizer on the way out of toReportDto, with its own adversarial battery; no score cap (REQ-102)
 - [ ] 20-07-PLAN.md — Human adversarial UAT + 20-VALIDATION.md, Phase 18 revision handoff, calibration record (all eight REQs, human-verified; GATED on 18-05)
