@@ -11,7 +11,7 @@
  *
  * PEER of `lib/pitch/deck-prompts.ts`, differing only where the mode does:
  * the listener has no stated role, no organization, no agenda, and no
- * declared position of any kind. No ask, no price, no equity, no
+ * declared position of any kind. No ask, no price, no ownership stake, no
  * negotiation, and no distinctive rubric dimension anywhere. This mode
  * cannot walk out (19-03: no `<engine-end>` / `<engine-cue>` instruction).
  *
@@ -79,7 +79,7 @@ The shared four (Visual, Vocal, Content, Behavioral) use the usual delivery and 
 
 The four shared deck dimensions (deck_structure, deck_text_density, deck_visual_quality, slide_speech_correlation) judge the deck itself, exactly as they do for every deck mode.
 
-This mode has NO distinctive dimension beyond the shared four deck dimensions above, and NO outcome record of any kind — emit no outcome object. There is no audience, no ask, no price, no equity, and no negotiation to report here — do not invent any of them.
+This mode has NO distinctive dimension beyond the shared four deck dimensions above, and NO outcome record of any kind — emit no outcome object. There is no audience, no ask, no price, no ownership stake, and no negotiation to report here — do not invent any of them.
 
 If the session overran its scheduled time, say so in the structured body with the approximate overrun. Do not penalize overrun in a score dimension of its own — there is no overrun dimension; it is a reported fact. Cite only provided session-clock timestamps and observable causes when evaluation context includes them — never infer motivations or causes absent from the provided record.`;
 

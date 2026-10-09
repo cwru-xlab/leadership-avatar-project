@@ -1,11 +1,18 @@
 /**
- * Plan 19-04: prove the per-mode TYPE records for every REGISTERED deck mode
- * resolve through the one shared engine, declare their own rubric and
- * outcome, and keep the negotiation concept absent except on `pitch-deck`.
+ * Plans 19-04/19-05: prove the per-mode TYPE records for all FIVE deck
+ * modes resolve through the one shared engine, declare their own rubric
+ * and outcome, and keep the negotiation concept absent except on
+ * `pitch-deck`.
  *
- * Iterates `listDeckModes()` and SKIPS modes not yet registered in
- * `ENGINE_TYPES`, so plan 19-05 extends this script's coverage simply by
- * registering `pitch-talk` and `pitch-general` — no edit to this file.
+ * TIGHTENED by 19-05: iterates `listDeckModes()` and now FAILS (rather than
+ * skipping) any mode not registered in `ENGINE_TYPES`, so coverage can
+ * never silently shrink. Also asserts, across the whole family: all five
+ * slugs are registered, `pitch-general` specifically carries no
+ * distinctive dimension / no outcome / no mode-input step, no two modes
+ * share a distinctive dimension key, and every registered mode's
+ * `type.name`/`type.description` match its `DECK_MODES` `cardTitle`/
+ * `cardBlurb` (except `pitch-deck`, whose hand-written copy predates this
+ * table and is intentionally untouched by 19-03).
  *
  * Style mirrors scripts/verify-deck-mode-table.ts /
  * scripts/verify-pitch-surface-count.ts.
@@ -25,6 +32,7 @@ import {
   type DeckMode,
   type DeckModeInputs,
   type DeckModeSlug,
+  getDeckMode,
   listDeckModes,
 } from "../lib/pitch/deck-modes";
 
@@ -57,7 +65,7 @@ const FILE_PREFIX: Record<DeckModeSlug, string> = {
   "pitch-funding": "funding",
   "pitch-product": "product",
   "pitch-talk": "talk",
-  "pitch-general": "general",
+  "pitch-general": "general-deck",
 };
 
 /**
@@ -101,10 +109,12 @@ const registeredModes = listDeckModes().filter(
   (mode) => getEngineType(mode.slug) !== null,
 );
 
+// Coverage can never silently shrink: all five deck-mode slugs must be
+// registered in ENGINE_TYPES, or this is a FAILURE, not a skip.
 check(
-  "at least pitch-deck, pitch-funding and pitch-product are registered",
-  ["pitch-deck", "pitch-funding", "pitch-product"].every((slug) =>
-    registeredModes.some((m) => m.slug === slug),
+  "all five deck modes (pitch-deck, pitch-funding, pitch-product, pitch-talk, pitch-general) are registered",
+  listDeckModes().every((mode) =>
+    registeredModes.some((m) => m.slug === mode.slug),
   ),
   `registered: ${registeredModes.map((m) => m.slug).join(", ")}`,
 );
@@ -113,7 +123,7 @@ for (const mode of listDeckModes()) {
   const type = getEngineType(mode.slug);
 
   if (!type) {
-    console.log(`\n(skipping ${mode.slug} — not yet registered)`);
+    fail(`${mode.slug}: not registered in ENGINE_TYPES`);
     continue;
   }
 
@@ -121,6 +131,25 @@ for (const mode of listDeckModes()) {
 
   // 1. getEngineType resolves and the slug round-trips.
   check(`${mode.slug}: getEngineType resolves and type.slug matches`, type.slug === mode.slug);
+
+  // 1b. The picker copy and the type record must never drift, for the four
+  // modes authored against the DECK_MODES table (19-04/19-05). `pitch-deck`
+  // predates that table (14-xx) and 19-03 deliberately left its own
+  // hand-written `name`/`description` untouched — "investor deck unchanged"
+  // governs its copy, not its avatar selection — so it is exempt here,
+  // mirroring the existing "non-investor modes only" pattern below (check 9).
+  if (mode.slug !== "pitch-deck") {
+    check(
+      `${mode.slug}: type.name === mode.cardTitle`,
+      type.name === mode.cardTitle,
+      `expected: ${mode.cardTitle}\n         got: ${type.name}`,
+    );
+    check(
+      `${mode.slug}: type.description === mode.cardBlurb`,
+      type.description === mode.cardBlurb,
+      `expected: ${mode.cardBlurb}\n         got: ${type.description}`,
+    );
+  }
 
   // 2. resolveSessionConfig succeeds; rubric dimensions are exactly
   //    [shared four, ...SHARED_DECK_DIMENSIONS keys, ...mode distinctive keys].
@@ -282,6 +311,49 @@ for (const mode of listDeckModes()) {
       !/equity/i.test(sourceText),
     );
   }
+}
+
+// 11. pitch-general specifically: exactly the four shared deck dimensions
+// beyond the standard rubric, an empty outcome field list, and no
+// mode-input step — the deliberate zero-setup mode (19-CONTEXT.md).
+{
+  const generalType = getEngineType("pitch-general");
+
+  if (!generalType) {
+    fail("pitch-general: not registered — cannot run the zero-setup assertion");
+  } else {
+    check(
+      "pitch-general: extraRubricDimensions equals exactly SHARED_DECK_DIMENSIONS (no distinctive dimension)",
+      JSON.stringify(generalType.extraRubricDimensions.map((d) => d.key)) ===
+        JSON.stringify(SHARED_DECK_DIMENSIONS.map((d) => d.key)),
+      `expected: ${SHARED_DECK_DIMENSIONS.map((d) => d.key).join(", ")}\n         got: ${generalType.extraRubricDimensions.map((d) => d.key).join(", ")}`,
+    );
+    check(
+      "pitch-general: outcome.fields is empty",
+      generalType.outcome.fields.length === 0,
+    );
+    check(
+      "pitch-general: setupSteps has no mode-input step",
+      getDeckMode("pitch-general")?.modeInputStepId == null &&
+        !generalType.setupSteps.some((s) =>
+          ["negotiation-ask", "funding-ask", "buyer-profile", "talk-audience"].includes(s.id),
+        ),
+    );
+  }
+}
+
+// 12. No two deck modes share a distinctive dimension key — the union of
+// every registered mode's distinctive keys has no duplicates.
+{
+  const allDistinctiveKeys = registeredModes.flatMap(
+    (mode) => mode.distinctiveDimensionKeys,
+  );
+  const uniqueKeys = new Set(allDistinctiveKeys);
+  check(
+    "no two deck modes share a distinctive dimension key",
+    uniqueKeys.size === allDistinctiveKeys.length,
+    `keys: ${allDistinctiveKeys.join(", ")}`,
+  );
 }
 
 console.log("");

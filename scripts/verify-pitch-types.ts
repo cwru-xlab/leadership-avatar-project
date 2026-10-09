@@ -596,13 +596,16 @@ console.log("\n7. No parallel gating mechanism in lib/pitch/");
     // deck-prompts may name slideHighWaterMark / "high-water" for post-session
     // eval bounding only — not a live gate. elevator-type's 14-08 comment
     // ("no cursor to persist") is grandfathered.
-    // funding-prompts.ts / product-prompts.ts (19-04): same legitimate
+    // funding-prompts.ts / product-prompts.ts (19-04), talk-prompts.ts /
+    // general-deck-prompts.ts (19-05): same legitimate
     // slideHighWaterMark-for-post-session-eval-bounding pattern as
     // deck-prompts.ts, modeled on buildDeckEvaluationContext.
     if (
       file === "deck-prompts.ts" ||
       file === "funding-prompts.ts" ||
-      file === "product-prompts.ts"
+      file === "product-prompts.ts" ||
+      file === "talk-prompts.ts" ||
+      file === "general-deck-prompts.ts"
     ) {
       check(
         `${file}: no turn.cursors / highWaterMark live-gate API`,
@@ -789,6 +792,29 @@ void verifyDeckImages().then(() => {
             mode: "pitch-product",
             buyerProfile: "VP of Ops at a mid-market SaaS co",
           },
+        };
+      }
+      if (typeSlug === "pitch-talk") {
+        return {
+          kind: "pitch-deck",
+          deckId: "verify-talk-id",
+          slideCount: 5,
+          slideTexts: deckSlideTexts.slice(0, 5),
+          proposedSeconds: 600,
+          modeInputs: {
+            mode: "pitch-talk",
+            talkAudience: "A campus sustainability conference",
+            talkTakeaway: "Reuse beats recycling for carbon payback.",
+          },
+        };
+      }
+      if (typeSlug === "pitch-general") {
+        return {
+          kind: "pitch-deck",
+          deckId: "verify-general-id",
+          slideCount: 5,
+          slideTexts: deckSlideTexts.slice(0, 5),
+          proposedSeconds: 600,
         };
       }
       if (typeSlug === "difficult-conversation") {
