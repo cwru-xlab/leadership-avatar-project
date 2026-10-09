@@ -7,9 +7,9 @@
 ## Current Position
 
 **Phase:** 19 — Deck-Led Pitch Family (Phase 18 implementation shipped, 18-05 human UAT pending; Phase 20 added 2026-10-08, depends on Phase 18+15)
-**Plan:** 19-01, 19-02, 19-03, 19-04 complete (19-06, 19-08 also complete out of dependency order via concurrent execution); 19-05 next to execute
-**Status:** 19-04 shipped `PITCH_FUNDING_TYPE`/`PITCH_PRODUCT_TYPE` (`lib/pitch/funding-type.ts`, `lib/pitch/funding-prompts.ts`, `lib/pitch/product-type.ts`, `lib/pitch/product-prompts.ts`), registered in `lib/engine/registry.ts` (the only engine-dir change), proven by `scripts/verify-deck-family-types.ts` (ALL PASS, ten assertions per registered mode). `pitch-talk`/`pitch-general` remain plan 19-05's scope; the new verify script already iterates `listDeckModes()` and will auto-cover them once registered.
-**Last activity:** 2026-10-09 — 19-04 complete; see `19-04-SUMMARY.md`.
+**Plan:** 19-01, 19-02, 19-03, 19-04, 19-05 complete (19-06, 19-08 also complete out of dependency order via concurrent execution); 19-07 next to execute
+**Status:** 19-05 shipped `PITCH_TALK_TYPE`/`PITCH_GENERAL_TYPE` (`lib/pitch/talk-type.ts`, `lib/pitch/talk-prompts.ts`, `lib/pitch/general-deck-type.ts`, `lib/pitch/general-deck-prompts.ts`), registered in `lib/engine/registry.ts` (the only engine-dir change). All five deck modes (`pitch-deck`, `pitch-funding`, `pitch-product`, `pitch-talk`, `pitch-general`) are now registered in `ENGINE_TYPES`; `scripts/verify-deck-family-types.ts` was tightened to cover all five unconditionally (no skip-if-unregistered path left) and shows ALL PASS. REQ-87 flipped to Complete after verifying all four new types in the registry array. Report chrome for all four new modes (`getReportChrome`) remains plan 19-09's scope — confirmed via the known, expected `verify-report-chrome-coverage.ts` failures.
+**Last activity:** 2026-10-09 — 19-05 complete; see `19-05-SUMMARY.md`.
 
 ### Carried into v1.1 from v1.0
 
@@ -512,6 +512,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 19]: 19-03: removed deck's disengagement opt-in (avatarMayEnd:false, no threshold), consumed SHARED_DECK_DIMENSIONS, added interviewer setup step; inverted verify-disengagement-termination.ts deck assertions without deleting any check
 - [Phase 19]: 19-06: `FundingAskStep`, `BuyerProfileStep`, `TalkAudienceStep` built as peers of `NegotiationAskStep`/`NetworkingGoalStep` (same `SetupStepNav` props shape, same HeroUI styling, same `onChange(null)`-while-incomplete discipline) — all three REQUIRED to start, none contains an equity/valuation/negotiation concept (not even in source comments, so the plan's literal `grep -niE 'equity|valuation'` check passes). Not wired into the wizard yet — plan 19-07 owns that. See `19-06-SUMMARY.md`.
 - [Phase 19]: 19-04: `PITCH_FUNDING_TYPE`/`PITCH_PRODUCT_TYPE` registered as peers of `deck-type.ts`; both reuse `buildDeckEvaluationImages` verbatim and read their envelope from `getDeckMode(slug)` (fail-loud if missing). The plan's own quick-check grep (`equity|valuation|fairValue` returns nothing) is literally unsatisfiable against any file that also legitimately says `evaluation`/`EvaluationContext` — resolved by treating the formal per-mode verify script's literal-token + case-insensitive-`equity` check as authoritative, and by writing "ownership stake" instead of the literal word "equity" in prose. New `scripts/verify-deck-family-types.ts` iterates `listDeckModes()` and skips unregistered modes, so 19-05 extends its own coverage by registration alone. Two Rule-3 fixes to the pre-existing `scripts/verify-pitch-types.ts` (new instance fixtures for the two new required-instance slugs; extended the cursor/high-water-mark file exemption list to the two new prompts files) — both scoped to that verify script only. See `19-04-SUMMARY.md`.
+- [Phase 19]: 19-05: scoped the name/description-must-match-DECK_MODES assertion to exclude pitch-deck (its hand-written copy predates the table and 19-03 left it untouched); REQ-87 flipped to Complete after verifying all four new deck types in lib/engine/registry.ts's ENGINE_TYPES array.
 
 ## Progress
 
@@ -1972,8 +1973,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-09T00:32:28.000Z
-**Stopped At:** Completed 19-04-PLAN.md
+**Last Date:** 2026-10-09T00:47:08.581Z
+**Stopped At:** Completed 19-05-PLAN.md
 **Resume File:** None
 
 

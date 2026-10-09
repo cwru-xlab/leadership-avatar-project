@@ -795,7 +795,7 @@ REQ-73.
 | REQ-84 | Phase 18 | Pending |
 | REQ-85 | Phase 18 | Pending |
 | REQ-86 | Phase 18 | Pending |
-| REQ-87 | Phase 19 | Pending |
+| REQ-87 | Phase 19 | Complete |
 | REQ-88 | Phase 19 | Complete |
 | REQ-89 | Phase 19 | Complete |
 | REQ-90 | Phase 19 | Complete |
