@@ -8,7 +8,7 @@
  * deck-mode card launches the same shared wizard for its own slug.
  */
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import {
@@ -53,6 +53,40 @@ export default function PracticePitchesPickerPage() {
   const router = useRouter();
   const [deckExpanded, setDeckExpanded] = useState(false);
   const firstDeckCardRef = useRef<HTMLButtonElement>(null);
+  const deckToggleRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Collapse the disclosure and return focus to the control that opened it —
+   * the WAI-ARIA disclosure expectation. Without this, a keyboard user who has
+   * tabbed into the five mode cards can only leave them by tabbing forward out
+   * of the document and back in through the browser chrome.
+   *
+   * Found during Phase 19's Pass 2 keyboard UAT (plan 19-11, block F item 1),
+   * which requires "Escape or Shift+Tab returns and collapses it". Shift+Tab
+   * already returned focus because the panel follows the toggle in DOM order;
+   * Escape did nothing at all.
+   */
+  const collapseDeckPanel = useCallback(() => {
+    setDeckExpanded(false);
+    deckToggleRef.current?.focus();
+  }, []);
+
+  // Document-level rather than an onKeyDown on the panel: the panel is a
+  // `role="group"`, a non-interactive element that must not carry keyboard
+  // listeners (jsx-a11y/no-noninteractive-element-interactions). The listener
+  // exists only while the panel is open, so it cannot swallow Escape anywhere
+  // else in the app.
+  useEffect(() => {
+    if (!deckExpanded) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") collapseDeckPanel();
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [deckExpanded, collapseDeckPanel]);
 
   const toggleDeckExpanded = () => {
     const next = !deckExpanded;
@@ -141,6 +175,7 @@ export default function PracticePitchesPickerPage() {
             </div>
             <div className="mt-auto flex justify-end pt-2">
               <button
+                ref={deckToggleRef}
                 aria-controls={DECK_PANEL_ID}
                 aria-expanded={deckExpanded}
                 className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#0a7391] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#08647c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a7391]"
