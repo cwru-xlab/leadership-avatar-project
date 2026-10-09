@@ -18,7 +18,10 @@ import {
 } from "../lib/engine/disengagement";
 import { getEngineType } from "../lib/engine/registry";
 import { parseEngineTurn } from "../lib/engine/turn-control";
-import { resolveTermination } from "../lib/engine/termination";
+import {
+  resolveTermination,
+  resolveWalkOutReason,
+} from "../lib/engine/termination";
 import type {
   ResolvedSessionConfig,
   TerminationPolicyConfig,
@@ -29,6 +32,10 @@ import {
   ELEVATOR_DISENGAGEMENT_THRESHOLD,
   PITCH_ELEVATOR_TYPE,
 } from "../lib/pitch/elevator-type";
+import {
+  CONVERSATION_DISENGAGEMENT_THRESHOLD,
+  DIFFICULT_CONVERSATION_TYPE,
+} from "../lib/difficult-conversation/conversation-type";
 
 let failures = 0;
 
@@ -304,6 +311,275 @@ console.log("\n4. Pitch policy opt-ins");
       PITCH_ELEVATOR_TYPE.terminationPolicy.disengagementThreshold ===
         ELEVATOR_DISENGAGEMENT_THRESHOLD,
     JSON.stringify(PITCH_ELEVATOR_TYPE.terminationPolicy),
+  );
+}
+
+console.log(
+  "\n5. Difficult-conversation floor, severe carve-out and reason mapping",
+);
+{
+  // AMENDMENT TO PHASE 18 SUCCESS CRITERION 5 (Phase 20 / REQ-100).
+  // SC5 read: "a walk-out can never fire before a type's avatarEndFloor minimum
+  // turns." It now reads: "...except for the named severe-content carve-out in
+  // resolveTermination." The assertion below is INVERTED to state the new
+  // intent, not deleted and not loosened. The floor-holds assertion that
+  // precedes it is the half of SC5 that is unchanged, and it is re-stated here
+  // against difficult-conversation so this phase's proof stands on its own type.
+  const policy = DIFFICULT_CONVERSATION_TYPE.terminationPolicy;
+
+  // (a) The floor still holds, for this type, for an ordinary trigger — the
+  // unchanged half of SC5, re-proven on a type Phase 19 does not touch.
+  for (const turnCount of [0, 1, 2, 3]) {
+    const belowFloor = resolveTermination({
+      policy,
+      source: "avatar",
+      reason: "escalated",
+      assistantTurnCount: turnCount,
+      disengagementValue: 1,
+    });
+
+    check(
+      `floor rejects an ordinary trigger at ${turnCount} assistant turn(s)`,
+      belowFloor.ok === false && belowFloor.reason === "floor-not-met",
+      JSON.stringify(belowFloor),
+    );
+  }
+
+  const atFloor = resolveTermination({
+    policy,
+    source: "avatar",
+    reason: "escalated",
+    assistantTurnCount: 4,
+    disengagementValue: 1,
+  });
+
+  check(
+    "floor accepts an ordinary trigger at exactly 4 assistant turns",
+    atFloor.ok === true,
+    JSON.stringify(atFloor),
+  );
+
+  // (b) The carve-out fires, and ONLY for severe content. INVERTED assertion:
+  // SC5's "never before the floor" now has a named exception.
+  const carveOutFires = resolveTermination({
+    policy,
+    source: "avatar",
+    reason: "offensive_content",
+    assistantTurnCount: 0,
+    disengagementValue: 1,
+    severeContent: true,
+  });
+
+  check(
+    "INVERTED SC5: severe content ends the session at turn 0, below the floor",
+    carveOutFires.ok === true &&
+      carveOutFires.recordedReason === "offensive_content",
+    JSON.stringify(carveOutFires),
+  );
+
+  const sameCallWithoutSevere = resolveTermination({
+    policy,
+    source: "avatar",
+    reason: "offensive_content",
+    assistantTurnCount: 0,
+    disengagementValue: 1,
+    severeContent: false,
+  });
+
+  check(
+    "the same call without severeContent still hits the ordinary floor",
+    sameCallWithoutSevere.ok === false &&
+      sameCallWithoutSevere.reason === "floor-not-met",
+    JSON.stringify(sameCallWithoutSevere),
+  );
+
+  // (c) The carve-out skips the floor and nothing else — narrow, not a bypass.
+  const severeWithBadReason = resolveTermination({
+    policy,
+    source: "avatar",
+    reason: "not_a_declared_reason",
+    assistantTurnCount: 0,
+    disengagementValue: 1,
+    severeContent: true,
+  });
+
+  check(
+    "severeContent does not bypass the closed reason vocabulary (gate 2)",
+    severeWithBadReason.ok === false &&
+      severeWithBadReason.recordedReason === null,
+    JSON.stringify(severeWithBadReason),
+  );
+
+  const severeBelowOwnThreshold = resolveTermination({
+    policy,
+    source: "avatar",
+    reason: "offensive_content",
+    assistantTurnCount: 0,
+    disengagementValue: CONVERSATION_DISENGAGEMENT_THRESHOLD - 0.01,
+    severeContent: true,
+  });
+
+  check(
+    "severeContent does not bypass the disengagement-threshold gate (gate 4)",
+    severeBelowOwnThreshold.ok === false &&
+      severeBelowOwnThreshold.reason === "disengagement-below-threshold",
+    JSON.stringify(severeBelowOwnThreshold),
+  );
+
+  const severeButMayNotEnd = resolveTermination({
+    policy: { ...policy, avatarMayEnd: false },
+    source: "avatar",
+    reason: "offensive_content",
+    assistantTurnCount: 0,
+    disengagementValue: 1,
+    severeContent: true,
+  });
+
+  check(
+    "severeContent does not bypass avatarMayEnd (gate 1)",
+    severeButMayNotEnd.ok === false &&
+      severeButMayNotEnd.recordedReason === null,
+    JSON.stringify(severeButMayNotEnd),
+  );
+
+  // (d) Other types are unaffected by the new argument — the elevator
+  // declares no severe mapping and this phase changes nothing for it.
+  // PITCH_DECK_TYPE is deliberately not referenced here (Phase 19 owns it).
+  //
+  // The carve-out at gate 3 is a GATE-LEVEL skip, not a per-type opt-in, so
+  // `severeContent: true` DOES skip the elevator's own floor the moment a
+  // caller sets it — the narrowness guarantee is that no real elevator call
+  // site ever sets it (only the difficult-conversation signal path does;
+  // 20-05/20-06), not that resolveTermination special-cases the slug. What
+  // IS unaffected is everything severeContent does NOT touch: gate 2's
+  // closed reason vocabulary (an elevator reason it never declared is still
+  // rejected regardless of severeContent) and the ordinary passing path
+  // (when the floor and threshold already hold without help, the flag is a
+  // no-op). Both are asserted below instead of a floor-level deep-equal,
+  // which this gate's own documented design makes untrue for ANY type.
+  const elevatorPolicy = PITCH_ELEVATOR_TYPE.terminationPolicy;
+  const elevatorUndeclaredReasonWithoutSevere = resolveTermination({
+    policy: elevatorPolicy,
+    source: "avatar",
+    reason: "offensive_content", // declared for DC, not for the elevator
+    assistantTurnCount: 0,
+    disengagementValue: 1,
+  });
+  const elevatorUndeclaredReasonWithSevere = resolveTermination({
+    policy: elevatorPolicy,
+    source: "avatar",
+    reason: "offensive_content",
+    assistantTurnCount: 0,
+    disengagementValue: 1,
+    severeContent: true,
+  });
+
+  check(
+    "severeContent cannot rescue a reason the elevator never declared (gate 2 unaffected)",
+    JSON.stringify(elevatorUndeclaredReasonWithoutSevere) ===
+      JSON.stringify(elevatorUndeclaredReasonWithSevere) &&
+      elevatorUndeclaredReasonWithSevere.ok === false,
+    `${JSON.stringify(elevatorUndeclaredReasonWithoutSevere)} != ${JSON.stringify(elevatorUndeclaredReasonWithSevere)}`,
+  );
+
+  const elevatorOrdinaryPassWithoutSevere = resolveTermination({
+    policy: elevatorPolicy,
+    source: "avatar",
+    reason: "lost_interest",
+    assistantTurnCount: elevatorPolicy.avatarEndFloor?.minAssistantTurns ?? 0,
+    disengagementValue: ELEVATOR_DISENGAGEMENT_THRESHOLD,
+  });
+  const elevatorOrdinaryPassWithSevere = resolveTermination({
+    policy: elevatorPolicy,
+    source: "avatar",
+    reason: "lost_interest",
+    assistantTurnCount: elevatorPolicy.avatarEndFloor?.minAssistantTurns ?? 0,
+    disengagementValue: ELEVATOR_DISENGAGEMENT_THRESHOLD,
+    severeContent: true,
+  });
+
+  check(
+    "severeContent is a no-op once the elevator's own floor and threshold already pass",
+    JSON.stringify(elevatorOrdinaryPassWithoutSevere) ===
+      JSON.stringify(elevatorOrdinaryPassWithSevere) &&
+      elevatorOrdinaryPassWithSevere.ok === true,
+    `${JSON.stringify(elevatorOrdinaryPassWithoutSevere)} != ${JSON.stringify(elevatorOrdinaryPassWithSevere)}`,
+  );
+
+  // (e) Reason mapping — derived deterministically from the dominant
+  // observable cause, from the type's own closed vocabulary.
+  const severeReason = resolveWalkOutReason({
+    policy,
+    dominantCauses: [],
+    severe: true,
+  });
+  const hostilityReason = resolveWalkOutReason({
+    policy,
+    dominantCauses: ["hostility"],
+    severe: false,
+  });
+  const repeatedResponseReason = resolveWalkOutReason({
+    policy,
+    dominantCauses: ["repeated_response"],
+    severe: false,
+  });
+  const shortResponseStreakReason = resolveWalkOutReason({
+    policy,
+    dominantCauses: ["short_response_streak"],
+    severe: false,
+  });
+  const elevatorReason = resolveWalkOutReason({
+    policy: elevatorPolicy,
+    dominantCauses: ["repeated_response"],
+    severe: false,
+  });
+  const uncoveredCauseReason = resolveWalkOutReason({
+    policy: { ...policy, avatarEndReasonByCause: {} },
+    dominantCauses: ["hostility"],
+    severe: false,
+  });
+
+  check(
+    "resolveWalkOutReason returns offensive_content for severe content",
+    severeReason === "offensive_content",
+    String(severeReason),
+  );
+  check(
+    "resolveWalkOutReason returns escalated for a dominant hostility cause",
+    hostilityReason === "escalated",
+    String(hostilityReason),
+  );
+  check(
+    "resolveWalkOutReason returns nothing_left_to_discuss for repeated_response",
+    repeatedResponseReason === "nothing_left_to_discuss",
+    String(repeatedResponseReason),
+  );
+  check(
+    "resolveWalkOutReason returns nothing_left_to_discuss for short_response_streak",
+    shortResponseStreakReason === "nothing_left_to_discuss",
+    String(shortResponseStreakReason),
+  );
+  check(
+    "resolveWalkOutReason returns null for a policy with no avatarEndReasonByCause (elevator)",
+    elevatorReason === null,
+    String(elevatorReason),
+  );
+  check(
+    "resolveWalkOutReason returns null for a cause the map does not cover",
+    uncoveredCauseReason === null,
+    String(uncoveredCauseReason),
+  );
+
+  const reasonMapEntries = Object.entries(
+    policy.avatarEndReasonByCause ?? {},
+  );
+
+  check(
+    "every avatarEndReasonByCause value is a member of avatarEndReasons (future-edit guard)",
+    reasonMapEntries.every(([, value]) =>
+      policy.avatarEndReasons.includes(value as string),
+    ),
+    JSON.stringify(reasonMapEntries),
   );
 }
 
