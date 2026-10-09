@@ -351,16 +351,35 @@ async function main() {
       JSON.stringify(below),
     );
 
+    // 20-03 gave this type a real disengagementThreshold, so gate 4 of
+    // resolveTermination now requires trusted derived evidence at or above
+    // it (lib/engine/termination.ts's fail-closed rule) — the chat route
+    // always supplies the real computed value; this fixture supplies the
+    // type's own declared threshold to exercise the same gate explicitly.
     const atFloor = resolveTermination({
+      policy,
+      source: "avatar",
+      reason: "walked_out",
+      assistantTurnCount: 4,
+      disengagementValue: policy.disengagementThreshold ?? undefined,
+    });
+    check(
+      "assistantTurnCount:4 + walked_out + at-threshold evidence ACCEPTED",
+      atFloor.ok === true && atFloor.recordedReason === "walked_out",
+      JSON.stringify(atFloor),
+    );
+
+    const missingEvidence = resolveTermination({
       policy,
       source: "avatar",
       reason: "walked_out",
       assistantTurnCount: 4,
     });
     check(
-      "assistantTurnCount:4 + walked_out ACCEPTED",
-      atFloor.ok === true && atFloor.recordedReason === "walked_out",
-      JSON.stringify(atFloor),
+      "assistantTurnCount:4 + walked_out + NO disengagement evidence REJECTED (fails closed)",
+      missingEvidence.ok === false &&
+        missingEvidence.reason === "disengagement-below-threshold",
+      JSON.stringify(missingEvidence),
     );
 
     const badReason = resolveTermination({
