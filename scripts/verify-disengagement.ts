@@ -318,17 +318,33 @@ console.log("\n6. Transcript replay ratchets across turns");
  * floor-override carve-out (20-04) is a separate mechanism from this
  * weighted accumulation. The only evidence behind every non-zero number here
  * is this file's own fixtures below.
+ *
+ * 20-EPSILON-MARGIN.md (found 2026-10-08, fixed here by 20-03): the first
+ * version of this profile (shortResponseStreak 0.05 / noCommonGround 0.1 /
+ * positionUnacknowledged 0.15 / hostility 0.4 / stonewalling 0.3) made the
+ * sustained-stonewalling fixture land EXACTLY on 0.6 by construction
+ * (0.05+0.1+0.15+0.3 == 0.6), so IEEE-754 addition order decided the
+ * crossing by a 1e-16 margin rather than the weights. `shortResponseStreak`
+ * is dropped to 0 here (not needed — the stonewalling pattern match already
+ * drives the crossing; short-response pressure is proven separately and
+ * independently in Section 2 under the shared defaults) and the freed
+ * budget moves to `noCommonGround`/`positionUnacknowledged` (0.15 each,
+ * shared by both fixtures) with `hostility`/`stonewalling` both at 0.35 —
+ * chosen so EACH fixture's crossing total is 0.65, a 0.05 margin above the
+ * 0.6 threshold (verified empirically below, Sections 14-15). 0.05 is ~2.3e14
+ * times the ~2.2e-16 machine epsilon at this magnitude, so no reordering or
+ * rounding of these additions can flip either crossing.
  */
 const PHASE_20_TEST_WEIGHTS: Partial<DisengagementWeights> = {
   budgetPressure: 0,
   turnCountPressure: 0,
   repeatedResponse: 0,
-  shortResponseStreak: 0.05,
-  noCommonGround: 0.1,
+  shortResponseStreak: 0,
+  noCommonGround: 0.15,
   positionUnacknowledged: 0.15,
-  hostility: 0.4,
+  hostility: 0.35,
   severeContent: 0,
-  stonewalling: 0.3,
+  stonewalling: 0.35,
 };
 
 /** Builds an alternating assistant/student transcript from student lines only. */
@@ -684,6 +700,17 @@ function firstCrossingTurn(
   return null;
 }
 
+/**
+ * 20-EPSILON-MARGIN.md's required margin: "a margin that survives
+ * reordering and rounding, not land on the threshold." 0.01 is ~4.5e13 times
+ * the ~2.2e-16 machine epsilon at this magnitude — no reordering of the
+ * weighted-sum addition below it can flip a crossing that clears it. The
+ * profile above is tuned to clear this margin by 0.04 (achieved margin
+ * ~0.05, asserted loosely as >= 0.01 so the check itself does not become a
+ * second place encoding a float-fragile exact value).
+ */
+const REAL_CROSSING_MARGIN = 0.01;
+
 console.log("\n14. Sustained pure stonewalling crosses the threshold alone");
 {
   const result = computeDisengagementOverTranscript({
@@ -696,12 +723,18 @@ console.log("\n14. Sustained pure stonewalling crosses the threshold alone");
   });
 
   console.log(
-    `         sustained stonewalling disengagement value: ${result.value} (crossed 0.6: ${result.crossed})`,
+    `         sustained stonewalling disengagement value: ${result.value} (crossed 0.6: ${result.crossed}, margin: ${result.value - 0.6})`,
   );
   check(
     "a sustained pure-refusal transcript crosses the 0.6 threshold",
     result.crossed === true,
     `value was ${result.value}`,
+  );
+  check(
+    "the crossing clears 0.6 by a real margin, not a floating-point hair " +
+      "(20-EPSILON-MARGIN.md)",
+    result.value - 0.6 >= REAL_CROSSING_MARGIN,
+    `margin was ${result.value - 0.6}, required >= ${REAL_CROSSING_MARGIN}`,
   );
   check(
     "stonewalling is a dominant cause behind the crossing",
@@ -748,6 +781,31 @@ console.log(
       stonewallCrossTurn !== null &&
       hostileCrossTurn <= stonewallCrossTurn,
     `stonewall crossed at turn ${stonewallCrossTurn}, hostility at turn ${hostileCrossTurn}`,
+  );
+
+  // 20-EPSILON-MARGIN.md: the hostility fixture's own crossing must also
+  // clear by a real margin — fixing stonewalling's epsilon crossing while
+  // leaving an equally fragile hostility crossing in place would just move
+  // the defect, not close it.
+  const hostileAtCrossTurn =
+    hostileCrossTurn === null
+      ? null
+      : computeDisengagementOverTranscript({
+          transcript: alternatingTranscript(
+            SUSTAINED_HOSTILE_LINES.slice(0, hostileCrossTurn),
+          ),
+          elapsedSeconds: 30 * hostileCrossTurn,
+          budgetSeconds: null,
+          assistantTurnCount: hostileCrossTurn,
+          threshold: 0.6,
+          weights: PHASE_20_TEST_WEIGHTS,
+        });
+  check(
+    "the hostility fixture's crossing also clears 0.6 by a real margin, " +
+      "not a floating-point hair",
+    hostileAtCrossTurn !== null &&
+      hostileAtCrossTurn.value - 0.6 >= REAL_CROSSING_MARGIN,
+    `value was ${hostileAtCrossTurn?.value}, margin ${hostileAtCrossTurn ? hostileAtCrossTurn.value - 0.6 : "n/a"}`,
   );
 }
 
