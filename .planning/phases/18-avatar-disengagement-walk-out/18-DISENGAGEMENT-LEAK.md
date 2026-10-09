@@ -1,10 +1,10 @@
 ---
 phase: 18-avatar-disengagement-walk-out
-status: open
+status: accepted-by-user
 found: 2026-10-09
 found_by: user, during Phase 19's 19-11 human UAT (block D)
-severity: REQ-85 intent, not REQ-85 letter
-proposed_owner: 20-05 (it already edits app/api/interaction/chat/route.ts)
+severity: none — user reviewed and accepted 2026-10-09
+proposed_owner: none — see Disposition
 ---
 
 # The disengagement value is shipped to the browser on every turn, for every type
@@ -90,9 +90,31 @@ gating.
 3. Do **not** treat this as a reason to weaken REQ-85 — the requirement is right;
    the implementation leaks around it.
 
-## Disposition
+## Disposition — ACCEPTED BY THE USER, 2026-10-09
 
-Does **not** block Phase 19 sign-off: Phase 19's own criteria concern the deck
-family, and the deck's non-departure is verified correct. Recorded for Phase 18 /
-Phase 20 to resolve. 20-05 already edits this exact file and is the cheapest
-owner.
+**The user reviewed this and accepted it deliberately:** *"im not so worried
+about whether the students can see their scores in dev tools. in fact, that
+helps me debug at the moment."*
+
+So the dev-tools visibility is **intended behaviour for now**, not a defect.
+No plan owns a fix and none should be planned.
+
+**Why this file is kept rather than deleted:** REQ-85 is a tracked, shipped
+requirement ("no meter, indicator or warning anywhere in the session shell"),
+and Phase 18's pending 18-05 UAT verifies it. A future reviewer who finds the
+value in a network payload could reasonably read it as a REQ-85 violation and
+re-raise it. This record is the answer: REQ-85's letter is satisfied — the
+session shell carries no meter — and the payload visibility was examined and
+knowingly accepted, the same way Phase 12's phone-duration under-count was
+accepted on the record rather than silently passed.
+
+**Two things that remain true and may matter later, neither requiring action
+now:**
+1. The value is computed for every type including the eight that can never walk
+   out. That is wasted per-turn work, not a correctness problem — and while the
+   user is debugging, computing it everywhere is actively useful.
+2. If the product ever ships to students in a graded setting, revisit (1) and
+   the visibility together. The debugging value that justifies it today is a
+   development-time benefit, not a production one.
+
+Does not block Phase 19 sign-off.
