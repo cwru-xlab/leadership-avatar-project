@@ -218,3 +218,17 @@ export function listDeckModes(): DeckMode[] {
 export function deckModeNegotiates(slug: string | undefined | null): boolean {
   return getDeckMode(slug)?.negotiates ?? false;
 }
+
+/**
+ * Tag a mode-input step's bare value (e.g. `FundingAskValue`) with its
+ * mode's `mode` discriminator, so the ONE generic wizard page never writes
+ * a `mode: "pitch-..."` literal itself — that literal lives here, the one
+ * data home for the deck-led pitch family, keyed off the mode the caller
+ * already resolved via `getDeckMode()`.
+ */
+export function tagModeInput<T extends object>(
+  modeSlug: DeckModeSlug,
+  value: T,
+): DeckModeInputs {
+  return { mode: modeSlug, ...value } as unknown as DeckModeInputs;
+}
