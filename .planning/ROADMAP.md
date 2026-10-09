@@ -922,7 +922,68 @@ discussion):**
   5. The report explains what tipped the conversation on the session clock with
      quoted, timecoded causes, explicit content sanitized rather than recited, and
      no rubric dimension capped.
-**Plans:** TBD
+**Plans:** 7 plans in 6 waves — planned 2026-10-08 (`7f0726d`), plan-checker
+**VERIFICATION PASSED** with every substantive claim confirmed against source.
+**Gate:** 20-07 (human adversarial UAT) is gated on Phase 18's 18-05 human UAT.
+`18-VALIDATION.md` is `awaiting-human-uat` and its one run FAILED on two
+since-repaired defects, so Phase 20's live run must either follow 18-05 or record
+its own observations of Phase 18 SC1/REQ-78 and REQ-82 back into
+`18-VALIDATION.md`. **The user chose 18-05-FIRST on 2026-10-08** — see
+`20-CONTEXT.md`'s "Gating decision". Plans 20-01..20-06 are fixture-verified and
+NOT gated; execution must STOP before 20-07 until 18-05 has real verdicts. Each
+plan names the criteria it serves as `P20-SC1`..`P20-SC5` alongside its REQ IDs,
+matching Phases 14/15/16.
+
+**Phase 19 file overlap (resolved):** 20-04 appends a new section 5 to
+`scripts/verify-disengagement-termination.ts` and touches no existing section;
+19-03 owned section 3's `belowFloor` fixture and section 4's pitch-deck
+assertions and has already landed, taking that file's `check(` count 14 -> 16.
+
+**Declared Phase 18 amendment:** SC5's floor clause gains the named
+severe-content carve-out (REQ-100), collected as the Phase 18 revision handoff in
+`20-VALIDATION.md`. The floor stays at `minAssistantTurns: 4` for every other
+trigger.
+
+**Declared Phase 13/15 extensions:** `TerminationPolicyConfig` gains optional
+`disengagementWeights` and `avatarEndReasonByCause`; `resolveTermination` gains
+an optional `severeContent`; `EngineTurnState.walkOut` gains `reason` — all
+optional, all defaulting to today's behaviour.
+
+**Planning finding — a live defect blocking REQ-101.** `buildWalkOutFragment`
+(`lib/engine/prompts.ts:297`) hardcodes `<engine-end reason="lost_interest" />`,
+which is **not** in `difficult-conversation`'s `avatarEndReasons`. Confirmed
+independently by the plan-checker against `termination.ts:128`: a forced farewell
+would be rejected by the closed-reason gate and **the session would never end** —
+precisely the failure Phase 18 exists to prevent, sitting in shipped code. 20-05
+interpolates a policy-supplied reason, falling back to `lost_interest` only when
+absent so the pitch types stay byte-identical, and proves it behaviourally via
+`buildTailBlock` rather than by regex.
+
+**Planning finding — no Phase 18 number is retuned.** Adding hostility weight to
+`DEFAULT_DISENGAGEMENT_WEIGHTS` would have retuned `pitch-elevator`, which
+`18-VALIDATION.md`'s calibration policy forbids. So the three new causes carry
+weight **0** in the shared defaults and an optional type-level
+`disengagementWeights` profile carries the DC arithmetic (hostility 0.5,
+`budgetPressure` 0 because `timeBudget.totalSeconds` is null, active weights
+summing to exactly 1 — verified). Every existing type computes byte-identically.
+Threshold 0.6, the `/3` accumulation curve and the severe lexicon are all
+**PROVISIONAL UNTIL CALIBRATED** with their evidence named.
+
+**Planning finding — the REQ-102 sanitizer must run server-side.**
+`ReportDTO.outcome` ships as a generic `Record<string, unknown> | null` and is
+narrowed in the browser by `asConversationOutcome`, so sanitizing at render would
+already have put the verbatim slur in the page payload. 20-06 applies it inside
+`toReportDto` (the single server exit) and proves the guarantee with an evaluator
+payload that **deliberately disobeys** the prompt, plus a negative test.
+
+Plans:
+- [ ] 20-01-PLAN.md — Deterministic hostility/severe detector + the seeded-register false-positive corpus (REQ-96, REQ-97)
+- [ ] 20-02-PLAN.md — Three new observable causes, per-type weight profile, hostility accumulation + one-way ratchet, acknowledgement-absent signal (REQ-96, REQ-98, REQ-99)
+- [ ] 20-03-PLAN.md — One type-level threshold + weight profile + severe reason code, with the no-per-scenario-surface guard (REQ-95, REQ-101)
+- [ ] 20-04-PLAN.md — Named severe-content carve-out in resolveTermination + cause-to-reason resolver + deliberate verifier amendment (REQ-100, REQ-101)
+- [ ] 20-05-PLAN.md — Live wiring at both server callers, policy-supplied forced-farewell reason, single in-character ending path guarded (REQ-96, REQ-99, REQ-100, REQ-101)
+- [ ] 20-06-PLAN.md — Server-side quote sanitizer on the way out of toReportDto, with its own adversarial battery; no score cap (REQ-102)
+- [ ] 20-07-PLAN.md — Human adversarial UAT + 20-VALIDATION.md, Phase 18 revision handoff, calibration record (all eight REQs, human-verified; GATED on 18-05)
 
 
 ## Progress
@@ -952,7 +1013,7 @@ discussion):**
 | 17. v1.0 Close-Out | 7/7 | Complete | 2026-10-05 |
 | 18. Avatar Disengagement & Walk-Out | 4/5 | Implementation done, human UAT pending re-run | - |
 | 19. Deck-Led Pitch Family | 10/11 | In Progress|  |
-| 20. Difficult Conversation Walk-Outs | 0/TBD | Not started | - |
+| 20. Difficult Conversation Walk-Outs | 0/7 | Planned, verified | - |
 
 Phase 13's REQ-66/REQ-67 caveat remains recorded in `13-CLOSE-RECORD.md`: the
 backfill acceptance test is unsatisfiable on the empty shared DB and passed locally
