@@ -707,7 +707,7 @@ REQ-73.
   engine shipped. A mechanical guard proves it, in the spirit of Phase 16's
   surface-count script.
 
-- **REQ-94** — [ ] The Practice Pitches picker presents the deck modes alongside the
+- **REQ-94** — [x] The Practice Pitches picker presents the deck modes alongside the
   elevator pitch and the investor deck, with each mode's purpose distinguishable
   before a student commits to one.
 
