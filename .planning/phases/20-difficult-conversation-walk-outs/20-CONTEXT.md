@@ -227,3 +227,48 @@ PENDING and REQ-78 through REQ-86 still open.
 **Consequence for execution:** plans 20-01 through 20-06 are fixture-verified and
 ungated, so they may execute freely. **Execution must STOP before 20-07** until
 18-05 has been run by a human and `18-VALIDATION.md` carries real verdicts.
+
+---
+
+## AMENDMENT (user, 2026-10-08): stonewalling must be able to end a session alone
+
+**This overrides plan 20-01's settled finding.** 20-01 measured six pure-refusal
+lines through Phase 18's real `computeDisengagementOverTranscript` and got
+**0.425** against the planned **0.6** threshold, concluded no new signal was
+needed, and made `detectHostility` return `tier: "none"` for stonewalling text
+on the reasoning that stonewalling is a stall signal rather than an attack.
+
+The measurement stands and is useful evidence. The conclusion is **reversed by
+user decision**: a student who does nothing but refuse to engage **must
+eventually be walked out on**, not merely nudged toward it.
+
+### What this requires of 20-02 (and 20-03's weight profile)
+
+1. **A genuine stonewalling cause** with enough weight that *sustained* pure
+   stonewalling crosses the type's threshold on its own. Phase 18's
+   `repeated_response` + `short_response_streak` + `turn_count_pressure` top out
+   around 0.35-0.45 combined, which is why 0.425 was observed — relying on them
+   is precisely what this amendment rejects.
+2. **Hostility must still reach the threshold at least as fast as stonewalling
+   does.** Stonewalling becoming the faster path to a walk-out would be a
+   regression against REQ-96's intent.
+3. **The weight profile's arithmetic must stay explicit and verified.** The
+   planned DC profile summed to exactly 1.0; adding stonewalling weight requires
+   deliberate rebalancing, not silently exceeding 1 and relying on the clamp.
+   Whatever is chosen, the sum must be asserted in a test as the plan already
+   intended.
+4. **`detectHostility`'s `tier: "none"` for stonewalling is still CORRECT** —
+   stonewalling is not an attack and must not be classified as one. The new
+   signal belongs in the disengagement cause vocabulary (20-02), NOT in the
+   hostility tiers (20-01). Do not reclassify stonewalling as hostility to
+   satisfy this amendment.
+5. **A test must prove it:** a sustained pure-stonewalling transcript crosses the
+   threshold, and 20-01's `FIRM_NOT_HOSTILE` 24-row corpus still passes
+   untouched. Both, in the same run.
+6. Every number introduced stays **PROVISIONAL UNTIL CALIBRATED** with its
+   evidence named, per Phase 18's calibration policy.
+
+### What is NOT changed
+
+Lowering the threshold below 0.425 was considered and **rejected** — it would
+make every other trigger hair-sensitive to fix one case.
