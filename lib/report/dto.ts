@@ -1,6 +1,7 @@
 import { asStructuredReport, type StructuredReport } from "@/lib/report/structured";
 import { asInputSnapshot, asScoreMap, type InputSnapshot, type ScoreMap } from "@/lib/report/snapshot";
 import { DISENGAGEMENT_CAUSES, type DisengagementEpisode } from "@/lib/engine/disengagement";
+import { sanitizeOutcomeQuotes } from "@/lib/report/quote-sanitizer";
 import type { InteractionReport } from "@prisma/client";
 import type {
   CameraMode,
@@ -418,7 +419,13 @@ export function toReportDto(row: InteractionReport): ReportDTO {
     terminationReason: row.terminationReason,
     terminationAtSeconds:
       typeof row.terminationAtSeconds === "number" ? row.terminationAtSeconds : null,
-    outcome: asOutcomeRecord(row.outcome),
+    // This is the ONLY exit from the server for an outcome record — the
+    // sanitizer MUST NOT move into a component. `ReportDTO.outcome` ships
+    // as a generic record and is narrowed in the browser by
+    // `asConversationOutcome`; sanitizing at render time would still ship
+    // the verbatim (unsanitized) text in the page payload. See
+    // `lib/report/quote-sanitizer.ts` for the guarantee this enforces.
+    outcome: sanitizeOutcomeQuotes(asOutcomeRecord(row.outcome)),
     slideHighWaterMark:
       typeof row.slideHighWaterMark === "number" ? row.slideHighWaterMark : null,
     slideReveals: asSlideReveals(row.slideReveals),
