@@ -21,10 +21,7 @@
 import type { AttemptLanguage } from "@/lib/languages";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
-import type {
-  DisengagementCause,
-  DisengagementWeights,
-} from "./disengagement";
+import type { DisengagementCause, DisengagementWeights } from "./disengagement";
 
 /** A single scored dimension on the report. */
 export interface RubricDimension {
