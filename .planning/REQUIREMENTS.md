@@ -753,7 +753,7 @@ REQ-73.
   category. Phase 15's support note and always-visible End-session control
   survive an avatar-initiated ending.
 
-- **REQ-102** — [ ] The report explains what tipped the conversation on the
+- **REQ-102** — [x] The report explains what tipped the conversation on the
   session clock through Phase 15's existing `reactionCauses`
   `{ timecodeSeconds, quote, effect }[]` shape, with **explicit content
   sanitized rather than recited verbatim** — a slur is never reproduced back to
@@ -810,7 +810,7 @@ REQ-73.
 | REQ-99 | Phase 20 | Complete |
 | REQ-100 | Phase 20 | Complete |
 | REQ-101 | Phase 20 | Complete |
-| REQ-102 | Phase 20 | Pending |
+| REQ-102 | Phase 20 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 29 total
