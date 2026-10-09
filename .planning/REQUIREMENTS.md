@@ -713,7 +713,7 @@ REQ-73.
 
 ### Phase 20 — Difficult Conversation Walk-Outs
 
-- **REQ-95** — [ ] The `difficult-conversation` TYPE record declares a
+- **REQ-95** — [x] The `difficult-conversation` TYPE record declares a
   `disengagementThreshold`, so all seven seeded conversations and every
   student-authored scenario inherit the walk-out from one type-level number. No
   per-scenario field, no authoring surface, nothing for an author to
@@ -746,7 +746,7 @@ REQ-73.
   record the exception, never weakened or deleted. The floor stays at
   `minAssistantTurns: 4` for every other trigger.
 
-- **REQ-101** — [ ] The avatar always leaves IN CHARACTER, for every trigger
+- **REQ-101** — [x] The avatar always leaves IN CHARACTER, for every trigger
   including severe content — one ending path, no break-frame branch in the
   session shell. Reason codes distinguish the cause: hostility → `escalated`,
   stonewalling → `nothing_left_to_discuss`, plus one new reason for the severe
@@ -803,13 +803,13 @@ REQ-73.
 | REQ-92 | Phase 19 | Complete |
 | REQ-93 | Phase 19 | Complete |
 | REQ-94 | Phase 19 | Complete |
-| REQ-95 | Phase 20 | Pending |
+| REQ-95 | Phase 20 | Complete |
 | REQ-96 | Phase 20 | Complete |
 | REQ-97 | Phase 20 | Complete |
 | REQ-98 | Phase 20 | Complete |
 | REQ-99 | Phase 20 | Complete |
 | REQ-100 | Phase 20 | Pending |
-| REQ-101 | Phase 20 | Pending |
+| REQ-101 | Phase 20 | Complete |
 | REQ-102 | Phase 20 | Pending |
 
 **Coverage:**

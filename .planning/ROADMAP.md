@@ -924,7 +924,7 @@ discussion):**
      no rubric dimension capped.
 **Plans:** 7 plans in 6 waves — planned 2026-10-08 (`7f0726d`), plan-checker
 **VERIFICATION PASSED** with every substantive claim confirmed against source.
-**Progress:** 2/7 plans executed. 20-01 complete 2026-10-08 — `lib/engine/hostility.ts`
+**Progress:** 3/7 plans executed. 20-01 complete 2026-10-08 — `lib/engine/hostility.ts`
 + `scripts/verify-hostility-detector.ts` shipped: deterministic hostility/severe
 detector, the 24-row false-positive corpus derived from all seven seeded scenarios
 (REQ-97), and the stonewalling discretion finding (0.425 under Phase 18's existing
@@ -942,7 +942,22 @@ negative control), no apology-driven recovery, severe-content carry-forward,
 unchanged defaults, a weight-profile arithmetic assertion, and — the amendment's
 two required facts in one run — a sustained pure-stonewalling transcript now
 crosses 0.6 on its own while hostility still crosses at or before the same turn
-count. See `20-02-SUMMARY.md`.
+count. See `20-02-SUMMARY.md`. **20-03 complete 2026-10-08** —
+`lib/difficult-conversation/conversation-type.ts` now declares
+`CONVERSATION_DISENGAGEMENT_THRESHOLD` (0.6), its own `disengagementWeights`
+profile, the `offensive_content` severe-category reason (REQ-101), and
+`avatarEndReasonByCause`. `scripts/verify-dc-surface-count.ts` gained Section 11,
+mechanically proving one type-level threshold, inheritance by all seven seeded
+conversations, no per-scenario threshold surface anywhere a student or author
+can reach, the weight-sum invariant, and no difficulty modulation — negative-
+tested by planting a real field on `DifficultConversationRecord` and confirming
+the guard fails by name. **Also absorbed the orchestrator-assigned
+20-EPSILON-MARGIN.md defect**: 20-02's `scripts/verify-disengagement.ts` test
+weight profile had summed its stonewalling-fixture contributors to exactly 0.6,
+so the crossing in Section 14 depended on which way IEEE-754 addition's last bit
+fell (a 1e-16 margin). Rebalanced to a 0.05 margin for both the stonewalling and
+sustained-hostility fixtures, with explicit margin assertions added to Sections
+14-15. See `20-03-SUMMARY.md`.
 **Gate:** 20-07 (human adversarial UAT) is gated on Phase 18's 18-05 human UAT.
 `18-VALIDATION.md` is `awaiting-human-uat` and its one run FAILED on two
 since-repaired defects, so Phase 20's live run must either follow 18-05 or record
@@ -980,13 +995,21 @@ absent so the pitch types stay byte-identical, and proves it behaviourally via
 
 **Planning finding — no Phase 18 number is retuned.** Adding hostility weight to
 `DEFAULT_DISENGAGEMENT_WEIGHTS` would have retuned `pitch-elevator`, which
-`18-VALIDATION.md`'s calibration policy forbids. So the three new causes carry
-weight **0** in the shared defaults and an optional type-level
-`disengagementWeights` profile carries the DC arithmetic (hostility 0.5,
-`budgetPressure` 0 because `timeBudget.totalSeconds` is null, active weights
-summing to exactly 1 — verified). Every existing type computes byte-identically.
-Threshold 0.6, the `/3` accumulation curve and the severe lexicon are all
-**PROVISIONAL UNTIL CALIBRATED** with their evidence named.
+`18-VALIDATION.md`'s calibration policy forbids. So the three (now four, with
+the amendment's `stonewalling`) new causes carry weight **0** in the shared
+defaults, and an optional type-level `disengagementWeights` profile carries the
+DC arithmetic. **As actually declared by 20-03** (deviating from this planning
+note's original `hostility 0.5` sketch): `hostility` 0.35 (the single largest
+weight), `stonewalling` 0.3, `positionUnacknowledged` 0.25, `noCommonGround`
+0.05, `shortResponseStreak` 0.05, `budgetPressure`/`turnCountPressure`/
+`repeatedResponse`/`severeContent` 0 — active weights summing to exactly 1,
+verified mechanically. The deviation was required because the 2026-10-08
+amendment to `20-CONTEXT.md` requires sustained pure stonewalling to cross the
+threshold alone in the PRODUCTION type, not merely in 20-02's test fixture; the
+original `hostility 0.5` sketch carried no stonewalling override at all. Every
+existing type still computes byte-identically. Threshold 0.6, the `/3`/`/4`
+accumulation curves and the severe lexicon are all **PROVISIONAL UNTIL
+CALIBRATED** with their evidence named.
 
 **Planning finding — the REQ-102 sanitizer must run server-side.**
 `ReportDTO.outcome` ships as a generic `Record<string, unknown> | null` and is
@@ -997,8 +1020,8 @@ payload that **deliberately disobeys** the prompt, plus a negative test.
 
 Plans:
 - [x] 20-01-PLAN.md — Deterministic hostility/severe detector + the seeded-register false-positive corpus (REQ-96, REQ-97) — complete 2026-10-08, see `20-01-SUMMARY.md`
-- [ ] 20-02-PLAN.md — Three new observable causes, per-type weight profile, hostility accumulation + one-way ratchet, acknowledgement-absent signal (REQ-96, REQ-98, REQ-99)
-- [ ] 20-03-PLAN.md — One type-level threshold + weight profile + severe reason code, with the no-per-scenario-surface guard (REQ-95, REQ-101)
+- [x] 20-02-PLAN.md — Three new observable causes, per-type weight profile, hostility accumulation + one-way ratchet, acknowledgement-absent signal (REQ-96, REQ-98, REQ-99) — complete 2026-10-08, see `20-02-SUMMARY.md`
+- [x] 20-03-PLAN.md — One type-level threshold + weight profile + severe reason code, with the no-per-scenario-surface guard (REQ-95, REQ-101) — complete 2026-10-08, see `20-03-SUMMARY.md`
 - [ ] 20-04-PLAN.md — Named severe-content carve-out in resolveTermination + cause-to-reason resolver + deliberate verifier amendment (REQ-100, REQ-101)
 - [ ] 20-05-PLAN.md — Live wiring at both server callers, policy-supplied forced-farewell reason, single in-character ending path guarded (REQ-96, REQ-99, REQ-100, REQ-101)
 - [ ] 20-06-PLAN.md — Server-side quote sanitizer on the way out of toReportDto, with its own adversarial battery; no score cap (REQ-102)
