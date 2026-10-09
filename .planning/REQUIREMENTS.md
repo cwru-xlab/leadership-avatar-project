@@ -739,7 +739,7 @@ REQ-73.
   ratchets one-way. There is no decay and no apology-driven recovery, preserving
   Phase 18's `computeDisengagementOverTranscript` fix.
 
-- **REQ-100** — [ ] Severe content — slurs, harassment, threats — ends the
+- **REQ-100** — [x] Severe content — slurs, harassment, threats — ends the
   session regardless of `avatarEndFloor`, as a NAMED, enumerated, tested
   carve-out in `resolveTermination`. Phase 18 Success Criterion 5 and
   `scripts/verify-disengagement-termination.ts` are amended deliberately to
@@ -808,7 +808,7 @@ REQ-73.
 | REQ-97 | Phase 20 | Complete |
 | REQ-98 | Phase 20 | Complete |
 | REQ-99 | Phase 20 | Complete |
-| REQ-100 | Phase 20 | Pending |
+| REQ-100 | Phase 20 | Complete |
 | REQ-101 | Phase 20 | Complete |
 | REQ-102 | Phase 20 | Pending |
 
