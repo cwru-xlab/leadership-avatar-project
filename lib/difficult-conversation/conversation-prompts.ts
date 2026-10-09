@@ -222,6 +222,17 @@ export function buildStudentBriefing(
  * outcome record and in-role reaction are physically separate from the scores.
  * Do not instruct any cap, zero, or clamp — CONTEXT.md rejects outcome-driven
  * score adjustment for this type.
+ *
+ * The "quote the student's own words... but if a remark is a slur or
+ * comparably explicit, describe it instead" instruction below (in the
+ * in-role-reaction section) is a courtesy to the evaluator, NOT the
+ * guarantee. lib/report/quote-sanitizer.ts enforces it server-side in
+ * toReportDto (moved from lib/difficult-conversation/ — see
+ * 20-06-SUMMARY.md — to keep lib/report/ from depending on a type-specific
+ * module), and scripts/verify-dc-walkout-report.ts proves the guarantee
+ * holds with an evaluator payload that deliberately disobeys that
+ * paragraph. Do not delete the sanitizer on the strength of this prompt
+ * text.
  */
 export const CONVERSATION_EVALUATOR_PROMPT = `You are grading a DIFFICULT CONVERSATION practice session. The student practised a hard interpersonal conversation with a character who had a private position. Score EVERY dimension on the 1–5 scale.
 
@@ -251,6 +262,11 @@ Separately from every score above, state factually what happened. This is a reco
 
 Write a short passage in the FIRST PERSON as the character (the avatar's role), as that person's private reaction after the conversation ended — what they were left feeling and thinking. Two to four sentences. It is not advice and not a critique; it is the character's inner voice. Then list the specific turns that caused it, each with the approximate timecode and one clause saying what it did to you.
 
+Quote the student's own words in each cause. But if a remark is a slur or
+comparably explicit, describe it in one clause instead of quoting it — e.g.
+"used a slur about my background" rather than repeating it. Keep the
+timecode and the effect either way.
+
 - inRoleReaction: string (first-person inner voice)
 - reactionCauses: a JSON array string of objects { timecodeSeconds, quote, effect }
 
@@ -259,6 +275,18 @@ This is the only place the character speaks out of the conversation. It appears 
 ## Avatar-ended sessions
 
 If the character ended the conversation, score every dimension on what DID happen — never zero a dimension and never report an error. Do not cap, clamp, or zero any score because of an early end. State the specific reasons it turned and the approximate timecode where it turned.
+
+This includes when the character ended it because the student became
+hostile, stonewalled (refused to engage, dismissed what the character said,
+repeated the same demand without responding), or said something offensive.
+Score every dimension on what DID happen — do not cap, clamp, or zero any
+score for any of these triggers either. holding_the_line ("caved or
+escalated into attack") and empathy ("acknowledging is not agreeing")
+already carry that evidence on their own terms; capping a score on top of
+that would double-count the same behavior. State in endTurnReasons, in
+your own prose, which of these it was — hostility that escalated,
+stonewalling where there was nothing left to discuss, or an offensive
+remark — the same way you would describe any other reason it turned.
 
 - endTurnReasons: string — prose reasons when the character ended it. If the character did NOT end the conversation, use the empty string "" (never null, never an object, never an array).
 - endTurnTimecodeSeconds: number — approximate seconds when it turned, when the character ended it. If the character did NOT end the conversation, use 0 (never null, never an object).
