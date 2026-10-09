@@ -13,6 +13,11 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
 import { SEEDED_CONVERSATIONS } from "../lib/difficult-conversation/seeded";
+import { DIFFICULTY_BANDS } from "../lib/difficult-conversation/types";
+import {
+  CONVERSATION_DISENGAGEMENT_THRESHOLD,
+  DIFFICULT_CONVERSATION_TYPE,
+} from "../lib/difficult-conversation/conversation-type";
 import {
   ENGINE_TYPES,
   getEngineType,
@@ -775,5 +780,144 @@ console.log("\n10. The seven seeded ids are stable (15-04-SUMMARY.md)");
   for (const id of EXPECTED_SEEDED_IDS) ok(`seeded id stable: ${id}`);
 }
 
-console.log("\nverify-dc-surface-count: ALL TEN SECTIONS PASSED\n");
+// ---------------------------------------------------------------------------
+console.log(
+  "\n11. One type-level threshold, no per-scenario surface",
+);
+{
+  // (a) The type declares exactly one threshold, a finite number in (0, 1].
+  const declaredThreshold =
+    DIFFICULT_CONVERSATION_TYPE.terminationPolicy.disengagementThreshold;
+  check(
+    "DIFFICULT_CONVERSATION_TYPE.terminationPolicy.disengagementThreshold === CONVERSATION_DISENGAGEMENT_THRESHOLD",
+    declaredThreshold === CONVERSATION_DISENGAGEMENT_THRESHOLD,
+    `declared=${declaredThreshold}`,
+  );
+  check(
+    "disengagementThreshold is a finite number in (0, 1]",
+    typeof declaredThreshold === "number" &&
+      Number.isFinite(declaredThreshold) &&
+      declaredThreshold > 0 &&
+      declaredThreshold <= 1,
+    `declared=${declaredThreshold}`,
+  );
+
+  // (b) Every seeded conversation inherits it through resolveSessionConfig —
+  // REQ-95's actual claim is inheritance, not merely declaration.
+  for (const seeded of SEEDED_CONVERSATIONS) {
+    const resolved = resolveSessionConfig("difficult-conversation", {
+      instance: { ...SYNTHETIC_DC, conversationId: seeded.id },
+    });
+    if (!resolved.ok) {
+      fail(
+        `resolveSessionConfig("difficult-conversation", { conversationId: "${seeded.id}" }) failed: ${resolved.reason}`,
+      );
+    }
+    check(
+      `seeded "${seeded.id}" inherits the one declared threshold`,
+      resolved.config.terminationPolicy.disengagementThreshold ===
+        CONVERSATION_DISENGAGEMENT_THRESHOLD,
+      `resolved=${resolved.config.terminationPolicy.disengagementThreshold}`,
+    );
+  }
+
+  // (c) DifficultConversationRecord declares no threshold-shaped field.
+  const typesSrc = read("lib/difficult-conversation/types.ts");
+  const interfaceMatch = typesSrc.match(
+    /interface DifficultConversationRecord\s*\{([\s\S]*?)\n\}/,
+  );
+  const interfaceBody = interfaceMatch ? interfaceMatch[1] : "";
+  check(
+    "DifficultConversationRecord interface body found",
+    interfaceMatch !== null,
+  );
+  const threshQualifiedRe =
+    /threshold|disengagement|walkOut|walk_out|patience|temperature/i;
+  const threshHitLine = interfaceBody
+    .split("\n")
+    .find((line) => threshQualifiedRe.test(line));
+  check(
+    "DifficultConversationRecord declares no threshold-shaped field",
+    interfaceMatch !== null && threshHitLine === undefined,
+    threshHitLine ? `matched line: ${threshHitLine.trim()}` : undefined,
+  );
+
+  // (d) No per-scenario threshold surface exists anywhere a student or
+  // author can reach. Field-shaped only (`identifier:` / `identifier =`),
+  // not a bare substring match — seeded.ts's flavor text legitimately
+  // contains the English word "threshold" ("a scholarship threshold") with
+  // no field anywhere nearby; a loose match would false-fail on prose.
+  const surfaceRe =
+    /\b(disengagement\w*|threshold|walkOut|walk_out|patience)\s*[:=]/i;
+
+  const dcLibFiles = walkFiles(abs("lib/difficult-conversation")).filter(
+    (f) => f.endsWith(".ts") || f.endsWith(".tsx"),
+  );
+  for (const f of dcLibFiles) {
+    const r = rel(f).replace(/\\/g, "/");
+    if (r === "lib/difficult-conversation/conversation-type.ts") continue; // the one legitimate home
+    if (r === "lib/difficult-conversation/conversation-prompts.ts") continue; // prompt copy may mention ending
+    const src = stripComments(readFileSync(f, "utf8"));
+    check(`no per-scenario threshold surface: ${r}`, !surfaceRe.test(src));
+  }
+
+  // Authoring routes that write DifficultConversationRecord — located by
+  // directory walk for files importing it, same pattern this file already
+  // uses elsewhere.
+  const authoringCandidates = [
+    ...walkFiles(abs("app/api")),
+    ...walkFiles(abs("components")),
+  ].filter((f) => f.endsWith(".ts") || f.endsWith(".tsx"));
+  const authoringFiles = authoringCandidates.filter((f) =>
+    /\bDifficultConversationRecord\b/.test(readFileSync(f, "utf8")),
+  );
+  check(
+    "at least one authoring route/component imports DifficultConversationRecord",
+    authoringFiles.length > 0,
+    authoringFiles.map(rel).join(", "),
+  );
+  for (const f of authoringFiles) {
+    const r = rel(f).replace(/\\/g, "/");
+    const src = stripComments(readFileSync(f, "utf8"));
+    check(`no per-scenario threshold surface: ${r}`, !surfaceRe.test(src));
+  }
+
+  // (e) The weight profile sums as declared.
+  const weights = DIFFICULT_CONVERSATION_TYPE.terminationPolicy
+    .disengagementWeights as Record<string, number> | null | undefined;
+  check("disengagementWeights is declared", !!weights);
+  if (weights) {
+    const { maxCueAcceleration, ...contributing } = weights as Record<
+      string,
+      number
+    >;
+    void maxCueAcceleration;
+    const sum = Object.values(contributing).reduce((t, w) => t + w, 0);
+    check(
+      "the type's active weights sum to 1 within floating-point tolerance",
+      Math.abs(sum - 1) < 1e-9,
+      `sum was ${sum}`,
+    );
+  }
+
+  // (f) Difficulty does not modulate the threshold.
+  const thresholdsByBand = DIFFICULTY_BANDS.map((band) => {
+    const resolved = resolveSessionConfig("difficult-conversation", {
+      instance: { ...SYNTHETIC_DC, difficulty: band },
+    });
+    if (!resolved.ok) {
+      fail(
+        `resolveSessionConfig("difficult-conversation", { difficulty: "${band}" }) failed: ${resolved.reason}`,
+      );
+    }
+    return resolved.config.terminationPolicy.disengagementThreshold;
+  });
+  check(
+    "difficulty band does not modulate the resolved threshold",
+    thresholdsByBand.every((t) => t === thresholdsByBand[0]),
+    `by band=[${DIFFICULTY_BANDS.map((b, i) => `${b}:${thresholdsByBand[i]}`).join(", ")}]`,
+  );
+}
+
+console.log("\nverify-dc-surface-count: ALL ELEVEN SECTIONS PASSED\n");
 process.exit(0);
