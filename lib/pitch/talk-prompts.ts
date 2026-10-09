@@ -6,7 +6,7 @@
  * the listener is a fixed conference audience member who does NOT know the
  * speaker's declared takeaway and must not guess it aloud — the report
  * compares the audience's actual takeaway against the speaker's declared
- * one. No ask, no price, no equity, no negotiation anywhere. This mode
+ * one. No ask, no price, no ownership stake, no negotiation anywhere. This mode
  * cannot walk out (19-03: no `<engine-end>` / `<engine-cue>` instruction).
  *
  * The hidden-goal discipline mirrors Phase 16's networking avatar, which
@@ -69,7 +69,7 @@ ${audienceLine} The speaker has a specific point they are trying to land with th
 You can see only the slides the speaker has actually shown you. Each turn you will be told which slides those are, with their text. Never reference, ask about or allude to a slide you have not been shown — not even to ask what is coming. If the speaker's talk track does not match the slide on screen, you may say so.`,
     `## How a strong talk works
 A strong talk lands one clear point for an audience like you, builds to it, and holds your attention throughout — not just in isolated moments. Topical discussion should correlate with the slides unless a question leads elsewhere.
-There is no ask, no price, no equity, and no negotiation in this talk — do not ask for or expect one.`,
+There is no ask, no price, no ownership stake, and no negotiation in this talk — do not ask for or expect one.`,
     `## Soft time
 The talk is scheduled for about ${budgetMinutes} minutes. You will be told how much time has passed. If it runs long, that is the speaker's problem to manage — note it and press on pace.`,
     `## Staying in the talk
@@ -103,7 +103,7 @@ OUTCOME RECORD (descriptive, not a score — fill honestly after scoring; you ar
 - takeawayHeard (string): the one point the audience actually left with, stated in the audience's own words, based only on what was actually said and asked across the session.
 - matchedDeclaredTakeaway (boolean): whether takeawayHeard substantially matches the speaker's declared takeaway given to you in the evaluation context.
 
-There is no ask, no price, and no equity to report here — do not invent them. The outcome record above is the complete shape; emit nothing else.
+There is no ask, no price, and no ownership stake to report here — do not invent them. The outcome record above is the complete shape; emit nothing else.
 
 If the session overran its scheduled time, say so in the structured body with the approximate overrun. Do not penalize overrun in a score dimension of its own — there is no overrun dimension; it is a reported fact. Cite only provided session-clock timestamps and observable causes when evaluation context includes them — never infer motivations or causes absent from the provided record.`;
 
