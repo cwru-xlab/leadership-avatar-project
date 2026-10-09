@@ -17,6 +17,7 @@ import {
 } from "@/lib/report/title";
 import type { StudyPlanDTO, StudyPlanSummaryDTO } from "@/lib/study-plan/plan-dto";
 import type { StudyPlanContent } from "@/lib/study-plan/types";
+import { isDeckModeSlug } from "@/lib/pitch/deck-modes";
 
 /** Study-plan generation still uses interview feedback only. */
 const INTERVIEW_TYPE_SLUGS = new Set([
@@ -46,8 +47,10 @@ const TYPE_FILTERS: { id: TypeFilter; label: string }[] = [
 function matchesTypeFilter(typeSlug: string, filter: TypeFilter): boolean {
   if (filter === "all") return true;
   if (filter === "interview") return INTERVIEW_TYPE_SLUGS.has(typeSlug);
+  // All five deck modes (19-01's DECK_MODES table) land under the existing
+  // Pitches tab alongside the elevator pitch — no new filter tab is added.
   if (filter === "pitch")
-    return typeSlug === "pitch-elevator" || typeSlug === "pitch-deck";
+    return typeSlug === "pitch-elevator" || isDeckModeSlug(typeSlug);
   return typeSlug === filter;
 }
 

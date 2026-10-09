@@ -7,6 +7,7 @@
  */
 
 import type { InputSnapshot } from "@/lib/report/snapshot";
+import { getDeckMode } from "@/lib/pitch/deck-modes";
 
 const TYPE_LABELS: Record<string, string> = {
   general: "General interview",
@@ -15,12 +16,26 @@ const TYPE_LABELS: Record<string, string> = {
   "early-career": "Early-career interview",
   "case-study": "Case study",
   "pitch-elevator": "Elevator pitch",
-  "pitch-deck": "Investor pitch",
+  // "pitch-deck" is deliberately NOT a literal here anymore — its title now
+  // resolves through the deck-mode table below like the four new modes, so
+  // all five deck modes share one source of truth for their title (the
+  // investor deck's title text is unchanged: DECK_MODES["pitch-deck"].cardTitle
+  // reproduces "Investor pitch deck").
   "difficult-conversation": "Difficult conversation",
   networking: "Networking",
 };
 
+/**
+ * A report with an unknown title must not regress to a blank heading —
+ * any deck-mode slug (19-01's `DECK_MODES` table) resolves its title from
+ * the table rather than needing a fourth/fifth literal added here; every
+ * other slug falls back to the existing literal map, then to a
+ * title-cased default.
+ */
 export function typeLabelForReport(typeSlug: string): string {
+  const deckMode = getDeckMode(typeSlug);
+  if (deckMode) return deckMode.cardTitle;
+
   return (
     TYPE_LABELS[typeSlug] ??
     typeSlug
