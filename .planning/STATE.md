@@ -7,9 +7,9 @@
 ## Current Position
 
 **Phase:** 19 — Deck-Led Pitch Family (Phase 18 implementation shipped, 18-05 human UAT pending; Phase 20 added 2026-10-08, depends on Phase 18+15)
-**Plan:** 19-01 complete; 19-02 next to execute
-**Status:** 19-01 shipped the deck-mode data table (`lib/pitch/deck-modes.ts`, `lib/pitch/deck-rubric.ts`), the generalized `proposeDeckSeconds`, and `scripts/verify-deck-mode-table.ts` (ALL PASS). `deck-type.ts` untouched by design — plan 19-03 owns switching it to the shared constant and off its walk-out.
-**Last activity:** 2026-10-08 — 19-01 complete; see `19-01-SUMMARY.md`.
+**Plan:** 19-01, 19-02, 19-03, 19-04 complete (19-06, 19-08 also complete out of dependency order via concurrent execution); 19-05 next to execute
+**Status:** 19-04 shipped `PITCH_FUNDING_TYPE`/`PITCH_PRODUCT_TYPE` (`lib/pitch/funding-type.ts`, `lib/pitch/funding-prompts.ts`, `lib/pitch/product-type.ts`, `lib/pitch/product-prompts.ts`), registered in `lib/engine/registry.ts` (the only engine-dir change), proven by `scripts/verify-deck-family-types.ts` (ALL PASS, ten assertions per registered mode). `pitch-talk`/`pitch-general` remain plan 19-05's scope; the new verify script already iterates `listDeckModes()` and will auto-cover them once registered.
+**Last activity:** 2026-10-09 — 19-04 complete; see `19-04-SUMMARY.md`.
 
 ### Carried into v1.1 from v1.0
 
@@ -511,6 +511,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 19]: 19-08: Practice Pitches picker stays two top-level cards (Elevator pitch, With a deck); "With a deck" expands in place via an accessible `aria-expanded`/`aria-controls` disclosure into the five `listDeckModes()` cards — no new route, no second screen. Every card's listener/scored/envelope/negotiation-marker facts are read from the mode table, never hardcoded in the page. `scripts/verify-pitch-picker-cards.ts` (15 assertions) ALL PASS. See `19-08-SUMMARY.md`.
 - [Phase 19]: 19-03: removed deck's disengagement opt-in (avatarMayEnd:false, no threshold), consumed SHARED_DECK_DIMENSIONS, added interviewer setup step; inverted verify-disengagement-termination.ts deck assertions without deleting any check
 - [Phase 19]: 19-06: `FundingAskStep`, `BuyerProfileStep`, `TalkAudienceStep` built as peers of `NegotiationAskStep`/`NetworkingGoalStep` (same `SetupStepNav` props shape, same HeroUI styling, same `onChange(null)`-while-incomplete discipline) — all three REQUIRED to start, none contains an equity/valuation/negotiation concept (not even in source comments, so the plan's literal `grep -niE 'equity|valuation'` check passes). Not wired into the wizard yet — plan 19-07 owns that. See `19-06-SUMMARY.md`.
+- [Phase 19]: 19-04: `PITCH_FUNDING_TYPE`/`PITCH_PRODUCT_TYPE` registered as peers of `deck-type.ts`; both reuse `buildDeckEvaluationImages` verbatim and read their envelope from `getDeckMode(slug)` (fail-loud if missing). The plan's own quick-check grep (`equity|valuation|fairValue` returns nothing) is literally unsatisfiable against any file that also legitimately says `evaluation`/`EvaluationContext` — resolved by treating the formal per-mode verify script's literal-token + case-insensitive-`equity` check as authoritative, and by writing "ownership stake" instead of the literal word "equity" in prose. New `scripts/verify-deck-family-types.ts` iterates `listDeckModes()` and skips unregistered modes, so 19-05 extends its own coverage by registration alone. Two Rule-3 fixes to the pre-existing `scripts/verify-pitch-types.ts` (new instance fixtures for the two new required-instance slugs; extended the cursor/high-water-mark file exemption list to the two new prompts files) — both scoped to that verify script only. See `19-04-SUMMARY.md`.
 
 ## Progress
 
@@ -1971,8 +1972,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-08T20:38:44.049Z
-**Stopped At:** Completed 19-03-PLAN.md
+**Last Date:** 2026-10-09T00:32:28.000Z
+**Stopped At:** Completed 19-04-PLAN.md
 **Resume File:** None
 
 
