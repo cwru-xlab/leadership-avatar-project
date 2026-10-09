@@ -792,7 +792,7 @@ being widened here)
      evaluator or report page.
   6. Pass 2 keyboard UAT for the surfaces Phases 18 and 19 add is run by a human in
      Phase 19's closing plan and recorded in the Phase 18 and Phase 19 validation files.
-**Plans:** 6/11 plans executed
+**Plans:** 7/11 plans executed
 plan-checker **VERIFICATION PASSED**. All eight REQs covered; SC1-SC6 tagged
 `P19-SC*`, SC6 its own non-autonomous closing plan.
 
@@ -951,7 +951,7 @@ discussion):**
 | 16. Networking Practice | 11/11 | Complete  | 2026-10-04 |
 | 17. v1.0 Close-Out | 7/7 | Complete | 2026-10-05 |
 | 18. Avatar Disengagement & Walk-Out | 4/5 | Implementation done, human UAT pending re-run | - |
-| 19. Deck-Led Pitch Family | 6/11 | In Progress|  |
+| 19. Deck-Led Pitch Family | 7/11 | In Progress|  |
 | 20. Difficult Conversation Walk-Outs | 0/TBD | Not started | - |
 
 Phase 13's REQ-66/REQ-67 caveat remains recorded in `13-CLOSE-RECORD.md`: the
