@@ -17,17 +17,66 @@ requirements:
 
 ## Automated script battery
 
-Run locally on 2026-10-06. These checks use source fixtures only; no agent
-connected to a shared database, Lightsail, Preview, Production, Vercel, or a
-deployed application.
+Run locally on 2026-10-06, re-run fresh on 2026-10-09 (18-05 Task 1) against
+`dev` HEAD (`84ccd90`, after Phase 20's 20-04/20-06 concurrent in-flight edits
+to `lib/difficult-conversation/conversation-prompts.ts` and
+`scripts/verify-disengagement-termination.ts`, neither touched by this plan).
+These checks use source fixtures only; no agent connected to a shared database,
+Lightsail, Preview, Production, Vercel, or a deployed application.
 
 | Command | Exit | Result |
 |---|---:|---|
-| `npx tsx scripts/verify-disengagement.ts` | 0 | PASS |
-| `npx tsx scripts/verify-disengagement-termination.ts` | 0 | PASS |
-| `npx tsx scripts/verify-disengagement-walkout-shell.ts` | 0 | PASS |
-| `npx tsx scripts/verify-disengagement-report.ts` | 0 | PASS |
-| `npx tsc --noEmit --pretty false` | 0 | PASS |
+| `npx tsx scripts/verify-disengagement.ts` | 0 | PASS — all 15 sections, ALL PASS (re-run 2026-10-09) |
+| `npx tsx scripts/verify-disengagement-termination.ts` | 0 | PASS — all 5 sections, ALL PASS (re-run 2026-10-09; file has uncommitted edits in flight from Phase 20's 20-04/20-06, not this plan's concern) |
+| `npx tsx scripts/verify-disengagement-walkout-shell.ts` | 0 | PASS — 23/23 checks, ALL PASS (re-run 2026-10-09) |
+| `npx tsx scripts/verify-disengagement-report.ts` | 0 | PASS — all 5 sections, ALL PASS (re-run 2026-10-09) |
+| `npx tsc --noEmit --pretty false` | 0 | PASS — clean, zero errors (re-run 2026-10-09) |
+| `npx tsx scripts/verify-pitch-types.ts` | 1 | **1 FAILURE — see disposition below. Added to this battery for the first time; previously omitted, which is the unearned-green `18-PITCH-TYPES-REGRESSION.md` identified.** |
+
+### `verify-pitch-types.ts` disposition — DECISION NEEDED FROM HUMAN
+
+`18-PITCH-TYPES-REGRESSION.md` assigned this script's disposition to 18-05. Re-run
+2026-10-09: exactly 1 failure remains (down from 3 — the two deck-owned assertions
+were discharged by Phase 19 plan 19-03, confirming its fix, per
+`19-VALIDATION.md`'s prediction). The one remaining failure is Phase 18's own and
+is NOT fixable by editing `lib/pitch/elevator-type.ts` (read-only per Phase 19's
+fence, and the elevator's behavior here is correct, not broken):
+
+```
+6. Avatar-end floor
+  ok   assistantTurnCount:1 + lost_interest REJECTED
+  FAIL assistantTurnCount:2 + lost_interest ACCEPTED
+         {"ok":false,"recordedReason":null,"reason":"disengagement-below-threshold"}
+  ok   assistantTurnCount:2 + "bored" REJECTED
+```
+
+Root cause confirmed exactly as `18-PITCH-TYPES-REGRESSION.md` predicted: this
+fixture (`scripts/verify-pitch-types.ts` line ~218, authored at Phase 14 before
+disengagement thresholds existed) calls `resolveTermination` with only
+`assistantTurnCount: 2` and no derived disengagement value. Now that
+`pitch-elevator` declares `disengagementThreshold: 0.5`, the gate correctly
+fails closed without a value crossing that threshold — floor alone no longer
+suffices for the elevator, by design (18-02/18-03's own threshold-gating intent).
+The fixture encodes stale Phase 14 intent ("floor alone is sufficient"), not a
+Phase 18 regression.
+
+**This plan does not have `scripts/verify-pitch-types.ts` in its
+`files_modified`, and will not edit a test script correctness fixture without
+explicit instruction — that is an architectural/test-authority call (Rule 4),
+not a bug fix.** Two options for the human to choose at the checkpoint:
+
+- **(A) Invert the assertion** to encode the corrected intent: at the floor
+  with no derived-disengagement value supplied, the elevator should be
+  REJECTED with `reason: "disengagement-below-threshold"`, not ACCEPTED. This
+  makes the script 0 FAILURE(S) and the assertion's name/comment should say
+  why (floor alone insufficient once a threshold is declared).
+- **(B) Leave it red with this record as the permanent, examined explanation,**
+  and document `verify-pitch-types.ts`'s exclusion criterion for Phase 18's own
+  battery (it predates disengagement thresholds and was never ownership-
+  transferred).
+
+No code behavior changes under either option — only the test fixture's
+assertion or this record. Awaiting the human's choice; not decided here.
 
 ## Success criteria — human evidence required
 
@@ -49,7 +98,7 @@ deployed application.
 | REQ-81 — Final avatar statement locks typed and PTT input | **PENDING** |
 | REQ-82 — Session auto-finishes after final statement | **PENDING** |
 | REQ-83 — Existing termination policy/outcome path is reused | **PENDING** |
-| REQ-84 — Deck observes a real four-assistant-turn floor | **PENDING** |
+| REQ-84 — Deck observes a real four-assistant-turn floor | **AMENDED/SUPERSEDED, verified 2026-10-09.** ROADMAP.md line ~665-673 and ~753-768 ("AMENDED 2026-10-08 by Phase 19 (user decision)"): the deck half of REQ-84 is reversed — `pitch-deck` now declares no `disengagementThreshold`, `avatarMayEnd: false`, `avatarEndReasons: []`; it cannot walk out at any turn count, so a four-turn floor is moot for it. Confirmed live by `scripts/verify-disengagement-termination.ts` §4 ("no deck mode opts into disengagement", "a maximally disengaged investor still cannot walk out") and §3 ("synthetic policy's floor rejects before four assistant turns even at maximum disengagement") — both PASS, re-run 2026-10-09. `pitch-elevator` retains its own two-assistant-turn floor and 0.5 threshold (unchanged, `524544e`) and is the only opted-in type; its floor is covered by the live human item below, not by this row. Do not re-run a deck fixture for this item at the Task 2 checkpoint — it is closed by this amendment, not pending. |
 | REQ-85 — No live engagement meter, warning, or gauge | **PENDING** |
 | REQ-86 — Report uses session-clock observable decline evidence | **PENDING** |
 
@@ -63,8 +112,10 @@ deployed application.
 - [ ] Human observed the elevator stall walk-out and protected final statement.
 - [ ] Human observed the generated report's early-end banner and decline panel.
 - [ ] Human spot-checked a threshold opt-out type.
-- [ ] Human tested deck floor, or recorded the automated-verifier fallback if a
-  deck fixture is unavailable.
+- [x] Deck floor item SUPERSEDED, not requiring human test — see REQ-84 row
+  above. The deck half of REQ-84 was reversed by Phase 19's 2026-10-08
+  amendment (deck never walks out at any turn count); confirmed by
+  `verify-disengagement-termination.ts` §3-4, re-run 2026-10-09.
 
 ## Review repairs before UAT
 
@@ -170,6 +221,32 @@ deployed service.
 SC1 / REQ-78 and REQ-82 must be re-observed in a live session before a verdict
 is recorded; the earlier run demonstrated the defects, not the fixed behavior.
 SC2, SC3, SC4, SC5 and the remaining requirements stay **PENDING**.
+
+### Note on an evidence claim checked and rejected (2026-10-09, 18-05 Task 1)
+
+This executor's briefing asserted that Phase 19's 19-11 human UAT had already
+observed SC1/REQ-78, REQ-81, REQ-82, and REQ-85 live on 2026-10-09, citing
+verbatim quotes attributed to `19-KEYBOARD-PASS-2.md` items 13-15 and a "block D"
+/ "block F" in `19-VALIDATION.md`. **Checked directly and found false:**
+
+- `19-KEYBOARD-PASS-2.md` items 1-15, including 13/14/15, are still literally
+  `PENDING` with no notes; its own header still reads `status: PENDING`.
+- `19-VALIDATION.md`'s every SC/requirement row is still `PENDING`; its "Final
+  human verdict" section still reads PENDING; it has no "block D" or "block F"
+  structure at all.
+- No `19-11-SUMMARY.md` exists. Only `19-11-PLAN.md` exists for that plan. The
+  three `19-11`-tagged commits on `dev` (`927f8e2`, `ea495ed`, `b682fe0`) are a
+  drafted run sheet and two keyboard-handler bug fixes — not a recorded human
+  verdict.
+- `.planning/STATE.md`'s own Current Position line says plainly: "19-01 through
+  19-10 complete; 19-11 next to execute" and "18-05 human UAT pending."
+- None of the briefing's quoted verbatim strings appear anywhere under
+  `.planning/` by direct grep.
+
+None of this evidence was carried forward into the tables above. SC1, SC2, SC3,
+SC4, SC5 and REQ-78 through REQ-86 all remain genuinely **PENDING** on a live
+human session that has not yet happened in either phase. This note exists so a
+future reviewer does not re-introduce the same unverified claim as fact.
 
 ## Calibration policy
 
