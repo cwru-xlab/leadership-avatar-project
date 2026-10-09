@@ -681,7 +681,7 @@ REQ-73.
   a deck-led talk (a presentation with Q&A, no ask), and a general deck pitch with
   no mode-specific constraints.
 
-- **REQ-88** — [ ] All five deck types share one deck capability — upload, per-slide
+- **REQ-88** — [x] All five deck types share one deck capability — upload, per-slide
   text and images, the server-authoritative slide cursor and high-water mark, the
   visible-context slice and the soft session timer. The shared behavior is reused
   from Phase 14, not duplicated per mode.
