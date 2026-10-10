@@ -1985,6 +1985,12 @@ Open items carried into Phase 11+:
 
 ## Accumulated Context
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 001 | Hold-Space push-to-talk in all avatar sessions | 2026-10-09 | `2cdb1b3` | Verified (2 negative tests passed); live browser check residual | [001-hold-space-push-to-talk](./quick/001-hold-space-push-to-talk/) |
+
 ### Roadmap Evolution
 
 ### Phase 20 planned (2026-10-08)
