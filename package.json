@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint --fix",
     "setup": "node scripts/setup.mjs",
-    "verify:sso-handoff": "tsx scripts/verify-cwru-sso-handoff.ts"
+    "verify:sso-handoff": "tsx scripts/verify-cwru-sso-handoff.ts",
+    "verify:hold-space": "tsx scripts/verify-hold-space-push-to-talk.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
