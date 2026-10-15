@@ -135,6 +135,8 @@ interface PracticeSessionShellProps {
    * (14-13). Defaults preserve the compact top-right overlay from 14-10.
    */
   sessionPanelClassName?: string;
+  /** Optional type-composed guidance rendered below the answer controls. */
+  answerControlsSupplement?: ReactNode;
   /**
    * Left-pane media layout. `avatar-primary` (default) is the interview layout.
    * `deck-primary` fills the stage with the session panel (slides) and shrinks
@@ -258,6 +260,7 @@ function PracticeInterviewRoom({
   onFinish,
   sessionPanel,
   sessionPanelClassName,
+  answerControlsSupplement,
   mediaLayout = "avatar-primary",
   extraChatBody,
   onOpeningTurnTimingChange,
@@ -1601,6 +1604,7 @@ function PracticeInterviewRoom({
               </div>
             </>
           )}
+          {answerControlsSupplement}
           <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-[#82a5b8]">
             <FileText size={13} /> Your resume is used only to personalize this practice interview.
           </p>

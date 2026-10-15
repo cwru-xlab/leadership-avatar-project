@@ -333,7 +333,7 @@ export function composeReportMarkdown(
       report.growth_areas
         .map((g) => {
           const when = g.timecodes.length ? ` (${g.timecodes.join(", ")})` : "";
-          return `- **${g.title}:** ${g.detail}${when} *Suggestion:* ${g.suggestion}`;
+          return `- **${g.title}:** ${g.detail}${when} *Consider trying this:* ${g.suggestion}`;
         })
         .join("\n")
     );

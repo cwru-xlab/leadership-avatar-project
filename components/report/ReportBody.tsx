@@ -176,7 +176,7 @@ export default function ReportBody({
                     <div className="flex flex-col gap-2 pb-2">
                       <Prose>{g.detail}</Prose>
                       <p className="text-small text-default-600">
-                        <span className="font-semibold">Try this: </span>
+                        <span className="font-semibold">Consider trying this: </span>
                         {g.suggestion}
                       </p>
                     </div>

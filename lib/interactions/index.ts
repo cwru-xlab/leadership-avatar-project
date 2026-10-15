@@ -54,7 +54,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   },
   {
     slug: "difficult-conversations",
-    name: "Difficult Conversations",
+    name: "Courageous Conversations",
     description:
       "Practice navigating a tense, high-stakes conversation before you have to have it for real.",
     icon: "MessageCircleWarning",
