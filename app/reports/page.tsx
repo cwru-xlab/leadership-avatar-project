@@ -39,7 +39,7 @@ const TYPE_FILTERS: { id: TypeFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "interview", label: "Interviews" },
   { id: "pitch", label: "Pitches" },
-  { id: "difficult-conversation", label: "Difficult conversations" },
+  { id: "difficult-conversation", label: "Courageous conversations" },
   { id: "networking", label: "Networking" },
   { id: "case-study", label: "Case studies" },
 ];

@@ -39,6 +39,7 @@ import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import PracticeSessionShell from "@/components/practice/PracticeSessionShell";
+import InterviewPaceGuidance from "@/components/practice/InterviewPaceGuidance";
 import DeckTimerPanel from "@/components/practice/panels/DeckTimerPanel";
 import DeckViewerPanel from "@/components/practice/panels/DeckViewerPanel";
 import PitchTimerPanel from "@/components/practice/panels/PitchTimerPanel";
@@ -156,6 +157,8 @@ export default function PracticeTypePage() {
         : resolveInterviewType(params.type, storedCustomization),
     [params.type, storedCustomization, isPitch, isNetworking],
   );
+
+  const isInterview = interviewType !== null;
 
   const [phase, setPhase] = useState<PagePhase>("wizard");
   // When exiting a session, reopen the wizard on a sensible step.
@@ -526,6 +529,9 @@ export default function PracticeTypePage() {
       <PracticeSessionShell
         autoFinishOnAvatarEnd={isPitch}
         avatarConfig={avatarConfig}
+        answerControlsSupplement={
+          isInterview ? <InterviewPaceGuidance variant="live" /> : undefined
+        }
         cameraMode={cameraMode}
         customization={
           isPitch
@@ -718,6 +724,9 @@ export default function PracticeTypePage() {
       <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
         <SetupWizard
           createReportOnLaunch
+          supplementalContent={
+            isInterview ? <InterviewPaceGuidance variant="setup" /> : undefined
+          }
           buildStartPayload={async () => {
             if (isPitchElevator) {
               return {

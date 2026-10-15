@@ -42,6 +42,9 @@ import {
 import { applyEarlyEndCap } from "../lib/pitch/score-caps";
 import type { InteractionTypeConfig } from "../lib/engine/types";
 import type { ScoreMap } from "../lib/report/snapshot";
+import { INTERVIEW_EVALUATOR_PROMPT } from "../lib/interview/prompts";
+import { SCENARIO_EVALUATOR_PROMPT } from "../lib/scenario/prompts";
+import { CONVERSATION_EVALUATOR_PROMPT } from "../lib/difficult-conversation/conversation-prompts";
 
 /**
  * Pre-Phase-13 `EVALUATION_JSON_SCHEMA` from `lib/interview/evaluation.ts`,
@@ -337,6 +340,8 @@ console.log("\n3. Markdown composition");
   }
   check("timecodes reach the prose", md.includes("1:59, 2:46"), true);
   check("category table carries the notes", md.includes("Centred 57% of the time."), true);
+  check("growth suggestions use collaborative display terminology", md.includes("Consider trying this:"), true);
+  check("legacy suggestion label is absent", md.includes("*Suggestion:*"), false);
 }
 {
   // Empty lists must not emit dangling headers.
@@ -597,14 +602,32 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
 }
 
 // ---------------------------------------------------------------------------
-// 6. Type-derived rubric schema (plan 13-05 / REQ-71 / REQ-72)
+// 6. Evaluator report voice and coaching boundaries
+// ---------------------------------------------------------------------------
+
+console.log("\n6. Evaluator report voice and coaching boundaries");
+{
+  for (const [name, prompt] of [
+    ["interview", INTERVIEW_EVALUATOR_PROMPT],
+    ["scenario", SCENARIO_EVALUATOR_PROMPT],
+  ] as const) {
+    check(`${name} evaluator requires first-person evaluator voice`, prompt.includes("first person as the\nevaluator"), true);
+    check(`${name} evaluator addresses the learner as you`, prompt.includes("as “you.”"), true);
+    check(`${name} evaluator requires optional collaborative suggestions`, prompt.includes("options to consider, not instructions to obey"), true);
+  }
+  check("scenario evaluator does not impersonate a scenario character", SCENARIO_EVALUATOR_PROMPT.includes("Do not speak as or claim to be one of the scenario characters."), true);
+  check("difficult-conversation reaction remains non-coaching", CONVERSATION_EVALUATOR_PROMPT.includes("It is not advice and not a critique"), true);
+}
+
+// ---------------------------------------------------------------------------
+// 7. Type-derived rubric schema (plan 13-05 / REQ-71 / REQ-72)
 // ---------------------------------------------------------------------------
 
 function deepEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-console.log("\n6. Type-derived rubric schema (13-05)");
+console.log("\n7. Type-derived rubric schema (13-05)");
 {
   // 6.1 — every built-in type always requires visual_score and vocal_score.
   for (const type of ENGINE_TYPES) {
@@ -837,10 +860,10 @@ console.log("\n6. Type-derived rubric schema (13-05)");
 }
 
 // ---------------------------------------------------------------------------
-// 7. Outcome composition, image sampling, early-end score cap (plan 14-04)
+// 8. Outcome composition, image sampling, early-end score cap (plan 14-04)
 // ---------------------------------------------------------------------------
 
-console.log("\n7. Outcome / images / early-end cap (14-04)");
+console.log("\n8. Outcome / images / early-end cap (14-04)");
 {
   // 7.1 — Phase 13 types remain deeply equal to the frozen snapshots.
   for (const slug of ["general", "technical", "consulting", "early-career"]) {

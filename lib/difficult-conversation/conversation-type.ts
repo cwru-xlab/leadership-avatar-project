@@ -25,7 +25,7 @@ export const CONVERSATION_DISENGAGEMENT_THRESHOLD = 0.6;
 
 export const DIFFICULT_CONVERSATION_TYPE: InteractionTypeConfig = {
   slug: "difficult-conversation",
-  name: "Difficult Conversations",
+  name: "Courageous Conversations",
   description:
     "Practise a hard interpersonal conversation in character — clarity, empathy, and holding the line under real pushback.",
   // Four extras → eight dimensions total. Research Section G: no

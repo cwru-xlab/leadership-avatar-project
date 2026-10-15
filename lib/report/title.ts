@@ -21,7 +21,7 @@ const TYPE_LABELS: Record<string, string> = {
   // all five deck modes share one source of truth for their title (the
   // investor deck's title text is unchanged: DECK_MODES["pitch-deck"].cardTitle
   // reproduces "Investor pitch deck").
-  "difficult-conversation": "Difficult conversation",
+  "difficult-conversation": "Courageous conversation",
   networking: "Networking",
 };
 

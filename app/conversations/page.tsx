@@ -98,7 +98,7 @@ export default function ConversationsIndexPage() {
         >
           Back to Dashboard
         </Button>
-        <h1 className={title({ fullWidth: true })}>Difficult Conversations</h1>
+        <h1 className={title({ fullWidth: true })}>Courageous Conversations</h1>
         <p className="max-w-2xl text-default-500">
           Practice a tense conversation before you have to have it for real —
           pick a featured situation, write your own, or try one a classmate has

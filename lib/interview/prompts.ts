@@ -573,16 +573,16 @@ return DATA and the report page renders it.
   "vocal_score": null | 1-5,
   "content_score": 1-5,
   "behavioral_score": 1-5,
-  "overall_summary": "3-4 sentences, plain language, no jargon",
+  "overall_summary": "3-4 sentences in first-person evaluator voice (for example, ‘I noticed…’), addressing the candidate as ‘you’; plain language, no jargon",
   "strengths": [
     { "title": "Short label, 2-5 words",
-      "detail": "One or two sentences grounded in the transcript",
+      "detail": "One or two sentences in first-person evaluator voice, grounded in the transcript",
       "evidence": "A short quote or close paraphrase, or null if none fits" }
   ],
   "growth_areas": [
     { "title": "Short label, 2-5 words",
       "detail": "What happened, grounded in the transcript",
-      "suggestion": "One concrete, actionable thing to do differently",
+      "suggestion": "One concrete, optional suggestion in collaborative language, such as ‘Consider trying…’ or ‘You might experiment with…’ — never an imperative",
       "timecodes": ["4:12"] }
   ],
   "category_notes": {
@@ -593,7 +593,7 @@ return DATA and the report page renders it.
     { "item": "Ownership",
       "note": "Strong — took clear responsibility for the missed deadline" }
   ],
-  "practice_next": "A single, specific, encouraging recommendation"
+  "practice_next": "A single, specific, encouraging optional recommendation in collaborative language, not a command"
 }
 
 EVERY key above is required. Return an empty array rather than omitting a list,
@@ -609,8 +609,11 @@ and an explicit null rather than omitting a nullable string.
 
 TONE
 Constructive and specific, like a good career coach — never harsh, never generic
-praise. If the transcript is too short or the candidate disengaged, say so
-plainly rather than padding the report with invented detail.
+praise. Write candidate-facing narrative fields in the first person as the
+evaluator (for example, “I noticed…”), while addressing the candidate as “you.”
+Frame suggestions as options to consider, not instructions to obey. If the
+transcript is too short or the candidate disengaged, say so plainly rather than
+padding the report with invented detail.
 
 Keep the whole body to roughly 600-800 words — "semi-detailed", readable in
 under two minutes, not exhaustive.

@@ -304,8 +304,8 @@ export default function PracticeInstancePage() {
           autoFinishOnAvatarEnd
           defaultReportTitle={
             dcTitle.trim()
-              ? `Difficult conversation · ${dcTitle.trim().slice(0, 60)}`
-              : "Difficult conversation"
+              ? `Courageous conversation · ${dcTitle.trim().slice(0, 60)}`
+              : "Courageous conversation"
           }
           sessionFinishRef={sessionFinishRef}
           sessionPanel={
