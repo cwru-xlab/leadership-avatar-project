@@ -641,7 +641,11 @@ export default function PracticeTypePage() {
   }
 
   return (
-    <main className="min-h-[100dvh] overflow-hidden bg-[#f5f8fa] text-[#102331]">
+    // overflow-x-clip, not overflow-hidden: `hidden` makes this a scroll
+    // container, which silently breaks `position: sticky` for descendants —
+    // the interviewer step's action bar depends on it. `clip` still contains
+    // the hero's decorative bleed without that side effect.
+    <main className="min-h-[100dvh] overflow-x-clip bg-[#f5f8fa] text-[#102331]">
       <div className="relative isolate overflow-hidden border-b border-[#d8e6ec] bg-[#eaf5f8]">
         <div className="absolute -right-24 top-[-150px] h-96 w-96 rounded-full bg-[#a9ddeb]/60 blur-3xl" />
         <div className="relative mx-auto max-w-6xl px-5 pb-12 pt-7 sm:px-8 sm:pb-16">
