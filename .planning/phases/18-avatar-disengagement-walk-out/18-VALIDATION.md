@@ -248,6 +248,46 @@ SC4, SC5 and REQ-78 through REQ-86 all remain genuinely **PENDING** on a live
 human session that has not yet happened in either phase. This note exists so a
 future reviewer does not re-introduce the same unverified claim as fact.
 
+## Agent browser UAT run (2026-10-14) — NOT a human verdict
+
+Claude drove the built-in browser against the local dev server (seed student,
+`/practice/pitch-elevator`, "Completely blind", camera off, typed answers only).
+Two sessions: run A had a DOM state recorder and, from turn 6, a fetch tap on
+`/api/interaction/chat`; run B was a fresh page load with read-only DOM checks
+only. The human rows above stay **PENDING**; this section is evidence for the
+human to accept or reject.
+
+Script battery re-run first: the four disengagement verifiers exit 0;
+`verify-pitch-types.ts` still exits 1 (the known A/B disposition above).
+
+| Item | Observed | Agent read |
+|---|---|---|
+| SC1 / REQ-85 no live meter | Polled every 150ms (run A) and after each turn (run B): zero `meter`/`progress`/`role=meter|progressbar` elements, no "engagement/interest level/disengag" text at any point | PASS (DOM-level) |
+| SC1 / REQ-78 stall crosses | Run A crossed on assistant turn 6: `disengagement.value 0.558`, `crossed: true`, causes `no_common_ground, short_response_streak, turn_count_pressure`. Run B crossed on turn 7 | PASS |
+| REQ-79 cue cannot end alone | Run A turn 5: model spoke a full farewell ("I've got to run. Good luck with it.") with a trailing marker, but the session stayed open and input re-enabled ~1.5s later (below threshold) | PASS on authority, but see UX finding U1 |
+| SC5 elevator floor (2 turns) | No walk-out before turn 6/7 in either run | Consistent; floor itself not isolated |
+| SC3 / REQ-81 input lock | Crossing turn: `walkOutFinal: true`, termination `unclear_ask` accepted, textarea and record button disabled, "The conversation ended." shown | PASS |
+| SC3 / REQ-82 auto-finish | **Both runs: no auto-finish.** Run A watched ~90s, run B ~75s after the crossing turn; still on `/practice/pitch-elevator`, clock still running, input locked, **no `session/finish` or report request issued**. Run A: pressing "End interview" also did nothing; the student is trapped | **FAIL — BLOCKER** (dead end reproduced; `18-WALKOUT-DEAD-END.md` still `status: open`) |
+| SC4 / REQ-83/86 report | Not reachable; blocked by REQ-82 | NOT RUN |
+| SC2 cue acceleration (A/B timing) | Not attempted; needs repeated runs, too nondeterministic for one pass | NOT RUN |
+| SC5 / REQ-80 opt-out types | Deferred until REQ-82 is fixed | NOT RUN |
+| PTT lock under real mic | Not testable by agent | HUMAN |
+
+Side findings (not Phase 18 requirements, logged for triage):
+
+- **U1 — farewell leak.** On a below-threshold turn the model may say a full
+  in-character goodbye; it is shown and spoken, then the student can keep
+  typing to someone who just left. Authority is correct, but the experience
+  reads as broken. Candidate: strip/rewrite a rejected `<engine-end>` reply.
+- **U2 — opening-window clock never starts on typed turns.** The prompt tail
+  said "still within the 60-second opening window (0s elapsed)" on turn 5,
+  ~3 min in. The "PITCH WINDOW — starts when you begin your pitch" panel also
+  never started. Enforcement uses the report clock and is unaffected; the
+  model's timing context is wrong.
+- **U3 — interview chrome in pitch mode.** Pitch session shows "0 of ~9
+  questions", "Behavioral focus", "Your resume is used only to personalize this
+  practice interview", and a "We can't see your face" warning with camera off.
+
 ## Calibration policy
 
 Do not retune thresholds, weights, or cue acceleration without explicit human
