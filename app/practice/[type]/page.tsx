@@ -55,6 +55,7 @@ import ListenerKnowledgeStep, {
 import NetworkingGoalStep from "@/components/practice/steps/NetworkingGoalStep";
 import NetworkingPersonStep from "@/components/practice/steps/NetworkingPersonStep";
 import PitchSubjectStep from "@/components/practice/steps/PitchSubjectStep";
+import JobDescriptionStep from "@/components/practice/steps/JobDescriptionStep";
 import ResumeStep from "@/components/practice/steps/ResumeStep";
 import DeckUploadStep, {
   type DeckUploadValue,
@@ -170,6 +171,14 @@ export default function PracticeTypePage() {
   const [resumeText, setResumeText] = useState("");
   const [resumeFileName, setResumeFileName] = useState<string | undefined>();
   const [resumeId, setResumeId] = useState<string | null>(null);
+  // Job posting (quick task 003 / issue #56). A pasted posting has text with a
+  // null id; an uploaded one has both. `jobDescriptionText` is session-constant
+  // and is resent byte-identically on every chat turn (REQ-73).
+  const [jobDescriptionText, setJobDescriptionText] = useState("");
+  const [jobDescriptionId, setJobDescriptionId] = useState<string | null>(null);
+  const [jobDescriptionFileName, setJobDescriptionFileName] = useState<
+    string | undefined
+  >();
   const [cameraMode, setCameraMode] = useState<CameraMode>("OFF");
   const [reportId, setReportId] = useState<string | null>(null);
 
@@ -563,7 +572,12 @@ export default function PracticeTypePage() {
                 reportId,
                 ...(isDeckMode ? { revealedSlideIndex: furthestSlide } : {}),
               }
-            : undefined
+            : isInterview
+              ? // Spread into the TOP LEVEL of the chat body by the shell's
+                // existing `...extraChatBody` — which is exactly where the
+                // chat route reads it, so the shell needs no edit (decision 4).
+                { jobDescriptionText }
+              : undefined
         }
         interviewerAvatarId={selectedInterviewer.avatarId}
         interviewerName={listenerDisplayName}
@@ -818,6 +832,8 @@ export default function PracticeTypePage() {
                 selectedInterviewer?.name,
               resumeId,
               resumeText,
+              jobDescriptionId,
+              jobDescriptionText,
               language: "en",
             };
           }}
@@ -951,6 +967,21 @@ export default function PracticeTypePage() {
                   nav={nav}
                   selectedInterviewerId={selectedInterviewer?.avatarId ?? null}
                   onSelect={setSelectedInterviewer}
+                />
+              );
+            }
+            if (stepId === "job-description") {
+              return (
+                <JobDescriptionStep
+                  nav={nav}
+                  jobDescriptionFileName={jobDescriptionFileName}
+                  jobDescriptionId={jobDescriptionId}
+                  jobDescriptionText={jobDescriptionText}
+                  onJobDescriptionChange={(next) => {
+                    setJobDescriptionId(next.jobDescriptionId);
+                    setJobDescriptionText(next.jobDescriptionText);
+                    setJobDescriptionFileName(next.jobDescriptionFileName);
+                  }}
                 />
               );
             }
