@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { buildTurnMessages } from "../lib/engine/prompts";
+import { buildTailBlock, buildTurnMessages } from "../lib/engine/prompts";
+import { DIFFICULT_CONVERSATION_TYPE } from "../lib/difficult-conversation/conversation-type";
 import type { ResolvedSessionConfig } from "../lib/engine/types";
 
 const root = resolve(import.meta.dirname, "..");
@@ -224,6 +225,158 @@ check(
 check(
   /isWalkOut \|\| forceWalkOutFarewell/.test(shell),
   "shell always resolves the one-shot forced farewell to a terminal state, even if declined",
+);
+
+// ---------------------------------------------------------------------------
+// Phase 20 / 20-05 — the new contracts, asserted at the REAL callers.
+//
+// Phase 18's UAT is the reason these are caller-level rather than unit-level:
+// its ratchet was proven by passing `priorValue` into the primitive directly
+// and was unenforced at the integration seam, so a live session reached 0.6
+// and then fell back to 0.4. A contract proven only in the unit is not proven.
+// ---------------------------------------------------------------------------
+
+console.log("\n8. Phase 20 — type weights, derived reason, in-character exit");
+
+const safetyPanel = read("components/practice/panels/SessionSafetyPanel.tsx");
+const dcLauncher = read("app/practice/[type]/[instanceId]/page.tsx");
+const dcPrompts = read("lib/difficult-conversation/conversation-prompts.ts");
+
+// (a) Both server callers compute with the type's own weight profile. Without
+// it they silently fall back to the shared defaults, where every Phase 20
+// cause is weight 0 — hostility contributes nothing and the walk-out can
+// never fire. Extends the existing integration-seam guard.
+for (const [name, src] of [
+  ["chat route", chatRoute],
+  ["finish re-derivation", session],
+] as const) {
+  check(
+    /disengagementWeights/.test(src) &&
+      /computeDisengagementOverTranscript/.test(src) &&
+      !/\bcomputeDisengagement\s*\(/.test(src),
+    `${name} passes the type's disengagementWeights and still uses only the ratcheting primitive`,
+  );
+}
+
+// (b) The reason is resolved server-side, and the tail directive interpolates
+// it rather than hardcoding one.
+check(
+  /resolveWalkOutReason/.test(chatRoute),
+  "chat route resolves the walk-out reason server-side",
+);
+check(
+  /walkOut\.reason/.test(prompts),
+  "forced-farewell directive interpolates the policy-supplied reason",
+);
+
+// (c) Behavioural, not a regex: the farewell must cite a reason the type
+// actually declares. `buildWalkOutFragment` used to hardcode `lost_interest`,
+// which difficult-conversation does not declare, so gate (2) of
+// resolveTermination rejected the end and the session never terminated.
+{
+  const dcConfig: ResolvedSessionConfig = {
+    typeSlug: "difficult-conversation",
+    typeName: "Test difficult conversation",
+    rubricDimensions: [],
+    limits: { targetMinutes: null, targetQuestionCount: null },
+    terminationPolicy: DIFFICULT_CONVERSATION_TYPE.terminationPolicy,
+    visibleContext: { visibleChannels: "*" },
+    outcome: { fields: [] },
+    timeBudget: {
+      totalSeconds: null,
+      warnAtRemainingSeconds: null,
+      firstTurnWindowSeconds: null,
+      adjustableRangeSeconds: null,
+    },
+    // A real scenario instance: the DC type's in-character reminder refuses
+    // to build without one, and that refusal is correct behaviour worth
+    // keeping rather than stubbing around.
+    instance: {
+      kind: "difficult-conversation",
+      conversationId: "ask-for-raise",
+      source: "seeded",
+      role: "Dana, your manager",
+      studentRole: "their direct report",
+      situation: "Annual review",
+      sharedBackstory: "Shared history",
+      hiddenPosition: "Budget is already allocated elsewhere.",
+      studentObjective: "Secure a raise",
+      stakes: "High",
+      difficulty: "hostile",
+      avatarId: "avatar-1",
+      voiceId: "voice-1",
+    },
+    customization: null,
+  };
+  // buildTailBlock, not buildTurnMessages: the directive lives in the tail,
+  // and the DC type's system prompt legitimately refuses to build without a
+  // real scenario instance. Testing the tail keeps this assertion about the
+  // thing it is actually asserting.
+  const tail = buildTailBlock(dcConfig, {
+    walkOut: {
+      nearThreshold: false,
+      forceFarewell: true,
+      reason: "offensive_content",
+    },
+  });
+  check(
+    tail.includes('reason="offensive_content"'),
+    "forced farewell cites the supplied reason, not a hardcoded lost_interest",
+  );
+  check(
+    (
+      DIFFICULT_CONVERSATION_TYPE.terminationPolicy.avatarEndReasons ?? []
+    ).includes("offensive_content"),
+    "offensive_content is a member of the type's declared avatarEndReasons",
+  );
+}
+
+// (d) ONE ending path, in character (REQ-101). Guarded by ABSENCE: no
+// break-frame vocabulary anywhere a walk-out can reach, and no second
+// severity-conditional finish branch in the shell.
+const breakFrameTerms = [
+  "out of character",
+  "breaking character",
+  "moderator",
+  "content policy",
+  "this session has been ended by",
+  "violation",
+  "reported",
+];
+for (const term of breakFrameTerms) {
+  check(
+    !shell.toLowerCase().includes(term) &&
+      !dcLauncher.toLowerCase().includes(term),
+    `no break-frame vocabulary in the session shell or DC launcher: "${term}"`,
+  );
+}
+check(
+  /autoFinishOnAvatarEnd/.test(shell) && !/severe/i.test(shell),
+  "exactly one auto-finish entry point; the shell has no severity-conditional branch",
+);
+check(
+  /never break character/i.test(dcPrompts),
+  "difficult-conversation prompt still forbids breaking character",
+);
+check(
+  /do not .*(offer resources|break frame)/i.test(dcPrompts),
+  "difficult-conversation prompt still forbids offering resources / breaking frame",
+);
+
+// (e) Phase 15's exits survive an avatar-initiated ending. A walk-out must
+// never leave a student with no way out and no explanation.
+check(
+  /SUPPORT_RESOURCE_NOTE/.test(safetyPanel),
+  "SessionSafetyPanel still exports the support-resource note",
+);
+check(
+  !/isDisabled=\{[^}]*walkOut/i.test(safetyPanel),
+  "SessionSafetyPanel's End-session control is never disabled by walk-out state",
+);
+check(
+  /hideDefaultEndControl/.test(dcLauncher) &&
+    /SessionSafetyPanel/.test(dcLauncher),
+  "DC launcher keeps the one always-visible exit (hideDefaultEndControl + SessionSafetyPanel)",
 );
 
 if (failures > 0) {

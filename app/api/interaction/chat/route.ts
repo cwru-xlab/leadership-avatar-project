@@ -24,6 +24,7 @@ import {
   cueAcceleration,
   parseDisengagementCue,
 } from "@/lib/engine/disengagement";
+import { resolveWalkOutReason } from "@/lib/engine/termination";
 import {
   createWalkOutProof,
   verifyWalkOutProof,
@@ -284,20 +285,41 @@ function attachTerminationToStream(
                       threshold:
                         config.terminationPolicy.disengagementThreshold,
                       cueAccel: cueAcceleration(cue),
+                      // Without the type's own profile this falls back to the
+                      // shared defaults, where every Phase 20 cause is weight
+                      // 0 — hostility would contribute nothing and the
+                      // difficult-conversation walk-out could never fire. The
+                      // pre-turn site below passes the same profile: a
+                      // mismatch between the directive and the decision is
+                      // exactly the defect class Phase 18's UAT surfaced.
+                      weights:
+                        config.terminationPolicy.disengagementWeights ??
+                        undefined,
                     });
                     const parsed = parseEngineTurn(accumulated, config, {
                       ...parseOpts,
                       disengagementValue: disengagement.value,
                     });
 
+                    // Server-decided, from the type's own closed vocabulary.
+                    const walkOutReason = resolveWalkOutReason({
+                      policy: config.terminationPolicy,
+                      dominantCauses: disengagement.dominantCauses,
+                      severe: disengagement.severe,
+                    });
+
                     const minimumTurns =
                       config.terminationPolicy.avatarEndFloor
                         ?.minAssistantTurns ?? 0;
+                    // Severe content clears the floor (REQ-100) but NOT the
+                    // threshold: severity is a carve-out from the turn-count
+                    // minimum only, never a bypass of derived evidence.
                     const walkOutFinal =
                       config.terminationPolicy.disengagementThreshold !=
                         null &&
                       disengagement.crossed &&
-                      (parseOpts.assistantTurnCount ?? 0) >= minimumTurns;
+                      (disengagement.severe ||
+                        (parseOpts.assistantTurnCount ?? 0) >= minimumTurns);
                     const walkOutProof =
                       walkOutFinal && parseOpts.walkOutProofContext
                         ? await createWalkOutProof({
@@ -307,6 +329,7 @@ function attachTerminationToStream(
                             assistantTurnCount:
                               parseOpts.assistantTurnCount ?? 0,
                             elapsedSeconds: parseOpts.elapsedSeconds,
+                            reason: walkOutReason,
                           })
                         : null;
                     // A client that asked for the one-shot forced farewell
@@ -324,6 +347,12 @@ function attachTerminationToStream(
                       disengagementCue: parsed.disengagementCue,
                       walkOutFinal,
                       walkOutProof,
+                      // Surfaced so the client's existing coordination path
+                      // sees severity and the reason without any new client
+                      // logic — and without either becoming client-authored:
+                      // finish reads both from the signed proof, never here.
+                      walkOutSevere: disengagement.severe === true,
+                      walkOutReason,
                       ...(walkOutFarewellDeclined
                         ? { walkOutFarewellDeclined: true }
                         : {}),
@@ -772,17 +801,37 @@ export async function POST(request: NextRequest) {
         : 0;
       const disengagementThreshold =
         sessionConfig.terminationPolicy.disengagementThreshold;
+      // Same weight profile as the post-stream decision site. If these two
+      // diverge, the tail directive and the actual walk-out decision disagree
+      // — the defect class Phase 18's UAT surfaced at the integration seam.
+      const preTurnDisengagement =
+        disengagementThreshold != null
+          ? computeDisengagementOverTranscript({
+              transcript: messages,
+              elapsedSeconds,
+              budgetSeconds:
+                walkOutReport?.timeBudgetSeconds ??
+                sessionConfig.timeBudget.totalSeconds,
+              assistantTurnCount,
+              threshold: disengagementThreshold,
+              weights:
+                sessionConfig.terminationPolicy.disengagementWeights ??
+                undefined,
+            })
+          : null;
       const nearWalkOutThreshold =
-        disengagementThreshold != null &&
-        computeDisengagementOverTranscript({
-          transcript: messages,
-          elapsedSeconds,
-          budgetSeconds:
-            walkOutReport?.timeBudgetSeconds ??
-            sessionConfig.timeBudget.totalSeconds,
-          assistantTurnCount,
-          threshold: disengagementThreshold,
-        }).value >= Math.max(0, disengagementThreshold - 0.1);
+        preTurnDisengagement != null &&
+        preTurnDisengagement.value >= Math.max(0, disengagementThreshold! - 0.1);
+      // Recomputed from THIS site's own derived result — never carried from
+      // the client — so the farewell cites a reason the type declares.
+      const preTurnWalkOutReason =
+        preTurnDisengagement != null
+          ? resolveWalkOutReason({
+              policy: sessionConfig.terminationPolicy,
+              dominantCauses: preTurnDisengagement.dominantCauses,
+              severe: preTurnDisengagement.severe,
+            })
+          : null;
 
       const built = buildTurnMessages({
         config: sessionConfig,
@@ -820,6 +869,7 @@ export async function POST(request: NextRequest) {
                 walkOut: {
                   nearThreshold: nearWalkOutThreshold,
                   forceFarewell: forceWalkOutFarewell,
+                  reason: preTurnWalkOutReason,
                 },
               }
             : {}),
