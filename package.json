@@ -10,7 +10,8 @@
     "setup": "node scripts/setup.mjs",
     "verify:sso-handoff": "tsx scripts/verify-cwru-sso-handoff.ts",
     "verify:hold-space": "tsx scripts/verify-hold-space-push-to-talk.ts",
-    "verify:feedback-source": "tsx scripts/verify-feedback-source-attribution.ts"
+    "verify:feedback-source": "tsx scripts/verify-feedback-source-attribution.ts",
+    "verify:job-description": "tsx scripts/verify-job-description-intake.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
