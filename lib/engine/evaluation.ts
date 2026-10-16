@@ -23,6 +23,7 @@ import {
   type StructuredReport,
 } from "@/lib/report/structured";
 import { sanitizeBodySignalWording } from "@/lib/report/body-signal-validator";
+import { enforceSourceAttribution } from "@/lib/report/source-attribution";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 import { buildScenarioEvaluationUserMessage } from "@/lib/scenario/prompts";
@@ -295,11 +296,25 @@ export function validateEvaluationResult(
     throw new Error("Evaluator returned an empty report body");
   }
 
-  const { report: reportStructured, strippedCount } =
+  const { report: wordingSanitized, strippedCount } =
     sanitizeBodySignalWording(parsedReport);
   if (strippedCount > 0) {
     console.warn("Engine evaluator body-signal wording violation stripped", {
       strippedCount,
+      typeSlug: config.typeSlug,
+    });
+  }
+
+  const hasResume =
+    typeof evaluationContext.resumeText === "string" &&
+    evaluationContext.resumeText.trim().length > 0;
+  const { report: reportStructured, downgradedCount } = enforceSourceAttribution(
+    wordingSanitized,
+    { hasResume },
+  );
+  if (downgradedCount > 0) {
+    console.warn("Engine evaluator resume-source attribution downgraded", {
+      downgradedCount,
       typeSlug: config.typeSlug,
     });
   }

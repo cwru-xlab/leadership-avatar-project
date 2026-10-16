@@ -48,10 +48,13 @@ import { CONVERSATION_EVALUATOR_PROMPT } from "../lib/difficult-conversation/con
 
 /**
  * Pre-Phase-13 `EVALUATION_JSON_SCHEMA` from `lib/interview/evaluation.ts`,
- * frozen verbatim as a permanent regression guard (plan 13-13). The live
- * module was deleted when the engine's type-derived schema took over; this
- * snapshot is the only remaining proof that `buildRubricJsonSchema` still
- * produces today's interview bytes.
+ * frozen verbatim as a permanent regression guard (plan 13-13), PLUS one
+ * deliberate post-Phase-13 addition: the nested `source` attribution field
+ * on `strengths`/`growth_areas` items, added by quick task 002 so a
+ * feedback point can be labelled as drawn from the resume, the
+ * conversation, or both. The live module was deleted when the engine's
+ * type-derived schema took over; this snapshot is the only remaining proof
+ * that `buildRubricJsonSchema` still produces today's interview bytes.
  */
 const EVALUATION_JSON_SCHEMA = {
   name: "interview_evaluation",
@@ -82,11 +85,12 @@ const EVALUATION_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "detail", "evidence"],
+          required: ["title", "detail", "evidence", "source"],
           properties: {
             title: { type: "string" },
             detail: { type: "string" },
             evidence: { type: ["string", "null"] },
+            source: { type: ["string", "null"] },
           },
         },
       },
@@ -95,12 +99,13 @@ const EVALUATION_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "detail", "suggestion", "timecodes"],
+          required: ["title", "detail", "suggestion", "timecodes", "source"],
           properties: {
             title: { type: "string" },
             detail: { type: "string" },
             suggestion: { type: "string" },
             timecodes: { type: "array", items: { type: "string" } },
+            source: { type: ["string", "null"] },
           },
         },
       },
@@ -134,7 +139,9 @@ const EVALUATION_JSON_SCHEMA = {
 
 /**
  * Pre-Phase-13 `SCENARIO_EVALUATION_JSON_SCHEMA` from `lib/scenario/evaluation.ts`,
- * frozen verbatim as a permanent regression guard (plan 13-13). Same role as
+ * frozen verbatim as a permanent regression guard (plan 13-13), PLUS the same
+ * one deliberate post-Phase-13 addition as `EVALUATION_JSON_SCHEMA` above:
+ * the nested `source` attribution field from quick task 002. Same role as
  * `EVALUATION_JSON_SCHEMA` above for the case-study schema name.
  */
 const SCENARIO_EVALUATION_JSON_SCHEMA = {
@@ -166,11 +173,12 @@ const SCENARIO_EVALUATION_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "detail", "evidence"],
+          required: ["title", "detail", "evidence", "source"],
           properties: {
             title: { type: "string" },
             detail: { type: "string" },
             evidence: { type: ["string", "null"] },
+            source: { type: ["string", "null"] },
           },
         },
       },
@@ -179,12 +187,13 @@ const SCENARIO_EVALUATION_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "detail", "suggestion", "timecodes"],
+          required: ["title", "detail", "suggestion", "timecodes", "source"],
           properties: {
             title: { type: "string" },
             detail: { type: "string" },
             suggestion: { type: "string" },
             timecodes: { type: "array", items: { type: "string" } },
+            source: { type: ["string", "null"] },
           },
         },
       },
