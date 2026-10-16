@@ -18,6 +18,8 @@
  * RAW FIGURES: unlike `ReportScoreCards`, the narrative below quotes concrete
  * numbers. That split is deliberate — see the note atop `ReportScoreCards.tsx`.
  */
+import type { FeedbackSource, StructuredReport } from "@/lib/report/structured";
+
 import { Accordion, AccordionItem } from "@heroui/accordion";
 import { Chip } from "@heroui/chip";
 import { Tab, Tabs } from "@heroui/tabs";
@@ -36,7 +38,43 @@ import {
   visualObservationRows,
   vocalBands,
 } from "@/lib/metrics/bands";
-import type { StructuredReport } from "@/lib/report/structured";
+
+/**
+ * Attribution chip for a feedback item's evidence basis. Returns `null` for
+ * a null/absent source — the legacy path (reports generated before this
+ * field existed, or any non-interview evaluator, which never declares it)
+ * must stay silent, never render an "unknown" badge.
+ */
+function SourceChip({ source }: { source?: FeedbackSource | null }) {
+  if (!source) return null;
+
+  if (source === "resume") {
+    return (
+      <Chip color="secondary" size="sm" variant="flat">
+        From your resume
+      </Chip>
+    );
+  }
+
+  if (source === "conversation") {
+    return (
+      <Chip color="default" size="sm" variant="flat">
+        From the conversation
+      </Chip>
+    );
+  }
+
+  return (
+    <Chip
+      color="primary"
+      size="sm"
+      title="From your resume and the conversation"
+      variant="flat"
+    >
+      Resume + conversation
+    </Chip>
+  );
+}
 
 interface ReportBodyProps {
   structured: StructuredReport | null;
@@ -54,7 +92,9 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 function Prose({ children }: { children: React.ReactNode }) {
-  return <p className="text-medium leading-relaxed text-default-700">{children}</p>;
+  return (
+    <p className="text-medium leading-relaxed text-default-700">{children}</p>
+  );
 }
 
 function BandList({ rows }: { rows: { label: string; value: string }[] }) {
@@ -102,12 +142,12 @@ export default function ReportBody({
   return (
     <Tabs
       aria-label="Report sections"
-      variant="underlined"
       classNames={{ panel: "pt-6" }}
+      variant="underlined"
     >
       <Tab key="overview" title="Overview">
         <div className="flex flex-col gap-8">
-          <ReportScoreCards scores={scores} metrics={metrics} />
+          <ReportScoreCards metrics={metrics} scores={scores} />
 
           {/* Promoted from the very bottom of the old report. It is the single
               most actionable line and was the hardest thing to find. */}
@@ -130,12 +170,21 @@ export default function ReportBody({
           {structured.strengths.length > 0 && (
             <section className="flex flex-col gap-2">
               <SectionHeading>Strengths</SectionHeading>
-              <Accordion variant="light" selectionMode="multiple" className="px-0">
+              <Accordion
+                className="px-0"
+                selectionMode="multiple"
+                variant="light"
+              >
                 {structured.strengths.map((s, i) => (
                   <AccordionItem
                     key={`s-${i}`}
                     aria-label={s.title}
-                    title={<span className="text-medium">{s.title}</span>}
+                    title={
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-medium">{s.title}</span>
+                        <SourceChip source={s.source} />
+                      </div>
+                    }
                   >
                     <div className="flex flex-col gap-2 pb-2">
                       <Prose>{s.detail}</Prose>
@@ -154,7 +203,11 @@ export default function ReportBody({
           {structured.growth_areas.length > 0 && (
             <section className="flex flex-col gap-2">
               <SectionHeading>Growth areas</SectionHeading>
-              <Accordion variant="light" selectionMode="multiple" className="px-0">
+              <Accordion
+                className="px-0"
+                selectionMode="multiple"
+                variant="light"
+              >
                 {structured.growth_areas.map((g, i) => (
                   <AccordionItem
                     key={`g-${i}`}
@@ -162,11 +215,20 @@ export default function ReportBody({
                     title={
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-medium">{g.title}</span>
+                        {/* Source answers "where did this come from"; the
+                            timecodes below answer "when" — source-then-when
+                            reads in that order. */}
+                        <SourceChip source={g.source} />
                         {/* Timecodes surfaced on the collapsed row: they are
                             the link back to the Moments tab, and are useless
                             if you have to expand each item to find them. */}
                         {g.timecodes.map((t) => (
-                          <Chip key={t} size="sm" variant="flat" className="font-mono">
+                          <Chip
+                            key={t}
+                            className="font-mono"
+                            size="sm"
+                            variant="flat"
+                          >
                             {t}
                           </Chip>
                         ))}
@@ -176,7 +238,9 @@ export default function ReportBody({
                     <div className="flex flex-col gap-2 pb-2">
                       <Prose>{g.detail}</Prose>
                       <p className="text-small text-default-600">
-                        <span className="font-semibold">Consider trying this: </span>
+                        <span className="font-semibold">
+                          Consider trying this:{" "}
+                        </span>
                         {g.suggestion}
                       </p>
                     </div>
@@ -203,12 +267,13 @@ export default function ReportBody({
           {/* Legible as its own thing rather than extra rows on the camera
               list — a pre-Phase-12 report has no scored body-language fields
               on `metrics.visual`, so this renders nothing new. */}
-          {metrics?.visual && visualBodyLanguageBands(metrics.visual).length > 0 && (
-            <section className="flex flex-col gap-3">
-              <SectionHeading>Body language</SectionHeading>
-              <BandList rows={visualBodyLanguageBands(metrics.visual)} />
-            </section>
-          )}
+          {metrics?.visual &&
+            visualBodyLanguageBands(metrics.visual).length > 0 && (
+              <section className="flex flex-col gap-3">
+                <SectionHeading>Body language</SectionHeading>
+                <BandList rows={visualBodyLanguageBands(metrics.visual)} />
+              </section>
+            )}
 
           {metrics?.vocal && (
             <section className="flex flex-col gap-3">
@@ -234,16 +299,17 @@ export default function ReportBody({
               inverted defect this phase exists to avoid). Muted treatment
               only; no primary-colour panel — that idiom is reserved for
               "One thing to practice next time". */}
-          {metrics?.visual && visualObservationRows(metrics.visual).length > 0 && (
-            <section className="flex flex-col gap-3 rounded-2xl border border-default-100 p-5">
-              <SectionHeading>Observations</SectionHeading>
-              <p className="text-small text-default-500">
-                Things the camera recorded during the session. These do not
-                affect any score.
-              </p>
-              <BandList rows={visualObservationRows(metrics.visual)} />
-            </section>
-          )}
+          {metrics?.visual &&
+            visualObservationRows(metrics.visual).length > 0 && (
+              <section className="flex flex-col gap-3 rounded-2xl border border-default-100 p-5">
+                <SectionHeading>Observations</SectionHeading>
+                <p className="text-small text-default-500">
+                  Things the camera recorded during the session. These do not
+                  affect any score.
+                </p>
+                <BandList rows={visualObservationRows(metrics.visual)} />
+              </section>
+            )}
         </div>
       </Tab>
 
@@ -289,9 +355,9 @@ export default function ReportBody({
           <section className="flex flex-col gap-3">
             <SectionHeading>Moments to review</SectionHeading>
             <p className="text-small text-default-500">
-              One timeline mixing camera/environment and body-language
-              moments, tagged so you can tell which is which. Times match the
-              session clock.
+              One timeline mixing camera/environment and body-language moments,
+              tagged so you can tell which is which. Times match the session
+              clock.
             </p>
             <MomentsPanel visual={metrics?.visual ?? null} />
           </section>
