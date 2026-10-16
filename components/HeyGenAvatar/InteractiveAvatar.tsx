@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useMemoizedFn, useUnmount } from "ahooks";
 import { StartAvatarRequest } from "@/types";
+import { avatarFramingStyle } from "@/lib/avatar-framing";
 import { Button } from "@heroui/button";
 import { AvatarVideo } from "./AvatarSession/AvatarVideo";
 import { useStreamingAvatarSession } from "./logic/useStreamingAvatarSession";
@@ -71,6 +72,17 @@ interface InteractiveAvatarWrapperProps {
   showHistory?: boolean;
   autoStart?: boolean;
   cleanMode?: boolean;
+  /**
+   * Opt in to the per-avatar framing correction in `lib/avatar-framing.ts`,
+   * which crops the standing faculty avatars to head-and-torso.
+   *
+   * OFF by default, and deliberately opt-in rather than keyed off `cleanMode`:
+   * the kiosk main display and case-play both render in clean mode too, and a
+   * kiosk is a large standing display where a full-length avatar is plausibly
+   * the right look. Cropping is a judgement about the SURFACE, not about the
+   * avatar, so each call site states it.
+   */
+  applyAvatarFraming?: boolean;
   onProgrammaticSpeak?: (speak: (text: string) => void) => void;
   onSessionStateChange?: (state: StreamingAvatarSessionState) => void;
   /** Fired when session token cannot be obtained (config / API key / upstream). */
@@ -107,10 +119,12 @@ const ActiveSession = forwardRef<
   {
     showHistory: boolean;
     cleanMode: boolean;
+    /** Drives the per-avatar framing correction; see lib/avatar-framing.ts. */
+    avatarId?: string;
     onProgrammaticSpeak?: (speak: (text: string) => void) => void;
     onSessionStateChange?: (state: StreamingAvatarSessionState) => void;
   }
->(({ showHistory, cleanMode, onProgrammaticSpeak, onSessionStateChange }, ref) => {
+>(({ showHistory, cleanMode, avatarId, onProgrammaticSpeak, onSessionStateChange }, ref) => {
   const {
     startSession,
     stopAvatar,
@@ -266,7 +280,14 @@ const ActiveSession = forwardRef<
           ref={videoRef}
           autoPlay
           playsInline
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            // Crops the standing faculty avatars to head-and-torso so they
+            // read as seated across a table. null for every other avatar.
+            ...(avatarFramingStyle(avatarId) ?? {}),
+          }}
         >
           <track kind="captions" />
         </video>
@@ -327,7 +348,7 @@ ActiveSession.displayName = "ActiveSession";
 const InteractiveAvatarWrapper = forwardRef<
   InteractiveAvatarRef,
   InteractiveAvatarWrapperProps
->(({ config = DEFAULT_CONFIG, showHistory = true, autoStart = false, cleanMode = false, onProgrammaticSpeak, onSessionStateChange, onSessionTokenError }, ref) => {
+>(({ config = DEFAULT_CONFIG, showHistory = true, autoStart = false, cleanMode = false, applyAvatarFraming = false, onProgrammaticSpeak, onSessionStateChange, onSessionTokenError }, ref) => {
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
@@ -461,6 +482,7 @@ const InteractiveAvatarWrapper = forwardRef<
         ref={innerRef}
         showHistory={effectiveShowHistory}
         cleanMode={cleanMode}
+        avatarId={applyAvatarFraming ? config.avatarName : undefined}
         onProgrammaticSpeak={onProgrammaticSpeak}
         onSessionStateChange={onSessionStateChange}
       />
