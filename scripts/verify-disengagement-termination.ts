@@ -304,13 +304,35 @@ console.log("\n4. Pitch policy opt-ins");
     ),
     JSON.stringify(resolvedDeckTypes.map((t) => t.terminationPolicy.avatarEndFloor)),
   );
+  // INVERTED 2026-10-15 (user decision). This row previously asserted
+  // `minAssistantTurns === 2`. The elevator now declares NO floor, so a
+  // crossed threshold can end the session on any turn — the listener walking
+  // away early is the lesson. The opt-in half of the row is unchanged, and
+  // the deck family's dormant four-turn floors above are untouched.
   check(
-    "pitch-elevator retains its existing floor and opts into disengagement",
-    PITCH_ELEVATOR_TYPE.terminationPolicy.avatarEndFloor?.minAssistantTurns ===
-      2 &&
+    "pitch-elevator declares NO floor and still opts into disengagement",
+    PITCH_ELEVATOR_TYPE.terminationPolicy.avatarEndFloor == null &&
       PITCH_ELEVATOR_TYPE.terminationPolicy.disengagementThreshold ===
         ELEVATOR_DISENGAGEMENT_THRESHOLD,
     JSON.stringify(PITCH_ELEVATOR_TYPE.terminationPolicy),
+  );
+  // The floor's removal must not have reached the gate itself: a synthetic
+  // policy that DOES declare a floor still rejects below it, at maximum
+  // disengagement. Proves the change is per-type config, not a gate change.
+  const floorStillBites = resolveTermination({
+    policy: {
+      ...PITCH_ELEVATOR_TYPE.terminationPolicy,
+      avatarEndFloor: { minAssistantTurns: 3 },
+    },
+    source: "avatar",
+    reason: "lost_interest",
+    assistantTurnCount: 2,
+    disengagementValue: 1,
+  });
+  check(
+    "floor gate itself still bites for a type that declares one",
+    floorStillBites.ok === false && floorStillBites.reason === "floor-not-met",
+    JSON.stringify(floorStillBites),
   );
 }
 

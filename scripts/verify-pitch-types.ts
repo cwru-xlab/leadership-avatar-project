@@ -191,43 +191,84 @@ console.log("\n5. System prompt is session-constant; persona always present");
   );
 }
 
-console.log("\n6. Avatar-end floor");
+console.log("\n6. No avatar-end floor — the threshold alone governs");
 {
+  // INVERTED 2026-10-15 (user decision), deliberately and not by weakening.
+  // This section previously proved a two-turn floor: turn 1 REJECTED, turn 2
+  // ACCEPTED. `pitch-elevator` now declares `avatarEndFloor: null`, so the
+  // turn count no longer gates a walk-out at all and the derived
+  // disengagement value is the only thing standing between the avatar and
+  // the exit.
+  //
+  // The old turn-2 row had ALSO been failing since Phase 18 for an unrelated
+  // reason: it passed no `disengagementValue`, so gate 4 rejected it with
+  // `disengagement-below-threshold` while the row's name blamed the floor.
+  // Asserting the threshold explicitly below removes that ambiguity.
   const type = getEngineType("pitch-elevator");
   const policy = type!.terminationPolicy;
+  const threshold = policy.disengagementThreshold!;
 
-  const below = resolveTermination({
+  check(
+    "pitch-elevator declares NO floor",
+    policy.avatarEndFloor == null,
+    JSON.stringify(policy.avatarEndFloor),
+  );
+
+  // The point of the change: a crossed threshold ends it on turn 1.
+  const firstTurnAtThreshold = resolveTermination({
     policy,
     source: "avatar",
     reason: "lost_interest",
     assistantTurnCount: 1,
+    disengagementValue: threshold,
   });
   check(
-    "assistantTurnCount:1 + lost_interest REJECTED",
-    below.ok === false && below.recordedReason === null,
-    JSON.stringify(below),
+    "assistantTurnCount:1 + at threshold ACCEPTED (no floor to wait for)",
+    firstTurnAtThreshold.ok === true &&
+      firstTurnAtThreshold.recordedReason === "lost_interest",
+    JSON.stringify(firstTurnAtThreshold),
   );
 
-  const atFloor = resolveTermination({
+  // Removing the floor must not have opened a hole: gate 4 still bites, and
+  // the rejection now names the threshold rather than the floor.
+  const firstTurnBelowThreshold = resolveTermination({
     policy,
     source: "avatar",
     reason: "lost_interest",
-    assistantTurnCount: 2,
+    assistantTurnCount: 1,
+    disengagementValue: threshold - 0.01,
   });
   check(
-    "assistantTurnCount:2 + lost_interest ACCEPTED",
-    atFloor.ok === true && atFloor.recordedReason === "lost_interest",
-    JSON.stringify(atFloor),
+    "assistantTurnCount:1 + below threshold REJECTED as disengagement-below-threshold",
+    firstTurnBelowThreshold.ok === false &&
+      firstTurnBelowThreshold.recordedReason === null &&
+      firstTurnBelowThreshold.reason === "disengagement-below-threshold",
+    JSON.stringify(firstTurnBelowThreshold),
   );
 
+  // A missing value is still fail-closed, at any turn count.
+  const noEvidence = resolveTermination({
+    policy,
+    source: "avatar",
+    reason: "lost_interest",
+    assistantTurnCount: 9,
+  });
+  check(
+    "no disengagement evidence REJECTED even late in the session",
+    noEvidence.ok === false && noEvidence.recordedReason === null,
+    JSON.stringify(noEvidence),
+  );
+
+  // Gate 2 (closed reason vocabulary) is unaffected by the floor's removal.
   const badReason = resolveTermination({
     policy,
     source: "avatar",
     reason: "bored",
     assistantTurnCount: 2,
+    disengagementValue: threshold,
   });
   check(
-    'assistantTurnCount:2 + "bored" REJECTED',
+    '"bored" REJECTED — reason vocabulary still closed',
     badReason.ok === false && badReason.recordedReason === null,
     JSON.stringify(badReason),
   );
