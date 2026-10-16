@@ -88,6 +88,11 @@ interface EngineTurnStateInput {
 
 const MAX_MESSAGE_LENGTH = 20_000;
 const MAX_RESUME_TEXT_LENGTH = 60_000;
+/**
+ * Same ceiling as the resume text, declared as its own constant so a future
+ * change to one does not silently move the other (quick task 003).
+ */
+const MAX_JOB_DESCRIPTION_TEXT_LENGTH = 60_000;
 
 function isChatMessage(value: unknown): value is ChatMessageInput {
   if (!value || typeof value !== "object") return false;
@@ -459,6 +464,10 @@ export async function POST(request: NextRequest) {
       engine,
       revealedSlideIndex,
       reportId: rawReportId,
+      // TOP-LEVEL, not nested under `interview`/`engine`: this is what
+      // PracticeSessionShell's existing `...extraChatBody` spread produces, so
+      // the shell needs no edit (quick task 003, decision 4).
+      jobDescriptionText: rawJobDescriptionText,
     } = body;
     const token = request.cookies.get(siteConfig.auth.cookie.name)?.value;
     const currentUser = await getCurrentUser(token || "");
@@ -576,6 +585,11 @@ export async function POST(request: NextRequest) {
             ? interviewInput.resumeText
             : "";
       const resumeText = rawResume.slice(0, MAX_RESUME_TEXT_LENGTH);
+      // Session-constant: the client resends the identical string every turn,
+      // which is what keeps the assembled system prompt byte-stable (REQ-73).
+      const jobDescriptionText = (
+        typeof rawJobDescriptionText === "string" ? rawJobDescriptionText : ""
+      ).slice(0, MAX_JOB_DESCRIPTION_TEXT_LENGTH);
       const progress = normalizeProgress(
         engineTurn?.progress ?? interviewInput?.progress,
       );
@@ -879,6 +893,7 @@ export async function POST(request: NextRequest) {
         },
         language: attemptLanguage,
         resumeText,
+        jobDescriptionText,
         systemPrompt:
           typeof systemPrompt === "string" ? systemPrompt : undefined,
         roleContext: roleContext ?? null,

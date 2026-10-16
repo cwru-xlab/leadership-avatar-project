@@ -79,6 +79,7 @@ function makeInterviewTypeConfig(base: InterviewType): InteractionTypeConfig {
 
         return buildInterviewSystemPrompt(resolvedBase, {
           resumeText: extra.resumeText ?? "",
+          jobDescriptionText: extra.jobDescriptionText ?? "",
           language: extra.language ?? resolveAttemptLanguage(undefined),
         });
       },
