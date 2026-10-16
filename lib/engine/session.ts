@@ -63,10 +63,11 @@ import { runAndPersistEvaluation } from "./evaluation-runner";
 import { validateOutcome } from "./outcome";
 import { getEngineType } from "./registry";
 import { resolveSessionConfig } from "./resolve";
-import { resolveTermination } from "./termination";
+import { resolveTermination, resolveWalkOutReason } from "./termination";
 import {
   computeDisengagementOverTranscript,
   type DisengagementComputeResult,
+  type DisengagementWeights,
 } from "./disengagement";
 import { verifyWalkOutProof } from "./walk-out-proof";
 import { clampAdjustableBudget } from "./time-budget";
@@ -192,12 +193,19 @@ function deriveFinishDisengagement({
   elapsedSeconds,
   budgetSeconds,
   threshold,
+  weights,
 }: {
   turns: Array<{ role: string; content: string }>;
   /** Server-stamped walk-out clock, never request handling wall-clock. */
   elapsedSeconds: number;
   budgetSeconds: number | null;
   threshold: number | null | undefined;
+  /**
+   * The type's own profile. Must match what the chat route used, or the
+   * recorded value is computed with different arithmetic than the live gate
+   * that ended the session.
+   */
+  weights?: Partial<DisengagementWeights>;
 }): DisengagementComputeResult {
   const assistantTurnCount = turns.filter(
     (turn) => turn.role === "assistant",
@@ -211,6 +219,7 @@ function deriveFinishDisengagement({
     budgetSeconds,
     assistantTurnCount,
     threshold,
+    weights,
   });
 }
 
@@ -1027,8 +1036,16 @@ export async function finishSession({
       serverElapsedSeconds,
     budgetSeconds: report.timeBudgetSeconds,
     threshold: type.terminationPolicy.disengagementThreshold,
+    // Same profile the chat route used, so the recorded value is computed with
+    // the same arithmetic as the live gate that ended the session.
+    weights: type.terminationPolicy.disengagementWeights ?? undefined,
   });
   const source = terminationSource ?? "student";
+  // Severity from SERVER evidence only: the signed proof when it matches this
+  // transcript, otherwise the fresh re-derivation. Never a request body.
+  const severeContent = proofMatchesTranscript
+    ? walkOutProof!.severe
+    : derivedDisengagement.severe === true;
   const needsWalkOutProof =
     source === "avatar" &&
     type.terminationPolicy.disengagementThreshold != null;
@@ -1041,10 +1058,25 @@ export async function finishSession({
       needsWalkOutProof && !proofMatchesTranscript
         ? undefined
         : derivedDisengagement.value,
+    // The carve-out must apply on the RECORDED path too. Without it a severe
+    // session that legitimately ended below the floor would be rejected here
+    // and written as a non-termination, losing the evidence entirely.
+    severeContent,
   });
+  // The reason the type's own vocabulary maps for the dominant observable
+  // cause, preferred over the model's marker reason. This is what makes
+  // `offensive_content` queryably distinct from `escalated` in the report and
+  // in any later cohort query — the marker reason alone cannot carry that.
+  const derivedWalkOutReason = proofMatchesTranscript
+    ? walkOutProof!.reason
+    : resolveWalkOutReason({
+        policy: type.terminationPolicy,
+        dominantCauses: derivedDisengagement.dominantCauses,
+        severe: severeContent,
+      });
   // Rejected terminations write both reason and timecode as null (13-07).
   const recordedTerminationReason = termination.ok
-    ? termination.recordedReason
+    ? derivedWalkOutReason ?? termination.recordedReason
     : null;
   const recordedTerminationAtSeconds =
     termination.ok
@@ -1072,6 +1104,7 @@ export async function finishSession({
       disengagementDecline: {
         value: derivedDisengagement.value,
         episodes: derivedDisengagement.episodes,
+        severe: severeContent,
       },
     };
   }

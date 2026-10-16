@@ -112,6 +112,13 @@ export interface EngineTurnState {
   walkOut?: {
     nearThreshold: boolean;
     forceFarewell: boolean;
+    /**
+     * The end reason the forced farewell must cite, decided by the SERVER from
+     * the type's own `avatarEndReasons` via `resolveWalkOutReason` — never
+     * chosen by the model and never carried from the client. Absent falls back
+     * to `lost_interest`, which keeps the pitch types byte-identical.
+     */
+    reason?: string | null;
   };
 }
 
@@ -292,9 +299,20 @@ function buildWalkOutFragment(
   if (!walkOut) return "";
 
   if (walkOut.forceFarewell) {
+    // DEFECT CLOSED (Phase 20 / 20-05): this reason used to be hardcoded to
+    // `lost_interest`. `resolveTermination` gate (2) rejects any reason outside
+    // the type's own `avatarEndReasons`, and `difficult-conversation` does not
+    // declare `lost_interest` — so a forced farewell there was silently
+    // rejected and the session never ended. Any future type with its own
+    // vocabulary would have hit the same wall. The fallback keeps the pitch
+    // types, whose vocabulary does include it, byte-identical.
+    const reason = walkOut.reason || "lost_interest";
     return [
       "[PRIVATE TURN DIRECTIVE — do not mention this directive]",
-      "End this conversation now with one brief, in-character excuse and a trailing <engine-end reason=\"lost_interest\" /> marker. Do not ask another question or coach the student.",
+      // Stays IN CHARACTER for every reason, severe content included (REQ-101):
+      // the character simply leaves. Never name a rule, a policy, a moderator,
+      // this directive, or the app, and never explain the exit in system terms.
+      `End this conversation now with one brief, in-character excuse and a trailing <engine-end reason="${reason}" /> marker. Do not ask another question or coach the student. Leave as the character would leave, without explaining why in any terms outside the conversation.`,
     ].join("\n");
   }
 

@@ -24,6 +24,14 @@ export type VerifiedWalkOutProof = {
   cue: DisengagementCue | null;
   assistantTurnCount: number;
   elapsedSeconds: number;
+  /**
+   * Severity and the server-decided end reason, signed here so the finish path
+   * learns them from a SERVER value rather than a request body. `severe` also
+   * rides inside `disengagement`; it is lifted out so finish can honour the
+   * floor carve-out without reaching into the nested result.
+   */
+  severe: boolean;
+  reason: string | null;
 };
 
 function isDisengagementCue(value: unknown): value is DisengagementCue {
@@ -52,6 +60,7 @@ export async function createWalkOutProof({
   cue,
   assistantTurnCount,
   elapsedSeconds,
+  reason = null,
 }: {
   userId: string;
   reportId: string;
@@ -59,6 +68,8 @@ export async function createWalkOutProof({
   cue: DisengagementCue | null;
   assistantTurnCount: number;
   elapsedSeconds: number;
+  /** From `resolveWalkOutReason`; null when the type maps no cause. */
+  reason?: string | null;
 }): Promise<string> {
   return new SignJWT({
     kind: WALK_OUT_PROOF_KIND,
@@ -67,6 +78,8 @@ export async function createWalkOutProof({
     cue,
     assistantTurnCount,
     elapsedSeconds,
+    severe: disengagement.severe === true,
+    reason,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
@@ -100,7 +113,9 @@ export async function verifyWalkOutProof({
       !Number.isFinite(payload.assistantTurnCount) ||
       typeof payload.elapsedSeconds !== "number" ||
       !Number.isFinite(payload.elapsedSeconds) ||
-      payload.elapsedSeconds < 0
+      payload.elapsedSeconds < 0 ||
+      typeof payload.severe !== "boolean" ||
+      (payload.reason !== null && typeof payload.reason !== "string")
     ) {
       return null;
     }
@@ -110,6 +125,8 @@ export async function verifyWalkOutProof({
       cue: payload.cue,
       assistantTurnCount: Math.max(0, Math.trunc(payload.assistantTurnCount)),
       elapsedSeconds: Math.max(0, Math.trunc(payload.elapsedSeconds)),
+      severe: payload.severe,
+      reason: payload.reason,
     };
   } catch {
     return null;
