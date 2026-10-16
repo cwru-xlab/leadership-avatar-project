@@ -1137,10 +1137,10 @@ read 2026-10-16). Recorded because two of its findings change the brief:
      far better — see the note in STATE.md's Roadmap Evolution.
 
 **Success Criteria** (what must be TRUE): [to be derived in planning]
-**Plans:** 20 plans
+**Plans:** 25 plans in 8 waves
 
 Plans:
-- [ ] 21-01-PLAN.md — Derive REQ-103..REQ-121 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line
+- [ ] 21-01-PLAN.md — Derive REQ-103..REQ-124 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line
 - [ ] 21-02-PLAN.md — Cross-type competency catalog derived from the live rubric-dimension registry, with a total-mapping guard
 - [ ] 21-03-PLAN.md — Prisma models for the mastery ledger, four-format checks, attempts, contests, path, steps and coached sessions (migration unapplied)
 - [ ] 21-04-PLAN.md — Session-moment extraction and the exact-match-or-reject verbatim quote validator (TDD)
@@ -1159,6 +1159,11 @@ Plans:
 - [ ] 21-17-PLAN.md — Per-competency levels and daily/weekly goals, with no-streaks and no-unlocking negative guards
 - [ ] 21-18-PLAN.md — Mastery surface: overall figure plus per-competency breakdown with labelled dual figures and inline thinness
 - [ ] 21-19-PLAN.md — Path surface inside the study plan, additive to app/reports/page.tsx, with the existing-surface regression guard
+- [ ] 21-21-PLAN.md — LIVE_SESSION ingestion on the report READY transition, and the single shared report-to-competency mapper
+- [ ] 21-22-PLAN.md — Knowledge-check taking surface: attempt route, four-format card with the contest affordance, and the page a path step links to
+- [ ] 21-23-PLAN.md — Coached runtime: path-step-only entry route and the REPLAY-to-FRESH orchestration with every tip gated
+- [ ] 21-24-PLAN.md — Coached session shell and page: verbatim replay, technique-reminder rail, fresh leg, finish
+- [ ] 21-25-PLAN.md — Ownership-scoped generation-source assembler: the single supplier of 21-10's inputs and the path route's availability pre-check
 - [ ] 21-20-PLAN.md — Full battery, human UAT against five Success Criteria, REQ-85 Phase 18 revision handoff, calibration record (human-verified)
 
 Plans:
