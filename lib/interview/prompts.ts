@@ -32,6 +32,16 @@ import { BEHAVIORAL_CATEGORIES } from "./types";
 export interface InterviewPromptInput {
   /** Extracted resume text. Empty string when the student skipped the upload. */
   resumeText: string;
+  /**
+   * Extracted or pasted job-posting text. Empty when none was attached.
+   *
+   * When empty, `buildInterviewSystemPrompt` appends NOTHING for it — the
+   * assembled prompt stays byte-identical to the pre-quick-003 string so the
+   * OpenAI prefix cache (REQ-73) and every existing session are unaffected.
+   * There is deliberately no "(No job description provided…)" sentinel: an
+   * absent bullet is the absence.
+   */
+  jobDescriptionText?: string;
   language: AttemptLanguage;
 }
 
@@ -45,8 +55,20 @@ export interface InterviewPromptInput {
  */
 export function buildInterviewSystemPrompt(
   type: InterviewType,
-  { resumeText, language }: InterviewPromptInput,
+  { resumeText, jobDescriptionText, language }: InterviewPromptInput,
 ): string {
+  // Empty posting -> empty string -> nothing appended to the context block.
+  const jobDescriptionSection = (jobDescriptionText ?? "").trim()
+    ? `\n- The actual job posting the candidate is targeting (ground your role-specific questions in this, and prefer its wording over the generic role/industry labels above when they disagree):\n${(jobDescriptionText ?? "").trim()}`
+    : "";
+
+  // Also conditional: with no posting, stage 4's wording must not move either.
+  const jobDescriptionStageSentence = jobDescriptionSection
+    ? " When a job posting is provided in your context above, draw this" +
+      " question from its stated responsibilities or requirements rather than" +
+      " from the generic role and industry labels."
+    : "";
+
   const resumeSection = resumeText.trim()
     ? resumeText.trim()
     : "(No resume provided. Skip the resume-grounded stage and ask one extra " +
@@ -67,7 +89,7 @@ exercise. You are playing the role of: ${type.interviewerPersona}.`,
 - Interview length target: ${type.targetMinutes} minutes / ${type.targetQuestionCount} questions
 ${caseSection}
 - Candidate's resume (reference this actively):
-${resumeSection}`,
+${resumeSection}${jobDescriptionSection}`,
 
     `## YOUR OBJECTIVE
 Conduct a realistic, structured interview that surfaces the candidate's leadership
@@ -86,7 +108,7 @@ reply or a single stage transition.
 3. Behavioral questions (3-4 total): Pull from these categories —
    ${BEHAVIORAL_CATEGORIES.join(", ")}. Adapt difficulty to ${type.difficulty}.
 4. Role/industry-specific question (1-2 total): Tailor to
-   ${type.defaultRoleTitle} and ${type.defaultIndustry}.
+   ${type.defaultRoleTitle} and ${type.defaultIndustry}.${jobDescriptionStageSentence}
 5. Closing: Ask whether they have questions for you, answer briefly and in
    character, then close professionally.
 
