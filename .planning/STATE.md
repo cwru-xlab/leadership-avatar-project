@@ -9,7 +9,22 @@
 **Phase:** 20 — Difficult Conversation Walk-Outs (plans 20-01 through 20-04 and 20-06 complete; 20-05 concurrent in-flight; execution must STOP before 20-07, gated on Phase 18's 18-05 human UAT, which is running concurrently) — Phase 19 implementation complete (19-01..19-10), 19-11 still pending as the final plan in that phase.
 **Plan:** Phase 20: 20-01, 20-02, 20-03, 20-04 and 20-06 complete (20-06: `lib/report/quote-sanitizer.ts` wired into `toReportDto`, `scripts/verify-dc-walkout-report.ts`'s 6-section battery, ALL PASS); 20-05 next/concurrent for that phase; execution STOPS before 20-07 per the gating decision. Separately, Phase 19: 19-01 through 19-10 complete; 19-11 still pending.
 **Status:** 20-06 shipped the sanitizer guarantee: `sanitizeQuote`/`sanitizeOutcomeQuotes` classify with `detectHostility` (20-01's SEVERE lexicon, no second private list), replace a severe quote/prose field with a rule-group characterization while leaving `timecodeSeconds`/`effect`/non-severe text untouched, and are applied inside `toReportDto` — never a component — so the verbatim text never reaches a client payload. `scripts/verify-dc-walkout-report.ts` proves it against the real `toReportDto`, including an adversarial payload that deliberately disobeys the aligned evaluator prompt, and the negative test (sanitizer temporarily reverted) was run and confirmed to fail exactly sections 1/2/4 before being restored. `postProcessScores` confirmed still absent. One disclosed deviation (module relocated to `lib/report/` per the plan's own fallback, to avoid `lib/report/` importing a type-specific module) and one disclosed git-staging race (Task 3's file correctly landed but under a concurrent agent's commit message) — see `20-06-SUMMARY.md`. `npx tsc --noEmit` clean; `verify-pitch-types.ts` unchanged at its 1 pre-existing Phase-18-owned elevator failure.
-**Last activity:** 2026-10-09 — 20-06 complete; see `20-06-SUMMARY.md`.
+**Last activity:** 2026-10-16 — quick task 002 (issue #50, feedback source
+attribution) reached its blocking human-verify checkpoint; Tasks 1–2 and the
+regression battery are committed, the 5-case human report check is outstanding.
+See `quick/002-feedback-source-attribution/002-SUMMARY.md`. Earlier the same
+day, Phase 20 plan **20-05 completed** — the difficult-conversation walk-out is
+now wired into live sessions at both server callers, closing two defects that
+had made it impossible to fire: a forced farewell citing `lost_interest`, a
+reason the type does not declare (rejected by `resolveTermination` gate 2), and
+a declared `disengagementWeights` profile that never reached either caller, so
+every Phase 20 cause computed at weight 0. Phase 20's only remaining plan is
+20-07, still gated on Phase 18's 18-05. Also: `pitch-elevator` dropped its
+two-turn `avatarEndFloor` (user decision) so a crossed threshold ends it on any
+turn — both pinning assertions INVERTED, not deleted, and this incidentally
+cleared the long-standing `verify-pitch-types` red. **18-05's UAT step 6
+("confirm elevator floor (2 turns)") is now obsolete and must be reworded before
+Phase 18's human UAT runs.** Previously: 20-06 complete; see `20-06-SUMMARY.md`.
 
 ### Carried into v1.1 from v1.0
 
@@ -1990,6 +2005,7 @@ Open items carried into Phase 11+:
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
 | 001 | Hold-Space push-to-talk in all avatar sessions | 2026-10-09 | `2cdb1b3` | Verified (2 negative tests passed); live browser check residual | [001-hold-space-push-to-talk](./quick/001-hold-space-push-to-talk/) |
+| 002 | Label whether interview feedback comes from the resume or conversation (issue #50) | 2026-10-16 | `55fa287` | **NOT DONE — human-verify OUTSTANDING.** Tasks 1–2 + regression battery complete; frozen-snapshot guard proven to bite before/after; no-resume enforcement negative-tested (4 FAIL rows, exit 1). The 5-case human report check is unexecuted and blocking. | [002-feedback-source-attribution](./quick/002-feedback-source-attribution/) |
 
 ### Roadmap Evolution
 
