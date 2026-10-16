@@ -1,7 +1,7 @@
 # Quick 002 Summary — Feedback source attribution (issue #50)
 
-**Status:** Tasks 1–2 and the automated half of Task 3 complete.
-**Task 3's human-verify is OUTSTANDING and blocking.** This task is NOT done.
+**Status:** COMPLETE — Tasks 1-3 discharged, human-verify reported PASS
+("all pass", 2026-10-16) on PARTIAL evidence; see the human-verify section.
 **Date:** 2026-10-16 · **Plan:** `002-PLAN.md` (`8521fd6`)
 
 ## What shipped
@@ -70,9 +70,24 @@ shorthand `{ hasResume }` call and silently changed nothing — its "pass" was
 meaningless. Recorded because a negative test that does not actually run looks
 identical to one that does.)*
 
-## Outstanding — human-verify, blocking
+## Human-verify — PASS (2026-10-16)
 
-A human must, on `npm run dev`:
+**Verdict, verbatim: "all pass".** Human-performed, agent-recorded. All five
+checks below were reported as passing.
+
+**Evidence strength: PARTIAL**, recorded at the strength it actually has,
+following the convention `17-KEYBOARD-PASS-1.md` and `13-CLOSE-RECORD.md` set.
+`missing_evidence`:
+
+- No report IDs supplied for either interview session.
+- No item-level notes — the five checks were reported as one aggregate verdict
+  rather than individually.
+
+This does not weaken the verdict; it records what a future reader can and cannot
+reconstruct from it. The automated half is separately evidenced above, including
+a negative test confirmed to bite.
+
+### The five checks reported as passing
 
 1. Run a General Interview **with a resume**; include one answer elaborating on
    the resume and one story not on it. On the Feedback tab confirm every
@@ -87,5 +102,5 @@ A human must, on `npm run dev`:
    no empty badge.
 5. Open a Courageous Conversation or Networking report — confirm it is unchanged.
 
-Until that is reported, no requirement checkbox should be ticked and this task
-stays open.
+Task 002 is COMPLETE: Tasks 1-3 all discharged, the automated battery green and
+negative-tested, the human-verify reported as passing.
