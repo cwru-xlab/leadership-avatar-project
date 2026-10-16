@@ -69,10 +69,16 @@ export default function CameraConsentStep({
   launchLabel = "Start interview",
 }: CameraConsentStepProps) {
   // Camera-mode decision, made BEFORE the session and LOCKED — see
-  // 10-CONTEXT.md "Camera mode is locked at session start". Default OFF
-  // deliberately: the measured path must be an affirmative choice, and the
-  // server independently forces OFF without consent regardless (10-05).
-  const [cameraMode, setCameraMode] = useState<CameraMode>("OFF");
+  // 10-CONTEXT.md "Camera mode is locked at session start".
+  //
+  // Defaults to ON so the camera-on card carries the highlight on load, which
+  // is the nudge issue #49 asks for: students read the highlighted card as the
+  // recommended one. This moves the HIGHLIGHT only — it does not pre-grant the
+  // measured path. A student who has never consented still meets
+  // `MetricsConsentDialog` before any camera opens, declining still launches
+  // OFF, and `resolveCameraMode` in lib/engine/session.ts independently forces
+  // OFF without a stored consent regardless of what the client sends (10-05).
+  const [cameraMode, setCameraMode] = useState<CameraMode>("ON");
   const [consentAccepted, setConsentAccepted] = useState<boolean | null>(null);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
   const [cameraBlock, setCameraBlock] = useState<CameraBlockReason | null>(null);
