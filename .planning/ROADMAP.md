@@ -45,6 +45,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [ ] **Phase 18: Avatar Disengagement & Walk-Out** - A session the avatar is losing actually ends, as a recorded failure with an explained decline
 - [ ] **Phase 19: Deck-Led Pitch Family** - Four more deck-led pitch modes alongside the investor deck, sharing one deck capability
 - [ ] **Phase 20: Difficult Conversation Walk-Outs** - The avatar leaves a difficult conversation when the student loses control of its hostility
+- [ ] **Phase 21: Adaptive Mastery Path** - Study plans become a tailored improvement path: measured mastery, generated practice aimed at the gap, knowledge checks, and in-session coaching
 
 ## Phase Details
 
@@ -1078,9 +1079,69 @@ Plans:
 - [x] 20-02-PLAN.md — Three new observable causes, per-type weight profile, hostility accumulation + one-way ratchet, acknowledgement-absent signal (REQ-96, REQ-98, REQ-99) — complete 2026-10-08, see `20-02-SUMMARY.md`
 - [x] 20-03-PLAN.md — One type-level threshold + weight profile + severe reason code, with the no-per-scenario-surface guard (REQ-95, REQ-101) — complete 2026-10-08, see `20-03-SUMMARY.md`
 - [x] 20-04-PLAN.md — Named severe-content carve-out in resolveTermination + cause-to-reason resolver + deliberate verifier amendment (REQ-100, REQ-101) — complete 2026-10-09, see `20-04-SUMMARY.md`
-- [ ] 20-05-PLAN.md — Live wiring at both server callers, policy-supplied forced-farewell reason, single in-character ending path guarded (REQ-96, REQ-99, REQ-100, REQ-101)
+- [x] 20-05-PLAN.md — Live wiring at both server callers, policy-supplied forced-farewell reason, single in-character ending path guarded (REQ-96, REQ-99, REQ-100, REQ-101) — complete 2026-10-16, see `20-05-SUMMARY.md`
 - [x] 20-06-PLAN.md — Server-side quote sanitizer on the way out of toReportDto, with its own adversarial battery; no score cap (REQ-102) — complete 2026-10-09, see `20-06-SUMMARY.md`
 - [ ] 20-07-PLAN.md — Human adversarial UAT + 20-VALIDATION.md, Phase 18 revision handoff, calibration record (all eight REQs, human-verified; GATED on 18-05)
+
+### Phase 21: Adaptive Mastery Path
+**Goal:** Grow study plans from a static post-session artifact into a tailored
+improvement path: the system measures what a student has and has not mastered,
+then generates the next practice session or case study aimed at that specific
+gap — plus short knowledge checks between live sessions, and coaching that
+arrives DURING practice rather than only in the report afterwards.
+**Depends on:** Phase 10 (the scored rubric and visual/vocal metrics that make
+mastery measurable); the existing study-plan surface — `lib/study-plan/`
+(`generate.ts`, `types.ts`, `plan-dto.ts`, `draft-token.ts`),
+`app/api/study-plans/{route,generate,[planId]}` and `app/reports/page.tsx` —
+which this phase WIDENS rather than replaces. Not blocked by Phases 18-20.
+
+**Competitor research — fizzylemon** (`https://www.fizzylemonai.com/how-it-works`,
+read 2026-10-16). Recorded because two of its findings change the brief:
+
+  - **Mastery is a percentage backed by cited evidence.** Shown as an overall
+    figure ("Mastery: 82%") plus a per-objective breakdown ("Structure feedback
+    effectively: 90%"), derived from "evidence from the learner's interactions
+    during the Learning Session" — explicitly reporting where understanding is
+    incomplete, not just a score.
+  - **Learning Sessions are conversational, with embedded knowledge checks** —
+    the page's own example is a multiple-choice item ("Which statement focuses
+    on an observable behaviour?", four options). How they are generated is NOT
+    disclosed.
+  - **CORRECTION TO THE BRIEF — their "coaching sessions" are not live.** The
+    request assumed real-time speaking with live avatar responses. The page
+    shows a 5:02 pre-recorded video labelled "Live · Coach" that reads the
+    learner's prior Learning and Practice reports and returns a gap analysis
+    plus numbered "coaching outcomes". **This app already has live avatar
+    conversation**, so it is AHEAD here, not behind. The real gap is coaching
+    delivered *during* a session, not the live avatar itself.
+  - **CORRECTION TO THE BRIEF — they have no adaptive path.** Journeys are
+    assembled by hand ("Mix and match the sessions a capability needs"). No
+    skill tree, no streaks, no levels, and the page never explains generating a
+    new session from prior performance — only that "Memory connects what
+    happens across sessions". **The Duolingo-adjacent adaptive path in this
+    request is therefore a differentiator, not catch-up.** Do not plan it as
+    parity work.
+
+**Open questions for `/gsd:discuss-phase 21`:**
+  1. Is mastery per rubric dimension (the engine already scores these), per
+     interaction type, or a separate competency model layered over both?
+  2. Do knowledge checks (multiple choice / fill-in-the-blank) need a new
+     non-avatar interaction type, or do they live inside the study-plan surface?
+  3. Does in-session coaching violate Phase 18's locked "no live indicator"
+     decision, which forbids a meter or warning anywhere in the session shell?
+     These may conflict — settle it before planning, not during.
+  4. What makes a generated practice session *trustworthy*? Phases 12/18/20 all
+     chose deterministic derivation over model judgement for anything consequential.
+  5. Scope: is this v1.1 work at all? v1.1 is "Consequence & Deck Breadth" and is
+     mid-sign-off with three human UAT gates open. This phase fits a v1.2 theme
+     far better — see the note in STATE.md's Roadmap Evolution.
+
+**Success Criteria** (what must be TRUE): [to be derived in planning]
+**Plans:** 0 plans — not yet planned
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 21 to break down)
+
 
 
 ## Progress

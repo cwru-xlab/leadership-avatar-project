@@ -2009,6 +2009,39 @@ Open items carried into Phase 11+:
 
 ### Roadmap Evolution
 
+### Phase 21 added (2026-10-16)
+
+- **Phase 21 added: Adaptive Mastery Path** — widen study plans from a static
+  post-session artifact into a tailored improvement path: measured mastery,
+  generated practice aimed at the specific gap, knowledge checks between live
+  sessions, and coaching delivered during practice rather than only in the
+  report. It EXTENDS the existing `lib/study-plan/` surface rather than
+  replacing it, and is not blocked by Phases 18-20.
+
+- **Competitor research done at add time** (`fizzylemonai.com/how-it-works`,
+  read 2026-10-16) and recorded in the roadmap entry, because two findings
+  change the brief:
+  - Their "coaching sessions" are a **pre-recorded video**, not live speaking.
+    This app's live avatar conversation is already ahead; the real gap is
+    coaching delivered *mid-session*.
+  - They have **no adaptive path** — journeys are assembled by hand, with no
+    skill tree, streaks, or levels, and no disclosed mechanism for generating a
+    session from prior performance. The Duolingo-adjacent path in this request
+    is a **differentiator, not parity work**.
+
+- **MILESTONE PLACEMENT IS UNRESOLVED.** `/gsd:add-phase` appends to the current
+  milestone, so this landed in **v1.1 — Consequence & Deck Breadth**, whose
+  theme it does not share and which is mid-sign-off with three human UAT gates
+  still open (18-05, 19-11, 20-07). Phase 21 is a large new capability and fits
+  a **v1.2** theme far better. Decide before `/gsd:plan-phase 21`; moving it
+  later costs a renumber.
+
+- One correction made while editing: `gsd-tools phase add` appended its stub to
+  the END of ROADMAP.md, inside the `## Progress` section, and did not add the
+  phase to the `## Phases` summary list. Both were fixed by hand — the entry now
+  sits in `## Phase Details` after Phase 20, and the summary list carries it.
+  Worth knowing the tool does this if another phase is added.
+
 ### Phase 20 planned (2026-10-08)
 
 Phase 20 — Difficult Conversation Walk-Outs is PLANNED and VERIFIED: 7 plans in
