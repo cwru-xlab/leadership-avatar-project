@@ -1137,7 +1137,29 @@ read 2026-10-16). Recorded because two of its findings change the brief:
      far better — see the note in STATE.md's Roadmap Evolution.
 
 **Success Criteria** (what must be TRUE): [to be derived in planning]
-**Plans:** 0 plans — not yet planned
+**Plans:** 20 plans
+
+Plans:
+- [ ] 21-01-PLAN.md — Derive REQ-103..REQ-121 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line
+- [ ] 21-02-PLAN.md — Cross-type competency catalog derived from the live rubric-dimension registry, with a total-mapping guard
+- [ ] 21-03-PLAN.md — Prisma models for the mastery ledger, four-format checks, attempts, contests, path, steps and coached sessions (migration unapplied)
+- [ ] 21-04-PLAN.md — Session-moment extraction and the exact-match-or-reject verbatim quote validator (TDD)
+- [ ] 21-05-PLAN.md — Contribution weight table with its locked orderings enforced, plus the append-only mastery ledger
+- [ ] 21-06-PLAN.md — Four check payload formats inside the study-plan surface, with the no-engine-registry guard
+- [ ] 21-07-PLAN.md — Named scoped privacy-boundary widening for own-moment generation; the existing generator frozen and proven frozen
+- [ ] 21-08-PLAN.md — The path as a child of the study plan: 5-10 bound, new-plan-new-path, old paths reachable
+- [ ] 21-09-PLAN.md — Deterministic lifetime and current-window mastery computation (TDD)
+- [ ] 21-10-PLAN.md — Four-format check generation from the student's own moments, with the verbatim gate proven against a disobedient stub
+- [ ] 21-11-PLAN.md — Deterministic grading for the three closed formats, model grading for rewrites at the lower weight (TDD)
+- [ ] 21-12-PLAN.md — Coached practice as its own path-only instance, replay-then-fresh, with the engine relationship decided in writing
+- [ ] 21-13-PLAN.md — Evidence thinness tiers attached at the single server exit for mastery
+- [ ] 21-14-PLAN.md — Deterministic explainable weakest-competency-first step selection (TDD)
+- [ ] 21-15-PLAN.md — Contest a grading: immediate contribution reversal and generated-question flagging
+- [ ] 21-16-PLAN.md — Technique-only coach tips enforced mechanically, and the coached-weight contribution
+- [ ] 21-17-PLAN.md — Per-competency levels and daily/weekly goals, with no-streaks and no-unlocking negative guards
+- [ ] 21-18-PLAN.md — Mastery surface: overall figure plus per-competency breakdown with labelled dual figures and inline thinness
+- [ ] 21-19-PLAN.md — Path surface inside the study plan, additive to app/reports/page.tsx, with the existing-surface regression guard
+- [ ] 21-20-PLAN.md — Full battery, human UAT against five Success Criteria, REQ-85 Phase 18 revision handoff, calibration record (human-verified)
 
 Plans:
 - [ ] TBD (run /gsd:plan-phase 21 to break down)
