@@ -114,17 +114,8 @@ async function mapWithConcurrency<T>(
  * that letter and destroy the transcript. A user with no name set yields
  * `[]`; 21-07's redaction is required to handle that, not special-cased here.
  */
-async function loadSelfNames(requestingUserId: string): Promise<string[]> {
-  // selfNames query is scoped by `id: requestingUserId` — User's primary key
-  // is `id`, not `userId`, so this is the second ownership-equivalent touch
-  // point alongside the report query's `userId: requestingUserId` above:
-  // every per-user read in this module is scoped to the requesting user.
-  const user = await prisma.user.findUnique({
-    where: { id: requestingUserId },
-    select: { name: true },
-  });
-
-  const fullName = user?.name?.trim() ?? "";
+export function buildSelfNameVariants(fullNameRaw: string | null | undefined): string[] {
+  const fullName = fullNameRaw?.trim() ?? "";
   const candidates: string[] = [];
   if (fullName) {
     candidates.push(fullName);
@@ -143,6 +134,18 @@ async function loadSelfNames(requestingUserId: string): Promise<string[]> {
     selfNames.push(trimmed);
   }
   return selfNames;
+}
+
+async function loadSelfNames(requestingUserId: string): Promise<string[]> {
+  // selfNames query is scoped by `id: requestingUserId` — User's primary key
+  // is `id`, not `userId`, so this is the second ownership-equivalent touch
+  // point alongside the report query's `userId: requestingUserId` above:
+  // every per-user read in this module is scoped to the requesting user.
+  const user = await prisma.user.findUnique({
+    where: { id: requestingUserId },
+    select: { name: true },
+  });
+  return buildSelfNameVariants(user?.name);
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +175,24 @@ export interface AssembleSourcesArgs {
    * with a generic reason instead. */
   transcriptDegradationReasons?: ReadonlyMap<string, string>;
   selfNames: string[];
+}
+
+/**
+ * Throws if `moments` and `momentOwnerUserIds` are not the same length.
+ * Exported on its own so the battery can prove this invariant actually
+ * fires, by constructing a deliberately misaligned pair directly — the
+ * construction loop above never produces a misaligned pair, so there is no
+ * organic way to exercise this path end-to-end.
+ */
+export function assertMomentOwnerAlignment(
+  moments: readonly SessionMoment[],
+  momentOwnerUserIds: readonly string[],
+): void {
+  if (moments.length !== momentOwnerUserIds.length) {
+    throw new Error(
+      "loadGenerationSources: moments/momentOwnerUserIds length mismatch — alignment invariant violated",
+    );
+  }
 }
 
 /**
@@ -226,12 +247,10 @@ export function assembleSources(args: AssembleSourcesArgs): GenerationSources {
   // Alignment is guaranteed by construction above; assert it anyway and
   // THROW on violation — 21-07 compares these index-wise, and a
   // misalignment would make its ownership check pass while attributing the
-  // wrong owner.
-  if (moments.length !== momentOwnerUserIds.length) {
-    throw new Error(
-      "loadGenerationSources: moments/momentOwnerUserIds length mismatch — alignment invariant violated",
-    );
-  }
+  // wrong owner. Extracted as its own exported function so the battery can
+  // prove the invariant actually fires (an invariant never seen to throw is
+  // not an invariant) without needing to break the construction above.
+  assertMomentOwnerAlignment(moments, momentOwnerUserIds);
 
   // STEP 6. Group moments by the competency their report's SCORED
   // DIMENSIONS implicate (via 21-02's `competencyForDimension`), restricted
