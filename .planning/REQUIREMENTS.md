@@ -805,7 +805,7 @@ REQ-73.
   registered engine interaction type — a surface-count guard fails if a
   knowledge-check slug reaches the engine registry.
 
-- **REQ-109** — [x] Check content is generated from the student's OWN session
+- **REQ-109** — [ ] Check content is generated from the student's OWN session
   moments — real transcript turns and the growth areas their report
   identified — under a named, scoped widening of the study-plan privacy
   boundary that is recorded with its rationale. The existing closed-vocabulary
@@ -960,12 +960,12 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-104 | Phase 21 | Pending |
 | REQ-105 | Phase 21 | Pending |
 | REQ-106 | Phase 21 | Pending |
-| REQ-107 | Phase 21 | Complete |
-| REQ-108 | Phase 21 | Complete |
-| REQ-109 | Phase 21 | Complete |
-| REQ-110 | Phase 21 | Complete |
+| REQ-107 | Phase 21 | Pending |
+| REQ-108 | Phase 21 | Pending |
+| REQ-109 | Phase 21 | Pending |
+| REQ-110 | Phase 21 | Pending |
 | REQ-111 | Phase 21 | Pending |
-| REQ-112 | Phase 21 | Complete |
+| REQ-112 | Phase 21 | Pending |
 | REQ-113 | Phase 21 | Pending |
 | REQ-114 | Phase 21 | Pending |
 | REQ-115 | Phase 21 | Pending |
@@ -974,7 +974,7 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-118 | Phase 21 | Pending |
 | REQ-119 | Phase 21 | Pending |
 | REQ-120 | Phase 21 | Pending |
-| REQ-121 | Phase 21 | Complete |
+| REQ-121 | Phase 21 | Pending |
 | REQ-122 | Phase 21 | Pending |
 | REQ-123 | Phase 21 | Pending |
 | REQ-124 | Phase 21 | Pending |
