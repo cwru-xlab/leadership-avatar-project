@@ -101,8 +101,19 @@ function makeStructuredReport(growthAreas: ReportGrowthArea[]): StructuredReport
   };
 }
 
-function growthArea(title: string, timecodes: string[]): ReportGrowthArea {
-  return { title, detail: "detail", suggestion: "suggestion", timecodes, source: null };
+function growthArea(
+  title: string,
+  timecodes: string[],
+  dimension?: string | null,
+): ReportGrowthArea {
+  return {
+    title,
+    detail: "detail",
+    suggestion: "suggestion",
+    timecodes,
+    source: null,
+    dimension: dimension ?? null,
+  };
 }
 
 function makeReportRow(overrides: Partial<ReportForAssembly>): ReportForAssembly {
@@ -385,6 +396,79 @@ console.log("\n2f. A competency with no contributing moments is ABSENT, not empt
   check(
     "structure_and_clarity is ABSENT from momentsByCompetency (has() is false, not an empty array)",
     result.momentsByCompetency.has("structure_and_clarity") === false,
+  );
+}
+
+console.log("\n2f2. A STATED dimension wins over the report-level derivation (quick-004)");
+{
+  // scores evidence structure_and_clarity (content: 5) — the OLD, report-
+  // level derivation this report would have used before quick-004. But the
+  // growth area this moment links to STATES "concision", which evidences a
+  // DIFFERENT competency (concision_and_focus). The stated dimension must
+  // win: the moment should land under concision_and_focus, NOT
+  // structure_and_clarity.
+  const report = makeReportRow({
+    id: "report-stated-wins",
+    userId: USER,
+    scores: { content: 5 },
+    reportStructured: makeStructuredReport([
+      growthArea("Too wordy", [timecodeFor(5)], "concision"),
+    ]),
+  });
+  const transcript = makeTranscript({
+    reportId: "report-stated-wins",
+    userId: USER,
+    userTurnsSec: [5],
+  });
+
+  const result = assembleSources({
+    requestingUserId: USER,
+    reports: [report],
+    transcriptsByReportId: new Map([["report-stated-wins", transcript]]),
+    selfNames: [],
+  });
+
+  check(
+    "the moment lands under concision_and_focus (the STATED dimension), not structure_and_clarity",
+    (result.momentsByCompetency.get("concision_and_focus")?.length ?? 0) === 1,
+    result.momentsByCompetency.get("concision_and_focus"),
+  );
+  check(
+    "structure_and_clarity (the derivation) is ABSENT — the stated dimension fully overrides it",
+    result.momentsByCompetency.has("structure_and_clarity") === false,
+  );
+}
+
+console.log("\n2f3. A null/absent dimension falls back to the report-level derivation (quick-004)");
+{
+  // Same scores (content: 5 => structure_and_clarity), but the growth area
+  // declares NO dimension — exactly what every report row written before
+  // quick-004 looks like. The fallback must still produce a check.
+  const report = makeReportRow({
+    id: "report-fallback",
+    userId: USER,
+    scores: { content: 5 },
+    reportStructured: makeStructuredReport([
+      growthArea("Answers wandered", [timecodeFor(5)], null),
+    ]),
+  });
+  const transcript = makeTranscript({
+    reportId: "report-fallback",
+    userId: USER,
+    userTurnsSec: [5],
+  });
+
+  const result = assembleSources({
+    requestingUserId: USER,
+    reports: [report],
+    transcriptsByReportId: new Map([["report-fallback", transcript]]),
+    selfNames: [],
+  });
+
+  check(
+    "a null-dimension growth area still falls back to the derivation (structure_and_clarity)",
+    (result.momentsByCompetency.get("structure_and_clarity")?.length ?? 0) === 1,
+    result.momentsByCompetency.get("structure_and_clarity"),
   );
 }
 

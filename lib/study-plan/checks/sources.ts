@@ -210,6 +210,11 @@ export function assembleSources(args: AssembleSourcesArgs): GenerationSources {
   const momentOwnerUserIds: string[] = [];
   const momentsByReportId = new Map<string, SessionMoment[]>();
   const usedTranscriptsByReportId = new Map<string, InterviewTranscript>();
+  // title -> evaluator-declared dimension, per report (quick-004). A growth
+  // area with no declared dimension (pre-existing row, or the evaluator
+  // declared none) is simply absent from its report's map — the STEP 6
+  // lookup below treats "absent" the same as "declared null".
+  const growthAreaDimensionsByReportId = new Map<string, Map<string, string>>();
 
   for (const report of reports) {
     const transcript = transcriptsByReportId.get(report.id);
@@ -242,6 +247,16 @@ export function assembleSources(args: AssembleSourcesArgs): GenerationSources {
       moments.push(moment);
       momentOwnerUserIds.push(requestingUserId);
     }
+
+    // title -> declared dimension for THIS report's growth areas (quick-004).
+    // Keyed by title because `SessionMoment.linkedGrowthAreaTitles` is
+    // title-based (see `extractSessionMoments`) — there is no growth-area id
+    // to join on instead.
+    const dimensionsByTitle = new Map<string, string>();
+    for (const area of structured.growth_areas) {
+      if (area.dimension) dimensionsByTitle.set(area.title, area.dimension);
+    }
+    growthAreaDimensionsByReportId.set(report.id, dimensionsByTitle);
   }
 
   // Alignment is guaranteed by construction above; assert it anyway and
@@ -252,19 +267,21 @@ export function assembleSources(args: AssembleSourcesArgs): GenerationSources {
   // not an invariant) without needing to break the construction above.
   assertMomentOwnerAlignment(moments, momentOwnerUserIds);
 
-  // STEP 6. Group moments by the competency their report's SCORED
-  // DIMENSIONS implicate (via 21-02's `competencyForDimension`), restricted
-  // to moments that actually link to a growth area — a moment with no
-  // linked growth area documents nothing a report flagged as a gap, so it
-  // contributes to no competency's queue. A competency with zero
-  // contributing moments across every supplied report is left ABSENT from
-  // the map, never present with an empty array.
+  // STEP 6. Group moments by competency, preferring the evaluator-STATED
+  // `dimension` on the growth area(s) a moment links to (quick-004) over the
+  // report-level derivation 21-25 originally shipped. The derivation is
+  // KEPT as the fallback: every report row written before quick-004 has no
+  // `dimension` on any growth area, and those reports must keep producing
+  // checks exactly as before.
   const momentsByCompetencyBuilder = new Map<CompetencyKey, SessionMoment[]>();
 
   for (const report of reports) {
     const reportMoments = momentsByReportId.get(report.id);
     if (!reportMoments || reportMoments.length === 0) continue;
 
+    // Fallback path's input: the SET of competencies this report's scored
+    // dimensions evidence (21-25's original derivation), used only for a
+    // moment whose linked growth area(s) declared no usable dimension.
     const scoreMap = asScoreMap(report.scores) ?? {};
     const reportCompetencies = new Set<CompetencyKey>();
     for (const [dimensionKey, value] of Object.entries(scoreMap)) {
@@ -272,11 +289,32 @@ export function assembleSources(args: AssembleSourcesArgs): GenerationSources {
       const competencyKey = competencyForDimension(dimensionKey);
       if (competencyKey) reportCompetencies.add(competencyKey);
     }
-    if (reportCompetencies.size === 0) continue;
+
+    const dimensionsByTitle = growthAreaDimensionsByReportId.get(report.id);
 
     for (const moment of reportMoments) {
       if (moment.linkedGrowthAreaTitles.length === 0) continue;
-      for (const competencyKey of reportCompetencies) {
+
+      // Preferred path: competencies implicated by the STATED dimension(s)
+      // of the growth area(s) this moment links to.
+      const statedCompetencies = new Set<CompetencyKey>();
+      if (dimensionsByTitle) {
+        for (const title of moment.linkedGrowthAreaTitles) {
+          const declaredDimension = dimensionsByTitle.get(title);
+          if (!declaredDimension) continue;
+          const competencyKey = competencyForDimension(declaredDimension);
+          if (competencyKey) statedCompetencies.add(competencyKey);
+        }
+      }
+
+      // A stated dimension WINS over the derivation whenever it resolves to
+      // at least one competency; the derivation is reached only when no
+      // linked growth area declared a (recognized) dimension at all.
+      const competenciesForMoment =
+        statedCompetencies.size > 0 ? statedCompetencies : reportCompetencies;
+      if (competenciesForMoment.size === 0) continue;
+
+      for (const competencyKey of competenciesForMoment) {
         const existing = momentsByCompetencyBuilder.get(competencyKey);
         if (existing) {
           existing.push(moment);
