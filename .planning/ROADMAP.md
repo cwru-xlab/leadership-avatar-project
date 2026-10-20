@@ -1150,7 +1150,7 @@ read 2026-10-16). Recorded because two of its findings change the brief:
      weakest competency.
   5. The existing study-plan surface still works and the REQ-85 amendment is
      handed off.
-**Plans:** 8/25 plans executed
+**Plans:** 9/25 plans executed
 
 Plans:
 - [x] 21-01-PLAN.md — Derive REQ-103..REQ-124 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line — complete 2026-10-20, see `21-01-SUMMARY.md`
@@ -1161,7 +1161,7 @@ Plans:
 - [x] 21-06-PLAN.md — Four check payload formats inside the study-plan surface, with the no-engine-registry guard — complete 2026-10-20, see `21-06-SUMMARY.md`
 - [x] 21-07-PLAN.md — Named scoped privacy-boundary widening for own-moment generation; the existing generator frozen and proven frozen — complete 2026-10-20, see `21-07-SUMMARY.md`
 - [x] 21-08-PLAN.md — The path as a child of the study plan: 5-10 bound, new-plan-new-path, old paths reachable — complete 2026-10-20, see `21-08-SUMMARY.md`
-- [ ] 21-09-PLAN.md — Deterministic lifetime and current-window mastery computation (TDD)
+- [x] 21-09-PLAN.md — Deterministic lifetime and current-window mastery computation (TDD) — complete 2026-10-20, see `21-09-SUMMARY.md`
 - [ ] 21-10-PLAN.md — Four-format check generation from the student's own moments, with the verbatim gate proven against a disobedient stub
 - [ ] 21-11-PLAN.md — Deterministic grading for the three closed formats, model grading for rewrites at the lower weight (TDD)
 - [ ] 21-12-PLAN.md — Coached practice as its own path-only instance, replay-then-fresh, with the engine relationship decided in writing

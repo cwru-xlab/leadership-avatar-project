@@ -770,7 +770,7 @@ REQ-73.
   structured so a later faculty-authored framework replaces it without reworking
   consumers.
 
-- **REQ-104** — [ ] Mastery is computed by a pure deterministic function: per
+- **REQ-104** — [x] Mastery is computed by a pure deterministic function: per
   competency, a LIFETIME figure over every scored contribution and a
   CURRENT-WINDOW figure over a bounded recent window, plus one overall figure.
   No model call participates in the arithmetic.
@@ -957,7 +957,7 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-101 | Phase 20 | Complete |
 | REQ-102 | Phase 20 | Complete |
 | REQ-103 | Phase 21 | Pending |
-| REQ-104 | Phase 21 | Pending |
+| REQ-104 | Phase 21 | Complete |
 | REQ-105 | Phase 21 | Pending |
 | REQ-106 | Phase 21 | Pending |
 | REQ-107 | Phase 21 | Pending |
