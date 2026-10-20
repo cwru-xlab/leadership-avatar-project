@@ -883,7 +883,7 @@ REQ-73.
   `UNAIDED_SESSION` step leads to normal practice. A step whose action link
   goes nowhere is a REQ-122 failure.
 
-- **REQ-123** — [ ] Check generation's inputs — session moments, the user id
+- **REQ-123** — [x] Check generation's inputs — session moments, the user id
   owning each moment, the transcripts they came from, and the student's own
   display names — are assembled by ONE named, exported, ownership-scoped
   assembler that is testable without a route. The privacy contract REQ-109
@@ -976,7 +976,7 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-120 | Phase 21 | Pending |
 | REQ-121 | Phase 21 | Pending |
 | REQ-122 | Phase 21 | Pending |
-| REQ-123 | Phase 21 | Pending |
+| REQ-123 | Phase 21 | Complete |
 | REQ-124 | Phase 21 | Pending |
 
 **Coverage:**

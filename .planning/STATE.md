@@ -222,6 +222,39 @@ every invariant `recordContributions` enforces is preserved, only the
 literal function call is not reused (`lib/mastery/ledger.ts` is outside this
 plan's `files_modified`). `npx tsc --noEmit` clean; `verify-mastery-weights.ts`
 unchanged at ALL PASS. See `21-11-SUMMARY.md`.
+**21-25 complete** — the single, named, ownership-scoped assembler REQ-123
+requires. `lib/study-plan/checks/sources.ts`'s `loadGenerationSources()`
+turns a requesting user + report ids into `generateChecksForCompetency`'s
+(21-10) four inputs plus the `momentsByCompetency` pre-check index 21-19's
+POST route needs, with ownership scoped in every WHERE clause
+(`userId: requestingUserId`, `status: "READY"`) plus a throwing
+belt-and-braces assertion rather than a post-filter. `momentOwnerUserIds` is
+built in the same per-report loop as `moments` so index alignment is
+structural; the standalone-exported `assertMomentOwnerAlignment()` is
+proven, by direct construction of a six-moments/five-ids mismatch, to
+throw. S3 transcript reads run at bounded concurrency 4 via an injectable
+`readTranscript`; a bad transcript or missing/invalid `StructuredReport`
+degrades exactly that report (reason recorded in `degradedReports`) without
+failing the whole assembly. A competency with zero growth-area-linked
+moments is absent from `momentsByCompetency` (`has(key) === false`), never
+present-and-empty. The pure `assembleSources()` core (DB/S3-free) made the
+full battery — `scripts/verify-generation-sources.ts`, 36 checks — runnable
+with zero credentials: a compile-time shape pin to
+`generateChecksForCompetency`'s input (demonstrated once to fail `tsc` on a
+renamed field, then restored), the inverted-alignment throw, one-report
+degradation, the absent-vs-empty distinction, a most-recent-first cap proven
+against real `createdAt` dates, `selfNames` edge cases, and a DB-backed
+section proving a foreign report's transcript text is absent from a full
+`JSON.stringify` sweep of the result (not just the obvious fields) plus a
+successful round-trip into 21-07's `prepareMomentsForGeneration` ownership
+gate. One disclosed judgment call: `ReportGrowthArea` carries no dimension
+key, so growth-area-to-competency attribution derives from the REPORT's
+scored dimensions (via 21-02's `competencyForDimension`) intersected with
+which moments link to a growth area, not a per-growth-area field the data
+model does not have. `npx tsc --noEmit` clean; sibling verifiers
+(`verify-moment-boundary.ts`, `verify-verbatim-quote.ts`,
+`verify-check-generation.ts`, `verify-knowledge-check-surface.ts`)
+unchanged at ALL PASS. See `21-25-SUMMARY.md`.
 **Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).
