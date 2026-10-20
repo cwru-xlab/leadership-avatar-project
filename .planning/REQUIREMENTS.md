@@ -962,8 +962,8 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-106 | Phase 21 | Pending |
 | REQ-107 | Phase 21 | Pending |
 | REQ-108 | Phase 21 | Pending |
-| REQ-109 | Phase 21 | Pending |
-| REQ-110 | Phase 21 | Pending |
+| REQ-109 | Phase 21 | Complete |
+| REQ-110 | Phase 21 | Complete |
 | REQ-111 | Phase 21 | Pending |
 | REQ-112 | Phase 21 | Pending |
 | REQ-113 | Phase 21 | Pending |
