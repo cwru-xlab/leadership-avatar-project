@@ -16,7 +16,23 @@
  *
  * This module is a pure library: no Prisma, no network, no React. Both
  * evaluators and both report DTOs depend on it; it depends on neither.
+ *
+ * IMPORT-CYCLE CHECK (quick-004): this module now narrows an incoming
+ * `growth_areas[].dimension` against `lib/mastery/competencies.ts`'s
+ * `allRubricDimensionKeys()`. That module derives its catalog from
+ * `lib/engine/registry.ts`'s `ENGINE_TYPES`, which in turn pulls in every
+ * built-in type's prompt/config module (`lib/interview/prompts.ts`,
+ * `lib/scenario/prompts.ts`, `lib/networking/prompts.ts`, the pitch
+ * `*-type.ts` files, `lib/difficult-conversation/conversation-type.ts`).
+ * None of those modules — nor `lib/engine/types.ts` — imports this file or
+ * `lib/mastery/competencies.ts`, so importing `allRubricDimensionKeys` here
+ * does NOT close a cycle. (`lib/engine/rubric.ts` and
+ * `lib/engine/evaluation.ts` DO import this file, but neither sits on
+ * `ENGINE_TYPES`'s import path, so that is a one-way dependency, not a
+ * cycle.) Verified by direct inspection of every file's import list plus a
+ * live `tsx` run of `scripts/verify-report-structure.ts` after this change.
  */
+import { allRubricDimensionKeys } from "@/lib/mastery/competencies";
 
 /**
  * The closed vocabulary an evaluator may declare a feedback item's evidence
@@ -56,6 +72,18 @@ export interface ReportGrowthArea {
    * TypeScript (not merely nullable) so pre-existing literals built without
    * this field (fixtures, scripts) stay `tsc`-clean. */
   source?: FeedbackSource | null;
+  /** Which rubric dimension (`lib/mastery/competencies.ts`'s
+   * `allRubricDimensionKeys()`) this growth area critiques, self-declared by
+   * the evaluator — a recorded FACT rather than a derived inference. `null`
+   * means the evaluator genuinely did not declare one, left the field out,
+   * or declared a value outside the known dimension-key set; an unrecognized
+   * value degrades to `null` rather than being passed through. Optional in
+   * TypeScript (not merely nullable) so pre-existing literals built without
+   * this field (fixtures, scripts, and every report row written before this
+   * field existed) stay `tsc`-clean. Consumers that need a competency for a
+   * `null` dimension must fall back to their own derivation —
+   * `lib/study-plan/checks/sources.ts` does exactly that. */
+  dimension?: string | null;
 }
 
 export interface ReportRubricNote {
@@ -132,13 +160,14 @@ export const STRUCTURED_REPORT_PROPERTIES = {
     items: {
       type: "object",
       additionalProperties: false,
-      required: ["title", "detail", "suggestion", "timecodes", "source"],
+      required: ["title", "detail", "suggestion", "timecodes", "source", "dimension"],
       properties: {
         title: { type: "string" },
         detail: { type: "string" },
         suggestion: { type: "string" },
         timecodes: { type: "array", items: { type: "string" } },
         source: STRING_OR_NULL,
+        dimension: STRING_OR_NULL,
       },
     },
   },
@@ -210,6 +239,23 @@ function feedbackSource(value: unknown): FeedbackSource | null {
     : null;
 }
 
+/**
+ * Coerces a model-declared `growth_areas[].dimension` into a known rubric
+ * dimension key, or `null`. This is the one place the key set is enforced on
+ * the way in — an unrecognized value (a hallucinated key, a stale key from a
+ * removed type, a typo) degrades to `null` rather than being carried through
+ * as an uncheckable string, matching `feedbackSource` above (the JSON schema
+ * intentionally carries no `enum` here either, since `allRubricDimensionKeys`
+ * is computed at runtime from the live engine registry, not statically
+ * enumerable in a JSON schema literal).
+ */
+function rubricDimensionKey(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  return allRubricDimensionKeys().includes(normalized) ? normalized : null;
+}
+
 /** Caps on list lengths. The prompt asks for 3-5 of each; these exist so a
  * runaway model cannot push an unbounded blob into a `Json` column. */
 const MAX_LIST_ITEMS = 12;
@@ -251,6 +297,7 @@ export function parseStructuredReport(raw: unknown): StructuredReport | null {
           suggestion: str(e.suggestion),
           timecodes: strArray(e.timecodes, MAX_TIMECODES),
           source: feedbackSource(e.source),
+          dimension: rubricDimensionKey(e.dimension),
         }))
         .filter((e) => e.title || e.detail)
         .slice(0, MAX_LIST_ITEMS)
