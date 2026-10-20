@@ -550,6 +550,8 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 20]: Reversed 20-01's stonewalling finding per user amendment: added a dedicated stonewalling disengagement cause so sustained pure refusal can cross a type's threshold alone, with hostility proven to cross at least as fast
 - [Phase 20]: 20-03: fixed 20-EPSILON-MARGIN.md (stonewalling crossing landed on a 1e-16 float hair) by rebalancing the test weight profile to a 0.05 margin; declared the DC type's own disengagementThreshold (0.6) and disengagementWeights with a real stonewalling weight (0.3, deviating from the plan's literal numbers which would have left the amendment unimplemented in production) alongside offensive_content/avatarEndReasonByCause; added verify-dc-surface-count.ts Section 11 proving one type-level threshold with no per-scenario surface, negative-tested
 - [Phase 21]: REQ-103..REQ-124 derived from 21-CONTEXT.md; traceability/coverage/roadmap updated
+- [Phase 21]: 21-02: competency catalog derived from live ENGINE_TYPES registry — 23 dimensions, 7 competencies, totality verifier proven to bite (REQ-103).
+- [Phase 21-adaptive-mastery-path]: 21-03 complete: seven Phase 21 Prisma models (MasteryContribution ledger, KnowledgeCheck/Attempt/GradingContest, StudyPlanPath/Step, CoachedSession) added additively to schema.prisma; migration prisma/migrations/20261116000000_add_adaptive_mastery_path/migration.sql hand-authored (no shadow DB available) with 7 CREATE TABLE statements, zero destructive statements, and left UNAPPLIED per REQ-74 — a human must run it before any wave-2 deploy. One disclosed git-staging race: Task 1's schema.prisma commit landed under sibling 21-01's commit b5f5cf7 (same shared-working-tree precedent as 20-06/21-01); content verified unaltered, no history rewrite. See 21-03-SUMMARY.md.
 
 ## Progress
 
@@ -2010,9 +2012,9 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-16T17:07:53.946Z
-**Stopped At:** Phase 21 context gathered
-**Resume File:** .planning/phases/21-adaptive-mastery-path/21-CONTEXT.md
+**Last Date:** 2026-10-20T14:51:41.401Z
+**Stopped At:** Completed 21-03-PLAN.md
+**Resume File:** None
 
 
 ## Accumulated Context
