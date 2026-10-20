@@ -1150,10 +1150,10 @@ read 2026-10-16). Recorded because two of its findings change the brief:
      weakest competency.
   5. The existing study-plan surface still works and the REQ-85 amendment is
      handed off.
-**Plans:** 25 plans in 8 waves
+**Plans:** 1/25 plans executed
 
 Plans:
-- [ ] 21-01-PLAN.md — Derive REQ-103..REQ-124 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line
+- [x] 21-01-PLAN.md — Derive REQ-103..REQ-124 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line — complete 2026-10-20, see `21-01-SUMMARY.md`
 - [ ] 21-02-PLAN.md — Cross-type competency catalog derived from the live rubric-dimension registry, with a total-mapping guard
 - [ ] 21-03-PLAN.md — Prisma models for the mastery ledger, four-format checks, attempts, contests, path, steps and coached sessions (migration unapplied)
 - [ ] 21-04-PLAN.md — Session-moment extraction and the exact-match-or-reject verbatim quote validator (TDD)
