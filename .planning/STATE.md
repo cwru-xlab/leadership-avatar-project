@@ -160,6 +160,34 @@ throws `PathAlreadyExistsError` without mutating the original, a cross-user
 still-null coached step then succeeds once the id is written back. `npx tsc
 --noEmit` clean; neither `generate.ts`, `plan-dto.ts` nor `types.ts` touched.
 See `21-08-SUMMARY.md`.
+**21-12 complete** — coached practice as its own instance, per REQ-113/
+REQ-114. `.planning/phases/21-adaptive-mastery-path/21-COACHED-ENGINE-
+DECISION.md` records the decision `scripts/verify-knowledge-check-surface.ts`'s
+pre-existing `ENGINE_IMPORT_CARVE_OUTS` already cited as its authority:
+coached mode reuses the engine's live session machinery (it IS a live avatar
+session) but is never registered in `ENGINE_TYPES` — registration is exactly
+what REQ-113 forbids being reachable through. 21-06's "no engine involvement"
+is explicitly scoped to knowledge checks only, so it is not contradicted, not
+generalized. Coached sessions enable NO disengagement threshold (a coach does
+not walk out), which is why REQ-85's amendment is a boundary clarification,
+not a behaviour change. `lib/study-plan/coached/instance.ts` ships
+`createCoachedSession()` (required non-nullable `pathStepId`, loaded by id
+joining path → studyPlan → userId, requiring `kind === "COACHED_SESSION"`;
+mandatory REPLAY — an owned report + in-range turn index — and mandatory
+FRESH — a non-empty, length-bounded prompt — both enforced before any row is
+written; a `P2002` collision on the step resumes the existing session rather
+than erroring), `readCoachedSession()` (phase derived from `completedAt`/
+`reportId`, never stored, no S3 read), and `finishCoachedSession()` (sets
+`reportId`/`completedAt`, calls `markStepComplete`, writes zero mastery-ledger
+rows — 21-16 owns that). `scripts/verify-coached-mode-isolation.ts` proves the
+required-`pathStepId` signature and locked `REPLAY`-first order, that
+`ENGINE_TYPES` stays at 13 with no coach-named entry, that a 40-file walk of
+`components/practice/` + `app/practice/` (count-asserted non-vacuous,
+`PracticeSessionShell.tsx` confirmed present) finds zero coached-mode
+references anywhere, and — against the local dev DB, which ran, not SKIP —
+every wrong entry route throws while a valid create/finish cycle writes back
+correctly and records no contribution. `npx tsc --noEmit` clean. See
+`21-12-SUMMARY.md`.
 **Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).
@@ -688,6 +716,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 21]: 21-02: competency catalog derived from live ENGINE_TYPES registry — 23 dimensions, 7 competencies, totality verifier proven to bite (REQ-103).
 - [Phase 21-adaptive-mastery-path]: 21-03 complete: seven Phase 21 Prisma models (MasteryContribution ledger, KnowledgeCheck/Attempt/GradingContest, StudyPlanPath/Step, CoachedSession) added additively to schema.prisma; migration prisma/migrations/20261116000000_add_adaptive_mastery_path/migration.sql hand-authored (no shadow DB available) with 7 CREATE TABLE statements, zero destructive statements, and left UNAPPLIED per REQ-74 — a human must run it before any wave-2 deploy. One disclosed git-staging race: Task 1's schema.prisma commit landed under sibling 21-01's commit b5f5cf7 (same shared-working-tree precedent as 20-06/21-01); content verified unaltered, no history rewrite. See 21-03-SUMMARY.md.
 - [Phase 21-adaptive-mastery-path]: 21-09 complete (TDD, genuine RED→GREEN, commits `f0afdf9`/`413c36b`): `lib/mastery/compute.ts`'s `computeMastery()` ships lifetime + current-window + overall mastery arithmetic through one shared `figureFor()` code path per window, seeded from `COMPETENCIES` so a zero-evidence competency reads `null` (never `0`), inclusive 30-day window boundary verified on both sides, overall figure proven volume-independent (10 rows at 0.3 vs 1 row at 0.9 → overall 60.0), a reversed row throws, and `unmappedRowCount` is present on `MasteryResult` as the plan required. `scripts/verify-mastery-compute.ts`'s 9-section battery runs with no `DATABASE_URL`/`OPENAI_API_KEY`, proving no I/O and no model call. One self-caught deviation: two doc-comment lines accidentally contained the literal substrings the plan's own grep checks (`new Date()`, `weightForSource`) test for zero occurrences of; reworded before the GREEN commit, no behavior change. REQ-104 marked complete (full text satisfied in one plan, no multi-plan split like REQ-107's). This plan ran concurrently with 21-10/21-11/21-12/21-21 in the same shared working tree; only `lib/mastery/compute.ts` and `scripts/verify-mastery-compute.ts` were touched. See 21-09-SUMMARY.md.
+- [Phase 21-adaptive-mastery-path]: 21-10 complete (commits `abe78ac`/`174e841`): `lib/study-plan/checks/generate.ts`'s `generateChecksForCompetency()` generates the four knowledge-check formats from a student's own session moments, routing every transcript turn through `prepareMomentsForGeneration` (21-07) and wiring `validateVerbatimQuote` (21-04) as a HARD POST-GATE — a candidate whose quote does not match the stored turn exactly is DISCARDED with a recorded reason, never repaired/re-prompted/fuzzy-matched; a fabricated `source_report_id` is caught before any transcript lookup; the two quote-defined formats (`REWRITE_WEAK_LINE`/`PICK_BETTER_RESPONSE`) additionally require the quote to BE the worked line, and an unquoted candidate in either format is discarded outright; a zero-survivor run returns `ok:false` rather than persisting an empty path step. `scripts/verify-check-generation.ts`'s 13-scenario adversarial battery (45 checks, zero `OPENAI_API_KEY`) proves the gate against a model stub that deliberately disobeys — paraphrase, tidied grammar, assistant-attributed quote, cross-turn splice, wrong-report fabrication, turn-index lie, the subtle "quote validates but `weakLine` lies" decoration case, unquoted rewrite, malformed payload, all-bad, throwing/invalid-JSON, and a boundary stub proving the sent model payload carries no email/URL/phone/self-name — with every "no row written" claim checked against a live local Postgres database (real, cleaned-up `User`/`StudyPlan` fixtures). REQ-109 and REQ-110 marked complete. No S3/report/`prisma.user` fetching added; `lib/study-plan/generate.ts` untouched. This plan ran concurrently with 21-09/21-11/21-12/21-21 in the same shared working tree; only `lib/study-plan/checks/generate.ts` and `scripts/verify-check-generation.ts` were touched. See 21-10-SUMMARY.md.
 
 ## Progress
 
@@ -2148,8 +2177,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-20T14:51:41.401Z
-**Stopped At:** Completed 21-03-PLAN.md and 21-04-PLAN.md
+**Last Date:** 2026-10-20T15:43:24.780Z
+**Stopped At:** Completed 21-10-PLAN.md
 **Resume File:** None
 
 
