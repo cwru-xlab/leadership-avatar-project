@@ -40,6 +40,7 @@ import {
   type ScenarioInputSnapshot,
 } from "@/lib/report/snapshot";
 import { asDisengagementDeclineRecord } from "@/lib/report/dto";
+import { recordLiveSessionContributions } from "@/lib/mastery/from-report";
 import type { InteractionLog, InteractionEvent } from "@/types";
 
 import { runEvaluation } from "./evaluation";
@@ -705,6 +706,19 @@ export async function runAndPersistEvaluation({
               ? "null"
               : "validated",
       });
+
+      // Phase 21 / REQ-107: a completed session must move mastery by itself. This is
+      // the only moment a report has final scores, so it is the only correct hook.
+      // AWAITED, not waitUntil: this function already runs inside a waitUntil, and
+      // nesting one would let the lambda freeze mid-write.
+      // WRAPPED: a mastery failure must never turn a successful report into a failed
+      // one. The student's report is the product; mastery is derived from it.
+      try {
+        const ingested = await recordLiveSessionContributions({ reportId });
+        console.info("Mastery live ingestion", { reportId, ...ingested });
+      } catch (masteryError) {
+        console.error("Mastery live ingestion failed", { reportId, error: masteryError });
+      }
       return;
     }
 
