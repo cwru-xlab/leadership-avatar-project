@@ -330,6 +330,12 @@ RUBRIC — SCORE AND COMMENT ON EACH CATEGORY BELOW
    - Self-awareness and ownership when the student's own approach caused
      friction
 
+RULE ON GROWTH-AREA DIMENSION
+Every growth area MUST also carry a dimension: the one rubric category
+(visual, vocal, content, or behavioral) it critiques — whichever category you
+would file this finding under if asked to score it. Use null only if the
+finding genuinely spans several categories equally or maps to none of them.
+
 OUTPUT FORMAT
 Return a single JSON object, no prose outside it. There is no markdown field —
 return DATA and the report page renders it.
@@ -349,7 +355,8 @@ return DATA and the report page renders it.
     { "title": "Short label, 2-5 words",
       "detail": "What happened, grounded in the transcript",
       "suggestion": "One concrete, optional suggestion in collaborative language, such as ‘Consider trying…’ or ‘You might experiment with…’ — never an imperative",
-      "timecodes": ["4:12"] }
+      "timecodes": ["4:12"],
+      "dimension": "visual" | "vocal" | "content" | "behavioral" | null }
   ],
   "category_notes": {
     "visual": "One or two sentences, or null if not scored",
