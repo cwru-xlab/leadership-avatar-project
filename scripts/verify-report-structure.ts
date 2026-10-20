@@ -14,6 +14,7 @@ import {
   composeReportMarkdown,
   parseStructuredReport,
   asStructuredReport,
+  STRUCTURED_REPORT_PROPERTIES,
   type StructuredReport,
 } from "../lib/report/structured";
 import {
@@ -48,13 +49,20 @@ import { CONVERSATION_EVALUATOR_PROMPT } from "../lib/difficult-conversation/con
 
 /**
  * Pre-Phase-13 `EVALUATION_JSON_SCHEMA` from `lib/interview/evaluation.ts`,
- * frozen verbatim as a permanent regression guard (plan 13-13), PLUS one
- * deliberate post-Phase-13 addition: the nested `source` attribution field
- * on `strengths`/`growth_areas` items, added by quick task 002 so a
- * feedback point can be labelled as drawn from the resume, the
- * conversation, or both. The live module was deleted when the engine's
- * type-derived schema took over; this snapshot is the only remaining proof
- * that `buildRubricJsonSchema` still produces today's interview bytes.
+ * frozen verbatim as a permanent regression guard (plan 13-13), PLUS TWO
+ * deliberate post-Phase-13 additions:
+ *   1. The nested `source` attribution field on `strengths`/`growth_areas`
+ *      items, added by quick task 002 so a feedback point can be labelled as
+ *      drawn from the resume, the conversation, or both.
+ *   2. The nested `dimension` field on `growth_areas` items, added by quick
+ *      task 004 so a growth area can self-declare the rubric dimension key
+ *      (`lib/mastery/competencies.ts`'s `allRubricDimensionKeys()`) it
+ *      critiques, making growth-area-to-competency attribution a recorded
+ *      fact instead of a derived inference (see
+ *      `lib/study-plan/checks/sources.ts`).
+ * The live module was deleted when the engine's type-derived schema took
+ * over; this snapshot is the only remaining proof that
+ * `buildRubricJsonSchema` still produces today's interview bytes.
  */
 const EVALUATION_JSON_SCHEMA = {
   name: "interview_evaluation",
@@ -99,13 +107,14 @@ const EVALUATION_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "detail", "suggestion", "timecodes", "source"],
+          required: ["title", "detail", "suggestion", "timecodes", "source", "dimension"],
           properties: {
             title: { type: "string" },
             detail: { type: "string" },
             suggestion: { type: "string" },
             timecodes: { type: "array", items: { type: "string" } },
             source: { type: ["string", "null"] },
+            dimension: { type: ["string", "null"] },
           },
         },
       },
@@ -140,9 +149,10 @@ const EVALUATION_JSON_SCHEMA = {
 /**
  * Pre-Phase-13 `SCENARIO_EVALUATION_JSON_SCHEMA` from `lib/scenario/evaluation.ts`,
  * frozen verbatim as a permanent regression guard (plan 13-13), PLUS the same
- * one deliberate post-Phase-13 addition as `EVALUATION_JSON_SCHEMA` above:
- * the nested `source` attribution field from quick task 002. Same role as
- * `EVALUATION_JSON_SCHEMA` above for the case-study schema name.
+ * two deliberate post-Phase-13 additions as `EVALUATION_JSON_SCHEMA` above:
+ * the nested `source` attribution field from quick task 002, and the nested
+ * `dimension` field from quick task 004. Same role as `EVALUATION_JSON_SCHEMA`
+ * above for the case-study schema name.
  */
 const SCENARIO_EVALUATION_JSON_SCHEMA = {
   name: "scenario_evaluation",
@@ -187,13 +197,14 @@ const SCENARIO_EVALUATION_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "detail", "suggestion", "timecodes", "source"],
+          required: ["title", "detail", "suggestion", "timecodes", "source", "dimension"],
           properties: {
             title: { type: "string" },
             detail: { type: "string" },
             suggestion: { type: "string" },
             timecodes: { type: "array", items: { type: "string" } },
             source: { type: ["string", "null"] },
+            dimension: { type: ["string", "null"] },
           },
         },
       },
@@ -1123,6 +1134,62 @@ console.log("\n8. Outcome / images / early-end cap (14-04)");
       true,
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// 9. growth_areas[].dimension (quick-004)
+// ---------------------------------------------------------------------------
+
+console.log("\n9. growth_areas[].dimension (quick-004)");
+{
+  check(
+    "schema carries dimension in growth_areas required[]",
+    STRUCTURED_REPORT_PROPERTIES.growth_areas.items.required.includes("dimension"),
+    true,
+  );
+  check(
+    "schema types dimension as [string, null]",
+    STRUCTURED_REPORT_PROPERTIES.growth_areas.items.properties.dimension,
+    { type: ["string", "null"] },
+  );
+}
+{
+  // A valid key narrows through unchanged.
+  const withValidDimension = parseStructuredReport({
+    ...FULL,
+    growth_areas: [
+      { ...FULL.growth_areas[0], dimension: "content" },
+    ],
+  }) as StructuredReport;
+  check(
+    "a recognized dimension key narrows through",
+    withValidDimension.growth_areas[0]?.dimension,
+    "content",
+  );
+}
+{
+  // An unrecognized key degrades to null rather than being passed through.
+  const withBogusDimension = parseStructuredReport({
+    ...FULL,
+    growth_areas: [
+      { ...FULL.growth_areas[0], dimension: "not_a_real_dimension_key" },
+    ],
+  }) as StructuredReport;
+  check(
+    "an unrecognized dimension key degrades to null",
+    withBogusDimension.growth_areas[0]?.dimension,
+    null,
+  );
+}
+{
+  // A missing key (pre-existing report rows, written before this field
+  // existed) also degrades to null — never crashes, never leaves undefined.
+  const withMissingDimension = parseStructuredReport(FULL) as StructuredReport;
+  check(
+    "a missing dimension key degrades to null",
+    withMissingDimension.growth_areas[0]?.dimension,
+    null,
+  );
 }
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
