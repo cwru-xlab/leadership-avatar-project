@@ -13,15 +13,19 @@
  * no-second-copy guard.
  */
 
+import type { ContributionSource } from "@/lib/mastery/weights";
+
 import { prisma } from "@/lib/prisma";
 import { asScoreMap } from "@/lib/report/snapshot";
-import { competencyForDimension, type CompetencyKey } from "@/lib/mastery/competencies";
+import {
+  competencyForDimension,
+  type CompetencyKey,
+} from "@/lib/mastery/competencies";
 import { normalizeRubricScore } from "@/lib/mastery/weights";
 import {
   recordContributions,
   type ContributionInput,
 } from "@/lib/mastery/ledger";
-import type { ContributionSource } from "@/lib/mastery/weights";
 
 export interface ReportMappingResult {
   inputs: ContributionInput[];
@@ -67,6 +71,7 @@ export function contributionInputsFromScoreMap(args: {
     }
 
     const competencyKey = competencyForDimension(dimensionKey);
+
     if (!competencyKey) {
       // No catalog entry for this dimension key. Skipped, never defaulted
       // into some other competency — a wrong attribution is worse than a
@@ -77,6 +82,7 @@ export function contributionInputsFromScoreMap(args: {
 
     const normalized = normalizeRubricScore(rawValue);
     const existing = byCompetency.get(competencyKey);
+
     if (existing) {
       existing.push(normalized);
     } else {
@@ -85,6 +91,7 @@ export function contributionInputsFromScoreMap(args: {
   }
 
   const inputs: ContributionInput[] = [];
+
   for (const [competencyKey, normalizedScores] of byCompetency) {
     // Mean is over NORMALIZED values (e.g. raw 2 and 4 -> normalized 0.25 and
     // 0.75 -> mean 0.5), not normalized after meaning. Pinned here, and in
@@ -133,11 +140,12 @@ export async function contributionsFromReport(args: {
 
   if (!report) {
     throw new Error(
-      `contributionsFromReport: no InteractionReport "${reportId}" found for user "${userId}"`
+      `contributionsFromReport: no InteractionReport "${reportId}" found for user "${userId}"`,
     );
   }
 
   const scoreMap = asScoreMap(report.scores);
+
   if (!scoreMap) {
     // No scores at all (report not yet READY, or a malformed/legacy row).
     // Nothing to map; return an empty result rather than throwing — a
@@ -177,6 +185,7 @@ export async function recordLiveSessionContributions(args: {
     console.warn("Mastery live ingestion: report not found, skipping", {
       reportId,
     });
+
     return { written: 0, skipped: null };
   }
 
@@ -199,11 +208,13 @@ export async function recordLiveSessionContributions(args: {
     where: { reportId },
     select: { id: true },
   });
+
   if (coached) {
     console.info("Mastery live ingestion skipped: coached session", {
       reportId,
       coachedSessionId: coached.id,
     });
+
     return { written: 0, skipped: "coached-session" };
   }
 
@@ -215,10 +226,12 @@ export async function recordLiveSessionContributions(args: {
     where: { sourceReportId: reportId, source: "LIVE_SESSION" },
     select: { id: true },
   });
+
   if (existing) {
     console.info("Mastery live ingestion skipped: already ingested", {
       reportId,
     });
+
     return { written: 0, skipped: "already-ingested" };
   }
 
