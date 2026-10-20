@@ -1150,14 +1150,14 @@ read 2026-10-16). Recorded because two of its findings change the brief:
      weakest competency.
   5. The existing study-plan surface still works and the REQ-85 amendment is
      handed off.
-**Plans:** 4/25 plans executed
+**Plans:** 5/25 plans executed
 
 Plans:
 - [x] 21-01-PLAN.md — Derive REQ-103..REQ-124 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line — complete 2026-10-20, see `21-01-SUMMARY.md`
 - [ ] 21-02-PLAN.md — Cross-type competency catalog derived from the live rubric-dimension registry, with a total-mapping guard
 - [ ] 21-03-PLAN.md — Prisma models for the mastery ledger, four-format checks, attempts, contests, path, steps and coached sessions (migration unapplied)
 - [ ] 21-04-PLAN.md — Session-moment extraction and the exact-match-or-reject verbatim quote validator (TDD)
-- [ ] 21-05-PLAN.md — Contribution weight table with its locked orderings enforced, plus the append-only mastery ledger
+- [x] 21-05-PLAN.md — Contribution weight table with its locked orderings enforced, plus the append-only mastery ledger — complete 2026-10-20, see `21-05-SUMMARY.md`
 - [ ] 21-06-PLAN.md — Four check payload formats inside the study-plan surface, with the no-engine-registry guard
 - [ ] 21-07-PLAN.md — Named scoped privacy-boundary widening for own-moment generation; the existing generator frozen and proven frozen
 - [ ] 21-08-PLAN.md — The path as a child of the study plan: 5-10 bound, new-plan-new-path, old paths reachable

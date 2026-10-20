@@ -51,6 +51,31 @@ after `moments.ts` (GREEN, `32e6524`). One disclosed non-defect fix: a
 `competencies` (the plan's own verification grep forbids that substring
 appearing anywhere in the file); reworded before the GREEN commit landed.
 `npx tsc --noEmit` clean. See `21-04-SUMMARY.md`.
+**21-05 complete** — the single mastery contribution ledger plus the weight
+table it snapshots from. `lib/mastery/weights.ts` ships `CONTRIBUTION_SOURCES`/
+`ContributionSource`, `CONTRIBUTION_WEIGHTS` (`LIVE_SESSION 1.00`,
+`CHECK_DETERMINISTIC 0.45`, `COACHED_SESSION 0.40`, `CHECK_MODEL_GRADED 0.20`,
+all `PROVISIONAL UNTIL CALIBRATED`), `WEIGHT_ORDERING_CONSTRAINTS` as checkable
+data carrying the exact 21-CONTEXT.md sentence that locks each of the two
+orderings, `weightForSource()` (throws on unknown source), and the single
+`normalizeRubricScore()` every later plan importing rubric-to-mastery
+conversion must use (`(score-1)/4`, floor at 1, throws outside 1..5 or
+non-finite). `lib/mastery/ledger.ts` ships `recordContributions()` (validates
+the whole batch before any write, snapshots the weight per row, one
+`createMany`), `reverseContribution()` (marks `reversedAt`/`reversedReason`,
+never deletes, rejects a double reversal), and `readContributions()` (excludes
+reversed rows by default, windows on `occurredAt` never `createdAt`).
+`scripts/verify-mastery-weights.ts`'s 8-section battery proved the ordering
+guard non-vacuous via an inverted assertion, then was additionally proven
+against the real file: `CHECK_DETERMINISTIC`/`CHECK_MODEL_GRADED` temporarily
+swapped to 0.1/0.9, verifier failed (2 failures, exit 1), file restored
+byte-identical, re-ran ALL PASS/exit 0. A manual live-DB round-trip (DB now
+migrated) confirmed `recordContributions`/`readContributions`/
+`reverseContribution` against the real schema: weight snapshot, reversed-row
+exclusion, double-reversal rejection all behave as specified. REQ-107
+deliberately left unchecked — it is claimed by four plans in this phase
+(21-05, 21-16, 21-20, 21-21) and this plan ships the mechanism, not the
+session-completion wiring. See `21-05-SUMMARY.md`.
 **Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).
