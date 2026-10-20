@@ -36,7 +36,7 @@ import {
   type CoachedPhase,
   type CoachedSessionView,
 } from "./instance";
-import { techniquesForCompetency, assertTipSafe } from "./tips";
+import { techniquesForCompetency, assertTipSafe, validateTip } from "./tips";
 import { recordCoachedContribution } from "./contribution";
 
 // ---------------------------------------------------------------------------
@@ -291,11 +291,13 @@ async function defaultGenerateFreshScenarioText(args: {
     "The scenario must exercise the SAME competency a prior moment evidenced, but must " +
     "describe a DIFFERENT situation — it must not restate, quote, paraphrase, or echo the " +
     "student's own prior words. Describe only the SITUATION the student will face; never " +
-    "write a line of dialogue or any words for the student to say. 2-4 sentences.";
+    "write a line of dialogue or any words for the student to say, and never use quotation " +
+    "marks anywhere in your response. EXACTLY ONE plain sentence, under 220 characters total — " +
+    "shorter is better. Do not explain your reasoning, return only the sentence.";
   const user =
     `Competency: ${competency?.label ?? competencyKey}\n\n` +
     `The student's prior moment (context only — do NOT quote or echo this):\n"""\n${studentLine}\n"""\n\n` +
-    "Write the new scenario now.";
+    "Write the new scenario now, as one sentence under 220 characters.";
 
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI({
@@ -320,17 +322,40 @@ async function defaultGenerateFreshScenarioText(args: {
   return text;
 }
 
+/** Bounded retries on a rejected scenario, mirroring 21-16's own documented
+ * tradeoff: a rejected (good) generation costs one regeneration; an accepted
+ * scripted/echoing one invalidates the transfer test. A model occasionally
+ * uses a short quoted phrase for emphasis with no scripting intent at all —
+ * one retry is usually enough, and this is DISCARD-AND-RETRY, never repair. */
+const MAX_FRESH_SCENARIO_ATTEMPTS = 4;
+
 async function generateFreshScenarioPrompt(args: {
   competencyKey: CompetencyKey;
   studentLine: string;
 }): Promise<string> {
-  const text = await defaultGenerateFreshScenarioText(args);
+  let lastReason = "";
+  for (let attempt = 1; attempt <= MAX_FRESH_SCENARIO_ATTEMPTS; attempt += 1) {
+    const text = await defaultGenerateFreshScenarioText(args);
 
-  // A scenario that echoes the student's own line back is the replay again,
-  // not a transfer test — gated through the same tip-safety rejector before
-  // persisting, with the replayed line as context.studentLine.
-  assertTipSafe(text, { studentLine: args.studentLine });
-  return text;
+    // A scenario that echoes the student's own line back is the replay
+    // again, not a transfer test — gated through the same tip-safety
+    // rejector before persisting, with the replayed line as
+    // context.studentLine. Non-throwing form here so a rejection can be
+    // discarded and retried rather than failing entry outright.
+    const result = validateTip(text, { studentLine: args.studentLine });
+    if (result.ok) return text;
+
+    lastReason = `${result.reason}: ${result.detail}`;
+    console.warn("generateFreshScenarioPrompt: discarding a rejected scenario, retrying", {
+      attempt,
+      reason: lastReason,
+    });
+  }
+
+  throw new Error(
+    `generateFreshScenarioPrompt: exhausted ${MAX_FRESH_SCENARIO_ATTEMPTS} attempts, ` +
+      `last rejection: ${lastReason}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -470,6 +495,28 @@ export async function enterCoachedStep(
 }
 
 // ---------------------------------------------------------------------------
+// nextLeg — the pure leg-transition rule, factored out so
+// scripts/verify-coached-entry.ts section 2 can exercise the full table
+// with no database.
+// ---------------------------------------------------------------------------
+
+export type CoachedAction = "advance" | "complete";
+export type LegTransitionResult = "FRESH" | "COMPLETE" | "REJECTED";
+
+/**
+ * The full REPLAY-then-FRESH ordering, as data: REPLAY + advance -> FRESH;
+ * REPLAY + complete -> REJECTED; FRESH + advance -> REJECTED; FRESH +
+ * complete -> COMPLETE; COMPLETE + anything -> REJECTED. `advanceToFresh`
+ * and `completeCoachedSession` both consult this before doing anything else,
+ * so the ordering can never silently drift from what this function says.
+ */
+export function nextLeg(current: CoachedPhase, action: CoachedAction): LegTransitionResult {
+  if (current === "REPLAY" && action === "advance") return "FRESH";
+  if (current === "FRESH" && action === "complete") return "COMPLETE";
+  return "REJECTED";
+}
+
+// ---------------------------------------------------------------------------
 // advanceToFresh
 // ---------------------------------------------------------------------------
 
@@ -500,7 +547,7 @@ export async function advanceToFresh(args: {
   const session = await readCoachedSession(userId, coachedSessionId);
   if (!session) throw new NotReachableOutsideAPathError(coachedSessionId);
 
-  if (session.phase !== "REPLAY") {
+  if (nextLeg(session.phase, "advance") === "REJECTED") {
     throw new CoachedLegOrderError(
       `advanceToFresh: session ${coachedSessionId} is in phase "${session.phase}", not REPLAY — ` +
         `there is no advanceToReplay and no way to reach FRESH without REPLAY completing first.`,
@@ -558,7 +605,7 @@ export async function completeCoachedSession(args: {
   const session = await readCoachedSession(userId, coachedSessionId);
   if (!session) throw new NotReachableOutsideAPathError(coachedSessionId);
 
-  if (session.phase !== "FRESH") {
+  if (nextLeg(session.phase, "complete") === "REJECTED") {
     throw new CoachedLegOrderError(
       `completeCoachedSession: session ${coachedSessionId} is in phase "${session.phase}", not FRESH — ` +
         `a session completed from REPLAY would evidence only the scaffolded leg.`,
