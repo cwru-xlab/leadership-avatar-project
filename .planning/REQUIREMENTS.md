@@ -860,7 +860,7 @@ REQ-73.
   new study plan generates a NEW path; old paths are neither discarded nor
   carried forward and stay reachable through the study plan that owns them.
 
-- **REQ-118** — [ ] "What's next" is deterministic and explainable: step
+- **REQ-118** — [x] "What's next" is deterministic and explainable: step
   selection targets the weakest competency first and returns the reason it
   chose that step.
 
@@ -971,7 +971,7 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-115 | Phase 21 | Pending |
 | REQ-116 | Phase 21 | Pending |
 | REQ-117 | Phase 21 | Complete |
-| REQ-118 | Phase 21 | Pending |
+| REQ-118 | Phase 21 | Complete |
 | REQ-119 | Phase 21 | Pending |
 | REQ-120 | Phase 21 | Pending |
 | REQ-121 | Phase 21 | Pending |
