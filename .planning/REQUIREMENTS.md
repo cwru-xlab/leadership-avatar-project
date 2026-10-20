@@ -760,6 +760,147 @@ REQ-73.
   the student. No rubric dimension is capped: `postProcessScores` stays absent,
   preserving Phase 15's recorded decision.
 
+### Phase 21 — Adaptive Mastery Path
+
+- **REQ-103** — [ ] A single cross-type competency catalog exists, derived
+  mechanically from the engine's rubric dimensions (the four shared keys plus
+  every type's `extraRubricDimensions`), with a TOTAL dimension-to-competency
+  mapping: every dimension key in the registry maps to exactly one competency,
+  and a type shipping an unmapped dimension fails a verifier. The catalog is
+  structured so a later faculty-authored framework replaces it without reworking
+  consumers.
+
+- **REQ-104** — [ ] Mastery is computed by a pure deterministic function: per
+  competency, a LIFETIME figure over every scored contribution and a
+  CURRENT-WINDOW figure over a bounded recent window, plus one overall figure.
+  No model call participates in the arithmetic.
+
+- **REQ-105** — [ ] Every mastery figure carries its evidence count and an
+  explicit `thin` flag at a declared threshold. A thin figure is SHOWN with its
+  thinness flagged — never withheld, and never presented as if well-evidenced.
+
+- **REQ-106** — [ ] The student sees an overall mastery percentage plus a
+  per-competency breakdown, with the lifetime and current-window figures
+  labelled so the distinction is unmistakable, and thinness visible. The
+  surface is REACHABLE from the authenticated student navigation — a page a
+  student can only find by typing a URL does not satisfy this.
+
+- **REQ-107** — [ ] Both live sessions and knowledge-check completions move
+  mastery through one shared contribution ledger, with a declared weight per
+  source. Stated as the student-observable condition it has to be: **a
+  completed practice session whose report reaches READY writes
+  `LIVE_SESSION` contributions for every competency that report scored**, so a
+  student who has done sessions and taken no checks still sees non-empty
+  mastery. "Mastery stays empty after normal practice" is a REQ-107 failure,
+  not a missing feature. The ORDERING is enforced mechanically:
+  deterministically-graded checks outrank model-graded rewrites, and unaided
+  practice outranks coached practice.
+
+- **REQ-108** — [ ] All four knowledge-check formats (multiple choice, fill in
+  the blank, pick the better response, rewrite a weak line) are modelled,
+  persisted INSIDE the study-plan surface, **and ANSWERABLE BY THE STUDENT**:
+  an authenticated surface renders each of the four formats and submits an
+  answer through an authenticated, ownership-scoped route. A modelled format
+  with no way to answer it does not satisfy this. A knowledge check is NOT a
+  registered engine interaction type — a surface-count guard fails if a
+  knowledge-check slug reaches the engine registry.
+
+- **REQ-109** — [ ] Check content is generated from the student's OWN session
+  moments — real transcript turns and the growth areas their report
+  identified — under a named, scoped widening of the study-plan privacy
+  boundary that is recorded with its rationale. The existing closed-vocabulary
+  generator path is unchanged.
+
+- **REQ-110** — [ ] A generated question that quotes the student reproduces a
+  stored transcript turn EXACTLY, carrying its originating report id and turn
+  index. The match is validated mechanically against the stored transcript at
+  generation time; a non-matching quote is REJECTED, never repaired or
+  paraphrased.
+
+- **REQ-111** — [ ] When a student submits an answer through REQ-108's
+  surface, the three closed formats are graded deterministically and the
+  student is shown their mark — with the answer key never reaching the
+  browser in any response. Model grading is used only for rewrites, and only
+  at the lower weight REQ-107 declares.
+
+- **REQ-112** — [ ] A student can contest a grading **from the surface that
+  showed them the mark**, without leaving the app. A contest is recorded,
+  reverses that item's mastery contribution pending review, and flags the
+  generated question — so a bad generated question surfaces instead of
+  quietly damaging mastery. A contest endpoint with no affordance does not
+  satisfy this.
+
+- **REQ-113** — [ ] Coached practice is its own instance that a student can
+  actually START, and START ONLY from a step in a study plan's path. Both
+  halves are conditions: a path-step entry point EXISTS and works, and no
+  normal practice entry point can launch it, proven by a negative guard. Its
+  relationship to the engine is decided and recorded explicitly rather than
+  left implicit.
+
+- **REQ-114** — [ ] A student can COMPLETE a coached session, and in
+  completing it experiences REPLAY FIRST, THEN FRESH: the student is shown the
+  actual transcript moment to rework and works it, and only then is presented
+  a new situation exercising the same competency, which the session cannot
+  finish without. A runtime that stores the two legs but never presents them
+  does not satisfy this.
+
+- **REQ-115** — [ ] Coach tips are TECHNIQUE REMINDERS ONLY. A tip names the
+  skill and never scripts the student's words. Enforced by a mechanical check
+  on tip content, not by prompt instruction alone — and the check runs on
+  EVERY tip actually rendered to a student during a session, not only on tips
+  at authoring time. A validator with no delivery path to guard does not
+  satisfy this.
+
+- **REQ-116** — [ ] Completing a coached session produces a scored
+  contribution that moves the student's VISIBLE mastery figure at the coached
+  weight, below unaided practice — the student can complete a coached session
+  and then see the figure change on the mastery surface.
+
+- **REQ-117** — [ ] A path is a CHILD of a study plan, bounded at 5-10 steps. A
+  new study plan generates a NEW path; old paths are neither discarded nor
+  carried forward and stay reachable through the study plan that owns them.
+
+- **REQ-118** — [ ] "What's next" is deterministic and explainable: step
+  selection targets the weakest competency first and returns the reason it
+  chose that step.
+
+- **REQ-119** — [ ] Per-competency levels with declared thresholds and
+  daily/weekly goals with declared defaults exist. Streaks and unlocking exist
+  NOWHERE in the surface, proven by a negative guard.
+
+- **REQ-120** — [ ] The path is surfaced with step state, next-step reason,
+  level and goal progress, and the existing study-plan surface on
+  `app/reports/page.tsx` keeps working unchanged, regression-guarded.
+
+- **REQ-121** — [ ] REQ-103..REQ-120 and REQ-122..REQ-124 are recorded in
+  REQUIREMENTS.md and ROADMAP.md, and the REQ-85 amendment is recorded as a
+  Phase 18 revision handoff section in Phase 21's OWN validation record —
+  `18-VALIDATION.md` is not edited.
+
+- **REQ-122** — [ ] Every path step renders an action that reaches the
+  exercise it names: a `KNOWLEDGE_CHECK` step leads to an answerable check, a
+  `COACHED_SESSION` step leads to a startable coached session, an
+  `UNAIDED_SESSION` step leads to normal practice. A step whose action link
+  goes nowhere is a REQ-122 failure.
+
+- **REQ-123** — [ ] Check generation's inputs — session moments, the user id
+  owning each moment, the transcripts they came from, and the student's own
+  display names — are assembled by ONE named, exported, ownership-scoped
+  assembler that is testable without a route. The privacy contract REQ-109
+  states is satisfied by construction rather than by whatever a route
+  improvises.
+
+- **REQ-124** — [ ] The mapping from a report's scored rubric dimensions UP
+  into competency contributions exists in exactly ONE module, used by BOTH
+  live-session and coached-session ingestion. Two copies of that mapping is a
+  REQ-124 failure, because they will diverge and the two sources will stop
+  being comparable.
+
+REQ-103..REQ-124 were derived 2026-10-16 from `21-CONTEXT.md` after the user
+settled its two open questions (milestone placement — stays Phase 21 in v1.1,
+no renumber; phase size — one phase with a high plan count, no split), and
+Phase 21's roadmap entry had carried NO `Requirements:` line at all.
+
 ## Out of Scope (v1.1)
 
 | Feature | Reason |
