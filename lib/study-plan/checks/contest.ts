@@ -141,21 +141,29 @@ export async function raiseContest(args: {
 }): Promise<RaiseContestResult> {
   const reason = validateReason(args.reason);
 
-  const { contestId, knowledgeCheckId } = await prisma.$transaction(async (tx) => {
-    // Scoped by userId in the WHERE clause (not post-filtered) — a student
-    // may contest only their own attempt, and the error below does not
-    // distinguish "does not exist" from "belongs to someone else".
-    const attempt = await tx.knowledgeCheckAttempt.findFirst({
-      where: { id: args.attemptId, userId: args.userId },
-    });
-    if (!attempt) {
-      throw new NotFoundError(args.attemptId);
-    }
-    if (!attempt.gradedAt) {
-      throw new NotGradedError(args.attemptId);
-    }
+  let contestId: string;
+  let knowledgeCheckId: string;
+  try {
+    const created = await prisma.$transaction(async (tx) => {
+      // Scoped by userId in the WHERE clause (not post-filtered) — a student
+      // may contest only their own attempt, and the error below does not
+      // distinguish "does not exist" from "belongs to someone else".
+      const attempt = await tx.knowledgeCheckAttempt.findFirst({
+        where: { id: args.attemptId, userId: args.userId },
+      });
+      if (!attempt) {
+        throw new NotFoundError(args.attemptId);
+      }
+      if (!attempt.gradedAt) {
+        throw new NotGradedError(args.attemptId);
+      }
 
-    try {
+      // A P2002 here (the second contest for this attempt) aborts the
+      // Postgres transaction immediately — any FURTHER query issued against
+      // `tx` after that point fails too ("current transaction is aborted"),
+      // so the P2002 is deliberately NOT caught in here. It is caught
+      // OUTSIDE the transaction below, once it has rolled back and the base
+      // `prisma` client is usable again to look up the existing contest.
       const contest = await tx.gradingContest.create({
         data: {
           attemptId: attempt.id,
@@ -165,21 +173,23 @@ export async function raiseContest(args: {
         },
       });
       return { contestId: contest.id, knowledgeCheckId: attempt.knowledgeCheckId };
-    } catch (err) {
-      if (
-        err &&
-        typeof err === "object" &&
-        "code" in err &&
-        (err as { code?: string }).code === "P2002"
-      ) {
-        const existing = await tx.gradingContest.findUnique({
-          where: { attemptId: attempt.id },
-        });
-        throw new AlreadyContestedError(args.attemptId, existing?.id ?? "unknown");
-      }
-      throw err;
+    });
+    contestId = created.contestId;
+    knowledgeCheckId = created.knowledgeCheckId;
+  } catch (err) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code?: string }).code === "P2002"
+    ) {
+      const existing = await prisma.gradingContest.findUnique({
+        where: { attemptId: args.attemptId },
+      });
+      throw new AlreadyContestedError(args.attemptId, existing?.id ?? "unknown");
     }
-  });
+    throw err;
+  }
 
   // REVERSE every unreversed contribution sourced from this attempt, via
   // 21-05's own `reverseContribution` — not a parallel mechanism. 21-11
