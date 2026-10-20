@@ -105,6 +105,61 @@ self-proving inverted test that the frozen-file marker guard would itself
 catch a regression. `npx tsc --noEmit` clean; `git diff --name-only` confirms
 `generate.ts`/`types.ts`/the study-plan generate route are untouched. See
 `21-07-SUMMARY.md`.
+**21-06 complete** — the four knowledge-check formats modelled entirely
+inside `lib/study-plan/`, per REQ-108. `lib/study-plan/checks/types.ts` ships
+`CHECK_FORMATS`/`CheckFormat`, discriminated payload interfaces for
+`MULTIPLE_CHOICE` (exactly 4 distinct options), `FILL_IN_BLANK` (1-3 blanks,
+`segments.length === blankCount + 1`), `PICK_BETTER_RESPONSE` (exactly 2
+distinct candidates), and `REWRITE_WEAK_LINE` (weak line floored at the
+imported, never-restated `MIN_QUOTABLE_LENGTH` from `lib/study-plan/
+verbatim.ts`), plus `validateCheckPayload()` and `validateAnswerKey()` — the
+latter throws if a non-null key is given for `REWRITE_WEAK_LINE` and throws
+if `null` is given for any of the other three, making REQ-111's
+deterministic/model-graded split structural. `isDeterministicFormat()` and
+`CONTRIBUTION_SOURCE_FOR_FORMAT()` give 21-11/21-15 one non-duplicated source
+for a format's weight class. `scripts/verify-knowledge-check-surface.ts`'s
+43-check battery (above the 25-check floor) covers accept/reject for all
+four formats with field-naming throws, then proves the no-engine-registry
+guard: no `ENGINE_TYPES` slug/name matches a check format or mentions
+"knowledge"/"quiz"/"check", `ENGINE_TYPES.length` tripwired at its current
+count (13, no existing verifier exports one), and nothing under
+`lib/study-plan/` imports the engine except the single named,
+length-asserted `lib/study-plan/coached/` carve-out (that directory doesn't
+exist yet — handled as zero files, not a vacuous pass) — proven non-vacuous
+by planting an engine import under `checks/`, observing the walk catch it,
+then removing it and re-confirming clean. `npx tsc --noEmit` clean;
+`verify-engine-surface-count.ts` unchanged at ALL PASS; no `lib/engine/`
+files touched. See `21-06-SUMMARY.md`.
+**21-08 complete** — the study-plan path container, per REQ-117.
+`lib/study-plan/path.ts` ships `PATH_STEP_BOUNDS` (locked 5-10, the ONLY
+enforcement of the bound since the schema deliberately does not constrain
+step count), `createPath()` (ownership check, the bound, 1-based contiguous
+positions, per-kind reference consistency, one nested transaction so a path
+can never exist with zero steps, a second create for the same plan throwing
+a named `PathAlreadyExistsError` carrying the existing path's id rather than
+overwriting it), `readPathForStudyPlan()` (null for a pre-Phase-21 plan, the
+REQ-120 case), `markStepComplete()` (out-of-order completion explicitly
+permitted — 21-CONTEXT.md rules out unlocking — and re-running the
+state-dependent coached rule at the one moment a step leaves PENDING), and
+`listPathsForUser()` (every path ever owned, no is-latest/active flag, no
+delete). The `COACHED_SESSION` reference rule is state-dependent by design,
+settled in review: `coachedSessionId` may be null only while
+`status === "PENDING"` (21-12 is the sole creator, called at step-entry time,
+and cannot see a step still inside an uncommitted `createPath` transaction),
+and is required non-null once the step leaves PENDING — both halves asserted.
+`scripts/verify-path-model.ts` proves all four invariants: the bound
+(rejects 0/4/11 naming both 5 and 10, accepts 5/10), position contiguity
+(duplicate/gap/0-based rejected, shuffled-but-contiguous accepted),
+kind/reference consistency including BOTH halves of the coached amendment
+(PENDING-null accepted, COMPLETE/IN_PROGRESS-null rejected naming the
+status), and — against the local dev DB, which is migrated and ran (not
+SKIP) — that an older path's id/generatedAt/step ids/statuses survive a
+second and third plan's path creation untouched, a same-plan collision
+throws `PathAlreadyExistsError` without mutating the original, a cross-user
+`studyPlanId` throws, and `markStepComplete` throws at runtime for a
+still-null coached step then succeeds once the id is written back. `npx tsc
+--noEmit` clean; neither `generate.ts`, `plan-dto.ts` nor `types.ts` touched.
+See `21-08-SUMMARY.md`.
 **Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).

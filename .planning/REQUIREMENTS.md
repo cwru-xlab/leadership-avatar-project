@@ -856,7 +856,7 @@ REQ-73.
   weight, below unaided practice — the student can complete a coached session
   and then see the figure change on the mastery surface.
 
-- **REQ-117** — [ ] A path is a CHILD of a study plan, bounded at 5-10 steps. A
+- **REQ-117** — [x] A path is a CHILD of a study plan, bounded at 5-10 steps. A
   new study plan generates a NEW path; old paths are neither discarded nor
   carried forward and stay reachable through the study plan that owns them.
 
