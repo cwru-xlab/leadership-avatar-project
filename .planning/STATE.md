@@ -9,7 +9,23 @@
 **Phase:** 20 — Difficult Conversation Walk-Outs (plans 20-01 through 20-04 and 20-06 complete; 20-05 concurrent in-flight; execution must STOP before 20-07, gated on Phase 18's 18-05 human UAT, which is running concurrently) — Phase 19 implementation complete (19-01..19-10), 19-11 still pending as the final plan in that phase.
 **Plan:** Phase 20: 20-01, 20-02, 20-03, 20-04 and 20-06 complete (20-06: `lib/report/quote-sanitizer.ts` wired into `toReportDto`, `scripts/verify-dc-walkout-report.ts`'s 6-section battery, ALL PASS); 20-05 next/concurrent for that phase; execution STOPS before 20-07 per the gating decision. Separately, Phase 19: 19-01 through 19-10 complete; 19-11 still pending.
 **Status:** 20-06 shipped the sanitizer guarantee: `sanitizeQuote`/`sanitizeOutcomeQuotes` classify with `detectHostility` (20-01's SEVERE lexicon, no second private list), replace a severe quote/prose field with a rule-group characterization while leaving `timecodeSeconds`/`effect`/non-severe text untouched, and are applied inside `toReportDto` — never a component — so the verbatim text never reaches a client payload. `scripts/verify-dc-walkout-report.ts` proves it against the real `toReportDto`, including an adversarial payload that deliberately disobeys the aligned evaluator prompt, and the negative test (sanitizer temporarily reverted) was run and confirmed to fail exactly sections 1/2/4 before being restored. `postProcessScores` confirmed still absent. One disclosed deviation (module relocated to `lib/report/` per the plan's own fallback, to avoid `lib/report/` importing a type-specific module) and one disclosed git-staging race (Task 3's file correctly landed but under a concurrent agent's commit message) — see `20-06-SUMMARY.md`. `npx tsc --noEmit` clean; `verify-pitch-types.ts` unchanged at its 1 pre-existing Phase-18-owned elevator failure.
-**Last activity:** 2026-10-16 — quick task 002 (issue #50, feedback source
+**Last activity:** 2026-10-20 — Phase 21 (Adaptive Mastery Path) plan
+**21-01 complete** — REQUIREMENTS.md gained a `### Phase 21` section defining
+REQ-103..REQ-124 as 22 verifiable, student-observable conditions (strict
+numeric order, REQ-121 between REQ-120 and REQ-122), 22 Traceability rows
+(Phase 21 / Pending), a recounted Coverage block (29→51 total/mapped, Unmapped
+0 ✓), and four Out-of-Scope rejection rows for `21-CONTEXT.md`'s Deferred
+items (streaks/unlocking, faculty-authored framework, authored question bank,
+coaching inside normal practice). ROADMAP.md's Phase 21 entry gained its
+missing `Requirements:` line, its five open questions replaced with their
+settled answers, and five concrete Success Criteria — a stale duplicate
+"Plans: TBD" block contradicting the already-populated 25-plan checklist was
+also removed. One disclosed non-defect git-staging race: Task 3's commit
+(`b5f5cf7`) swept in a concurrent sibling executor's staged
+`prisma/schema.prisma` changes (same shared-working-tree precedent as
+20-06's); content unaltered, no history rewrite. See `21-01-SUMMARY.md`.
+Three sibling plans (21-02, 21-03, 21-04) ran concurrently in this phase.
+**Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).
 See `quick/002-feedback-source-attribution/002-SUMMARY.md`. Earlier the same
@@ -533,6 +549,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 19]: 19-10: surface-count guard distinguishes shared InstanceConfig kind discriminant from per-mode slug branch; absorbed 19-UNOWNED-RED-SCRIPT.md Rule 3 deviation fixing verify-report-structure.ts's resolve-loop
 - [Phase 20]: Reversed 20-01's stonewalling finding per user amendment: added a dedicated stonewalling disengagement cause so sustained pure refusal can cross a type's threshold alone, with hostility proven to cross at least as fast
 - [Phase 20]: 20-03: fixed 20-EPSILON-MARGIN.md (stonewalling crossing landed on a 1e-16 float hair) by rebalancing the test weight profile to a 0.05 margin; declared the DC type's own disengagementThreshold (0.6) and disengagementWeights with a real stonewalling weight (0.3, deviating from the plan's literal numbers which would have left the amendment unimplemented in production) alongside offensive_content/avatarEndReasonByCause; added verify-dc-surface-count.ts Section 11 proving one type-level threshold with no per-scenario surface, negative-tested
+- [Phase 21]: REQ-103..REQ-124 derived from 21-CONTEXT.md; traceability/coverage/roadmap updated
 
 ## Progress
 
