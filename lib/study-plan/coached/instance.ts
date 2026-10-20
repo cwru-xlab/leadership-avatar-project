@@ -12,7 +12,7 @@
  *
  * ABSENCES ARE DELIBERATE, not oversights:
  * - There is no overload of `createCoachedSession`, no optional
- *   `pathStepId`, and no "standalone" variant. The function signature IS the
+ *   `pathStepId`, and no stand-alone (path-free) variant. The function signature IS the
  *   REQ-113 guard: `pathStepId` is required and non-nullable, and there is
  *   no code path into this module that does not go through an
  *   already-persisted `COACHED_SESSION` path step.
@@ -131,7 +131,7 @@ function deriveViewFromRow(row: {
  *
  * THE ONLY ENTRY (enforced in order below):
  *   1. `pathStepId` is required and non-nullable in this signature — there
- *      is no overload, no optional variant, and no "standalone" path. The
+ *      is no overload, no optional variant, and no stand-alone (path-free) route. The
  *      step is loaded by id, joining path -> studyPlan -> userId, and the
  *      row must exist, `userId` must match, and `kind` must be
  *      "COACHED_SESSION". This is REQ-113's structural guarantee at the
