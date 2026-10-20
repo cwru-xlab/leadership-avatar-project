@@ -25,6 +25,32 @@ also removed. One disclosed non-defect git-staging race: Task 3's commit
 `prisma/schema.prisma` changes (same shared-working-tree precedent as
 20-06's); content unaltered, no history rewrite. See `21-01-SUMMARY.md`.
 Three sibling plans (21-02, 21-03, 21-04) ran concurrently in this phase.
+**21-04 complete** — the mechanical half of 21-CONTEXT.md's first named
+guardrail ("never misquote the student"), per REQ-110. `lib/study-plan/
+verbatim.ts` ships `validateVerbatimQuote(quote, transcript, opts?)`, a pure
+function with no model call, no network, no S3 read, that collects every
+substring match across every turn before classifying the result as an exact
+match (returning the unique `role:"user"` turn index + char offsets) or one
+of seven closed reject reasons (`EMPTY_QUOTE`, `TOO_SHORT`,
+`NOT_FOUND_IN_ANY_TURN`, `FOUND_ONLY_IN_ASSISTANT_TURN`,
+`SPANS_MULTIPLE_TURNS`, `AMBIGUOUS_MULTIPLE_MATCHES`,
+`TURN_INDEX_MISMATCH`). The only permitted normalization is Unicode NFC;
+case folding, trimming, whitespace collapsing, and smart-quote folding are
+named and explicitly excluded in a block comment. The shared 12-char
+threshold is exported once as `MIN_QUOTABLE_LENGTH` and imported — never
+restated — by `lib/study-plan/moments.ts`'s `extractSessionMoments`, which
+pairs each long-enough `role:"user"` turn with the report growth area(s)
+whose timecode matches it exactly (no nearest-turn fallback) and leaves
+`competencyKeys` empty for its caller, deliberately not importing the
+mastery catalog. TDD discipline followed genuinely: `scripts/verify-
+verbatim-quote.ts`'s 22-check battery was run and confirmed to fail
+(`MODULE_NOT_FOUND`, exit 1) before either module existed (RED, commit
+`380a947`), then passed after `verbatim.ts` (GREEN, `9bdc6dd`) and again
+after `moments.ts` (GREEN, `32e6524`). One disclosed non-defect fix: a
+`moments.ts` doc comment originally spelled out the literal substring
+`competencies` (the plan's own verification grep forbids that substring
+appearing anywhere in the file); reworded before the GREEN commit landed.
+`npx tsc --noEmit` clean. See `21-04-SUMMARY.md`.
 **Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).
@@ -2013,7 +2039,7 @@ Open items carried into Phase 11+:
 ## Session
 
 **Last Date:** 2026-10-20T14:51:41.401Z
-**Stopped At:** Completed 21-03-PLAN.md
+**Stopped At:** Completed 21-03-PLAN.md and 21-04-PLAN.md
 **Resume File:** None
 
 
