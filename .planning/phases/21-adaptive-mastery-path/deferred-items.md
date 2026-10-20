@@ -67,3 +67,40 @@ exercise"), and the failure is silent: the panel renders, the link 404s.
 
 **For 21-20 (wave 8):** if the placeholder can still reach a persisted row at
 sign-off, record it as an open REQ-122 defect rather than signing it off.
+
+---
+
+## From 21-22
+
+- **REQ-108's deferred action (above, from 21-06) is now resolved.** The
+  answering surface landed this plan: the attempt route (GET keyless/POST
+  grade), the four-format card, and the fixed-contract page all ship and are
+  proven by `scripts/verify-check-taking-surface.ts` (53/53 checks, DB-gated
+  section ran against the local migrated database). REQ-108's checkbox and
+  traceability row were both flipped to Complete in this plan, in agreement.
+- **REQ-111 and REQ-112 also flipped to Complete** in this plan. REQ-111 was
+  already functionally satisfied by 21-11 (its own SUMMARY disclosed marking
+  it complete), but `REQUIREMENTS.md`'s checkbox had reverted to `[ ]` by the
+  time this plan ran (the traceability row also read `Pending`) — most likely
+  overwritten by a later commit from a concurrent sibling plan sharing the
+  same file. This plan re-ran `gsd-tools requirements mark-complete` for
+  REQ-108/REQ-111/REQ-112 and found the tool updates the Traceability table
+  but NOT the inline checkbox, so the three checkboxes were hand-edited to
+  `[x]` to keep both halves in agreement, per this plan's own
+  `plan_specific_notes` instruction.
+- **REQ-112 is genuinely satisfied now, not merely re-ticked:** the card's
+  "This grading looks wrong" control is gated on a mark existing, POSTs to
+  `/api/study-plans/checks/{attemptId}/contest` (the attempt id, not the
+  check id — confirmed by the verifier's Section 3), and renders a plain-
+  language confirmation that the mastery contribution has been reversed
+  pending review on both 201 and 409. The mark itself is never re-graded or
+  cleared.
+- **REQ-122 was deliberately left Pending.** Its text requires every path
+  step's action link to work for all three step kinds (`KNOWLEDGE_CHECK`,
+  `COACHED_SESSION`, `UNAIDED_SESSION`), and `components/study-plan/
+  PathPanel.tsx` does not exist yet (confirmed by this plan's own verifier,
+  which prints an explicit SKIP rather than a false pass for that half). This
+  plan ships only the `KNOWLEDGE_CHECK` destination page at the fixed URL
+  21-19 is expected to link to. 21-19/21-20 must confirm the other two step
+  kinds' action links and the `PLACEHOLDER_KNOWLEDGE_CHECK_ID` hazard
+  (documented above) before REQ-122 can be marked complete.
