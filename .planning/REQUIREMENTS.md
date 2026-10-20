@@ -796,7 +796,7 @@ REQ-73.
   deterministically-graded checks outrank model-graded rewrites, and unaided
   practice outranks coached practice.
 
-- **REQ-108** — [ ] All four knowledge-check formats (multiple choice, fill in
+- **REQ-108** — [x] All four knowledge-check formats (multiple choice, fill in
   the blank, pick the better response, rewrite a weak line) are modelled,
   persisted INSIDE the study-plan surface, **and ANSWERABLE BY THE STUDENT**:
   an authenticated surface renders each of the four formats and submits an
@@ -817,13 +817,13 @@ REQ-73.
   generation time; a non-matching quote is REJECTED, never repaired or
   paraphrased.
 
-- **REQ-111** — [ ] When a student submits an answer through REQ-108's
+- **REQ-111** — [x] When a student submits an answer through REQ-108's
   surface, the three closed formats are graded deterministically and the
   student is shown their mark — with the answer key never reaching the
   browser in any response. Model grading is used only for rewrites, and only
   at the lower weight REQ-107 declares.
 
-- **REQ-112** — [ ] A student can contest a grading **from the surface that
+- **REQ-112** — [x] A student can contest a grading **from the surface that
   showed them the mark**, without leaving the app. A contest is recorded,
   reverses that item's mastery contribution pending review, and flags the
   generated question — so a bad generated question surfaces instead of
@@ -961,11 +961,11 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-105 | Phase 21 | Pending |
 | REQ-106 | Phase 21 | Pending |
 | REQ-107 | Phase 21 | Pending |
-| REQ-108 | Phase 21 | Pending |
+| REQ-108 | Phase 21 | Complete |
 | REQ-109 | Phase 21 | Complete |
 | REQ-110 | Phase 21 | Complete |
-| REQ-111 | Phase 21 | Pending |
-| REQ-112 | Phase 21 | Pending |
+| REQ-111 | Phase 21 | Complete |
+| REQ-112 | Phase 21 | Complete |
 | REQ-113 | Phase 21 | Pending |
 | REQ-114 | Phase 21 | Pending |
 | REQ-115 | Phase 21 | Pending |
