@@ -76,6 +76,35 @@ exclusion, double-reversal rejection all behave as specified. REQ-107
 deliberately left unchecked — it is claimed by four plans in this phase
 (21-05, 21-16, 21-20, 21-21) and this plan ships the mechanism, not the
 session-completion wiring. See `21-05-SUMMARY.md`.
+**21-07 complete** — the named, scoped privacy-boundary exception REQ-109
+requires. `lib/study-plan/generate.ts`'s closed-vocabulary filter (only
+anonymous report ordinals, two score aggregates, closed-vocabulary rubric
+label/rating strings) is proven BYTE-FOR-BYTE UNCHANGED and proven to import
+nothing from the new module. A SECOND, narrower path,
+`lib/study-plan/moment-boundary.ts`'s `prepareMomentsForGeneration()`, is the
+only place in the codebase permitted to send a student's own transcript text
+to a model call, for knowledge-check/coached-practice generation only — never
+study-plan synthesis. It enforces ownership-first (throws before any text
+handling on a single cross-user `momentOwnerUserIds` entry, even with zero
+moments, without echoing either user id), then enumerated structural
+redaction (email/URL/phone/self-name pattern match only — explicitly no NER,
+no model-based PII detection) with drop-not-redact semantics (a moment
+altered by redaction is removed entirely, never sent redacted, since REQ-110
+requires an untouched verbatim quote), then two PROVISIONAL UNTIL CALIBRATED
+caps (12 moments / 8,000 characters, most-recent-first). `selfNames` is a
+REQUIRED parameter, not optional, so redaction cannot be silently skipped by
+a forgetful caller. `.planning/phases/21-adaptive-mastery-path/
+21-PRIVACY-BOUNDARY.md` records what widened, why no alternative (an
+authored question bank) avoided it, what explicitly did NOT widen (study-plan
+synthesis, reports, cross-user reads, deck/artifact text, third-party
+personas), and states the accepted residual risk plainly: the redactor is
+structural, not semantic, and will not catch an arbitrary third-party name
+the student says aloud. `scripts/verify-moment-boundary.ts`'s 22-check
+battery (zero env vars, no network) proves all of the above, including a
+self-proving inverted test that the frozen-file marker guard would itself
+catch a regression. `npx tsc --noEmit` clean; `git diff --name-only` confirms
+`generate.ts`/`types.ts`/the study-plan generate route are untouched. See
+`21-07-SUMMARY.md`.
 **Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).
