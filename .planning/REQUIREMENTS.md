@@ -805,7 +805,7 @@ REQ-73.
   registered engine interaction type — a surface-count guard fails if a
   knowledge-check slug reaches the engine registry.
 
-- **REQ-109** — [ ] Check content is generated from the student's OWN session
+- **REQ-109** — [x] Check content is generated from the student's OWN session
   moments — real transcript turns and the growth areas their report
   identified — under a named, scoped widening of the study-plan privacy
   boundary that is recorded with its rationale. The existing closed-vocabulary
@@ -962,7 +962,7 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-106 | Phase 21 | Pending |
 | REQ-107 | Phase 21 | Complete |
 | REQ-108 | Phase 21 | Complete |
-| REQ-109 | Phase 21 | Pending |
+| REQ-109 | Phase 21 | Complete |
 | REQ-110 | Phase 21 | Complete |
 | REQ-111 | Phase 21 | Pending |
 | REQ-112 | Phase 21 | Complete |
