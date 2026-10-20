@@ -47,51 +47,57 @@ enum AuditAction {
 model User {
   id            String       @id @default(uuid())
   email         String       @unique
-  passwordHash  String?      // null for SSO users
+  passwordHash  String? // null for SSO users
   name          String?
   role          Role         @default(STUDENT)
   studentNumber String?
   authProvider  AuthProvider @default(EMAIL)
-  
+
   // Account status
-  isActive      Boolean      @default(true)
-  emailVerified Boolean      @default(false)
+  isActive      Boolean @default(true)
+  emailVerified Boolean @default(false)
 
   // REQ-36: account-level acceptance of video/audio analysis, remembered across
   // sessions. Distinct from the browser permission dialog, which is not consent
   // to being ANALYSED. Each report row snapshots this at session start.
   videoAnalysisConsentAt DateTime?
-  
+
   // Timestamps
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  lastLoginAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
 
   // Relationships
-  sessions          Session[]
-  cohortMemberships CohortMember[]
-  assignments       CaseAssignment[]
-  attempts          Attempt[]
-  createdCohorts    Cohort[]         @relation("CohortCreator")
-  createdCases      Case[]           @relation("CaseCreator")
-  auditLogs         AuditLog[]
-  interactionReports InteractionReport[]
-  studyPlans        StudyPlan[]
+  sessions               Session[]
+  cohortMemberships      CohortMember[]
+  assignments            CaseAssignment[]
+  attempts               Attempt[]
+  createdCohorts         Cohort[]                @relation("CohortCreator")
+  createdCases           Case[]                  @relation("CaseCreator")
+  auditLogs              AuditLog[]
+  interactionReports     InteractionReport[]
+  studyPlans             StudyPlan[]
   networkingAttestations NetworkingAttestation[]
-  authHandoffs          AuthHandoff[]
+  authHandoffs           AuthHandoff[]
+  masteryContributions   MasteryContribution[]
+  knowledgeChecks        KnowledgeCheck[]
+  knowledgeCheckAttempts KnowledgeCheckAttempt[]
+  gradingContests        GradingContest[]
+  studyPlanPaths         StudyPlanPath[]
+  coachedSessions        CoachedSession[]
 
   @@index([email])
   @@index([role])
 }
 
 model Session {
-  id           String   @id @default(uuid())
-  userId       String
-  token        String   @unique
-  userAgent    String?
-  ipAddress    String?
-  expiresAt    DateTime
-  createdAt    DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -104,16 +110,16 @@ model Session {
 // the deployment (usually a Vercel preview) that initiated login. Raw state and
 // code values never reach the database: only SHA-256 hashes are stored here.
 model AuthHandoff {
-  id           String    @id @default(uuid())
+  id               String    @id @default(uuid())
   stateHash        String    @unique
   codeHash         String?   @unique
   browserNonceHash String?
   userId           String?
-  targetOrigin String
-  targetPath   String
-  expiresAt    DateTime
-  consumedAt   DateTime?
-  createdAt    DateTime  @default(now())
+  targetOrigin     String
+  targetPath       String
+  expiresAt        DateTime
+  consumedAt       DateTime?
+  createdAt        DateTime  @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -123,12 +129,12 @@ model AuthHandoff {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   email     String
-  token     String   @unique
+  token     String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([email])
   @@index([token])
@@ -184,20 +190,20 @@ model CohortMember {
 // ============================================================================
 
 model Case {
-  id          String   @id @default(uuid())
-  slug        String   @unique
+  id          String  @id @default(uuid())
+  slug        String  @unique
   title       String
   description String?
-  isPublished Boolean  @default(false)
-  
+  isPublished Boolean @default(false)
+
   // Metadata
-  difficulty     String?  // "beginner" | "intermediate" | "advanced"
-  estimatedMins  Int?     // estimated time in minutes
-  category       String?  // e.g., "negotiation", "conflict", "leadership"
-  
+  difficulty    String? // "beginner" | "intermediate" | "advanced"
+  estimatedMins Int? // estimated time in minutes
+  category      String? // e.g., "negotiation", "conflict", "leadership"
+
   // Timestamps
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Creator
   createdById String?
@@ -222,7 +228,7 @@ model CaseAssignment {
   caseId     String
   cohortId   String?
   assignedAt DateTime @default(now())
-  
+
   // Optional: due date and max attempts
   dueAt       DateTime?
   maxAttempts Int?
@@ -242,24 +248,24 @@ model CaseAssignment {
 // ============================================================================
 
 model Attempt {
-  id                  String    @id @default(uuid())
-  userId              String
-  caseId              String
-  attemptNumber       Int
-  
+  id            String @id @default(uuid())
+  userId        String
+  caseId        String
+  attemptNumber Int
+
   // Performance metrics
-  score               Int?
-  totalMessages       Int?
-  totalTimeSeconds    Int?
-  
+  score            Int?
+  totalMessages    Int?
+  totalTimeSeconds Int?
+
   // Timestamps
-  startedAt           DateTime  @default(now())
-  submittedAt         DateTime?
-  createdAt           DateTime  @default(now())
-  
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+
   // Evaluation
-  evalResult          String?   @db.Text
-  
+  evalResult String? @db.Text
+
   // Storage reference
   interactionLogS3Key String?
 
@@ -280,7 +286,7 @@ model AuditLog {
   id         String      @id @default(uuid())
   userId     String?
   action     AuditAction
-  entityType String?     // "User", "Cohort", "Case", "Attempt", etc.
+  entityType String? // "User", "Cohort", "Case", "Attempt", etc.
   entityId   String?
   metadata   String?     @db.Text // JSON string for additional context
   ipAddress  String?
@@ -462,7 +468,9 @@ model StudyPlan {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  path            StudyPlanPath?
+  knowledgeChecks KnowledgeCheck[]
 
   @@index([userId, savedAt])
 }
@@ -494,4 +502,266 @@ model NetworkingAttestation {
 
   @@index([userId, attestedAt])
   @@index([userId, consumedAt])
+}
+
+// ============================================================================
+// ADAPTIVE MASTERY PATH (Phase 21)
+// ============================================================================
+//
+// 21-CONTEXT.md's two structural decisions, encoded here:
+// - A path is a CHILD of StudyPlan ("not a global queue") — StudyPlanPath has
+//   a @unique, Cascade relation to its plan. There is no active flag and no
+//   delete; old paths remain reachable only through the plan that owns them.
+// - Every mastery contribution, whatever its source, is ONE row in ONE ledger
+//   (MasteryContribution) — both live sessions and knowledge checks move
+//   mastery, and nothing else writes a mastery-affecting row outside it.
+
+/// REQ-107's single ledger. Every event that moves a student's mastery figure —
+/// a live session, a coached session, or a graded knowledge-check attempt —
+/// writes exactly one row here. APPEND-ONLY apart from `reversedAt` /
+/// `reversedReason`: REQ-112's contest reverses a contribution in place rather
+/// than deleting the row, so the ledger always shows what happened and why it
+/// no longer counts.
+model MasteryContribution {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The competency this contribution counts toward. Derived from existing
+  /// rubric dimensions (21-CONTEXT.md), not a fixed enum.
+  competencyKey String
+
+  /// "LIVE_SESSION" | "COACHED_SESSION" | "CHECK_DETERMINISTIC" |
+  /// "CHECK_MODEL_GRADED". Enforced in application code, not a Prisma enum —
+  /// a later source needs no migration.
+  source String
+
+  /// Normalized 0..1 score this event produced.
+  rawScore Float
+
+  /// The declared weight in force when this row was written, SNAPSHOTTED at
+  /// write time rather than looked up at read time. Retuning weights later
+  /// never silently rewrites history.
+  weight Float
+
+  /// Soft, relation-free pointer to the InteractionReport for a live or
+  /// coached session. Null for a knowledge-check contribution.
+  sourceReportId String?
+
+  /// KnowledgeCheckAttempt id for a check-sourced contribution. Null otherwise.
+  sourceAttemptId String?
+
+  /// Non-null means a GradingContest reversed this contribution; it no longer
+  /// counts toward mastery but the row is never deleted.
+  reversedAt     DateTime?
+  reversedReason String?
+
+  /// The session's or attempt's own time, NOT createdAt. REQ-104's
+  /// current-window figure windows on this, not on when the row was written.
+  occurredAt DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, competencyKey, occurredAt])
+  @@index([userId, occurredAt])
+  @@index([sourceAttemptId])
+}
+
+/// One generated question, in any of the four formats all four formats ship
+/// (21-CONTEXT.md). Lives inside the study-plan surface as a path step; never
+/// a registered engine interaction type.
+model KnowledgeCheck {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A check belongs to the plan whose path generated it.
+  studyPlanId String
+  studyPlan   StudyPlan @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+
+  competencyKey String
+
+  /// "MULTIPLE_CHOICE" | "FILL_IN_BLANK" | "PICK_BETTER_RESPONSE" |
+  /// "REWRITE_WEAK_LINE".
+  format String
+
+  prompt String @db.Text
+
+  /// Format-specific body — options, blanks, the two candidate responses, the
+  /// weak line. Shape validated in TypeScript per format; see
+  /// lib/study-plan/checks/types.ts.
+  payload Json
+
+  /// Null for REWRITE_WEAK_LINE, which has no deterministic key — that
+  /// nullability is what makes REQ-111's split visible in the schema.
+  answerKey Json?
+
+  /// REQ-110: the verbatim quote and its originating turn, stored so the
+  /// never-misquote guarantee is re-checkable after the fact, not only at
+  /// generation time.
+  sourceReportId  String?
+  quotedTurnIndex Int?
+  quotedText      String? @db.Text
+
+  generationModel String
+
+  /// REQ-112: a student flags a bad generated question.
+  flaggedAt  DateTime?
+  flagReason String?
+
+  createdAt DateTime @default(now())
+
+  attempts KnowledgeCheckAttempt[]
+
+  @@index([userId, studyPlanId])
+  @@index([userId, competencyKey])
+  @@index([flaggedAt])
+}
+
+/// One student answer to a KnowledgeCheck.
+model KnowledgeCheckAttempt {
+  id String @id @default(uuid())
+
+  knowledgeCheckId String
+  knowledgeCheck   KnowledgeCheck @relation(fields: [knowledgeCheckId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  response Json
+
+  /// Null while a model grading is pending.
+  correct Boolean?
+  score   Float?
+
+  /// "DETERMINISTIC" | "MODEL".
+  gradedBy        String
+  graderModel     String?
+  graderRationale String? @db.Text
+
+  submittedAt DateTime  @default(now())
+  gradedAt    DateTime?
+
+  contest GradingContest?
+
+  /// One attempt per check per student; a re-answer after a contest is
+  /// handled by the contest row, not by a second attempt.
+  @@unique([knowledgeCheckId, userId])
+  @@index([userId, submittedAt])
+}
+
+/// REQ-112: a student contests a grading, which also surfaces bad generated
+/// questions instead of letting them quietly damage mastery.
+model GradingContest {
+  id String @id @default(uuid())
+
+  attemptId String                @unique
+  attempt   KnowledgeCheckAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  reason String @db.Text
+
+  /// "OPEN" | "UPHELD" | "REJECTED".
+  status String @default("OPEN")
+
+  raisedAt       DateTime  @default(now())
+  resolvedAt     DateTime?
+  resolutionNote String?   @db.Text
+
+  @@index([status, raisedAt])
+}
+
+/// REQ-117: a path is a CHILD of StudyPlan, not a global queue. `@unique` on
+/// studyPlanId makes it exactly one path per plan; `onDelete: Cascade` makes
+/// it a child rather than a peer. Old paths are NOT deleted and NOT carried
+/// forward when a new study plan generates a new path — they remain
+/// reachable only through the StudyPlan that owns them. Nothing in this
+/// schema expires a path.
+model StudyPlanPath {
+  id String @id @default(uuid())
+
+  studyPlanId String    @unique
+  studyPlan   StudyPlan @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  generatedAt DateTime @default(now())
+
+  /// The mastery figures the path was generated against, frozen at
+  /// generation time. REQ-118's explanation must still make sense months
+  /// later, after mastery has moved on.
+  selectionSnapshot Json
+
+  createdAt DateTime @default(now())
+
+  steps StudyPlanPathStep[]
+
+  @@index([userId, generatedAt])
+}
+
+/// 5 to 10 per path (21-CONTEXT.md). The bound is enforced in code
+/// (lib/study-plan/path.ts), NOT in SQL — nothing here guards it at the
+/// database level.
+model StudyPlanPathStep {
+  id String @id @default(uuid())
+
+  pathId String
+  path   StudyPlanPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+
+  position Int
+
+  /// "KNOWLEDGE_CHECK" | "COACHED_SESSION" | "UNAIDED_SESSION".
+  kind String
+
+  competencyKey String
+
+  /// REQ-118: stored, not recomputed, so the student is shown the reason
+  /// that actually drove selection.
+  selectionReason String @db.Text
+
+  knowledgeCheckId String?
+  coachedSessionId String?
+
+  /// "PENDING" | "COMPLETE" | "SKIPPED".
+  status String @default("PENDING")
+
+  completedAt DateTime?
+
+  coachedSession CoachedSession?
+
+  @@unique([pathId, position])
+}
+
+/// REQ-113/114. A coached session exists ONLY as a path step —
+/// `pathStepId @unique` with `onDelete: Cascade` is the schema-level half of
+/// "reachable only through a path". Replay-first is not optional, so the
+/// replay fields are non-null: the coach sets up the actual moment from the
+/// student's transcript, then presents a fresh situation exercising the same
+/// competency.
+model CoachedSession {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  pathStepId String            @unique
+  pathStep   StudyPlanPathStep @relation(fields: [pathStepId], references: [id], onDelete: Cascade)
+
+  competencyKey String
+
+  replaySourceReportId String
+  replayTurnIndex      Int
+
+  freshScenarioPrompt String @db.Text
+
+  /// The InteractionReport this session produced, once finished.
+  reportId String?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([userId, startedAt])
 }

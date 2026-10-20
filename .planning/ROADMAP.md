@@ -1094,6 +1094,11 @@ mastery measurable); the existing study-plan surface — `lib/study-plan/`
 (`generate.ts`, `types.ts`, `plan-dto.ts`, `draft-token.ts`),
 `app/api/study-plans/{route,generate,[planId]}` and `app/reports/page.tsx` —
 which this phase WIDENS rather than replaces. Not blocked by Phases 18-20.
+**Requirements:** REQ-103, REQ-104, REQ-105, REQ-106, REQ-107, REQ-108, REQ-109,
+REQ-110, REQ-111, REQ-112, REQ-113, REQ-114, REQ-115, REQ-116, REQ-117, REQ-118,
+REQ-119, REQ-120, REQ-121, REQ-122, REQ-123, REQ-124
+(derived 2026-10-16 from `21-CONTEXT.md` once the user settled its two open
+questions; this line previously carried no Requirements: line at all)
 
 **Competitor research — fizzylemon** (`https://www.fizzylemonai.com/how-it-works`,
 read 2026-10-16). Recorded because two of its findings change the brief:
@@ -1122,21 +1127,29 @@ read 2026-10-16). Recorded because two of its findings change the brief:
     request is therefore a differentiator, not catch-up.** Do not plan it as
     parity work.
 
-**Open questions for `/gsd:discuss-phase 21`:**
-  1. Is mastery per rubric dimension (the engine already scores these), per
-     interaction type, or a separate competency model layered over both?
-  2. Do knowledge checks (multiple choice / fill-in-the-blank) need a new
-     non-avatar interaction type, or do they live inside the study-plan surface?
-  3. Does in-session coaching violate Phase 18's locked "no live indicator"
-     decision, which forbids a meter or warning anywhere in the session shell?
-     These may conflict — settle it before planning, not during.
-  4. What makes a generated practice session *trustworthy*? Phases 12/18/20 all
-     chose deterministic derivation over model judgement for anything consequential.
-  5. Scope: is this v1.1 work at all? v1.1 is "Consequence & Deck Breadth" and is
-     mid-sign-off with three human UAT gates open. This phase fits a v1.2 theme
-     far better — see the note in STATE.md's Roadmap Evolution.
+**Settled in `/gsd:discuss-phase 21` (2026-10-16):**
+  1. A SEPARATE cross-type competency model layered over the per-type rubrics,
+     derived mechanically from existing rubric dimensions — not per-rubric-
+     dimension, not per-interaction-type silos.
+  2. Knowledge checks live INSIDE the study-plan surface and are NOT a
+     registered engine interaction type.
+  3. No conflict — coaching is a separate mode never present in normal
+     practice, and REQ-85 is narrowly amended in writing anyway via REQ-121.
+  4. Deterministic derivation over model judgement for everything
+     consequential — mastery arithmetic, next-step selection, level
+     thresholds and the verbatim-quote check.
+  5. Milestone placement RESOLVED — stays Phase 21 inside v1.1, no renumber,
+     and the phase ships as ONE phase with a high plan count.
 
-**Success Criteria** (what must be TRUE): [to be derived in planning]
+**Success Criteria** (what must be TRUE):
+  1. Mastery is a deterministic cross-type figure with thinness shown.
+  2. All four knowledge-check formats generate from the student's own moments
+     and never misquote them.
+  3. Coached practice exists as its own path-only mode with technique-only tips.
+  4. A bounded 5-10 step path selects its next step deterministically from the
+     weakest competency.
+  5. The existing study-plan surface still works and the REQ-85 amendment is
+     handed off.
 **Plans:** 25 plans in 8 waves
 
 Plans:
@@ -1165,9 +1178,6 @@ Plans:
 - [ ] 21-24-PLAN.md — Coached session shell and page: verbatim replay, technique-reminder rail, fresh leg, finish
 - [ ] 21-25-PLAN.md — Ownership-scoped generation-source assembler: the single supplier of 21-10's inputs and the path route's availability pre-check
 - [ ] 21-20-PLAN.md — Full battery, human UAT against five Success Criteria, REQ-85 Phase 18 revision handoff, calibration record (human-verified)
-
-Plans:
-- [ ] TBD (run /gsd:plan-phase 21 to break down)
 
 
 
