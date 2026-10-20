@@ -918,6 +918,10 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | Running the shared-DB migration or backfill | **Already applied** 2026-10-04 (`HANDOFF.md §3`, commit `9a53084`) — all 14 migrations on shared, nothing pending. Both Part 1 and Part 2 are done. Nothing to run. |
 | Re-running the `InteractionReport` backfill verifier on shared | Unsatisfiable by construction — shared was empty (0 reports), so the backfill was a no-op and the verifier hard-asserts a legacy `cameraMode IS NULL` row that does not exist |
 | Amending the docs to bless CI-applied migrations | Rejected 2026-10-04 — the opposite was chosen: `prisma migrate deploy` comes OUT of `buildCommand` so the pipeline matches the discipline (REQ-74) |
+| Streaks and unlocking | Considered and explicitly NOT selected 2026-10-16; levels and daily/weekly goals were the chosen Duolingo mechanics (REQ-119) |
+| A faculty-authored competency framework | The catalog ships DERIVED from existing rubric dimensions; REQ-103 requires the derived set be structured so a later authored framework replaces it without rework |
+| An authored question bank | Rejected 2026-10-16; checks are generated from the student's own sessions (REQ-109) |
+| Coaching inside normal practice sessions | Out by the user's own design (REQ-113). Adding it later would be a GENUINE REQ-85 conflict, not the narrow boundary clarification REQ-121 records, and requires its own decision |
 
 ## Traceability (v1.1)
 
@@ -952,12 +956,38 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-100 | Phase 20 | Complete |
 | REQ-101 | Phase 20 | Complete |
 | REQ-102 | Phase 20 | Complete |
+| REQ-103 | Phase 21 | Pending |
+| REQ-104 | Phase 21 | Pending |
+| REQ-105 | Phase 21 | Pending |
+| REQ-106 | Phase 21 | Pending |
+| REQ-107 | Phase 21 | Pending |
+| REQ-108 | Phase 21 | Pending |
+| REQ-109 | Phase 21 | Pending |
+| REQ-110 | Phase 21 | Pending |
+| REQ-111 | Phase 21 | Pending |
+| REQ-112 | Phase 21 | Pending |
+| REQ-113 | Phase 21 | Pending |
+| REQ-114 | Phase 21 | Pending |
+| REQ-115 | Phase 21 | Pending |
+| REQ-116 | Phase 21 | Pending |
+| REQ-117 | Phase 21 | Pending |
+| REQ-118 | Phase 21 | Pending |
+| REQ-119 | Phase 21 | Pending |
+| REQ-120 | Phase 21 | Pending |
+| REQ-121 | Phase 21 | Pending |
+| REQ-122 | Phase 21 | Pending |
+| REQ-123 | Phase 21 | Pending |
+| REQ-124 | Phase 21 | Pending |
 
 **Coverage:**
-- v1.1 requirements: 29 total
-- Mapped to phases: 29
+- v1.1 requirements: 51 total
+- Mapped to phases: 51
 - Unmapped: 0 ✓
 
 REQ-95..REQ-102 were derived 2026-10-08 from `20-CONTEXT.md` after the user
 settled its two open questions. Phase 20's roadmap entry had carried
 `Requirements: TBD`.
+
+REQ-103..REQ-124 were derived 2026-10-16 from `21-CONTEXT.md` after the user
+settled its two open questions. Phase 21's roadmap entry had carried NO
+`Requirements:` line at all.
