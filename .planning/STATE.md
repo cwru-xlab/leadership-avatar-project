@@ -255,6 +255,37 @@ model does not have. `npx tsc --noEmit` clean; sibling verifiers
 (`verify-moment-boundary.ts`, `verify-verbatim-quote.ts`,
 `verify-check-generation.ts`, `verify-knowledge-check-surface.ts`)
 unchanged at ALL PASS. See `21-25-SUMMARY.md`.
+**21-14 complete** — deterministic, explainable weakest-first step selection
+(REQ-118). `lib/study-plan/next-step.ts`'s `selectPathSteps()` ranks every
+competency through a five-rule ordered comparator: a NONE-tier (no evidence
+at all) competency always outranks any measured one, checked as its own
+branch BEFORE any numeric comparison so null is never coerced to zero; then
+`currentPercent` ascending (falling back to `lifetimePercent` only for a
+stale-but-measured competency, never for an unmeasured one); then
+`lifetimePercent` ascending; then evidence tier ascending; then the
+exported, catalog-derived `TIE_BREAK_ORDER` as the final tie-break — proven
+identical on shuffled input, including the tie-break itself. Step kind
+assignment gives the weakest AVAILABLE competency a `COACHED_SESSION`,
+cycles ranks 2..(n-1) through `KNOWLEDGE_CHECK` (repeating the weakest when
+the catalog is smaller than `PATH_STEP_BOUNDS.min`), and always closes with
+an `UNAIDED_SESSION` on the TRUE overall weakest competency regardless of
+availability (an unaided session needs no source moment); excluding
+unavailable competencies from the non-final pool prevents a duplicate step
+by construction, with no separate skip branch needed. Every reason string
+names the competency's label and, when a figure exists, the figure and
+evidence tier; `nextStepFor()` returns the lowest-position PENDING step's
+STORED reason, verbatim, never recomputed, with no gating on earlier steps.
+`scripts/verify-next-step.ts`'s 10-section battery (genuine RED —
+`MODULE_NOT_FOUND`, exit 1 — before GREEN) proves all of the above against
+the real `validatePathSteps` (21-08) and `evidenceTierFor` (21-13), not
+reimplementations of them. One disclosed self-referential-grep comment
+reword (the same class 21-09/21-13 hit), caught before the GREEN commit.
+`npx tsc --noEmit` clean; `verify-path-model.ts` unchanged at ALL PASS.
+REQ-118's checkbox and Traceability row both now read Complete — this
+plan's own selection/explanation contract is what the requirement's text
+describes, with no student-facing dependency (unlike REQ-105's "SHOWN"
+language), matching the REQ-117 precedent of a backend-only Complete. See
+`21-14-SUMMARY.md`.
 **Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).
@@ -2247,8 +2278,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-20T22:45:00.000Z
-**Stopped At:** Completed 21-15-PLAN.md
+**Last Date:** 2026-10-20T22:11:17.311Z
+**Stopped At:** Completed 21-14-PLAN.md
 **Resume File:** None
 
 

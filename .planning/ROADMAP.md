@@ -1150,7 +1150,7 @@ read 2026-10-16). Recorded because two of its findings change the brief:
      weakest competency.
   5. The existing study-plan surface still works and the REQ-85 amendment is
      handed off.
-**Plans:** 17/25 plans executed
+**Plans:** 18/25 plans executed
 
 Plans:
 - [x] 21-01-PLAN.md — Derive REQ-103..REQ-124 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line — complete 2026-10-20, see `21-01-SUMMARY.md`
@@ -1166,7 +1166,7 @@ Plans:
 - [ ] 21-11-PLAN.md — Deterministic grading for the three closed formats, model grading for rewrites at the lower weight (TDD)
 - [x] 21-12-PLAN.md — Coached practice as its own path-only instance, replay-then-fresh, with the engine relationship decided in writing — complete 2026-10-20, see `21-12-SUMMARY.md`
 - [x] 21-13-PLAN.md — Evidence thinness tiers attached at the single server exit for mastery — complete 2026-10-20, see `21-13-SUMMARY.md`
-- [ ] 21-14-PLAN.md — Deterministic explainable weakest-competency-first step selection (TDD)
+- [x] 21-14-PLAN.md — Deterministic explainable weakest-competency-first step selection (TDD) — complete 2026-10-20, see `21-14-SUMMARY.md`
 - [x] 21-15-PLAN.md — Contest a grading: immediate contribution reversal and generated-question flagging — complete 2026-10-20, see `21-15-SUMMARY.md`
 - [x] 21-16-PLAN.md — Technique-only coach tips enforced mechanically, and the coached-weight contribution — complete 2026-10-20, see `21-16-SUMMARY.md`
 - [ ] 21-17-PLAN.md — Per-competency levels and daily/weekly goals, with no-streaks and no-unlocking negative guards
