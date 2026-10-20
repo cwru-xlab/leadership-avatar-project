@@ -805,13 +805,13 @@ REQ-73.
   registered engine interaction type — a surface-count guard fails if a
   knowledge-check slug reaches the engine registry.
 
-- **REQ-109** — [ ] Check content is generated from the student's OWN session
+- **REQ-109** — [x] Check content is generated from the student's OWN session
   moments — real transcript turns and the growth areas their report
   identified — under a named, scoped widening of the study-plan privacy
   boundary that is recorded with its rationale. The existing closed-vocabulary
   generator path is unchanged.
 
-- **REQ-110** — [ ] A generated question that quotes the student reproduces a
+- **REQ-110** — [x] A generated question that quotes the student reproduces a
   stored transcript turn EXACTLY, carrying its originating report id and turn
   index. The match is validated mechanically against the stored transcript at
   generation time; a non-matching quote is REJECTED, never repaired or

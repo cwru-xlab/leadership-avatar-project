@@ -188,6 +188,40 @@ references anywhere, and — against the local dev DB, which ran, not SKIP —
 every wrong entry route throws while a valid create/finish cycle writes back
 correctly and records no contribution. `npx tsc --noEmit` clean. See
 `21-12-SUMMARY.md`.
+**21-11 complete** — the four knowledge-check formats are now GRADED, per
+REQ-111. `lib/study-plan/checks/grade.ts` ships `gradeDeterministic()` (pure,
+no model call reachable; MULTIPLE_CHOICE/PICK_BETTER_RESPONSE binary,
+FILL_IN_BLANK partial credit `blanksCorrect/blankCount`; throws — never marks
+wrong — on an out-of-range/non-integer/missing index, and throws if called
+with `REWRITE_WEAK_LINE`), `gradeRewriteWithModel()` (injectable `callModel`,
+`REWRITE_GRADING_SCHEMA` `strict: true`, normalizes through 21-05's imported
+`normalizeRubricScore` — a floor score of 1 confirmed to contribute 0, not
+20% — rejects rather than clamps an out-of-range score or a `criteriaMet`
+length mismatch), and `submitAndGrade()` (ownership-scoped WHERE, P2002 →
+named `AlreadyAnsweredError`, routes on `isDeterministicFormat`, writes the
+attempt plus exactly ONE `MasteryContribution` at the format's own weight
+class in one transaction). FILL_IN_BLANK's normalization (NFC/trim/collapse/
+case-fold) is documented as deliberately different from `verbatim.ts`'s
+verbatim-only rule — proven by a negative case that a superstring of the
+right answer still grades incorrect. `scripts/verify-check-grading.ts`'s
+strongest assertion installs a `callModel` stub that THROWS if invoked at
+all, then submits a MULTIPLE_CHOICE answer through the real `submitAndGrade`
+— it succeeds and the stub never fires, mechanically proving a closed format
+cannot reach a model rather than merely asserting the happy path. TDD
+discipline genuinely followed: RED commit `acabd78` (confirmed
+`MODULE_NOT_FOUND`, exit 1, before `grade.ts` existed), GREEN commit
+`5149cc8`. The DB-gated section (24 checks) ran against the local
+`DATABASE_URL`, not SKIP, round-tripping all four formats plus the
+already-answered/ownership/failed-model-grade-writes-nothing cases. One
+disclosed design substitution: `recordContributions` (21-05) hardcodes its
+own `prisma` singleton with no injectable client, so it cannot share a
+transaction with the attempt write; `submitAndGrade` instead reuses its
+exported `validateContributionInputs`/`weightForSource` directly and writes
+both rows via a batch `prisma.$transaction([...])` with pre-generated UUIDs —
+every invariant `recordContributions` enforces is preserved, only the
+literal function call is not reused (`lib/mastery/ledger.ts` is outside this
+plan's `files_modified`). `npx tsc --noEmit` clean; `verify-mastery-weights.ts`
+unchanged at ALL PASS. See `21-11-SUMMARY.md`.
 **Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).

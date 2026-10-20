@@ -1150,7 +1150,7 @@ read 2026-10-16). Recorded because two of its findings change the brief:
      weakest competency.
   5. The existing study-plan surface still works and the REQ-85 amendment is
      handed off.
-**Plans:** 11/25 plans executed
+**Plans:** 14/25 plans executed
 
 Plans:
 - [x] 21-01-PLAN.md — Derive REQ-103..REQ-124 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line — complete 2026-10-20, see `21-01-SUMMARY.md`
@@ -1164,7 +1164,7 @@ Plans:
 - [x] 21-09-PLAN.md — Deterministic lifetime and current-window mastery computation (TDD) — complete 2026-10-20, see `21-09-SUMMARY.md`
 - [ ] 21-10-PLAN.md — Four-format check generation from the student's own moments, with the verbatim gate proven against a disobedient stub
 - [ ] 21-11-PLAN.md — Deterministic grading for the three closed formats, model grading for rewrites at the lower weight (TDD)
-- [ ] 21-12-PLAN.md — Coached practice as its own path-only instance, replay-then-fresh, with the engine relationship decided in writing
+- [x] 21-12-PLAN.md — Coached practice as its own path-only instance, replay-then-fresh, with the engine relationship decided in writing — complete 2026-10-20, see `21-12-SUMMARY.md`
 - [ ] 21-13-PLAN.md — Evidence thinness tiers attached at the single server exit for mastery
 - [ ] 21-14-PLAN.md — Deterministic explainable weakest-competency-first step selection (TDD)
 - [ ] 21-15-PLAN.md — Contest a grading: immediate contribution reversal and generated-question flagging
@@ -1172,7 +1172,7 @@ Plans:
 - [ ] 21-17-PLAN.md — Per-competency levels and daily/weekly goals, with no-streaks and no-unlocking negative guards
 - [ ] 21-18-PLAN.md — Mastery surface: overall figure plus per-competency breakdown with labelled dual figures and inline thinness
 - [ ] 21-19-PLAN.md — Path surface inside the study plan, additive to app/reports/page.tsx, with the existing-surface regression guard
-- [ ] 21-21-PLAN.md — LIVE_SESSION ingestion on the report READY transition, and the single shared report-to-competency mapper
+- [x] 21-21-PLAN.md — LIVE_SESSION ingestion on the report READY transition, and the single shared report-to-competency mapper — complete 2026-10-20, see `21-21-SUMMARY.md`
 - [ ] 21-22-PLAN.md — Knowledge-check taking surface: attempt route, four-format card with the contest affordance, and the page a path step links to
 - [ ] 21-23-PLAN.md — Coached runtime: path-step-only entry route and the REPLAY-to-FRESH orchestration with every tip gated
 - [ ] 21-24-PLAN.md — Coached session shell and page: verbatim replay, technique-reminder rail, fresh leg, finish
