@@ -94,7 +94,7 @@ function practiceSlugForCompetency(competencyKey: CompetencyKey): string | null 
 // GET — read the path, resolving each step's artifact for display
 // ---------------------------------------------------------------------------
 
-interface PathStepDTO {
+export interface PathStepDTO {
   id: string;
   position: number;
   kind: PathStepKind;
@@ -122,7 +122,7 @@ interface PathStepDTO {
   coachedPhase: "NOT_STARTED" | "REPLAY" | "FRESH" | "COMPLETE" | null;
 }
 
-interface PathDTO {
+export interface PathDTO {
   id: string;
   generatedAt: string;
   steps: PathStepDTO[];
@@ -144,7 +144,7 @@ function labelFor(key: CompetencyKey): string {
  * done through markStepComplete (21-08) so the state-dependent validation
  * rule still runs at the transition.
  */
-async function buildPathDTO(userId: string, path: PathWithSteps): Promise<PathDTO> {
+export async function buildPathDTO(userId: string, path: PathWithSteps): Promise<PathDTO> {
   const knowledgeCheckIds = path.steps
     .map((s) => s.knowledgeCheckId)
     .filter((id): id is string => typeof id === "string" && id !== PLACEHOLDER_KNOWLEDGE_CHECK_ID);
