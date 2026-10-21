@@ -1150,7 +1150,7 @@ read 2026-10-16). Recorded because two of its findings change the brief:
      weakest competency.
   5. The existing study-plan surface still works and the REQ-85 amendment is
      handed off.
-**Plans:** 19/25 plans executed
+**Plans:** 20/25 plans executed
 
 Plans:
 - [x] 21-01-PLAN.md — Derive REQ-103..REQ-124 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line — complete 2026-10-20, see `21-01-SUMMARY.md`
@@ -1174,7 +1174,7 @@ Plans:
 - [ ] 21-19-PLAN.md — Path surface inside the study plan, additive to app/reports/page.tsx, with the existing-surface regression guard
 - [x] 21-21-PLAN.md — LIVE_SESSION ingestion on the report READY transition, and the single shared report-to-competency mapper — complete 2026-10-20, see `21-21-SUMMARY.md`
 - [ ] 21-22-PLAN.md — Knowledge-check taking surface: attempt route, four-format card with the contest affordance, and the page a path step links to
-- [ ] 21-23-PLAN.md — Coached runtime: path-step-only entry route and the REPLAY-to-FRESH orchestration with every tip gated
+- [x] 21-23-PLAN.md — Coached runtime: path-step-only entry route and the REPLAY-to-FRESH orchestration with every tip gated — complete 2026-10-20, see `21-23-SUMMARY.md`
 - [ ] 21-24-PLAN.md — Coached session shell and page: verbatim replay, technique-reminder rail, fresh leg, finish
 - [ ] 21-25-PLAN.md — Ownership-scoped generation-source assembler: the single supplier of 21-10's inputs and the path route's availability pre-check
 - [ ] 21-20-PLAN.md — Full battery, human UAT against five Success Criteria, REQ-85 Phase 18 revision handoff, calibration record (human-verified)
