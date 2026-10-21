@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardBody } from "@heroui/card";
+import { Checkbox } from "@heroui/checkbox";
 import { Chip } from "@heroui/chip";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
@@ -89,6 +90,21 @@ interface GeneratedPreview {
   content: StudyPlanContent;
   draftToken: string;
   sourceReportCount: number;
+  consideredReportCount: number;
+  eligibleReportCount: number;
+}
+
+/** Mirrors `MAX_REPORTS_PER_PLAN` exported from the generate route — kept as
+ * a literal here rather than imported because that route file is
+ * server-only and this page is a client component. */
+const MAX_REPORTS_PER_PLAN = 10;
+
+interface SelectableReport {
+  id: string;
+  typeSlug: string;
+  completedAt: string | null;
+  contentScore: number | null;
+  behavioralScore: number | null;
 }
 
 function formatDate(iso: string): string {
@@ -244,6 +260,66 @@ export default function MyReportsPage() {
     [reports],
   );
 
+  // Additive: the picker needs the eligible rows themselves (type, date,
+  // score), not just the count above — kept as its own memo so the existing
+  // `eligibleReportCount` above stays untouched.
+  const eligibleReports = useMemo<SelectableReport[]>(
+    () =>
+      (reports ?? [])
+        .filter(
+          (report) =>
+            INTERVIEW_TYPE_SLUGS.has(report.typeSlug) &&
+            report.status === "READY" &&
+            Boolean(report.reportMarkdown?.trim()),
+        )
+        .map((report) => ({
+          id: report.id,
+          typeSlug: report.typeSlug,
+          completedAt: report.completedAt ?? report.startedAt ?? null,
+          contentScore: scoreOf(report, "content"),
+          behavioralScore: scoreOf(report, "behavioral"),
+        }))
+        // Most recent first, matching the route's default-selection ordering.
+        .sort((a, b) => {
+          const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+          const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+          return bTime - aTime;
+        }),
+    [reports],
+  );
+
+  // Selection for the study-plan picker. `null` means "no explicit selection
+  // made yet" — the picker initializes it to the most recent
+  // MAX_REPORTS_PER_PLAN once `eligibleReports` is available, so the primary
+  // action works with zero interaction.
+  const [selectedReportIds, setSelectedReportIds] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (eligibleReports.length === 0) return;
+    setSelectedReportIds((current) => {
+      if (current !== null) {
+        // Keep the selection valid as the eligible set changes (e.g. a new
+        // report completes) by dropping ids that are no longer eligible.
+        const stillEligible = current.filter((id) =>
+          eligibleReports.some((r) => r.id === id),
+        );
+        return stillEligible.length > 0 ? stillEligible : current;
+      }
+      return eligibleReports.slice(0, MAX_REPORTS_PER_PLAN).map((r) => r.id);
+    });
+  }, [eligibleReports]);
+
+  function toggleReportSelection(reportId: string) {
+    setSelectedReportIds((current) => {
+      const base = current ?? eligibleReports.slice(0, MAX_REPORTS_PER_PLAN).map((r) => r.id);
+      if (base.includes(reportId)) {
+        return base.filter((id) => id !== reportId);
+      }
+      if (base.length >= MAX_REPORTS_PER_PLAN) return base;
+      return [...base, reportId];
+    });
+  }
+
   const filteredReports = useMemo(() => {
     if (!reports) return [];
     const q = searchQuery.trim().toLowerCase();
@@ -328,9 +404,13 @@ export default function MyReportsPage() {
     setActionError(null);
     setSavedNotice(null);
     try {
+      const reportIds =
+        selectedReportIds ?? eligibleReports.slice(0, MAX_REPORTS_PER_PLAN).map((r) => r.id);
       const response = await fetch("/api/study-plans/generate", {
         method: "POST",
         credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportIds }),
       });
       const data = (await response.json().catch(() => ({}))) as Partial<GeneratedPreview> & {
         error?: string;
@@ -348,6 +428,8 @@ export default function MyReportsPage() {
         content: data.content,
         draftToken: data.draftToken,
         sourceReportCount: data.sourceReportCount,
+        consideredReportCount: data.consideredReportCount ?? data.sourceReportCount,
+        eligibleReportCount: data.eligibleReportCount ?? data.sourceReportCount,
       });
     } catch {
       setActionError("We couldn't generate your study plan. Please try again.");
@@ -555,6 +637,64 @@ export default function MyReportsPage() {
                 </CardBody>
               </Card>
 
+              {/* Additive: lets a student choose which completed interviews
+                  feed the plan, capped at MAX_REPORTS_PER_PLAN. Defaults to
+                  the most recent N so the primary action above works with
+                  zero interaction — this picker only matters when a student
+                  wants something other than the default. */}
+              {eligibleReportCount > 0 && (
+                <Card className="mt-4 border border-[#d4e2e9] shadow-[0_8px_24px_rgba(20,58,75,0.06)]">
+                  <CardBody className="p-5">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <h3 className="font-serif text-lg text-[#102331]">Choose which interviews to use</h3>
+                      <p className="text-xs font-medium text-[#58727f]">
+                        {(selectedReportIds ?? []).length} of {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} selected
+                        {" "}· cap {MAX_REPORTS_PER_PLAN}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-sm text-[#58727f]">
+                      The most recent {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} are preselected. Deselect any and pick others instead.
+                    </p>
+                    <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
+                      {eligibleReports.map((report) => {
+                        const isSelected = (selectedReportIds ?? []).includes(report.id);
+                        const atCap =
+                          !isSelected && (selectedReportIds ?? []).length >= MAX_REPORTS_PER_PLAN;
+                        return (
+                          <div
+                            key={report.id}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-[#e3ebee] bg-[#f8fbfc] px-3 py-2"
+                          >
+                            <Checkbox
+                              isSelected={isSelected}
+                              isDisabled={atCap}
+                              onValueChange={() => toggleReportSelection(report.id)}
+                            >
+                              <span className="text-sm text-[#102331]">
+                                {typeLabelForReport(report.typeSlug)}
+                                {" · "}
+                                {report.completedAt ? formatDate(report.completedAt) : "Date unknown"}
+                                {report.contentScore !== null
+                                  ? ` · Content ${report.contentScore}/5`
+                                  : ""}
+                                {report.behavioralScore !== null
+                                  ? ` · Behavioral ${report.behavioralScore}/5`
+                                  : ""}
+                              </span>
+                            </Checkbox>
+                            {atCap && (
+                              <span className="shrink-0 text-xs font-medium text-[#8298a3]">
+                                Cap reached — deselect one first
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardBody>
+                </Card>
+              )}
+
               {actionError && <p role="alert" className="mt-4 rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700">{actionError}</p>}
               {savedNotice && <p role="status" className="mt-4 rounded-xl border border-success-200 bg-success-50 p-4 text-sm text-success-700">{savedNotice}</p>}
 
@@ -566,6 +706,11 @@ export default function MyReportsPage() {
                       <h2 className="mt-2 font-serif text-3xl text-[#102331]">{preview.content.title}</h2>
                       <p className="mt-2 max-w-3xl leading-7 text-[#385463]">{preview.content.summary}</p>
                       <p className="mt-2 text-xs text-[#58727f]">Based on {preview.sourceReportCount} completed {preview.sourceReportCount === 1 ? "report" : "reports"}.</p>
+                      {/* Additive: honest accounting alongside the count above —
+                          how many of ALL eligible interviews fed this plan. */}
+                      <p className="mt-1 text-xs text-[#58727f]">
+                        Built from {preview.consideredReportCount} of your {preview.eligibleReportCount} completed {preview.eligibleReportCount === 1 ? "interview" : "interviews"}.
+                      </p>
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <Button variant="flat" onPress={() => setPreview(null)}>Discard</Button>
