@@ -42,9 +42,12 @@ const LEVEL_NAMES: Record<Level, string> = {
  * `THINNESS_THRESHOLDS`):
  *
  * The underlying rubric this percentage is built from is a 1-5 integer
- * scale, normalized via `normalizeRubricScore` as `(score - 1) / 4`. So a
- * straight-3s performance normalizes to 50%, and a straight-4s performance
- * normalizes to 75%. The four boundaries below are placed so that:
+ * scale, normalized by `normalizeRubricScore` in `lib/mastery/weights.ts`
+ * (which owns that arithmetic outright — it is deliberately NOT restated
+ * here, and both `verify-mastery-weights.ts` and
+ * `verify-live-session-ingestion.ts` scan for a restatement anywhere else).
+ * Under it a straight-3s performance lands at 50%, and a straight-4s
+ * performance at 75%. The four boundaries below are placed so that:
  *   - a consistent 3 (50%) lands at level 2 "Building" — an honest read for
  *     a student performing at the middle of the rubric, not a punishing one;
  *   - a consistent 4 (75%) lands at level 4 "Strong";
