@@ -868,7 +868,7 @@ REQ-73.
   daily/weekly goals with declared defaults exist. Streaks and unlocking exist
   NOWHERE in the surface, proven by a negative guard.
 
-- **REQ-120** — [ ] The path is surfaced with step state, next-step reason,
+- **REQ-120** — [x] The path is surfaced with step state, next-step reason,
   level and goal progress, and the existing study-plan surface on
   `app/reports/page.tsx` keeps working unchanged, regression-guarded.
 
@@ -877,7 +877,7 @@ REQ-73.
   Phase 18 revision handoff section in Phase 21's OWN validation record —
   `18-VALIDATION.md` is not edited.
 
-- **REQ-122** — [ ] Every path step renders an action that reaches the
+- **REQ-122** — [x] Every path step renders an action that reaches the
   exercise it names: a `KNOWLEDGE_CHECK` step leads to an answerable check, a
   `COACHED_SESSION` step leads to a startable coached session, an
   `UNAIDED_SESSION` step leads to normal practice. A step whose action link
@@ -973,9 +973,9 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-117 | Phase 21 | Complete |
 | REQ-118 | Phase 21 | Complete |
 | REQ-119 | Phase 21 | Complete |
-| REQ-120 | Phase 21 | Pending |
+| REQ-120 | Phase 21 | Complete |
 | REQ-121 | Phase 21 | Pending |
-| REQ-122 | Phase 21 | Pending |
+| REQ-122 | Phase 21 | Complete |
 | REQ-123 | Phase 21 | Complete |
 | REQ-124 | Phase 21 | Pending |
 
