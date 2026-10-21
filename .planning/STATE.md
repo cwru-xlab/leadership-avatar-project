@@ -9,7 +9,43 @@
 **Phase:** 20 — Difficult Conversation Walk-Outs (plans 20-01 through 20-04 and 20-06 complete; 20-05 concurrent in-flight; execution must STOP before 20-07, gated on Phase 18's 18-05 human UAT, which is running concurrently) — Phase 19 implementation complete (19-01..19-10), 19-11 still pending as the final plan in that phase.
 **Plan:** Phase 20: 20-01, 20-02, 20-03, 20-04 and 20-06 complete (20-06: `lib/report/quote-sanitizer.ts` wired into `toReportDto`, `scripts/verify-dc-walkout-report.ts`'s 6-section battery, ALL PASS); 20-05 next/concurrent for that phase; execution STOPS before 20-07 per the gating decision. Separately, Phase 19: 19-01 through 19-10 complete; 19-11 still pending.
 **Status:** 20-06 shipped the sanitizer guarantee: `sanitizeQuote`/`sanitizeOutcomeQuotes` classify with `detectHostility` (20-01's SEVERE lexicon, no second private list), replace a severe quote/prose field with a rule-group characterization while leaving `timecodeSeconds`/`effect`/non-severe text untouched, and are applied inside `toReportDto` — never a component — so the verbatim text never reaches a client payload. `scripts/verify-dc-walkout-report.ts` proves it against the real `toReportDto`, including an adversarial payload that deliberately disobeys the aligned evaluator prompt, and the negative test (sanitizer temporarily reverted) was run and confirmed to fail exactly sections 1/2/4 before being restored. `postProcessScores` confirmed still absent. One disclosed deviation (module relocated to `lib/report/` per the plan's own fallback, to avoid `lib/report/` importing a type-specific module) and one disclosed git-staging race (Task 3's file correctly landed but under a concurrent agent's commit message) — see `20-06-SUMMARY.md`. `npx tsc --noEmit` clean; `verify-pitch-types.ts` unchanged at its 1 pre-existing Phase-18-owned elevator failure.
-**Last activity:** 2026-10-21 — quick task 005 (per-plan interview selection
+**Last activity:** 2026-10-21 — quick task 006 (study-plan picker-as-modal +
+saved-plan own-route) complete, two commits (`1eeb762` feat, `86ae306`
+test). The "Choose which interviews to use" picker built in quick-005 moved
+off the `/reports` page body into a `@heroui/modal` (already a project
+dependency — no new one added) opened by "Generate study plan"; generation
+still happens from inside it, closing the modal only on success so a
+failure's error stays visible. A saved study plan now has its own route,
+`app/study-plans/[planId]/page.tsx`, following the same auth/404/loading
+conventions as its `checks/[checkId]`/`coached/[stepId]` children; it owns
+the title/date/source-count/summary/`PlanContent`/`PathPanel`+generate-path
+block moved verbatim from the inline `viewedPlan` section this replaces.
+`PlanContent` was extracted to `components/study-plan/PlanContent.tsx` so
+the `/reports` draft-preview card and the new page share one
+implementation. "View plan" now navigates (`router.push`) instead of
+fetching into local state. `app/reports/page.tsx`: +112/-327 lines (viewedPlan
+state, the path-panel state block, `fetchPath`, `generatePathForViewedPlan`,
+the viewedPlan-keyed effect, the inline viewedPlan section, and the local
+`PlanContent` body all deleted). `scripts/verify-path-surface.ts`'s "PathPanel
+is wired into the reports page" assertion was deliberately repointed (not
+weakened — same bite-proof pattern, plus a new existence check) to assert
+PathPanel wiring on the new saved-plan page instead, since the panel moved
+with it; the four REQ-120 pre-existing markers on `app/reports/page.tsx`
+(generate POST, loadPlans fetch, draftToken field, priorityThemes render)
+are confirmed still present. Gates: `npx tsc --noEmit` clean, `npx next
+build` exits 0 (no route-slug collision), `verify-path-surface.ts` 36/36
+(up from 33/34 pre-repoint), `verify-study-plan-selection.ts` 27/27
+unmodified, `verify-moment-boundary.ts` 22/22 unmodified,
+`verify-check-taking-surface.ts`/`verify-coached-runtime-surface.ts` both
+ALL PASS unmodified. See
+`quick/006-study-plan-page-and-modal/006-SUMMARY.md`. This quick task left
+quick-005's own outstanding human-verify checkpoint (Task 4,
+alice.johnson@case.edu generating a plan through the live UI) OPEN and
+folded its own browser-verification steps into that same session rather
+than duplicating it — see the checkpoint return for this task's specific
+steps (picker-is-now-a-modal, View-plan-now-navigates, path still renders
+on the new page, check/coached links still resolve).
+**Previously:** 2026-10-21 — quick task 005 (per-plan interview selection
 for study plans) reached its blocking human-verify checkpoint. Tasks 1-3 are
 committed: `app/api/study-plans/generate/route.ts` now accepts an optional
 ownership-scoped `reportIds[]`, exports `MAX_REPORTS_PER_PLAN = 10`, defaults
