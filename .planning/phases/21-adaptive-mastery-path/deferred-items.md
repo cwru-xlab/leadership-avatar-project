@@ -104,3 +104,43 @@ sign-off, record it as an open REQ-122 defect rather than signing it off.
   21-19 is expected to link to. 21-19/21-20 must confirm the other two step
   kinds' action links and the `PLACEHOLDER_KNOWLEDGE_CHECK_ID` hazard
   (documented above) before REQ-122 can be marked complete.
+
+---
+
+## Disclosed limitation: coached mode cannot start an `instance`-requiring type
+
+**Disclosed by 21-24 (wave 6) and left unfixed by design. Recorded here so
+21-20 signs it off knowingly rather than discovering it later.**
+
+21-24's `CoachedSessionShell` starts its live turn area against the engine's
+already-generic `session/start` / `interaction/chat` / `session/finish`
+endpoints, deliberately rather than importing or extending
+`PracticeSessionShell.tsx` (which stays provably untouched —
+`git diff --name-only -- components/practice/` is empty across the whole
+phase).
+
+**The gap:** an underlying interaction type that requires an `instance` —
+case-study and difficult-conversation — may reject that generic session-start
+call. 21-24 surfaces the rejection as an error rather than papering over it,
+and did not solve it.
+
+**Why it was right not to solve it here:** the fix belongs either in the engine
+(outside this phase — Phase 21 modifies only `lib/engine/evaluation-runner.ts`,
+and widening that would void 21-20's no-gate reasoning) or in a dedicated plan
+that decides how a coached session supplies an instance. Improvising it inside
+a UI shell would have buried an architectural decision in a component.
+
+**Practical effect:** coached practice works for competencies whose weakest-
+evidence sessions came from instance-free types, and errors for the rest. Since
+21-14 selects the weakest competency first and does not filter by type, a
+student CAN be routed to a coached step that cannot start.
+
+**For 21-20 (wave 8):** record this against REQ-113/REQ-114 as a known
+limitation with its reproduction, not as a pass. REQ-113/114 are legitimately
+Complete — a student can start and complete a coached session — but not for
+every competency.
+
+**For a future plan:** either teach the coached entry route to supply an
+instance for types that need one, or have 21-14's selection skip competencies
+whose only evidence is instance-requiring, so a student is never offered a step
+that cannot start. The second is smaller; the first is more complete.
