@@ -9,7 +9,29 @@
 **Phase:** 20 — Difficult Conversation Walk-Outs (plans 20-01 through 20-04 and 20-06 complete; 20-05 concurrent in-flight; execution must STOP before 20-07, gated on Phase 18's 18-05 human UAT, which is running concurrently) — Phase 19 implementation complete (19-01..19-10), 19-11 still pending as the final plan in that phase.
 **Plan:** Phase 20: 20-01, 20-02, 20-03, 20-04 and 20-06 complete (20-06: `lib/report/quote-sanitizer.ts` wired into `toReportDto`, `scripts/verify-dc-walkout-report.ts`'s 6-section battery, ALL PASS); 20-05 next/concurrent for that phase; execution STOPS before 20-07 per the gating decision. Separately, Phase 19: 19-01 through 19-10 complete; 19-11 still pending.
 **Status:** 20-06 shipped the sanitizer guarantee: `sanitizeQuote`/`sanitizeOutcomeQuotes` classify with `detectHostility` (20-01's SEVERE lexicon, no second private list), replace a severe quote/prose field with a rule-group characterization while leaving `timecodeSeconds`/`effect`/non-severe text untouched, and are applied inside `toReportDto` — never a component — so the verbatim text never reaches a client payload. `scripts/verify-dc-walkout-report.ts` proves it against the real `toReportDto`, including an adversarial payload that deliberately disobeys the aligned evaluator prompt, and the negative test (sanitizer temporarily reverted) was run and confirmed to fail exactly sections 1/2/4 before being restored. `postProcessScores` confirmed still absent. One disclosed deviation (module relocated to `lib/report/` per the plan's own fallback, to avoid `lib/report/` importing a type-specific module) and one disclosed git-staging race (Task 3's file correctly landed but under a concurrent agent's commit message) — see `20-06-SUMMARY.md`. `npx tsc --noEmit` clean; `verify-pitch-types.ts` unchanged at its 1 pre-existing Phase-18-owned elevator failure.
-**Last activity:** 2026-10-20 — Phase 21 (Adaptive Mastery Path) plan
+**Last activity:** 2026-10-21 — quick task 005 (per-plan interview selection
+for study plans) reached its blocking human-verify checkpoint. Tasks 1-3 are
+committed: `app/api/study-plans/generate/route.ts` now accepts an optional
+ownership-scoped `reportIds[]`, exports `MAX_REPORTS_PER_PLAN = 10`, defaults
+to the most recent 10 when none is supplied, and reports
+`consideredReportCount`/`eligibleReportCount` honestly; `MAX_SOURCE_REPORTS`'s
+413 guard is narrowed to apply only on the no-selection path, so a selection
+now lets `alice.johnson@case.edu` (56 eligible reports) generate a plan
+without raising or removing that guard. `app/reports/page.tsx` gained an
+additive-only (+145/-0, confirmed via `git diff --numstat`) picker enforcing
+the cap with a visible reason and defaulting to zero-interaction. A new
+`scripts/verify-study-plan-selection.ts` battery (27 checks) runs its DB
+section against the real local database (no SKIP) and proves ownership
+scoping, the cap, the ineligible-selection refusal, the recent-N default's
+counts, and that the 413 stays reachable on a direct no-selection call while
+a selection bypasses it — with a captured bite-proof (ownership clause
+temporarily removed, re-run, 1 FAIL, restored, 27/27 again). `npx tsc
+--noEmit` clean, `npx next build` exits 0, `verify-moment-boundary.ts` still
+exits 0 (frozen privacy path intact). Task 4 (human verifying that
+alice.johnson@case.edu can now generate a plan through the live UI) is
+OUTSTANDING and blocking. See
+`quick/005-study-plan-report-selection/005-SUMMARY.md`.
+**Previously:** 2026-10-20 — Phase 21 (Adaptive Mastery Path) plan
 **21-01 complete** — REQUIREMENTS.md gained a `### Phase 21` section defining
 REQ-103..REQ-124 as 22 verifiable, student-observable conditions (strict
 numeric order, REQ-121 between REQ-120 and REQ-122), 22 Traceability rows
@@ -2407,6 +2429,7 @@ Open items carried into Phase 11+:
 |---|-------------|------|--------|--------|-----------|
 | 001 | Hold-Space push-to-talk in all avatar sessions | 2026-10-09 | `2cdb1b3` | Verified (2 negative tests passed); live browser check residual | [001-hold-space-push-to-talk](./quick/001-hold-space-push-to-talk/) |
 | 002 | Label whether interview feedback comes from the resume or conversation (issue #50) | 2026-10-16 | `55fa287` | **Complete.** Human-verify PASS ("all pass") on PARTIAL evidence — no report IDs, no item-level notes. Frozen-snapshot guard proven to bite before/after; no-resume enforcement negative-tested (4 FAIL rows, exit 1). | [002-feedback-source-attribution](./quick/002-feedback-source-attribution/) |
+| 005 | Per-plan interview selection for study plans — let a student choose which completed interviews feed a plan, within a declared cap, making the 50-report refusal unreachable through the UI | 2026-10-21 | `9705bd8` | **NOT DONE — human-verify OUTSTANDING.** Tasks 1-3 complete: ownership-scoped `reportIds[]`, `MAX_REPORTS_PER_PLAN = 10`, recent-N default, additive-only picker UI, `verify-study-plan-selection.ts` (27 checks, DB section run, bite-proof captured). Task 4 (confirm `alice.johnson@case.edu` can now generate a plan live) is unexecuted and blocking. | [005-study-plan-report-selection](./quick/005-study-plan-report-selection/) |
 
 ### Roadmap Evolution
 
