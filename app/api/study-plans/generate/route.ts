@@ -152,6 +152,10 @@ export async function selectReportsForPlan(
 
     eligibleRows = rows;
   } else {
+    // Refuse rather than silently truncate: a direct call with no selection
+    // and a pathological history must not claim every completed report was
+    // considered when it wasn't. `eligibleReportCount` above already
+    // counted the full set, so no extra query is needed to check this.
     if (eligibleReportCount > MAX_SOURCE_REPORTS) {
       return {
         ok: false,
