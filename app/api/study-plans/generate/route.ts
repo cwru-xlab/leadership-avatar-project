@@ -63,6 +63,154 @@ async function parseSelectedReportIds(request: NextRequest): Promise<string[] | 
   return reportIds;
 }
 
+export interface SelectedReportRow {
+  id: string;
+  scores: unknown;
+  reportMarkdown: string | null;
+}
+
+export type ReportSelectionOutcome =
+  | {
+      ok: true;
+      eligibleRows: SelectedReportRow[];
+      consideredReportCount: number;
+      eligibleReportCount: number;
+    }
+  | { ok: false; status: number; error: string; code?: string };
+
+/**
+ * Ownership-scoped report selection, extracted from `POST` so it can be
+ * exercised directly against a real database by the verifier
+ * (`scripts/verify-study-plan-selection.ts`) with no HTTP layer, no cookies,
+ * and no OpenAI call involved.
+ *
+ * `selectedReportIds === null` means "no explicit selection" — the caller
+ * gets the most recent `MAX_REPORTS_PER_PLAN` eligible reports, and this is
+ * the ONLY path where `MAX_SOURCE_REPORTS`'s guard still applies: a caller
+ * that supplies a selection has already capped the set at
+ * `MAX_REPORTS_PER_PLAN`, so a large total history (like
+ * alice.johnson@case.edu's 56 reports) never reaches that guard once a
+ * selection is made. A direct API call with no body still hits it, exactly
+ * as before this plan.
+ */
+export async function selectReportsForPlan(
+  userId: string,
+  selectedReportIds: string[] | null
+): Promise<ReportSelectionOutcome> {
+  if (selectedReportIds && selectedReportIds.length > MAX_REPORTS_PER_PLAN) {
+    return {
+      ok: false,
+      status: 400,
+      error: `You can select at most ${MAX_REPORTS_PER_PLAN} interviews per study plan.`,
+    };
+  }
+
+  // Count how many reports exist at all, so the response can honestly state
+  // how many were considered out of how many exist — the same honesty
+  // MAX_SOURCE_REPORTS's 413 below is protecting.
+  const eligibleReportCount = await prisma.interactionReport.count({
+    where: {
+      userId,
+      status: "READY",
+      reportMarkdown: { not: null },
+      typeSlug: { in: [...INTERVIEW_TYPE_SLUGS] },
+    },
+  });
+
+  let eligibleRows: SelectedReportRow[];
+
+  if (selectedReportIds) {
+    // OWNERSHIP IN THE WHERE CLAUSE, never a post-filter: `userId: userId`
+    // is what makes it impossible for a foreign report to enter the result,
+    // even when its id is supplied directly.
+    const rows = await prisma.interactionReport.findMany({
+      where: {
+        id: { in: selectedReportIds },
+        userId,
+        status: "READY",
+        reportMarkdown: { not: null },
+        typeSlug: { in: [...INTERVIEW_TYPE_SLUGS] },
+      },
+      orderBy: { completedAt: "asc" },
+      select: {
+        id: true,
+        scores: true,
+        reportMarkdown: true,
+      },
+    });
+
+    if (rows.length < selectedReportIds.length) {
+      const ineligibleCount = selectedReportIds.length - rows.length;
+      return {
+        ok: false,
+        status: 400,
+        error: `${ineligibleCount} of the selected interview${
+          ineligibleCount === 1 ? "" : "s"
+        } ${ineligibleCount === 1 ? "is" : "are"} not eligible for a study plan.`,
+      };
+    }
+
+    eligibleRows = rows;
+  } else {
+    if (eligibleReportCount > MAX_SOURCE_REPORTS) {
+      return {
+        ok: false,
+        status: 413,
+        error: "Your completed feedback history is too large to synthesize safely.",
+      };
+    }
+
+    // Most recent MAX_REPORTS_PER_PLAN, newest first in the query so `take`
+    // keeps the right ones, then reordered oldest-first below to match the
+    // existing ordinal assignment.
+    const rows = await prisma.interactionReport.findMany({
+      where: {
+        userId,
+        status: "READY",
+        reportMarkdown: { not: null },
+        typeSlug: { in: [...INTERVIEW_TYPE_SLUGS] },
+      },
+      orderBy: { completedAt: "desc" },
+      take: MAX_REPORTS_PER_PLAN,
+      select: {
+        id: true,
+        scores: true,
+        reportMarkdown: true,
+      },
+    });
+    eligibleRows = rows.reverse();
+  }
+
+  if (eligibleRows.length === 0) {
+    return {
+      ok: false,
+      status: 409,
+      code: "NO_COMPLETED_REPORTS",
+      error: "Complete an interview with feedback before generating a study plan.",
+    };
+  }
+
+  return { ok: true, eligibleRows, consideredReportCount: eligibleRows.length, eligibleReportCount };
+}
+
+/**
+ * Builds the exact anonymous payload `generateStudyPlan` receives. Extracted
+ * so the verifier can assert the result's own-property set is exactly
+ * `AnonymousBehavioralReport`'s four fields — no report id, no transcript
+ * text, no student name — without needing to intercept a module import.
+ */
+export function buildAnonymousReports(eligibleRows: SelectedReportRow[]): AnonymousBehavioralReport[] {
+  return eligibleRows.map((row, index) => {
+    const scores = asScoreMap(row.scores);
+    return {
+      reportNumber: index + 1,
+      contentScore: scores?.content ?? null,
+      behavioralScore: scores?.behavioral ?? null,
+      behavioralFeedbackSignals: extractBehavioralSignals(row),
+    };
+  });
+}
+
 /**
  * Generates an unsaved study-plan preview. Raw reports never leave this server:
  * the model receives only anonymous report ordinals, two score aggregates, and
@@ -83,116 +231,17 @@ export async function POST(request: NextRequest) {
 
     const selectedReportIds = await parseSelectedReportIds(request);
 
-    if (selectedReportIds && selectedReportIds.length > MAX_REPORTS_PER_PLAN) {
+    const selection = await selectReportsForPlan(currentUser.id, selectedReportIds);
+    if (!selection.ok) {
       return response(
-        {
-          error: `You can select at most ${MAX_REPORTS_PER_PLAN} interviews per study plan.`,
-        },
-        400
+        selection.code ? { error: selection.error, code: selection.code } : { error: selection.error },
+        selection.status
       );
     }
 
-    // Count how many reports exist at all, so the response can honestly
-    // state how many were considered out of how many exist — the same
-    // honesty MAX_SOURCE_REPORTS's 413 below is protecting.
-    const eligibleReportCount = await prisma.interactionReport.count({
-      where: {
-        userId: currentUser.id,
-        status: "READY",
-        reportMarkdown: { not: null },
-        typeSlug: { in: [...INTERVIEW_TYPE_SLUGS] },
-      },
-    });
+    const { eligibleRows, consideredReportCount, eligibleReportCount } = selection;
 
-    let eligibleRows: Array<{ id: string; scores: unknown; reportMarkdown: string | null }>;
-
-    if (selectedReportIds) {
-      // OWNERSHIP IN THE WHERE CLAUSE, never a post-filter: `userId:
-      // currentUser.id` is what makes it impossible for a foreign report to
-      // enter the result, even when its id is supplied directly.
-      const rows = await prisma.interactionReport.findMany({
-        where: {
-          id: { in: selectedReportIds },
-          userId: currentUser.id,
-          status: "READY",
-          reportMarkdown: { not: null },
-          typeSlug: { in: [...INTERVIEW_TYPE_SLUGS] },
-        },
-        orderBy: { completedAt: "asc" },
-        select: {
-          id: true,
-          scores: true,
-          reportMarkdown: true,
-        },
-      });
-
-      if (rows.length < selectedReportIds.length) {
-        const ineligibleCount = selectedReportIds.length - rows.length;
-        return response(
-          {
-            error: `${ineligibleCount} of the selected interview${
-              ineligibleCount === 1 ? "" : "s"
-            } ${ineligibleCount === 1 ? "is" : "are"} not eligible for a study plan.`,
-          },
-          400
-        );
-      }
-
-      eligibleRows = rows;
-    } else {
-      // Default path: no explicit selection. This is the ONLY path where
-      // MAX_SOURCE_REPORTS's guard still applies — a caller that supplies a
-      // selection has already capped the set at MAX_REPORTS_PER_PLAN above,
-      // so a large total history (like alice.johnson@case.edu's 56 reports)
-      // never reaches this guard once a selection is made. A direct API
-      // call with no body still hits it, exactly as before.
-      if (eligibleReportCount > MAX_SOURCE_REPORTS) {
-        return response(
-          { error: "Your completed feedback history is too large to synthesize safely." },
-          413
-        );
-      }
-
-      // Most recent MAX_REPORTS_PER_PLAN, newest first in the query so
-      // `take` keeps the right ones, then reordered oldest-first below to
-      // match the existing ordinal assignment.
-      const rows = await prisma.interactionReport.findMany({
-        where: {
-          userId: currentUser.id,
-          status: "READY",
-          reportMarkdown: { not: null },
-          typeSlug: { in: [...INTERVIEW_TYPE_SLUGS] },
-        },
-        orderBy: { completedAt: "desc" },
-        take: MAX_REPORTS_PER_PLAN,
-        select: {
-          id: true,
-          scores: true,
-          reportMarkdown: true,
-        },
-      });
-      eligibleRows = rows.reverse();
-    }
-
-    if (eligibleRows.length === 0) {
-      return response(
-        {
-          code: "NO_COMPLETED_REPORTS",
-          error: "Complete an interview with feedback before generating a study plan.",
-        },
-        409
-      );
-    }
-
-    const reports: AnonymousBehavioralReport[] = eligibleRows.map((row, index) => {
-      const scores = asScoreMap(row.scores);
-      return {
-        reportNumber: index + 1,
-        contentScore: scores?.content ?? null,
-        behavioralScore: scores?.behavioral ?? null,
-        behavioralFeedbackSignals: extractBehavioralSignals(row),
-      };
-    });
+    const reports: AnonymousBehavioralReport[] = buildAnonymousReports(eligibleRows);
 
     // Refuse to silently omit older reports. The model source contains only the
     // anonymous data above, but every eligible report is still represented.
