@@ -286,6 +286,32 @@ plan's own selection/explanation contract is what the requirement's text
 describes, with no student-facing dependency (unlike REQ-105's "SHOWN"
 language), matching the REQ-117 precedent of a backend-only Complete. See
 `21-14-SUMMARY.md`.
+**21-24 complete** — `components/study-plan/CoachedSessionShell.tsx` and
+`app/study-plans/[planId]/coached/[stepId]/page.tsx` give 21-23's coached
+runtime an actual screen: REPLAY first (the verbatim moment in a
+`whitespace-pre-wrap` blockquote, a live text-turn session area, a
+`<aside>` technique-reminder rail rendering only server-gated tips), a
+single server-mediated "advance" control to FRESH (which does not repeat
+the moment), and a finish screen naming how many competencies moved and
+that coached counts for less. The leg is set ONLY from the server's own
+`CoachedLegView` — there is no code path assigning a local literal
+`"FRESH"`/`"COMPLETE"`, proven by `scripts/verify-coached-runtime-surface.ts`
+(22 checks, 4 sections, no DB needed) alongside re-proofs that
+`components/practice/`/`app/practice/` remain untouched and un-leaked in
+both directions. The live conversation area is a fresh, minimal text-turn
+implementation against the engine's already-generic session endpoints
+(`session/start` / `interaction/chat` / `session/finish`), not an import of
+`PracticeSessionShell.tsx`'s HeyGen video pipeline — a deliberate scope
+decision recorded in `21-24-SUMMARY.md`, which also discloses one known,
+unfixed limitation (an underlying type that requires an `instance`, e.g.
+case-study/difficult-conversation, may reject the generic session-start call
+this shell makes; surfaced as an error, not solved here). REQ-113, REQ-114
+and REQ-115's checkboxes and Traceability rows now both read Complete;
+REQ-116 stays Pending (its "see the figure change on the mastery surface"
+half needs 21-18, not yet shipped) and REQ-122 stays Pending (21-19's, wave
+7, not yet run). `npm run build` succeeds, `npx tsc --noEmit` is clean
+repo-wide, and `git diff --name-only -- components/practice/ app/practice/
+lib/engine/` is empty. See `21-24-SUMMARY.md`.
 **Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).
