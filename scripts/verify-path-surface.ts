@@ -49,6 +49,7 @@ const ROOT = path.resolve(__dirname, "..");
 const REPORTS_PAGE_PATH = path.join(ROOT, "app", "reports", "page.tsx");
 const ROUTE_PATH = path.join(ROOT, "app", "api", "study-plans", "[planId]", "path", "route.ts");
 const PANEL_PATH = path.join(ROOT, "components", "study-plan", "PathPanel.tsx");
+const STUDY_PLAN_PAGE_PATH = path.join(ROOT, "app", "study-plans", "[planId]", "page.tsx");
 
 // ---------------------------------------------------------------------------
 // Section 1 — existing surface regression guard (REQ-120)
@@ -95,9 +96,49 @@ function runSection1() {
     JSON.stringify(missingAfterMutilation),
   );
 
+  // quick-006 MOVED a saved plan's view (and with it, PathPanel) off this
+  // page entirely — "View plan" on /reports now NAVIGATES to
+  // /study-plans/{planId} instead of fetching into local state and folding
+  // the panel open inline here. That move is why PathPanel is no longer
+  // asserted against THIS file below: a correct move, not a weakened guard.
+  // The assertion is repointed, not deleted — see runSection1Moved below,
+  // which still fails loudly if the panel isn't wired in anywhere.
+}
+
+/**
+ * quick-006: `PathPanel`'s wiring assertion moved here from `runSection1`
+ * above, following the panel itself to its new home at
+ * `app/study-plans/[planId]/page.tsx`. Keeps the same bite-proof pattern the
+ * original had (planted-removal detection), plus the live-destination-style
+ * existence check Section 6 already uses for the panel's own link targets —
+ * so a future rename of this page can't silently pass by matching a stale
+ * substring against a file that no longer exists.
+ */
+function runSection1Moved() {
+  console.log("\n1-moved. PathPanel WIRING MOVED TO app/study-plans/[planId]/page.tsx (quick-006)");
+
+  const studyPlanPageExists = fs.existsSync(STUDY_PLAN_PAGE_PATH);
   check(
-    "PathPanel is wired into the reports page (additive)",
+    "app/study-plans/[planId]/page.tsx exists on disk (quick-006's new saved-plan route)",
+    studyPlanPageExists,
+    studyPlanPageExists ? undefined : "MISSING — owning plan: quick-006",
+  );
+
+  if (!studyPlanPageExists) return;
+
+  const source = fs.readFileSync(STUDY_PLAN_PAGE_PATH, "utf-8");
+  check(
+    "PathPanel is wired into the saved-plan page (moved from app/reports/page.tsx in quick-006)",
     source.includes("PathPanel"),
+  );
+
+  // BITE PROOF — strip the marker from an in-memory copy and confirm the
+  // same predicate reports it missing, same technique Section 1's own bite
+  // proof uses above.
+  const mutilated = source.replace(/PathPanel/g, "REMOVED");
+  check(
+    "the moved guard DETECTS a deliberately removed PathPanel usage (bite proof)",
+    !mutilated.includes("PathPanel"),
   );
 }
 
@@ -599,6 +640,7 @@ async function runDatabaseSections() {
 
 async function main() {
   runSection1();
+  runSection1Moved();
   runSection1b();
   runSection2Source();
   runSection5();
