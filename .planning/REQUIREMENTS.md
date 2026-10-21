@@ -830,21 +830,21 @@ REQ-73.
   quietly damaging mastery. A contest endpoint with no affordance does not
   satisfy this.
 
-- **REQ-113** — [x] Coached practice is its own instance that a student can
+- **REQ-113** — [ ] Coached practice is its own instance that a student can
   actually START, and START ONLY from a step in a study plan's path. Both
   halves are conditions: a path-step entry point EXISTS and works, and no
   normal practice entry point can launch it, proven by a negative guard. Its
   relationship to the engine is decided and recorded explicitly rather than
   left implicit.
 
-- **REQ-114** — [x] A student can COMPLETE a coached session, and in
+- **REQ-114** — [ ] A student can COMPLETE a coached session, and in
   completing it experiences REPLAY FIRST, THEN FRESH: the student is shown the
   actual transcript moment to rework and works it, and only then is presented
   a new situation exercising the same competency, which the session cannot
   finish without. A runtime that stores the two legs but never presents them
   does not satisfy this.
 
-- **REQ-115** — [x] Coach tips are TECHNIQUE REMINDERS ONLY. A tip names the
+- **REQ-115** — [ ] Coach tips are TECHNIQUE REMINDERS ONLY. A tip names the
   skill and never scripts the student's words. Enforced by a mechanical check
   on tip content, not by prompt instruction alone — and the check runs on
   EVERY tip actually rendered to a student during a session, not only on tips
@@ -966,9 +966,9 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-110 | Phase 21 | Complete |
 | REQ-111 | Phase 21 | Complete |
 | REQ-112 | Phase 21 | Complete |
-| REQ-113 | Phase 21 | Complete |
-| REQ-114 | Phase 21 | Complete |
-| REQ-115 | Phase 21 | Complete |
+| REQ-113 | Phase 21 | Pending |
+| REQ-114 | Phase 21 | Pending |
+| REQ-115 | Phase 21 | Pending |
 | REQ-116 | Phase 21 | Complete |
 | REQ-117 | Phase 21 | Complete |
 | REQ-118 | Phase 21 | Complete |
