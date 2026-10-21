@@ -18,6 +18,10 @@ import {
 import type { StudyPlanDTO, StudyPlanSummaryDTO } from "@/lib/study-plan/plan-dto";
 import type { StudyPlanContent } from "@/lib/study-plan/types";
 import { isDeckModeSlug } from "@/lib/pitch/deck-modes";
+import PathPanel, {
+  DegradedStepsNote,
+  type PathViewDTO,
+} from "@/components/study-plan/PathPanel";
 
 /** Study-plan generation still uses interview feedback only. */
 const INTERVIEW_TYPE_SLUGS = new Set([
@@ -219,6 +223,16 @@ export default function MyReportsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
+  // Path panel state — isolated from every existing state variable above.
+  // A path fetch failure sets `pathError` only and never touches `error`,
+  // `plansError` or `actionError`, so a broken path fetch cannot make the
+  // study plan itself (or the report list) stop rendering.
+  const [path, setPath] = useState<PathViewDTO | null>(null);
+  const [pathLoading, setPathLoading] = useState(false);
+  const [pathError, setPathError] = useState<string | null>(null);
+  const [generatingPath, setGeneratingPath] = useState(false);
+  const [degradedStepCount, setDegradedStepCount] = useState(0);
+
   const eligibleReportCount = useMemo(
     () =>
       reports?.filter(
@@ -394,6 +408,105 @@ export default function MyReportsPage() {
     }
   }
 
+  // Own fetch, own loading/error state — deliberately separate from
+  // `viewPlan` above so a path failure degrades to "path unavailable"
+  // without touching the study plan's own `viewedPlan`/`actionError` state.
+  async function fetchPath(planId: string) {
+    setPathLoading(true);
+    setPathError(null);
+    try {
+      const response = await fetch(`/api/study-plans/${planId}/path`, {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        path?: PathViewDTO | null;
+        error?: string;
+      };
+      if (!response.ok) {
+        setPathError(data.error || "We couldn't load this plan's path.");
+        return;
+      }
+      setPath(data.path ?? null);
+    } catch {
+      setPathError("We couldn't load this plan's path.");
+    } finally {
+      setPathLoading(false);
+    }
+  }
+
+  async function generatePathForViewedPlan() {
+    if (!viewedPlan || generatingPath) return;
+    setGeneratingPath(true);
+    setPathError(null);
+    try {
+      const response = await fetch(`/api/study-plans/${viewedPlan.id}/path`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (response.status === 409) {
+        // A race between two clicks (or two tabs) lands on the path that
+        // already exists — refetch rather than showing an error.
+        await fetchPath(viewedPlan.id);
+        return;
+      }
+      const data = (await response.json().catch(() => ({}))) as {
+        path?: PathViewDTO;
+        degradedSteps?: Array<{ position: number; competencyKey: string }>;
+        error?: string;
+      };
+      if (!response.ok || !data.path) {
+        setPathError(data.error || "We couldn't generate a path for this plan.");
+        return;
+      }
+      setPath(data.path);
+      setDegradedStepCount(data.degradedSteps?.length ?? 0);
+    } catch {
+      setPathError("We couldn't generate a path for this plan.");
+    } finally {
+      setGeneratingPath(false);
+    }
+  }
+
+  // Fetches the path whenever the viewed plan changes, in its own effect —
+  // the existing `load`/`loadPlans` effect above is untouched. Clearing
+  // `path`/`pathError` on every change (including viewedPlan -> null, i.e.
+  // "Close") avoids showing a stale path for whatever plan was open before.
+  useEffect(() => {
+    let cancelled = false;
+    setPath(null);
+    setPathError(null);
+    setDegradedStepCount(0);
+    if (!viewedPlan) return;
+    void (async () => {
+      setPathLoading(true);
+      setPathError(null);
+      try {
+        const response = await fetch(`/api/study-plans/${viewedPlan.id}/path`, {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const data = (await response.json().catch(() => ({}))) as {
+          path?: PathViewDTO | null;
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!response.ok) {
+          setPathError(data.error || "We couldn't load this plan's path.");
+          return;
+        }
+        setPath(data.path ?? null);
+      } catch {
+        if (!cancelled) setPathError("We couldn't load this plan's path.");
+      } finally {
+        if (!cancelled) setPathLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [viewedPlan]);
+
   return (
     <main className="min-h-[100dvh] bg-[#f5f8fa] text-[#102331]">
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10 lg:px-8">
@@ -506,6 +619,38 @@ export default function MyReportsPage() {
                   </div>
                   <p className="mt-4 max-w-3xl leading-7 text-[#385463]">{viewedPlan.content.summary}</p>
                   <div className="mt-7"><PlanContent content={viewedPlan.content} /></div>
+
+                  {/* Additive: the path lives inside the study plan that owns
+                      it (REQ-120/REQ-122), fetched in its own effect above with
+                      its own loading/error state. A fetch failure here never
+                      blocks the plan content rendered just above. */}
+                  <div className="mt-8">
+                    {pathLoading ? (
+                      <div className="h-24 animate-pulse rounded-2xl border border-[#e3ebee] bg-white" />
+                    ) : pathError ? (
+                      <p className="text-sm text-danger-700">{pathError}</p>
+                    ) : path ? (
+                      <>
+                        <PathPanel planId={viewedPlan.id} path={path} />
+                        <DegradedStepsNote count={degradedStepCount} />
+                      </>
+                    ) : (
+                      <div className="rounded-2xl border border-[#dce8ed] bg-[#f8fbfc] p-5">
+                        <p className="text-sm text-[#385463]">
+                          This plan doesn&apos;t have an improvement path yet.
+                        </p>
+                        <Button
+                          className="mt-3"
+                          color="primary"
+                          size="sm"
+                          isDisabled={generatingPath}
+                          onPress={generatePathForViewedPlan}
+                        >
+                          {generatingPath ? <><Spinner color="current" size="sm" /> Generating path</> : "Generate a path"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </section>
               )}
 
