@@ -193,3 +193,106 @@ that cannot start. The second is smaller; the first is more complete.
   state-dependent validation rule at the transition) on every read, so an
   answered `KNOWLEDGE_CHECK` step does not stay PENDING forever and
   `nextStepFor` actually advances past it.
+
+---
+
+## BLOCKING GAP: coached mode has no coach
+
+**Found by the user in the browser on 2026-10-21, at
+`/study-plans/410bb46b-.../coached/9f19b74c-...`. Diagnosed by the
+orchestrator. REQ-113, REQ-114 and REQ-115 reverted from Complete to Pending
+as a result.**
+
+### What is actually running
+
+`components/study-plan/CoachedSessionShell.tsx` starts its live turn area with:
+
+```ts
+body: JSON.stringify({ typeSlug: legView.underlyingTypeSlug })
+```
+
+That is an ordinary interview session. **No coach system prompt is passed, and
+no coach system prompt exists anywhere in `lib/`.** The avatar is the `general`
+interviewer; the UI prints "Coach:" in front of its replies. Observed opener:
+*"tell me a little bit about yourself and what motivated you to pursue your
+current career path"* — a standard interview question, not coaching.
+
+### Four distinct defects, four distinct causes
+
+1. **No coaching behaviour** — no coach prompt. The feature's substance is absent.
+2. **No avatar** — 21-24 deliberately built a text-only turn area to avoid
+   editing `components/practice/PracticeSessionShell.tsx`. The isolation goal
+   was met; the avatar was the cost, and it was not disclosed as a cost.
+3. **The replayed "moment" is meaningless** — `replayTurnIndex: 0`, which is
+   near-always a greeting. The observed session replayed *"I'm ready to begin
+   the interview."* There is nothing there to rework. 21-CONTEXT.md's premise is
+   "situations where you previously didn't perform as well as you could."
+4. **No stated objective, and the transcript does not scroll.**
+
+### A fifth, related defect: contradictory selection reason
+
+`next-step.ts` composes two clauses that can collide:
+- `baseReasonFor` (:168): "`{label}` has no scored evidence yet, so it is ranked
+  ahead of every measured competency."
+- `stepReasonFor` (:185): "This coached session reworks a moment where it showed."
+
+Together: *no evidence it ever showed* + *reworks a moment where it showed*.
+Observed verbatim on the step above.
+
+**Underlying cause:** the availability guard IS wired (`path/route.ts:318`
+computes `unavailableCompetencies` from `momentsByCompetency`), but it tests
+whether **moments** exist, not whether **scored evidence** exists. Those come
+from different sources — moments from historical reports, evidence from the
+`MasteryContribution` ledger. So a `NONE`-tier competency can pass availability
+and host a coached step with no underperformance to rework.
+
+### Why no verifier caught any of this
+
+All 23 phase verifiers assert STRUCTURE: exactly one entry route, REPLAY→FRESH
+ordering, `assertTipSafe` applied to every tip, coached mode absent from
+`components/practice/`, contribution weight below unaided. Every one of those
+still passes and all are still correct. None can assert "the avatar behaves like
+a coach" — that is not expressible as a static assertion. The gate designed to
+catch it was 21-20 UAT step 13 ("does a coach tip help without handing you the
+words"), which is exactly where it surfaced.
+
+### Separate finding: the mastery ledger is empty
+
+`MasteryContribution` has **0 rows against 72 READY reports**. 21-21's hook
+fires at the `status: "READY"` transition, so it only writes for sessions
+completed after the hook was installed. Every competency therefore reads `NONE`
+tier for every user until a new session completes. This is consistent with
+REQ-107's forward-looking wording and is NOT a defect in 21-21 — but it means
+the mastery surface reads "not yet measured" everywhere, and the path ranks all
+competencies as equally weakest, which is what let defect 5 above become visible.
+
+A backfill (one-off script writing `LIVE_SESSION` contributions for existing
+READY reports via `contributionsFromReport`, idempotent on `sourceReportId` by
+design) would fix this. It is NOT in Phase 21's scope and should be its own
+task with its own gate, since it writes 72 reports' worth of rows.
+
+### Decision taken
+
+Phase 21 closes on what it genuinely delivered — mastery, knowledge checks, and
+the path. Coached mode becomes its own phase, because:
+
+- The coach prompt requires editing `lib/engine/` (`LiveSystemPromptExtra` in
+  `types.ts` plus prompt assembly). Doing that inside Phase 21 would void
+  21-20's `not_gated_on` reasoning, which currently holds — the phase touches
+  only `lib/engine/evaluation-runner.ts`, additively.
+- "What does a good coach actually say?" is a prompt-design decision deserving
+  its own `/gsd:discuss-phase`, not an improvisation during a sign-off.
+- Four substantial pieces (prompt, avatar mount, real replay target, UI) is
+  phase-sized work.
+
+**Decided for the new phase:** the avatar is built INTO the coached shell using
+`InteractiveAvatarWrapper` (already a self-contained component with an
+imperative ref API: `speak`, `waitForSpeechEnd`, `startSession`, `stopSession`,
+`interrupt`, `keepAlive`), NOT by reusing or editing `PracticeSessionShell`.
+This preserves the isolation Phase 21 proved — `git diff --name-only --
+components/practice/` is empty across the whole phase.
+
+### For 21-20's Task 3
+
+Record REQ-113/114/115 as Pending with this gap as the reason. Do NOT sign off
+SC3. The remaining Success Criteria may be judged on their own evidence.
