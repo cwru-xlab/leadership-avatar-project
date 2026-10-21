@@ -1150,7 +1150,7 @@ read 2026-10-16). Recorded because two of its findings change the brief:
      weakest competency.
   5. The existing study-plan surface still works and the REQ-85 amendment is
      handed off.
-**Plans:** 22/25 plans executed
+**Plans:** 24/25 plans executed
 
 Plans:
 - [x] 21-01-PLAN.md — Derive REQ-103..REQ-124 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line — complete 2026-10-20, see `21-01-SUMMARY.md`
@@ -1171,7 +1171,7 @@ Plans:
 - [x] 21-16-PLAN.md — Technique-only coach tips enforced mechanically, and the coached-weight contribution — complete 2026-10-20, see `21-16-SUMMARY.md`
 - [x] 21-17-PLAN.md — Per-competency levels and daily/weekly goals, with no-streaks and no-unlocking negative guards — complete 2026-10-21, see `21-17-SUMMARY.md`
 - [ ] 21-18-PLAN.md — Mastery surface: overall figure plus per-competency breakdown with labelled dual figures and inline thinness
-- [ ] 21-19-PLAN.md — Path surface inside the study plan, additive to app/reports/page.tsx, with the existing-surface regression guard
+- [x] 21-19-PLAN.md — Path surface inside the study plan, additive to app/reports/page.tsx, with the existing-surface regression guard — complete 2026-10-21, see `21-19-SUMMARY.md`
 - [x] 21-21-PLAN.md — LIVE_SESSION ingestion on the report READY transition, and the single shared report-to-competency mapper — complete 2026-10-20, see `21-21-SUMMARY.md`
 - [ ] 21-22-PLAN.md — Knowledge-check taking surface: attempt route, four-format card with the contest affordance, and the page a path step links to
 - [x] 21-23-PLAN.md — Coached runtime: path-step-only entry route and the REPLAY-to-FRESH orchestration with every tip gated — complete 2026-10-20, see `21-23-SUMMARY.md`

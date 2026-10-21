@@ -349,6 +349,53 @@ surface to close ("SHOWN"/"flagged", "REACHABLE", "see the figure change",
 "exist" all being student-observable conditions no earlier plan's
 `files_modified` touched `app/`/`components/`); checkbox and Traceability row
 verified in agreement for all four. See `21-18-SUMMARY.md`.
+**21-19 complete** — the improvement path is surfaced inside the study plan
+that owns it: `app/api/study-plans/[planId]/path/route.ts` (GET returns `{
+path: null }` with a 200, never a 404, for a pre-Phase-21 plan; resolves
+each step's display artifact — check format/prompt/attempt, coached
+session's DERIVED phase via `readCoachedSession`, no S3 read involved; and
+closes a gap 21-22's own attempt route disclosed, marking an answered
+`KNOWLEDGE_CHECK` step COMPLETE on read since nothing else was writing that
+transition. POST delegates ALL source assembly to `loadGenerationSources`
+(21-25) — no `s3Storage`, no `getInterviewTranscript`, no
+`prisma.user.find` in the route — pre-checks competency availability via
+`momentsByCompetency` before spending a model call, and closes the
+cross-wave `PLACEHOLDER_KNOWLEDGE_CHECK_ID` hazard three ways: every
+placeholder is replaced with a real `KnowledgeCheck.id` or the step
+degrades to `UNAIDED_SESSION` (reported in `degradedSteps`), a second
+assertion throws if one somehow survives before `createPath`, and
+`PathPanel.tsx` carries an independent third backstop rendering no action
+link for a step still carrying it. `PathPanel.tsx` shows the full stored
+`selectionReason` untruncated for the next step and every step in order,
+with no sequential-gating copy, and derives the `UNAIDED_SESSION`
+destination's practice-entry slug deterministically from `ENGINE_TYPES`
+(no stored competency-to-type mapping exists — `COMPETENCIES`' own
+`dimensionKeys` span several types by design). `app/reports/page.tsx` was
+widened ADDITIVELY (145 insertions, 0 deletions) — `PathPanel` renders
+inside the existing saved-plan view with its own isolated fetch/loading/
+error state, a "Generate a path" action shown only when no path exists
+(409 refetches rather than erroring), and every pre-existing study-plan
+flow (plan list, preview/generate, draft-token save, `priorityThemes`
+rendering) proven unchanged. `scripts/verify-path-surface.ts` runs 34
+checks, DB-gated sections ran for real (`DATABASE_URL` set, not SKIP):
+the REQ-120 regression guard proven to bite on a deliberately removed
+marker; no answer-key field reachable through `buildPathDTO` (a real
+MULTIPLE_CHOICE check with a sentinel correct-option text proves it);
+five sentinel `selectionReason`s returned verbatim; a path-less plan
+resolves to `{ path: null }`; 21-17's forbidden-identifier scan re-run
+clean over the new files; both `KNOWLEDGE_CHECK`/`COACHED_SESSION`
+destination pages proven to exist ON DISK (inverted assertion against a
+singular `/check/` variant proves the check reads the filesystem, not a
+substring); and the placeholder hazard's bite proof — PLANT one via a
+direct `createPath` call, OBSERVE the detector fire, REMOVE it, confirm
+clean again. `npx tsc --noEmit` clean repo-wide, `npm run build` succeeds
+(`/api/study-plans/[planId]/path`, `/study-plans/[planId]/checks/
+[checkId]`, `/study-plans/[planId]/coached/[stepId]` all in the manifest).
+REQ-120 and REQ-122 both flip to Complete — checkbox and Traceability row
+verified in agreement; REQ-120 jointly with 21-18 (level/goal progress
+lives on `/mastery`, step state/next-step reason lives on `/reports` via
+this plan — REQ-120's text does not require one page). See
+`21-19-SUMMARY.md`.
 **Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).
@@ -2347,8 +2394,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-21T05:18:40.314Z
-**Stopped At:** Completed 21-18-PLAN.md
+**Last Date:** 2026-10-21T05:23:43.000Z
+**Stopped At:** Completed 21-19-PLAN.md
 **Resume File:** None
 
 

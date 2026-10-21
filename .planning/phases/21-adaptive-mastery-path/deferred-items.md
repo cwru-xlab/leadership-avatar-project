@@ -144,3 +144,52 @@ every competency.
 instance for types that need one, or have 21-14's selection skip competencies
 whose only evidence is instance-requiring, so a student is never offered a step
 that cannot start. The second is smaller; the first is more complete.
+
+---
+
+## From 21-19
+
+- **The `PLACEHOLDER_KNOWLEDGE_CHECK_ID` hazard (above) is CLOSED.** The
+  path route (`app/api/study-plans/[planId]/path/route.ts`) replaces every
+  `KNOWLEDGE_CHECK` step's placeholder with a real `KnowledgeCheck.id`
+  before calling `createPath`, degrading to `UNAIDED_SESSION` (recorded in
+  `degradedSteps`) when generation fails or no moment was available; a
+  second assertion right before `createPath` throws if one somehow survives
+  the loop; and `PathPanel.tsx` carries a third, independent backstop that
+  renders no action link for a `KNOWLEDGE_CHECK` step whose
+  `knowledgeCheckId` is still the placeholder. `scripts/verify-path-
+  surface.ts` Section 7 proves this by PLANTING a placeholder step directly
+  via `createPath` (bypassing the route, to prove the detector itself, not
+  just the route's own discipline), observing the detector fire, then
+  removing it — a database-gated proof that ran for real (DATABASE_URL was
+  set).
+- **REQ-122 is now Complete.** `PathPanel.tsx` renders all three step
+  kinds' action links against the fixed contracts 21-22 (`KNOWLEDGE_CHECK`)
+  and 21-24 (`COACHED_SESSION`) shipped, plus a derived `/practice/{slug}`
+  destination for `UNAIDED_SESSION` (21-19's own derivation — no single
+  owning interaction type is stored for a competency, since
+  `COMPETENCIES`' `dimensionKeys` deliberately span several types; the
+  route derives one deterministically from the first `ENGINE_TYPES` entry
+  whose own `extraRubricDimensions` claims one of the competency's
+  non-shared dimension keys). Both generated-page destinations are proven
+  to exist ON DISK (not merely as href substrings), with an inverted
+  assertion against a singular `/check/` variant proving the existence
+  check reads the filesystem. The pre-existing coached-mode `instance`
+  limitation (recorded above, from 21-24) is NOT a REQ-122 defect — the
+  link itself reaches a real, startable surface; the surface's own
+  documented limitation is tracked against REQ-113/114, not here.
+- **REQ-120 is now Complete**, jointly with 21-18 (already landed,
+  `1c5222b`): the path (step state, next-step reason) is surfaced on
+  `app/reports/page.tsx` via `PathPanel`, additively (145 insertions, 0
+  deletions, regression-guarded by `scripts/verify-path-surface.ts`
+  Section 1 with a bite-proof); level and goal progress are surfaced on
+  `/mastery` (21-18's `MasteryPanel`). REQ-120's text does not require both
+  halves to live on one page.
+- **A gap in 21-22's own disclosure, closed here:** 21-22's attempt route
+  (`app/api/study-plans/checks/[checkId]/attempt/route.ts`) deliberately
+  never marks its owning path step COMPLETE on a correct/graded answer,
+  naming "the path route" as where that write belongs. This plan's GET
+  handler performs that write (via `markStepComplete`, re-checking 21-08's
+  state-dependent validation rule at the transition) on every read, so an
+  answered `KNOWLEDGE_CHECK` step does not stay PENDING forever and
+  `nextStepFor` actually advances past it.
