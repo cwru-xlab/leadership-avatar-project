@@ -27,12 +27,40 @@ export const maxDuration = 60;
 
 const MAX_ANONYMOUS_SOURCE_BYTES = 60_000;
 const MAX_SOURCE_REPORTS = 50;
+/**
+ * Per-plan cap on how many completed interviews a single study plan is
+ * synthesized from. Exported so the picker UI (`app/reports/page.tsx`) and
+ * the verifier (`scripts/verify-study-plan-selection.ts`) both read one
+ * number. Distinct from `MAX_SOURCE_REPORTS` above: that guard refuses a
+ * pathological history outright, while this cap is what keeps a normal
+ * request from ever reaching that guard in the first place.
+ */
+export const MAX_REPORTS_PER_PLAN = 10;
 
 function response(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, {
     status,
     headers: { "Cache-Control": "no-store" },
   });
+}
+
+/**
+ * Parses an optional `{ reportIds?: string[] }` body defensively. A missing
+ * body, invalid JSON, a non-array `reportIds`, or a `reportIds` containing a
+ * non-string all degrade to "no selection" — never a thrown error.
+ */
+async function parseSelectedReportIds(request: NextRequest): Promise<string[] | null> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return null;
+  }
+  if (!body || typeof body !== "object") return null;
+  const reportIds = (body as { reportIds?: unknown }).reportIds;
+  if (!Array.isArray(reportIds) || reportIds.length === 0) return null;
+  if (!reportIds.every((id) => typeof id === "string" && id.length > 0)) return null;
+  return reportIds;
 }
 
 /**
@@ -53,32 +81,99 @@ export async function POST(request: NextRequest) {
       return response({ error: "Study-plan previews are not configured." }, 503);
     }
 
-    const rows = await prisma.interactionReport.findMany({
+    const selectedReportIds = await parseSelectedReportIds(request);
+
+    if (selectedReportIds && selectedReportIds.length > MAX_REPORTS_PER_PLAN) {
+      return response(
+        {
+          error: `You can select at most ${MAX_REPORTS_PER_PLAN} interviews per study plan.`,
+        },
+        400
+      );
+    }
+
+    // Count how many reports exist at all, so the response can honestly
+    // state how many were considered out of how many exist — the same
+    // honesty MAX_SOURCE_REPORTS's 413 below is protecting.
+    const eligibleReportCount = await prisma.interactionReport.count({
       where: {
         userId: currentUser.id,
         status: "READY",
         reportMarkdown: { not: null },
         typeSlug: { in: [...INTERVIEW_TYPE_SLUGS] },
       },
-      orderBy: { completedAt: "asc" },
-      // Fetch one extra row so a large history is refused rather than silently
-      // truncated while claiming every completed report was considered.
-      take: MAX_SOURCE_REPORTS + 1,
-      select: {
-        id: true,
-        scores: true,
-        reportMarkdown: true,
-      },
     });
 
-    if (rows.length > MAX_SOURCE_REPORTS) {
-      return response(
-        { error: "Your completed feedback history is too large to synthesize safely." },
-        413
-      );
+    let eligibleRows: Array<{ id: string; scores: unknown; reportMarkdown: string | null }>;
+
+    if (selectedReportIds) {
+      // OWNERSHIP IN THE WHERE CLAUSE, never a post-filter: `userId:
+      // currentUser.id` is what makes it impossible for a foreign report to
+      // enter the result, even when its id is supplied directly.
+      const rows = await prisma.interactionReport.findMany({
+        where: {
+          id: { in: selectedReportIds },
+          userId: currentUser.id,
+          status: "READY",
+          reportMarkdown: { not: null },
+          typeSlug: { in: [...INTERVIEW_TYPE_SLUGS] },
+        },
+        orderBy: { completedAt: "asc" },
+        select: {
+          id: true,
+          scores: true,
+          reportMarkdown: true,
+        },
+      });
+
+      if (rows.length < selectedReportIds.length) {
+        const ineligibleCount = selectedReportIds.length - rows.length;
+        return response(
+          {
+            error: `${ineligibleCount} of the selected interview${
+              ineligibleCount === 1 ? "" : "s"
+            } ${ineligibleCount === 1 ? "is" : "are"} not eligible for a study plan.`,
+          },
+          400
+        );
+      }
+
+      eligibleRows = rows;
+    } else {
+      // Default path: no explicit selection. This is the ONLY path where
+      // MAX_SOURCE_REPORTS's guard still applies — a caller that supplies a
+      // selection has already capped the set at MAX_REPORTS_PER_PLAN above,
+      // so a large total history (like alice.johnson@case.edu's 56 reports)
+      // never reaches this guard once a selection is made. A direct API
+      // call with no body still hits it, exactly as before.
+      if (eligibleReportCount > MAX_SOURCE_REPORTS) {
+        return response(
+          { error: "Your completed feedback history is too large to synthesize safely." },
+          413
+        );
+      }
+
+      // Most recent MAX_REPORTS_PER_PLAN, newest first in the query so
+      // `take` keeps the right ones, then reordered oldest-first below to
+      // match the existing ordinal assignment.
+      const rows = await prisma.interactionReport.findMany({
+        where: {
+          userId: currentUser.id,
+          status: "READY",
+          reportMarkdown: { not: null },
+          typeSlug: { in: [...INTERVIEW_TYPE_SLUGS] },
+        },
+        orderBy: { completedAt: "desc" },
+        take: MAX_REPORTS_PER_PLAN,
+        select: {
+          id: true,
+          scores: true,
+          reportMarkdown: true,
+        },
+      });
+      eligibleRows = rows.reverse();
     }
 
-    const eligibleRows = rows.filter((row) => row.reportMarkdown?.trim());
     if (eligibleRows.length === 0) {
       return response(
         {
@@ -136,6 +231,12 @@ export async function POST(request: NextRequest) {
       {
         content: result.content,
         sourceReportCount: eligibleRows.length,
+        // Honest accounting, same spirit as the 413 this plan keeps: a
+        // student is never told "every report was considered" when it
+        // wasn't. `consideredReportCount` is how many actually fed this
+        // plan; `eligibleReportCount` is how many exist in total.
+        consideredReportCount: eligibleRows.length,
+        eligibleReportCount,
         draftToken,
       },
       200
