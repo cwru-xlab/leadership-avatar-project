@@ -33,6 +33,11 @@ export const siteConfig = {
       icon: "History",
     },
     {
+      label: "Mastery",
+      href: "/mastery",
+      icon: "ChartColumnBig",
+    },
+    {
       label: "Settings",
       href: "/settings",
       icon: "Settings",
