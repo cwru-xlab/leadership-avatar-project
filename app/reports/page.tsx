@@ -8,6 +8,14 @@ import { Chip } from "@heroui/chip";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  useDisclosure,
+} from "@heroui/modal";
 import { BookOpenCheck, ChevronRight, Search, Sparkles } from "lucide-react";
 
 import type { ReportDTO } from "@/lib/report/dto";
@@ -19,10 +27,7 @@ import {
 import type { StudyPlanDTO, StudyPlanSummaryDTO } from "@/lib/study-plan/plan-dto";
 import type { StudyPlanContent } from "@/lib/study-plan/types";
 import { isDeckModeSlug } from "@/lib/pitch/deck-modes";
-import PathPanel, {
-  DegradedStepsNote,
-  type PathViewDTO,
-} from "@/components/study-plan/PathPanel";
+import PlanContent from "@/components/study-plan/PlanContent";
 
 /** Study-plan generation still uses interview feedback only. */
 const INTERVIEW_TYPE_SLUGS = new Set([
@@ -134,95 +139,6 @@ function ScoreBadge({ label, score }: { label: string; score: number | null }) {
   );
 }
 
-function PlanContent({ content }: { content: StudyPlanContent }) {
-  return (
-    <div className="space-y-7 text-sm text-[#385463]">
-      <section>
-        <h3 className="font-serif text-xl text-[#102331]">Strengths to leverage</h3>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {content.strengthsToLeverage.map((strength) => (
-            <div key={strength.theme} className="rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4">
-              <p className="font-semibold text-[#102331]">{strength.theme}</p>
-              <p className="mt-1 leading-6">{strength.explanation}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h3 className="font-serif text-xl text-[#102331]">Practice priorities</h3>
-        <div className="mt-3 space-y-4">
-          {content.priorityThemes.map((theme) => (
-            <article key={theme.priority} className="rounded-xl border border-[#dce8ed] p-4 sm:p-5">
-              <div className="flex items-start gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0a7391] text-xs font-bold text-white">
-                  {theme.priority}
-                </span>
-                <div>
-                  <h4 className="font-semibold text-[#102331]">{theme.theme}</h4>
-                  <p className="mt-1 leading-6">{theme.whyItMatters}</p>
-                </div>
-              </div>
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">Targeted exercises</p>
-                  <ul className="mt-2 space-y-3">
-                    {theme.practiceExercises.map((exercise) => (
-                      <li key={exercise.title}>
-                        <p className="font-medium text-[#102331]">
-                          {exercise.title} <span className="font-normal text-[#58727f]">· {exercise.estimatedMinutes} min</span>
-                        </p>
-                        <p className="mt-1 leading-6">{exercise.instructions}</p>
-                        <p className="mt-1 text-xs leading-5 text-[#58727f]">Ready when: {exercise.successCriteria}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">Readiness checks</p>
-                  <ul className="mt-2 list-disc space-y-2 pl-5 leading-6">
-                    {theme.readinessChecks.map((check) => (
-                      <li key={check}>{check}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h3 className="font-serif text-xl text-[#102331]">Useful resources</h3>
-        <ul className="mt-3 grid gap-3 md:grid-cols-2">
-          {content.resources.map((resource) => (
-            <li key={resource.title} className="rounded-xl border border-[#dce8ed] p-4">
-              {resource.url ? (
-                <a
-                  href={resource.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-semibold text-[#006b87] underline underline-offset-2"
-                >
-                  {resource.title}
-                </a>
-              ) : (
-                <p className="font-semibold text-[#102331]">{resource.title}</p>
-              )}
-              <p className="mt-1 leading-6">{resource.description}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="rounded-xl border border-[#b9dbe5] bg-[#eaf7fa] p-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">Next practice focus</p>
-        <p className="mt-2 font-medium leading-6 text-[#173847]">{content.nextPracticeFocus}</p>
-      </section>
-    </div>
-  );
-}
-
 export default function MyReportsPage() {
   const router = useRouter();
   const [reports, setReports] = useState<ReportDTO[] | null>(null);
@@ -233,21 +149,15 @@ export default function MyReportsPage() {
   const [plans, setPlans] = useState<StudyPlanSummaryDTO[] | null>(null);
   const [plansError, setPlansError] = useState<string | null>(null);
   const [preview, setPreview] = useState<GeneratedPreview | null>(null);
-  const [viewedPlan, setViewedPlan] = useState<StudyPlanDTO | null>(null);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
-  // Path panel state — isolated from every existing state variable above.
-  // A path fetch failure sets `pathError` only and never touches `error`,
-  // `plansError` or `actionError`, so a broken path fetch cannot make the
-  // study plan itself (or the report list) stop rendering.
-  const [path, setPath] = useState<PathViewDTO | null>(null);
-  const [pathLoading, setPathLoading] = useState(false);
-  const [pathError, setPathError] = useState<string | null>(null);
-  const [generatingPath, setGeneratingPath] = useState(false);
-  const [degradedStepCount, setDegradedStepCount] = useState(0);
+  // quick-006: the picker now opens as a modal, as an intermediate step
+  // after pressing "Generate study plan", rather than living in the page
+  // body. Generation itself still happens from inside it.
+  const { isOpen: isPickerOpen, onOpen: openPicker, onOpenChange: onPickerOpenChange, onClose: closePicker } = useDisclosure();
 
   const eligibleReportCount = useMemo(
     () =>
@@ -398,8 +308,11 @@ export default function MyReportsPage() {
     };
   }, []);
 
-  async function generatePlan() {
-    if (generating || eligibleReportCount < 1) return;
+  /** Returns whether generation succeeded, so the modal caller can close
+   * itself only on success — a failure keeps the modal open with the error
+   * visible, rather than closing and hiding it. */
+  async function generatePlan(): Promise<boolean> {
+    if (generating || eligibleReportCount < 1) return false;
     setGenerating(true);
     setActionError(null);
     setSavedNotice(null);
@@ -422,7 +335,7 @@ export default function MyReportsPage() {
             ? "Finish at least one interview with feedback before generating a study plan."
             : data.error || "We couldn't generate your study plan. Please try again."
         );
-        return;
+        return false;
       }
       setPreview({
         content: data.content,
@@ -431,11 +344,20 @@ export default function MyReportsPage() {
         consideredReportCount: data.consideredReportCount ?? data.sourceReportCount,
         eligibleReportCount: data.eligibleReportCount ?? data.sourceReportCount,
       });
+      return true;
     } catch {
       setActionError("We couldn't generate your study plan. Please try again.");
+      return false;
     } finally {
       setGenerating(false);
     }
+  }
+
+  /** Modal-only wrapper: generates, then closes the picker modal on success
+   * so the preview (rendered on the page body) is immediately visible. */
+  async function generateFromPicker() {
+    const ok = await generatePlan();
+    if (ok) closePicker();
   }
 
   async function savePlan() {
@@ -463,7 +385,6 @@ export default function MyReportsPage() {
       };
       setPlans((current) => [summary, ...(current ?? []).filter((plan) => plan.id !== summary.id)]);
       setPreview(null);
-      setViewedPlan(data.plan);
       setSavedNotice("Study plan saved to your history.");
     } catch {
       setActionError("We couldn't save this study plan. Please try again.");
@@ -472,122 +393,12 @@ export default function MyReportsPage() {
     }
   }
 
-  async function viewPlan(planId: string) {
-    setActionError(null);
-    try {
-      const response = await fetch(`/api/study-plans/${planId}`, {
-        cache: "no-store",
-        credentials: "include",
-      });
-      const data = (await response.json().catch(() => ({}))) as { plan?: StudyPlanDTO; error?: string };
-      if (!response.ok || !data.plan) {
-        setActionError(data.error || "We couldn't load this study plan.");
-        return;
-      }
-      setViewedPlan(data.plan);
-    } catch {
-      setActionError("We couldn't load this study plan.");
-    }
+  /** quick-006: a saved plan now has its own URL route
+   * (`/study-plans/{planId}`) — "View plan" navigates there instead of
+   * fetching into local state and folding open inline on this page. */
+  function viewPlan(planId: string) {
+    router.push(`/study-plans/${planId}`);
   }
-
-  // Own fetch, own loading/error state — deliberately separate from
-  // `viewPlan` above so a path failure degrades to "path unavailable"
-  // without touching the study plan's own `viewedPlan`/`actionError` state.
-  async function fetchPath(planId: string) {
-    setPathLoading(true);
-    setPathError(null);
-    try {
-      const response = await fetch(`/api/study-plans/${planId}/path`, {
-        cache: "no-store",
-        credentials: "include",
-      });
-      const data = (await response.json().catch(() => ({}))) as {
-        path?: PathViewDTO | null;
-        error?: string;
-      };
-      if (!response.ok) {
-        setPathError(data.error || "We couldn't load this plan's path.");
-        return;
-      }
-      setPath(data.path ?? null);
-    } catch {
-      setPathError("We couldn't load this plan's path.");
-    } finally {
-      setPathLoading(false);
-    }
-  }
-
-  async function generatePathForViewedPlan() {
-    if (!viewedPlan || generatingPath) return;
-    setGeneratingPath(true);
-    setPathError(null);
-    try {
-      const response = await fetch(`/api/study-plans/${viewedPlan.id}/path`, {
-        method: "POST",
-        credentials: "include",
-      });
-      if (response.status === 409) {
-        // A race between two clicks (or two tabs) lands on the path that
-        // already exists — refetch rather than showing an error.
-        await fetchPath(viewedPlan.id);
-        return;
-      }
-      const data = (await response.json().catch(() => ({}))) as {
-        path?: PathViewDTO;
-        degradedSteps?: Array<{ position: number; competencyKey: string }>;
-        error?: string;
-      };
-      if (!response.ok || !data.path) {
-        setPathError(data.error || "We couldn't generate a path for this plan.");
-        return;
-      }
-      setPath(data.path);
-      setDegradedStepCount(data.degradedSteps?.length ?? 0);
-    } catch {
-      setPathError("We couldn't generate a path for this plan.");
-    } finally {
-      setGeneratingPath(false);
-    }
-  }
-
-  // Fetches the path whenever the viewed plan changes, in its own effect —
-  // the existing `load`/`loadPlans` effect above is untouched. Clearing
-  // `path`/`pathError` on every change (including viewedPlan -> null, i.e.
-  // "Close") avoids showing a stale path for whatever plan was open before.
-  useEffect(() => {
-    let cancelled = false;
-    setPath(null);
-    setPathError(null);
-    setDegradedStepCount(0);
-    if (!viewedPlan) return;
-    void (async () => {
-      setPathLoading(true);
-      setPathError(null);
-      try {
-        const response = await fetch(`/api/study-plans/${viewedPlan.id}/path`, {
-          cache: "no-store",
-          credentials: "include",
-        });
-        const data = (await response.json().catch(() => ({}))) as {
-          path?: PathViewDTO | null;
-          error?: string;
-        };
-        if (cancelled) return;
-        if (!response.ok) {
-          setPathError(data.error || "We couldn't load this plan's path.");
-          return;
-        }
-        setPath(data.path ?? null);
-      } catch {
-        if (!cancelled) setPathError("We couldn't load this plan's path.");
-      } finally {
-        if (!cancelled) setPathLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [viewedPlan]);
 
   return (
     <main className="min-h-[100dvh] bg-[#f5f8fa] text-[#102331]">
@@ -631,69 +442,90 @@ export default function MyReportsPage() {
                       )}
                     </div>
                   </div>
-                  <Button color="primary" size="lg" isDisabled={eligibleReportCount < 1 || generating} onPress={generatePlan}>
+                  <Button
+                    color="primary"
+                    size="lg"
+                    isDisabled={eligibleReportCount < 1 || generating}
+                    onPress={openPicker}
+                  >
                     {generating ? <><Spinner color="current" size="sm" /> Creating plan</> : "Generate study plan"}
                   </Button>
                 </CardBody>
               </Card>
 
-              {/* Additive: lets a student choose which completed interviews
-                  feed the plan, capped at MAX_REPORTS_PER_PLAN. Defaults to
-                  the most recent N so the primary action above works with
-                  zero interaction — this picker only matters when a student
-                  wants something other than the default. */}
-              {eligibleReportCount > 0 && (
-                <Card className="mt-4 border border-[#d4e2e9] shadow-[0_8px_24px_rgba(20,58,75,0.06)]">
-                  <CardBody className="p-5">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <h3 className="font-serif text-lg text-[#102331]">Choose which interviews to use</h3>
-                      <p className="text-xs font-medium text-[#58727f]">
-                        {(selectedReportIds ?? []).length} of {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} selected
-                        {" "}· cap {MAX_REPORTS_PER_PLAN}
-                      </p>
-                    </div>
-                    <p className="mt-1 text-sm text-[#58727f]">
-                      The most recent {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} are preselected. Deselect any and pick others instead.
-                    </p>
-                    <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
-                      {eligibleReports.map((report) => {
-                        const isSelected = (selectedReportIds ?? []).includes(report.id);
-                        const atCap =
-                          !isSelected && (selectedReportIds ?? []).length >= MAX_REPORTS_PER_PLAN;
-                        return (
-                          <div
-                            key={report.id}
-                            className="flex items-center justify-between gap-3 rounded-xl border border-[#e3ebee] bg-[#f8fbfc] px-3 py-2"
-                          >
-                            <Checkbox
-                              isSelected={isSelected}
-                              isDisabled={atCap}
-                              onValueChange={() => toggleReportSelection(report.id)}
-                            >
-                              <span className="text-sm text-[#102331]">
-                                {typeLabelForReport(report.typeSlug)}
-                                {" · "}
-                                {report.completedAt ? formatDate(report.completedAt) : "Date unknown"}
-                                {report.contentScore !== null
-                                  ? ` · Content ${report.contentScore}/5`
-                                  : ""}
-                                {report.behavioralScore !== null
-                                  ? ` · Behavioral ${report.behavioralScore}/5`
-                                  : ""}
-                              </span>
-                            </Checkbox>
-                            {atCap && (
-                              <span className="shrink-0 text-xs font-medium text-[#8298a3]">
-                                Cap reached — deselect one first
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardBody>
-                </Card>
-              )}
+              {/* quick-006: the interview picker is now an intermediate-step
+                  modal opened by "Generate study plan" above, rather than a
+                  card living permanently in the page body. Generation
+                  itself still happens from inside it, via
+                  `generateFromPicker`, which closes the modal only on
+                  success so the preview below is immediately visible. */}
+              <Modal isOpen={isPickerOpen} onOpenChange={onPickerOpenChange} scrollBehavior="inside" size="2xl">
+                <ModalContent>
+                  {(onModalClose) => (
+                    <>
+                      <ModalHeader className="flex flex-col gap-1">
+                        Choose which interviews to use
+                      </ModalHeader>
+                      <ModalBody>
+                        <p className="text-xs font-medium text-[#58727f]">
+                          {(selectedReportIds ?? []).length} of {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} selected
+                          {" "}· cap {MAX_REPORTS_PER_PLAN}
+                        </p>
+                        <p className="mt-1 text-sm text-[#58727f]">
+                          The most recent {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} are preselected. Deselect any and pick others instead.
+                        </p>
+                        <div className="mt-4 max-h-96 space-y-2 overflow-y-auto pr-1">
+                          {eligibleReports.map((report) => {
+                            const isSelected = (selectedReportIds ?? []).includes(report.id);
+                            const atCap =
+                              !isSelected && (selectedReportIds ?? []).length >= MAX_REPORTS_PER_PLAN;
+                            return (
+                              <div
+                                key={report.id}
+                                className="flex items-center justify-between gap-3 rounded-xl border border-[#e3ebee] bg-[#f8fbfc] px-3 py-2"
+                              >
+                                <Checkbox
+                                  isSelected={isSelected}
+                                  isDisabled={atCap}
+                                  onValueChange={() => toggleReportSelection(report.id)}
+                                >
+                                  <span className="text-sm text-[#102331]">
+                                    {typeLabelForReport(report.typeSlug)}
+                                    {" · "}
+                                    {report.completedAt ? formatDate(report.completedAt) : "Date unknown"}
+                                    {report.contentScore !== null
+                                      ? ` · Content ${report.contentScore}/5`
+                                      : ""}
+                                    {report.behavioralScore !== null
+                                      ? ` · Behavioral ${report.behavioralScore}/5`
+                                      : ""}
+                                  </span>
+                                </Checkbox>
+                                {atCap && (
+                                  <span className="shrink-0 text-xs font-medium text-[#8298a3]">
+                                    Cap reached — deselect one first
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {actionError && (
+                          <p role="alert" className="mt-2 rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700">
+                            {actionError}
+                          </p>
+                        )}
+                      </ModalBody>
+                      <ModalFooter>
+                        <Button variant="light" onPress={onModalClose}>Cancel</Button>
+                        <Button color="primary" isDisabled={generating} onPress={generateFromPicker}>
+                          {generating ? <><Spinner color="current" size="sm" /> Creating plan</> : "Generate study plan"}
+                        </Button>
+                      </ModalFooter>
+                    </>
+                  )}
+                </ModalContent>
+              </Modal>
 
               {actionError && <p role="alert" className="mt-4 rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700">{actionError}</p>}
               {savedNotice && <p role="status" className="mt-4 rounded-xl border border-success-200 bg-success-50 p-4 text-sm text-success-700">{savedNotice}</p>}
@@ -751,53 +583,6 @@ export default function MyReportsPage() {
                   </div>
                 )}
               </section>
-
-              {viewedPlan && (
-                <section className="mt-6 rounded-2xl border border-[#d4e2e9] bg-white p-5 shadow-[0_8px_24px_rgba(20,58,75,0.06)] sm:p-7">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7391]">Saved study plan</p>
-                      <h2 className="mt-2 font-serif text-3xl text-[#102331]">{viewedPlan.title}</h2>
-                      <p className="mt-1 text-sm text-[#58727f]">Saved {formatDate(viewedPlan.savedAt)} · {viewedPlan.sourceReportCount} reports analyzed</p>
-                    </div>
-                    <Button variant="light" onPress={() => setViewedPlan(null)}>Close</Button>
-                  </div>
-                  <p className="mt-4 max-w-3xl leading-7 text-[#385463]">{viewedPlan.content.summary}</p>
-                  <div className="mt-7"><PlanContent content={viewedPlan.content} /></div>
-
-                  {/* Additive: the path lives inside the study plan that owns
-                      it (REQ-120/REQ-122), fetched in its own effect above with
-                      its own loading/error state. A fetch failure here never
-                      blocks the plan content rendered just above. */}
-                  <div className="mt-8">
-                    {pathLoading ? (
-                      <div className="h-24 animate-pulse rounded-2xl border border-[#e3ebee] bg-white" />
-                    ) : pathError ? (
-                      <p className="text-sm text-danger-700">{pathError}</p>
-                    ) : path ? (
-                      <>
-                        <PathPanel planId={viewedPlan.id} path={path} />
-                        <DegradedStepsNote count={degradedStepCount} />
-                      </>
-                    ) : (
-                      <div className="rounded-2xl border border-[#dce8ed] bg-[#f8fbfc] p-5">
-                        <p className="text-sm text-[#385463]">
-                          This plan doesn&apos;t have an improvement path yet.
-                        </p>
-                        <Button
-                          className="mt-3"
-                          color="primary"
-                          size="sm"
-                          isDisabled={generatingPath}
-                          onPress={generatePathForViewedPlan}
-                        >
-                          {generatingPath ? <><Spinner color="current" size="sm" /> Generating path</> : "Generate a path"}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </section>
-              )}
 
               <section className="mt-10">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
