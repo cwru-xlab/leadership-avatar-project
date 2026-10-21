@@ -136,7 +136,7 @@ export default function KnowledgeCheckCard({
     setContestError(null);
     try {
       const res = await fetch(
-        `/api/study-plans/checks/${attempt.id}/contest`,
+        `/api/study-plans/check-attempts/${attempt.id}/contest`,
         {
           method: "POST",
           credentials: "include",

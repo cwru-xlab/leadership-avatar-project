@@ -251,7 +251,7 @@ export async function GET(
  * THIS ROUTE IS KEYED ON THE CHECK, NOT THE ATTEMPT — `[checkId]`, not
  * `[attemptId]`. Before a submission, no attempt row exists yet, so there is
  * nothing else it could be keyed on. 21-15's sibling route,
- * `app/api/study-plans/checks/[attemptId]/contest/route.ts`, keys on the
+ * `app/api/study-plans/check-attempts/[attemptId]/contest/route.ts`, keys on the
  * ATTEMPT instead, because a contest always targets an already-graded
  * attempt. The two routes living one path segment apart with different id
  * semantics is exactly the kind of thing a later reader "corrects" into a
