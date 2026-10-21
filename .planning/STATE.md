@@ -312,6 +312,43 @@ half needs 21-18, not yet shipped) and REQ-122 stays Pending (21-19's, wave
 7, not yet run). `npm run build` succeeds, `npx tsc --noEmit` is clean
 repo-wide, and `git diff --name-only -- components/practice/ app/practice/
 lib/engine/` is empty. See `21-24-SUMMARY.md`.
+**21-18 complete** — the student-facing mastery surface: `GET /api/mastery`
+(auth-gated, `no-store`, `toMasteryDTO` the only serialization path, clock
+read at the edge, per-competency level derived from the CURRENT figure not
+lifetime, `goalProgress` with a declared `America/New_York` default, never a
+silent UTC fallback), `components/mastery/MasteryPanel.tsx` (one overall
+figure labelled "Recent form (last N days)" / "All time", a per-competency
+`<ul>` breakdown with `<dl>`/`<dt>`/`<dd>`-paired "All time"/"Recent" figures,
+the current-figure level with a provisional marker and next-level target,
+tier disclosure rendered inline next to the figure it qualifies, a null
+figure reading "Not yet measured" rather than 0% or a dash, and an
+`unmappedRowCount` note — zero computation performed in the component), and
+`app/mastery/page.tsx` (loading/needs-login/error-with-retry states, the
+empty/new-student case handled inside the panel's own header so it reads as
+a starting point, not a wall of zeroes). A `Mastery` entry (`ChartColumnBig`,
+already in `auth-navbar.tsx`'s `iconMap`) was added additively to
+`siteConfig.studentNavItems` between `My Reports` and `Settings` —
+`git diff config/site.ts` shows exactly that one block added, nothing else
+touched. `scripts/verify-mastery-surface.ts` runs 33 checks with no
+`DATABASE_URL`/`OPENAI_API_KEY`: DTO completeness across all four tiers incl.
+one all-null competency with no NaN anywhere; the three required labels plus
+`<dt`/`<dl` proven present in the panel source; the panel proven to import no
+computation module (`lib/mastery/compute`/`thinness`/`weights`/`ledger`) and
+to contain no percent-threshold literal; the streak/unlock negative guard
+re-run over `components/mastery/`+`app/mastery/` (new directories 21-17's own
+walk could not have covered); REQ-106 reachability asserted (the `/mastery`
+entry's icon is a key of `auth-navbar.tsx`'s `iconMap`) with the guard proven
+to bite against a synthetic nav list with the entry removed; the route proven
+GET-only with no UTC fallback; and the empty-student payload proven all-null,
+never all-zero. `npx tsc --noEmit` clean, `npm run build` succeeds (`/mastery`
+and `/api/mastery` both in the manifest), and `scripts/verify-levels-goals.ts`
+/ `scripts/verify-mastery-thinness.ts` re-run unchanged at ALL PASS.
+REQ-105, REQ-106, REQ-116 and REQ-119 all flip to Complete in this plan —
+each was genuinely held Pending by an earlier plan specifically for this
+surface to close ("SHOWN"/"flagged", "REACHABLE", "see the figure change",
+"exist" all being student-observable conditions no earlier plan's
+`files_modified` touched `app/`/`components/`); checkbox and Traceability row
+verified in agreement for all four. See `21-18-SUMMARY.md`.
 **Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
 attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
 (no report IDs, no item-level notes).
@@ -2310,8 +2347,8 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-21T00:00:00Z
-**Stopped At:** Completed 21-17-PLAN.md
+**Last Date:** 2026-10-21T05:18:40.314Z
+**Stopped At:** Completed 21-18-PLAN.md
 **Resume File:** None
 
 

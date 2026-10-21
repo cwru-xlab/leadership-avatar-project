@@ -775,11 +775,11 @@ REQ-73.
   CURRENT-WINDOW figure over a bounded recent window, plus one overall figure.
   No model call participates in the arithmetic.
 
-- **REQ-105** — [ ] Every mastery figure carries its evidence count and an
+- **REQ-105** — [x] Every mastery figure carries its evidence count and an
   explicit `thin` flag at a declared threshold. A thin figure is SHOWN with its
   thinness flagged — never withheld, and never presented as if well-evidenced.
 
-- **REQ-106** — [ ] The student sees an overall mastery percentage plus a
+- **REQ-106** — [x] The student sees an overall mastery percentage plus a
   per-competency breakdown, with the lifetime and current-window figures
   labelled so the distinction is unmistakable, and thinness visible. The
   surface is REACHABLE from the authenticated student navigation — a page a
@@ -851,7 +851,7 @@ REQ-73.
   at authoring time. A validator with no delivery path to guard does not
   satisfy this.
 
-- **REQ-116** — [ ] Completing a coached session produces a scored
+- **REQ-116** — [x] Completing a coached session produces a scored
   contribution that moves the student's VISIBLE mastery figure at the coached
   weight, below unaided practice — the student can complete a coached session
   and then see the figure change on the mastery surface.
@@ -864,7 +864,7 @@ REQ-73.
   selection targets the weakest competency first and returns the reason it
   chose that step.
 
-- **REQ-119** — [ ] Per-competency levels with declared thresholds and
+- **REQ-119** — [x] Per-competency levels with declared thresholds and
   daily/weekly goals with declared defaults exist. Streaks and unlocking exist
   NOWHERE in the surface, proven by a negative guard.
 
@@ -958,8 +958,8 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-102 | Phase 20 | Complete |
 | REQ-103 | Phase 21 | Pending |
 | REQ-104 | Phase 21 | Complete |
-| REQ-105 | Phase 21 | Pending |
-| REQ-106 | Phase 21 | Pending |
+| REQ-105 | Phase 21 | Complete |
+| REQ-106 | Phase 21 | Complete |
 | REQ-107 | Phase 21 | Pending |
 | REQ-108 | Phase 21 | Complete |
 | REQ-109 | Phase 21 | Complete |
@@ -969,10 +969,10 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-113 | Phase 21 | Complete |
 | REQ-114 | Phase 21 | Complete |
 | REQ-115 | Phase 21 | Complete |
-| REQ-116 | Phase 21 | Pending |
+| REQ-116 | Phase 21 | Complete |
 | REQ-117 | Phase 21 | Complete |
 | REQ-118 | Phase 21 | Complete |
-| REQ-119 | Phase 21 | Pending |
+| REQ-119 | Phase 21 | Complete |
 | REQ-120 | Phase 21 | Pending |
 | REQ-121 | Phase 21 | Pending |
 | REQ-122 | Phase 21 | Pending |
