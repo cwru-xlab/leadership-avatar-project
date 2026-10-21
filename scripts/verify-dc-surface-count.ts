@@ -241,13 +241,42 @@ console.log("\n2. One of each engine surface, still");
     sessionRoutes.map(rel).join(", "),
   );
 
-  const shells = walkFiles(abs("components")).filter((f) =>
-    /SessionShell\.tsx$/.test(f),
-  );
+  /**
+   * Session shells are an ALLOWLIST, not a count of one.
+   *
+   * This guard originally asserted exactly one *SessionShell.tsx under
+   * components/, to stop a new interaction type spawning a parallel session
+   * UI. Phase 21 added a deliberate second: coached practice is reachable
+   * ONLY from a study-plan path step, and 21-CONTEXT.md locks that normal
+   * practice sessions stay UNTOUCHED. Reusing `PracticeSessionShell` would
+   * have meant editing `components/practice/` for a mode that must stay
+   * separate, so 21-24 built its own minimal shell instead — which is why
+   * `git diff -- components/practice/` is empty across the whole of Phase 21.
+   *
+   * Authority: `.planning/phases/21-adaptive-mastery-path/21-COACHED-ENGINE-DECISION.md`.
+   * Mirrors the identical fix applied to `scripts/verify-engine-surface-count.ts`
+   * at commit `81af260` — this script carries its own copy of the same
+   * assertion and was not covered by that fix.
+   *
+   * The guard's real purpose survives: a THIRD shell, or either of these two
+   * being renamed or moved, still fails. Adding to this list is a deliberate,
+   * reviewed act — not a way to quiet a failure.
+   */
+  const ALLOWED_SESSION_SHELLS = [
+    "components/practice/PracticeSessionShell.tsx",
+    "components/study-plan/CoachedSessionShell.tsx",
+  ] as const;
+
+  const shells = walkFiles(abs("components"))
+    .filter((f) => /SessionShell\.tsx$/.test(f))
+    .map(rel)
+    .sort();
+  const expectedShells = [...ALLOWED_SESSION_SHELLS].sort();
   check(
-    `exactly 1 SessionShell (found ${shells.length})`,
-    shells.length === 1,
-    shells.map(rel).join(", "),
+    `exactly the ${expectedShells.length} allowlisted SessionShells under components/ (found ${shells.length})`,
+    shells.length === expectedShells.length &&
+      shells.every((f, i) => f === expectedShells[i]),
+    shells.join(", ") || "(none)",
   );
 
   const reportPages = walkFiles(abs("app")).filter((f) =>
