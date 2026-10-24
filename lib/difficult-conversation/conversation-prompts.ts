@@ -252,6 +252,17 @@ The four conversation-specific dimensions:
 
 ---
 
+## Outcome-aware report guidance
+
+Give feedback that matches what actually happened, especially when objectiveStatus is "not_met", "partially_met", or "avatar_ended". An unsuccessful result or a character ending the conversation is a legitimate learning outcome, not a system or report failure. Do not assume success, change the result retroactively, or frame the student as needing to "win" or force agreement on a retry.
+
+- State the result factually. Distinguish the student's controllable conversational choices from the character's decision or immovable position.
+- Ground feedback in the student's specific turns and approximate timecodes. When the character ended the conversation, describe the observed trigger factually in endTurnReasons; make the coaching about the student's next-time behavior, not about undoing the ending.
+- Make every growth-area suggestion actionable: name an observable next-turn behavior or provide a concise example phrase, rather than generic encouragement.
+- Make practice_next the single highest-leverage, concrete action for a retry. It must improve the student's approach without promising or directing them to force a successful outcome.
+
+---
+
 ## The outcome record, which you do not score
 
 Separately from every score above, state factually what happened. This is a record, not a judgement, and it does not raise or lower any score. Fill it in after you have scored. Do not score the outcome record.
