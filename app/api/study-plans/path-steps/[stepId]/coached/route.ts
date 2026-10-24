@@ -7,8 +7,9 @@
  * any sibling entry point (a convenience route that lets a client start or
  * resume coached mode by any identifier other than a path step it owns)
  * would VIOLATE REQ-113 — read `lib/study-plan/coached/runtime.ts` and
- * `.planning/phases/21-adaptive-mastery-path/21-COACHED-ENGINE-DECISION.md`
- * before adding one. `scripts/verify-coached-entry.ts` section 1 walks every
+ * `.planning/phases/22-coached-mode/22-CONTEXT.md` before adding one.
+ * Phase 22: the coach (not an engine session) runs the legs; PATCH carries
+ * `turn` | `advance` | `complete`. `scripts/verify-coached-entry.ts` section 1 walks every
  * `route.ts` under `app/api/` and asserts EXACTLY ONE mentions
  * `enterCoachedStep` / `completeCoachedSession` — this file.
  *
@@ -24,15 +25,20 @@ import {
   enterCoachedStep,
   advanceToFresh,
   completeCoachedSession,
+  takeCoachTurn,
+  CoachedLegNotDoneError,
   ReplayMomentUnavailableError,
   NoEligibleReplayTargetError,
   CoachedSessionNotStartedError,
   CoachedLegOrderError,
 } from "@/lib/study-plan/coached/runtime";
+import { CoachTurnOrderError, UnspokenAttemptError } from "@/lib/study-plan/coached/coach";
 import { NotReachableOutsideAPathError } from "@/lib/study-plan/coached/instance";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60; // entry may score a few reports; a coach turn is a grade + a generation
+
+const MAX_UTTERANCE_CHARS = 4000;
 
 function response(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, {
@@ -75,7 +81,16 @@ export async function POST(
     if (error instanceof NotReachableOutsideAPathError) {
       return response(STEP_NOT_FOUND, 404);
     }
-    if (error instanceof ReplayMomentUnavailableError || error instanceof NoEligibleReplayTargetError) {
+    if (error instanceof NoEligibleReplayTargetError) {
+      return response(
+        {
+          error:
+            "None of the sessions this plan was built from has a moment that shows this skill clearly enough to rework.",
+        },
+        409,
+      );
+    }
+    if (error instanceof ReplayMomentUnavailableError) {
       return response(
         { error: "The original session's transcript could not be read." },
         409,
@@ -126,8 +141,10 @@ export async function GET(
 }
 
 /**
- * PATCH — advance or finish, discriminated on body `action`. Any other
- * `action` is 400; there is no default verb.
+ * PATCH — a coach turn, advance, or finish, discriminated on body `action`
+ * (`turn` | `advance` | `complete`). Any other `action` is 400; there is no
+ * default verb. `advance` and `complete` take no body fields: the coach, not
+ * the client, decides when a leg is done.
  */
 export async function PATCH(
   request: NextRequest,
@@ -151,6 +168,10 @@ export async function PATCH(
 
     const action = (body as Record<string, unknown>).action;
 
+    if (action !== "turn" && action !== "advance" && action !== "complete") {
+      return response({ error: `Unknown action "${String(action)}".` }, 400);
+    }
+
     // Resolve the step -> coachedSessionId ourselves; never accept one from
     // the client on any verb.
     const step = await loadStepForPatch(currentUser.id, stepId);
@@ -160,67 +181,90 @@ export async function PATCH(
     }
     const coachedSessionId = step.coachedSessionId;
 
-    if (action === "advance") {
-      const replayReportId = (body as Record<string, unknown>).replayReportId;
-      if (typeof replayReportId !== "string" || !replayReportId) {
-        return response({ error: "replayReportId must be a string." }, 400);
+    const currentLegOrNull = async () =>
+      (
+        await enterCoachedStep(
+          { userId: currentUser.id, stepId },
+          { createIfMissing: false },
+        ).catch(() => null)
+      );
+
+    if (action === "turn") {
+      const raw = (body as Record<string, unknown>).utterance;
+      let utterance: { text: string; spokenDurationMs: number } | null = null;
+      if (raw !== undefined && raw !== null) {
+        const u = raw as Record<string, unknown>;
+        if (
+          typeof raw !== "object" ||
+          typeof u.text !== "string" ||
+          u.text.trim().length === 0 ||
+          u.text.length > MAX_UTTERANCE_CHARS
+        ) {
+          return response(
+            { error: `utterance.text must be a non-empty string of at most ${MAX_UTTERANCE_CHARS} characters.` },
+            400,
+          );
+        }
+        if (
+          typeof u.spokenDurationMs !== "number" ||
+          !Number.isInteger(u.spokenDurationMs) ||
+          u.spokenDurationMs <= 0
+        ) {
+          return response({ error: "utterance.spokenDurationMs must be a positive integer." }, 400);
+        }
+        utterance = { text: u.text, spokenDurationMs: u.spokenDurationMs };
       }
       try {
-        const leg = await advanceToFresh({
+        const { coachTurn, leg } = await takeCoachTurn({
           userId: currentUser.id,
-          coachedSessionId,
-          replayReportId,
+          stepId,
+          utterance,
         });
+        return response({ coachTurn, leg }, 200);
+      } catch (error) {
+        if (error instanceof UnspokenAttemptError) {
+          return response({ error: "That attempt was not spoken aloud." }, 400);
+        }
+        if (error instanceof CoachTurnOrderError || error instanceof CoachedLegOrderError) {
+          const current = await currentLegOrNull();
+          return response(
+            { error: "That turn is not available right now.", currentLeg: current?.leg ?? null },
+            409,
+          );
+        }
+        throw error;
+      }
+    }
+
+    try {
+      if (action === "advance") {
+        const leg = await advanceToFresh({ userId: currentUser.id, coachedSessionId });
         return response({ leg }, 200);
-      } catch (error) {
-        if (error instanceof CoachedLegOrderError) {
-          const current = await enterCoachedStep(
-            { userId: currentUser.id, stepId },
-            { createIfMissing: false },
-          ).catch(() => null);
-          return response(
-            {
-              error: "Session is not in REPLAY.",
-              currentLeg: current?.leg ?? null,
-            },
-            409,
-          );
-        }
-        throw error;
       }
+      const { contributionsWritten } = await completeCoachedSession({
+        userId: currentUser.id,
+        coachedSessionId,
+      });
+      return response({ contributionsWritten }, 200);
+    } catch (error) {
+      if (error instanceof CoachedLegOrderError || error instanceof CoachedLegNotDoneError) {
+        const current = await currentLegOrNull();
+        return response(
+          {
+            error:
+              error instanceof CoachedLegNotDoneError
+                ? "The coach has not closed this leg yet."
+                : action === "advance"
+                  ? "Session cannot advance from its current leg."
+                  : "Session cannot be completed from its current leg.",
+            currentLeg: current?.leg ?? null,
+            ...(error instanceof CoachedLegNotDoneError ? { legReady: false } : {}),
+          },
+          409,
+        );
+      }
+      throw error;
     }
-
-    if (action === "complete") {
-      const reportId = (body as Record<string, unknown>).reportId;
-      if (typeof reportId !== "string" || !reportId) {
-        return response({ error: "reportId must be a string." }, 400);
-      }
-      try {
-        const { contributionsWritten } = await completeCoachedSession({
-          userId: currentUser.id,
-          coachedSessionId,
-          reportId,
-        });
-        return response({ contributionsWritten }, 200);
-      } catch (error) {
-        if (error instanceof CoachedLegOrderError) {
-          const current = await enterCoachedStep(
-            { userId: currentUser.id, stepId },
-            { createIfMissing: false },
-          ).catch(() => null);
-          return response(
-            {
-              error: "Session is not in FRESH.",
-              currentLeg: current?.leg ?? null,
-            },
-            409,
-          );
-        }
-        throw error;
-      }
-    }
-
-    return response({ error: `Unknown action "${String(action)}".` }, 400);
   } catch (error) {
     if (error instanceof NotReachableOutsideAPathError) {
       return response(STEP_NOT_FOUND, 404);
