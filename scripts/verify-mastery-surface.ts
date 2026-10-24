@@ -14,7 +14,8 @@
 import fs from "fs";
 import path from "path";
 
-import { toMasteryDTO } from "../lib/mastery/mastery-dto";
+import { toMasteryDTO, activityKeyForDriver, type ActivityLink } from "../lib/mastery/mastery-dto";
+import type { MasteryContributionRow } from "../lib/mastery/ledger";
 import { computeMastery } from "../lib/mastery/compute";
 import { COMPETENCIES, type CompetencyKey } from "../lib/mastery/competencies";
 import type { CompetencyMastery, MasteryResult } from "../lib/mastery/compute";
@@ -51,6 +52,11 @@ function blankCompetency(
     lifetimeWeightSum: 0,
     currentWeightSum: 0,
     lastContributionAt: null,
+    byOrigin: [],
+    trend: [],
+    windowStartLifetimePercent: null,
+    windowDelta: null,
+    windowDrivers: [],
     ...overrides,
   };
 }
@@ -66,6 +72,7 @@ function resultWith(
     windowStart: new Date(NOW.getTime() - 30 * 24 * 60 * 60 * 1000),
     windowDays: 30,
     unmappedRowCount: 0,
+    recentGrowth: [],
     ...overrides,
   };
 }
@@ -381,6 +388,104 @@ console.log("\n7. EMPTY-STUDENT CASE");
     "no competency's percent is 0 — every one is null",
     emptyDto.competencies.every((c) => c.lifetime.percent === null && c.current.percent === null)
   );
+}
+
+
+// === Section 8: GROWTH FIELDS (Phase 23) ===================================
+console.log("\n8. GROWTH FIELDS: sources, trend, drivers, recent growth");
+{
+  const DAY = 24 * 60 * 60 * 1000;
+  const [KEY_A] = COMPETENCY_KEYS;
+  const row = (o: Partial<MasteryContributionRow>): MasteryContributionRow => ({
+    id: `r-${Math.random()}`,
+    userId: "u",
+    competencyKey: KEY_A,
+    source: "LIVE_SESSION",
+    rawScore: 0.5,
+    weight: 1,
+    sourceReportId: null,
+    sourceAttemptId: null,
+    sourceCoachedSessionId: null,
+    reversedAt: null,
+    reversedReason: null,
+    occurredAt: NOW,
+    createdAt: NOW,
+    ...o,
+  });
+  const rows = [
+    row({ rawScore: 0.25, occurredAt: new Date(NOW.getTime() - 40 * DAY), sourceReportId: "old" }),
+    row({ rawScore: 1, occurredAt: new Date(NOW.getTime() - DAY), sourceReportId: "rep-1" }),
+    row({ source: "CHECK_DETERMINISTIC", weight: 0.45, rawScore: 1, occurredAt: new Date(NOW.getTime() - DAY), sourceAttemptId: "att-1" }),
+  ];
+  const result = computeMastery(rows, NOW);
+  const links = new Map<string, ActivityLink>([
+    [activityKeyForDriver({ sourceReportId: "rep-1", sourceAttemptId: null, sourceCoachedSessionId: null })!, { href: "/practice/case-study/report/rep-1", label: "Case study session" }],
+  ]);
+  const dto = toMasteryDTO(result, { activityLinks: links });
+  const a = dto.competencies.find((c) => c.competencyKey === KEY_A)!;
+
+  check("every competency carries 3 labelled sources", dto.competencies.every((c) => c.sources.length === 3 && c.sources.every((x) => x.label.length > 0)));
+  check(
+    "sources split live vs path (live | check, coached)",
+    a.sources.map((x) => `${x.origin}:${x.group}`).join() === "live:live,check:path,coached:path"
+  );
+  check("live source counts 2 lifetime, check counts 1", a.sources[0].lifetime.evidenceCount === 2 && a.sources[1].lifetime.evidenceCount === 1);
+  check("trend points carry ISO strings, last one ends at now", a.trend.length > 0 && a.trend[a.trend.length - 1].endsAt === NOW.toISOString());
+  check("windowChange carries the pre-window figure (25) and a delta", a.windowChange.startPercent === 25 && a.windowChange.delta !== null);
+  const repDriver = a.drivers.find((d) => d.href === "/practice/case-study/report/rep-1");
+  check("a resolved driver gets its href and activity label", repDriver?.activityLabel === "Case study session");
+  const checkDriver = a.drivers.find((d) => d.origin === "check");
+  check("an unresolved driver renders with href null and a fallback label", checkDriver?.href === null && checkDriver?.activityLabel === "Knowledge check");
+  check("recentGrowth names A with its label and drivers", dto.recentGrowth[0]?.competencyKey === KEY_A && dto.recentGrowth[0].label === a.label && dto.recentGrowth[0].drivers.length === a.drivers.length);
+  const unlinked = toMasteryDTO(result);
+  check("bite: without the link map, no driver has an href", unlinked.competencies.every((c) => c.drivers.every((d) => d.href === null)));
+  check("growth DTO survives a JSON round trip", JSON.stringify(JSON.parse(JSON.stringify(dto))) === JSON.stringify(dto));
+
+  const panelSource = readSource("components/mastery/MasteryPanel.tsx");
+  check('panel renders a "Recent movement" section', panelSource.includes("Recent movement") && panelSource.includes("mastery.recentGrowth"));
+  // Drops get a "Practice this" link to /paths, gated on a negative delta.
+  const practiceIssues = (src: string): string[] => {
+    const issues: string[] = [];
+    if (!src.includes("Practice this")) issues.push("no Practice this action");
+    if (!/href=\{`\/paths\?competency=\$\{encodeURIComponent\(entry\.competencyKey\)\}`\}/.test(src)) issues.push("no /paths?competency= link");
+    if (!/entry\.delta !== null && entry\.delta < 0 \? \(\s*<Link/.test(src)) issues.push("action not gated on a drop");
+    return issues;
+  };
+  check("drops get a 'Practice this' link to /paths?competency=<key>", practiceIssues(panelSource).length === 0, JSON.stringify(practiceIssues(panelSource)));
+  check(
+    "bite: removing the drop gate is caught",
+    practiceIssues(panelSource.replace("entry.delta !== null && entry.delta < 0 ? (", "true ? (")).length > 0
+  );
+  check("panel shows up AND down arrows (TrendingUp / TrendingDown)", panelSource.includes("TrendingUp") && panelSource.includes("TrendingDown"));
+  check('panel renders evidence sources ("Evidence from")', panelSource.includes("Evidence from") && panelSource.includes("competency.sources"));
+  check("panel renders a trend (Sparkline)", panelSource.includes("<Sparkline"));
+  check("panel renders level badges", panelSource.includes("LevelBadge"));
+  check("panel does not import the server link resolver", !panelSource.includes("activity-links") && !panelSource.includes("lib/prisma"));
+
+  // Page copy must name live practice, not only path learning.
+  const copyIssues = (src: string) => {
+    const issues: string[] = [];
+    if (/built from every coached session\s+and knowledge check you have completed/.test(src)) issues.push("old path-only copy");
+    if (!/live practice/i.test(src)) issues.push("does not mention live practice");
+    return issues;
+  };
+  const pageSource = readSource("app/mastery/page.tsx");
+  check("page copy names live practice sessions", copyIssues(pageSource).length === 0, JSON.stringify(copyIssues(pageSource)));
+  check(
+    "bite: the copy predicate FAILS on the old path-only sentence",
+    copyIssues("built from every coached session\n and knowledge check you have completed.").length === 2
+  );
+}
+
+// === Section 9: SINCE-PLAN ROUTE SHAPE =====================================
+console.log("\n9. SINCE-PLAN ROUTE SHAPE");
+{
+  const src = readSource("app/api/mastery/since-plan/route.ts");
+  check("since-plan exports GET only", /export\s+async\s+function\s+GET\b/.test(src) && !/export\s+async\s+function\s+(POST|PUT|PATCH|DELETE)\b/.test(src));
+  const scopeIssues = (s: string) => (/studyPlanPath\.findFirst\(\{\s*where:\s*\{\s*studyPlanId:\s*planId,\s*userId:\s*currentUser\.id/.test(s) ? [] : ["path lookup not scoped by userId"]);
+  check("plan lookup is scoped by the signed-in user", scopeIssues(src).length === 0);
+  check("bite: an unscoped lookup is caught", scopeIssues(src.replace(", userId: currentUser.id", "")).length > 0);
+  check("since-plan goes through toSincePlanDTO and growthSincePlan", src.includes("toSincePlanDTO") && src.includes("growthSincePlan") && src.includes("no-store"));
 }
 
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}`);

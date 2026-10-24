@@ -69,8 +69,9 @@ export default function MasteryPage() {
           Mastery
         </h1>
         <p className="mt-2 text-sm text-[#58727f]">
-          Your overall standing and a per-competency breakdown, built from every coached session
-          and knowledge check you have completed.
+          Your overall standing and a per-competency breakdown, built from every scored live practice
+          session (interviews, case studies, networking, pitches and difficult conversations) and
+          every knowledge check and coached session in your study plans.
         </p>
 
         <div className="mt-8">
