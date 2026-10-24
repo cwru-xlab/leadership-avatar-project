@@ -36,6 +36,22 @@
  * A itself — the common path (selecting from the closed library) never
  * touches the rejector at all, so the false-positive cost is paid only on
  * the rarer free-text path.
+ *
+ * MECHANISM C — the Phase 22 gated carve-out. 22-CONTEXT.md: "Can the coach
+ * give words to say — YES, but only after the student has tried. ... This is
+ * a gated carve-out in `lib/study-plan/coached/tips.ts`'s `assertTipSafe`,
+ * NOT its removal. The no-parroting guarantee stands for the first attempt —
+ * that is the whole reason the rule exists." So `assertTipSafe` accepts an
+ * optional `gate`; with none, it is exactly Mechanism B. With a DEMONSTRATION
+ * gate the attempt count is checked FIRST (before any content rule), at most
+ * MAX_DEMONSTRATIONS_PER_LEG is allowed per leg, and the quoted-speech,
+ * script-cue and first-person rules are waived, because a demonstration is
+ * by design words to say. The rail's promise ("these are not words to say")
+ * stays true because demonstrations never enter the rail: they are spoken
+ * by the coach, a different channel. `validateCoachSpeech` is the mechanical
+ * gate for every other coach utterance (no scripting, no voicing the other
+ * party), and `isParrotOf` detects a student attempt that merely repeats a
+ * demonstration.
  */
 import {
   COMPETENCIES,
@@ -332,21 +348,40 @@ function findFirstPersonLine(tip: string): string | null {
   return null;
 }
 
-/** Finds a 6+ word contiguous span shared between `tip` and `studentLine`. */
-function findEchoedSpan(tip: string, studentLine: string): string | null {
-  const tipWords = tip.toLowerCase().match(/[a-z0-9']+/g) ?? [];
-  const studentWords = studentLine.toLowerCase().match(/[a-z0-9']+/g) ?? [];
-  if (studentWords.length < 6) return null;
+/**
+ * THE one contiguous-span finder. Returns the longest span of at least
+ * `minWords` words from `source` that appears verbatim (case-insensitive)
+ * inside `haystack`, or null. Every threshold in this module (tip echo 6,
+ * demonstration echo 10, counterpart 6, parrot 8) goes through here.
+ */
+function findSharedSpan(
+  haystack: string,
+  source: string,
+  minWords: number,
+): string | null {
+  const words = source.toLowerCase().match(/[a-z0-9']+/g) ?? [];
+  if (words.length < minWords) return null;
+  const lowerHaystack = haystack.toLowerCase();
 
-  for (let len = studentWords.length; len >= 6; len--) {
-    for (let start = 0; start + len <= studentWords.length; start++) {
-      const span = studentWords.slice(start, start + len).join(" ");
-      if (tip.toLowerCase().includes(span)) {
+  for (let len = words.length; len >= minWords; len--) {
+    for (let start = 0; start + len <= words.length; start++) {
+      const span = words.slice(start, start + len).join(" ");
+      if (lowerHaystack.includes(span)) {
         return span;
       }
     }
   }
   return null;
+}
+
+/** Lowercased word tokens joined by single spaces: punctuation-insensitive. */
+function normalizeWords(s: string): string {
+  return (s.toLowerCase().match(/[a-z0-9']+/g) ?? []).join(" ");
+}
+
+/** Finds a 6+ word contiguous span shared between `tip` and `studentLine`. */
+function findEchoedSpan(tip: string, studentLine: string): string | null {
+  return findSharedSpan(tip, studentLine, 6);
 }
 
 /**
@@ -409,21 +444,225 @@ export function validateTip(
   return { ok: true };
 }
 
+export const MAX_DEMONSTRATIONS_PER_LEG = 1;
+/** PROVISIONAL UNTIL CALIBRATED — a demonstration is one better version of
+ * one line, not a speech. */
+export const MAX_DEMONSTRATION_LENGTH = 400;
+/** PROVISIONAL UNTIL CALIBRATED — a coach turn is a few sentences. */
+export const MAX_COACH_SPEECH_LENGTH = 700;
+
+export const DEMONSTRATION_REJECT_REASONS = [
+  "DEMONSTRATION_BEFORE_ATTEMPT",
+  "DEMONSTRATION_LIMIT",
+  "TOO_LONG",
+  "ECHOES_STUDENT_LINE",
+] as const;
+
+export const COACH_SPEECH_REJECT_REASONS = [
+  "CONTAINS_SCRIPT_CUE",
+  "CONTAINS_SCRIPTED_QUOTE",
+  "VOICES_COUNTERPART",
+  "TOO_LONG",
+] as const;
+
+export type TipGate = {
+  kind: "DEMONSTRATION";
+  attemptsInLeg: number;
+  demonstrationsInLeg: number;
+};
+
+export type DemonstrationValidation =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: (typeof DEMONSTRATION_REJECT_REASONS)[number];
+      detail: string;
+    };
+
+export type CoachSpeechValidation =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: (typeof COACH_SPEECH_REJECT_REASONS)[number];
+      detail: string;
+    };
+
+/**
+ * Gated demonstration check. The attempt count comes FIRST, before any
+ * content rule: a demonstration before the student has produced anything is
+ * the failure mode this whole module was written against.
+ */
+export function validateDemonstration(
+  text: string,
+  ctx: {
+    studentLine: string;
+    attemptsInLeg: number;
+    demonstrationsInLeg: number;
+  },
+): DemonstrationValidation {
+  if (ctx.attemptsInLeg < 1) {
+    return {
+      ok: false,
+      reason: "DEMONSTRATION_BEFORE_ATTEMPT",
+      detail: "the student has not yet attempted the rework in this leg",
+    };
+  }
+  if (ctx.demonstrationsInLeg >= MAX_DEMONSTRATIONS_PER_LEG) {
+    return {
+      ok: false,
+      reason: "DEMONSTRATION_LIMIT",
+      detail: `already ${ctx.demonstrationsInLeg} demonstration(s) in this leg (max ${MAX_DEMONSTRATIONS_PER_LEG})`,
+    };
+  }
+  if (text.length > MAX_DEMONSTRATION_LENGTH) {
+    return {
+      ok: false,
+      reason: "TOO_LONG",
+      detail: `length ${text.length} exceeds MAX_DEMONSTRATION_LENGTH (${MAX_DEMONSTRATION_LENGTH})`,
+    };
+  }
+  // 10 words, higher than the tip rule's 6: a better version of the line
+  // legitimately reuses some of the student's own words, so only a long
+  // verbatim run counts as an echo. Quoted speech, script cues and
+  // first-person sentences are WAIVED here by design.
+  const echoed = findSharedSpan(text, ctx.studentLine, 10);
+  if (echoed) {
+    return {
+      ok: false,
+      reason: "ECHOES_STUDENT_LINE",
+      detail: `echoes student line span: "${echoed}"`,
+    };
+  }
+  return { ok: true };
+}
+
 /**
  * Throwing form of `validateTip`, for any call site that renders a tip to
  * the student and must not proceed on rejection. The non-throwing form
  * (`validateTip`) is for a generator that wants to discard-and-retry.
+ *
+ * With no `gate` this is exactly the Mechanism B path. With a DEMONSTRATION
+ * gate it applies `validateDemonstration` instead.
  */
 export function assertTipSafe(
   tip: string,
-  context: { studentLine: string },
+  context: { studentLine: string; gate?: TipGate },
 ): void {
-  const result = validateTip(tip, context);
+  if (context.gate && context.gate.kind === "DEMONSTRATION") {
+    const result = validateDemonstration(tip, {
+      studentLine: context.studentLine,
+      attemptsInLeg: context.gate.attemptsInLeg,
+      demonstrationsInLeg: context.gate.demonstrationsInLeg,
+    });
+    if (!result.ok) {
+      throw new Error(
+        `assertTipSafe: demonstration rejected (${result.reason}): ${result.detail}`,
+      );
+    }
+    return;
+  }
+  const result = validateTip(tip, { studentLine: context.studentLine });
   if (!result.ok) {
     throw new Error(
       `assertTipSafe: tip rejected (${result.reason}): ${result.detail}`,
     );
   }
+}
+
+/** Double- or curly-double-quoted spans, plus single-quoted spans only when
+ * the quotes sit at word edges (so apostrophes in "I'd" are not quotes). */
+const COACH_QUOTE_RE =
+  /["“]([^"”]+)["”]|(?:^|[\s(])'([^']+)'(?=[\s.,;:!?)]|$)/g;
+
+/**
+ * Mechanical gate for every coach utterance. Quoting the student's own words
+ * back is coaching; quoting new words is scripting. The first-person rule
+ * does not apply: the coach speaks as "I".
+ */
+export function validateCoachSpeech(
+  speech: string,
+  ctx: {
+    studentLine: string;
+    counterpartLine: string | null;
+    studentAttempts: readonly string[];
+  },
+): CoachSpeechValidation {
+  const cue = containsScriptCue(speech);
+  if (cue) {
+    return {
+      ok: false,
+      reason: "CONTAINS_SCRIPT_CUE",
+      detail: `matched script-cue phrase: "${cue}"`,
+    };
+  }
+
+  const known = [ctx.studentLine, ...ctx.studentAttempts].map(normalizeWords);
+  COACH_QUOTE_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = COACH_QUOTE_RE.exec(speech)) !== null) {
+    const quoted = m[1] ?? m[2] ?? "";
+    if (wordCount(quoted) >= 4) {
+      const norm = normalizeWords(quoted);
+      if (!known.some((k) => k.includes(norm))) {
+        return {
+          ok: false,
+          reason: "CONTAINS_SCRIPTED_QUOTE",
+          detail: `quoted words not from the student: "${quoted}"`,
+        };
+      }
+    }
+  }
+
+  if (ctx.counterpartLine) {
+    const voiced = findSharedSpan(
+      normalizeWords(speech),
+      ctx.counterpartLine,
+      6,
+    );
+    if (voiced) {
+      return {
+        ok: false,
+        reason: "VOICES_COUNTERPART",
+        detail: `voices the other party's words: "${voiced}"`,
+      };
+    }
+  }
+
+  if (speech.length > MAX_COACH_SPEECH_LENGTH) {
+    return {
+      ok: false,
+      reason: "TOO_LONG",
+      detail: `length ${speech.length} exceeds MAX_COACH_SPEECH_LENGTH (${MAX_COACH_SPEECH_LENGTH})`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * True when a student attempt merely repeats the coach's demonstration:
+ * a contiguous 8+ word shared span, OR 70%+ of the demonstration's tokens
+ * present in an attempt no longer than 1.3x the demonstration.
+ *
+ * PROVISIONAL UNTIL CALIBRATED. FALSE-POSITIVE RISK, documented honestly: a
+ * student who legitimately lands on the same key nouns in a similarly short
+ * line will occasionally be flagged. That tradeoff is chosen DELIBERATELY,
+ * as in the tip rejector: a flagged honest attempt costs one more try; an
+ * unflagged parrot would let the coach's words score as the student's.
+ */
+export function isParrotOf(attempt: string, demonstration: string): boolean {
+  const attemptNorm = normalizeWords(attempt);
+  const demoTokens = normalizeWords(demonstration).split(" ").filter(Boolean);
+  const attemptTokens = attemptNorm.split(" ").filter(Boolean);
+  if (demoTokens.length === 0 || attemptTokens.length === 0) return false;
+
+  if (findSharedSpan(attemptNorm, demonstration, 8)) return true;
+
+  const attemptSet = new Set(attemptTokens);
+  const hits = demoTokens.filter((t) => attemptSet.has(t)).length;
+  return (
+    hits / demoTokens.length >= 0.7 &&
+    attemptTokens.length <= demoTokens.length * 1.3
+  );
 }
 
 // Reference COMPETENCIES so a future competency added to the catalog with
