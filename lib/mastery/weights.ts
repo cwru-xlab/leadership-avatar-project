@@ -32,6 +32,13 @@ export const CONTRIBUTION_SOURCES = [
 export type ContributionSource = (typeof CONTRIBUTION_SOURCES)[number];
 
 /**
+ * The model-graded evidence class weight. Both `CHECK_MODEL_GRADED` and
+ * `COACHED_SESSION` are bound to THIS constant (22-CONTEXT.md "Scoring"), so
+ * the two can never drift apart. PROVISIONAL UNTIL CALIBRATED.
+ */
+const MODEL_GRADED_WEIGHT = 0.2;
+
+/**
  * CONTRIBUTION_WEIGHTS — PROVISIONAL UNTIL CALIBRATED.
  *
  * These four numbers are Claude's Discretion per 21-CONTEXT.md; the ORDERING
@@ -48,13 +55,15 @@ export type ContributionSource = (typeof CONTRIBUTION_SOURCES)[number];
  *     (multiple choice, fill in the blank, pick the better response) is real
  *     evidence but narrow recall against one moment — under half of what a
  *     whole session is worth.
- *   - COACHED_SESSION (0.40): a coached session is a whole session's worth of
- *     speaking, but scaffolded — the coach names the skill being practiced
- *     before the student practices it. It sits just below the deterministic
- *     check rather than near a live session, because the scaffolding
- *     removed is exactly what an unaided session is testing the student
- *     without.
- *   - CHECK_MODEL_GRADED (0.20): a model-graded rewrite (REQ-111's "rewrite a
+ *   - COACHED_SESSION (= MODEL_GRADED_WEIGHT, 0.20): Phase 22 - a coached
+ *     session has no scored conversation; its evidence is a model's judgement
+ *     of the student's reworked line against the competency. That is the same
+ *     evidential class as a rewrite check, so it is bound to the same
+ *     constant (22-CONTEXT.md "Scoring": "recorded at the lower model-graded
+ *     weight - the same class as a rewrite knowledge check", never the
+ *     deterministic weight). Pre-Phase-22 rows keep their snapshotted 0.40:
+ *     weights are snapshotted at write time and history is not rewritten.
+ *   - CHECK_MODEL_GRADED (MODEL_GRADED_WEIGHT, 0.20): a model-graded rewrite (REQ-111's "rewrite a
  *     weak line" format) is the weakest evidence here because its grade is
  *     itself a judgement call, not a deterministic check against a known
  *     answer — it earns the floor.
@@ -62,8 +71,8 @@ export type ContributionSource = (typeof CONTRIBUTION_SOURCES)[number];
 export const CONTRIBUTION_WEIGHTS: Record<ContributionSource, number> = {
   LIVE_SESSION: 1.0,
   CHECK_DETERMINISTIC: 0.45,
-  COACHED_SESSION: 0.4,
-  CHECK_MODEL_GRADED: 0.2,
+  COACHED_SESSION: MODEL_GRADED_WEIGHT,
+  CHECK_MODEL_GRADED: MODEL_GRADED_WEIGHT,
 };
 
 /**
@@ -89,6 +98,28 @@ export const WEIGHT_ORDERING_CONSTRAINTS: ReadonlyArray<{
     lesser: "COACHED_SESSION",
     locked_by:
       "coached sessions DO move mastery, weighted below unaided practice",
+  },
+  {
+    greater: "CHECK_DETERMINISTIC",
+    lesser: "COACHED_SESSION",
+    locked_by: "never the deterministic weight",
+  },
+];
+
+/**
+ * Equality bindings (Phase 22): a source that must carry exactly the same
+ * weight as another. Checked with `===` by scripts/verify-mastery-weights.ts.
+ */
+export const WEIGHT_CLASS_BINDINGS: ReadonlyArray<{
+  source: ContributionSource;
+  sameClassAs: ContributionSource;
+  locked_by: string;
+}> = [
+  {
+    source: "COACHED_SESSION",
+    sameClassAs: "CHECK_MODEL_GRADED",
+    locked_by:
+      "recorded at the lower model-graded weight \u2014 the same class as a rewrite knowledge check, never the deterministic weight",
   },
 ];
 

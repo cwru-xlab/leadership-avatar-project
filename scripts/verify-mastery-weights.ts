@@ -13,6 +13,7 @@ import {
   CONTRIBUTION_SOURCES,
   CONTRIBUTION_WEIGHTS,
   WEIGHT_ORDERING_CONSTRAINTS,
+  WEIGHT_CLASS_BINDINGS,
   weightForSource,
   normalizeRubricScore,
   type ContributionSource,
@@ -226,6 +227,41 @@ console.log("\n8. Provisional-number discipline recorded");
   check(
     'weights.ts contains "PROVISIONAL UNTIL CALIBRATED"',
     weightsSource.includes("PROVISIONAL UNTIL CALIBRATED")
+  );
+}
+
+console.log("\n9. Weight-class bindings hold (===), with a bite-proof");
+{
+  const bindingViolations = (weights: Record<ContributionSource, number>) =>
+    WEIGHT_CLASS_BINDINGS.filter(
+      (b) => weights[b.source] !== weights[b.sameClassAs]
+    ).map((b) => ({ source: b.source, sameClassAs: b.sameClassAs }));
+
+  check(
+    `all ${WEIGHT_CLASS_BINDINGS.length} bindings hold with === on the real table`,
+    bindingViolations(CONTRIBUTION_WEIGHTS).length === 0,
+    JSON.stringify(bindingViolations(CONTRIBUTION_WEIGHTS))
+  );
+  check(
+    "COACHED_SESSION is bound to CHECK_MODEL_GRADED",
+    WEIGHT_CLASS_BINDINGS.some(
+      (b) => b.source === "COACHED_SESSION" && b.sameClassAs === "CHECK_MODEL_GRADED"
+    ) && CONTRIBUTION_WEIGHTS.COACHED_SESSION === CONTRIBUTION_WEIGHTS.CHECK_MODEL_GRADED
+  );
+
+  const deterministicNumber: Record<ContributionSource, number> = {
+    ...CONTRIBUTION_WEIGHTS,
+    COACHED_SESSION: 0.45,
+  };
+  check(
+    "bite-proof: COACHED_SESSION=0.45 violates the binding",
+    bindingViolations(deterministicNumber).length > 0
+  );
+  check(
+    "bite-proof: COACHED_SESSION=0.45 violates the CHECK_DETERMINISTIC > COACHED_SESSION ordering",
+    violations(deterministicNumber).some(
+      (v) => v.greater === "CHECK_DETERMINISTIC" && v.lesser === "COACHED_SESSION"
+    )
   );
 }
 

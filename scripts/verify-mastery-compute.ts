@@ -48,6 +48,7 @@ function mkRow(overrides: Partial<MasteryContributionRow>): MasteryContributionR
     weight: 1.0,
     sourceReportId: null,
     sourceAttemptId: null,
+    sourceCoachedSessionId: null,
     reversedAt: null,
     reversedReason: null,
     occurredAt: NOW,
