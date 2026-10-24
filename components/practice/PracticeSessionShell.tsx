@@ -396,6 +396,8 @@ function PracticeInterviewRoom({
   const [input, setInput] = useState("");
   const [streamingText, setStreamingText] = useState("");
   const [partialTranscript, setPartialTranscript] = useState("");
+  const [isAwaitingResponse, setIsAwaitingResponse] = useState(false);
+  const [responseWaitSeconds, setResponseWaitSeconds] = useState(0);
   const [sending, setSending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   /** Mirrors `isRecording` for readers that run outside React's render cycle
@@ -675,6 +677,25 @@ function PracticeInterviewRoom({
     return () => window.clearInterval(interval);
   }, [isPaused, avatarReady]);
 
+  // Begins immediately after a valid answer is submitted and clears when the
+  // completed response renders, as well as on every stream completion/error
+  // path. An elapsed time communicates that work is still in progress without
+  // implying a response-time estimate.
+  useEffect(() => {
+    if (!isAwaitingResponse) {
+      setResponseWaitSeconds(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    setResponseWaitSeconds(0);
+    const interval = window.setInterval(() => {
+      setResponseWaitSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1_000);
+
+    return () => window.clearInterval(interval);
+  }, [isAwaitingResponse]);
+
   // Keeps the visual engine's conversational window locked to the recorder.
   //
   // Deliberately an effect on `isRecording` rather than a call beside each
@@ -728,6 +749,7 @@ function PracticeInterviewRoom({
       setInput("");
       setSending(true);
       setStreamingText("");
+      setIsAwaitingResponse(true);
 
       try {
         const response = await fetch("/api/interaction/chat", {
@@ -838,6 +860,10 @@ function PracticeInterviewRoom({
           walkOutProofRef.current = walkOutMetadata.walkOutProof;
         }
         appendMessage({ role: "assistant", content: parsedTurn.cleanedText });
+        // This shell buffers transport streaming until the clean, marker-free
+        // response can render. Clear the wait indicator at that visible handoff,
+        // rather than at the first byte the learner cannot yet see.
+        setIsAwaitingResponse(false);
         const nextProgress = parsedTurn.progress ?? progress;
         setProgress(nextProgress);
         checkpoint(nextProgress);
@@ -929,6 +955,7 @@ function PracticeInterviewRoom({
         });
       } finally {
         setStreamingText("");
+        setIsAwaitingResponse(false);
         setSending(false);
       }
     },
@@ -1665,6 +1692,16 @@ function PracticeInterviewRoom({
               </article>
             )}
           </div>
+          {isAwaitingResponse && !isPaused ? (
+            <div
+              role="status"
+              className="flex items-center gap-2 pb-4 text-sm text-[#b9d5e4]"
+            >
+              <Spinner color="primary" size="sm" aria-hidden="true" />
+              <span>Waiting for a response</span>
+              <span aria-hidden="true">· {formatElapsed(responseWaitSeconds)}</span>
+            </div>
+          ) : null}
         </div>
 
         <div className="border-t border-white/10 bg-[#091925] px-5 py-5 sm:px-8">
