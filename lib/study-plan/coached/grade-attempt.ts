@@ -12,10 +12,19 @@
  * never repaired or clamped.
  *
  * PROVISIONAL UNTIL CALIBRATED: COACHED_ACCEPTABLE_SCORE.
+ *
+ * Phase 23 L6 (grading validity): an attempt must answer THIS moment's
+ * prompt. In a real run the student replayed their moment-1 answer for an
+ * unrelated moment-2 prompt and it was graded 5/5. The grader now returns
+ * `onTopic`; an off-topic answer is never acceptable and its score is capped
+ * at OFF_TOPIC_MAX_SCORE. This is a policy cap on a VALID response, not a
+ * repair of a malformed one. (Verbatim reuse of another leg's words is caught
+ * deterministically in coach.ts before the grader is called.)
  */
 
 export const COACHED_ACCEPTABLE_SCORE = 4; // PROVISIONAL UNTIL CALIBRATED
 export const MAX_GRADE_ATTEMPTS = 3; // first call + two retries
+export const OFF_TOPIC_MAX_SCORE = 1;
 const MAX_RATIONALE_LENGTH = 300;
 
 export interface GradeAttemptInput {
@@ -26,12 +35,19 @@ export interface GradeAttemptInput {
   attempt: string;
   spokenDurationMs: number;
   demonstration: string | null;
+  /**
+   * Phase 23 L6: what the student already said for the OTHER moment (a
+   * different question). Retelling that story here is recycling, off-topic.
+   */
+  otherMomentAnswers?: string[];
 }
 
 export interface CoachedAttemptGrade {
   score: number;
   acceptable: boolean;
   rationale: string;
+  /** False when the attempt does not answer this moment's prompt. */
+  onTopic: boolean;
 }
 
 /** Returns the raw (unvalidated) model JSON. Injectable for the battery. */
@@ -43,8 +59,9 @@ const GRADE_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["score", "acceptable", "rationale"],
+    required: ["onTopic", "score", "acceptable", "rationale"],
     properties: {
+      onTopic: { type: "boolean" },
       score: { type: "integer", description: "1 (not shown) to 5 (fully shown)" },
       acceptable: { type: "boolean" },
       rationale: { type: "string" },
@@ -69,7 +86,15 @@ async function defaultGrader(args: GradeAttemptInput): Promise<unknown> {
 
   const system =
     "You grade ONE spoken attempt by a student to rework a line from their own " +
-    "leadership conversation. Judge ONLY the single competency given, using the " +
+    "leadership conversation. FIRST decide onTopic: does the attempt answer the same " +
+    "question the original line answered (questionTheyWereAnswering) and stay on the same " +
+    "situation as the original line? An answer about a different situation, project, story " +
+    "or question is off-topic however well it is delivered: then onTopic=false, score=1, " +
+    "acceptable=false, and the rationale says it does not answer this question. " +
+    "otherMomentAnswers (if any) are what the student said for a DIFFERENT question earlier; " +
+    "an attempt that retells the same story or situation as one of them, even reworded, is " +
+    "recycled and off-topic. " +
+    "Otherwise judge ONLY the single competency given, using the " +
     "rubric dimensions as what good looks like. Score 1 (not shown at all) to 5 " +
     "(fully shown). Set acceptable=true only if the attempt genuinely shows the " +
     "competency. Do not reward length, polish or vocabulary unrelated to the " +
@@ -79,9 +104,12 @@ async function defaultGrader(args: GradeAttemptInput): Promise<unknown> {
     competency: args.competency,
     rubricDimensions: args.rubricDimensions,
     originalLine: args.originalLine,
-    context: args.counterpartLine,
+    questionTheyWereAnswering: args.counterpartLine,
     attempt: args.attempt,
   };
+  if (args.otherMomentAnswers && args.otherMomentAnswers.length > 0) {
+    payload.otherMomentAnswers = args.otherMomentAnswers;
+  }
   if (args.competency.key === "delivery_presence") {
     payload.wordsPerMinute = wordsPerMinute(args.attempt, args.spokenDurationMs);
     payload.spokenDurationMs = args.spokenDurationMs;
@@ -108,6 +136,8 @@ function validate(raw: unknown): CoachedAttemptGrade | string {
     return "score must be an integer 1..5";
   }
   if (typeof r.acceptable !== "boolean") return "acceptable must be boolean";
+  // Required from the model (strict schema); an injected stub may omit it.
+  if (r.onTopic !== undefined && typeof r.onTopic !== "boolean") return "onTopic must be boolean";
   if (
     typeof r.rationale !== "string" ||
     r.rationale.trim().length < 1 ||
@@ -115,7 +145,7 @@ function validate(raw: unknown): CoachedAttemptGrade | string {
   ) {
     return `rationale must be 1..${MAX_RATIONALE_LENGTH} chars`;
   }
-  return { score: r.score, acceptable: r.acceptable, rationale: r.rationale.trim() };
+  return { score: r.score, acceptable: r.acceptable, rationale: r.rationale.trim(), onTopic: r.onTopic !== false };
 }
 
 export async function gradeCoachedAttempt(
@@ -137,11 +167,15 @@ export async function gradeCoachedAttempt(
       lastProblem = v;
       continue;
     }
+    if (!v.onTopic) {
+      return { score: Math.min(v.score, OFF_TOPIC_MAX_SCORE), acceptable: false, rationale: v.rationale, onTopic: false };
+    }
     return {
       score: v.score,
       // Both must agree.
       acceptable: v.acceptable && v.score >= COACHED_ACCEPTABLE_SCORE,
       rationale: v.rationale,
+      onTopic: true,
     };
   }
   throw new Error(`gradeCoachedAttempt: grader failed after ${MAX_GRADE_ATTEMPTS} attempts (${lastProblem})`);

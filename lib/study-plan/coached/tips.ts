@@ -267,6 +267,37 @@ export function techniquesForCompetency(
   return TECHNIQUE_LIBRARY.filter((t) => t.competencyKey === key);
 }
 
+function lowerFirst(s: string): string {
+  return s.length ? s[0].toLowerCase() + s.slice(1) : s;
+}
+
+/**
+ * The ONE spoken sentence that names a technique before the coach invites an
+ * attempt (Phase 23 L2), e.g. "Try headline first: lead with your conclusion,
+ * then give at most two supports." It is composed from the library entry's
+ * own name and reminder, so it names the skill and never scripts the words;
+ * `scripts/verify-coach-tips.ts` proves every library entry's line passes
+ * `assertTipSafe`, and `coach.ts` re-runs the gate on every line it speaks.
+ */
+export function techniqueLine(t: Pick<Technique, "name" | "reminder">): string {
+  return `Try ${lowerFirst(t.name)}: ${lowerFirst(t.reminder)}`;
+}
+
+/**
+ * True when an utterance merely repeats a technique reminder (or its spoken
+ * line) back instead of answering. Uses `isParrotOf`, so a full answer that
+ * happens to apply the technique is not flagged: the 70%-token rule only
+ * fires on an utterance about as short as the reminder itself.
+ */
+export function isTechniqueParrot(
+  utterance: string,
+  techniques: ReadonlyArray<Pick<Technique, "name" | "reminder">>,
+): boolean {
+  return techniques.some(
+    (t) => isParrotOf(utterance, t.reminder) || isParrotOf(utterance, techniqueLine(t)),
+  );
+}
+
 /** PROVISIONAL UNTIL CALIBRATED — a technique reminder is a sentence; a
  * paragraph is either a script or a lecture, and length is the cheapest
  * reliable proxy for which one it is. */
@@ -669,3 +700,19 @@ export function isParrotOf(attempt: string, demonstration: string): boolean {
 // no library coverage is caught at review time, not only by the verifier's
 // runtime assertion.
 void COMPETENCIES;
+
+/** PROVISIONAL UNTIL CALIBRATED — a 10-word verbatim run is reuse, not coincidence. */
+export const RECYCLE_SPAN_WORDS = 10;
+
+/**
+ * Phase 23 L6: true when an attempt reuses, verbatim, the student's own words
+ * from ANOTHER leg (a different moment, a different prompt): a contiguous
+ * RECYCLE_SPAN_WORDS-word span shared with any of `earlier`. Deterministic,
+ * never a model call. A recycled answer does not answer this moment's prompt,
+ * so `coach.ts` forces it unacceptable and scores it 1. Reuse WITHIN a leg is
+ * expected (each try builds on the last) and is not checked here.
+ */
+export function isRecycledFrom(attempt: string, earlier: readonly string[]): boolean {
+  const attemptNorm = normalizeWords(attempt);
+  return earlier.some((e) => findSharedSpan(attemptNorm, normalizeWords(e), RECYCLE_SPAN_WORDS) !== null);
+}
