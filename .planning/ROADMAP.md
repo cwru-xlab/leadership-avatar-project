@@ -1265,7 +1265,28 @@ this one:
   against 72 — recorded in `3893c39`, why every competency reads NONE)
 - Sidebar tabs and breakout views for study plans and paths
 
-**Plans:** 0 plans
+**Requirements:** REQ-113, REQ-114, REQ-115 (REQ-116's mechanism revised — coach-graded at the model-graded weight class; see 22-COACH-LAYER-DECISION.md)
+
+**Placement note:** 22-CONTEXT.md overrides item 1's "under `lib/engine/`" — the coach
+layer is built in `lib/study-plan/coached/`, where 21-COACHED-ENGINE-DECISION.md already
+put it; nothing under `lib/engine/` or `components/practice/` changes in this phase.
+
+**Plans:** 16 plans in 8 waves
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 22 to break down)
+- [ ] 22-01-PLAN.md — Decision records (coach layer, avatar mount) + REQ-114/115/116 amendments
+- [ ] 22-02-PLAN.md — Schema + hand-authored migration (human applies, REQ-74)
+- [ ] 22-03-PLAN.md — TDD: pleasantry filter + deterministic two-moment ranking
+- [ ] 22-04-PLAN.md — next-step.ts contradiction fix: coached steps require scored evidence
+- [ ] 22-05-PLAN.md — TDD: gated demonstration carve-out in assertTipSafe + coach speech gate
+- [ ] 22-06-PLAN.md — Second avatar mount + push-to-talk hook (components/practice/ untouched)
+- [ ] 22-07-PLAN.md — Per-turn competency scorer (cached) + moment selection + path placement guard on the same predicate
+- [ ] 22-08-PLAN.md — Coach identity + coach persona prompt + containment guard
+- [ ] 22-09-PLAN.md — Coach-graded contribution at the model-graded weight class
+- [ ] 22-10-PLAN.md — Coach turn orchestration: grade, gate, retry, persist
+- [ ] 22-11-PLAN.md — Settings coach picker with default
+- [ ] 22-12-PLAN.md — instance/runtime rebuild: two real moments, coach-closed legs, no engine session
+- [ ] 22-13-PLAN.md — Coached route turn/advance/complete + end-to-end battery
+- [ ] 22-14-PLAN.md — Shell state/flow: brief + consent, guarded opening, coach-closed legs, vendor degradation, scroll
+- [ ] 22-15-PLAN.md — Shell session layout: video coach + PTT, verbatim moment, demonstration card; surface battery
+- [ ] 22-16-PLAN.md — Validation battery + human browser UAT gate
