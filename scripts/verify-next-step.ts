@@ -17,6 +17,7 @@ import {
   reasonForDegradedCheckToDrill,
   TIE_BREAK_ORDER,
   MAX_DRILLS_PER_TARGET,
+  WEAK_THRESHOLD_PERCENT,
   type StepSelection,
 } from "../lib/study-plan/next-step";
 import { coachedEvidenceFromReports } from "../lib/study-plan/coached/evidence";
@@ -980,6 +981,66 @@ console.log("\n17. plan-targets helpers");
     "planEvidenceFromReports: mean 50%, lowest 0%, 3 reports",
     ev.meanPercent === 50 && ev.lowestPercent === 0 && ev.scoredReportCount === 3,
     JSON.stringify(ev)
+  );
+}
+
+console.log("\n18. WEAK THRESHOLD (user decision: weak only below 70%)");
+{
+  check("WEAK_THRESHOLD_PERCENT is 70", WEAK_THRESHOLD_PERCENT === 70);
+  const outcome: CompetencyKey = "outcome_achievement";
+  const mastery = resultWith(ALL_KEYS.map((k) => (k === outcome ? blank(k) : established(k, 65))));
+  const planEvidence = new Map<CompetencyKey, { meanPercent: number; scoredReportCount: number }>([
+    ["structure_and_clarity", { meanPercent: 75, scoredReportCount: 10 }], // strong
+    ["audience_attunement", { meanPercent: 70, scoredReportCount: 10 }], // boundary: strong
+    ["delivery_presence", { meanPercent: 69, scoredReportCount: 7 }], // weak
+  ]);
+  const themeMatches = new Map([
+    ["credibility_of_the_case" as CompetencyKey, { priority: 1, theme: "Quantifying impact" }],
+    ["structure_and_clarity" as CompetencyKey, { priority: 2, theme: "Organization of Responses" }],
+  ]);
+  const sel = selectPathSteps({ mastery, desiredCount: 10, coachedEvidence: new Map(), planEvidence, themeMatches });
+  const basis = (k: CompetencyKey) => sel.ranking.find((r) => r.competencyKey === k)!;
+  check("69% is weak (SCORED) and ranks #1", basis("delivery_presence").basis === "SCORED" && sel.ranking[0].competencyKey === "delivery_presence");
+  check("70% (boundary) is STRONG", basis("audience_attunement").basis === "STRONG");
+  check("a themed skill scored >= 70% is STRONG, not THEME", basis("structure_and_clarity").basis === "STRONG");
+  const rankOf = (k: CompetencyKey) => basis(k).rank;
+  check(
+    "STRONG plan skills rank below the theme-only skill and below every global gap",
+    rankOf("structure_and_clarity") > rankOf("credibility_of_the_case") &&
+      sel.ranking.filter((r) => r.basis === "GLOBAL").every((g) => g.rank < rankOf("audience_attunement")),
+    JSON.stringify(sel.ranking.map((r) => `${r.rank}:${r.basis}/${r.competencyKey}`))
+  );
+  check(
+    "targets: weak plan skill, then the theme, then the absent global gap",
+    JSON.stringify(sel.targets) === JSON.stringify(["delivery_presence", "credibility_of_the_case", outcome]),
+    JSON.stringify(sel.targets)
+  );
+  check(
+    "the never-measured gap's reason says it is absent",
+    basis(outcome).reason.includes("never been measured") && basis(outcome).reason.includes("absent gap"),
+    basis(outcome).reason
+  );
+  check("the weak reason names the 70% line", basis("delivery_presence").reason.includes("below the 70% weak-skill line"));
+  check("the strong reason says it ranks after weak skills, themes and gaps", basis("structure_and_clarity").reason.includes("at or above the 70% weak-skill line"));
+  check(
+    "theme wording is honest ('related to your plan theme'), never 'matches'",
+    basis("credibility_of_the_case").reason.includes('related to your plan theme "Quantifying impact"') &&
+      sel.ranking.every((r) => !r.reason.includes("matches the plan's priority theme"))
+  );
+  // BITE-PROOF: without the threshold (same skills at weak means) the 75%
+  // skill would be targeted; the guard must flag that.
+  const thresholdIssue = (x: StepSelection) =>
+    x.targets.some((t) => (planEvidence.get(t)?.meanPercent ?? 0) >= WEAK_THRESHOLD_PERCENT) ? ["a >=70% plan skill was targeted"] : [];
+  const noThreshold = selectPathSteps({
+    mastery,
+    desiredCount: 10,
+    coachedEvidence: new Map(),
+    planEvidence: new Map([...planEvidence].map(([k, v]) => [k, { ...v, meanPercent: v.meanPercent - 50 }] as const)),
+    themeMatches,
+  });
+  check(
+    "bite-proof: the threshold guard FLAGS a selection that targets >=70% skills",
+    thresholdIssue(noThreshold).length === 1 && thresholdIssue(sel).length === 0
   );
 }
 

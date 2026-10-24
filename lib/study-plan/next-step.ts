@@ -8,16 +8,21 @@
  *
  * PHASE 23 (23-CONTEXT.md "Path design decisions", user, 2026-10-24):
  *
- * TARGETING — plan-first. The ranking has three ordered groups:
- *   1. SCORED: competencies the plan's OWN source sessions scored
- *      (`planEvidence`), weakest mean first. Ties: a competency that also
- *      matches a priority theme first (best theme priority), then the global
- *      comparator below.
- *   2. THEME: competencies matched ONLY by the plan's priority themes
- *      (`themeMatches`), best theme priority first, then the global
- *      comparator.
- *   3. GLOBAL: everything else (including never-measured competencies),
- *      by the global comparator. These only fill remaining slots.
+ * TARGETING — plan-first. The ranking has four ordered groups:
+ *   1. SCORED (weak): competencies the plan's OWN source sessions scored
+ *      BELOW `WEAK_THRESHOLD_PERCENT` on average (`planEvidence`), weakest
+ *      mean first. Ties: a competency related to a priority theme first (best
+ *      theme priority), then the global comparator below.
+ *   2. THEME: competencies related ONLY to the plan's priority themes
+ *      (`themeMatches`) and not scored by its sessions, best theme priority
+ *      first, then the global comparator.
+ *   3. GLOBAL: competencies the plan does not speak to, by the global
+ *      comparator. A never-measured competency is an "absent" gap and ranks
+ *      first here (NONE tier).
+ *   4. STRONG: competencies the plan's sessions scored AT OR ABOVE the
+ *      threshold, weakest mean first. User decision (2026-10-24): "only plan
+ *      skills below 70% (average) count as weak targets. Plan skills at or
+ *      above 70% rank BELOW plan themes and global gaps."
  *   With no plan signal at all, the ranking is exactly the global one.
  *
  * GLOBAL COMPARATOR (`compareCompetencies`, unchanged from Phase 21): a
@@ -69,12 +74,16 @@ export const TIE_BREAK_ORDER: readonly CompetencyKey[] = COMPETENCIES.slice()
   .sort((a, b) => a.order - b.order)
   .map((c) => c.key);
 
+/** User decision (2026-10-24): a plan skill is WEAK only below this average
+ * percent; at or above it, it ranks after themes and global gaps. */
+export const WEAK_THRESHOLD_PERCENT = 70;
+
 /** How many weak skills a path targets (23-CONTEXT.md: "typically the top 2-3"). */
 export const MAX_TARGETS = 3;
 /** Drills per target (23-CONTEXT.md: "1-2 VOICE_DRILL steps"). */
 export const MAX_DRILLS_PER_TARGET = 2;
 
-export type TargetBasis = "SCORED" | "THEME" | "GLOBAL";
+export type TargetBasis = "SCORED" | "THEME" | "GLOBAL" | "STRONG";
 
 export interface RankingEntry {
   competencyKey: CompetencyKey;
@@ -162,7 +171,7 @@ function plural(n: number, one: string, many: string): string {
 function globalFigureSentence(ranked: RankedCompetency): string {
   const label = labelFor(ranked.competencyKey);
   if (ranked.tier === "NONE") {
-    return `${label} has no scored evidence yet in your overall mastery.`;
+    return `${label} has no scored evidence yet: it has never been measured, so it counts as an absent gap in your overall mastery.`;
   }
   const figure = ranked.currentPercent ?? ranked.lifetimePercent;
   const figureKind = ranked.currentPercent !== null ? "current" : "lifetime";
@@ -180,12 +189,16 @@ function baseReasonFor(
   if (entry.basis === "SCORED") {
     const n = entry.planScoredReportCount ?? 0;
     const themeClause = entry.theme
-      ? `, and it matches the plan's priority theme "${entry.theme}"`
+      ? `, and it is related to your plan theme "${entry.theme}"`
       : "";
-    return `${label} is ${targetPhrase}: the ${n} ${plural(n, "session", "sessions")} this plan was built from scored it ${entry.planMeanPercent}% on average${themeClause}.`;
+    return `${label} is ${targetPhrase}: the ${n} ${plural(n, "session", "sessions")} this plan was built from scored it ${entry.planMeanPercent}% on average, below the ${WEAK_THRESHOLD_PERCENT}% weak-skill line${themeClause}.`;
   }
   if (entry.basis === "THEME") {
-    return `${label} is ${targetPhrase}: it matches the plan's priority theme "${entry.theme}", though the sessions this plan was built from did not score it directly.`;
+    return `${label} is ${targetPhrase}: it is related to your plan theme "${entry.theme}", though the sessions this plan was built from did not score it directly.`;
+  }
+  if (entry.basis === "STRONG") {
+    const n = entry.planScoredReportCount ?? 0;
+    return `${label} is already at ${entry.planMeanPercent}% on average across the ${n} ${plural(n, "session", "sessions")} this plan was built from, at or above the ${WEAK_THRESHOLD_PERCENT}% weak-skill line, so it ranks after the plan's weak skills, themes and gaps.`;
   }
   return `${globalFigureSentence(ranked)} It is not one of this plan's own weak skills, so it fills a remaining slot.`;
 }
@@ -297,19 +310,18 @@ export function selectPathSteps(args: {
     }),
   }));
 
-  const basisOf = (c: RankedCompetency): TargetBasis =>
-    planEvidence.has(c.competencyKey)
-      ? "SCORED"
-      : themeMatches.has(c.competencyKey)
-        ? "THEME"
-        : "GLOBAL";
-  const GROUP_RANK: Record<TargetBasis, number> = { SCORED: 0, THEME: 1, GLOBAL: 2 };
+  const basisOf = (c: RankedCompetency): TargetBasis => {
+    const ev = planEvidence.get(c.competencyKey);
+    if (ev) return ev.meanPercent < WEAK_THRESHOLD_PERCENT ? "SCORED" : "STRONG";
+    return themeMatches.has(c.competencyKey) ? "THEME" : "GLOBAL";
+  };
+  const GROUP_RANK: Record<TargetBasis, number> = { SCORED: 0, THEME: 1, GLOBAL: 2, STRONG: 3 };
 
   const sorted = candidates.slice().sort((a, b) => {
     const ga = basisOf(a);
     const gb = basisOf(b);
     if (ga !== gb) return GROUP_RANK[ga] - GROUP_RANK[gb];
-    if (ga === "SCORED") {
+    if (ga === "SCORED" || ga === "STRONG") {
       const ma = planEvidence.get(a.competencyKey)!.meanPercent;
       const mb = planEvidence.get(b.competencyKey)!.meanPercent;
       if (ma !== mb) return ma - mb;
