@@ -2452,9 +2452,9 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-21T05:23:43.000Z
-**Stopped At:** Completed 21-19-PLAN.md
-**Resume File:** None
+**Last Date:** 2026-10-24T00:15:24.860Z
+**Stopped At:** Phase 22 context gathered
+**Resume File:** .planning/phases/22-coached-mode/22-CONTEXT.md
 
 
 ## Accumulated Context
@@ -2468,6 +2468,30 @@ Open items carried into Phase 11+:
 | 005 | Per-plan interview selection for study plans — let a student choose which completed interviews feed a plan, within a declared cap, making the 50-report refusal unreachable through the UI | 2026-10-21 | `9705bd8` | **NOT DONE — human-verify OUTSTANDING.** Tasks 1-3 complete: ownership-scoped `reportIds[]`, `MAX_REPORTS_PER_PLAN = 10`, recent-N default, additive-only picker UI, `verify-study-plan-selection.ts` (27 checks, DB section run, bite-proof captured). Task 4 (confirm `alice.johnson@case.edu` can now generate a plan live) is unexecuted and blocking. | [005-study-plan-report-selection](./quick/005-study-plan-report-selection/) |
 
 ### Roadmap Evolution
+
+### Phase 22 added (2026-10-23)
+
+- **Phase 22 added: Coached Mode** — carved out of Phase 21 by `3893c39`, which
+  reverted REQ-113/114/115 after browser UAT. Phase 21 shipped everything AROUND
+  the coach (path step, runtime, tip rail, contribution weight) and nothing that
+  makes a coached session coaching: `CoachedSessionShell` starts an ordinary
+  interview session with no coach system prompt, and no coach prompt exists
+  anywhere in `lib/`. Four defects, four causes — no prompt, no avatar (the
+  undisclosed cost of 21-24's isolation-preserving text-only shell), a
+  turn-index-0 replay target, no objective and no scrolling.
+
+- **This phase must re-open a binding decision.** `21-COACHED-ENGINE-DECISION.md`
+  locks "coached mode is NOT an `ENGINE_TYPES` entry," and both 21-12's
+  registry-length guard and 21-20's no-gate reasoning rest on it. The coach
+  prompt needs `lib/engine/` changes; whether that means a registry entry is the
+  decision to make in writing, not around.
+
+- **Deferred to a successor phase, captured so they are not lost:** four
+  generated options for `PICK_BETTER_RESPONSE` (today two, one verbatim);
+  conversational context in rewrite prompts; a plan-scoped practice entry in
+  place of the bare `/practice/{slug}` wizard; back-link destinations and scroll
+  restoration; backfilling `MasteryContribution` (0 rows against 72 READY
+  reports); sidebar tabs and breakout views for study plans and paths.
 
 ### Phase 21 added (2026-10-16)
 
