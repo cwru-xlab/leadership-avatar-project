@@ -65,6 +65,12 @@ export interface AssembleSystemPromptOpts {
   /** Interview types only. Empty string when the student skipped upload. */
   resumeText?: string;
   /**
+   * Interview types only. The attached job posting's text. Empty string when
+   * none was attached — in which case the assembled prompt is byte-identical
+   * to the pre-quick-003 string. Session-constant, never per-turn.
+   */
+  jobDescriptionText?: string;
+  /**
    * Case-study / legacy client-supplied system prompt. Chosen per scene at
    * request time (per-avatar role selection), not at type-resolution time.
    */
@@ -251,6 +257,7 @@ export function assembleSystemPrompt(
   if (interviewType) {
     return buildInterviewSystemPrompt(interviewType, {
       resumeText: opts.resumeText ?? "",
+      jobDescriptionText: opts.jobDescriptionText ?? "",
       language: opts.language,
     });
   }
@@ -266,6 +273,7 @@ export function assembleSystemPrompt(
   if (type) {
     return type.prompts.liveSystemPrompt(config, {
       resumeText: opts.resumeText,
+      jobDescriptionText: opts.jobDescriptionText,
       language: opts.language,
       characterId: opts.characterId,
       networkingPersona: opts.networkingPersona,
@@ -423,6 +431,8 @@ export interface BuildTurnMessagesInput {
   turnState: EngineTurnState;
   language: AttemptLanguage;
   resumeText?: string;
+  /** Session-constant job-posting text (interview types only). */
+  jobDescriptionText?: string;
   systemPrompt?: string;
   roleContext?: CaseStudyRoleContext | null;
   characterId?: string | null;
@@ -440,6 +450,7 @@ export function buildTurnMessages({
   turnState,
   language,
   resumeText,
+  jobDescriptionText,
   systemPrompt,
   roleContext,
   characterId,
@@ -452,6 +463,7 @@ export function buildTurnMessages({
   const assembled = assembleSystemPrompt(config, {
     language,
     resumeText,
+    jobDescriptionText,
     systemPrompt,
     roleContext,
     characterId,

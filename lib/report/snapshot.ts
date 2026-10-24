@@ -33,6 +33,18 @@ export interface InterviewInputSnapshot {
   targetMinutes: number | null;
   targetQuestionCount: number | null;
   interviewerPersona: string | null;
+  /**
+   * The attached job posting (quick task 003 / issue #56).
+   *
+   * OPTIONAL, and deliberately NOT listed in `INTERVIEW_INPUT_KEYS` below.
+   * That array feeds `hasAllKeys` in `asInputSnapshot`, which requires EVERY
+   * listed key to be present on the raw JSON. Adding these two would make
+   * every interview report row written before this change fail to narrow —
+   * silently breaking evaluation and the report page for all existing
+   * sessions. Do not "tidy" them into that list.
+   */
+  jobDescriptionId?: string | null;
+  jobDescriptionText?: string | null;
 }
 
 /**
@@ -200,6 +212,11 @@ const INTERVIEW_INPUT_KEYS: readonly (keyof InterviewInputSnapshot)[] = [
   "targetMinutes",
   "targetQuestionCount",
   "interviewerPersona",
+  // 11 entries, intentionally. `jobDescriptionId`/`jobDescriptionText` are
+  // OPTIONAL members of InterviewInputSnapshot and are NOT listed here: this
+  // array is a REQUIRED-key list consumed by `hasAllKeys`, so listing them
+  // would break back-compat for every pre-existing report row. See the
+  // comment on those fields.
 ];
 
 const SCENARIO_INPUT_KEYS: readonly (keyof ScenarioInputSnapshot)[] = [
