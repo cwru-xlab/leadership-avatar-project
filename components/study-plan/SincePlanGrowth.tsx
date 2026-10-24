@@ -33,8 +33,9 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
     })
       .then(async (response) => {
         if (!response.ok) throw new Error(String(response.status));
-        const data = (await response.json()) as SincePlanDTO;
-        if (!cancelled) setState({ status: "loaded", data });
+        const body = (await response.json()) as { sincePlan?: SincePlanDTO };
+        if (!body.sincePlan) throw new Error("missing sincePlan");
+        if (!cancelled) setState({ status: "loaded", data: body.sincePlan });
       })
       .catch(() => {
         if (!cancelled) setState({ status: "error" });
