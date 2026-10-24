@@ -213,7 +213,7 @@ function DriverList({ drivers, timeZone }: { drivers: WindowDriverDTO[]; timeZon
   );
 }
 
-function RecentGrowth({
+function RecentMovement({
   entries,
   windowDays,
   windowStartsAt,
@@ -225,13 +225,13 @@ function RecentGrowth({
   timeZone: string;
 }) {
   return (
-    <section aria-label="Recent growth">
-      <h2 className="font-serif text-2xl text-[#102331]">Recent growth</h2>
+    <section aria-label="Recent movement">
+      <h2 className="font-serif text-2xl text-[#102331]">Recent movement</h2>
       <p className="mt-1 text-sm text-[#58727f]">
         {`Competencies whose all-time figure moved most in the last ${windowDays} days (since ${formatDay(
           windowStartsAt,
           timeZone
-        )}), and the activities that moved them.`}
+        )}), up or down, and the activities that moved them.`}
       </p>
       {entries.length === 0 ? (
         <p className="mt-3 rounded-xl border border-dashed border-[#d4e2e9] bg-white p-4 text-sm text-[#58727f]">
@@ -266,6 +266,15 @@ function RecentGrowth({
                     Moved by
                   </p>
                   <DriverList drivers={entry.drivers} timeZone={timeZone} />
+                  {entry.delta !== null && entry.delta < 0 ? (
+                    <Link
+                      href={`/paths?competency=${encodeURIComponent(entry.competencyKey)}`}
+                      className="mt-3 inline-flex w-fit items-center gap-1 rounded-lg bg-[#0a7391] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#085f78]"
+                      aria-label={`Practice ${entry.label}`}
+                    >
+                      Practice this
+                    </Link>
+                  ) : null}
                 </CardBody>
               </Card>
             </li>
@@ -398,7 +407,7 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone }: Maste
         </CardBody>
       </Card>
 
-      <RecentGrowth
+      <RecentMovement
         entries={mastery.recentGrowth}
         windowDays={masteryWindow.days}
         windowStartsAt={masteryWindow.startsAt}
