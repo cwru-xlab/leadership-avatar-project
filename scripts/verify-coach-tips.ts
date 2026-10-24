@@ -21,6 +21,12 @@ import {
   validateTip,
   assertTipSafe,
   techniquesForCompetency,
+  validateDemonstration,
+  validateCoachSpeech,
+  isParrotOf,
+  MAX_DEMONSTRATIONS_PER_LEG,
+  DEMONSTRATION_REJECT_REASONS,
+  COACH_SPEECH_REJECT_REASONS,
 } from "../lib/study-plan/coached/tips";
 
 let failures = 0;
@@ -219,6 +225,178 @@ console.log(
     CONTRIBUTION_WEIGHTS.LIVE_SESSION > CONTRIBUTION_WEIGHTS.COACHED_SESSION,
     `LIVE_SESSION=${CONTRIBUTION_WEIGHTS.LIVE_SESSION}, COACHED_SESSION=${CONTRIBUTION_WEIGHTS.COACHED_SESSION}`,
   );
+}
+
+console.log("\n5. DEMONSTRATION CARVE-OUT");
+{
+  const studentLine =
+    "I think we should probably push the deadline back a bit because the team is behind";
+  const gate = (attemptsInLeg: number, demonstrationsInLeg: number) =>
+    ({ kind: "DEMONSTRATION", attemptsInLeg, demonstrationsInLeg }) as const;
+  const reasonOf = (fn: () => void): string | null => {
+    try {
+      fn();
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  };
+  const demo = "Try saying: we will ship Friday.";
+
+  check(
+    "MAX_DEMONSTRATIONS_PER_LEG is 1",
+    MAX_DEMONSTRATIONS_PER_LEG === 1,
+  );
+  check(
+    "DEMONSTRATION_REJECT_REASONS lists the four reasons",
+    DEMONSTRATION_REJECT_REASONS.length === 4,
+  );
+
+  const m1 = reasonOf(() => assertTipSafe(demo, { studentLine, gate: gate(0, 0) }));
+  check(
+    "1. attemptsInLeg 0 -> DEMONSTRATION_BEFORE_ATTEMPT",
+    m1 !== null && m1.includes("DEMONSTRATION_BEFORE_ATTEMPT"),
+    String(m1),
+  );
+  check(
+    "2. attemptsInLeg 1, demonstrationsInLeg 0 -> does not throw",
+    reasonOf(() => assertTipSafe(demo, { studentLine, gate: gate(1, 0) })) === null,
+  );
+  const m3 = reasonOf(() => assertTipSafe(demo, { studentLine, gate: gate(2, 1) }));
+  check(
+    "3. second demonstration -> DEMONSTRATION_LIMIT",
+    m3 !== null && m3.includes("DEMONSTRATION_LIMIT"),
+    String(m3),
+  );
+  const long450 = "We are behind on the launch plan and I need more time. ".repeat(9).slice(0, 450);
+  const m4 = reasonOf(() => assertTipSafe(long450, { studentLine: "x", gate: gate(1, 0) }));
+  check(
+    "4. 450-char demonstration after an attempt -> TOO_LONG",
+    m4 !== null && m4.includes("TOO_LONG"),
+    String(m4),
+  );
+  const echo = validateDemonstration(
+    "Honestly I think we should probably push the deadline back a bit because the team is behind, agreed.",
+    { studentLine, attemptsInLeg: 1, demonstrationsInLeg: 0 },
+  );
+  check(
+    "ECHOES_STUDENT_LINE fires at a 10+ word shared span",
+    !echo.ok && echo.reason === "ECHOES_STUDENT_LINE",
+    JSON.stringify(echo),
+  );
+  const nearEcho = validateDemonstration(
+    "We should probably push the deadline back a bit, and here is the plan.",
+    { studentLine, attemptsInLeg: 1, demonstrationsInLeg: 0 },
+  );
+  check(
+    "near-miss PASSES: a 7-word span shared (under the demonstration's 10)",
+    nearEcho.ok,
+    JSON.stringify(nearEcho),
+  );
+
+  // 5. Ungated: every pre-existing rejection case still rejects with its reason.
+  const ungated: Array<{ tip: string; studentLine: string; reason: string }> = [
+    { tip: 'Try this: "I understand your concern but the deadline is fixed"', studentLine: "x", reason: "CONTAINS_QUOTED_SPEECH" },
+    { tip: "Before you respond, try saying this to the student.", studentLine: "an unrelated student line", reason: "CONTAINS_SCRIPT_CUE" },
+    { tip: "I hear you, and the decision still stands.", studentLine: "x", reason: "CONTAINS_FIRST_PERSON_LINE" },
+    { tip: "Focus on your delivery and keep your pacing even. ".repeat(6).slice(0, 300), studentLine: "x", reason: "TOO_LONG" },
+    { tip: "Remember to say we should probably push the deadline next time.", studentLine: "I think we should probably push the deadline back a bit", reason: "ECHOES_STUDENT_LINE" },
+  ];
+  for (const c of ungated) {
+    const m = reasonOf(() => assertTipSafe(c.tip, { studentLine: c.studentLine }));
+    check(
+      `5. ungated assertTipSafe still rejects with ${c.reason}`,
+      m !== null && m.includes(c.reason),
+      String(m),
+    );
+  }
+
+  // Bite-proof (a): the waiver exists only behind the gate.
+  const stripped = validateTip(demo, { studentLine });
+  check(
+    "BITE (a): the same text, gate dropped, is REJECTED by validateTip",
+    !stripped.ok && stripped.reason === "CONTAINS_SCRIPT_CUE",
+    JSON.stringify(stripped),
+  );
+  // Bite-proof (b): attempt count is checked before content.
+  const lengthFirst = validateDemonstration(long450, { studentLine: "x", attemptsInLeg: 1, demonstrationsInLeg: 0 });
+  const real = validateDemonstration(long450, { studentLine: "x", attemptsInLeg: 0, demonstrationsInLeg: 0 });
+  check(
+    "BITE (b): a length-first ordering would report TOO_LONG; the real gate reports DEMONSTRATION_BEFORE_ATTEMPT",
+    !lengthFirst.ok && lengthFirst.reason === "TOO_LONG" && !real.ok && real.reason === "DEMONSTRATION_BEFORE_ATTEMPT",
+    JSON.stringify({ lengthFirst, real }),
+  );
+}
+
+console.log("\n6. COACH SPEECH GATE");
+{
+  const studentLine = "I think we should probably push the deadline back a bit";
+  const counterpartLine = "Can you walk me through why the budget slipped again this quarter";
+  const ctx = { studentLine, counterpartLine, studentAttempts: ["We need two more weeks to finish."] as readonly string[] };
+
+  check("COACH_SPEECH_REJECT_REASONS lists four reasons", COACH_SPEECH_REJECT_REASONS.length === 4);
+
+  const r6 = validateCoachSpeech("You could say 'we are behind on the launch plan'", ctx);
+  check("6. script cue -> CONTAINS_SCRIPT_CUE", !r6.ok && r6.reason === "CONTAINS_SCRIPT_CUE", JSON.stringify(r6));
+
+  const r7 = validateCoachSpeech(
+    `You said "I think we should probably push the deadline back a bit". What were you trying to land?`,
+    ctx,
+  );
+  check("7. quoting the student's own line back is ok", r7.ok, JSON.stringify(r7));
+
+  const r7b = validateCoachSpeech('Earlier you said "We need two more weeks to finish." Does that hold?', ctx);
+  check("7b. quoting a prior student attempt is ok", r7b.ok, JSON.stringify(r7b));
+
+  const r8 = validateCoachSpeech('A stronger close is "we will deliver the pilot by the end of March".', ctx);
+  check("8. quoting a NEW line -> CONTAINS_SCRIPTED_QUOTE", !r8.ok && r8.reason === "CONTAINS_SCRIPTED_QUOTE", JSON.stringify(r8));
+
+  const r8b = validateCoachSpeech('Lean on the "name it, claim it" move.', ctx);
+  check("8b. near-miss PASSES: a short quoted term of art", r8b.ok, JSON.stringify(r8b));
+
+  const r9 = validateCoachSpeech(
+    "They said: can you walk me through why the budget slipped again this quarter. How did that land?",
+    ctx,
+  );
+  check("9. voicing the counterpart verbatim -> VOICES_COUNTERPART", !r9.ok && r9.reason === "VOICES_COUNTERPART", JSON.stringify(r9));
+  const r9b = validateCoachSpeech("Look at the moment when they asked about the budget. How did that land?", ctx);
+  check("9b. paraphrasing the counterpart is ok", r9b.ok, JSON.stringify(r9b));
+
+  const r10 = validateCoachSpeech("I noticed you hedged twice. What were you trying to land there?", ctx);
+  check("10. first person is allowed in coach speech", r10.ok, JSON.stringify(r10));
+
+  const rLong = validateCoachSpeech("Let us look at the pacing of that answer together. ".repeat(20), ctx);
+  check("TOO_LONG fires over 700 chars", !rLong.ok && rLong.reason === "TOO_LONG", JSON.stringify(rLong));
+
+  const rNull = validateCoachSpeech("What were you trying to land there?", { ...ctx, counterpartLine: null });
+  check("a null counterpartLine is handled", rNull.ok, JSON.stringify(rNull));
+
+  for (const phrase of SCRIPT_CUE_PHRASES) {
+    const r = validateCoachSpeech(`Next, ${phrase} something about it.`, ctx);
+    check(`script cue "${phrase}" fires in coach speech`, !r.ok && r.reason === "CONTAINS_SCRIPT_CUE", JSON.stringify(r));
+  }
+}
+
+console.log("\n7. PARROTING");
+{
+  const demonstration =
+    "We are behind on the launch plan, so I need two more weeks to finish the integration work properly.";
+  check("11. verbatim read-back is a parrot", isParrotOf(demonstration, demonstration));
+  check(
+    "11. two words changed is still a parrot",
+    isParrotOf(
+      "We are behind on the launch plan, so I need three more days to finish the integration work properly.",
+      demonstration,
+    ),
+  );
+  check(
+    "11. a genuinely re-worded version sharing key nouns is NOT a parrot",
+    !isParrotOf(
+      "The launch plan needs more integration time, so I would propose a smaller scope and a later date.",
+      demonstration,
+    ),
+  );
+  check("an empty attempt is not a parrot", !isParrotOf("", demonstration));
 }
 
 async function runDatabaseSection() {
