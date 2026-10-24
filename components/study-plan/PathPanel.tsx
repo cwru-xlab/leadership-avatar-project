@@ -253,7 +253,7 @@ export default function PathPanel({
   // that count, right after this panel.
 
   return (
-    <div className="rounded-2xl border border-[#d4e2e9] bg-white p-5 shadow-[0_8px_24px_rgba(20,58,75,0.06)] sm:p-7">
+    <div className="rounded-2xl border border-[#d4e2e9] bg-white p-4 shadow-[0_8px_24px_rgba(20,58,75,0.06)] sm:p-7">
       <header className="flex items-center gap-4">
         <ProgressRing done={complete} total={total} />
         <div className="flex min-w-0 flex-col gap-1">
@@ -316,7 +316,7 @@ export default function PathPanel({
           const isLast = index === orderedSteps.length - 1;
           const statusLabel = STATUS_LABEL[step.status] ?? step.status;
           return (
-            <li key={step.id} className="relative flex gap-4 pb-6 last:pb-0">
+            <li key={step.id} className="relative flex gap-3 pb-6 last:pb-0 sm:gap-4">
               {!isLast ? (
                 <span
                   aria-hidden="true"
@@ -327,7 +327,7 @@ export default function PathPanel({
               ) : null}
               <TrailNode state={state} kind={step.kind} />
               <div
-                className={`min-w-0 flex-1 rounded-xl border p-4 ${
+                className={`min-w-0 flex-1 rounded-xl border p-3 sm:p-4 ${
                   state === "next"
                     ? "border-[#0a7391] bg-[#f3fafc]"
                     : state === "done"

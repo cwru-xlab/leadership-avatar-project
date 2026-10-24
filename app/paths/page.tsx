@@ -167,7 +167,7 @@ function PathsHub() {
         </div>
       ) : (
         <div className="mt-8 grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside aria-label="Choose a study plan">
+          <aside aria-label="Choose a study plan" className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7391]">
               Your study plans
             </p>
