@@ -17,3 +17,11 @@
 ## Hard boundary
 
 Do not change how interview, case studies, networking practice, practice pitches or difficult conversations work.
+
+## Path design decisions (user, 2026-10-24, second round)
+
+- **Targeting:** a plan's path ranks the plan's OWN weak skills first (its source sessions' lowest-scored competencies / priority themes); global mastery gaps only fill remaining slots.
+- **Voice drills:** add a short VOICE_DRILL step kind — a 60-90s spoken rep in the shared practice shell (camera + vocal/visual analysis), live technique tip, graded at the end, counting toward mastery at the coached weight.
+- **Prove-it step:** the final UNAIDED_SESSION opens the plan's source practice type with setup pre-filled and a brief naming the target skill; practice behaviour is unchanged when not pre-filled. Graded as a normal live session.
+- **Order:** learn → drill → rework → prove (knowledge check, voice drill(s), coached rework of the real moment, then one pre-filled unaided session).
+- **Since-plan baseline:** ledger-recomputed figure before the path's generatedAt (the selection snapshot is null for plans generated before the backfill).
