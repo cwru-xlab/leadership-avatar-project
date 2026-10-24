@@ -840,21 +840,34 @@ REQ-73.
 - **REQ-114** — [ ] A student can COMPLETE a coached session, and in
   completing it experiences REPLAY FIRST, THEN FRESH: the student is shown the
   actual transcript moment to rework and works it, and only then is presented
-  a new situation exercising the same competency, which the session cannot
-  finish without. A runtime that stores the two legs but never presents them
-  does not satisfy this.
+  a SECOND real moment of their own evidencing the same competency, which the
+  session cannot finish without — unless no second qualifying moment exists, in
+  which case the session tells the student so plainly and runs with one. A
+  runtime that stores the two legs but never presents them does not satisfy
+  this.
+  Amended 2026-10-23 by Phase 22 (22-CONTEXT.md 'Session shape': the fresh leg
+  is a second real moment of the student's own, not a new scenario).
 
 - **REQ-115** — [ ] Coach tips are TECHNIQUE REMINDERS ONLY. A tip names the
-  skill and never scripts the student's words. Enforced by a mechanical check
+  skill and never scripts the student's words; the
+  coach may demonstrate ONE version only after the student has attempted the
+  rework in that leg, enforced by the same mechanical gate, and presented as a
+  separate labelled channel from the tips. Enforced by a mechanical check
   on tip content, not by prompt instruction alone — and the check runs on
   EVERY tip actually rendered to a student during a session, not only on tips
   at authoring time. A validator with no delivery path to guard does not
   satisfy this.
+  Amended 2026-10-23 by Phase 22 (22-CONTEXT.md 'Coach behavior': gated
+  carve-out, demonstration only after the student has tried).
 
 - **REQ-116** — [x] Completing a coached session produces a scored
   contribution that moves the student's VISIBLE mastery figure at the coached
   weight, below unaided practice — the student can complete a coached session
   and then see the figure change on the mastery surface.
+  Mechanism revised by Phase 22 (2026-10-23): the contribution comes from the
+  coach's grade of the reworked lines at the model-graded weight class
+  (22-COACH-LAYER-DECISION.md), not from an evaluator-scored InteractionReport.
+  Re-verified at Phase 22 UAT.
 
 - **REQ-117** — [x] A path is a CHILD of a study plan, bounded at 5-10 steps. A
   new study plan generates a NEW path; old paths are neither discarded nor
@@ -966,9 +979,9 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-110 | Phase 21 | Complete |
 | REQ-111 | Phase 21 | Complete |
 | REQ-112 | Phase 21 | Complete |
-| REQ-113 | Phase 21 | Pending |
-| REQ-114 | Phase 21 | Pending |
-| REQ-115 | Phase 21 | Pending |
+| REQ-113 | Phase 22 | Pending |
+| REQ-114 | Phase 22 | Pending |
+| REQ-115 | Phase 22 | Pending |
 | REQ-116 | Phase 21 | Complete |
 | REQ-117 | Phase 21 | Complete |
 | REQ-118 | Phase 21 | Complete |
