@@ -331,12 +331,15 @@ function stripCommentsAndStrings(source: string): string {
  * fixed a weight ordering, nothing to do with feature access. Plain
  * substring matching (needed below to catch a term embedded in a camelCase
  * identifier, e.g. a hypothetical `dailyStreak`) would otherwise flag this
- * unrelated word every run. This is the ONLY exclusion; it removes exactly
- * the eight-character sequence "locked_by" and nothing else, so a real
- * `locked`, `isLocked`, or `locked:` anywhere else is still caught.
+ * unrelated word every run. The second exclusion (Phase 22) is
+ * `walkOutLocked`, a required field of `shouldAbortPendingStart`'s flags in
+ * `lib/practice/push-to-talk-key.ts`, which the coached push-to-talk hook
+ * must pass (as `false`) — a recorder-state flag, not feature gating. These
+ * two exact sequences are the ONLY exclusions, so a real `locked`,
+ * `isLocked`, or `locked:` anywhere else is still caught.
  */
 function withKnownUnrelatedCollisionsRemoved(source: string): string {
-  return source.replace(/locked_by/gi, "");
+  return source.replace(/locked_by|walkOutLocked/g, "");
 }
 
 function walkFiles(root: string): string[] {
