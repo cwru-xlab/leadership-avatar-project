@@ -12,12 +12,9 @@
  * rendered below is the STORED string the server sent — this component only
  * displays it, never recomputes or rephrases it (REQ-118's explainability
  * guarantee only holds if the shown reason is the one that actually drove
- * selection, not a client-side gloss on it). The "next" step is the one the
- * server named in `path.nextStep`. The only view-side fallback: when the
- * server names no next step (nextStepFor only considers PENDING steps) but
- * a step is still IN_PROGRESS (a coached session already entered), the
- * Continue button points at that in-progress step so the trail does not
- * claim completion while work remains open.
+ * selection, not a client-side gloss on it). The "next" step is exactly the
+ * one the server named in `path.nextStep` (nextStepFor resumes an
+ * IN_PROGRESS step before a PENDING one) — the view adds no fallback.
  *
  * NO SEQUENTIAL GATING. 21-CONTEXT.md rules out gating-by-prior-step
  * mechanics — every pending step below gets an action link regardless of
@@ -148,22 +145,14 @@ export function actionLabelForStep(step: PathStepViewDTO): string {
   return "Go practice";
 }
 
-/**
- * The step the single Continue button points at, plus the reason to show
- * for it: the server's `nextStep` (with its stored reason), else the first
- * IN_PROGRESS step (with its own stored reason) — see the header comment.
- */
+/** The step the single Continue button points at — the server's
+ * `nextStep`, with its stored reason. No client-side fallback. */
 export function continueTargetFor(
   path: PathViewDTO,
 ): { step: PathStepViewDTO; reason: string } | null {
-  if (path.nextStep) {
-    const row = path.steps.find((s) => s.id === path.nextStep!.stepId);
-    if (row) return { step: row, reason: path.nextStep.reason };
-  }
-  const open = path.steps
-    .filter((s) => s.status === "IN_PROGRESS")
-    .sort((a, b) => a.position - b.position)[0];
-  return open ? { step: open, reason: open.selectionReason } : null;
+  if (!path.nextStep) return null;
+  const row = path.steps.find((s) => s.id === path.nextStep!.stepId);
+  return row ? { step: row, reason: path.nextStep.reason } : null;
 }
 
 type NodeState = "done" | "next" | "pending";
