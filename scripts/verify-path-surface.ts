@@ -783,6 +783,91 @@ async function runDatabaseSections() {
 // Run
 // ---------------------------------------------------------------------------
 
+
+// ---------------------------------------------------------------------------
+// Section 9 — Phase 23 path engine: VOICE_DRILL + prove-it surfaces
+// ---------------------------------------------------------------------------
+
+const PHASE23_ENGINE_FILES = [
+  path.join(ROOT, "app", "study-plans", "[planId]", "drills", "[stepId]", "page.tsx"),
+  path.join(ROOT, "components", "study-plan", "drill", "DrillBrief.tsx"),
+  path.join(ROOT, "components", "study-plan", "drill", "api.ts"),
+  path.join(ROOT, "components", "study-plan", "drill", "contract.ts"),
+  path.join(ROOT, "components", "study-plan", "prove-it", "usePlanPrefill.ts"),
+  path.join(ROOT, "components", "study-plan", "prove-it", "ProveItBrief.tsx"),
+  path.join(ROOT, "app", "api", "study-plans", "path-steps", "[stepId]", "drill", "route.ts"),
+  path.join(ROOT, "app", "api", "study-plans", "path-steps", "[stepId]", "drill", "attempts", "route.ts"),
+  path.join(ROOT, "app", "api", "study-plans", "path-steps", "[stepId]", "drill", "attempts", "[attemptId]", "complete", "route.ts"),
+  path.join(ROOT, "app", "api", "study-plans", "path-steps", "[stepId]", "prove-it", "route.ts"),
+  path.join(ROOT, "lib", "study-plan", "drill", "brief.ts"),
+  path.join(ROOT, "lib", "study-plan", "drill", "grade.ts"),
+  path.join(ROOT, "lib", "study-plan", "drill", "service.ts"),
+  path.join(ROOT, "lib", "study-plan", "drill", "repository.ts"),
+  path.join(ROOT, "lib", "study-plan", "drill", "types.ts"),
+  path.join(ROOT, "lib", "study-plan", "prove-it.ts"),
+  path.join(ROOT, "lib", "study-plan", "plan-targets.ts"),
+  path.join(ROOT, "lib", "study-plan", "next-step.ts"),
+];
+
+/** Pure over sources so the bite proof can run it on a mutated copy. */
+function engineIssues(src: { panel: string; brief: string }): string[] {
+  const issues: string[] = [];
+  if (!/\/study-plans\/\$\{planId\}\/drills\/\$\{step\.id\}/.test(src.panel)) issues.push("PathPanel has no /drills/{stepId} href");
+  if (!src.panel.includes("step.proveIt?.href")) issues.push("PathPanel does not use the server's prove-it href");
+  if (!src.panel.includes('VOICE_DRILL: "Voice drill"')) issues.push("PathPanel has no VOICE_DRILL label");
+  // No number mid-drill: the brief renders scores ONLY from completed attempts.
+  if (!/const completed = drill\.attempts\.filter\(\(a\) => a\.completedAt !== null\)/.test(src.brief)) {
+    issues.push("DrillBrief does not restrict results to completed attempts");
+  }
+  if (/drill\.attempts\.map/.test(src.brief)) issues.push("DrillBrief maps over ALL attempts (open ones included)");
+  return issues;
+}
+
+function runSection9() {
+  console.log("\n9. PHASE 23 PATH ENGINE (voice drill + prove-it surfaces)");
+  const read = (p: string) => (fs.existsSync(p) ? fs.readFileSync(p, "utf-8") : "");
+  const drillPage = path.join(ROOT, "app", "study-plans", "[planId]", "drills", "[stepId]", "page.tsx");
+  check("the VOICE_DRILL destination page exists on disk (app/study-plans/[planId]/drills/[stepId]/page.tsx)", fs.existsSync(drillPage));
+  check(
+    "the deliberately-wrong singular '/drill/' page does NOT exist (inverted assertion)",
+    !fs.existsSync(path.join(ROOT, "app", "study-plans", "[planId]", "drill", "[stepId]", "page.tsx")),
+  );
+  check("the drill page loads the brief through the drill API client", read(drillPage).includes("fetchDrill(params.stepId)"));
+
+  const sources = {
+    panel: read(PANEL_PATH),
+    brief: read(path.join(ROOT, "components", "study-plan", "drill", "DrillBrief.tsx")),
+  };
+  const issues = engineIssues(sources);
+  check("the drill + prove-it surfaces are wired as specified", issues.length === 0, JSON.stringify(issues));
+  const mutated = engineIssues({
+    panel: sources.panel.split("/drills/").join("/drill/"),
+    brief: sources.brief.replace("completed.map(", "drill.attempts.map("),
+  });
+  check(
+    "the engine guard DETECTS a wrong drill href and open attempts rendered (bite proof)",
+    mutated.some((i) => i.includes("/drills/")) && mutated.some((i) => i.includes("ALL attempts")),
+    JSON.stringify(mutated),
+  );
+
+  for (const filePath of PHASE23_ENGINE_FILES) {
+    if (!fs.existsSync(filePath)) {
+      check(`${path.relative(ROOT, filePath)} exists`, false, "MISSING");
+      continue;
+    }
+    const stripped = stripCommentsAndStrings(fs.readFileSync(filePath, "utf-8")).toLowerCase();
+    const matches = FORBIDDEN_TERMS.filter((term) => stripped.includes(term));
+    check(
+      `${path.relative(ROOT, filePath)} contains no gating/streak term outside a comment or string`,
+      matches.length === 0,
+      JSON.stringify(matches),
+    );
+  }
+  // Bite proof for the scan itself on a new file.
+  const planted = stripCommentsAndStrings("const isUnlocked = drillCount > 0;").toLowerCase();
+  check("the forbidden-term scan DETECTS a planted identifier (bite proof)", FORBIDDEN_TERMS.some((t) => planted.includes(t)));
+}
+
 async function main() {
   runSection1();
   runSection1Moved();
@@ -791,6 +876,7 @@ async function main() {
   runSection5();
   runSection6();
   runSection8();
+  runSection9();
   await runDatabaseSections();
 
   console.log(
