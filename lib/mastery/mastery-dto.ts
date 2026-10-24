@@ -17,6 +17,7 @@
  */
 import { COMPETENCIES } from "./competencies";
 import type {
+  CompetencySincePlan,
   CompetencyMastery,
   EvidenceOrigin,
   MasteryResult,
@@ -318,5 +319,65 @@ export function toMasteryDTO(
     },
     unmappedRowCount: result.unmappedRowCount,
     recentGrowth,
+  };
+}
+
+// === Per-study-plan baseline DTO (Phase 23) ================================
+
+export interface CompetencySincePlanDTO {
+  competencyKey: string;
+  label: string;
+  /** All-time figure at path generation, recomputed from the ledger, with its tier. */
+  baseline: MasteryFigureDTO;
+  /** All-time figure now, with its tier. */
+  now: MasteryFigureDTO;
+  delta: number | null;
+  direction: "up" | "down" | "flat" | null;
+  sinceEvidenceCount: number;
+  drivers: WindowDriverDTO[];
+  /** The figure frozen into the path's selectionSnapshot, when present. */
+  snapshotLifetimePercent: number | null;
+}
+
+export interface SincePlanDTO {
+  planId: string;
+  since: string;
+  asOf: string;
+  competencies: CompetencySincePlanDTO[];
+}
+
+/**
+ * Single exit for the per-plan baseline, same discipline as `toMasteryDTO`:
+ * every figure carries its evidence tier and disclosure, labels come from
+ * COMPETENCIES, and no Date crosses the boundary.
+ */
+export function toSincePlanDTO(args: {
+  planId: string;
+  since: Date;
+  now: Date;
+  results: CompetencySincePlan[];
+  activityLinks?: ReadonlyMap<string, ActivityLink>;
+}): SincePlanDTO {
+  return {
+    planId: args.planId,
+    since: args.since.toISOString(),
+    asOf: args.now.toISOString(),
+    competencies: args.results.map((r) => {
+      const entry = COMPETENCIES.find((c) => c.key === r.competencyKey);
+      if (!entry) {
+        throw new Error(`toSincePlanDTO: competencyKey "${r.competencyKey}" has no entry in COMPETENCIES`);
+      }
+      return {
+        competencyKey: r.competencyKey,
+        label: entry.label,
+        baseline: figureDTOFor(r.baseline.percent, r.baseline.evidenceCount, r.baseline.weightSum),
+        now: figureDTOFor(r.now.percent, r.now.evidenceCount, r.now.weightSum),
+        delta: r.delta,
+        direction: r.delta === null ? null : r.delta > 0 ? "up" : r.delta < 0 ? "down" : "flat",
+        sinceEvidenceCount: r.sinceEvidenceCount,
+        drivers: r.drivers.map((d) => driverDTOFor(d, args.activityLinks)),
+        snapshotLifetimePercent: r.snapshotLifetimePercent,
+      };
+    }),
   };
 }

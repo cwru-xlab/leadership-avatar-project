@@ -12,7 +12,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { typeLabelForReport } from "@/lib/report/title";
-import type { MasteryResult } from "@/lib/mastery/compute";
+import type { MasteryResult, WindowDriver } from "@/lib/mastery/compute";
 import {
   activityKeyForDriver,
   type ActivityLink,
@@ -22,16 +22,24 @@ export async function resolveActivityLinks(
   userId: string,
   result: MasteryResult
 ): Promise<Map<string, ActivityLink>> {
+  return resolveDriverLinks(
+    userId,
+    result.competencies.flatMap((c) => c.windowDrivers)
+  );
+}
+
+export async function resolveDriverLinks(
+  userId: string,
+  drivers: ReadonlyArray<WindowDriver>
+): Promise<Map<string, ActivityLink>> {
   const reportIds = new Set<string>();
   const attemptIds = new Set<string>();
   const coachedIds = new Set<string>();
 
-  for (const competency of result.competencies) {
-    for (const driver of competency.windowDrivers) {
-      if (driver.sourceReportId) reportIds.add(driver.sourceReportId);
-      else if (driver.sourceAttemptId) attemptIds.add(driver.sourceAttemptId);
-      else if (driver.sourceCoachedSessionId) coachedIds.add(driver.sourceCoachedSessionId);
-    }
+  for (const driver of drivers) {
+    if (driver.sourceReportId) reportIds.add(driver.sourceReportId);
+    else if (driver.sourceAttemptId) attemptIds.add(driver.sourceAttemptId);
+    else if (driver.sourceCoachedSessionId) coachedIds.add(driver.sourceCoachedSessionId);
   }
 
   const [reports, attempts, coached] = await Promise.all([
