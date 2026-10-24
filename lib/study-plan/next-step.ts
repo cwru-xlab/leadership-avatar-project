@@ -35,8 +35,13 @@
  *      battery can assert it directly. Never falls through to array order
  *      or string collation on the key — both are stable-looking accidents.
  *
- * STEP KIND ASSIGNMENT: position 1 (the weakest AVAILABLE competency) gets a
- * COACHED_SESSION; positions 2..(n-1) get KNOWLEDGE_CHECK, cycling through
+ * STEP KIND ASSIGNMENT: position 1 gets a COACHED_SESSION on the highest-ranked
+ * AVAILABLE competency that also has SCORED EVIDENCE (the required
+ * `coachedEvidence` input, built from the plan's own source reports -- see
+ * 22-CONTEXT.md and coached/evidence.ts). A moment alone is not enough: the
+ * moment source and the mastery ledger are different sources, and composing
+ * them produced a self-contradictory reason. If no competency qualifies,
+ * position 1 is a KNOWLEDGE_CHECK instead and `coachedOmitted` is true; positions 2..(n-1) get KNOWLEDGE_CHECK, cycling through
  * the available ranking (repeating the weakest ones if the catalog is
  * smaller than the minimum); the LAST step is always UNAIDED_SESSION on the
  * TRUE overall weakest competency, even if it is unavailable — an unaided
@@ -55,6 +60,7 @@ import {
 } from "../mastery/competencies";
 import { evidenceTierFor, type EvidenceTier } from "../mastery/thinness";
 import type { MasteryResult } from "../mastery/compute";
+import type { CoachedEvidence } from "./coached/evidence";
 import {
   PATH_STEP_BOUNDS,
   type PathStepInput,
@@ -92,6 +98,8 @@ export interface StepSelection {
     tier: EvidenceTier;
     reason: string;
   }>;
+  /** True when no competency had scored evidence, so the path has no coached step. */
+  coachedOmitted: boolean;
 }
 
 interface RankedCompetency {
@@ -178,12 +186,29 @@ function baseReasonFor(ranked: RankedCompetency, rank: number): string {
   return `${label} is ranked #${rank} by ${figureKind} competency strength, at ${figure}% (${tierWord} evidence).`;
 }
 
+/**
+ * The coached reason is written from scored evidence and never calls the
+ * NONE-tier base sentence ("no scored evidence yet"), which would contradict
+ * a coached step by construction.
+ */
+function coachedReasonFor(
+  ranked: RankedCompetency,
+  rank: number,
+  evidence: { lowestPercent: number },
+): string {
+  const label = labelFor(ranked.competencyKey);
+  if (ranked.tier === "NONE") {
+    return `${label} has no mastery figure yet, but the sessions this plan was built from scored it at ${evidence.lowestPercent}%. This coached session reworks one of your own moments from those sessions where it was weakest.`;
+  }
+  return `${baseReasonFor(ranked, rank)} This coached session reworks one of your own moments where it was weakest.`;
+}
+
 /** Appends the kind-specific clause a step's stored reason carries, on top
  * of the shared base reason. */
-function stepReasonFor(baseReason: string, kind: PathStepKind): string {
-  if (kind === "COACHED_SESSION") {
-    return `${baseReason} This coached session reworks a moment where it showed.`;
-  }
+function stepReasonFor(
+  baseReason: string,
+  kind: Exclude<PathStepKind, "COACHED_SESSION">,
+): string {
   if (kind === "KNOWLEDGE_CHECK") {
     return `${baseReason} This knowledge check targets it directly.`;
   }
@@ -203,8 +228,19 @@ export function selectPathSteps(args: {
   /** Competency keys with no available source moment — cannot host a check
    * or a coached step. */
   unavailableCompetencies?: readonly CompetencyKey[];
+  /** REQUIRED: competencies the plan's source sessions actually scored (and
+   * that have a moment). Only these can host the coached step. */
+  coachedEvidence: ReadonlyMap<
+    CompetencyKey,
+    Pick<CoachedEvidence, "lowestPercent">
+  >;
 }): StepSelection {
-  const { mastery, desiredCount, unavailableCompetencies = [] } = args;
+  const {
+    mastery,
+    desiredCount,
+    unavailableCompetencies = [],
+    coachedEvidence,
+  } = args;
 
   if (mastery.competencies.length === 0) {
     throw new Error(
@@ -252,18 +288,32 @@ export function selectPathSteps(args: {
 
   const n = clampDesiredCount(desiredCount);
 
+  const coachedEntry = pool.find((r) => coachedEvidence.has(r.competencyKey));
+  const coachedOmitted = coachedEntry === undefined;
+
   const steps: PathStepInput[] = [];
   for (let position = 1; position <= n - 1; position += 1) {
+    if (position === 1 && coachedEntry) {
+      const evidence = coachedEvidence.get(coachedEntry.competencyKey)!;
+      const ranked = sorted[coachedEntry.rank - 1];
+      steps.push({
+        position,
+        kind: "COACHED_SESSION",
+        competencyKey: coachedEntry.competencyKey,
+        selectionReason: coachedReasonFor(ranked, coachedEntry.rank, evidence),
+        knowledgeCheckId: null,
+        coachedSessionId: null,
+        status: "PENDING",
+      });
+      continue;
+    }
     const entry = pool[(position - 1) % pool.length];
-    const kind: PathStepKind =
-      position === 1 ? "COACHED_SESSION" : "KNOWLEDGE_CHECK";
     steps.push({
       position,
-      kind,
+      kind: "KNOWLEDGE_CHECK",
       competencyKey: entry.competencyKey,
-      selectionReason: stepReasonFor(entry.reason, kind),
-      knowledgeCheckId:
-        kind === "KNOWLEDGE_CHECK" ? PLACEHOLDER_KNOWLEDGE_CHECK_ID : null,
+      selectionReason: stepReasonFor(entry.reason, "KNOWLEDGE_CHECK"),
+      knowledgeCheckId: PLACEHOLDER_KNOWLEDGE_CHECK_ID,
       coachedSessionId: null,
       status: "PENDING",
     });
@@ -280,7 +330,7 @@ export function selectPathSteps(args: {
     status: "PENDING",
   });
 
-  return { steps, ranking };
+  return { steps, ranking, coachedOmitted };
 }
 
 /**
