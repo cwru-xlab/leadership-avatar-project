@@ -39,6 +39,8 @@ import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import PracticeSessionShell from "@/components/practice/PracticeSessionShell";
+import ProveItBrief from "@/components/study-plan/prove-it/ProveItBrief";
+import { usePlanPrefill } from "@/components/study-plan/prove-it/usePlanPrefill";
 import InterviewPaceGuidance from "@/components/practice/InterviewPaceGuidance";
 import DeckTimerPanel from "@/components/practice/panels/DeckTimerPanel";
 import DeckViewerPanel from "@/components/practice/panels/DeckViewerPanel";
@@ -150,6 +152,11 @@ export default function PracticeTypePage() {
       setHandoffResolved(true);
     }
   }, [params.type]);
+
+  // Phase 23 prove-it prefill: INERT unless the URL carries ?fromPlan=&step=
+  // (usePlanPrefill makes no request otherwise). When present, the server's
+  // prefill seeds the same state the wizard steps write, nothing more.
+  const planPrefill = usePlanPrefill();
 
   const interviewType = useMemo(
     () =>
@@ -403,6 +410,22 @@ export default function PracticeTypePage() {
     };
   }, [isNetworking, networkingInstanceId, networkingCharacterId]);
 
+  useEffect(() => {
+    const info = planPrefill.info;
+    if (!info || info.typeSlug !== params.type) return;
+    const prefill = info.prefill;
+    if (prefill.kind === "interview") {
+      setStoredCustomization(prefill.customization);
+    } else if (prefill.kind === "networking") {
+      setNetworkingCharacterId(prefill.characterId);
+      setNetworkingInstanceId(prefill.personaId);
+      setNetworkingGoal(prefill.goal);
+    } else if (prefill.kind === "pitch-elevator") {
+      setPitchSubject(prefill.pitchSubject);
+      setListenerKnowledge(prefill.listenerKnowledge);
+    }
+  }, [planPrefill.info, params.type]);
+
   // Fallback auto-pick for a pitch type that declares NO `interviewer` step
   // (today, only pitch-elevator — its type record is read-only this phase
   // and the session render gate below requires `selectedInterviewer`, so it
@@ -455,7 +478,7 @@ export default function PracticeTypePage() {
       }
     : null;
 
-  if (!handoffResolved) {
+  if (!handoffResolved || !planPrefill.resolved) {
     return (
       <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa]">
         <Spinner color="primary" />
@@ -740,6 +763,7 @@ export default function PracticeTypePage() {
       </div>
 
       <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
+        {planPrefill.info ? <ProveItBrief info={planPrefill.info} /> : null}
         <SetupWizard
           createReportOnLaunch
           supplementalContent={
@@ -1011,6 +1035,7 @@ export default function PracticeTypePage() {
             timeBudgetSeconds: launchedBudget,
           }) => {
             setReportId(launchedId);
+            planPrefill.linkReport(launchedId);
             setCameraMode(locked);
             setPitchTurnStartedAt(null);
             setPitchTimerPhase("pitching");
