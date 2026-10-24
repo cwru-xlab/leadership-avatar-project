@@ -59,8 +59,8 @@ import {
   type AttemptLanguage,
 } from "@/lib/languages";
 import { extractSpeakable } from "@/lib/interview/speakable";
-import SelfViewThumbnail from "@/components/metrics/SelfViewThumbnail";
-import FaceDetectionBanner from "@/components/metrics/FaceDetectionBanner";
+import SelfViewThumbnail from "@/components/session/SelfViewThumbnail";
+import FaceDetectionBanner from "@/components/session/FaceDetectionBanner";
 import {
   requestCameraStream,
   createVisualCapture,

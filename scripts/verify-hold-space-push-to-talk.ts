@@ -25,6 +25,15 @@ function check(condition: unknown, description: string) {
 }
 
 const shell = read("components/practice/PracticeSessionShell.tsx");
+// Phase 22 G4 (22-SHARED-SHELL-DECISION.md): the recorder, the hold-Space
+// listener and the hint markup moved VERBATIM into the shared session chrome,
+// used by the practice shell and the coached shell alike. Every assertion
+// below that used to read the practice shell now reads the module the code
+// moved to, and the practice shell is asserted to wire that module in exactly
+// the way it used to wire itself.
+const recorder = read("components/session/usePushToTalkRecorder.ts");
+const keyHook = read("components/session/useHoldToTalkKey.ts");
+const room = read("components/session/SessionRoom.tsx");
 
 // ---------------------------------------------------------------------------
 // Section 1 — key recognition (behavioural)
@@ -202,46 +211,60 @@ check(
 // Section 6 — shell wiring (source assertions)
 // ---------------------------------------------------------------------------
 check(
-  /isPushToTalkBlockingTarget/.test(shell) && /describeKeyTarget/.test(shell) &&
-    /from\s+"@\/lib\/practice\/push-to-talk-key"/.test(shell),
-  "Section 6: shell imports isPushToTalkBlockingTarget and describeKeyTarget from @/lib/practice/push-to-talk-key",
+  /isPushToTalkBlockingTarget/.test(keyHook) && /describeKeyTarget/.test(keyHook) &&
+    /from\s+"@\/lib\/practice\/push-to-talk-key"/.test(keyHook),
+  "Section 6: the shared key hook imports isPushToTalkBlockingTarget and describeKeyTarget from @/lib/practice/push-to-talk-key",
 );
-check(/event\.repeat/.test(shell), "Section 6: the handler guards on event.repeat");
-check(/event\.preventDefault\(\)/.test(shell), "Section 6: the handler calls event.preventDefault()");
 check(
-  /startRecordingRef\.current\?\.\(\)/.test(shell),
+  /from\s+"@\/components\/session\/useHoldToTalkKey"/.test(shell) &&
+    /from\s+"@\/components\/session\/usePushToTalkRecorder"/.test(shell),
+  "Section 6: the practice shell wires the shared useHoldToTalkKey and usePushToTalkRecorder",
+);
+check(
+  !/from\s+"@\/lib\/practice\/push-to-talk-key"/.test(shell),
+  "Section 6: the practice shell no longer carries its own copy of the key wiring",
+);
+check(/event\.repeat/.test(keyHook), "Section 6: the handler guards on event.repeat");
+check(/event\.preventDefault\(\)/.test(keyHook), "Section 6: the handler calls event.preventDefault()");
+check(
+  /startRecordingRef\.current\?\.\(\)/.test(keyHook),
   "Section 6: Space starts via startRecordingRef.current",
 );
 check(
-  /stopRecordingRef\.current\?\.\(\)/.test(shell),
+  /stopRecordingRef\.current\?\.\(\)/.test(keyHook),
   "Section 6: Space stops via stopRecordingRef.current",
 );
 check(
-  /walkOutLockRef\.current\s*\|\|/.test(shell),
-  "Section 6: startRecording still carries its own walkOutLockRef.current || pre-guard",
+  /startRecordingRef\.current = startRecording;/.test(shell) &&
+    /stopRecordingRef\.current = stopRecording;/.test(shell),
+  "Section 6: the practice shell refreshes the start/stop refs with bare render-time assignments",
+);
+check(
+  /lockRef\.current\s*\|\|/.test(recorder) && /lockRef:\s*walkOutLockRef/.test(shell),
+  "Section 6: startRecording still carries its own lock pre-guard, and the practice shell's lock is walkOutLockRef",
 );
 
-const getMicIndex = shell.indexOf("await getMicrophone()");
-const newRecorderIndex = shell.indexOf("new MediaRecorder(stream", getMicIndex);
+const getMicIndex = recorder.indexOf("await getMicrophone()");
+const newRecorderIndex = recorder.indexOf("new MediaRecorder(stream", getMicIndex);
 const postGetMicSlice =
   getMicIndex >= 0 && newRecorderIndex > getMicIndex
-    ? shell.slice(getMicIndex, newRecorderIndex)
+    ? recorder.slice(getMicIndex, newRecorderIndex)
     : "";
 
 check(postGetMicSlice.length > 0, "Section 6: the post-getMicrophone()/pre-recorder slice is non-empty");
 check(
-  postGetMicSlice.includes("walkOutLockRef.current"),
-  "Section 6: the post-getMicrophone() recheck still mentions walkOutLockRef.current",
+  postGetMicSlice.includes("walkOutLocked: lockRef.current"),
+  "Section 6: the post-getMicrophone() recheck still threads the live lock (walkOutLocked: lockRef.current)",
 );
 check(
   postGetMicSlice.includes("startCancelled: cancelPendingStartRef.current"),
   "Section 6: the post-getMicrophone() recheck threads startCancelled: cancelPendingStartRef.current",
 );
 
-const keyDownIndex = shell.indexOf("const handleKeyDown = ");
-const keyUpIndex = shell.indexOf("const handleKeyUp = ", keyDownIndex);
+const keyDownIndex = keyHook.indexOf("const handleKeyDown = ");
+const keyUpIndex = keyHook.indexOf("const handleKeyUp = ", keyDownIndex);
 const keyDownSliceRaw =
-  keyDownIndex >= 0 && keyUpIndex > keyDownIndex ? shell.slice(keyDownIndex, keyUpIndex) : "";
+  keyDownIndex >= 0 && keyUpIndex > keyDownIndex ? keyHook.slice(keyDownIndex, keyUpIndex) : "";
 
 /**
  * Strip comments before the negative checks below.
@@ -268,8 +291,8 @@ check(
   "Section 6: the keydown handler slice is non-empty after stripping comments",
 );
 check(
-  !keyDownSlice.includes("walkOutLockRef"),
-  "Section 6 (negative): the keydown handler does NOT mention walkOutLockRef (no duplicated gate)",
+  !keyDownSlice.includes("walkOutLockRef") && !/\blockRef\b/.test(keyDownSlice),
+  "Section 6 (negative): the keydown handler does NOT mention walkOutLockRef / lockRef (no duplicated gate)",
 );
 check(
   !keyDownSlice.includes("mediaRecorderRef"),
@@ -284,27 +307,27 @@ check(
 // Section 7 — cleanup (source assertions)
 // ---------------------------------------------------------------------------
 check(
-  /removeEventListener\("keydown"/.test(shell),
+  /removeEventListener\("keydown"/.test(keyHook),
   "Section 7: cleanup removes the keydown listener",
 );
 check(
-  /removeEventListener\("keyup"/.test(shell),
+  /removeEventListener\("keyup"/.test(keyHook),
   "Section 7: cleanup removes the keyup listener",
 );
 check(
-  /removeEventListener\("blur"/.test(shell),
+  /removeEventListener\("blur"/.test(keyHook),
   "Section 7: cleanup removes the blur listener",
 );
 check(
-  /removeEventListener\("visibilitychange"/.test(shell),
+  /removeEventListener\("visibilitychange"/.test(keyHook),
   "Section 7: cleanup removes the visibilitychange listener",
 );
 {
-  const effectIndex = shell.indexOf("const releaseHold = () => {");
-  const effectEndIndex = shell.indexOf("}, []);", effectIndex);
+  const effectIndex = keyHook.indexOf("const releaseHold = () => {");
+  const effectEndIndex = keyHook.indexOf("}, []);", effectIndex);
   const effectSlice =
     effectIndex >= 0 && effectEndIndex > effectIndex
-      ? shell.slice(effectIndex, effectEndIndex)
+      ? keyHook.slice(effectIndex, effectEndIndex)
       : "";
   const cleanupIndex = effectSlice.lastIndexOf("return () => {");
   const cleanupSlice = cleanupIndex >= 0 ? effectSlice.slice(cleanupIndex) : "";
@@ -313,8 +336,18 @@ check(
     "Section 7: the effect's cleanup calls releaseHold() so a mid-hold unmount cannot leave the recorder running",
   );
   check(
-    /\}, \[\]\);/.test(shell.slice(effectIndex, effectIndex + effectSlice.length + 20)),
+    /\}, \[\]\);/.test(keyHook.slice(effectIndex, effectIndex + effectSlice.length + 20)),
     "Section 7: the listener effect's dependency array is empty ([]) so it cannot re-subscribe mid-hold",
+  );
+  // Effects clean up in declaration order. The shell's unmount cleanup
+  // (releaseMicrophone, which detaches recorder.onstop before stopping) must
+  // be declared BEFORE the listener, or a mid-hold unmount would stop a live
+  // recorder through releaseHold() and transcribe after the student left.
+  const cleanupAt = shell.search(/useEffect\(\(\) => \{\s*return \(\) => \{\s*walkOutFinishCancelledRef\.current = true;\s*releaseMicrophone\(\);/);
+  const listenerAt = shell.indexOf("useHoldToTalkKey({");
+  check(
+    cleanupAt >= 0 && listenerAt > cleanupAt,
+    "Section 7: the practice shell declares its unmount cleanup (releaseMicrophone) BEFORE useHoldToTalkKey",
   );
 }
 
@@ -322,22 +355,23 @@ check(
 // Section 8 — no per-type wiring (source assertions)
 // ---------------------------------------------------------------------------
 check(
-  (shell.match(/isPushToTalkBlockingTarget/g) ?? []).length <= 2,
-  "Section 8: isPushToTalkBlockingTarget appears at most twice (import + single call)",
+  (keyHook.match(/isPushToTalkBlockingTarget/g) ?? []).length <= 2 &&
+    (shell.match(/isPushToTalkBlockingTarget/g) ?? []).length === 0,
+  "Section 8: isPushToTalkBlockingTarget appears at most twice in the shared hook (import + single call) and not in the shell",
 );
 check(
-  (shell.match(/to talk/g) ?? []).length === 1,
-  "Section 8: the hint string 'to talk' appears exactly once",
+  (room.match(/to talk/g) ?? []).length === 1 && (shell.match(/to talk/g) ?? []).length === 0,
+  "Section 8: the hint string 'to talk' appears exactly once (in the shared PushToTalkControl)",
 );
 
 // ---------------------------------------------------------------------------
 // Section 9 — hint presence
 // ---------------------------------------------------------------------------
-check(/hold/.test(shell), "Section 9: the shell mentions 'hold'");
-check(/<kbd[^>]*>Space<\/kbd>/.test(shell), "Section 9: the shell renders a <kbd>Space</kbd>");
+check(/hold/.test(room), "Section 9: the shared control mentions 'hold'");
+check(/<kbd[^>]*>Space<\/kbd>/.test(room), "Section 9: the shared control renders a <kbd>Space</kbd>");
 check(
-  /\{!walkOutLock && avatarReady \? \(/.test(shell),
-  "Section 9: the hint is gated on !walkOutLock && avatarReady",
+  /\{showSpaceHint \? \(/.test(room) && /showSpaceHint=\{!walkOutLock && avatarReady\}/.test(shell),
+  "Section 9: the hint is gated on !walkOutLock && avatarReady (passed by the practice shell as showSpaceHint)",
 );
 
 // ---------------------------------------------------------------------------
@@ -411,9 +445,9 @@ check(
 );
 
 {
-  const inFlightClaimIndex = shell.indexOf("recordingStartInFlightRef.current = true;");
-  const cancelClearIndex = shell.indexOf("cancelPendingStartRef.current = false;", inFlightClaimIndex);
-  const getMicAwaitIndex = shell.indexOf("await getMicrophone()", cancelClearIndex);
+  const inFlightClaimIndex = recorder.indexOf("recordingStartInFlightRef.current = true;");
+  const cancelClearIndex = recorder.indexOf("cancelPendingStartRef.current = false;", inFlightClaimIndex);
+  const getMicAwaitIndex = recorder.indexOf("await getMicrophone()", cancelClearIndex);
   check(
     inFlightClaimIndex >= 0 &&
       cancelClearIndex > inFlightClaimIndex &&
@@ -422,11 +456,11 @@ check(
   );
 }
 {
-  const releaseHoldIndex = shell.indexOf("const releaseHold = () => {");
-  const releaseHoldEndIndex = shell.indexOf("const handleKeyDown = ", releaseHoldIndex);
+  const releaseHoldIndex = keyHook.indexOf("const releaseHold = () => {");
+  const releaseHoldEndIndex = keyHook.indexOf("const handleKeyDown = ", releaseHoldIndex);
   const releaseHoldSlice =
     releaseHoldIndex >= 0 && releaseHoldEndIndex > releaseHoldIndex
-      ? shell.slice(releaseHoldIndex, releaseHoldEndIndex)
+      ? keyHook.slice(releaseHoldIndex, releaseHoldEndIndex)
       : "";
   check(
     releaseHoldSlice.includes("cancelPendingStartRef.current = true"),
@@ -434,9 +468,9 @@ check(
   );
 }
 check(
-  shell.indexOf("shouldAbortPendingStart") >= 0 &&
-    shell.indexOf("new MediaRecorder") >= 0 &&
-    shell.indexOf("shouldAbortPendingStart") < shell.indexOf("new MediaRecorder"),
+  recorder.indexOf("shouldAbortPendingStart({") >= 0 &&
+    recorder.indexOf("new MediaRecorder") >= 0 &&
+    recorder.indexOf("shouldAbortPendingStart({") < recorder.indexOf("new MediaRecorder"),
   "Section 10: the abort check runs BEFORE new MediaRecorder — an aborted start can never call recorder.start()",
 );
 

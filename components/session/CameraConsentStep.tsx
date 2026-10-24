@@ -2,7 +2,9 @@
 
 /**
  * THE ONE camera-mode consent gate for every engine-backed practice type
- * (REQ-70).
+ * (REQ-70), and for coached sessions (Phase 22 G3). Lives in the shared
+ * session chrome (`components/session/`, 22-SHARED-SHELL-DECISION.md) so both
+ * the practice wizard and the coached shell use this single copy.
  *
  * `CameraBlockReason` and `CAMERA_BLOCK_COPY` previously lived verbatim in both
  * `app/interview/[type]/page.tsx` and `app/case-play/[caseId]/page.tsx`. That
@@ -13,12 +15,12 @@
  * through this step.
  */
 
-import MetricsConsentDialog from "@/components/metrics/MetricsConsentDialog";
+import MetricsConsentDialog from "@/components/session/MetricsConsentDialog";
 import type { CameraMode } from "@/lib/metrics/types";
 import { requestCameraStream } from "@/lib/metrics/visual-capture";
 import { Button } from "@heroui/button";
 import { ArrowRight, Camera, CameraOff, CircleAlert } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 export type CameraBlockReason = "DENIED" | "NOT_FOUND" | "UNAVAILABLE";
 
@@ -58,6 +60,21 @@ export interface CameraConsentStepProps {
    * uses "Start" to match today's case-play intro (REQ-69).
    */
   launchLabel?: string;
+  /**
+   * The noun in "This choice is locked once the {sessionNoun} starts".
+   * Defaults to "interview" so every practice type renders exactly as it did
+   * before this step moved into the shared session chrome; a coached session
+   * passes "session".
+   */
+  sessionNoun?: string;
+  /**
+   * Line under "Practice with my camera on". Defaults to the practice copy,
+   * byte-identical; a coached session passes its own (it feeds a summary, not
+   * a scored report).
+   */
+  cameraOnDescription?: ReactNode;
+  /** Line under "Camera off". Defaults to the practice copy, byte-identical. */
+  cameraOffDescription?: ReactNode;
 }
 
 export default function CameraConsentStep({
@@ -67,6 +84,14 @@ export default function CameraConsentStep({
   onLaunch,
   launching = false,
   launchLabel = "Start interview",
+  sessionNoun = "interview",
+  cameraOnDescription = "Visual and Vocal will be scored.",
+  cameraOffDescription = (
+    <>
+      I&apos;ll practice without being measured. Visual and Vocal
+      won&apos;t be scored this time.
+    </>
+  ),
 }: CameraConsentStepProps) {
   // Camera-mode decision, made BEFORE the session and LOCKED — see
   // 10-CONTEXT.md "Camera mode is locked at session start".
@@ -167,7 +192,7 @@ export default function CameraConsentStep({
                 Practice with your camera on?
               </h2>
               <p className="mt-3 max-w-xl text-[15px] leading-7 text-[#58727f]">
-                This choice is locked once the interview starts — you
+                This choice is locked once the {sessionNoun} starts — you
                 can&apos;t switch it part-way, in either direction.
               </p>
             </div>
@@ -216,7 +241,7 @@ export default function CameraConsentStep({
                     Practice with my camera on
                   </span>
                   <span className="text-sm leading-6 text-[#58727f]">
-                    Visual and Vocal will be scored.
+                    {cameraOnDescription}
                   </span>
                 </button>
                 <button
@@ -231,8 +256,7 @@ export default function CameraConsentStep({
                   </span>
                   <span className="font-serif text-xl">Camera off</span>
                   <span className="text-sm leading-6 text-[#58727f]">
-                    I&apos;ll practice without being measured. Visual and Vocal
-                    won&apos;t be scored this time.
+                    {cameraOffDescription}
                   </span>
                 </button>
               </div>
