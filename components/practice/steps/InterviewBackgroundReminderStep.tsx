@@ -8,7 +8,7 @@
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
 import { Button } from "@heroui/button";
-import { ArrowRight, BriefcaseBusiness, UserRound } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, Image, UserRound } from "lucide-react";
 
 export interface InterviewBackgroundReminderStepProps {
   nav: SetupStepNav;
@@ -82,6 +82,26 @@ export default function InterviewBackgroundReminderStep({
             ? "Your uploaded resume is available for grounded follow-up questions."
             : "Use specific examples that show how you would contribute in this role."}
         </p>
+
+        <aside
+          className="mt-3 flex gap-3 rounded-xl border border-[#d4e2e9] bg-[#f6fafb] px-4 py-3 text-sm leading-6 text-[#405d69]"
+          aria-labelledby="camera-background-reminder"
+        >
+          <Image
+            className="mt-0.5 shrink-0 text-[#08718d]"
+            size={18}
+            aria-hidden="true"
+          />
+          <div>
+            <h3 id="camera-background-reminder" className="font-semibold text-[#183947]">
+              Set up your camera background
+            </h3>
+            <p className="mt-1">
+              A professional or softly blurred background keeps the focus on you
+              and can make a strong first impression.
+            </p>
+          </div>
+        </aside>
 
         <div className="mt-8 flex justify-between gap-3 border-t border-[#e0eaee] pt-6">
           <Button variant="light" onPress={nav.goBack}>
