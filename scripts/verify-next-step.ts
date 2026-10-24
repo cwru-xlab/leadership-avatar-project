@@ -13,6 +13,7 @@
 import {
   selectPathSteps,
   nextStepFor,
+  reasonForDegradedCheck,
   TIE_BREAK_ORDER,
   type StepSelection,
 } from "../lib/study-plan/next-step";
@@ -442,6 +443,106 @@ console.log("\n10. nextStepFor");
   ]);
   const r4 = nextStepFor(allComplete);
   check("all complete -> null", r4 === null);
+
+  // An IN_PROGRESS step (e.g. an entered coached session) is resumed before
+  // any PENDING step, with its own stored reason.
+  const inProgressLater = fakePath([
+    { position: 1, status: "PENDING", selectionReason: "SENTINEL-ONE" },
+    { position: 2, status: "IN_PROGRESS", selectionReason: "SENTINEL-TWO" },
+    { position: 3, status: "PENDING", selectionReason: "SENTINEL-THREE" },
+  ]);
+  const r5 = nextStepFor(inProgressLater);
+  check(
+    "IN_PROGRESS at 2 with PENDING at 1 -> returns 2 with its stored reason",
+    r5?.step.position === 2 && r5.reason === "SENTINEL-TWO"
+  );
+
+  const onlyInProgress = fakePath([
+    { position: 1, status: "COMPLETE", selectionReason: "SENTINEL-ONE" },
+    { position: 2, status: "IN_PROGRESS", selectionReason: "SENTINEL-TWO" },
+  ]);
+  const r6 = nextStepFor(onlyInProgress);
+  check(
+    "only an IN_PROGRESS step left -> returns it (never null while work is open)",
+    r6?.step.position === 2 && r6.reason === "SENTINEL-TWO"
+  );
+
+  const twoInProgress = fakePath([
+    { position: 3, status: "IN_PROGRESS", selectionReason: "SENTINEL-THREE" },
+    { position: 1, status: "IN_PROGRESS", selectionReason: "SENTINEL-ONE" },
+  ]);
+  const r7 = nextStepFor(twoInProgress);
+  check("two IN_PROGRESS steps -> the lowest position", r7?.step.position === 1);
+
+  const skippedOnly = fakePath([
+    { position: 1, status: "SKIPPED", selectionReason: "SENTINEL-ONE" },
+    { position: 2, status: "COMPLETE", selectionReason: "SENTINEL-TWO" },
+  ]);
+  check("SKIPPED + COMPLETE only -> null", nextStepFor(skippedOnly) === null);
+}
+
+console.log("\n10b. STORED REASONS MATCH THE STORED STEP KIND");
+{
+  /** A non-check step whose reason mentions a knowledge check describes a
+   * step that does not exist (the degraded-step bug). */
+  function kindReasonIssues(
+    steps: Array<{ position: number; kind: string; selectionReason: string }>
+  ): string[] {
+    return steps
+      .filter(
+        (s) =>
+          (s.kind === "UNAIDED_SESSION" || s.kind === "COACHED_SESSION") &&
+          /knowledge check/i.test(s.selectionReason)
+      )
+      .map((s) => `step ${s.position} (${s.kind}) reason mentions a knowledge check`);
+  }
+
+  const mastery = resultWith(
+    ALL_KEYS.map((key, i) => (i % 2 === 0 ? established(key, 30 + i * 5) : blank(key)))
+  );
+  const selection = selectPathSteps({ mastery, desiredCount: 7, coachedEvidence: ALL_EVIDENCE });
+  check(
+    "selectPathSteps: no UNAIDED/COACHED step reason mentions a knowledge check",
+    kindReasonIssues(selection.steps).length === 0,
+    JSON.stringify(kindReasonIssues(selection.steps))
+  );
+
+  // Simulate the path route's degrade branch on EVERY check step.
+  const degraded = selection.steps.map((s) =>
+    s.kind === "KNOWLEDGE_CHECK"
+      ? { ...s, kind: "UNAIDED_SESSION", selectionReason: reasonForDegradedCheck(s.selectionReason) }
+      : s
+  );
+  const checkCount = selection.steps.filter((s) => s.kind === "KNOWLEDGE_CHECK").length;
+  check("fixture has at least one KNOWLEDGE_CHECK step to degrade", checkCount > 0, `got ${checkCount}`);
+  check(
+    "after degrading every check, no stored UNAIDED/COACHED reason mentions a knowledge check",
+    kindReasonIssues(degraded).length === 0,
+    JSON.stringify(kindReasonIssues(degraded))
+  );
+
+  const original = selection.steps.find((s) => s.kind === "KNOWLEDGE_CHECK")!;
+  const rewritten = reasonForDegradedCheck(original.selectionReason);
+  check(
+    "degraded reason keeps the base (competency) sentence and says it is a practice session",
+    rewritten.startsWith(original.selectionReason.split(" This knowledge check")[0]) &&
+      /practice session/.test(rewritten)
+  );
+  check(
+    "reasonForDegradedCheck is deterministic",
+    reasonForDegradedCheck(original.selectionReason) === rewritten
+  );
+
+  // PLANTED REGRESSION: the old behaviour (kind changed, reason kept) must
+  // be detected.
+  const planted = selection.steps.map((s) =>
+    s.kind === "KNOWLEDGE_CHECK" ? { ...s, kind: "UNAIDED_SESSION" } : s
+  );
+  check(
+    "the guard DETECTS a degraded step that kept its knowledge-check reason (planted regression)",
+    kindReasonIssues(planted).length === checkCount,
+    JSON.stringify(kindReasonIssues(planted))
+  );
 }
 
 console.log("\n11. COACHED REASON IS TRUTHFUL");

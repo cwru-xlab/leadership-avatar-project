@@ -31,6 +31,8 @@ import PathPanel, {
   DegradedStepsNote,
   type PathViewDTO,
 } from "@/components/study-plan/PathPanel";
+import GeneratePathCard from "@/components/study-plan/GeneratePathCard";
+import { usePathMastery } from "@/components/study-plan/PathVisuals";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -56,8 +58,8 @@ export default function StudyPlanPage() {
   const [path, setPath] = useState<PathViewDTO | null>(null);
   const [pathLoading, setPathLoading] = useState(false);
   const [pathError, setPathError] = useState<string | null>(null);
-  const [generatingPath, setGeneratingPath] = useState(false);
   const [degradedStepCount, setDegradedStepCount] = useState(0);
+  const mastery = usePathMastery();
 
   useEffect(() => {
     let cancelled = false;
@@ -95,65 +97,6 @@ export default function StudyPlanPage() {
       cancelled = true;
     };
   }, [planId]);
-
-  // Own fetch, own loading/error state — deliberately separate from the
-  // plan load above, same as the inline block this replaces.
-  async function fetchPath() {
-    setPathLoading(true);
-    setPathError(null);
-    try {
-      const response = await fetch(`/api/study-plans/${planId}/path`, {
-        cache: "no-store",
-        credentials: "include",
-      });
-      const data = (await response.json().catch(() => ({}))) as {
-        path?: PathViewDTO | null;
-        error?: string;
-      };
-      if (!response.ok) {
-        setPathError(data.error || "We couldn't load this plan's path.");
-        return;
-      }
-      setPath(data.path ?? null);
-    } catch {
-      setPathError("We couldn't load this plan's path.");
-    } finally {
-      setPathLoading(false);
-    }
-  }
-
-  async function generatePathForPlan() {
-    if (generatingPath) return;
-    setGeneratingPath(true);
-    setPathError(null);
-    try {
-      const response = await fetch(`/api/study-plans/${planId}/path`, {
-        method: "POST",
-        credentials: "include",
-      });
-      if (response.status === 409) {
-        // A race between two clicks (or two tabs) lands on the path that
-        // already exists — refetch rather than showing an error.
-        await fetchPath();
-        return;
-      }
-      const data = (await response.json().catch(() => ({}))) as {
-        path?: PathViewDTO;
-        degradedSteps?: Array<{ position: number; competencyKey: string }>;
-        error?: string;
-      };
-      if (!response.ok || !data.path) {
-        setPathError(data.error || "We couldn't generate a path for this plan.");
-        return;
-      }
-      setPath(data.path);
-      setDegradedStepCount(data.degradedSteps?.length ?? 0);
-    } catch {
-      setPathError("We couldn't generate a path for this plan.");
-    } finally {
-      setGeneratingPath(false);
-    }
-  }
 
   // Fetches the path once the plan has loaded successfully.
   useEffect(() => {
@@ -206,8 +149,8 @@ export default function StudyPlanPage() {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
         <p className="text-[#385463]">This study plan is not available.</p>
-        <Button as={Link} href="/reports" className="mt-5" color="primary">
-          Back to your reports
+        <Button as={Link} href="/study-plans" className="mt-5" color="primary">
+          Back to study plans
         </Button>
       </div>
     );
@@ -217,8 +160,8 @@ export default function StudyPlanPage() {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
         <p className="text-[#9b2c2c]">{loadError}</p>
-        <Button as={Link} href="/reports" className="mt-5" variant="light">
-          Back to your reports
+        <Button as={Link} href="/study-plans" className="mt-5" variant="light">
+          Back to study plans
         </Button>
       </div>
     );
@@ -237,13 +180,13 @@ export default function StudyPlanPage() {
       <div className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-10 lg:px-8">
         <Button
           as={Link}
-          href="/reports"
+          href="/study-plans"
           variant="light"
           size="sm"
           startContent={<ArrowLeft className="h-4 w-4" />}
           className="-ml-2 self-start text-default-600 data-[hover=true]:bg-transparent"
         >
-          Back to your reports
+          Back to study plans
         </Button>
 
         <section className="mt-4 rounded-2xl border border-[#d4e2e9] bg-white p-5 shadow-[0_8px_24px_rgba(20,58,75,0.06)] sm:p-7">
@@ -268,24 +211,17 @@ export default function StudyPlanPage() {
               <p className="text-sm text-danger-700">{pathError}</p>
             ) : path ? (
               <>
-                <PathPanel planId={plan.id} path={path} />
+                <PathPanel planId={plan.id} path={path} levels={mastery?.levels} />
                 <DegradedStepsNote count={degradedStepCount} />
               </>
             ) : (
-              <div className="rounded-2xl border border-[#dce8ed] bg-[#f8fbfc] p-5">
-                <p className="text-sm text-[#385463]">
-                  This plan doesn&apos;t have an improvement path yet.
-                </p>
-                <Button
-                  className="mt-3"
-                  color="primary"
-                  size="sm"
-                  isDisabled={generatingPath}
-                  onPress={generatePathForPlan}
-                >
-                  {generatingPath ? <><Spinner color="current" size="sm" /> Generating path</> : "Generate a path"}
-                </Button>
-              </div>
+              <GeneratePathCard
+                planId={plan.id}
+                onGenerated={(generated, degraded) => {
+                  setPath(generated);
+                  setDegradedStepCount(degraded);
+                }}
+              />
             )}
           </div>
         </section>

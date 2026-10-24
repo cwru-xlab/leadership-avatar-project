@@ -50,6 +50,14 @@ const REPORTS_PAGE_PATH = path.join(ROOT, "app", "reports", "page.tsx");
 const ROUTE_PATH = path.join(ROOT, "app", "api", "study-plans", "[planId]", "path", "route.ts");
 const PANEL_PATH = path.join(ROOT, "components", "study-plan", "PathPanel.tsx");
 const STUDY_PLAN_PAGE_PATH = path.join(ROOT, "app", "study-plans", "[planId]", "page.tsx");
+// Phase 23: the generate/preview/save flow moved off /reports into ONE shared
+// component used by both /reports and the new /study-plans index.
+const GENERATOR_PATH = path.join(ROOT, "components", "study-plan", "StudyPlanGenerator.tsx");
+const STUDY_PLANS_INDEX_PATH = path.join(ROOT, "app", "study-plans", "page.tsx");
+const PATHS_PAGE_PATH = path.join(ROOT, "app", "paths", "page.tsx");
+const GENERATE_PATH_CARD_PATH = path.join(ROOT, "components", "study-plan", "GeneratePathCard.tsx");
+const PATH_VISUALS_PATH = path.join(ROOT, "components", "study-plan", "PathVisuals.tsx");
+const PLANS_HOOK_PATH = path.join(ROOT, "components", "study-plan", "usePlansWithPaths.ts");
 
 // ---------------------------------------------------------------------------
 // Section 1 — existing surface regression guard (REQ-120)
@@ -76,13 +84,24 @@ function assertMarkersPresent(source: string): string[] {
 
 function runSection1() {
   console.log("\n1. EXISTING SURFACE REGRESSION GUARD (REQ-120)");
-  const source = fs.readFileSync(REPORTS_PAGE_PATH, "utf-8");
+  // Phase 23 extracted the generate/preview/save flow from this page into
+  // components/study-plan/StudyPlanGenerator.tsx (shared with /study-plans).
+  // The markers are therefore asserted over the page PLUS the component it
+  // renders — repointed, not weakened: the page must still import it.
+  const reportsSource = fs.readFileSync(REPORTS_PAGE_PATH, "utf-8");
+  const generatorSource = fs.existsSync(GENERATOR_PATH) ? fs.readFileSync(GENERATOR_PATH, "utf-8") : "";
+  const source = `${reportsSource}\n${generatorSource}`;
 
   const missing = assertMarkersPresent(source);
   check(
-    "every pre-existing study-plan marker is still present on app/reports/page.tsx",
+    "every pre-existing study-plan marker is still present on app/reports/page.tsx or the StudyPlanGenerator it renders",
     missing.length === 0,
     `missing: ${JSON.stringify(missing)}`,
+  );
+  check(
+    "app/reports/page.tsx renders the shared StudyPlanGenerator",
+    reportsSource.includes("<StudyPlanGenerator") &&
+      reportsSource.includes('from "@/components/study-plan/StudyPlanGenerator"'),
   );
 
   // PROVE THE GUARD BITES: strip one marker from an in-memory copy and
@@ -154,6 +173,16 @@ function runSection1b() {
   check("route does not reference getInterviewTranscript", !source.includes("getInterviewTranscript"));
   check("route does not query prisma.user.find*", !source.includes("prisma.user.find"));
   check("route delegates assembly to loadGenerationSources", source.includes("loadGenerationSources"));
+
+  // Degraded check -> practice session must store a reason for the step it
+  // actually stores (Phase 23 fix). Bite proof: the pre-fix branch fails.
+  const degradeBranchOk = (src: string) =>
+    /kind: "UNAIDED_SESSION",\s*selectionReason: reasonForDegradedCheck\(step\.selectionReason\)/.test(src);
+  check("the degrade branch rewrites selectionReason via reasonForDegradedCheck", degradeBranchOk(source));
+  check(
+    "the degrade-branch guard DETECTS the pre-fix branch that kept the check reason (bite proof)",
+    !degradeBranchOk(source.replace("selectionReason: reasonForDegradedCheck(step.selectionReason),", "")),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -238,7 +267,19 @@ const FORBIDDEN_TERMS = [
 
 function runSection5() {
   console.log("\n5. NO SEQUENTIAL-GATING OR STREAK COPY (21-17's scan, re-run over new files)");
-  for (const filePath of [PANEL_PATH, ROUTE_PATH]) {
+  const phase23Files = [
+    GENERATOR_PATH,
+    STUDY_PLANS_INDEX_PATH,
+    PATHS_PAGE_PATH,
+    GENERATE_PATH_CARD_PATH,
+    PATH_VISUALS_PATH,
+    PLANS_HOOK_PATH,
+  ];
+  for (const filePath of [PANEL_PATH, ROUTE_PATH, ...phase23Files]) {
+    if (!fs.existsSync(filePath)) {
+      check(`${path.relative(ROOT, filePath)} exists`, false, "MISSING");
+      continue;
+    }
     const source = fs.readFileSync(filePath, "utf-8");
     const stripped = stripCommentsAndStrings(source).toLowerCase();
     const matches = FORBIDDEN_TERMS.filter((term) => stripped.includes(term));
@@ -332,6 +373,85 @@ function runSection6() {
       const m = source.match(/\/study-plans\/\$\{planId\}\/coached\//);
       return Boolean(m);
     })(),
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Section 8 — Phase 23 path hub: /study-plans index + /paths
+// ---------------------------------------------------------------------------
+
+/** Every way the hub could regress, as a pure function over sources so the
+ * bite proof below can run it against a mutated copy. */
+function hubIssues(src: {
+  generator: string;
+  reports: string;
+  index: string;
+  paths: string;
+  card: string;
+  panel: string;
+}): string[] {
+  const issues: string[] = [];
+  // One implementation of plan generation, not a copy per page.
+  if (!src.generator.includes('"/api/study-plans/generate"')) issues.push("generator does not POST /api/study-plans/generate");
+  for (const [name, page] of [["reports", src.reports], ["study-plans index", src.index]] as const) {
+    if (page.includes('"/api/study-plans/generate"')) issues.push(`${name} page duplicates the generate call`);
+    if (!page.includes("<StudyPlanGenerator")) issues.push(`${name} page does not render StudyPlanGenerator`);
+  }
+  // Index links each plan to its own page.
+  if (!src.index.includes("/study-plans/${item.plan.id}")) issues.push("index does not link to /study-plans/{planId}");
+  // /paths renders the shared trail and the inline generate card.
+  if (!src.paths.includes("<PathPanel")) issues.push("/paths does not render PathPanel");
+  if (!src.paths.includes("<GeneratePathCard")) issues.push("/paths does not render GeneratePathCard");
+  if (!src.paths.includes("<GoalsStrip")) issues.push("/paths does not show daily/weekly goals");
+  // The inline generate card calls the EXISTING path route, with a 409 fallback.
+  if (!src.card.includes("/api/study-plans/${planId}/path")) issues.push("GeneratePathCard does not call the existing path route");
+  if (!src.card.includes('method: "POST"')) issues.push("GeneratePathCard does not POST");
+  if (!src.card.includes("409")) issues.push("GeneratePathCard has no 409 (already exists) handling");
+  if (!src.card.includes('role="alert"')) issues.push("GeneratePathCard has no error display");
+  // Exactly one Continue CTA in the trail, and a completion state to Mastery.
+  const continueCount = (src.panel.match(/data-testid="path-continue"/g) ?? []).length;
+  if (continueCount !== 1) issues.push(`PathPanel has ${continueCount} Continue CTAs, expected exactly 1`);
+  if (!src.panel.includes('href="/mastery"')) issues.push("PathPanel completion state does not link to /mastery");
+  // "What's next" has ONE source of truth: the server's nextStep.
+  const continueFn = src.panel.slice(src.panel.indexOf("export function continueTargetFor"), src.panel.indexOf("type NodeState"));
+  if (continueFn.includes("IN_PROGRESS")) issues.push("PathPanel re-derives the next step client-side (IN_PROGRESS fallback)");
+  if (!src.panel.includes("<LevelBadge")) issues.push("PathPanel does not render per-competency level badges");
+  // Reserved growth-since-plan slot, and /mastery's ?competency= deep link.
+  if (!src.panel.includes("growthSlot") || !src.paths.includes("growthSlot")) issues.push("growth-since-plan slot is missing");
+  if (!src.paths.includes('searchParams.get("competency")')) issues.push("/paths ignores ?competency=");
+  if (!src.paths.includes("highlightCompetency=")) issues.push("/paths does not highlight steps for ?competency=");
+  return issues;
+}
+
+function runSection8() {
+  console.log("\n8. PHASE 23 PATH HUB (/study-plans index + /paths)");
+  const read = (p: string) => (fs.existsSync(p) ? fs.readFileSync(p, "utf-8") : "");
+  check("app/study-plans/page.tsx exists", fs.existsSync(STUDY_PLANS_INDEX_PATH));
+  check("app/paths/page.tsx exists", fs.existsSync(PATHS_PAGE_PATH));
+  const sources = {
+    generator: read(GENERATOR_PATH),
+    reports: read(REPORTS_PAGE_PATH),
+    index: read(STUDY_PLANS_INDEX_PATH),
+    paths: read(PATHS_PAGE_PATH),
+    card: read(GENERATE_PATH_CARD_PATH),
+    panel: read(PANEL_PATH),
+  };
+  const issues = hubIssues(sources);
+  check("the path hub is wired as specified", issues.length === 0, JSON.stringify(issues));
+
+  // BITE PROOF — a duplicated generate call and a second Continue CTA must
+  // both be reported.
+  const mutated = hubIssues({
+    ...sources,
+    index: `${sources.index}\nfetch("/api/study-plans/generate")`,
+    panel: `${sources.panel}\n<a data-testid="path-continue" />`,
+  });
+  check(
+    "the hub guard DETECTS a duplicated generate call and a second Continue CTA (bite proof)",
+    mutated.some((i) => i.includes("duplicates the generate call")) &&
+      mutated.some((i) => i.includes("Continue CTAs")),
+    JSON.stringify(mutated),
   );
 }
 
@@ -623,6 +743,29 @@ async function runDatabaseSections() {
       "a step whose knowledgeCheckId is STILL the placeholder resolves to a null check artifact (no dead link data)",
       hazardDTO.steps[0]!.check === null,
     );
+    // -----------------------------------------------------------------
+    // Stored reasons vs stored kind, across EVERY persisted step. Rows
+    // written before the Phase 23 degrade fix are reported, not failed —
+    // the route no longer writes them (see section 1b and verify-next-step
+    // 10b for the enforced guard and its planted regression).
+    // -----------------------------------------------------------------
+    const mismatched = await prisma.studyPlanPathStep.findMany({
+      where: {
+        kind: { in: ["UNAIDED_SESSION", "COACHED_SESSION"] },
+        selectionReason: { contains: "knowledge check", mode: "insensitive" },
+      },
+      select: { id: true, path: { select: { generatedAt: true } } },
+    });
+    if (mismatched.length > 0) {
+      console.log(
+        `  WARN ${mismatched.length} legacy UNAIDED/COACHED step(s) still carry a knowledge-check reason (written before the degrade fix; newest path generated ${mismatched
+          .map((m) => m.path.generatedAt.toISOString())
+          .sort()
+          .pop()})`,
+      );
+    } else {
+      check("no persisted UNAIDED/COACHED step reason mentions a knowledge check", true);
+    }
   } finally {
     if (studyPlanIds.length > 0) {
       await prisma.studyPlanPath.deleteMany({ where: { studyPlanId: { in: studyPlanIds } } });
@@ -645,6 +788,7 @@ async function main() {
   runSection2Source();
   runSection5();
   runSection6();
+  runSection8();
   await runDatabaseSections();
 
   console.log(
