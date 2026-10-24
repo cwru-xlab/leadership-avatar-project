@@ -374,7 +374,7 @@ export async function POST(
     ]);
 
     // 3. PRE-CHECK: a competency absent from momentsByCompetency cannot host
-    //    a check or a coached step (a drill and the prove-it step need none).
+    //    a coached step; its knowledge check is generated in concept mode.
     const unavailableCompetencies: CompetencyKey[] = COMPETENCIES.map((c) => c.key).filter(
       (key) => !sources.momentsByCompetency.has(key),
     );
@@ -446,26 +446,28 @@ export async function POST(
         if (step.kind !== "KNOWLEDGE_CHECK") return step;
         const moments = sources.momentsByCompetency.get(step.competencyKey) ?? [];
         let createdCheckId: string | null = null;
-        if (moments.length > 0) {
-          const outcome = await generateChecksForCompetency({
-            userId: currentUser.id,
-            studyPlanId: planId,
-            competencyKey: step.competencyKey,
-            selfNames: sources.selfNames,
-            moments,
-            // Single-user assembly: every moment belongs to the requester.
-            momentOwnerUserIds: moments.map(() => currentUser.id),
-            transcriptsByReportId: sources.transcriptsByReportId,
-            desiredCount: 1,
+        // With moments: the student-grounded check (verbatim gate intact).
+        // Without: a CONCEPT check that quotes nobody (generate.ts concept
+        // mode discards any quote). Both are graded by the existing grader.
+        const outcome = await generateChecksForCompetency({
+          userId: currentUser.id,
+          studyPlanId: planId,
+          competencyKey: step.competencyKey,
+          selfNames: sources.selfNames,
+          moments,
+          // Single-user assembly: every moment belongs to the requester.
+          momentOwnerUserIds: moments.map(() => currentUser.id),
+          transcriptsByReportId: sources.transcriptsByReportId,
+          desiredCount: 1,
+          concept: moments.length === 0,
+        });
+        if (outcome.ok && outcome.created > 0) {
+          const created = await prisma.knowledgeCheck.findFirst({
+            where: { studyPlanId: planId, userId: currentUser.id, competencyKey: step.competencyKey },
+            orderBy: { createdAt: "desc" },
+            select: { id: true },
           });
-          if (outcome.ok && outcome.created > 0) {
-            const created = await prisma.knowledgeCheck.findFirst({
-              where: { studyPlanId: planId, userId: currentUser.id, competencyKey: step.competencyKey },
-              orderBy: { createdAt: "desc" },
-              select: { id: true },
-            });
-            if (created) createdCheckId = created.id;
-          }
+          if (created) createdCheckId = created.id;
         }
         if (createdCheckId) return { ...step, knowledgeCheckId: createdCheckId };
         degradedSteps.push({ position: step.position, competencyKey: step.competencyKey });

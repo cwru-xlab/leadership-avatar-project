@@ -8,16 +8,21 @@
  *
  * PHASE 23 (23-CONTEXT.md "Path design decisions", user, 2026-10-24):
  *
- * TARGETING — plan-first. The ranking has three ordered groups:
- *   1. SCORED: competencies the plan's OWN source sessions scored
- *      (`planEvidence`), weakest mean first. Ties: a competency that also
- *      matches a priority theme first (best theme priority), then the global
- *      comparator below.
- *   2. THEME: competencies matched ONLY by the plan's priority themes
- *      (`themeMatches`), best theme priority first, then the global
- *      comparator.
- *   3. GLOBAL: everything else (including never-measured competencies),
- *      by the global comparator. These only fill remaining slots.
+ * TARGETING — plan-first. The ranking has four ordered groups:
+ *   1. SCORED (weak): competencies the plan's OWN source sessions scored
+ *      BELOW `WEAK_THRESHOLD_PERCENT` on average (`planEvidence`), weakest
+ *      mean first. Ties: a competency related to a priority theme first (best
+ *      theme priority), then the global comparator below.
+ *   2. THEME: competencies related ONLY to the plan's priority themes
+ *      (`themeMatches`) and not scored by its sessions, best theme priority
+ *      first, then the global comparator.
+ *   3. GLOBAL: competencies the plan does not speak to, by the global
+ *      comparator. A never-measured competency is an "absent" gap and ranks
+ *      first here (NONE tier).
+ *   4. STRONG: competencies the plan's sessions scored AT OR ABOVE the
+ *      threshold, weakest mean first. User decision (2026-10-24): "only plan
+ *      skills below 70% (average) count as weak targets. Plan skills at or
+ *      above 70% rank BELOW plan themes and global gaps."
  *   With no plan signal at all, the ranking is exactly the global one.
  *
  * GLOBAL COMPARATOR (`compareCompetencies`, unchanged from Phase 21): a
@@ -28,8 +33,10 @@
  *
  * ORDER — learn -> drill -> rework -> prove. For each of the top
  * `MAX_TARGETS` ranked competencies, one BLOCK:
- *   KNOWLEDGE_CHECK (only when a source moment exists — `unavailableCompetencies`
- *   excludes it), then 1-2 VOICE_DRILL (a drill needs no moment), then
+ *   KNOWLEDGE_CHECK (always: grounded in the student's own moment when one
+ *   exists, otherwise a CONCEPT check that quotes nobody — user decision
+ *   2026-10-24, so every path keeps learn -> drill -> prove), then 1-2
+ *   VOICE_DRILL (a drill needs no moment), then
  *   COACHED_SESSION (only when `coachedEvidence` qualifies it — the route's
  *   placement guard). The path ends with ONE UNAIDED_SESSION on the #1 target:
  *   the pre-filled prove-it session, which needs no moment.
@@ -69,12 +76,16 @@ export const TIE_BREAK_ORDER: readonly CompetencyKey[] = COMPETENCIES.slice()
   .sort((a, b) => a.order - b.order)
   .map((c) => c.key);
 
+/** User decision (2026-10-24): a plan skill is WEAK only below this average
+ * percent; at or above it, it ranks after themes and global gaps. */
+export const WEAK_THRESHOLD_PERCENT = 70;
+
 /** How many weak skills a path targets (23-CONTEXT.md: "typically the top 2-3"). */
 export const MAX_TARGETS = 3;
 /** Drills per target (23-CONTEXT.md: "1-2 VOICE_DRILL steps"). */
 export const MAX_DRILLS_PER_TARGET = 2;
 
-export type TargetBasis = "SCORED" | "THEME" | "GLOBAL";
+export type TargetBasis = "SCORED" | "THEME" | "GLOBAL" | "STRONG";
 
 export interface RankingEntry {
   competencyKey: CompetencyKey;
@@ -162,7 +173,7 @@ function plural(n: number, one: string, many: string): string {
 function globalFigureSentence(ranked: RankedCompetency): string {
   const label = labelFor(ranked.competencyKey);
   if (ranked.tier === "NONE") {
-    return `${label} has no scored evidence yet in your overall mastery.`;
+    return `${label} has no scored evidence yet: it has never been measured, so it counts as an absent gap in your overall mastery.`;
   }
   const figure = ranked.currentPercent ?? ranked.lifetimePercent;
   const figureKind = ranked.currentPercent !== null ? "current" : "lifetime";
@@ -180,17 +191,23 @@ function baseReasonFor(
   if (entry.basis === "SCORED") {
     const n = entry.planScoredReportCount ?? 0;
     const themeClause = entry.theme
-      ? `, and it matches the plan's priority theme "${entry.theme}"`
+      ? `, and it is related to your plan theme "${entry.theme}"`
       : "";
-    return `${label} is ${targetPhrase}: the ${n} ${plural(n, "session", "sessions")} this plan was built from scored it ${entry.planMeanPercent}% on average${themeClause}.`;
+    return `${label} is ${targetPhrase}: the ${n} ${plural(n, "session", "sessions")} this plan was built from scored it ${entry.planMeanPercent}% on average, below the ${WEAK_THRESHOLD_PERCENT}% weak-skill line${themeClause}.`;
   }
   if (entry.basis === "THEME") {
-    return `${label} is ${targetPhrase}: it matches the plan's priority theme "${entry.theme}", though the sessions this plan was built from did not score it directly.`;
+    return `${label} is ${targetPhrase}: it is related to your plan theme "${entry.theme}", though the sessions this plan was built from did not score it directly.`;
+  }
+  if (entry.basis === "STRONG") {
+    const n = entry.planScoredReportCount ?? 0;
+    return `${label} is already at ${entry.planMeanPercent}% on average across the ${n} ${plural(n, "session", "sessions")} this plan was built from, at or above the ${WEAK_THRESHOLD_PERCENT}% weak-skill line, so it ranks after the plan's weak skills, themes and gaps.`;
   }
   return `${globalFigureSentence(ranked)} It is not one of this plan's own weak skills, so it fills a remaining slot.`;
 }
 
 const KNOWLEDGE_CHECK_CLAUSE = "This knowledge check covers the concept first.";
+const CONCEPT_CHECK_CLAUSE =
+  "This concept knowledge check covers the idea first; no moment from your sessions is available, so it quotes none.";
 const DRILL_CLAUSE = "This short voice drill is a spoken rep on it, graded at the end.";
 const SECOND_DRILL_CLAUSE = "This second voice drill is another spoken rep before you move on.";
 const COACHED_CLAUSE = "This coached session reworks one of your own moments where it was weakest.";
@@ -204,6 +221,7 @@ const DEGRADED_DRILL_CLAUSE =
 function stripCheckSentences(checkReason: string): string {
   return checkReason
     .replace(KNOWLEDGE_CHECK_CLAUSE, "")
+    .replace(CONCEPT_CHECK_CLAUSE, "")
     .split(/(?<=[.!?])\s+/)
     .filter((sentence) => sentence.trim() !== "" && !/knowledge check/i.test(sentence))
     .join(" ")
@@ -253,8 +271,8 @@ export function selectPathSteps(args: {
   mastery: MasteryResult;
   /** The step-count CAP, clamped into PATH_STEP_BOUNDS. */
   desiredCount: number;
-  /** Competency keys with no available source moment — cannot host a check
-   * or a coached step (a drill and the final session need no moment). */
+  /** Competency keys with no available source moment — cannot host a coached
+   * step; their knowledge check is a concept check. */
   unavailableCompetencies?: readonly CompetencyKey[];
   /** REQUIRED: competencies qualified for a coached step (scored by the
    * plan's source sessions AND with a qualifying moment). */
@@ -297,19 +315,18 @@ export function selectPathSteps(args: {
     }),
   }));
 
-  const basisOf = (c: RankedCompetency): TargetBasis =>
-    planEvidence.has(c.competencyKey)
-      ? "SCORED"
-      : themeMatches.has(c.competencyKey)
-        ? "THEME"
-        : "GLOBAL";
-  const GROUP_RANK: Record<TargetBasis, number> = { SCORED: 0, THEME: 1, GLOBAL: 2 };
+  const basisOf = (c: RankedCompetency): TargetBasis => {
+    const ev = planEvidence.get(c.competencyKey);
+    if (ev) return ev.meanPercent < WEAK_THRESHOLD_PERCENT ? "SCORED" : "STRONG";
+    return themeMatches.has(c.competencyKey) ? "THEME" : "GLOBAL";
+  };
+  const GROUP_RANK: Record<TargetBasis, number> = { SCORED: 0, THEME: 1, GLOBAL: 2, STRONG: 3 };
 
   const sorted = candidates.slice().sort((a, b) => {
     const ga = basisOf(a);
     const gb = basisOf(b);
     if (ga !== gb) return GROUP_RANK[ga] - GROUP_RANK[gb];
-    if (ga === "SCORED") {
+    if (ga === "SCORED" || ga === "STRONG") {
       const ma = planEvidence.get(a.competencyKey)!.meanPercent;
       const mb = planEvidence.get(b.competencyKey)!.meanPercent;
       if (ma !== mb) return ma - mb;
@@ -345,7 +362,7 @@ export function selectPathSteps(args: {
 
   const makeBlock = (entry: RankingEntry): Block => ({
     entry,
-    knowledgeCheck: !unavailableSet.has(entry.competencyKey),
+    knowledgeCheck: true,
     drills: 1,
     coached:
       !unavailableSet.has(entry.competencyKey) && coachedEvidence.has(entry.competencyKey),
@@ -396,7 +413,8 @@ export function selectPathSteps(args: {
   for (const block of blocks) {
     const base = block.entry.reason;
     if (block.knowledgeCheck) {
-      push("KNOWLEDGE_CHECK", block.entry, `${base} ${KNOWLEDGE_CHECK_CLAUSE}`);
+      const clause = unavailableSet.has(block.entry.competencyKey) ? CONCEPT_CHECK_CLAUSE : KNOWLEDGE_CHECK_CLAUSE;
+      push("KNOWLEDGE_CHECK", block.entry, `${base} ${clause}`);
     }
     for (let d = 0; d < block.drills; d += 1) {
       push("VOICE_DRILL", block.entry, `${base} ${d === 0 ? DRILL_CLAUSE : SECOND_DRILL_CLAUSE}`);
