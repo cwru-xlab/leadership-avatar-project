@@ -6,8 +6,8 @@
 
 ## Current Position
 
-**Phase:** 22 — Coached Mode (Waves 1-7 of 8 complete; Wave 8 — human UAT — next)
-**Plan:** 22-01..22-15 complete; 22-16 next (full verifier run, then blocking human browser UAT). REQ-113/114/115 stay Pending until it is approved.
+**Phase:** 22 — Coached Mode (all 16 plans executed; UAT round 1 NOT approved — gap closure next)
+**Plan:** 22-16 Task 3 blocked on a passing UAT. Gaps G1-G4 in `22-VALIDATION.md` ## UAT: stale dev-server Prisma client (env), silent coach (opening fires from 15s fallback before CONNECTED), no camera, and user decision to extract shared session chrome from the interview shell (supersedes 22-AVATAR-MOUNT-DECISION.md; amend 21-12 guard; practice regression check needed). REQ-113/114/115 Pending.
 **Status:** Practice tree and `lib/engine/` unchanged vs 59f6166. Open: containment runtime-marker scan covers 4/13 engine types (others by import closure only); path-route placement latency vs 60s maxDuration unmeasured with a real model; UAT needs a freshly generated path.
 **Last activity:** 2026-10-21 — quick task 006 (study-plan picker-as-modal +
 saved-plan own-route) complete, two commits (`1eeb762` feat, `86ae306`
