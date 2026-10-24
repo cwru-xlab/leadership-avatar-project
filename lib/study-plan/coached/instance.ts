@@ -2,13 +2,21 @@
  * Coached practice as its own instance — reachable ONLY through a study
  * plan's path, structured replay-first-then-fresh.
  *
- * See `.planning/phases/21-adaptive-mastery-path/21-COACHED-ENGINE-DECISION.md`
- * for the full reasoning this module implements: coached mode reuses the
- * engine's live session machinery but is never a registered `ENGINE_TYPES`
- * entry (REQ-113). This module is the single, named carve-out
+ * See `.planning/phases/22-coached-mode/22-COACH-LAYER-DECISION.md` (which
+ * supersedes the engine-session half of
+ * `.planning/phases/21-adaptive-mastery-path/21-COACHED-ENGINE-DECISION.md`):
+ * the coach is the only presence, there is NO engine session and NO
+ * InteractionReport. Coached mode is never a registered `ENGINE_TYPES` entry
+ * (REQ-113). This module is the single, named carve-out
  * `scripts/verify-knowledge-check-surface.ts`'s `ENGINE_IMPORT_CARVE_OUTS`
- * grants from the "nothing under lib/study-plan/ imports the engine" rule —
- * and is the reason that carve-out exists at all.
+ * grants from the "nothing under lib/study-plan/ imports the engine" rule.
+ *
+ * REPLAY / FRESH (Phase 22): both legs are REAL moments of the student's own
+ * (REPLAY from `replaySourceReportId`/`replayTurnIndex`, FRESH from
+ * `freshSourceReportId`/`freshTurnIndex`). FRESH is "both or neither": when the
+ * student has only one qualifying moment the session is thin-evidence, one leg
+ * (`legCount` 1). There is no generated scenario. The leg is DERIVED from
+ * closure timestamps the coach's LEG_DONE move leads to, never from a report.
  *
  * ABSENCES ARE DELIBERATE, not oversights:
  * - There is no overload of `createCoachedSession`, no optional
@@ -16,16 +24,13 @@
  *   REQ-113 guard: `pathStepId` is required and non-nullable, and there is
  *   no code path into this module that does not go through an
  *   already-persisted `COACHED_SESSION` path step.
- * - This module does NOT read S3. The replay moment's transcript text is
- *   21-23's concern (it owns the S3 read); keeping I/O out of here is what
- *   lets this module's own verifier run credential-free, the same discipline
- *   21-04's and 21-09's batteries already follow.
+ * - This module does NOT read S3. The moment transcript text is runtime.ts's
+ *   concern (it owns the S3 read); keeping I/O out of here is what lets this
+ *   module's own verifier run credential-free.
  * - This module does NOT write a mastery ledger contribution
- *   (lib/mastery/ledger.ts). 21-16 owns the coached-weight mastery
- *   contribution, because the coached weight and the tip-compliance check
- *   belong together in one place. A contribution written here AND in 21-16
- *   would double-count a coached session, inverting the locked "coached
- *   counts below unaided" ordering.
+ *   (lib/mastery/ledger.ts). `contribution.ts` owns the coached-weight
+ *   contribution; a write here AND there would double-count a coached
+ *   session, inverting the locked "coached counts below unaided" ordering.
  */
 import { Prisma } from "@prisma/client";
 
@@ -66,10 +71,10 @@ export class InvalidReplayTargetError extends Error {
   }
 }
 
-export class InvalidFreshScenarioError extends Error {
+export class InvalidFreshMomentError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "InvalidFreshScenarioError";
+    this.name = "InvalidFreshMomentError";
   }
 }
 
@@ -80,8 +85,7 @@ export class CoachedSessionAlreadyCompleteError extends Error {
   }
 }
 
-/** Declared length limit for the fresh-scenario prompt (Task 2, step 3). */
-export const MAX_FRESH_SCENARIO_PROMPT_LENGTH = 4000;
+export type SelectionBasis = "PER_TURN_SCORE" | "GROWTH_AREA_FALLBACK";
 
 export interface CoachedSessionView {
   id: string;
@@ -90,40 +94,64 @@ export interface CoachedSessionView {
   competencyKey: string;
   replaySourceReportId: string;
   replayTurnIndex: number;
-  freshScenarioPrompt: string;
-  reportId: string | null;
+  freshSourceReportId: string | null;
+  freshTurnIndex: number | null;
+  /** Null marks a pre-Phase-22 row (see retargetLegacyCoachedSession). */
+  selectionBasis: SelectionBasis | null;
+  replayMomentScore: number | null;
+  freshMomentScore: number | null;
+  replayLegCompletedAt: Date | null;
+  /** 1 = thin evidence (no fresh moment), 2 = replay then fresh. */
+  legCount: 1 | 2;
+  freshScenarioPrompt: string | null; // pre-Phase-22 rows only
+  reportId: string | null; // pre-Phase-22 column; never read for the phase
   startedAt: Date;
   completedAt: Date | null;
   /**
-   * DERIVED from stored state, never stored as a fourth column:
+   * DERIVED from stored state, never stored as a column:
    * - "COMPLETE" when `completedAt` is set.
-   * - "FRESH" when `reportId` is set (the fresh leg is the one that
-   *   produces the gradeable session) but not yet completed.
+   * - "FRESH" when `replayLegCompletedAt` is set but not yet completed.
    * - "REPLAY" otherwise.
-   * Deriving it means the phase can never disagree with the data; a stored
-   * phase column would eventually drift from reportId/completedAt.
+   * `reportId` no longer participates (pre-Phase-22 column).
    */
   phase: CoachedPhase;
 }
 
-function deriveViewFromRow(row: {
+interface SessionRow {
   id: string;
   userId: string;
   pathStepId: string;
   competencyKey: string;
   replaySourceReportId: string;
   replayTurnIndex: number;
-  freshScenarioPrompt: string | null; // nullable from Phase 22 (22-02)
+  freshSourceReportId: string | null;
+  freshTurnIndex: number | null;
+  selectionBasis: string | null;
+  replayMomentScore: number | null;
+  freshMomentScore: number | null;
+  replayLegCompletedAt: Date | null;
+  freshScenarioPrompt: string | null;
   reportId: string | null;
   startedAt: Date;
   completedAt: Date | null;
-}): CoachedSessionView {
+}
+
+function deriveViewFromRow(row: SessionRow): CoachedSessionView {
   const phase: CoachedPhase = row.completedAt
     ? "COMPLETE"
-    : row.reportId
+    : row.replayLegCompletedAt
       ? "FRESH"
       : "REPLAY";
-  return { ...row, freshScenarioPrompt: row.freshScenarioPrompt ?? "", phase };
+  return {
+    ...row,
+    selectionBasis: (row.selectionBasis as SelectionBasis | null) ?? null,
+    legCount: row.freshSourceReportId !== null ? 2 : 1,
+    phase,
+  };
+}
+
+function validScore(n: number | null): boolean {
+  return n === null || (Number.isInteger(n) && n >= 1 && n <= 5);
 }
 
 /**
@@ -140,9 +168,9 @@ function deriveViewFromRow(row: {
  *   2. REPLAY IS MANDATORY — `replaySourceReportId` must name an
  *      `InteractionReport` owned by `userId`, and `replayTurnIndex` must be
  *      a non-negative integer within that report's `turnCount`.
- *   3. FRESH IS MANDATORY — `freshScenarioPrompt` must be non-empty and
- *      within `MAX_FRESH_SCENARIO_PROMPT_LENGTH`. Both legs must exist at
- *      creation; a session can never be created with only one.
+ *   3. FRESH IS BOTH-OR-NEITHER — `freshSourceReportId` and `freshTurnIndex`
+ *      are both set (a second real moment, user-owned, in range, and not the
+ *      replay moment) or both null (thin evidence, one leg).
  *   4. ONE PER STEP — `CoachedSession.pathStepId` is `@unique` (21-03). A
  *      P2002 collision (a double-click, or a retried request) returns the
  *      EXISTING session rather than erroring, and writes the step's
@@ -164,9 +192,23 @@ export async function createCoachedSession(args: {
   pathStepId: string;
   replaySourceReportId: string;
   replayTurnIndex: number;
-  freshScenarioPrompt: string;
+  freshSourceReportId: string | null;
+  freshTurnIndex: number | null;
+  selectionBasis: SelectionBasis;
+  replayMomentScore: number | null;
+  freshMomentScore: number | null;
 }): Promise<CoachedSessionView> {
-  const { userId, pathStepId, replaySourceReportId, replayTurnIndex, freshScenarioPrompt } = args;
+  const {
+    userId,
+    pathStepId,
+    replaySourceReportId,
+    replayTurnIndex,
+    freshSourceReportId,
+    freshTurnIndex,
+    selectionBasis,
+    replayMomentScore,
+    freshMomentScore,
+  } = args;
 
   // 1. THE ONLY ENTRY — load the step by id, joining path -> studyPlan -> userId.
   const step = await prisma.studyPlanPathStep.findFirst({
@@ -207,16 +249,38 @@ export async function createCoachedSession(args: {
     );
   }
 
-  // 3. FRESH IS MANDATORY.
-  const trimmedFreshPrompt = freshScenarioPrompt.trim();
-  if (trimmedFreshPrompt.length === 0) {
-    throw new InvalidFreshScenarioError("freshScenarioPrompt must be non-empty.");
-  }
-  if (trimmedFreshPrompt.length > MAX_FRESH_SCENARIO_PROMPT_LENGTH) {
-    throw new InvalidFreshScenarioError(
-      `freshScenarioPrompt exceeds MAX_FRESH_SCENARIO_PROMPT_LENGTH ` +
-        `(${MAX_FRESH_SCENARIO_PROMPT_LENGTH}); got ${trimmedFreshPrompt.length}.`,
+  // 3. FRESH IS BOTH-OR-NEITHER.
+  if ((freshSourceReportId === null) !== (freshTurnIndex === null)) {
+    throw new InvalidFreshMomentError(
+      "freshSourceReportId and freshTurnIndex must both be set or both be null.",
     );
+  }
+  if (!validScore(replayMomentScore) || !validScore(freshMomentScore)) {
+    throw new InvalidReplayTargetError("moment scores must be integers 1..5 or null.");
+  }
+  if (freshSourceReportId !== null && freshTurnIndex !== null) {
+    const freshReport = await prisma.interactionReport.findFirst({
+      where: { id: freshSourceReportId, userId },
+      select: { id: true, turnCount: true },
+    });
+    if (!freshReport) {
+      throw new InvalidFreshMomentError(
+        `freshSourceReportId ${freshSourceReportId} does not exist or is not owned by user ${userId}.`,
+      );
+    }
+    if (
+      !Number.isInteger(freshTurnIndex) ||
+      freshTurnIndex < 0 ||
+      freshTurnIndex >= freshReport.turnCount
+    ) {
+      throw new InvalidFreshMomentError(
+        `freshTurnIndex ${freshTurnIndex} is not a non-negative integer within report ` +
+          `${freshSourceReportId}'s turnCount (${freshReport.turnCount}).`,
+      );
+    }
+    if (freshSourceReportId === replaySourceReportId && freshTurnIndex === replayTurnIndex) {
+      throw new InvalidFreshMomentError("The fresh moment must differ from the replay moment.");
+    }
   }
 
   // 4. ONE PER STEP — create, catching P2002 as "someone else already did this".
@@ -229,7 +293,11 @@ export async function createCoachedSession(args: {
           competencyKey: step.competencyKey,
           replaySourceReportId,
           replayTurnIndex,
-          freshScenarioPrompt: trimmedFreshPrompt,
+          freshSourceReportId,
+          freshTurnIndex,
+          selectionBasis,
+          replayMomentScore,
+          freshMomentScore,
         },
       });
       // Write the step's coachedSessionId back in the SAME transaction so
@@ -258,9 +326,8 @@ export async function createCoachedSession(args: {
  * Reads a coached session, scoped by `userId` in the WHERE clause (not
  * filtered after fetching).
  *
- * Does NOT read S3. The replay moment's transcript text is fetched by the
- * CALLER (21-23 owns that S3 read) and passed in or exposed through a
- * separate accessor — keeping I/O out of this module is what lets its own
+ * Does NOT read S3. The moment transcript text is fetched by the
+ * CALLER (runtime.ts owns that S3 read) — keeping I/O out of this module is what lets its own
  * verifier run with no database and no credentials for the signature/registry
  * sections, the same discipline 21-04's and 21-09's batteries follow.
  */
@@ -276,32 +343,43 @@ export async function readCoachedSession(
 }
 
 /**
- * Finishes a coached session: verifies ownership, sets `reportId` and
- * `completedAt`, then marks the owning path step COMPLETE via
- * `markStepComplete` (21-08). Throws if the session is already complete.
+ * Marks the REPLAY leg closed (the coach delivered LEG_DONE and the student
+ * moves on). Sets `replayLegCompletedAt` once; throws if already set or if the
+ * session is complete.
+ */
+export async function markReplayLegComplete(
+  userId: string,
+  coachedSessionId: string,
+): Promise<void> {
+  const session = await prisma.coachedSession.findFirst({
+    where: { id: coachedSessionId, userId },
+  });
+  if (!session) throw new NotReachableOutsideAPathError(coachedSessionId);
+  if (session.completedAt) throw new CoachedSessionAlreadyCompleteError(coachedSessionId);
+  if (session.replayLegCompletedAt) {
+    throw new Error(`Coached session ${coachedSessionId}: the replay leg is already complete.`);
+  }
+  await prisma.coachedSession.update({
+    where: { id: coachedSessionId },
+    data: { replayLegCompletedAt: new Date() },
+  });
+}
+
+/**
+ * Finishes a coached session: verifies ownership, sets `completedAt`, then
+ * marks the owning path step COMPLETE via `markStepComplete`. No report is
+ * involved (Phase 22). Throws if the session is already complete.
  *
  * NOT wrapped in a single `prisma.$transaction` with `markStepComplete`:
- * `lib/study-plan/path.ts`'s `markStepComplete` takes no transaction client
- * parameter (it is not in this plan's `files_modified`, so it is not
- * extended here), so there is no way to make its reads/writes participate in
- * the same transaction as the `coachedSession` update above without faking
- * atomicity the two calls do not actually have. The two writes run
- * sequentially instead, in the order that keeps the data model's own
- * invariant intact at every intermediate step: `reportId`/`completedAt` are
- * written FIRST, so that if `markStepComplete` throws (e.g. the step was
- * already completed through some other path), the coached session itself is
- * still correctly finished, and a retry of `markStepComplete` alone is
- * sufficient to reconcile the step.
+ * that function takes no transaction client. `completedAt` is written FIRST so
+ * that if `markStepComplete` throws, the session itself is still finished and
+ * a retry of `markStepComplete` alone reconciles the step.
  *
- * Does NOT record a mastery contribution. 21-16 owns that (see the module
- * header note above) — recording one here too would make coached practice
- * count MORE than unaided practice, inverting the locked ordering
- * ("coached sessions DO move mastery, weighted below unaided practice").
+ * Does NOT record a mastery contribution (`contribution.ts` owns that).
  */
 export async function finishCoachedSession(
   userId: string,
   coachedSessionId: string,
-  reportId: string,
 ): Promise<void> {
   const session = await prisma.coachedSession.findFirst({
     where: { id: coachedSessionId, userId },
@@ -315,12 +393,54 @@ export async function finishCoachedSession(
 
   await prisma.coachedSession.update({
     where: { id: coachedSessionId },
-    data: { reportId, completedAt: new Date() },
+    data: { completedAt: new Date() },
   });
 
-  // markStepComplete re-asserts path.ts's state-dependent coached rule at
-  // the moment the step actually leaves PENDING — by now coachedSessionId
-  // is non-null (written at creation), so the rule's accept half applies.
   const { markStepComplete } = await import("../path");
   await markStepComplete(userId, session.pathStepId);
+}
+
+/**
+ * Re-targets a Phase 21 session that has not been worked. Phase 21 sessions
+ * were created against turn 0 and a generated scenario and carry no coach
+ * work; a completed one is history and is never touched. ONLY a row with
+ * `selectionBasis === null && completedAt === null` qualifies; anything else
+ * throws.
+ */
+export async function retargetLegacyCoachedSession(
+  userId: string,
+  coachedSessionId: string,
+  targets: {
+    replaySourceReportId: string;
+    replayTurnIndex: number;
+    freshSourceReportId: string | null;
+    freshTurnIndex: number | null;
+    selectionBasis: SelectionBasis;
+    replayMomentScore: number | null;
+    freshMomentScore: number | null;
+  },
+): Promise<CoachedSessionView> {
+  const row = await prisma.coachedSession.findFirst({
+    where: { id: coachedSessionId, userId },
+  });
+  if (!row) throw new NotReachableOutsideAPathError(coachedSessionId);
+  if (row.selectionBasis !== null || row.completedAt !== null) {
+    throw new Error(
+      `Coached session ${coachedSessionId} is not a legacy incomplete session and cannot be re-targeted.`,
+    );
+  }
+  if ((targets.freshSourceReportId === null) !== (targets.freshTurnIndex === null)) {
+    throw new InvalidFreshMomentError(
+      "freshSourceReportId and freshTurnIndex must both be set or both be null.",
+    );
+  }
+  const updated = await prisma.coachedSession.update({
+    where: { id: coachedSessionId },
+    data: {
+      ...targets,
+      reportId: null,
+      replayLegCompletedAt: null,
+    },
+  });
+  return deriveViewFromRow(updated);
 }
