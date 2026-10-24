@@ -44,12 +44,6 @@ import {
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import { getEngineType } from "@/lib/engine/registry";
 import { parseEngineTurn } from "@/lib/engine/turn-control";
-import {
-  describeKeyTarget,
-  isPushToTalkBlockingTarget,
-  isPushToTalkKey,
-  shouldAbortPendingStart,
-} from "@/lib/practice/push-to-talk-key";
 import type {
   DisengagementComputeResult,
   DisengagementCue,
@@ -365,20 +359,6 @@ function PracticeInterviewRoom({
   const meterSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const recordingStartInFlightRef = useRef(false);
-  // Hold-Space push-to-talk refs. `startRecordingRef`/`stopRecordingRef` let
-  // the window-level listener (registered once, below) always call the
-  // current `startRecording`/`stopRecording` closures without re-subscribing
-  // on every `sending`/`isPaused` change — see the render-time assignment
-  // after `stopRecording` is declared. `spaceHeldRef` tracks whether this
-  // component currently considers Space "held" for the one-hold-one-recording
-  // guarantee. `cancelPendingStartRef` lets a release that lands before
-  // `getMicrophone()` resolves abort the late-arriving start (the
-  // tap-and-release race) — set by the release path, read by `startRecording`.
-  const startRecordingRef = useRef<(() => void) | null>(null);
-  const stopRecordingRef = useRef<(() => void) | null>(null);
-  const spaceHeldRef = useRef(false);
-  const cancelPendingStartRef = useRef(false);
-
   // Phase 10 metrics capture refs (REQ-35/43/49). visualCaptureRef/
   // cameraStreamRef stay null for the entire session when cameraMode is
   // "OFF" — the self-view and banner both render nothing in that case.
@@ -1183,20 +1163,9 @@ function PracticeInterviewRoom({
       return;
     }
     recordingStartInFlightRef.current = true;
-    // Each start owns a fresh cancel flag — a stale cancel left over from an
-    // earlier hold must not kill a later start.
-    cancelPendingStartRef.current = false;
     try {
       const stream = await getMicrophone();
-      if (
-        shouldAbortPendingStart({
-          sending,
-          isTranscribing,
-          isPaused,
-          walkOutLocked: walkOutLockRef.current,
-          startCancelled: cancelPendingStartRef.current,
-        })
-      ) {
+      if (sending || isTranscribing || isPaused || walkOutLockRef.current) {
         return;
       }
       const recorder = new MediaRecorder(stream, {
@@ -1250,19 +1219,6 @@ function PracticeInterviewRoom({
     setIsRecording(false);
   }, []);
 
-  // Bare render-time assignment — the `sendMessageRef` pattern (see
-  // `sendMessageRef.current = sendMessage;` above), not a `useEffect`. A
-  // render-time assignment is current the instant the new callback identity
-  // exists; an effect-deferred one lags by a flush, and a key event landing
-  // in that window would call the previous (possibly stale) closure. The
-  // hold-Space listener effect below subscribes once with `[]` deps and
-  // reads through these refs instead of depending on `startRecording`/
-  // `stopRecording` directly — depending on them would re-subscribe on every
-  // `sending`/`isPaused` change, i.e. mid-hold, and the matching keyup would
-  // land on a listener that no longer exists, leaving the microphone open.
-  startRecordingRef.current = startRecording;
-  stopRecordingRef.current = stopRecording;
-
   const toggleRecording = useCallback(() => {
     if (walkOutLockRef.current) return;
     if (mediaRecorderRef.current?.state === "recording") {
@@ -1271,73 +1227,6 @@ function PracticeInterviewRoom({
     }
     void startRecording();
   }, [startRecording, stopRecording]);
-
-  // Hold-Space push-to-talk: one window-level listener shared by every
-  // engine-backed interaction type via this single shell — no per-type prop
-  // or branch. Registered once with `[]` deps (see the ref-refresh comment
-  // above for why) so it is never torn down and re-attached mid-hold.
-  useEffect(() => {
-    const releaseHold = () => {
-      if (!spaceHeldRef.current) return;
-      spaceHeldRef.current = false;
-      // A release landing before `startRecording`'s `await getMicrophone()`
-      // resolves (the tap-and-release race) must abort that late-arriving
-      // start — `stopRecording` is a no-op while `mediaRecorderRef.current`
-      // is still null, so without this flag the mic would open with no
-      // keyup left to close it.
-      cancelPendingStartRef.current = true;
-      stopRecordingRef.current?.();
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!isPushToTalkKey(event.key)) return;
-      // `event.repeat` is the key-repeat storm while a key stays held down —
-      // one hold must mean exactly one recording.
-      if (event.repeat) return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (isPushToTalkBlockingTarget(describeKeyTarget(event.target))) return;
-      if (spaceHeldRef.current) return;
-
-      // Prevent the page from also scrolling on Space.
-      event.preventDefault();
-      spaceHeldRef.current = true;
-      // Deliberately does not consult `walkOutLockRef`, `sending`,
-      // `isPaused` or `mediaRecorderRef` here. `startRecording` already owns
-      // every one of those gates, including the re-check after
-      // `getMicrophone()` resolves — duplicating them here is how the two
-      // paths would drift apart.
-      void startRecordingRef.current?.();
-    };
-
-    const handleKeyUp = (event: KeyboardEvent) => {
-      if (!isPushToTalkKey(event.key)) return;
-      if (!spaceHeldRef.current) return;
-      // Releasing Space must stop the recording even if focus moved into a
-      // blocked element during the hold — the held flag, not the current
-      // target, decides whether to release.
-      event.preventDefault();
-      releaseHold();
-    };
-
-    const handleBlur = () => releaseHold();
-    const handleVisibilityChange = () => {
-      if (document.hidden) releaseHold();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    window.addEventListener("blur", handleBlur);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      window.removeEventListener("blur", handleBlur);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      // Unmount or session end mid-hold must not leave the microphone open.
-      releaseHold();
-    };
-  }, []);
 
   const answeredCount = Math.max(
     0,
@@ -1716,23 +1605,25 @@ function PracticeInterviewRoom({
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
-                    variant={isRecording ? "solid" : "flat"}
-                    color={isRecording ? "danger" : "default"}
+                    variant={isRecording || isTranscribing ? "solid" : "flat"}
+                    color={isRecording ? "danger" : isTranscribing ? "primary" : "default"}
                     className="font-medium text-[#d7eaf3]"
                     isDisabled={
                       walkOutLock || sending || isTranscribing || !avatarReady
                     }
+                    isLoading={isTranscribing}
                     onPress={toggleRecording}
-                    aria-label={isRecording ? "Stop recording and send answer" : "Start recording answer"}
+                    aria-label={
+                      isTranscribing
+                        ? "Recorded answer submitted for transcription"
+                        : isRecording
+                          ? "Stop recording and send answer"
+                          : "Start recording answer"
+                    }
                     startContent={isRecording ? <MicOff size={15} /> : <Mic size={15} />}
                   >
-                    {isTranscribing ? "Transcribing…" : isRecording ? "Tap again to send" : "Tap to record"}
+                    {isTranscribing ? "Answer submitted" : isRecording ? "Tap again to send" : "Tap to record"}
                   </Button>
-                  {!walkOutLock && avatarReady ? (
-                    <span className="hidden text-[11px] leading-4 text-[#82a5b8] sm:inline">
-                      or hold <kbd className="rounded border border-white/20 bg-white/5 px-1 py-0.5 font-sans text-[10px] text-[#d7eaf3]">Space</kbd> to talk
-                    </span>
-                  ) : null}
                 </div>
                 <Button
                   size="sm"
