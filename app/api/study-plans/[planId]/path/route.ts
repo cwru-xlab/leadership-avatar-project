@@ -23,6 +23,7 @@ import {
 import { loadGenerationSources } from "@/lib/study-plan/checks/sources";
 import { generateChecksForCompetency } from "@/lib/study-plan/checks/generate";
 import { readCoachedSession } from "@/lib/study-plan/coached/instance";
+import { loadCoachedEvidence } from "@/lib/study-plan/coached/evidence";
 import { ENGINE_TYPES } from "@/lib/engine/registry";
 import { SHARED_RUBRIC_DIMENSION_KEYS } from "@/lib/engine/types";
 
@@ -319,11 +320,26 @@ export async function POST(
       (key) => !sources.momentsByCompetency.has(key),
     );
 
+    // Scored-evidence availability guard (22-CONTEXT.md): a coached step needs
+    // BOTH a score from this plan's own source reports AND a moment. Moments
+    // alone were insufficient -- they come from historical reports while the
+    // NONE tier comes from the (empty) mastery ledger, which produced a
+    // self-contradictory reason. INTERIM: 22-07 Task 3 replaces this with the
+    // isQualifyingMoment-based guard.
+    const evidence = await loadCoachedEvidence(currentUser.id, reportIds);
+    const coachedEvidence = new Map(
+      Array.from(evidence.entries()).filter(([key]) => sources.momentsByCompetency.has(key)),
+    );
+
     const selection = selectPathSteps({
       mastery,
       desiredCount: DEFAULT_DESIRED_STEP_COUNT,
       unavailableCompetencies,
+      coachedEvidence,
     });
+    if (selection.coachedOmitted) {
+      console.warn(`Study-plan path ${planId}: no competency qualified for a coached step`);
+    }
 
     // 4. ATTACH REAL CHECK IDS. This loop is the hazard closure: every
     // KNOWLEDGE_CHECK step selectPathSteps produced carries
