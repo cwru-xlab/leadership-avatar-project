@@ -176,12 +176,14 @@ function runSection1b() {
 
   // Degraded check -> practice session must store a reason for the step it
   // actually stores (Phase 23 fix). Bite proof: the pre-fix branch fails.
+  // Phase 23: a failed check degrades to a VOICE_DRILL (the path keeps ONE
+  // UNAIDED_SESSION, the final prove-it step), with its reason rewritten.
   const degradeBranchOk = (src: string) =>
-    /kind: "UNAIDED_SESSION",\s*selectionReason: reasonForDegradedCheck\(step\.selectionReason\)/.test(src);
-  check("the degrade branch rewrites selectionReason via reasonForDegradedCheck", degradeBranchOk(source));
+    /kind: "VOICE_DRILL",\s*selectionReason: reasonForDegradedCheckToDrill\(step\.selectionReason\)/.test(src);
+  check("the degrade branch rewrites selectionReason via reasonForDegradedCheckToDrill", degradeBranchOk(source));
   check(
     "the degrade-branch guard DETECTS the pre-fix branch that kept the check reason (bite proof)",
-    !degradeBranchOk(source.replace("selectionReason: reasonForDegradedCheck(step.selectionReason),", "")),
+    !degradeBranchOk(source.replace("selectionReason: reasonForDegradedCheckToDrill(step.selectionReason),", "")),
   );
 }
 
