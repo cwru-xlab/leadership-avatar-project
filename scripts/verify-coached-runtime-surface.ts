@@ -505,6 +505,26 @@ console.log("\n6b. G2 — COACH SPEECH IS QUEUED, NEVER DROPPED; NO TIMER-FIRED 
   );
 }
 
+console.log("\n6d. G2 ROOT CAUSE — the turn route sends the FLAT coach turn");
+{
+  const routeSource = readFileSync(
+    abs("app", "api", "study-plans", "path-steps", "[stepId]", "coached", "route.ts"),
+    "utf8",
+  );
+  // takeCoachTurn returns { coachTurn: CoachTurnResult } and CoachTurnResult is
+  // { coachTurn, legState }. Sending it unwrapped made `speech` undefined on
+  // the client, so the avatar spoke nothing (observed in the smoke test as
+  // `avatar.speak_text, text: undefined`).
+  check(
+    "the PATCH turn response unwraps CoachTurnResult (coachTurn: result.coachTurn)",
+    /coachTurn:\s*result\.coachTurn/.test(routeSource) && !/response\(\{\s*coachTurn,\s*leg\s*\}/.test(routeSource),
+  );
+  check(
+    "the shell speaks `turn.speech` from that flat turn",
+    /avatar\.speak\(turn\.speech\)/.test(shellSource),
+  );
+}
+
 console.log("\n6c. NUMERIC GRADES ONLY AT THE END (user decision 2026-10-24)");
 {
   const runtimeSource = readFileSync(abs("lib", "study-plan", "coached", "runtime.ts"), "utf8");
