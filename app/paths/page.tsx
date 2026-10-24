@@ -39,14 +39,22 @@ function formatDate(iso: string): string {
   });
 }
 
+/** True when this plan's path has at least one step targeting `key`. */
+function pathTargets(item: PlanWithPath, key: string | null): boolean {
+  return Boolean(key && item.path && item.path.steps.some((s) => s.competencyKey === key));
+}
+
 function PlanPickerRow({
   item,
   selected,
   onSelect,
+  focusLabel,
 }: {
   item: PlanWithPath;
   selected: boolean;
   onSelect: () => void;
+  /** Set when this plan's path targets the ?competency= focus. */
+  focusLabel?: string | null;
 }) {
   const total = item.path ? item.path.steps.length : 0;
   const done = item.path ? item.path.steps.filter(isStepDone).length : 0;
@@ -86,6 +94,11 @@ function PlanPickerRow({
                     ? `Next: ${KIND_LABEL[target.step.kind]} — ${target.step.competencyLabel}`
                     : `${done} of ${total} steps done`}
         </span>
+        {focusLabel ? (
+          <span className="mt-1 inline-block rounded-full bg-[#fff4e0] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#8a5a00]">
+            Targets {focusLabel}
+          </span>
+        ) : null}
       </span>
       <ChevronRight size={16} className="shrink-0 text-[#8298a3]" aria-hidden="true" />
     </button>
@@ -96,6 +109,8 @@ function PathsHub() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedPlanId = searchParams.get("plan");
+  // /mastery links a dropped competency here as ?competency=<key>.
+  const focusCompetency = searchParams.get("competency");
   const { state, setPathFor } = usePlansWithPaths();
   const mastery = usePathMastery();
   const [selectedId, setSelectedId] = useState<string | null>(requestedPlanId);
@@ -104,21 +119,42 @@ function PathsHub() {
 
   const items = useMemo(() => (state.status === "loaded" ? state.items : []), [state]);
 
-  // Default selection once plans load: the requested plan if it exists, else
+  const pathsLoaded = items.length > 0 && items.every((i) => i.path !== undefined);
+  const focusLabel = focusCompetency
+    ? mastery?.labels[focusCompetency] ??
+      items
+        .flatMap((i) => i.path?.steps ?? [])
+        .find((s) => s.competencyKey === focusCompetency)?.competencyLabel ??
+      focusCompetency.replace(/_/g, " ")
+    : null;
+  const focusTargeted = items.filter((i) => pathTargets(i, focusCompetency));
+  const firstPlanWithoutPath = items.find((i) => i.path === null && !i.pathError) ?? null;
+
+  // Default selection once plans load: the requested plan if it exists; with
+  // ?competency=, the most recent plan whose path targets it (unfinished
+  // first), else a plan without a path (to offer generating one); otherwise
   // the most recent plan with an unfinished path, else the most recent plan.
   useEffect(() => {
     if (items.length === 0) return;
     if (selectedId && items.some((i) => i.plan.id === selectedId)) return;
-    if (items.some((i) => i.path === undefined)) return; // wait for paths
-    const inProgress = items.find(
-      (i) => i.path && i.path.steps.some((s) => !isStepDone(s)),
-    );
-    setSelectedId((inProgress ?? items[0]).plan.id);
-  }, [items, selectedId]);
+    if (!pathsLoaded) return; // wait for paths
+    const unfinished = (i: PlanWithPath) => Boolean(i.path && i.path.steps.some((s) => !isStepDone(s)));
+    if (focusCompetency) {
+      const targeted = items.filter((i) => pathTargets(i, focusCompetency));
+      const pick = targeted.find(unfinished) ?? targeted[0] ?? firstPlanWithoutPath;
+      if (pick) {
+        setSelectedId(pick.plan.id);
+        return;
+      }
+    }
+    setSelectedId((items.find(unfinished) ?? items[0]).plan.id);
+  }, [items, selectedId, pathsLoaded, focusCompetency, firstPlanWithoutPath]);
 
   function select(planId: string) {
     setSelectedId(planId);
-    router.replace(`/paths?plan=${planId}`, { scroll: false });
+    const query = new URLSearchParams({ plan: planId });
+    if (focusCompetency) query.set("competency", focusCompetency);
+    router.replace(`/paths?${query.toString()}`, { scroll: false });
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
       detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -142,6 +178,40 @@ function PathsHub() {
       {mastery ? (
         <div className="mt-6">
           <GoalsStrip goals={mastery.goals} timeZone={mastery.timeZone} />
+        </div>
+      ) : null}
+
+      {focusCompetency && focusLabel && pathsLoaded ? (
+        <div
+          role="status"
+          className="mt-6 rounded-2xl border border-[#f0d3a0] bg-[#fffaf0] p-4 text-sm text-[#5c4410]"
+        >
+          {focusTargeted.length > 0 ? (
+            <p>
+              <span className="font-semibold">Focusing on {focusLabel}.</span>{" "}
+              {focusTargeted.length === 1 ? "One path targets" : `${focusTargeted.length} paths target`} it —
+              matching steps are outlined below.
+            </p>
+          ) : (
+            <>
+              <p>
+                <span className="font-semibold">None of your paths target {focusLabel} yet.</span>{" "}
+                A path aims at your weakest competencies at the moment it is generated, so a new path
+                is the way to work on it.
+              </p>
+              <div className="mt-3">
+                {firstPlanWithoutPath ? (
+                  <Button size="sm" color="primary" onPress={() => select(firstPlanWithoutPath.plan.id)}>
+                    Generate a path for “{firstPlanWithoutPath.plan.title}”
+                  </Button>
+                ) : (
+                  <Button as={Link} href="/study-plans" size="sm" color="primary">
+                    Create a new study plan
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -178,6 +248,7 @@ function PathsHub() {
                   item={item}
                   selected={item.plan.id === selectedId}
                   onSelect={() => select(item.plan.id)}
+                  focusLabel={pathTargets(item, focusCompetency) ? focusLabel : null}
                 />
               ))}
             </div>
@@ -213,6 +284,12 @@ function PathsHub() {
                       planId={selected.plan.id}
                       path={selected.path}
                       levels={mastery?.levels}
+                      highlightCompetency={focusCompetency}
+                      // GROWTH-SINCE-PLAN SLOT: wire the per-plan "growth since
+                      // this plan was generated" strip here once
+                      // GET /api/mastery/since-plan?planId=… lands (mastery
+                      // worktree). Intentionally empty until then.
+                      growthSlot={null}
                     />
                     <DegradedStepsNote count={degraded[selected.plan.id] ?? 0} />
                   </>

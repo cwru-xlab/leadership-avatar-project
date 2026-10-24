@@ -46,6 +46,7 @@
  * server-side generation route (app/api/study-plans/[planId]/path/route.ts)
  * is the first line — this is only a backstop.
  */
+import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -229,11 +230,23 @@ export default function PathPanel({
   planId,
   path,
   levels,
+  growthSlot,
+  highlightCompetency,
 }: {
   planId: string;
   path: PathViewDTO;
   /** Optional per-competency levels from /api/mastery, shown as badges. */
   levels?: LevelsByCompetency | null;
+  /**
+   * GROWTH-SINCE-PLAN SLOT (reserved, Phase 23). A per-plan "growth since
+   * this plan was generated" strip (GET /api/mastery/since-plan?planId=…,
+   * owned by the mastery worktree) is rendered here, directly under the
+   * header, once wired. Callers pass null/undefined until then.
+   */
+  growthSlot?: ReactNode;
+  /** When set (e.g. /paths?competency=<key>), steps targeting this
+   * competency are outlined and the first one is scrolled into view. */
+  highlightCompetency?: string | null;
 }) {
   const total = path.steps.length;
   const complete = path.steps.filter(isStepDone).length;
@@ -242,6 +255,18 @@ export default function PathPanel({
   const targetHref = target ? hrefForStep(planId, target.step) : null;
 
   const orderedSteps = path.steps.slice().sort((a, b) => a.position - b.position);
+  const firstHighlighted = highlightCompetency
+    ? orderedSteps.find((s) => s.competencyKey === highlightCompetency) ?? null
+    : null;
+
+  const firstHighlightedId = firstHighlighted?.id ?? null;
+
+  useEffect(() => {
+    if (!firstHighlightedId) return;
+    document
+      .getElementById(`path-step-${firstHighlightedId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [firstHighlightedId]);
 
   // `degradedSteps` conversion (a failed check generation becoming
   // UNAIDED_SESSION) already happened server-side at generation time,
@@ -269,6 +294,9 @@ export default function PathPanel({
           </p>
         </div>
       </header>
+
+      {/* GROWTH-SINCE-PLAN SLOT — see the `growthSlot` prop. */}
+      {growthSlot ? <div className="mt-5">{growthSlot}</div> : null}
 
       {allDone ? (
         <PathCompleteCard total={total} />
@@ -315,8 +343,9 @@ export default function PathPanel({
               : "pending";
           const isLast = index === orderedSteps.length - 1;
           const statusLabel = STATUS_LABEL[step.status] ?? step.status;
+          const highlighted = Boolean(highlightCompetency) && step.competencyKey === highlightCompetency;
           return (
-            <li key={step.id} className="relative flex gap-3 pb-6 last:pb-0 sm:gap-4">
+            <li key={step.id} id={`path-step-${step.id}`} className="relative flex gap-3 pb-6 last:pb-0 sm:gap-4">
               {!isLast ? (
                 <span
                   aria-hidden="true"
@@ -328,6 +357,8 @@ export default function PathPanel({
               <TrailNode state={state} kind={step.kind} />
               <div
                 className={`min-w-0 flex-1 rounded-xl border p-3 sm:p-4 ${
+                  highlighted ? "ring-2 ring-[#e0b062] ring-offset-2 " : ""
+                }${
                   state === "next"
                     ? "border-[#0a7391] bg-[#f3fafc]"
                     : state === "done"

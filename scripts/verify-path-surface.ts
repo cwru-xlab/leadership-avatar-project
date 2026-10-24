@@ -404,6 +404,10 @@ function hubIssues(src: {
   if (continueCount !== 1) issues.push(`PathPanel has ${continueCount} Continue CTAs, expected exactly 1`);
   if (!src.panel.includes('href="/mastery"')) issues.push("PathPanel completion state does not link to /mastery");
   if (!src.panel.includes("<LevelBadge")) issues.push("PathPanel does not render per-competency level badges");
+  // Reserved growth-since-plan slot, and /mastery's ?competency= deep link.
+  if (!src.panel.includes("growthSlot") || !src.paths.includes("growthSlot")) issues.push("growth-since-plan slot is missing");
+  if (!src.paths.includes('searchParams.get("competency")')) issues.push("/paths ignores ?competency=");
+  if (!src.paths.includes("highlightCompetency=")) issues.push("/paths does not highlight steps for ?competency=");
   return issues;
 }
 
