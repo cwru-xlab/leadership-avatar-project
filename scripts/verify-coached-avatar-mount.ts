@@ -19,6 +19,14 @@
  */
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+import {
+  FaceDetectionBanner,
+  PRACTICE_FACE_BANNER_DETAIL,
+} from "../components/session/FaceDetectionBanner";
+import { formatMomentDate } from "../components/study-plan/coached/format-moment-date";
 
 const ROOT = resolve(__dirname, "..");
 
@@ -171,6 +179,57 @@ check(
   "an import from components/practice in the coached shell is caught by section 3",
   /from\s*["']@\/components\/practice\//.test(practiceImportInCoached),
 );
+
+console.log("\nSection 6: coached copy fixes (23 L3 brief date, L4 face banner)");
+{
+  // L4. The practice banner's rendered markup is exactly what it was before
+  // the `detail` prop existed (the consequence span, byte for byte).
+  const PRACTICE_SPAN =
+    '<span class="text-xs text-amber-800">Move back into frame — this affects your Visual score.</span>';
+  const practiceHtml = renderToStaticMarkup(createElement(FaceDetectionBanner, { visible: true }));
+  check("L4: the practice banner (no detail) renders the Visual-score line byte-identically", practiceHtml.includes(PRACTICE_SPAN));
+  check(
+    "L4: PRACTICE_FACE_BANNER_DETAIL is the original wording",
+    PRACTICE_FACE_BANNER_DETAIL === "Move back into frame — this affects your Visual score.",
+  );
+  const bannerCall = (src: string) => /<FaceDetectionBanner\b[^>]*\/>/.exec(src)?.[0] ?? "";
+  const practiceCallsBare = (src: string) => !/\bdetail=/.test(bannerCall(src));
+  check("L4: PracticeSessionShell passes no detail override", practiceCallsBare(practiceSrc));
+  check(
+    "L4: CaseStudySessionView passes no detail override",
+    practiceCallsBare(read("components/practice/CaseStudySessionView.tsx")),
+  );
+  const coachedCopy = /const COACHED_FACE_BANNER_DETAIL =\s*"([^"]+)"/.exec(coachedSrc)?.[1] ?? "";
+  const coachedPassesCopy = (src: string) => /\bdetail=\{COACHED_FACE_BANNER_DETAIL\}/.test(bannerCall(src));
+  check("L4: the coached shell passes its own banner copy", coachedPassesCopy(coachedSrc));
+  const coachedHtml = renderToStaticMarkup(createElement(FaceDetectionBanner, { visible: true, detail: coachedCopy }));
+  check(
+    "L4: the coached banner names end-of-session feedback and never a live Visual score",
+    /end-of-session/.test(coachedHtml) && !/Visual score/.test(coachedHtml) && !coachedHtml.includes(PRACTICE_SPAN),
+  );
+  check(
+    "L4 bite-proof: a coached shell that drops the override is caught",
+    !coachedPassesCopy(coachedSrc.replace(/\s*detail=\{COACHED_FACE_BANNER_DETAIL\}/, "")),
+  );
+  check(
+    "L4 bite-proof: a practice shell that adds an override is caught",
+    !practiceCallsBare(practiceSrc.replace("<FaceDetectionBanner ", '<FaceDetectionBanner detail="x" ')),
+  );
+
+  // L3. The brief formats the moment date like the rest of the app.
+  const iso = "2026-10-02T19:13:31.042Z";
+  const shown = formatMomentDate(iso, "UTC");
+  const expected = new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+  check(`L3: formatMomentDate(${iso}) is the short app date ("${shown}")`, shown === expected && !shown.includes("T19") && shown.length <= 8);
+  check("L3: an unparseable date yields an empty string, not Invalid Date", formatMomentDate("not-a-date") === "");
+  const briefSrc = read("components/study-plan/coached/CoachedBriefCard.tsx");
+  const briefFormats = (src: string) => /formatMomentDate\(moment\.sessionDate\)/.test(src) && !/\{moment\.sessionDate\}/.test(src);
+  check("L3: the brief renders formatMomentDate(moment.sessionDate), never the raw value", briefFormats(briefSrc));
+  check(
+    "L3 bite-proof: a brief that renders {moment.sessionDate} raw is caught",
+    !briefFormats(briefSrc.replace("${momentDate}", "${momentDate}{moment.sessionDate}")),
+  );
+}
 
 if (failures === 0) {
   console.log("\nverify-coached-avatar-mount: ALL SECTIONS PASSED\n");
