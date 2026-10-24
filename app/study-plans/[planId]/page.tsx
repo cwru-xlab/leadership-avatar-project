@@ -31,6 +31,7 @@ import PathPanel, {
   DegradedStepsNote,
   type PathViewDTO,
 } from "@/components/study-plan/PathPanel";
+import SincePlanGrowth from "@/components/study-plan/SincePlanGrowth";
 import GeneratePathCard from "@/components/study-plan/GeneratePathCard";
 import { usePathMastery } from "@/components/study-plan/PathVisuals";
 
@@ -211,7 +212,12 @@ export default function StudyPlanPage() {
               <p className="text-sm text-danger-700">{pathError}</p>
             ) : path ? (
               <>
-                <PathPanel planId={plan.id} path={path} levels={mastery?.levels} />
+                <PathPanel
+                  planId={plan.id}
+                  path={path}
+                  levels={mastery?.levels}
+                  growthSlot={<SincePlanGrowth planId={plan.id} />}
+                />
                 <DegradedStepsNote count={degradedStepCount} />
               </>
             ) : (
