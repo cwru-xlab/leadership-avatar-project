@@ -34,7 +34,7 @@ import {
   type CoachedSessionView,
 } from "./instance";
 import { techniquesForCompetency, assertTipSafe } from "./tips";
-import { recordCoachedContribution } from "./contribution";
+import { gradedLegScore, recordCoachedContribution } from "./contribution";
 import {
   selectCoachedMoments,
   NoQualifyingMomentError,
@@ -134,6 +134,12 @@ export interface CoachedTurnView {
   move: string;
   text: string;
   demonstration: string | null;
+  /**
+   * ALWAYS null in a live leg view. User decision 2026-10-24: technique tips
+   * during the session, numeric grade ONLY at the end — so per-attempt scores
+   * never leave the server mid-session. The graded numbers are in
+   * `CoachedLegView.summary`, which exists only once the session is COMPLETE.
+   */
   score: number | null;
   acceptable: boolean | null;
   parroted: boolean | null;
@@ -163,6 +169,38 @@ export interface CoachedLegView {
   selectionBasis: "PER_TURN_SCORE" | "GROWTH_AREA_FALLBACK";
   /** Current leg's moment: momentFramingFor(stored score) — REFINEMENT when above MAX_REWORKABLE_SCORE. */
   momentFraming: "REWORK" | "REFINEMENT";
+  /** The graded end-of-session summary. Null until the session is COMPLETE. */
+  summary: CoachedSessionSummary | null;
+}
+
+export interface CoachedLegSummaryAttempt {
+  text: string;
+  /** The coach's 1..5 grade of this attempt; null if it was not graded. */
+  score: number | null;
+  acceptable: boolean | null;
+  parroted: boolean | null;
+}
+
+export interface CoachedLegSummary {
+  leg: "REPLAY" | "FRESH";
+  /** The original moment, verbatim. */
+  moment: CoachedMomentView;
+  /** The per-turn score the moment was selected with (1..5); null under the growth-area fallback. */
+  originalScore: number | null;
+  attempts: CoachedLegSummaryAttempt[];
+  /**
+   * The graded score this leg contributed to mastery — `gradedLegScore`, the
+   * same rule `recordCoachedContribution` writes. Null when no usable attempt.
+   */
+  gradedScore: number | null;
+  /** The attempt that earned `gradedScore` (latest of equal scores), verbatim. */
+  gradedAttemptText: string | null;
+  closedAtSoftCap: boolean;
+}
+
+export interface CoachedSessionSummary {
+  legs: CoachedLegSummary[];
+  completedAt: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +361,67 @@ function competencyInfo(key: CompetencyKey) {
 }
 
 /**
+ * The graded end-of-session summary: per leg, the original moment, every
+ * graded attempt, and the score that leg contributed to mastery. Built only
+ * for a COMPLETE session — mid-session views carry no numbers at all.
+ */
+async function buildSessionSummary(
+  userId: string,
+  session: CoachedSessionView,
+  replayCtx: LegContext,
+): Promise<CoachedSessionSummary> {
+  const rows = await loadTurnRows(session.id);
+  const legs: Array<"REPLAY" | "FRESH"> = session.legCount === 2 ? ["REPLAY", "FRESH"] : ["REPLAY"];
+  const summaries: CoachedLegSummary[] = [];
+
+  for (const leg of legs) {
+    let ctx: LegContext;
+    try {
+      ctx = leg === "REPLAY" ? replayCtx : await resolveLegContext(userId, session, leg);
+    } catch (error) {
+      // A source transcript that vanished after completion must not take the
+      // whole summary down; that leg is simply omitted.
+      console.warn("[coached] summary: leg context unavailable", { leg, error });
+      continue;
+    }
+    const legRows = rows.filter((r) => r.leg === leg);
+    const attemptRows = legRows.filter((r) => r.speaker === "STUDENT" && r.move === "ATTEMPT");
+    const closure = legRows.find((r) => r.speaker === "COACH" && r.move === "LEG_DONE");
+    const closedAtSoftCap = closure?.closedAtSoftCap === true;
+    const gradedScore = closure
+      ? gradedLegScore(
+          attemptRows.map((r) => ({ leg, score: r.score, acceptable: r.acceptable, parroted: r.parroted })),
+          { leg, closedAtSoftCap: closure.closedAtSoftCap },
+        )
+      : null;
+    const gradedAttempt =
+      gradedScore === null
+        ? null
+        : [...attemptRows].reverse().find((r) => r.score === gradedScore && r.parroted !== true) ?? null;
+
+    summaries.push({
+      leg,
+      moment: ctx.moment,
+      originalScore: leg === "REPLAY" ? session.replayMomentScore : session.freshMomentScore,
+      attempts: attemptRows.map((r) => ({
+        text: r.text,
+        score: r.score,
+        acceptable: r.acceptable,
+        parroted: r.parroted,
+      })),
+      gradedScore,
+      gradedAttemptText: gradedAttempt?.text ?? null,
+      closedAtSoftCap,
+    });
+  }
+
+  return {
+    legs: summaries,
+    completedAt: session.completedAt ? new Date(session.completedAt).toISOString() : null,
+  };
+}
+
+/**
  * Builds the `CoachedLegView` for an existing session. The current leg's
  * moment text is re-read from the transcript on every call.
  */
@@ -343,6 +442,7 @@ async function buildLegView(
 
   if (phase === "COMPLETE") {
     const ctx = await resolveLegContext(userId, session, "REPLAY");
+    const summary = await buildSessionSummary(userId, session, ctx);
     return {
       coachedSessionId: session.id,
       leg: "COMPLETE",
@@ -363,6 +463,7 @@ async function buildLegView(
       worth,
       selectionBasis,
       momentFraming: ctx.framing,
+      summary,
     };
   }
 
@@ -378,7 +479,8 @@ async function buildLegView(
       move: r.move,
       text: r.text,
       demonstration: r.demonstration,
-      score: r.score,
+      // Numeric grade only at the end (user decision 2026-10-24).
+      score: null,
       acceptable: r.acceptable,
       parroted: r.parroted,
     }));
@@ -408,6 +510,7 @@ async function buildLegView(
     worth,
     selectionBasis,
     momentFraming: ctx.framing,
+    summary: null,
   };
 }
 
