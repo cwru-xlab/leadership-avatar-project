@@ -379,6 +379,27 @@ console.log("\n3. HOOK SITE AND NO SECOND COPY");
 }
 
 async function runDatabaseSection() {
+  // Phase 23: the hook must fire for EVERY interaction type (interview, case
+  // study, networking, pitch, difficult conversation). It lives in the one
+  // type-agnostic evaluator; prove no typeSlug branch gates it.
+  {
+    console.log("\n3b. HOOK IS TYPE-AGNOSTIC");
+    const runner = fs.readFileSync(RUNNER_PATH, "utf8");
+    const gateIssues = (src: string): string[] => {
+      const fnStart = src.indexOf("export async function runAndPersistEvaluation");
+      const hook = src.indexOf("recordLiveSessionContributions({", fnStart);
+      if (fnStart === -1 || hook === -1) return ["hook or function not found"];
+      const body = src.slice(fnStart, hook);
+      return /typeSlug\s*[!=]==|switch\s*\(\s*[\w.]*typeSlug/.test(body) ? ["typeSlug branch before hook"] : [];
+    };
+    check("no typeSlug branch precedes the ingestion hook in runAndPersistEvaluation", gateIssues(runner).length === 0, JSON.stringify(gateIssues(runner)));
+    const mutated = runner.replace(
+      "        const ingested = await recordLiveSessionContributions({",
+      "        if (report.typeSlug === \"general\") {}\n        const ingested = await recordLiveSessionContributions({"
+    );
+    check("bite: a typeSlug gate inserted before the hook is caught", mutated !== runner && gateIssues(mutated).length > 0);
+  }
+
   if (!process.env.DATABASE_URL) {
     skip("4. END TO END (no DATABASE_URL set)");
     return;
@@ -415,6 +436,20 @@ async function runDatabaseSection() {
       },
     });
     reportIds.push(report.id);
+
+    // Dry run (Phase 23 backfill): same guards and mapping, no write.
+    const dryResult = await recordLiveSessionContributions({ reportId: report.id, dryRun: true });
+    const rowsAfterDry = await prisma.masteryContribution.count({ where: { sourceReportId: report.id } });
+    check(
+      "dryRun maps rows but writes none (written 0, mappedInputCount > 0, 0 rows in DB)",
+      dryResult.written === 0 && (dryResult.mappedInputCount ?? 0) > 0 && rowsAfterDry === 0,
+      JSON.stringify({ dryResult, rowsAfterDry })
+    );
+    check(
+      "dryRun reports the null dimension (vocal) rather than dropping it silently",
+      (dryResult.nullDimensions ?? []).includes("vocal") && (dryResult.unmappedDimensions ?? []).length === 0,
+      JSON.stringify(dryResult)
+    );
 
     // First call: writes rows.
     const firstResult = await recordLiveSessionContributions({ reportId: report.id });
