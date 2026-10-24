@@ -336,6 +336,67 @@ console.log("\n5. NAV REACHABILITY (REQ-106)");
   );
 }
 
+// === Section 5b: STUDY PLANS + PATHS NAV (Phase 23) =======================
+console.log("\n5b. STUDY PLANS + PATHS NAV (Phase 23)");
+{
+  const navbarSource = readSource("components/auth-navbar.tsx");
+  const iconMapMatch = navbarSource.match(/const iconMap = \{([\s\S]*?)\}/);
+  const iconMapBlock = iconMapMatch ? iconMapMatch[1] : "";
+
+  /** Both tabs exist, sit between My Reports and Mastery (in that order),
+   * use an iconMap key, and point at a page that exists on disk. */
+  function hubNavIssues(
+    navItems: ReadonlyArray<{ label: string; href: string; icon: string }>
+  ): string[] {
+    const issues: string[] = [];
+    const hrefs = navItems.map((item) => item.href);
+    const expectedOrder = ["/reports", "/study-plans", "/paths", "/mastery"];
+    for (const [href, label, page] of [
+      ["/study-plans", "Study Plans", "app/study-plans/page.tsx"],
+      ["/paths", "Paths", "app/paths/page.tsx"],
+    ] as const) {
+      const entry = navItems.find((item) => item.href === href);
+      if (!entry) {
+        issues.push(`no studentNavItems entry with href '${href}'`);
+        continue;
+      }
+      if (entry.label !== label) issues.push(`'${href}' is labelled '${entry.label}', expected '${label}'`);
+      if (!new RegExp(`\\b${entry.icon}\\b`).test(iconMapBlock)) {
+        issues.push(`icon '${entry.icon}' for '${href}' is not a key in auth-navbar's iconMap block`);
+      }
+      if (!fs.existsSync(path.join(process.cwd(), page))) issues.push(`page ${page} does not exist`);
+    }
+    const positions = expectedOrder.map((href) => hrefs.indexOf(href));
+    const contiguousInOrder = positions.every((pos, i) => pos >= 0 && (i === 0 || pos === positions[i - 1] + 1));
+    if (!contiguousInOrder) {
+      issues.push(`studentNavItems order is ${JSON.stringify(hrefs)}; expected ${expectedOrder.join(" -> ")} adjacent`);
+    }
+    return issues;
+  }
+
+  const realIssues = hubNavIssues(siteConfig.studentNavItems);
+  check(
+    "Study Plans and Paths tabs sit between My Reports and Mastery with valid icons and existing pages",
+    realIssues.length === 0,
+    JSON.stringify(realIssues)
+  );
+
+  // Bite proofs: a missing tab and a swapped order must both be reported.
+  const withoutPaths = siteConfig.studentNavItems.filter((item) => item.href !== "/paths");
+  check(
+    "the hub-nav guard reports missing when the /paths entry is removed (proves it bites)",
+    hubNavIssues(withoutPaths).some((i) => i.includes("no studentNavItems entry with href '/paths'"))
+  );
+  const swapped = [...siteConfig.studentNavItems];
+  const a = swapped.findIndex((item) => item.href === "/study-plans");
+  const b = swapped.findIndex((item) => item.href === "/paths");
+  if (a >= 0 && b >= 0) [swapped[a], swapped[b]] = [swapped[b], swapped[a]];
+  check(
+    "the hub-nav guard reports a wrong order when Study Plans and Paths are swapped (proves it bites)",
+    hubNavIssues(swapped).some((i) => i.includes("order"))
+  );
+}
+
 // === Section 6: ROUTE SHAPE ================================================
 console.log("\n6. ROUTE SHAPE");
 {
