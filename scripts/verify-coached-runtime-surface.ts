@@ -315,6 +315,201 @@ console.log("\n4. LINK CONTRACT AND NO FORBIDDEN MECHANICS");
 }
 
 // ---------------------------------------------------------------------------
+// Sections 5-10 (Plan 22-15): presentation decisions, as pure functions over
+// source text so each can be re-run against an in-memory mutated copy.
+// ---------------------------------------------------------------------------
+
+function noCounterpartTransportProblems(src: string): string[] {
+  const forbidden = [
+    "/api/practice/session/start",
+    "/api/interaction/chat",
+    "/api/practice/session/finish",
+    "typeSlug:",
+  ];
+  return forbidden.filter((needle) => src.includes(needle)).map((n) => `references ${n}`);
+}
+
+function functionBody(src: string, name: string): string | null {
+  const start = src.search(new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`));
+  if (start === -1) return null;
+  const end = src.indexOf("\n  }\n", start);
+  return end === -1 ? src.slice(start) : src.slice(start, end + 5);
+}
+
+function openingProblems(src: string): string[] {
+  const problems: string[] = [];
+
+  // (a) the stage is rendered only after the consent gate has returned.
+  const gate = src.search(/if\s*\(\s*!consented\s*\)\s*\{/);
+  const stageAt = src.indexOf("<CoachAvatarStage");
+  if (gate === -1) problems.push("no `if (!consented)` gate");
+  else {
+    const gateEnd = src.indexOf("\n  }\n", gate);
+    if (!/return\s*\(/.test(src.slice(gate, gateEnd))) problems.push("consent gate does not return");
+    if (stageAt === -1 || stageAt < gateEnd) problems.push("<CoachAvatarStage is not behind the consent gate");
+  }
+
+  // (b) the no-utterance turn PATCH lives only in requestOpeningTurn, behind a ref guard.
+  const body = functionBody(src, "requestOpeningTurn");
+  if (!body) {
+    problems.push("requestOpeningTurn not found");
+    return problems;
+  }
+  const noUtterance = /action:\s*"turn"\s*\}/g;
+  const all = [...src.matchAll(noUtterance)].length;
+  const inBody = [...body.matchAll(noUtterance)].length;
+  if (inBody < 1) problems.push("no-utterance turn PATCH missing from requestOpeningTurn");
+  if (all !== inBody) problems.push("a no-utterance turn PATCH exists outside requestOpeningTurn");
+  const fetchAt = body.indexOf("fetch(");
+  const checkAt = body.search(/if\s*\(\s*openingRequestedRef\.current\s*\)\s*return/);
+  const setAt = body.search(/openingRequestedRef\.current\s*=\s*true/);
+  if (checkAt === -1 || fetchAt === -1 || checkAt > fetchAt) problems.push("ref guard check missing before fetch");
+  if (setAt === -1 || setAt > fetchAt) problems.push("ref guard set missing before fetch");
+
+  // (c) call sites.
+  const allowedFns = new Set(["handleStageReady", "handleStageError", "handleAdvance", "handleConsent"]);
+  const callRe = /requestOpeningTurn\(/g;
+  let m: RegExpExecArray | null;
+  while ((m = callRe.exec(src)) !== null) {
+    const before = src.slice(0, m.index);
+    if (/function\s+$/.test(before)) continue; // the definition
+    const fnMatches = [...before.matchAll(/\n  (?:async\s+)?function\s+(\w+)/g)];
+    const fnMatch = fnMatches[fnMatches.length - 1];
+    const effectAt = before.lastIndexOf("useEffect(");
+    const fnAt = fnMatch ? (fnMatch.index ?? -1) : -1;
+    if (effectAt > fnAt) {
+      const rest = src.slice(effectAt);
+      const endRel = rest.indexOf("\n  }, [");
+      const seg = endRel === -1 ? rest : rest.slice(0, rest.indexOf("\n", endRel + 6));
+      const timerOk = /setTimeout\s*\(/.test(src.slice(effectAt, m.index));
+      if (!/consent/i.test(seg)) problems.push(`call at ${m.index} is in an effect not conditioned on consent`);
+      else if (!timerOk) problems.push(`call at ${m.index} is in a consent effect but not in a setTimeout callback`);
+      continue;
+    }
+    const name = fnMatch ? fnMatch[1] : "<top level>";
+    if (!allowedFns.has(name)) {
+      problems.push(`call at ${m.index} is in ${name}, not an allowed call site`);
+    } else if (name === "handleConsent" && !/setTimeout\s*\(/.test(src.slice(fnAt, m.index))) {
+      problems.push(`call at ${m.index} in handleConsent is not inside a setTimeout callback`);
+    }
+  }
+  return problems;
+}
+
+function tipRailBodyOf(src: string): string {
+  const mm = src.match(/function TipRail\([^)]*\)\s*\{[\s\S]*?\n\}/);
+  return mm ? mm[0] : "";
+}
+
+function disclosureProblems(src: string): string[] {
+  const problems: string[] = [];
+  const rail = tipRailBodyOf(src);
+  if (!rail) problems.push("TipRail body not found");
+  const outside = rail ? src.replace(rail, "") : src;
+  if (!/separate thing from the technique tips/.test(outside)) {
+    problems.push("disclosure literal missing outside TipRail");
+  }
+  if (/demonstration/i.test(rail)) problems.push("TipRail references demonstration");
+  return problems;
+}
+
+const MOMENT_PATH = "components/study-plan/coached/CoachedMomentPanel.tsx";
+const momentSource = readFileSync(abs(...MOMENT_PATH.split("/")), "utf8");
+
+function verbatimProblems(src: string): string[] {
+  const problems: string[] = [];
+  for (const field of ["studentLine", "counterpartLine"]) {
+    if (!new RegExp(`whitespace-pre-wrap[^>]*>\\s*\\{${field}\\}`).test(src)) {
+      problems.push(`${field} is not rendered directly in a whitespace-pre-wrap element`);
+    }
+  }
+  const stripped = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+  const bad = stripped.match(/\.(trim|slice|substring|toLowerCase|replace)\s*\(/g);
+  if (bad) problems.push(`transforming call(s): ${bad.join(", ")}`);
+  return problems;
+}
+
+console.log("\n5. NO COUNTERPART TRANSPORT");
+{
+  const p = noCounterpartTransportProblems(shellSource);
+  check("the shell references no practice/interaction transport and no `typeSlug:`", p.length === 0, JSON.stringify(p));
+  const mutated = shellSource.replace(
+    "const coachedUrl",
+    'void fetch("/api/interaction/chat", {});\n  const coachedUrl',
+  );
+  check(
+    "bite-proof: an inserted fetch(\"/api/interaction/chat\" is caught",
+    mutated !== shellSource && noCounterpartTransportProblems(mutated).length > 0,
+  );
+}
+
+console.log("\n6. CONSENT-GATED, GUARDED OPENING");
+{
+  const p = openingProblems(shellSource);
+  check("avatar stage behind consent; opening PATCH only in the ref-guarded requestOpeningTurn; call sites allowed", p.length === 0, JSON.stringify(p));
+  const callCount = (shellSource.match(/requestOpeningTurn\(/g) ?? []).length;
+  console.log(`  requestOpeningTurn( occurrences (incl. definition): ${callCount}`);
+
+  const unconditioned = shellSource.replace(
+    "  // Keep the latest caption in view",
+    "  useEffect(() => {\n    void requestOpeningTurn();\n  }, []);\n\n  // Keep the latest caption in view",
+  );
+  check(
+    "bite-proof: requestOpeningTurn() in an unconditioned useEffect is caught",
+    unconditioned !== shellSource && openingProblems(unconditioned).length > 0,
+  );
+  const noGuard = shellSource.replace("if (openingRequestedRef.current) return;", "");
+  check(
+    "bite-proof: removing the ref guard is caught",
+    noGuard !== shellSource && openingProblems(noGuard).length > 0,
+  );
+  const stray = shellSource.replace(
+    "  function handleConsent(): void {",
+    "  function strayCaller(): void {\n    void requestOpeningTurn();\n  }\n\n  function handleConsent(): void {",
+  );
+  check(
+    "bite-proof: a call from an unlisted function is caught",
+    stray !== shellSource && openingProblems(stray).length > 0,
+  );
+}
+
+console.log("\n7. VERBATIM MOMENT");
+{
+  const p = verbatimProblems(momentSource);
+  check("CoachedMomentPanel renders studentLine/counterpartLine in whitespace-pre-wrap with no transform", p.length === 0, JSON.stringify(p));
+  const mutated = momentSource.replace("{studentLine}", "{studentLine.trim()}");
+  check("bite-proof: .trim() on a moment line is caught", mutated !== momentSource && verbatimProblems(mutated).length > 0);
+}
+
+console.log("\n8. DEMONSTRATION DISCLOSURE");
+{
+  const p = disclosureProblems(shellSource);
+  check("disclosure literal sits outside TipRail and TipRail never references demonstration", p.length === 0, JSON.stringify(p));
+  const mutated = shellSource.replace("function TipRail(", "function TipRail(/* demonstration */ ");
+  check("bite-proof: a demonstration reference in TipRail is caught", mutated !== shellSource && disclosureProblems(mutated).length > 0);
+}
+
+console.log("\n9. SCROLL");
+{
+  const pageHas = /overflow-y-auto/.test(pageSource);
+  check("the page contains overflow-y-auto", pageHas);
+  check(
+    "the shell has no overflow-hidden wrapper around session content",
+    !/overflow-hidden/.test(shellSource),
+  );
+}
+
+console.log("\n10. NO TYPED ANSWER");
+{
+  const coachedDir = abs("components", "study-plan", "coached");
+  const files = [SHELL_PATH, ...walkFiles(coachedDir, [".ts", ".tsx"]).map(rel)];
+  const typedRe = /Textarea|<textarea|<input/;
+  const offenders = files.filter((f) => typedRe.test(readFileSync(abs(...f.split("/")), "utf8")));
+  console.log(`  scanned ${files.length} file(s)`);
+  check("no Textarea / <textarea / <input in the shell or components/study-plan/coached/", offenders.length === 0, JSON.stringify(offenders));
+}
+
+// ---------------------------------------------------------------------------
 if (failures === 0) {
   console.log("\nverify-coached-runtime-surface: ALL SECTIONS PASSED\n");
   process.exit(0);
