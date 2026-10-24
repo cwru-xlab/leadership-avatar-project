@@ -143,8 +143,11 @@ export async function GET(
 /**
  * PATCH — a coach turn, advance, or finish, discriminated on body `action`
  * (`turn` | `advance` | `complete`). Any other `action` is 400; there is no
- * default verb. `advance` and `complete` take no body fields: the coach, not
- * the client, decides when a leg is done.
+ * default verb. `advance` and `complete` take no leg-control fields: the
+ * coach, not the client, decides when a leg is done. `complete` MAY carry an
+ * optional `metrics` block ({ cameraMode, visual, vocal } — the same
+ * `SessionMetricsPayload` shape a practice finish sends), which is accepted
+ * and currently ignored; see the TODO at the complete branch.
  */
 export async function PATCH(
   request: NextRequest,
@@ -215,12 +218,19 @@ export async function PATCH(
         utterance = { text: u.text, spokenDurationMs: u.spokenDurationMs };
       }
       try {
-        const { coachTurn, leg } = await takeCoachTurn({
+        const { coachTurn: result, leg } = await takeCoachTurn({
           userId: currentUser.id,
           stepId,
           utterance,
         });
-        return response({ coachTurn, leg }, 200);
+        // The client contract is the FLAT coach turn ({ speech, move,
+        // awaiting, demonstration, closedAtSoftCap }). `takeCoachTurn`
+        // returns `{ coachTurn: CoachTurnResult }`, and CoachTurnResult itself
+        // wraps `{ coachTurn, legState }`; sending it unwrapped made the shell
+        // read `speech` as undefined, so the avatar was asked to speak nothing
+        // (UAT G2: "the avatar doesn't speak in coach mode") and no
+        // demonstration ever rendered.
+        return response({ coachTurn: result.coachTurn, leg }, 200);
       } catch (error) {
         if (error instanceof UnspokenAttemptError) {
           return response({ error: "That attempt was not spoken aloud." }, 400);
@@ -241,6 +251,13 @@ export async function PATCH(
         const leg = await advanceToFresh({ userId: currentUser.id, coachedSessionId });
         return response({ leg }, 200);
       }
+      // TODO(23-migration): persist the optional `metrics` block
+      // ({ cameraMode, visual, vocal }) once the migration adds
+      // CoachedSession.cameraMode / visualMetrics / vocalMetrics. Parse it with
+      // `parseMetricsPayload` (lib/metrics/ingest.ts) exactly as the practice
+      // finish does, and honour camera consent server-side (force OFF without
+      // `videoAnalysisConsentAt`, as `resolveCameraMode` does). Until then it
+      // is accepted and deliberately ignored: no column exists to hold it.
       const { contributionsWritten } = await completeCoachedSession({
         userId: currentUser.id,
         coachedSessionId,

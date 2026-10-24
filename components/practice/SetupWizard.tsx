@@ -10,7 +10,7 @@
  * here — type-specific branching belongs in a step component, not this file.
  */
 
-import CameraConsentStep from "@/components/practice/steps/CameraConsentStep";
+import CameraConsentStep from "@/components/session/CameraConsentStep";
 import type { SetupStepDeclaration } from "@/lib/engine/types";
 import type { CameraMode } from "@/lib/metrics/types";
 import type { InteractionLog } from "@/types";

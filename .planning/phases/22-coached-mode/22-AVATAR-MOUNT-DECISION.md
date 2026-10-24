@@ -1,7 +1,7 @@
 # Coach Avatar Mount — Decision Record
 
 **Plan:** 22-01
-**Status:** DECIDED
+**Status:** SUPERSEDED by `22-SHARED-SHELL-DECISION.md` (user decision G4, 2026-10-23)
 **Authority:** 22-CONTEXT.md ("Presentation": the planner must choose, in writing)
 
 ## Question

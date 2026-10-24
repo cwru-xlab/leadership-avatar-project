@@ -70,6 +70,32 @@ export interface CoachedLegClosure {
 }
 
 /**
+ * Pure: the graded score (1..5) a CLOSED leg contributes — the best
+ * non-parroted attempt, preferring acceptable attempts unless the leg closed
+ * at the soft cap. Null when the leg has no usable attempt (never a
+ * fabricated score). The one rule both the mastery contribution and the
+ * end-of-session summary read, so the number a student is shown is the
+ * number that moved their mastery.
+ */
+export function gradedLegScore(
+  attempts: readonly CoachedAttemptGrade[],
+  closure: CoachedLegClosure,
+): number | null {
+  const usable = attempts.filter(
+    (a): a is CoachedAttemptGrade & { score: number } =>
+      a.leg === closure.leg && a.parroted !== true && typeof a.score === "number",
+  );
+  if (usable.length === 0) return null;
+
+  const acceptable = usable.filter((a) => a.acceptable === true);
+  const pool =
+    closure.closedAtSoftCap === true || acceptable.length === 0
+      ? usable
+      : acceptable;
+  return Math.max(...pool.map((a) => a.score));
+}
+
+/**
  * Pure: one contribution input per CLOSED leg (a leg with a LEG_DONE row).
  * The score is the best non-parroted attempt; acceptable attempts are
  * preferred, and a leg closed at the soft cap takes the best non-parroted
@@ -91,18 +117,8 @@ export function contributionInputsFromCoachedLegs(args: {
     if (seenLegs.has(closure.leg)) continue;
     seenLegs.add(closure.leg);
 
-    const usable = args.attempts.filter(
-      (a): a is CoachedAttemptGrade & { score: number } =>
-        a.leg === closure.leg && a.parroted !== true && typeof a.score === "number",
-    );
-    if (usable.length === 0) continue;
-
-    const acceptable = usable.filter((a) => a.acceptable === true);
-    const pool =
-      closure.closedAtSoftCap === true || acceptable.length === 0
-        ? usable
-        : acceptable;
-    const best = Math.max(...pool.map((a) => a.score));
+    const best = gradedLegScore(args.attempts, closure);
+    if (best === null) continue;
 
     inputs.push({
       userId: args.userId,

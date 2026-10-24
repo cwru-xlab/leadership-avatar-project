@@ -117,7 +117,9 @@ export function isStepDone(step: PathStepViewDTO): boolean {
 }
 
 /** Builds the fixed-contract href for a pending step, or null when no
- * destination can be resolved — the hazard backstop lives here. */
+ * destination can be resolved — the hazard backstop lives here. Exported so
+ * the coached session's summary links to the next step through this same
+ * contract instead of a copy of it. */
 export function hrefForStep(planId: string, step: PathStepViewDTO): string | null {
   if (step.kind === "KNOWLEDGE_CHECK") {
     if (!step.knowledgeCheckId || step.knowledgeCheckId === PLACEHOLDER_KNOWLEDGE_CHECK_ID) {

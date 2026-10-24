@@ -149,6 +149,8 @@ console.log("\n2. REGISTRY GUARD — coached mode is not, and has never become, 
 }
 
 // ---------------------------------------------------------------------------
+const forbiddenIdentReForBite = /\b(CoachedSession|coachTip|techniqueReminder|COACHED_PHASES)\b/;
+
 console.log("\n3. NO COACHING IN NORMAL PRACTICE — walked, non-vacuously");
 {
   const practiceRoots = ["components/practice", "app/practice"];
@@ -180,6 +182,67 @@ console.log("\n3. NO COACHING IN NORMAL PRACTICE — walked, non-vacuously");
     check(`no coached-mode import: ${f}`, !forbiddenImportRe.test(src));
     check(`no coached-mode identifier: ${f}`, !forbiddenIdentRe.test(src));
   }
+}
+
+// ---------------------------------------------------------------------------
+// AMENDED DELIBERATELY (Phase 22 G4, 22-SHARED-SHELL-DECISION.md, user
+// decision 2026-10-23): coached sessions reuse the interview/practice session
+// chrome. That chrome now lives in the neutral components/session/, which
+// BOTH trees may import. Section 3 above is unchanged — components/practice/
+// and app/practice/ still may not name or import anything coached. Section 3b
+// keeps the shared location neutral, so it can never become a back door.
+console.log("\n3b. SHARED SESSION CHROME — permitted to both trees, and neutral");
+{
+  const sharedFiles = walkFiles(abs("components", "session"))
+    .filter((f) => f.endsWith(".ts") || f.endsWith(".tsx"))
+    .map((f) => rel(f));
+  console.log(`  walked ${sharedFiles.length} file(s) under components/session/:`);
+  for (const f of sharedFiles) console.log(`    - ${f}`);
+  check(
+    "components/session/ walk is non-vacuous (at least 5 files)",
+    sharedFiles.length >= 5,
+    `walked=${sharedFiles.length}`,
+  );
+
+  const sharedForbiddenImportRe =
+    /from\s+["'](?:@\/(?:components\/practice|components\/study-plan|lib\/study-plan)(?:\/[^"']*)?|(?:\.\.\/)+(?:practice|study-plan)(?:\/[^"']*)?)["']/;
+  const sharedForbiddenIdentRe =
+    /\b(CoachedSession|coachTip|techniqueReminder|COACHED_PHASES|coachedSessionId|COACH_LAYER_MARKER)\b/;
+  for (const f of sharedFiles) {
+    const src = readFileSync(abs(...f.split("/")), "utf8");
+    check(
+      `shared chrome imports nothing from components/practice, components/study-plan or lib/study-plan: ${f}`,
+      !sharedForbiddenImportRe.test(src),
+    );
+    check(`shared chrome names no coached identifier: ${f}`, !sharedForbiddenIdentRe.test(src));
+  }
+
+  // Both trees actually use it (the permission is exercised, not theoretical).
+  const practiceShell = read("components/practice/PracticeSessionShell.tsx");
+  const coachedShell = read("components/study-plan/CoachedSessionShell.tsx");
+  const sharedImportRe = /from\s+["']@\/components\/session\//;
+  check("PracticeSessionShell imports from components/session/ (permitted)", sharedImportRe.test(practiceShell));
+  check("CoachedSessionShell imports from components/session/ (permitted)", sharedImportRe.test(coachedShell));
+  check(
+    "CoachedSessionShell imports nothing from components/practice/ (the shared pieces come from components/session/)",
+    !/from\s+["']@\/components\/practice\//.test(coachedShell),
+  );
+
+  // Bite-proofs: a coached import or identifier dropped into the shared
+  // location, and a coached identifier dropped into the practice shell, are
+  // both caught by the regexes above.
+  check(
+    "bite-proof: an @/lib/study-plan/coached import in shared chrome is caught",
+    sharedForbiddenImportRe.test('import { x } from "@/lib/study-plan/coached/coach";'),
+  );
+  check(
+    "bite-proof: a CoachedSession identifier in shared chrome is caught",
+    sharedForbiddenIdentRe.test("const s: CoachedSession = null;"),
+  );
+  check(
+    "bite-proof: a coached identifier in the practice shell is still caught by section 3",
+    forbiddenIdentReForBite.test(practiceShell + "\nconst x = COACHED_PHASES;"),
+  );
 }
 
 // ---------------------------------------------------------------------------
