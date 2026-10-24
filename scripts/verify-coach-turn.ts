@@ -482,6 +482,19 @@ async function main() {
       check("12d. a coach speech that mentions a score is rejected (SPEECH_MENTIONS_GRADE)", g.rejected.length === 3 && g.rejected.every((r) => r === "SPEECH_MENTIONS_GRADE") && !/4 out of 5/.test(g.res.coachTurn.speech), g.rejected.join(","));
     }
 
+    // 12e. Invite reaction length cap
+    {
+      const s = await newSession();
+      await turn(s, null, [OPEN]);
+      const LONG: Out = { ...INVITE, speech: "Good start. ".repeat(20).trim() };
+      const r = await turn(s, say("I think it was about the project"), [LONG]);
+      check("12e. an over-long invite reaction is rejected (INVITE_REACTION_TOO_LONG), never truncated", r.rejected.length === 3 && r.rejected.every((x) => x === "INVITE_REACTION_TOO_LONG") && !r.res.coachTurn.speech.includes("Good start. Good start."), r.rejected.join(","));
+      const s2 = await newSession();
+      await turn(s2, null, [OPEN]);
+      const ok = await turn(s2, say("I think it was about the project"), [{ ...INVITE, speech: "Good start. ".repeat(5).trim() }]);
+      check("12e. bite: a short reaction passes", ok.rejected.length === 0);
+    }
+
     // 13. Bite-proofs for 11/12
     {
       // Without the attempt-quality path (classifier says no), the same strong
@@ -536,6 +549,16 @@ async function main() {
       check("14c. a model off-topic verdict is stored score 1, not acceptable, and LEG_DONE is refused", att2?.score === 1 && att2?.acceptable === false && !r2.legState.legReady);
       const r3 = await fresh(say("At my last job I organised the offsite and everyone said the agenda was really clear and useful for the whole team"), [LEG_DONE], counting5);
       check("14c. bite: the same words graded on-topic are accepted and close the leg", r3.legState.legReady && r3.coachTurn.move === "LEG_DONE");
+      let seen: string[] | undefined;
+      const s3 = await newSession();
+      await turn(s3, null, [OPEN]);
+      await turn(s3, say(STRONG), [LEG_DONE], grader(5, true), stubClassifier(true).fn);
+      await coachTurn({ ...base(s3), leg: "FRESH", utterance: null }, { generate: stubGen([OPEN]).fn });
+      await coachTurn(
+        { ...base(s3), leg: "FRESH", utterance: say("At Leidos I built a partner data system and interviewed each partner team before writing any requirements for it") },
+        { generate: stubGen([INVITE]).fn, classifyReply: stubClassifier(true).fn, grade: async (input) => { seen = input.otherMomentAnswers; return { score: 2, acceptable: false, onTopic: true, rationale: "stub" }; } },
+      );
+      check("14e. the grader receives the other moment's answers so it can catch a reworded recycle", Array.isArray(seen) && seen.length === 1 && seen[0] === STRONG);
     }
     {
       // Bite for the deterministic check: with no other leg, the same words are graded normally.

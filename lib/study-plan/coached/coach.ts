@@ -79,6 +79,12 @@ export const MAX_DIAGNOSIS_QUESTIONS_PER_LEG = 1;
 /** Spoken after the technique line when the coach invites an attempt. */
 export const INVITE_FIRST_ATTEMPT = "Now say your answer again, out loud, as if you're back in that moment.";
 export const INVITE_RETRY = "Give it one more try, out loud.";
+/**
+ * PROVISIONAL UNTIL CALIBRATED. The model's own reaction before an invite is
+ * one short sentence; a longer one re-explains the technique the app is about
+ * to speak and slows the rep. Rejected (regenerated), never truncated.
+ */
+export const MAX_INVITE_REACTION_LENGTH = 200;
 
 /**
  * Phase 23 L6. Marks a stored attempt that did not answer this moment's prompt
@@ -392,6 +398,7 @@ export async function coachTurn(
           attempt: args.utterance.text,
           spokenDurationMs: args.utterance.spokenDurationMs,
           demonstration: state.lastDemonstration,
+          otherMomentAnswers: otherLegWords,
         },
         { grader: deps.grade },
       );
@@ -533,6 +540,9 @@ export async function coachTurn(
     if (awaiting === "REPLY" && diagnosisCapReached) return { ok: false, reason: "DIAGNOSIS_CAP" };
 
     // Every non-demonstration invite names one library technique aloud (L2).
+    if (awaiting === "ATTEMPT" && move !== "DEMONSTRATE" && r.speech.trim().length > MAX_INVITE_REACTION_LENGTH) {
+      return { ok: false, reason: "INVITE_REACTION_TOO_LONG" };
+    }
     const speech =
       awaiting === "ATTEMPT" && move !== "DEMONSTRATE"
         ? composeInvite(r.speech, chooseTechnique(safe, r.techniqueId, coachTextsInLeg), state.attemptsInLeg)
