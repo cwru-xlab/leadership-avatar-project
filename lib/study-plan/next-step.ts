@@ -203,6 +203,29 @@ function coachedReasonFor(
   return `${baseReasonFor(ranked, rank)} This coached session reworks one of your own moments where it was weakest.`;
 }
 
+const KNOWLEDGE_CHECK_CLAUSE = "This knowledge check targets it directly.";
+const UNAIDED_CLAUSE = "This unaided session is the transfer test — proving it without scaffolding.";
+const DEGRADED_UNAIDED_CLAUSE =
+  "No moment from your sessions could anchor a written exercise for it, so this step is a live practice session on it instead.";
+
+/**
+ * Rewrites a KNOWLEDGE_CHECK step's reason for the step the path route
+ * actually stores when check generation fails and the step degrades to
+ * UNAIDED_SESSION. Deterministic and template-based (no model call): keeps
+ * the shared base reason, drops the check clause (and, defensively, any
+ * other sentence naming a knowledge check), and appends a practice-session
+ * clause. The result never mentions a knowledge check.
+ */
+export function reasonForDegradedCheck(checkReason: string): string {
+  const base = checkReason
+    .replace(KNOWLEDGE_CHECK_CLAUSE, "")
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => sentence.trim() !== "" && !/knowledge check/i.test(sentence))
+    .join(" ")
+    .trim();
+  return base ? `${base} ${DEGRADED_UNAIDED_CLAUSE}` : DEGRADED_UNAIDED_CLAUSE;
+}
+
 /** Appends the kind-specific clause a step's stored reason carries, on top
  * of the shared base reason. */
 function stepReasonFor(
@@ -210,9 +233,9 @@ function stepReasonFor(
   kind: Exclude<PathStepKind, "COACHED_SESSION">,
 ): string {
   if (kind === "KNOWLEDGE_CHECK") {
-    return `${baseReason} This knowledge check targets it directly.`;
+    return `${baseReason} ${KNOWLEDGE_CHECK_CLAUSE}`;
   }
-  return `${baseReason} This unaided session is the transfer test — proving it without scaffolding.`;
+  return `${baseReason} ${UNAIDED_CLAUSE}`;
 }
 
 function clampDesiredCount(desiredCount: number): number {
@@ -334,31 +357,33 @@ export function selectPathSteps(args: {
 }
 
 /**
- * Returns the lowest-`position` step whose `status` is `PENDING`, with its
- * STORED `selectionReason` — never recomputed. Mastery moves between
- * generation and completion, so recomputing would show the student a reason
- * that no longer matches the step they were actually given. Returns `null`
- * when every step is COMPLETE or SKIPPED (or there are no steps at all).
+ * Returns the step to continue with, with its STORED `selectionReason` —
+ * never recomputed. Mastery moves between generation and completion, so
+ * recomputing would show the student a reason that no longer matches the
+ * step they were actually given.
  *
- * Does NOT skip ahead and does NOT gate on earlier steps: the first pending
- * step by position, regardless of what came before — 21-CONTEXT.md rules out
- * unlocking, so an out-of-order completion elsewhere in the path must not
- * change what comes back here.
+ * Order: the lowest-`position` IN_PROGRESS step first (work already started,
+ * e.g. an entered coached session, is resumed before anything new), else the
+ * lowest-`position` PENDING step. Returns `null` only when every step is
+ * COMPLETE or SKIPPED (or there are no steps at all). This is the single
+ * source of truth for "what's next" — the path view adds no fallback.
+ *
+ * Does NOT gate on earlier steps: 21-CONTEXT.md rules out unlocking, so an
+ * out-of-order completion elsewhere in the path must not change what comes
+ * back here.
  */
 export function nextStepFor(
   path: PathWithSteps
 ): { step: PathWithSteps["steps"][number]; reason: string } | null {
-  const pending = path.steps.filter((s) => s.status === "PENDING");
-  if (pending.length === 0) {
-    return null;
-  }
-
-  let lowest = pending[0];
-  for (const step of pending) {
-    if (step.position < lowest.position) {
-      lowest = step;
+  const lowestWithStatus = (status: string) => {
+    let lowest: PathWithSteps["steps"][number] | null = null;
+    for (const step of path.steps) {
+      if (step.status !== status) continue;
+      if (!lowest || step.position < lowest.position) lowest = step;
     }
-  }
+    return lowest;
+  };
 
-  return { step: lowest, reason: lowest.selectionReason };
+  const next = lowestWithStatus("IN_PROGRESS") ?? lowestWithStatus("PENDING");
+  return next ? { step: next, reason: next.selectionReason } : null;
 }

@@ -18,6 +18,7 @@ import {
 import {
   selectPathSteps,
   nextStepFor,
+  reasonForDegradedCheck,
   PLACEHOLDER_KNOWLEDGE_CHECK_ID,
 } from "@/lib/study-plan/next-step";
 import { loadGenerationSources } from "@/lib/study-plan/checks/sources";
@@ -449,9 +450,12 @@ export async function POST(
         // `degradedSteps` so a systematically failing generator stays
         // visible instead of silently producing a path of plain sessions.
         degradedSteps.push({ position: step.position, competencyKey: step.competencyKey });
+        // The stored reason must describe the step actually stored, so the
+        // check clause is rewritten (deterministically) for a practice session.
         finalSteps.push({
           ...step,
           kind: "UNAIDED_SESSION",
+          selectionReason: reasonForDegradedCheck(step.selectionReason),
           knowledgeCheckId: null,
           coachedSessionId: null,
         });

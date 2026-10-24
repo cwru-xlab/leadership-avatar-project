@@ -173,6 +173,16 @@ function runSection1b() {
   check("route does not reference getInterviewTranscript", !source.includes("getInterviewTranscript"));
   check("route does not query prisma.user.find*", !source.includes("prisma.user.find"));
   check("route delegates assembly to loadGenerationSources", source.includes("loadGenerationSources"));
+
+  // Degraded check -> practice session must store a reason for the step it
+  // actually stores (Phase 23 fix). Bite proof: the pre-fix branch fails.
+  const degradeBranchOk = (src: string) =>
+    /kind: "UNAIDED_SESSION",\s*selectionReason: reasonForDegradedCheck\(step\.selectionReason\)/.test(src);
+  check("the degrade branch rewrites selectionReason via reasonForDegradedCheck", degradeBranchOk(source));
+  check(
+    "the degrade-branch guard DETECTS the pre-fix branch that kept the check reason (bite proof)",
+    !degradeBranchOk(source.replace("selectionReason: reasonForDegradedCheck(step.selectionReason),", "")),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -403,6 +413,9 @@ function hubIssues(src: {
   const continueCount = (src.panel.match(/data-testid="path-continue"/g) ?? []).length;
   if (continueCount !== 1) issues.push(`PathPanel has ${continueCount} Continue CTAs, expected exactly 1`);
   if (!src.panel.includes('href="/mastery"')) issues.push("PathPanel completion state does not link to /mastery");
+  // "What's next" has ONE source of truth: the server's nextStep.
+  const continueFn = src.panel.slice(src.panel.indexOf("export function continueTargetFor"), src.panel.indexOf("type NodeState"));
+  if (continueFn.includes("IN_PROGRESS")) issues.push("PathPanel re-derives the next step client-side (IN_PROGRESS fallback)");
   if (!src.panel.includes("<LevelBadge")) issues.push("PathPanel does not render per-competency level badges");
   // Reserved growth-since-plan slot, and /mastery's ?competency= deep link.
   if (!src.panel.includes("growthSlot") || !src.paths.includes("growthSlot")) issues.push("growth-since-plan slot is missing");
@@ -730,6 +743,29 @@ async function runDatabaseSections() {
       "a step whose knowledgeCheckId is STILL the placeholder resolves to a null check artifact (no dead link data)",
       hazardDTO.steps[0]!.check === null,
     );
+    // -----------------------------------------------------------------
+    // Stored reasons vs stored kind, across EVERY persisted step. Rows
+    // written before the Phase 23 degrade fix are reported, not failed —
+    // the route no longer writes them (see section 1b and verify-next-step
+    // 10b for the enforced guard and its planted regression).
+    // -----------------------------------------------------------------
+    const mismatched = await prisma.studyPlanPathStep.findMany({
+      where: {
+        kind: { in: ["UNAIDED_SESSION", "COACHED_SESSION"] },
+        selectionReason: { contains: "knowledge check", mode: "insensitive" },
+      },
+      select: { id: true, path: { select: { generatedAt: true } } },
+    });
+    if (mismatched.length > 0) {
+      console.log(
+        `  WARN ${mismatched.length} legacy UNAIDED/COACHED step(s) still carry a knowledge-check reason (written before the degrade fix; newest path generated ${mismatched
+          .map((m) => m.path.generatedAt.toISOString())
+          .sort()
+          .pop()})`,
+      );
+    } else {
+      check("no persisted UNAIDED/COACHED step reason mentions a knowledge check", true);
+    }
   } finally {
     if (studyPlanIds.length > 0) {
       await prisma.studyPlanPath.deleteMany({ where: { studyPlanId: { in: studyPlanIds } } });
