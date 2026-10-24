@@ -27,6 +27,7 @@ import {
   PRACTICE_FACE_BANNER_DETAIL,
 } from "../components/session/FaceDetectionBanner";
 import { formatMomentDate } from "../components/study-plan/coached/format-moment-date";
+import CoachedBriefCard from "../components/study-plan/coached/CoachedBriefCard";
 
 const ROOT = resolve(__dirname, "..");
 
@@ -229,6 +230,31 @@ console.log("\nSection 6: coached copy fixes (23 L3 brief date, L4 face banner)"
     "L3 bite-proof: a brief that renders {moment.sessionDate} raw is caught",
     !briefFormats(briefSrc.replace("${momentDate}", "${momentDate}{moment.sessionDate}")),
   );
+}
+
+console.log("\nSection 7: resumed brief shows part progress (23 L5)");
+{
+  const props = {
+    coachName: "Ann",
+    competencyLabel: "Structure & clarity",
+    competencyDescription: "d",
+    moment: { counterpartLine: "q", studentLine: "a", sessionDate: "2026-10-02T19:13:31.042Z" },
+    momentFraming: "REWORK" as const,
+    legCount: 2 as const,
+    worth: { coachedWeight: 0.5, unaidedWeight: 1 },
+    onStart: () => {},
+    starting: false,
+    resuming: true,
+  };
+  const done = renderToStaticMarkup(createElement(CoachedBriefCard, { ...props, progress: { partDone: 1, next: "SECOND_MOMENT" } }));
+  check("L5: a brief resumed after part 1 closed says 'Part 1 done — next: your second moment'", done.includes("Part 1 done — next: your second moment"));
+  const fresh = renderToStaticMarkup(createElement(CoachedBriefCard, props));
+  check("L5 bite-proof: a brief with no closed part shows no progress note", !fresh.includes("done — next"));
+  const last = renderToStaticMarkup(createElement(CoachedBriefCard, { ...props, progress: { partDone: 2, next: "SUMMARY" } }));
+  check("L5: after the last part it points at the graded summary", last.includes("Part 2 done — next: your graded summary"));
+  const shellPasses = (src: string) => /progress=\{\s*legView\.legReady/.test(src);
+  check("L5: the coached shell passes progress from legView.legReady", shellPasses(coachedSrc));
+  check("L5 bite-proof: a shell without the progress prop is caught", !shellPasses(coachedSrc.replace(/progress=\{/, "progressX={")));
 }
 
 if (failures === 0) {

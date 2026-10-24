@@ -759,6 +759,14 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
             onStart={() => setCameraStepOpen(true)}
             starting={false}
             resuming={legView.conversation.length > 0}
+            progress={
+              legView.legReady
+                ? {
+                    partDone: legView.leg === "FRESH" ? 2 : 1,
+                    next: legView.leg === "REPLAY" && legView.legCount === 2 ? "SECOND_MOMENT" : "SUMMARY",
+                  }
+                : null
+            }
           />
         ) : null}
       </div>

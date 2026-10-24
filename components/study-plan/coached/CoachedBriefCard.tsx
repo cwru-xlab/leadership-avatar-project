@@ -23,6 +23,12 @@ export interface CoachedBriefCardProps {
   onStart: () => void;
   starting: boolean;
   resuming: boolean;
+  /**
+   * Set when the coach has already closed the current part but the student
+   * has not moved on yet (e.g. after a reload). The brief then says the part
+   * is done and what comes next, instead of looking like a fresh start.
+   */
+  progress?: { partDone: 1 | 2; next: "SECOND_MOMENT" | "SUMMARY" } | null;
 }
 
 export default function CoachedBriefCard({
@@ -36,6 +42,7 @@ export default function CoachedBriefCard({
   onStart,
   starting,
   resuming,
+  progress = null,
 }: CoachedBriefCardProps) {
   const pct = Math.round((worth.coachedWeight / worth.unaidedWeight) * 100);
   const momentDate = formatMomentDate(moment.sessionDate);
@@ -49,9 +56,21 @@ export default function CoachedBriefCard({
         <p className="mt-1 text-sm text-[#58727f]">{competencyDescription}</p>
       </div>
 
+      {progress ? (
+        <p
+          role="status"
+          data-testid="coached-brief-progress"
+          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900"
+        >
+          {`Part ${progress.partDone} done — next: ${
+            progress.next === "SECOND_MOMENT" ? "your second moment" : "your graded summary"
+          }`}
+        </p>
+      ) : null}
+
       <div className="space-y-2">
         <p className="text-sm font-semibold text-[#385463]">
-          The moment you will rework
+          {progress ? "The moment you just reworked" : "The moment you will rework"}
           {momentDate ? `, from your session on ${momentDate}` : ""}
         </p>
         <CoachedMomentPanel
