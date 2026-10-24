@@ -79,6 +79,7 @@ function makeInterviewTypeConfig(base: InterviewType): InteractionTypeConfig {
 
         return buildInterviewSystemPrompt(resolvedBase, {
           resumeText: extra.resumeText ?? "",
+          jobDescriptionText: extra.jobDescriptionText ?? "",
           language: extra.language ?? resolveAttemptLanguage(undefined),
         });
       },
@@ -125,6 +126,14 @@ function makeInterviewTypeConfig(base: InterviewType): InteractionTypeConfig {
         id: "resume",
         label: "Resume",
         customComponent: "ResumeStep",
+        optional: true,
+      },
+      // Quick task 003 / issue #56. Declared inside makeInterviewTypeConfig, so
+      // it applies to all four interview presets and to no other type.
+      {
+        id: "job-description",
+        label: "Job posting",
+        customComponent: "JobDescriptionStep",
         optional: true,
       },
     ],
