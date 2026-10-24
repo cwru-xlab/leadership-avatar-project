@@ -126,4 +126,20 @@ Grep of "PROVISIONAL UNTIL CALIBRATED" in files touched this phase:
 
 ## UAT
 
-(To be filled by Task 3 after the human verdict.)
+**Verdict: NOT APPROVED (2026-10-23, round 1).** REQ-113/114/115 stay Pending.
+
+Human reports, verbatim:
+- "path generation was only like 10-12 seconds, not bad." (measured 12.9s, but with per-turn scoring failing fast — see G1)
+- Entering the coached step failed: GET 404 then POST 500.
+- "why doesnt coach session have camera and all that? shouldn't we just be borrowing the shell ui/ux structure from interviews and applying it instead of creating a new one?"
+- "the avatar also doesn't speak in coach mode. completely redundant"
+- "study plans and paths are still not very easily accessible and don't have their own sidebar tab" (deferred item — out of Phase 22 scope)
+
+Steps reached: 1 (path generated), 2 (entry: failed, then entered after restart). Step 5 FAILED (coach silent). Steps 6-12 not meaningfully testable.
+
+### Gaps
+
+- **G1 — stale Prisma client in the running dev server (environment, not code).** Dev server started 19:45; 22-02 regenerated the client 20:56. The stale client lacked `MomentCompetencyScore` (every per-turn scoring call threw TypeError → silent GROWTH_AREA_FALLBACK) and still required `freshScenarioPrompt` (POST 500 `Argument freshScenarioPrompt is missing`). Fix: restart after a schema change. Process gap: the migration handoff did not say "restart the dev server".
+- **G2 — coached avatar is silent.** Confirmed defect: `requestOpeningTurn` can fire from the 15s `OPENING_FALLBACK_MS` timeout before the stage reaches CONNECTED; `voiceCoachTurn` skips speech when `!isReady()`, and the ref guard means the opening is never voiced after a late connect. Practice starts its opening only from CONNECTED. Whether later turns also stay silent is not yet established.
+- **G3 — no camera / visual capture.** `22-AVATAR-MOUNT-DECISION.md` excluded it without surfacing it to the user. Wrong for Delivery & presence, whose dimensions include `visual`.
+- **G4 — second shell instead of shared interview UX.** User decision 2026-10-23: **extract shared session chrome** (camera consent step, camera preview + visual capture, push-to-talk controls, recorder/metering, captions/layout) from `components/practice/` into a neutral shared location used by both `PracticeSessionShell` and `CoachedSessionShell`. The coach layer stays in `lib/study-plan/coached/`. 21-12's isolation guard is amended deliberately (still forbids coached identifiers in `components/practice/`; permits imports from the shared location). This supersedes `22-AVATAR-MOUNT-DECISION.md` and invalidates the "practice tree untouched vs 59f6166" evidence, so normal practice sessions need a regression browser check (the 21-20 no-gate reasoning no longer holds).
