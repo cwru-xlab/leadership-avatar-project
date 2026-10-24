@@ -289,9 +289,11 @@ console.log("\n3. HOOK SITE AND NO SECOND COPY");
   const coachedContributionPath = path.join(REPO_ROOT, "lib/study-plan/coached/contribution.ts");
   if (fs.existsSync(coachedContributionPath)) {
     const coachedSrc = fs.readFileSync(coachedContributionPath, "utf8");
+    // Phase 22 (22-09): the coach grades against one competency directly, so
+    // there is no dimension mapping to delegate and no report to read.
     check(
-      "lib/study-plan/coached/contribution.ts delegates to contributionsFromReport (REQ-124)",
-      coachedSrc.includes("contributionsFromReport")
+      "lib/study-plan/coached/contribution.ts does NOT import contributionsFromReport (Phase 22: no InteractionReport)",
+      !/from\s+["']@\/lib\/mastery\/from-report["']/.test(coachedSrc)
     );
     check(
       "lib/study-plan/coached/contribution.ts does NOT import competencyForDimension directly",

@@ -1,41 +1,39 @@
 /**
- * Records a completed coached session's mastery contribution at the
- * coached weight (REQ-116).
+ * Records a completed coached session's mastery contribution (REQ-116).
+ *
+ * Phase 22: a coached session has NO counterpart conversation and produces NO
+ * `InteractionReport`, so nothing here reads one. The evidence is the coach's
+ * grade (22-10) of the student's spoken rework attempts, stored on
+ * `CoachedTurn` rows (`score`, `acceptable`, `parroted`). The contribution is
+ * recorded at the model-graded weight class (`CONTRIBUTION_WEIGHTS.COACHED_SESSION`
+ * is bound to `CHECK_MODEL_GRADED` in `lib/mastery/weights.ts`), never the
+ * deterministic weight, and strictly below an unaided session. See
+ * 22-CONTEXT.md "Scoring" and 22-COACH-LAYER-DECISION.md section 5.
  *
  * This is the SINGLE writer of `COACHED_SESSION`-sourced contributions.
- * 21-12's `finishCoachedSession` (lib/study-plan/coached/instance.ts)
- * deliberately does NOT write one — it says so explicitly in its own
- * module comment — precisely so the coached weight and the tip-compliance
- * rules (lib/study-plan/coached/tips.ts) live together, in this module. A
- * double write (one from `finishCoachedSession`, one from here) would make
- * a coached session contribute more than an unaided one, INVERTING the
- * ordering `lib/mastery/weights.ts`'s `WEIGHT_ORDERING_CONSTRAINTS` locks
- * (the unaided-session weight of 1.00 is strictly greater than the coached
- * weight of 0.40).
+ * `finishCoachedSession` deliberately does not write one, so the weight lives
+ * in one place; a double write would let a coached session out-weigh its own
+ * ordering constraint.
  *
- * The report-to-competency MAPPING is NOT reimplemented here. It is
- * imported, whole, from `lib/mastery/from-report.ts`'s
- * `contributionsFromReport` (built by 21-21) — the single module the
- * unaided-session ingestion hook also uses (REQ-124). This module's remaining
- * responsibility is the three things that are genuinely coached-specific:
- * the `COACHED_SESSION` source constant, the `completedAt`/`reportId`
- * preconditions below, and the idempotence guard below.
+ * REQ-124 note: this module maps NO rubric dimensions - the coach grades
+ * against one competency directly - so REQ-124's single mapping module is not
+ * duplicated here; `contributionsFromReport` is no longer imported.
  *
- * NOTE ON THE OTHER GUARD: `lib/mastery/from-report.ts`'s
- * `recordLiveSessionContributions` carries its OWN, separate,
- * unconditional guard — it returns `skipped: "coached-session"` for any
- * report joined to a `CoachedSession`, BEFORE any mapping, so that a
- * coached session's report (which does reach READY through the same
- * evaluation pipeline as an unaided one) does not ALSO pick up the
- * unaided-session row that hook would otherwise write. That guard keys on
- * the report having a joined `CoachedSession` row; it is not duplicated
- * here, and this module does not write (or need to write) any
- * unaided-session-suppressing logic of its own — the coached row written
- * by `recordCoachedContribution` is the session's ONLY contribution.
+ * Legacy rows: pre-Phase-22 coached sessions carry a `reportId`, and
+ * `recordLiveSessionContributions` in `lib/mastery/from-report.ts` keeps its
+ * coached-skip guard for those rows, so a legacy coached report never also
+ * picks up an unaided-session row. That guard is not duplicated here.
+ *
+ * Idempotence: the ledger has no unique constraint, and completion is
+ * retryable, so `sourceCoachedSessionId` is checked before any write.
  */
 import { prisma } from "@/lib/prisma";
-import { contributionsFromReport } from "@/lib/mastery/from-report";
-import { recordContributions } from "@/lib/mastery/ledger";
+import type { CompetencyKey } from "@/lib/mastery/competencies";
+import {
+  recordContributions,
+  type ContributionInput,
+} from "@/lib/mastery/ledger";
+import { normalizeRubricScore } from "@/lib/mastery/weights";
 
 /** The source this module's rows are always written under. */
 const COACHED_SESSION_SOURCE = "COACHED_SESSION" as const;
@@ -52,42 +50,83 @@ export class CoachedSessionNotFoundError extends Error {
 export class CoachedSessionNotFinishedError extends Error {
   constructor(coachedSessionId: string) {
     super(
-      `recordCoachedContribution: CoachedSession "${coachedSessionId}" has no completedAt or no reportId — ` +
-        `a session with no report has no scores, and writing a contribution from nothing would be fabricated evidence.`,
+      `recordCoachedContribution: CoachedSession "${coachedSessionId}" has no completedAt - ` +
+        `a session that has not been completed has no final grades, and writing a contribution from nothing would be fabricated evidence.`,
     );
     this.name = "CoachedSessionNotFinishedError";
   }
 }
 
+export interface CoachedAttemptGrade {
+  leg: string;
+  score: number | null;
+  acceptable: boolean | null;
+  parroted: boolean | null;
+}
+
+export interface CoachedLegClosure {
+  leg: string;
+  closedAtSoftCap: boolean | null;
+}
+
 /**
- * Records a completed coached session's mastery contribution.
+ * Pure: one contribution input per CLOSED leg (a leg with a LEG_DONE row).
+ * The score is the best non-parroted attempt; acceptable attempts are
+ * preferred, and a leg closed at the soft cap takes the best non-parroted
+ * attempt outright. A leg with no usable attempt emits nothing - never a
+ * fabricated score.
+ */
+export function contributionInputsFromCoachedLegs(args: {
+  userId: string;
+  coachedSessionId: string;
+  competencyKey: CompetencyKey;
+  occurredAt: Date;
+  attempts: CoachedAttemptGrade[];
+  legClosures: CoachedLegClosure[];
+}): ContributionInput[] {
+  const inputs: ContributionInput[] = [];
+  const seenLegs = new Set<string>();
+
+  for (const closure of args.legClosures) {
+    if (seenLegs.has(closure.leg)) continue;
+    seenLegs.add(closure.leg);
+
+    const usable = args.attempts.filter(
+      (a): a is CoachedAttemptGrade & { score: number } =>
+        a.leg === closure.leg && a.parroted !== true && typeof a.score === "number",
+    );
+    if (usable.length === 0) continue;
+
+    const acceptable = usable.filter((a) => a.acceptable === true);
+    const pool =
+      closure.closedAtSoftCap === true || acceptable.length === 0
+        ? usable
+        : acceptable;
+    const best = Math.max(...pool.map((a) => a.score));
+
+    inputs.push({
+      userId: args.userId,
+      competencyKey: args.competencyKey,
+      source: COACHED_SESSION_SOURCE,
+      rawScore: normalizeRubricScore(best),
+      occurredAt: args.occurredAt,
+      sourceCoachedSessionId: args.coachedSessionId,
+      sourceReportId: null,
+      sourceAttemptId: null,
+    });
+  }
+
+  return inputs;
+}
+
+/**
+ * Records a completed coached session's mastery contributions, once.
  *
- * Steps:
- *   1. Load the `CoachedSession` scoped by `userId`. Require `completedAt`
- *      non-null and `reportId` non-null — a session with no report has no
- *      scores.
- *   2. Delegate the mapping to `contributionsFromReport`, passing
- *      `source: "COACHED_SESSION"` and `occurredAt: session.completedAt`
- *      (NOT the clock, NOT the row-write time — `occurredAt` must be the
- *      moment the session actually happened, per `from-report.ts`'s own
- *      contract, so a late write still lands in the window it happened in).
- *   3. Pass the returned inputs straight to `recordContributions` — one
- *      contribution per competency with at least one non-null dimension;
- *      a competency whose every mapped dimension is null yields NO row.
- *   4. IDEMPOTENCE: before writing, check whether a `COACHED_SESSION`
- *      contribution already exists for this `sourceReportId`. If so,
- *      return `{ written: 0 }` without writing again. The ledger has no
- *      unique constraint for this (21-03 deliberately did not add one — a
- *      legitimate re-grade is conceivable), and `finishCoachedSession` is
- *      reachable more than once on a retried request, so the guard lives
- *      here.
- *
- * AUDITABILITY: because `source` is stored on every row and `weight` is
- * snapshotted at write time (`lib/mastery/ledger.ts`'s `recordContributions`),
- * a reader can confirm after the fact that these rows carry 0.40 and an
- * unaided session's rows carry 1.00 — this is what makes REQ-116's
- * "weighted below unaided practice" checkable in production data, not only
- * in a verifier.
+ * Steps: load the session scoped by `userId` and require `completedAt`;
+ * return `{ written: 0 }` if rows for this `sourceCoachedSessionId` already
+ * exist; build one input per closed leg from the graded attempts; write.
+ * `occurredAt` is `session.completedAt`, not the clock, so a late write still
+ * lands in the window the session happened in.
  */
 export async function recordCoachedContribution(args: {
   userId: string;
@@ -98,38 +137,44 @@ export async function recordCoachedContribution(args: {
   const session = await prisma.coachedSession.findFirst({
     where: { id: coachedSessionId, userId },
   });
-
   if (!session) {
     throw new CoachedSessionNotFoundError(userId, coachedSessionId);
   }
-
-  if (!session.completedAt || !session.reportId) {
+  if (!session.completedAt) {
     throw new CoachedSessionNotFinishedError(coachedSessionId);
   }
 
-  // 4. IDEMPOTENCE, checked before any mapping work.
   const existing = await prisma.masteryContribution.findFirst({
     where: {
-      sourceReportId: session.reportId,
       source: COACHED_SESSION_SOURCE,
+      sourceCoachedSessionId: session.id,
     },
     select: { id: true },
   });
+  if (existing) return { written: 0 };
 
-  if (existing) {
-    return { written: 0 };
-  }
+  const [attemptRows, closureRows] = await Promise.all([
+    prisma.coachedTurn.findMany({
+      where: { coachedSessionId: session.id, speaker: "STUDENT", move: "ATTEMPT" },
+      orderBy: { seq: "asc" },
+      select: { leg: true, score: true, acceptable: true, parroted: true },
+    }),
+    prisma.coachedTurn.findMany({
+      where: { coachedSessionId: session.id, speaker: "COACH", move: "LEG_DONE" },
+      orderBy: { seq: "asc" },
+      select: { leg: true, closedAtSoftCap: true },
+    }),
+  ]);
 
-  // 2. Delegate the mapping — no reimplementation here (REQ-124).
-  const mapped = await contributionsFromReport({
+  const inputs = contributionInputsFromCoachedLegs({
     userId,
-    reportId: session.reportId,
-    source: COACHED_SESSION_SOURCE,
+    coachedSessionId: session.id,
+    competencyKey: session.competencyKey as CompetencyKey,
     occurredAt: session.completedAt,
+    attempts: attemptRows,
+    legClosures: closureRows,
   });
 
-  // 3. One contribution per competency the mapping returned.
-  const written = await recordContributions(mapped.inputs);
-
+  const written = await recordContributions(inputs);
   return { written };
 }
