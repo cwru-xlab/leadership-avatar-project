@@ -38,6 +38,10 @@ const ORIGIN_FOR_SOURCE: Record<string, EvidenceOrigin> = {
   CHECK_DETERMINISTIC: "check",
   CHECK_MODEL_GRADED: "check",
   COACHED_SESSION: "coached",
+  // Phase 23: a voice drill is path learning at the coached weight, spoken in
+  // the same shell; it shares the coached origin bucket rather than adding a
+  // fourth origin (which would ripple into every breakdown on /mastery).
+  VOICE_DRILL: "coached",
 };
 
 /** Null for a source outside the vocabulary (counted in the figure, not in

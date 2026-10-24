@@ -32,9 +32,12 @@
  *   COACHED_SESSION  -> /study-plans/{planId}/coached/{stepId}  (step id,
  *     not session id — the session may not exist yet; 21-23's route
  *     creates it on entry)
- *   UNAIDED_SESSION  -> /practice/{practiceSlug}  (the existing practice
- *     entry for the competency's derived underlying interaction type, sent
- *     by the server as `practiceSlug`)
+ *   VOICE_DRILL      -> /study-plans/{planId}/drills/{stepId}  (Phase 23;
+ *     step id, like coached — the drill brief is resolved from the step)
+ *   UNAIDED_SESSION  -> the server's `proveIt.href` for the path's FINAL
+ *     step (Phase 23: `/practice/{slug}[/{instanceId}]?fromPlan=&step=`, the
+ *     plan's source practice type pre-filled); otherwise
+ *     /practice/{practiceSlug}, the existing practice entry
  *
  * SECOND LINE OF DEFENCE against the PLACEHOLDER_KNOWLEDGE_CHECK_ID hazard
  * (lib/study-plan/next-step.ts): a KNOWLEDGE_CHECK step whose
@@ -47,6 +50,7 @@ import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  AudioLines,
   Check,
   ListChecks,
   MessagesSquare,
@@ -60,7 +64,7 @@ import { LevelBadge, ProgressRing, type LevelsByCompetency } from "@/components/
 
 const PLACEHOLDER_KNOWLEDGE_CHECK_ID = "__PENDING_GENERATION__";
 
-export type PathStepKind = "KNOWLEDGE_CHECK" | "COACHED_SESSION" | "UNAIDED_SESSION";
+export type PathStepKind = "KNOWLEDGE_CHECK" | "COACHED_SESSION" | "UNAIDED_SESSION" | "VOICE_DRILL";
 
 export interface PathStepViewDTO {
   id: string;
@@ -76,6 +80,10 @@ export interface PathStepViewDTO {
   practiceSlug: string | null;
   check: { format: string; prompt: string; hasAttempt: boolean } | null;
   coachedPhase: "NOT_STARTED" | "REPLAY" | "FRESH" | "COMPLETE" | null;
+  /** VOICE_DRILL only (Phase 23): counts, never a score. */
+  drill?: { hasBrief: boolean; attemptCount: number; completedAttemptCount: number } | null;
+  /** Final UNAIDED_SESSION only (Phase 23): the pre-filled practice entry. */
+  proveIt?: { href: string; brief: string; typeLabel: string; linked: boolean } | null;
 }
 
 export interface PathViewDTO {
@@ -89,12 +97,14 @@ export const KIND_LABEL: Record<PathStepKind, string> = {
   KNOWLEDGE_CHECK: "Knowledge check",
   COACHED_SESSION: "Coached practice",
   UNAIDED_SESSION: "Practice session",
+  VOICE_DRILL: "Voice drill",
 };
 
 export const KIND_ICON: Record<PathStepKind, LucideIcon> = {
   KNOWLEDGE_CHECK: ListChecks,
   COACHED_SESSION: MessagesSquare,
   UNAIDED_SESSION: Mic,
+  VOICE_DRILL: AudioLines,
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -130,7 +140,12 @@ export function hrefForStep(planId: string, step: PathStepViewDTO): string | nul
   if (step.kind === "COACHED_SESSION") {
     return `/study-plans/${planId}/coached/${step.id}`;
   }
-  // UNAIDED_SESSION
+  if (step.kind === "VOICE_DRILL") {
+    return `/study-plans/${planId}/drills/${step.id}`;
+  }
+  // UNAIDED_SESSION — the prove-it step's pre-filled entry when the server
+  // resolved one; otherwise the plain practice entry (unchanged behaviour).
+  if (step.proveIt?.href) return step.proveIt.href;
   if (!step.practiceSlug) return null;
   return `/practice/${step.practiceSlug}`;
 }
@@ -144,6 +159,10 @@ export function actionLabelForStep(step: PathStepViewDTO): string {
     if (step.coachedPhase === "COMPLETE") return "Review coached practice";
     return "Continue coached practice";
   }
+  if (step.kind === "VOICE_DRILL") {
+    return step.drill && step.drill.completedAttemptCount > 0 ? "Redo voice drill" : "Start voice drill";
+  }
+  if (step.proveIt) return step.proveIt.linked ? "Prove it again" : "Prove it";
   return "Go practice";
 }
 
@@ -374,6 +393,9 @@ export default function PathPanel({
                 <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-[#385463]">
                   {step.selectionReason}
                 </p>
+                {step.proveIt ? (
+                  <p className="mt-1.5 text-xs leading-5 text-[#58727f]">{step.proveIt.brief}</p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <span
                     className={`text-xs font-semibold uppercase tracking-wide ${

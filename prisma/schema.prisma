@@ -86,6 +86,8 @@ model User {
   studyPlanPaths         StudyPlanPath[]
   coachedSessions        CoachedSession[]
   momentCompetencyScores MomentCompetencyScore[]
+  voiceDrills            VoiceDrill[]
+  voiceDrillAttempts     VoiceDrillAttempt[]
 
   /// Chosen once in Settings; null means the default coach.
   coachAvatarId String?
@@ -561,6 +563,10 @@ model MasteryContribution {
   /// longer produce an InteractionReport.
   sourceCoachedSessionId String?
 
+  /// Phase 23: set for VOICE_DRILL rows only (the VoiceDrillAttempt id).
+  /// Soft pointer, no FK (same convention as the other source pointers).
+  sourceVoiceDrillAttemptId String?
+
   /// Non-null means a GradingContest reversed this contribution; it no longer
   /// counts toward mastery but the row is never deleted.
   reversedAt     DateTime?
@@ -576,6 +582,7 @@ model MasteryContribution {
   @@index([userId, occurredAt])
   @@index([sourceAttemptId])
   @@index([sourceCoachedSessionId])
+  @@index([sourceVoiceDrillAttemptId])
 }
 
 /// One generated question, in any of the four formats all four formats ship
@@ -724,7 +731,8 @@ model StudyPlanPathStep {
 
   position Int
 
-  /// "KNOWLEDGE_CHECK" | "COACHED_SESSION" | "UNAIDED_SESSION".
+  /// "KNOWLEDGE_CHECK" | "COACHED_SESSION" | "UNAIDED_SESSION" |
+  /// "VOICE_DRILL" (Phase 23). Plain String: old kinds stay valid.
   kind String
 
   competencyKey String
@@ -736,12 +744,20 @@ model StudyPlanPathStep {
   knowledgeCheckId String?
   coachedSessionId String?
 
+  /// Phase 23 prove-it link: the InteractionReport of the live session the
+  /// student launched FROM this UNAIDED_SESSION step (`?fromPlan=&step=`).
+  /// Soft pointer, no FK (a report is never deleted by a path). The step
+  /// completes once that report reaches READY. Null on every other kind and
+  /// on every pre-Phase-23 row.
+  linkedReportId String?
+
   /// "PENDING" | "COMPLETE" | "SKIPPED".
   status String @default("PENDING")
 
   completedAt DateTime?
 
   coachedSession CoachedSession?
+  voiceDrill     VoiceDrill?
 
   @@unique([pathId, position])
 }
@@ -786,6 +802,13 @@ model CoachedSession {
   /// above MAX_REWORKABLE_SCORE as refinement.
   replayMomentScore Int?
   freshMomentScore  Int?
+
+  /// Phase 23 shared-shell coached session: delivery metrics captured during
+  /// the session, same shapes as InteractionReport (lib/metrics/types.ts).
+  /// Derived numbers only, never media (REQ-38). Null on every older row.
+  cameraMode    String? // "ON" | "OFF"
+  visualMetrics Json?
+  vocalMetrics  Json?
 
   /// Pre-Phase-22 rows only. Coached sessions no longer produce an
   /// InteractionReport.
@@ -862,4 +885,86 @@ model MomentCompetencyScore {
 
   @@unique([reportId, turnIndex, competencyKey])
   @@index([userId])
+}
+
+/// Phase 23 voice drill: a short (60-90s) spoken rep on ONE competency, run in
+/// the shared practice shell and graded only at the end. Exists ONLY as a
+/// path step (`pathStepId @unique`, cascade) — the same structural guarantee
+/// CoachedSession has. The brief (scenario prompt + one technique reminder)
+/// is generated at path-generation time and never regenerated, so what the
+/// student was asked to do is reproducible.
+model VoiceDrill {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  pathStepId String            @unique
+  pathStep   StudyPlanPathStep @relation(fields: [pathStepId], references: [id], onDelete: Cascade)
+
+  competencyKey String
+
+  /// What to speak about for 60-90 seconds. Tailored from the student's own
+  /// weak moment or the plan's theme.
+  scenarioPrompt String @db.Text
+
+  /// ONE live technique reminder: names the skill, never scripts words
+  /// (lib/study-plan/coached/tips.ts rules).
+  tipText     String  @db.Text
+  techniqueId String?
+
+  /// "MOMENT" | "THEME" | "COMPETENCY": what the prompt was tailored from.
+  promptBasis String
+
+  /// REQ-110 provenance when the prompt quotes the student verbatim.
+  sourceReportId  String?
+  quotedTurnIndex Int?
+  quotedText      String? @db.Text
+
+  /// "template" when the deterministic brief was used, else the model id.
+  generationModel String
+
+  createdAt DateTime @default(now())
+
+  attempts VoiceDrillAttempt[]
+
+  @@index([userId, createdAt])
+}
+
+/// One spoken attempt at a VoiceDrill. A student may redo a drill: each
+/// completed attempt writes its own VOICE_DRILL mastery contribution, and the
+/// step completes on the first completed attempt. Only DERIVED metrics are
+/// stored — never media (REQ-38).
+model VoiceDrillAttempt {
+  id String @id @default(uuid())
+
+  voiceDrillId String
+  voiceDrill   VoiceDrill @relation(fields: [voiceDrillId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// "ON" | "OFF" — the camera choice the shell locked for this attempt.
+  cameraMode String?
+
+  transcript       String? @db.Text
+  spokenDurationMs Int?
+
+  /// Same shapes as InteractionReport.visualMetrics / vocalMetrics.
+  visualMetrics Json?
+  vocalMetrics  Json?
+
+  /// 1..5 on the shared rubric scale, for the drill's competency only.
+  /// Null until graded; shown ONLY after completion, never mid-drill.
+  score Int?
+
+  /// The one "what to try next time" note (a technique reminder).
+  feedback        String? @db.Text
+  graderRationale String? @db.Text
+  graderModel     String?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([voiceDrillId, startedAt])
+  @@index([userId, startedAt])
 }

@@ -17,7 +17,8 @@
  */
 
 /**
- * The four sources a `MasteryContribution.source` column accepts. This module
+ * The sources a `MasteryContribution.source` column accepts (four from
+ * Phase 21/22, plus Phase 23's `VOICE_DRILL`). This module
  * is the vocabulary's home — the Prisma schema comment on
  * `MasteryContribution.source` already says the column is code-enforced, not
  * a Prisma enum, so nothing imports these strings from `@prisma/client`.
@@ -27,6 +28,7 @@ export const CONTRIBUTION_SOURCES = [
   "COACHED_SESSION",
   "CHECK_DETERMINISTIC",
   "CHECK_MODEL_GRADED",
+  "VOICE_DRILL",
 ] as const;
 
 export type ContributionSource = (typeof CONTRIBUTION_SOURCES)[number];
@@ -67,12 +69,18 @@ const MODEL_GRADED_WEIGHT = 0.2;
  *     weak line" format) is the weakest evidence here because its grade is
  *     itself a judgement call, not a deterministic check against a known
  *     answer — it earns the floor.
+ *   - VOICE_DRILL (= COACHED_SESSION, 0.20): Phase 23 - a 60-90s spoken rep
+ *     on one competency, graded by a model at the end. 23-CONTEXT.md:
+ *     "counting toward mastery at the coached weight". Bound to the
+ *     COACHED_SESSION entry (not restated as a number), so the two cannot
+ *     drift apart; `WEIGHT_CLASS_BINDINGS` checks it with ===.
  */
 export const CONTRIBUTION_WEIGHTS: Record<ContributionSource, number> = {
   LIVE_SESSION: 1.0,
   CHECK_DETERMINISTIC: 0.45,
   COACHED_SESSION: MODEL_GRADED_WEIGHT,
   CHECK_MODEL_GRADED: MODEL_GRADED_WEIGHT,
+  VOICE_DRILL: MODEL_GRADED_WEIGHT,
 };
 
 /**
@@ -104,6 +112,18 @@ export const WEIGHT_ORDERING_CONSTRAINTS: ReadonlyArray<{
     lesser: "COACHED_SESSION",
     locked_by: "never the deterministic weight",
   },
+  {
+    greater: "LIVE_SESSION",
+    lesser: "VOICE_DRILL",
+    locked_by:
+      "voice drills count toward mastery at the coached weight (23-CONTEXT.md), so below unaided practice",
+  },
+  {
+    greater: "CHECK_DETERMINISTIC",
+    lesser: "VOICE_DRILL",
+    locked_by:
+      "voice drills count toward mastery at the coached weight (23-CONTEXT.md), never the deterministic weight",
+  },
 ];
 
 /**
@@ -120,6 +140,12 @@ export const WEIGHT_CLASS_BINDINGS: ReadonlyArray<{
     sameClassAs: "CHECK_MODEL_GRADED",
     locked_by:
       "recorded at the lower model-graded weight \u2014 the same class as a rewrite knowledge check, never the deterministic weight",
+  },
+  {
+    source: "VOICE_DRILL",
+    sameClassAs: "COACHED_SESSION",
+    locked_by:
+      "Voice drills: counting toward mastery at the coached weight (23-CONTEXT.md, 2026-10-24)",
   },
 ];
 

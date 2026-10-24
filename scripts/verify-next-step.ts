@@ -14,10 +14,17 @@ import {
   selectPathSteps,
   nextStepFor,
   reasonForDegradedCheck,
+  reasonForDegradedCheckToDrill,
   TIE_BREAK_ORDER,
+  MAX_DRILLS_PER_TARGET,
   type StepSelection,
 } from "../lib/study-plan/next-step";
 import { coachedEvidenceFromReports } from "../lib/study-plan/coached/evidence";
+import {
+  planEvidenceFromReports,
+  themeMatchesFromPlan,
+  priorityThemesFromContent,
+} from "../lib/study-plan/plan-targets";
 import { validatePathSteps, type PathWithSteps } from "../lib/study-plan/path";
 import { COMPETENCIES, type CompetencyKey } from "../lib/mastery/competencies";
 import type { CompetencyMastery, MasteryResult } from "../lib/mastery/compute";
@@ -545,7 +552,7 @@ console.log("\n10b. STORED REASONS MATCH THE STORED STEP KIND");
   );
 }
 
-console.log("\n11. COACHED REASON IS TRUTHFUL");
+console.log("\n11. COACHED REASON IS TRUTHFUL (Phase 23: coached sits after learn + drill)");
 {
   // The contradiction detector: a reason that claims no scored evidence AND
   // describes a coached rework.
@@ -557,21 +564,30 @@ console.log("\n11. COACHED REASON IS TRUTHFUL");
   const evidence = new Map<CompetencyKey, { lowestPercent: number }>(
     evKeys.map((k, i) => [k, { lowestPercent: 31 + i }])
   );
+  // In the route, coached evidence comes from the SAME source reports as the
+  // plan's SCORED signal, so an evidenced competency is always a plan target.
+  const planEvidence = new Map(
+    evKeys.map((k, i) => [k, { meanPercent: 40 + i, scoredReportCount: 2 }] as const)
+  );
   const selection = selectPathSteps({
     mastery,
-    desiredCount: 7,
+    desiredCount: 10,
     coachedEvidence: evidence,
+    planEvidence,
   });
-  const first = selection.steps[0];
+  const coachedSteps = selection.steps.filter((s) => s.kind === "COACHED_SESSION");
   check(
-    "all-NONE + evidence: position 1 is COACHED_SESSION on an evidenced competency",
-    first.kind === "COACHED_SESSION" && evKeys.includes(first.competencyKey)
+    "all-NONE + evidence: every COACHED_SESSION is on an evidenced competency",
+    coachedSteps.length > 0 && coachedSteps.every((s) => evKeys.includes(s.competencyKey)),
+    JSON.stringify(coachedSteps.map((s) => s.competencyKey))
   );
   check(
-    "coached NONE reason says 'no mastery figure yet' and carries the percent",
-    first.selectionReason.includes("no mastery figure yet") &&
-      first.selectionReason.includes(`${evidence.get(first.competencyKey)!.lowestPercent}%`),
-    first.selectionReason
+    "coached reason cites the plan's own sessions with the percent",
+    coachedSteps.every((s) => {
+      const mean = planEvidence.get(s.competencyKey)!.meanPercent;
+      return s.selectionReason.includes(`${mean}%`) && s.selectionReason.includes("sessions this plan was built from");
+    }),
+    JSON.stringify(coachedSteps.map((s) => s.selectionReason))
   );
   check(
     "no step reason contains both 'no scored evidence' and 'coached'",
@@ -599,16 +615,18 @@ console.log("\n11. COACHED REASON IS TRUTHFUL");
     JSON.stringify(validatePathSteps(none.steps))
   );
 
-  const third = selection.ranking[2].competencyKey;
-  const thirdOnly = selectPathSteps({
+  // Coached evidence on a non-plan (GLOBAL) target still yields a truthful
+  // reason naming the lowest source figure.
+  const globalCoached = selectPathSteps({
     mastery,
-    desiredCount: 7,
-    coachedEvidence: new Map([[third, { lowestPercent: 22 }]]),
+    desiredCount: 10,
+    coachedEvidence: new Map([[TIE_BREAK_ORDER[0], { lowestPercent: 22 }]]),
   });
+  const gc = globalCoached.steps.find((s) => s.kind === "COACHED_SESSION");
   check(
-    "evidence only on rank #3: it still gets position 1",
-    thirdOnly.steps[0].kind === "COACHED_SESSION" &&
-      thirdOnly.steps[0].competencyKey === third
+    "coached on a GLOBAL target: reason carries the lowest source figure",
+    !!gc && gc.selectionReason.includes("22%") && !contradictory(gc.selectionReason),
+    gc?.selectionReason
   );
 
   // Bite-proof: the OLD composition must be flagged by the detector.
@@ -641,6 +659,328 @@ console.log("\n12. coachedEvidenceFromReports");
   );
   const nullOnly = coachedEvidenceFromReports([{ id: "r4", userId: "u1", scores: null, createdAt: NOW }]);
   check("null scores contribute nothing", nullOnly.size === 0);
+}
+
+
+// ---------------------------------------------------------------------------
+// Phase 23: plan-first targeting, learn -> drill -> rework -> prove, VOICE_DRILL
+// ---------------------------------------------------------------------------
+
+/** Every way a step list can break the Phase 23 order. Pure, so the
+ * bite-proofs can run it on planted bad lists. */
+function orderIssues(
+  steps: Array<{ position: number; kind: string; competencyKey: string }>
+): string[] {
+  const issues: string[] = [];
+  const ordered = steps.slice().sort((a, b) => a.position - b.position);
+  const unaided = ordered.filter((s) => s.kind === "UNAIDED_SESSION");
+  if (unaided.length !== 1) issues.push(`expected exactly 1 UNAIDED_SESSION, got ${unaided.length}`);
+  if (ordered[ordered.length - 1]?.kind !== "UNAIDED_SESSION") issues.push("last step is not UNAIDED_SESSION");
+  const STAGE: Record<string, number> = { KNOWLEDGE_CHECK: 0, VOICE_DRILL: 1, COACHED_SESSION: 2 };
+  const body = ordered.slice(0, -1);
+  // Contiguous blocks per competency, stage non-decreasing inside a block.
+  const seenClosed = new Set<string>();
+  let current: string | null = null;
+  let lastStage = -1;
+  let drills = 0;
+  for (const s of body) {
+    if (s.competencyKey !== current) {
+      if (current) seenClosed.add(current);
+      if (seenClosed.has(s.competencyKey)) issues.push(`competency ${s.competencyKey} appears in two separate blocks`);
+      current = s.competencyKey;
+      lastStage = -1;
+      drills = 0;
+    }
+    const stage = STAGE[s.kind];
+    if (stage === undefined) {
+      issues.push(`step ${s.position}: ${s.kind} inside the body`);
+      continue;
+    }
+    if (stage < lastStage) issues.push(`step ${s.position}: ${s.kind} after a later stage (learn -> drill -> rework)`);
+    lastStage = stage;
+    if (s.kind === "VOICE_DRILL") drills += 1;
+    if (drills > MAX_DRILLS_PER_TARGET) issues.push(`step ${s.position}: more than ${MAX_DRILLS_PER_TARGET} drills for ${s.competencyKey}`);
+  }
+  return issues;
+}
+
+console.log("\n13. PLAN-FIRST TARGETING");
+{
+  // Globally, Outcome achievement is unmeasured (NONE tier) and would rank
+  // first. The plan's own sessions scored three other competencies.
+  const outcome: CompetencyKey = "outcome_achievement";
+  const competencies = ALL_KEYS.map((k) =>
+    k === outcome ? blank(k) : established(k, 70)
+  );
+  const mastery = resultWith(competencies);
+  const planEvidence = new Map<CompetencyKey, { meanPercent: number; scoredReportCount: number }>([
+    ["audience_attunement", { meanPercent: 55, scoredReportCount: 10 }],
+    ["structure_and_clarity", { meanPercent: 48, scoredReportCount: 10 }],
+    ["delivery_presence", { meanPercent: 62, scoredReportCount: 6 }],
+  ]);
+
+  const globalOnly = selectPathSteps({ mastery, desiredCount: 10, coachedEvidence: new Map() });
+  check(
+    "baseline (no plan signal): the unmeasured Outcome achievement is the global #1",
+    globalOnly.ranking[0].competencyKey === outcome && globalOnly.steps[0].competencyKey === outcome
+  );
+
+  const planFirst = selectPathSteps({ mastery, desiredCount: 10, coachedEvidence: new Map(), planEvidence });
+  check(
+    "plan-first: step 1 targets the plan's weakest scored skill, not the global gap",
+    planFirst.steps[0].competencyKey === "structure_and_clarity",
+    JSON.stringify(planFirst.steps.map((s) => `${s.kind}/${s.competencyKey}`))
+  );
+  check(
+    "plan-first: targets are the three scored skills, weakest mean first",
+    JSON.stringify(planFirst.targets) ===
+      JSON.stringify(["structure_and_clarity", "audience_attunement", "delivery_presence"]),
+    JSON.stringify(planFirst.targets)
+  );
+  check(
+    "plan-first: the never-measured global gap is not targeted when the plan fills the slots",
+    !planFirst.steps.some((s) => s.competencyKey === outcome)
+  );
+  check(
+    "plan-first: SCORED entries rank before GLOBAL entries",
+    planFirst.ranking.slice(0, 3).every((r) => r.basis === "SCORED") &&
+      planFirst.ranking.slice(3).every((r) => r.basis === "GLOBAL")
+  );
+  check(
+    "REQ-118: step 1's stored reason names the plan signal and its figure",
+    planFirst.steps[0].selectionReason.includes("this plan's #1 target") &&
+      planFirst.steps[0].selectionReason.includes("48%") &&
+      planFirst.steps[0].selectionReason.includes("10 sessions"),
+    planFirst.steps[0].selectionReason
+  );
+  check(
+    "REQ-118: no stored reason claims a plan basis it does not have",
+    planFirst.steps.every((s) => {
+      const entry = planFirst.ranking.find((r) => r.competencyKey === s.competencyKey)!;
+      return entry.basis === "SCORED" ? s.selectionReason.includes("on average") : true;
+    })
+  );
+
+  // THEME-only competencies rank after SCORED and before GLOBAL.
+  const themeMatches = new Map([
+    ["credibility_of_the_case" as CompetencyKey, { priority: 1, theme: "Quantifying impact" }],
+  ]);
+  const withTheme = selectPathSteps({
+    mastery,
+    desiredCount: 10,
+    coachedEvidence: new Map(),
+    planEvidence: new Map([["structure_and_clarity", { meanPercent: 48, scoredReportCount: 10 }]]),
+    themeMatches,
+  });
+  check(
+    "THEME-only ranks after SCORED and before GLOBAL",
+    withTheme.ranking[0].competencyKey === "structure_and_clarity" &&
+      withTheme.ranking[1].competencyKey === "credibility_of_the_case" &&
+      withTheme.ranking[1].basis === "THEME" &&
+      withTheme.ranking[2].basis === "GLOBAL",
+    JSON.stringify(withTheme.ranking.map((r) => `${r.basis}/${r.competencyKey}`))
+  );
+  check(
+    "THEME reason quotes the plan's theme verbatim and says the sessions did not score it",
+    withTheme.ranking[1].reason.includes('"Quantifying impact"') &&
+      withTheme.ranking[1].reason.includes("did not score it directly"),
+    withTheme.ranking[1].reason
+  );
+  check(
+    "a GLOBAL fill reason says it is not one of the plan's own weak skills",
+    withTheme.ranking[2].reason.includes("fills a remaining slot"),
+    withTheme.ranking[2].reason
+  );
+
+  // SCORED tie broken by theme priority, before the global comparator.
+  const tie = selectPathSteps({
+    mastery,
+    desiredCount: 10,
+    coachedEvidence: new Map(),
+    planEvidence: new Map([
+      ["delivery_presence", { meanPercent: 50, scoredReportCount: 3 }],
+      ["audience_attunement", { meanPercent: 50, scoredReportCount: 3 }],
+    ]),
+    themeMatches: new Map([["audience_attunement" as CompetencyKey, { priority: 2, theme: "Active Listening" }]]),
+  });
+  check(
+    "SCORED tie: the themed competency ranks first (delivery would win the global tie-break)",
+    tie.ranking[0].competencyKey === "audience_attunement",
+    JSON.stringify(tie.ranking.slice(0, 2).map((r) => r.competencyKey))
+  );
+
+  // BITE-PROOF: the targeting guard must fail on a global-first selection.
+  const targetingIssue = (sel: StepSelection) =>
+    sel.steps[0].competencyKey === outcome ? ["step 1 targets the never-measured global gap"] : [];
+  check(
+    "bite-proof: the targeting guard FLAGS the old global-first selection",
+    targetingIssue(globalOnly).length === 1 && targetingIssue(planFirst).length === 0
+  );
+}
+
+console.log("\n14. ORDER: learn -> drill -> rework -> prove");
+{
+  const mastery = resultWith(ALL_KEYS.map((k, i) => established(k, 40 + i * 5)));
+  const planEvidence = new Map(
+    ALL_KEYS.slice(0, 3).map((k, i) => [k, { meanPercent: 30 + i * 10, scoredReportCount: 4 }] as const)
+  );
+  const sel = selectPathSteps({ mastery, desiredCount: 10, coachedEvidence: ALL_EVIDENCE, planEvidence });
+  check("full evidence: no order issues", orderIssues(sel.steps).length === 0, JSON.stringify(orderIssues(sel.steps)));
+  check(
+    "full evidence: each targeted block is KNOWLEDGE_CHECK, VOICE_DRILL, COACHED_SESSION",
+    JSON.stringify(sel.steps.slice(0, 3).map((s) => s.kind)) ===
+      JSON.stringify(["KNOWLEDGE_CHECK", "VOICE_DRILL", "COACHED_SESSION"]),
+    JSON.stringify(sel.steps.map((s) => s.kind))
+  );
+  check(
+    "the final step is the ONE UNAIDED_SESSION, on the #1 target",
+    sel.steps[sel.steps.length - 1].kind === "UNAIDED_SESSION" &&
+      sel.steps[sel.steps.length - 1].competencyKey === sel.targets[0] &&
+      sel.steps.filter((s) => s.kind === "UNAIDED_SESSION").length === 1
+  );
+  check(
+    "every targeted competency gets at least one VOICE_DRILL",
+    sel.targets.every((t) => sel.steps.some((s) => s.kind === "VOICE_DRILL" && s.competencyKey === t))
+  );
+  check(
+    "the final step's reason describes the transfer test",
+    sel.steps[sel.steps.length - 1].selectionReason.includes("transfer test")
+  );
+
+  // Room for a second drill: coached only on target #1.
+  const roomy = selectPathSteps({
+    mastery,
+    desiredCount: 10,
+    coachedEvidence: new Map([[ALL_KEYS[0], { lowestPercent: 25 }]]),
+    planEvidence,
+  });
+  const firstBlockDrills = roomy.steps.filter((s) => s.kind === "VOICE_DRILL" && s.competencyKey === roomy.targets[0]).length;
+  check("room left: the #1 target gets a second drill", firstBlockDrills === 2, `${firstBlockDrills}`);
+  check(
+    "the second drill's reason says it is a second rep",
+    roomy.steps.filter((s) => s.kind === "VOICE_DRILL" && s.competencyKey === roomy.targets[0])[1].selectionReason.includes("second voice drill")
+  );
+  check("roomy: no order issues", orderIssues(roomy.steps).length === 0, JSON.stringify(orderIssues(roomy.steps)));
+
+  // BITE-PROOFS
+  const swapped = sel.steps.map((s) =>
+    s.position === 2 ? { ...s, kind: "COACHED_SESSION" } : s.position === 3 ? { ...s, kind: "VOICE_DRILL" } : s
+  );
+  check(
+    "bite-proof: rework before drill is FLAGGED",
+    orderIssues(swapped).some((i) => i.includes("after a later stage")),
+    JSON.stringify(orderIssues(swapped))
+  );
+  const twoUnaided = sel.steps.map((s) => (s.position === 2 ? { ...s, kind: "UNAIDED_SESSION" } : s));
+  check(
+    "bite-proof: a mid-path UNAIDED_SESSION is FLAGGED",
+    orderIssues(twoUnaided).some((i) => i.includes("exactly 1 UNAIDED_SESSION")),
+    JSON.stringify(orderIssues(twoUnaided))
+  );
+}
+
+console.log("\n15. VOICE_DRILL kind + degrade-to-drill");
+{
+  const mastery = resultWith(ALL_KEYS.map((k, i) => established(k, 40 + i * 5)));
+  const sel = selectPathSteps({ mastery, desiredCount: 10, coachedEvidence: ALL_EVIDENCE });
+  const drills = sel.steps.filter((s) => s.kind === "VOICE_DRILL");
+  check("VOICE_DRILL steps carry neither id", drills.length > 0 && drills.every((s) => !s.knowledgeCheckId && !s.coachedSessionId));
+  check("validatePathSteps accepts the drill path", validatePathSteps(sel.steps).length === 0, JSON.stringify(validatePathSteps(sel.steps)));
+  const withKc = sel.steps.map((s) => (s.kind === "VOICE_DRILL" ? { ...s, knowledgeCheckId: "kc-x" } : s));
+  check(
+    "bite-proof: a VOICE_DRILL carrying a knowledgeCheckId is rejected",
+    validatePathSteps(withKc).some((e) => e.includes("VOICE_DRILL step must not carry knowledgeCheckId"))
+  );
+  const badKind = sel.steps.map((s, i) => (i === 0 ? { ...s, kind: "VOICE_DRIL" as any } : s));
+  check(
+    "bite-proof: an unknown kind is rejected",
+    validatePathSteps(badKind).some((e) => e.includes('unknown kind "VOICE_DRIL"'))
+  );
+
+  const kc = sel.steps.find((s) => s.kind === "KNOWLEDGE_CHECK")!;
+  const rewritten = reasonForDegradedCheckToDrill(kc.selectionReason);
+  check(
+    "degrade-to-drill reason keeps the base sentence, drops the check, names a voice drill",
+    !/knowledge check/i.test(rewritten) && rewritten.includes("voice drill") &&
+      rewritten.startsWith(kc.selectionReason.split(" This knowledge check")[0]),
+    rewritten
+  );
+  const degraded = sel.steps.map((s) =>
+    s.kind === "KNOWLEDGE_CHECK"
+      ? { ...s, kind: "VOICE_DRILL" as const, knowledgeCheckId: null, selectionReason: reasonForDegradedCheckToDrill(s.selectionReason) }
+      : s
+  );
+  check(
+    "after degrading every check to a drill: still exactly one UNAIDED_SESSION, valid",
+    degraded.filter((s) => s.kind === "UNAIDED_SESSION").length === 1 && validatePathSteps(degraded).length === 0
+  );
+}
+
+console.log("\n16. BUDGET SWEEP (deterministic enumeration)");
+{
+  let combos = 0;
+  const problems: string[] = [];
+  const masteries = [
+    resultWith(ALL_KEYS.map((k) => blank(k))),
+    resultWith(ALL_KEYS.map((k, i) => established(k, 20 + i * 10))),
+  ];
+  for (const mastery of masteries) {
+    for (let unavailMask = 0; unavailMask < 8; unavailMask += 1) {
+      for (let evMask = 0; evMask < 8; evMask += 1) {
+        for (const desired of [1, 5, 7, 9, 10, 50]) {
+          combos += 1;
+          const order = selectPathSteps({ mastery, desiredCount: 7, coachedEvidence: new Map() }).ranking.map((r) => r.competencyKey);
+          const unavailable = order.slice(0, 3).filter((_, i) => unavailMask & (1 << i));
+          const coachedEvidence = new Map(
+            order.slice(0, 3).filter((_, i) => evMask & (1 << i)).map((k) => [k, { lowestPercent: 30 }] as const)
+          );
+          const sel = selectPathSteps({ mastery, desiredCount: desired, unavailableCompetencies: unavailable, coachedEvidence });
+          const cap = Math.max(5, Math.min(10, desired));
+          const tag = `u${unavailMask}/e${evMask}/d${desired}`;
+          if (sel.steps.length < 5 || sel.steps.length > 10) problems.push(`${tag}: ${sel.steps.length} steps`);
+          if (sel.steps.length > cap) problems.push(`${tag}: over the cap ${cap}`);
+          if (validatePathSteps(sel.steps).length) problems.push(`${tag}: invalid ${validatePathSteps(sel.steps)}`);
+          if (orderIssues(sel.steps).length) problems.push(`${tag}: ${orderIssues(sel.steps)}`);
+          if (sel.steps.some((s) => (s.kind === "KNOWLEDGE_CHECK" || s.kind === "COACHED_SESSION") && unavailable.includes(s.competencyKey)))
+            problems.push(`${tag}: unavailable competency hosts a check/coached step`);
+        }
+      }
+    }
+  }
+  check(`all ${combos} combinations: 5-10 steps, within cap, valid, ordered`, problems.length === 0, problems.slice(0, 5).join(" | "));
+}
+
+console.log("\n17. plan-targets helpers");
+{
+  const themes = priorityThemesFromContent({
+    priorityThemes: [
+      { priority: 2, theme: "Completeness and Clarification of Answers" },
+      { priority: 1, theme: "Consistency of Organization Across Responses" },
+      { priority: 3, theme: "Reflection and Coachability" },
+      { theme: "malformed" },
+    ],
+  });
+  check("priorityThemesFromContent drops malformed entries", themes.length === 3);
+  const matches = themeMatchesFromPlan(themes);
+  check(
+    "Organization theme -> Structure & clarity at priority 1",
+    matches.get("structure_and_clarity")?.priority === 1,
+    JSON.stringify([...matches.values()])
+  );
+  check("an unmatched theme adds no signal (no guessing)", ![...matches.values()].some((m) => m.theme.startsWith("Reflection")));
+  check("priorityThemesFromContent(null) is empty", priorityThemesFromContent(null).length === 0);
+
+  const dim = COMPETENCIES[1].dimensionKeys[0]; // structure: content
+  const ev = planEvidenceFromReports([
+    { id: "r1", userId: "u", scores: { [dim]: 1 }, createdAt: NOW },
+    { id: "r2", userId: "u", scores: { [dim]: 5 }, createdAt: NOW },
+    { id: "r3", userId: "u", scores: { [dim]: 3 }, createdAt: NOW },
+  ]).get(COMPETENCIES[1].key)!;
+  check(
+    "planEvidenceFromReports: mean 50%, lowest 0%, 3 reports",
+    ev.meanPercent === 50 && ev.lowestPercent === 0 && ev.scoredReportCount === 3,
+    JSON.stringify(ev)
+  );
 }
 
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}\n`);
