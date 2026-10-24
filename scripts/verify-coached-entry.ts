@@ -123,6 +123,13 @@ console.log("\n1. ENTRY SURFACE — exactly one app/api/ route reaches coached m
     `actual: ${matching[0]}`,
   );
 
+  const turnImporters = routeFiles.filter((f) => /\btakeCoachTurn\b/.test(readFileSync(abs(...f.split("/")), "utf8")));
+  check(
+    "no route.ts other than the coached route references takeCoachTurn",
+    turnImporters.every((f) => f === "app/api/study-plans/path-steps/[stepId]/coached/route.ts") && turnImporters.length === 1,
+    `importers=[${turnImporters.join(", ")}]`,
+  );
+
   // Re-run 21-12's negative guard here too: the walk ran BEFORE this plan's
   // runtime/route existed, and the guard must be repeated once something
   // exists that could leak coached-mode identifiers into normal practice.
@@ -168,6 +175,30 @@ console.log("\n2. LEG ORDERING — no database, with an inverted (permissive-var
   function tableHolds(fn: (c: CoachedPhase, a: CoachedAction) => LegTransitionResult): boolean {
     return LEG_TRANSITION_TABLE.every((row) => fn(row.current, row.action) === row.expected);
   }
+
+  // 22-13: thin-evidence table (hasFreshMoment: false) and its inverted check.
+  const THIN_TABLE: Array<{ current: CoachedPhase; action: CoachedAction; expected: LegTransitionResult }> = [
+    { current: "REPLAY", action: "complete", expected: "COMPLETE" },
+    { current: "REPLAY", action: "advance", expected: "REJECTED" },
+    { current: "FRESH", action: "advance", expected: "REJECTED" },
+    { current: "FRESH", action: "complete", expected: "REJECTED" },
+    { current: "COMPLETE", action: "advance", expected: "REJECTED" },
+    { current: "COMPLETE", action: "complete", expected: "REJECTED" },
+  ];
+  for (const row of THIN_TABLE) {
+    check(
+      `thin: nextLeg(${row.current}, ${row.action}, {hasFreshMoment:false}) === ${row.expected}`,
+      nextLeg(row.current, row.action, { hasFreshMoment: false }) === row.expected,
+    );
+  }
+  // A variant that lets REPLAY+complete succeed even when a fresh moment exists
+  // is caught by the two-moment table.
+  const lenientNextLeg = (c: CoachedPhase, a: CoachedAction, o: { hasFreshMoment: boolean }) =>
+    c === "REPLAY" && a === "complete" ? "COMPLETE" : nextLeg(c, a, o);
+  check(
+    "a variant letting REPLAY+complete succeed with hasFreshMoment TRUE is CAUGHT by the two-moment table",
+    !LEG_TRANSITION_TABLE.every((r) => lenientNextLeg(r.current, r.action, { hasFreshMoment: true }) === r.expected),
+  );
 
   // 22-12: a thin-evidence session (no fresh moment) completes after its one leg.
   check(
@@ -274,10 +305,12 @@ console.log("\n3. TIP GATE AND FINISH SEQUENCE — source assertions on runtime.
     "runtime.ts does NOT call prisma.interactionReport.create (Phase 22: a coached session produces no report)",
     !/prisma\.interactionReport\.create/.test(src),
   );
-  check(
-    "runtime.ts references no engine session transport or generated scenario",
-    !/interaction\/chat|practice\/session|liveSystemPrompt|freshScenario/.test(src),
-  );
+  for (const token of ["freshScenario", "/api/interaction/chat", "/api/practice/session", "liveSystemPrompt"]) {
+    check(
+      `runtime.ts does not contain "${token}" (no counterpart, no generated scenario)`,
+      !src.includes(token),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +328,7 @@ async function runDatabaseSection() {
   const { CONTRIBUTION_WEIGHTS } = await import("../lib/mastery/weights");
   const {
     enterCoachedStep,
+    takeCoachTurn,
     advanceToFresh,
     completeCoachedSession,
     CoachedLegOrderError,
@@ -310,6 +344,7 @@ async function runDatabaseSection() {
 
   let userId = "";
   let otherUserId = "";
+  let thinUserId = "";
   const studyPlanIds: string[] = [];
   const reportIds: string[] = [];
 
@@ -359,7 +394,7 @@ async function runDatabaseSection() {
   }
 
   // Two substantive student turns per report, so selection has real candidates.
-  async function makeReportWithTranscript(owner: string, lines: [string, string]) {
+  async function makeReportWithTranscript(owner: string, lines: [string, string] | [string]) {
     const report = await prisma.interactionReport.create({
       data: {
         userId: owner,
@@ -373,7 +408,7 @@ async function runDatabaseSection() {
           overall_summary: "verify",
           strengths: [],
           growth_areas: [
-            { title: "Verify growth", detail: "d", suggestion: "s", timecodes: ["0:10", "0:30"], source: null, dimension: null },
+            { title: "Verify growth", detail: "d", suggestion: "s", timecodes: lines.length === 2 ? ["0:10", "0:30"] : ["0:10"], source: null, dimension: null },
           ],
           category_notes: { visual: null, vocal: null, content: null, behavioral: null },
           rubric_notes: [],
@@ -400,9 +435,13 @@ async function runDatabaseSection() {
       turns: [
         t("assistant", "Tell me about a time you led under pressure.", 0),
         t("user", lines[0], 1),
-        t("assistant", "What happened next with the team?", 2),
-        t("user", lines[1], 3),
-        t("assistant", "Thank you.", 4),
+        ...(lines.length === 2
+          ? [
+              t("assistant", "What happened next with the team?", 2),
+              t("user", lines[1], 3),
+              t("assistant", "Thank you.", 4),
+            ]
+          : [t("assistant", "Thank you.", 2)]),
       ],
       progress: initialProgress(),
     };
@@ -533,17 +572,38 @@ async function runDatabaseSection() {
 
     const contributionCountBefore = await prisma.masteryContribution.count({ where: { userId } });
 
-    // The coach closes legs. Seed coach rows directly (no model): the coach
-    // battery (verify-coach-turn) proves how these rows are produced.
-    async function seedClosedLeg(leg: "REPLAY" | "FRESH", seqStart: number, score: number) {
-      await prisma.coachedTurn.createMany({
-        data: [
-          { coachedSessionId: firstLeg.coachedSessionId, leg, seq: seqStart, speaker: "COACH", move: "OPEN", awaiting: "REPLY", text: "What were you aiming for?" },
-          { coachedSessionId: firstLeg.coachedSessionId, leg, seq: seqStart + 1, speaker: "STUDENT", move: "ATTEMPT", text: "I will own it and report Friday.", score, acceptable: true, parroted: false, spokenDurationMs: 4000 },
-          { coachedSessionId: firstLeg.coachedSessionId, leg, seq: seqStart + 2, speaker: "COACH", move: "LEG_DONE", awaiting: "NONE", text: "That is the move.", closedAtSoftCap: false },
-        ],
-      });
+    // The coach closes legs, driven through takeCoachTurn with stubbed
+    // generate/grade (no model calls): OPEN -> reply -> invite -> attempt -> LEG_DONE.
+    const OPEN_OUT = {
+      speech: "Today we are sharpening how clearly you land the point of this story. What were you trying to get across there?",
+      move: "OPEN", awaiting: "REPLY", demonstration: null,
+    };
+    const INVITE_OUT = {
+      speech: "Thanks. Now say that moment again, out loud, in your own words.",
+      move: "INVITE_ATTEMPT", awaiting: "ATTEMPT", demonstration: null,
+    };
+    const DONE_OUT = {
+      speech: "That lands well. We can close this moment here.",
+      move: "LEG_DONE", awaiting: "NONE", demonstration: null,
+    };
+    const gradeOk = async () => ({ score: 4, acceptable: true, rationale: "stub verdict" });
+    async function driveLegClosed(stepId: string) {
+      const gen = (out: unknown) => async () => out;
+      const opened = await takeCoachTurn({ userId: ownerOf(stepId), stepId, utterance: null }, { generate: gen(OPEN_OUT), grade: gradeOk });
+      check("coach OPEN delivered over the turn path", opened.coachTurn.coachTurn.move === "OPEN");
+      await takeCoachTurn(
+        { userId: ownerOf(stepId), stepId, utterance: { text: "I wanted them to see I owned the plan.", spokenDurationMs: 5000 } },
+        { generate: gen(INVITE_OUT), grade: gradeOk },
+      );
+      const done = await takeCoachTurn(
+        { userId: ownerOf(stepId), stepId, utterance: { text: "I will own the rollout plan and report back by Friday with the numbers.", spokenDurationMs: 6000 } },
+        { generate: gen(DONE_OUT), grade: gradeOk },
+      );
+      check("coach closes the leg (LEG_DONE) after an acceptable attempt", done.coachTurn.coachTurn.move === "LEG_DONE" && done.leg.legReady === true);
     }
+    const stepOwner = new Map<string, string>();
+    const ownerOf = (stepId: string) => stepOwner.get(stepId)!;
+    stepOwner.set(coachedStep.id, userId);
 
     // Nothing may advance or complete before the coach closes the leg.
     let threwNotDone = false;
@@ -566,7 +626,7 @@ async function runDatabaseSection() {
       (await prisma.masteryContribution.count({ where: { userId } })) === contributionCountBefore,
     );
 
-    await seedClosedLeg("REPLAY", 1, 4);
+    await driveLegClosed(coachedStep.id);
     const freshLeg = await advanceToFresh({ userId, coachedSessionId: firstLeg.coachedSessionId });
     check("advanceToFresh returns leg FRESH after the coach closed REPLAY", freshLeg.leg === "FRESH");
     check(
@@ -582,7 +642,7 @@ async function runDatabaseSection() {
     }
     check("completeCoachedSession before the coach closes FRESH throws CoachedLegNotDoneError", threwCompleteBeforeFreshDone);
 
-    await seedClosedLeg("FRESH", 4, 5);
+    await driveLegClosed(coachedStep.id);
     const { contributionsWritten } = await completeCoachedSession({
       userId,
       coachedSessionId: firstLeg.coachedSessionId,
@@ -625,6 +685,50 @@ async function runDatabaseSection() {
         (await prisma.masteryContribution.count({ where: { userId, source: "LIVE_SESSION" } })) === 0,
     );
 
+    // takeCoachTurn after the leg is closed is refused by the coach layer.
+    // (checked implicitly: FRESH was opened fresh above.)
+
+    // Thin evidence: a plan with ONE qualifying moment has a single leg.
+    const thinUser = await prisma.user.create({
+      data: { email: `coached-entry-verify-thin-${testId}@example.com`, name: "Coached Entry Verify Thin", role: "STUDENT" },
+    });
+    thinUserId = thinUser.id;
+    const thinReport = await makeReportWithTranscript(thinUserId, [STRONG_LINE]);
+    const thinPlan = await prisma.studyPlan.create({
+      data: {
+        userId: thinUserId,
+        title: "Coached Entry Verify Thin Plan",
+        content: { priorityThemes: [] } as unknown as object,
+        sourceReportIds: [thinReport.id] as unknown as object,
+        sourceReportCount: 1,
+        generationModel: "verify-coached-entry-stub",
+        draftTokenId: randomUUID(),
+      },
+    });
+    studyPlanIds.push(thinPlan.id);
+    const thinPath = await createPath({
+      userId: thinUserId,
+      studyPlanId: thinPlan.id,
+      steps: makeSteps(COMPETENCY_KEY),
+      selectionSnapshot: { note: "verify-coached-entry thin" },
+    });
+    const thinStep = thinPath.steps.find((s) => s.kind === "COACHED_SESSION" && s.position === 2)!;
+    stepOwner.set(thinStep.id, thinUserId);
+    const thinLeg = await enterCoachedStep({ userId: thinUserId, stepId: thinStep.id }, { scorer });
+    check("thin evidence: one qualifying moment -> legCount 1, REPLAY", thinLeg.legCount === 1 && thinLeg.leg === "REPLAY" && thinLeg.thinEvidence === true);
+    await driveLegClosed(thinStep.id);
+    let thinAdvanceRefused = false;
+    try {
+      await advanceToFresh({ userId: thinUserId, coachedSessionId: thinLeg.coachedSessionId });
+    } catch (err) {
+      thinAdvanceRefused = err instanceof CoachedLegOrderError;
+    }
+    check("thin evidence: advance is refused (there is no second leg)", thinAdvanceRefused);
+    const thinDone = await completeCoachedSession({ userId: thinUserId, coachedSessionId: thinLeg.coachedSessionId });
+    check("thin evidence: completes after the REPLAY leg closes", thinDone.contributionsWritten >= 1);
+    const thinStepAfter = await prisma.studyPlanPathStep.findUnique({ where: { id: thinStep.id } });
+    check("thin evidence: the step becomes COMPLETE", thinStepAfter?.status === "COMPLETE");
+
     // Phase 21 legacy session: a GET leaves it untouched, a POST re-targets it.
     const legacy = await prisma.coachedSession.create({
       data: {
@@ -659,7 +763,9 @@ async function runDatabaseSection() {
       await prisma.studyPlanPath.deleteMany({ where: { studyPlanId: { in: studyPlanIds } } });
       await prisma.studyPlan.deleteMany({ where: { id: { in: studyPlanIds } } });
     }
+    if (thinUserId) await prisma.masteryContribution.deleteMany({ where: { userId: thinUserId } });
     if (userId) await prisma.user.deleteMany({ where: { id: userId } });
+    if (thinUserId) await prisma.user.deleteMany({ where: { id: thinUserId } });
     if (otherUserId) await prisma.user.deleteMany({ where: { id: otherUserId } });
     await prisma.$disconnect();
   }

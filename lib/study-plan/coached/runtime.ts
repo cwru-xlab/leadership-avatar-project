@@ -564,7 +564,7 @@ export function nextLeg(
 ): LegTransitionResult {
   if (current === "REPLAY" && action === "advance" && opts.hasFreshMoment) return "FRESH";
   if (current === "REPLAY" && action === "complete" && !opts.hasFreshMoment) return "COMPLETE";
-  if (current === "FRESH" && action === "complete") return "COMPLETE";
+  if (current === "FRESH" && action === "complete" && opts.hasFreshMoment) return "COMPLETE";
   return "REJECTED";
 }
 
