@@ -587,6 +587,13 @@ async function runDatabaseSection() {
       move: "LEG_DONE", awaiting: "NONE", demonstration: null,
     };
     const gradeOk = async () => ({ score: 4, acceptable: true, rationale: "stub verdict" });
+    // Each leg needs its OWN attempt: reusing a leg's words verbatim in the
+    // other leg is recycling, never acceptable (Phase 23 L6).
+    const LEG_ATTEMPTS = [
+      "I will own the rollout plan and report back by Friday with the numbers.",
+      "My team ships the pilot next sprint, and I will brief the board on the results myself.",
+    ];
+    let legsDriven = 0;
     async function driveLegClosed(stepId: string) {
       const gen = (out: unknown) => async () => out;
       const opened = await takeCoachTurn({ userId: ownerOf(stepId), stepId, utterance: null }, { generate: gen(OPEN_OUT), grade: gradeOk });
@@ -596,7 +603,7 @@ async function runDatabaseSection() {
         { generate: gen(INVITE_OUT), grade: gradeOk },
       );
       const done = await takeCoachTurn(
-        { userId: ownerOf(stepId), stepId, utterance: { text: "I will own the rollout plan and report back by Friday with the numbers.", spokenDurationMs: 6000 } },
+        { userId: ownerOf(stepId), stepId, utterance: { text: LEG_ATTEMPTS[legsDriven++ % LEG_ATTEMPTS.length], spokenDurationMs: 6000 } },
         { generate: gen(DONE_OUT), grade: gradeOk },
       );
       check("coach closes the leg (LEG_DONE) after an acceptable attempt", done.coachTurn.coachTurn.move === "LEG_DONE" && done.leg.legReady === true);
