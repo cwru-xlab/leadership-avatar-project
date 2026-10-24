@@ -15,7 +15,18 @@ import { COMPETENCIES, type CompetencyKey } from "../mastery/competencies";
  */
 export const PATH_STEP_BOUNDS = { min: 5, max: 10 } as const;
 
-export type PathStepKind = "KNOWLEDGE_CHECK" | "COACHED_SESSION" | "UNAIDED_SESSION";
+/**
+ * Phase 23 adds VOICE_DRILL. The column is a plain String, so every row
+ * written with the three older kinds stays valid unchanged.
+ */
+export const PATH_STEP_KINDS = [
+  "KNOWLEDGE_CHECK",
+  "COACHED_SESSION",
+  "UNAIDED_SESSION",
+  "VOICE_DRILL",
+] as const;
+
+export type PathStepKind = (typeof PATH_STEP_KINDS)[number];
 
 /**
  * "IN_PROGRESS" is included even though `StudyPlanPathStep.status`'s own
@@ -69,6 +80,11 @@ const COMPETENCY_KEYS = new Set(COMPETENCIES.map((c) => c.key));
  *   assembles, 21-10 generates), so there is no ordering problem on this
  *   branch — the id is always available at validation time.
  * - UNAIDED_SESSION: must carry neither id, in every status.
+ * - VOICE_DRILL (Phase 23): must carry neither id, in every status. Its
+ *   VoiceDrill row hangs off the step (`VoiceDrill.pathStepId @unique`), the
+ *   same direction CoachedSession uses, so the step needs no pointer column.
+ * - Any other kind is rejected: the column is an unenforced String, and a
+ *   typo'd kind would otherwise render as a step with no destination.
  * - COACHED_SESSION: must never carry a knowledgeCheckId. Its
  *   coachedSessionId is NULL-PERMITTED only while status === "PENDING" —
  *   `createCoachedSession` (21-12) requires an already-persisted step loaded
@@ -91,6 +107,11 @@ function validateSingleStep(step: PathStepInput): string[] {
     errors.push(`step ${step.position}: unknown competencyKey "${String(step.competencyKey)}"`);
   }
 
+  if (!(PATH_STEP_KINDS as readonly string[]).includes(step.kind)) {
+    errors.push(`step ${step.position}: unknown kind "${String(step.kind)}"`);
+    return errors;
+  }
+
   if (step.kind === "KNOWLEDGE_CHECK") {
     if (!hasKnowledgeCheckId) {
       errors.push(`step ${step.position}: KNOWLEDGE_CHECK step is missing knowledgeCheckId`);
@@ -104,6 +125,13 @@ function validateSingleStep(step: PathStepInput): string[] {
     }
     if (hasCoachedSessionId) {
       errors.push(`step ${step.position}: UNAIDED_SESSION step must not carry coachedSessionId`);
+    }
+  } else if (step.kind === "VOICE_DRILL") {
+    if (hasKnowledgeCheckId) {
+      errors.push(`step ${step.position}: VOICE_DRILL step must not carry knowledgeCheckId`);
+    }
+    if (hasCoachedSessionId) {
+      errors.push(`step ${step.position}: VOICE_DRILL step must not carry coachedSessionId`);
     }
   } else if (step.kind === "COACHED_SESSION") {
     if (hasKnowledgeCheckId) {
