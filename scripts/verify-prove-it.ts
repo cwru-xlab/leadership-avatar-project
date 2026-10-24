@@ -16,6 +16,7 @@ import {
   proveItHref,
   proveItBrief,
   linkRejection,
+  ownedSourceReports,
   type ProveItSourceReport,
 } from "../lib/study-plan/prove-it";
 import { readPlanPrefillParams } from "../components/study-plan/prove-it/usePlanPrefill";
@@ -36,6 +37,7 @@ const ROOT = path.resolve(__dirname, "..");
 const day = (d: number) => new Date(Date.UTC(2026, 9, d));
 const report = (id: string, d: number, scores: unknown, snap: unknown = null, typeSlug = "general"): ProveItSourceReport => ({
   id,
+  userId: "u-1",
   typeSlug,
   createdAt: day(d),
   scores,
@@ -90,6 +92,8 @@ console.log("\n2. SNAPSHOT -> PREFILL");
   check(
     "interview: resolved record inverts back to the wizard slugs",
     p.kind === "interview" &&
+      p.resume === null &&
+      p.jobDescription === null &&
       JSON.stringify(p.customization) ===
         JSON.stringify({ industrySlug: "finance", roleSlug: "team-lead", difficulty: "Advanced", lengthSlug: "quick", personalitySlug: "pressure" }),
     JSON.stringify(p)
@@ -99,12 +103,39 @@ console.log("\n2. SNAPSHOT -> PREFILL");
     p.kind === "interview" &&
       JSON.stringify(resolveInterviewType("general", p.customization)) === JSON.stringify(resolved)
   );
+  const persona = prefillFromSnapshot("general", { ...interviewSnap, interviewerName: "Jane Doe", interviewerPersona: "You are Jane Doe, a VP." });
   check(
-    "interview: a distilled persona is not reused (no personalitySlug invented)",
-    (() => {
-      const q = prefillFromSnapshot("general", { ...interviewSnap, interviewerPersona: "You are Jane Doe, a VP." });
-      return q.kind === "interview" && q.customization.personalitySlug === undefined;
-    })()
+    "interview: a pasted (distilled) persona is reused with its display name, no dial invented",
+    persona.kind === "interview" &&
+      persona.customization.distilledPersona === "You are Jane Doe, a VP." &&
+      persona.customization.personaDisplayName === "Jane Doe" &&
+      persona.customization.personalitySlug === undefined,
+    JSON.stringify(persona)
+  );
+  check(
+    "interview: a preset persona is NOT treated as distilled (bite-proof for the persona rule)",
+    p.kind === "interview" && p.customization.distilledPersona === undefined
+  );
+  const carried = prefillFromSnapshot("general", {
+    ...interviewSnap,
+    resumeId: "11111111-1111-4111-8111-111111111111",
+    resumeText: "Resume text",
+    jobDescriptionId: null,
+    jobDescriptionText: "Pasted posting",
+  });
+  check(
+    "interview: resume (id + text) and job posting (pasted, null id) are carried over",
+    carried.kind === "interview" &&
+      carried.resume?.resumeId === "11111111-1111-4111-8111-111111111111" &&
+      carried.resume.resumeText === "Resume text" &&
+      carried.jobDescription?.jobDescriptionId === null &&
+      carried.jobDescription.jobDescriptionText === "Pasted posting",
+    JSON.stringify(carried)
+  );
+  check(
+    "interview round-trip with a distilled persona resolves to the same persona",
+    persona.kind === "interview" &&
+      resolveInterviewType("general", persona.customization)?.interviewerPersona === "You are Jane Doe, a VP."
   );
   void base;
   void pressure;
@@ -136,7 +167,7 @@ console.log("\n2. SNAPSHOT -> PREFILL");
 
 console.log("\n3. HREF, BRIEF, LINK GATE");
 {
-  const href = proveItHref("plan-1", "step-1", "general", { kind: "interview", customization: {} });
+  const href = proveItHref("plan-1", "step-1", "general", { kind: "interview", customization: {}, resume: null, jobDescription: null });
   check("href = existing practice route + fromPlan/step only", href === "/practice/general?fromPlan=plan-1&step=step-1", href);
   const instanceHref = proveItHref("plan-1", "step-1", "case-study", { kind: "instance", instanceId: "case-9" });
   check("instance href uses the existing /practice/{type}/{instanceId} route", instanceHref === "/practice/case-study/case-9?fromPlan=plan-1&step=step-1", instanceHref);
@@ -152,6 +183,29 @@ console.log("\n3. HREF, BRIEF, LINK GATE");
   check("bite-proof: a different practice type is rejected", linkRejection({ report: { typeSlug: "networking", createdAt: day(11), status: "READY" }, expectedTypeSlug: "general", pathGeneratedAt: gen }) !== null);
   check("bite-proof: a report from before the path is rejected", linkRejection({ report: { typeSlug: "general", createdAt: day(9), status: "READY" }, expectedTypeSlug: "general", pathGeneratedAt: gen }) !== null);
   check("missing report rejected", linkRejection({ report: null, expectedTypeSlug: "general", pathGeneratedAt: gen }) !== null);
+}
+
+console.log("\n3b. OWNERSHIP of carried-over personal data");
+{
+  const mine = report("mine", 1, { content: 1 }, { kind: "interview", resumeText: "MINE" });
+  const theirs = { ...report("theirs", 2, { content: 1 }, { kind: "interview", resumeText: "THEIRS" }), userId: "u-2" };
+  const owned = ownedSourceReports([mine, theirs], "u-1");
+  check("only the requesting user's reports survive", owned.length === 1 && owned[0].id === "mine");
+  check(
+    "bite-proof: without the gate the other user's (lower-scoring, more recent) report would be chosen",
+    chooseProveItSource([mine, theirs], "structure_and_clarity")?.id === "theirs" &&
+      chooseProveItSource(owned, "structure_and_clarity")?.id === "mine"
+  );
+  const src = fs.readFileSync(path.join(ROOT, "lib", "study-plan", "prove-it.ts"), "utf-8");
+  check(
+    "resolveProveIt scopes the report query by userId AND applies ownedSourceReports",
+    /where: \{ id: \{ in: reportIds \}, userId, status: "READY" \}/.test(src) && src.includes("ownedSourceReports(")
+  );
+  const page = fs.readFileSync(path.join(ROOT, "app", "practice", "[type]", "page.tsx"), "utf-8");
+  check(
+    "the practice page seeds resume and job posting only from planPrefill",
+    page.includes("setResumeText(prefill.resume.resumeText)") && page.includes("setJobDescriptionText(prefill.jobDescription.jobDescriptionText)")
+  );
 }
 
 console.log("\n4. PRACTICE PAGES ARE INERT WITHOUT THE PARAMS");
