@@ -170,11 +170,22 @@ type LiveIngestionSkipReason = "coached-session" | "already-ingested" | null;
 
 export async function recordLiveSessionContributions(args: {
   reportId: string;
+  /**
+   * Backfill support (`scripts/backfill-live-mastery.ts`): run every guard
+   * and the mapping exactly as a real ingestion would, but stop before the
+   * ledger write. Defaults to false, so the live hook is unaffected.
+   */
+  dryRun?: boolean;
 }): Promise<{
   written: number;
   skipped: LiveIngestionSkipReason;
+  /** Rows that were (or, under dryRun, would be) written. */
+  mappedInputCount?: number;
+  /** Scored dimension keys with no competency — reported, never dropped silently. */
+  unmappedDimensions?: string[];
+  nullDimensions?: string[];
 }> {
-  const { reportId } = args;
+  const { reportId, dryRun = false } = args;
 
   const report = await prisma.interactionReport.findUnique({
     where: { id: reportId },
@@ -249,7 +260,17 @@ export async function recordLiveSessionContributions(args: {
     unmappedDimensions: mapped.unmappedDimensions,
   });
 
+  const mappingSummary = {
+    mappedInputCount: mapped.inputs.length,
+    unmappedDimensions: mapped.unmappedDimensions,
+    nullDimensions: mapped.nullDimensions,
+  };
+
+  if (dryRun) {
+    return { written: 0, skipped: null, ...mappingSummary };
+  }
+
   const written = await recordContributions(mapped.inputs);
 
-  return { written, skipped: null };
+  return { written, skipped: null, ...mappingSummary };
 }
