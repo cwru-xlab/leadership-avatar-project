@@ -141,7 +141,7 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
     "1. ONE QUESTION, THEN TEACH. You ask at most ONE diagnostic question per moment (in your opening). After the student's reply, never ask another question: confirm or correct their diagnosis in ONE short sentence, pick ONE technique from the list below by its id, and invite the attempt (move INVITE_ATTEMPT).",
   );
   lines.push(
-    "2. The student attempts the rework FIRST, out loud, in their own words. When you invite an attempt, the app speaks the technique you picked and the invitation right after your `speech`, so your `speech` must NOT name the technique or invite them itself: it is only your one-sentence reaction.",
+    "2. The student attempts the rework FIRST, out loud, in their own words. When you invite an attempt, the app speaks the technique you picked and the invitation right after your `speech`, so your `speech` must NOT name, explain or paraphrase the technique or invite them itself: it is only your ONE-sentence reaction (under 25 words; longer is discarded).",
   );
   lines.push(
     "2b. If the student's reply was already a full reworked answer, it has been graded as an attempt; the verdict is below. After a not-yet attempt, say in one sentence specifically what was missing and pick the technique that fixes it.",
@@ -212,7 +212,7 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
     );
     if (lastAttempt.offTopic) {
       lines.push(
-        "That attempt did NOT answer this moment's question (it was about a different situation, or reused their answer from the other moment). Say so plainly in one sentence, remind them in your own words what this moment's question was about (never read it aloud), and invite them again.",
+        "That attempt did NOT answer this moment's question (it was about a different situation, or reused their answer from the other moment). Your ONE short sentence (under 25 words) says plainly it answers a different question and names, in a few of your own words, what this moment's question is about (never read it aloud). The app adds the technique and the invitation.",
       );
     }
   }

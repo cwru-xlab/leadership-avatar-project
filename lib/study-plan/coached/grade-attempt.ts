@@ -35,6 +35,11 @@ export interface GradeAttemptInput {
   attempt: string;
   spokenDurationMs: number;
   demonstration: string | null;
+  /**
+   * Phase 23 L6: what the student already said for the OTHER moment (a
+   * different question). Retelling that story here is recycling, off-topic.
+   */
+  otherMomentAnswers?: string[];
 }
 
 export interface CoachedAttemptGrade {
@@ -86,6 +91,9 @@ async function defaultGrader(args: GradeAttemptInput): Promise<unknown> {
     "situation as the original line? An answer about a different situation, project, story " +
     "or question is off-topic however well it is delivered: then onTopic=false, score=1, " +
     "acceptable=false, and the rationale says it does not answer this question. " +
+    "otherMomentAnswers (if any) are what the student said for a DIFFERENT question earlier; " +
+    "an attempt that retells the same story or situation as one of them, even reworded, is " +
+    "recycled and off-topic. " +
     "Otherwise judge ONLY the single competency given, using the " +
     "rubric dimensions as what good looks like. Score 1 (not shown at all) to 5 " +
     "(fully shown). Set acceptable=true only if the attempt genuinely shows the " +
@@ -99,6 +107,9 @@ async function defaultGrader(args: GradeAttemptInput): Promise<unknown> {
     questionTheyWereAnswering: args.counterpartLine,
     attempt: args.attempt,
   };
+  if (args.otherMomentAnswers && args.otherMomentAnswers.length > 0) {
+    payload.otherMomentAnswers = args.otherMomentAnswers;
+  }
   if (args.competency.key === "delivery_presence") {
     payload.wordsPerMinute = wordsPerMinute(args.attempt, args.spokenDurationMs);
     payload.spokenDurationMs = args.spokenDurationMs;
