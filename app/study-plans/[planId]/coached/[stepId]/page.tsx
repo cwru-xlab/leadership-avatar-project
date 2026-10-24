@@ -47,7 +47,11 @@ export default function CoachedSessionPage() {
   }, [setFullScreen]);
 
   return (
-    <div className="min-h-screen bg-[#f8fbfc]">
+    // main-content.tsx sets overflow-hidden on <main> in full-screen mode and
+    // serves every full-screen surface, so the scroll container lives here.
+    // h-dvh rather than h-full: the percentage-height chain through the flex
+    // ancestors is not guaranteed (not verified in a browser).
+    <div className="h-dvh overflow-y-auto bg-[#f8fbfc]">
       <div className="mx-auto max-w-3xl px-4 pt-6">
         <Button
           as={Link}
