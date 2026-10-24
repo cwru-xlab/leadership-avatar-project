@@ -21,7 +21,20 @@
  *   - LEG_DONE is rejected unless the leg has an acceptable attempt, or the
  *     soft cap is reached with at least one attempt;
  *   - a rejected candidate is DISCARDED and regenerated, never repaired; after
- *     MAX_COACH_GENERATION_ATTEMPTS a fixed fallback (also gated) is delivered.
+ *     MAX_COACH_GENERATION_ATTEMPTS a deterministic, state-aware fallback (also
+ *     gated) is delivered: a technique-plus-invite line, the closing line after
+ *     an acceptable attempt, or the opening. Never a repeated generic question.
+ *
+ * Phase 23 (learning quality, L1/L2), also mechanical:
+ *   - a REPLY that re-answers the original prompt is graded as an ATTEMPT
+ *     (`classifyReply`); one that repeats a technique back never is;
+ *   - at most MAX_DIAGNOSIS_QUESTIONS_PER_LEG question (awaiting REPLY) per leg;
+ *   - after an acceptable attempt the only accepted move is LEG_DONE;
+ *   - every non-demonstration invite (awaiting ATTEMPT) is followed by exactly
+ *     one technique line composed from the library (`techniqueLine`, gated by
+ *     `assertTipSafe`) and an invitation, so the coach names a technique aloud
+ *     before every attempt;
+ *   - no coach speech mentions a score or grade (numeric grade only at the end).
  *
  * `coachTurn` does not read S3 or the step: the caller resolves the moment and
  * ownership of the step. It reads/writes only CoachedSession (re-checked by
@@ -41,16 +54,28 @@ import {
   MAX_DEMONSTRATIONS_PER_LEG,
   assertTipSafe,
   isParrotOf,
+  isTechniqueParrot,
+  techniqueLine,
+  techniquesForCompetency,
   validateCoachSpeech,
+  type Technique,
 } from "./tips";
 import {
   gradeCoachedAttempt,
   type Grader,
 } from "./grade-attempt";
+import { classifyReply, type ReplyClassifier } from "./reply-classifier";
+import type { CompetencyKey } from "../../mastery/competencies";
 
 export const SOFT_CAP_ATTEMPTS_PER_LEG = 4; // ADVISORY, PROVISIONAL UNTIL CALIBRATED
 export const SOFT_CAP_COACH_TURNS_PER_LEG = 12; // ADVISORY, PROVISIONAL UNTIL CALIBRATED
 export const MAX_COACH_GENERATION_ATTEMPTS = 3;
+/** Phase 23 L1: one diagnosis question per leg, then teach and invite. */
+export const MAX_DIAGNOSIS_QUESTIONS_PER_LEG = 1;
+
+/** Spoken after the technique line when the coach invites an attempt. */
+export const INVITE_FIRST_ATTEMPT = "Now say your answer again, out loud, as if you're back in that moment.";
+export const INVITE_RETRY = "Give it one more try, out loud.";
 
 export type Leg = "REPLAY" | "FRESH";
 export interface Msg {
@@ -61,7 +86,15 @@ export interface Msg {
 export interface CoachTurnDeps {
   generate?: (system: string, history: Msg[]) => Promise<unknown>;
   grade?: Grader;
+  classifyReply?: ReplyClassifier;
+  /** Diagnostics only (verifiers, evaluation scripts). Never affects behaviour. */
+  trace?: (event: CoachTraceEvent) => void;
 }
+
+export type CoachTraceEvent =
+  | { kind: "UTTERANCE"; storedAs: "ATTEMPT" | "REPLY"; reason: string }
+  | { kind: "CANDIDATE_REJECTED"; candidate: number; reason: string }
+  | { kind: "FALLBACK"; move: CoachMove };
 
 export interface CoachedTurnRow {
   seq: number;
@@ -109,6 +142,10 @@ export interface LegState {
   hasOpened: boolean;
   hasAcceptableAttempt: boolean;
   lastDemonstration: string | null;
+  /** Coach turns in this leg that asked a question (awaiting REPLY). */
+  diagnosisQuestionsInLeg: number;
+  /** The latest row in this leg, if it is the student's. */
+  lastStudentRow: CoachedTurnRow | null;
 }
 
 export function legStateFromTurns(turns: readonly CoachedTurnRow[], leg: Leg): LegState {
@@ -128,6 +165,8 @@ export function legStateFromTurns(turns: readonly CoachedTurnRow[], leg: Leg): L
     hasOpened: coach.length > 0,
     hasAcceptableAttempt: attempts.some((t) => t.acceptable === true),
     lastDemonstration: demos.length ? demos[demos.length - 1].demonstration : null,
+    diagnosisQuestionsInLeg: coach.filter((t) => t.awaiting === "REPLY").length,
+    lastStudentRow: inLeg.length && inLeg[inLeg.length - 1].speaker === "STUDENT" ? inLeg[inLeg.length - 1] : null,
   };
 }
 
@@ -156,12 +195,48 @@ export interface CoachTurnResult {
   legState: LegState;
 }
 
-const FALLBACK: CoachTurnOutput = {
-  speech: "Let's stay with that moment. What were you aiming to get across?",
-  move: "ASK_DIAGNOSIS",
-  awaiting: "REPLY",
-  demonstration: null,
-};
+/** Matches a spoken score/grade: numeric grade only at the end. */
+const MENTIONS_GRADE_RE =
+  /\b(?:score[sd]?|scoring|grade[sd]?|grading|grader|rating|rated)\b|\b[1-5]\s*(?:\/|out of)\s*(?:5|five)\b/i;
+
+export function mentionsGrade(speech: string): boolean {
+  return MENTIONS_GRADE_RE.test(speech);
+}
+
+/** Library techniques for the competency whose spoken line passes the tip gate. */
+export function safeTechniques(competencyKey: string, studentLine: string): Technique[] {
+  return techniquesForCompetency(competencyKey as CompetencyKey).filter((t) => {
+    try {
+      assertTipSafe(techniqueLine(t), { studentLine });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * The technique to name: the model's pick when it is a safe library id,
+ * otherwise the first safe technique not yet named in this leg (cycling).
+ */
+export function chooseTechnique(
+  safe: readonly Technique[],
+  requestedId: unknown,
+  coachTextsInLeg: readonly string[],
+): Technique | null {
+  if (safe.length === 0) return null;
+  const requested = typeof requestedId === "string" ? safe.find((t) => t.id === requestedId) : undefined;
+  if (requested) return requested;
+  const unused = safe.find((t) => !coachTextsInLeg.some((txt) => txt.includes(techniqueLine(t))));
+  return unused ?? safe[coachTextsInLeg.length % safe.length];
+}
+
+/** Reaction + technique line + invitation, as one spoken turn. */
+export function composeInvite(reaction: string, technique: Technique | null, attemptsInLeg: number): string {
+  return [reaction.trim(), technique ? techniqueLine(technique) : "", attemptsInLeg === 0 ? INVITE_FIRST_ATTEMPT : INVITE_RETRY]
+    .filter(Boolean)
+    .join(" ");
+}
 
 async function defaultGenerate(system: string, history: Msg[]): Promise<unknown> {
   const OpenAI = (await import("openai")).default;
@@ -253,7 +328,34 @@ export async function coachTurn(
     if (!state.hasOpened) throw new CoachTurnOrderError("The coach has not opened this leg yet");
     if (!(args.utterance.spokenDurationMs > 0)) throw new UnspokenAttemptError();
 
-    const isAttempt = state.awaiting === "ATTEMPT";
+    const utterance = args.utterance;
+    const allTechniques = techniquesForCompetency(args.competency.key as CompetencyKey);
+    const trace = deps.trace ?? (() => {});
+    let isAttempt = false;
+    let tipParrot = false;
+    if (isTechniqueParrot(utterance.text, allTechniques)) {
+      // Repeating the technique back is never an answer (L1, case c).
+      tipParrot = true;
+      trace({ kind: "UTTERANCE", storedAs: "REPLY", reason: "PARROTS_TECHNIQUE" });
+    } else if (state.awaiting === "ATTEMPT") {
+      isAttempt = true;
+      trace({ kind: "UTTERANCE", storedAs: "ATTEMPT", reason: "AWAITING_ATTEMPT" });
+    } else {
+      const lastCoach = turns.filter((t) => t.leg === args.leg && t.speaker === "COACH").pop();
+      const cls = await classifyReply(
+        {
+          competency: args.competency,
+          underlyingTypeName: args.underlyingTypeName,
+          counterpartLine: args.moment.counterpartLine,
+          originalLine: args.moment.studentLine,
+          coachQuestion: lastCoach?.text ?? null,
+          reply: utterance.text,
+        },
+        { classifier: deps.classifyReply },
+      );
+      isAttempt = cls.isAttempt;
+      trace({ kind: "UTTERANCE", storedAs: isAttempt ? "ATTEMPT" : "REPLY", reason: cls.reason });
+    }
     if (isAttempt) {
       const parroted = state.lastDemonstration
         ? isParrotOf(args.utterance.text, state.lastDemonstration)
@@ -287,6 +389,8 @@ export async function coachTurn(
         speaker: "STUDENT",
         move: "REPLY",
         text: args.utterance.text,
+        // Flags a reply that only repeated a technique back (not graded).
+        parroted: tipParrot ? true : null,
         spokenDurationMs: args.utterance.spokenDurationMs,
       });
     }
@@ -302,6 +406,26 @@ export async function coachTurn(
   const softCapReached =
     state.attemptsInLeg >= SOFT_CAP_ATTEMPTS_PER_LEG ||
     state.coachTurnsInLeg >= SOFT_CAP_COACH_TURNS_PER_LEG;
+  const diagnosisCapReached = state.diagnosisQuestionsInLeg >= MAX_DIAGNOSIS_QUESTIONS_PER_LEG;
+  const lastStudent = state.lastStudentRow;
+  // The student's latest words were an acceptable attempt: close, nothing else.
+  const mustClose = lastStudent?.move === "ATTEMPT" && lastStudent.acceptable === true;
+  const lastWasTipParrot = lastStudent?.move === "REPLY" && lastStudent.parroted === true;
+  const legDoneEarned = state.hasAcceptableAttempt || (softCapReached && state.attemptsInLeg >= 1);
+  const allowedMoves: CoachMove[] = isOpening
+    ? ["OPEN"]
+    : mustClose
+      ? ["LEG_DONE"]
+      : [
+          "INVITE_ATTEMPT",
+          ...(diagnosisCapReached ? [] : (["ASK_DIAGNOSIS", "CONFIRM", "CORRECT"] as CoachMove[])),
+          ...(demonstrationAllowed ? (["DEMONSTRATE"] as CoachMove[]) : []),
+          ...(legDoneEarned ? (["LEG_DONE"] as CoachMove[]) : []),
+        ];
+  const safe = safeTechniques(args.competency.key, args.moment.studentLine);
+  const coachTextsInLeg = turns
+    .filter((t) => t.leg === args.leg && t.speaker === "COACH")
+    .map((t) => t.text);
 
   const studentAttempts = turns
     .filter((t) => t.leg === args.leg && t.speaker === "STUDENT" && t.move === "ATTEMPT")
@@ -337,6 +461,10 @@ export async function coachTurn(
     softCapReached,
     isOpening,
     isResume,
+    techniques: safe.map((t) => ({ id: t.id, name: t.name, reminder: t.reminder })),
+    allowedMoves,
+    diagnosisCapReached,
+    lastUtteranceWasTipParrot: lastWasTipParrot,
   });
   const history = toHistory(turns, args.leg);
   const generate = deps.generate ?? defaultGenerate;
@@ -362,8 +490,31 @@ export async function coachTurn(
         ? r.demonstration
         : null;
     const move = r.move as CoachMove;
-    const speech = r.speech.trim();
+    const awaiting = r.awaiting;
+    if (!allowedMoves.includes(move)) {
+      const isQuestionMove = move === "ASK_DIAGNOSIS" || move === "CONFIRM" || move === "CORRECT";
+      return {
+        ok: false,
+        reason: mustClose
+          ? "MUST_CLOSE_AFTER_ACCEPTABLE"
+          : diagnosisCapReached && isQuestionMove
+            ? "DIAGNOSIS_CAP"
+            : `MOVE_NOT_ALLOWED_${move}`,
+      };
+    }
+    if ((awaiting === "NONE") !== (move === "LEG_DONE")) return { ok: false, reason: "AWAITING_MOVE_MISMATCH" };
+    if ((move === "INVITE_ATTEMPT" || move === "DEMONSTRATE") && awaiting !== "ATTEMPT") {
+      return { ok: false, reason: "AWAITING_MOVE_MISMATCH" };
+    }
+    if (awaiting === "REPLY" && diagnosisCapReached) return { ok: false, reason: "DIAGNOSIS_CAP" };
 
+    // Every non-demonstration invite names one library technique aloud (L2).
+    const speech =
+      awaiting === "ATTEMPT" && move !== "DEMONSTRATE"
+        ? composeInvite(r.speech, chooseTechnique(safe, r.techniqueId, coachTextsInLeg), state.attemptsInLeg)
+        : r.speech.trim();
+
+    if (mentionsGrade(speech)) return { ok: false, reason: "SPEECH_MENTIONS_GRADE" };
     const sp = validateCoachSpeech(speech, speechCtx);
     if (!sp.ok) return { ok: false, reason: `SPEECH_${sp.reason}` };
 
@@ -398,7 +549,7 @@ export async function coachTurn(
     return {
       ok: true,
       closedAtSoftCap,
-      out: { speech, move, awaiting: r.awaiting, demonstration },
+      out: { speech, move, awaiting, demonstration },
     };
   };
 
@@ -413,15 +564,45 @@ export async function coachTurn(
     }
     const res = check(raw);
     if (res.ok) chosen = { out: res.out, closedAtSoftCap: res.closedAtSoftCap };
-    else console.info(`[coach] candidate ${i + 1} rejected: ${res.reason}`);
+    else {
+      console.info(`[coach] candidate ${i + 1} rejected: ${res.reason}`);
+      deps.trace?.({ kind: "CANDIDATE_REJECTED", candidate: i + 1, reason: res.reason });
+    }
   }
 
-  // 6. Fixed fallback, itself gated.
+  // 6. Deterministic, state-aware fallback, itself gated. Never a generic or
+  // repeated question (L1): open, close, or name a technique and invite.
   if (!chosen) {
-    const fb = validateCoachSpeech(FALLBACK.speech, speechCtx);
-    if (!fb.ok) throw new Error(`coach fallback speech failed its own gate (${fb.reason})`);
+    let out: CoachTurnOutput;
+    if (isOpening) {
+      out = {
+        speech: `We're working on ${args.competency.label.toLowerCase()}, using the moment from your ${args.underlyingTypeName} session that's on your screen, and you'll say a better version out loud. What were you trying to get across there?`,
+        move: "OPEN",
+        awaiting: "REPLY",
+        demonstration: null,
+      };
+    } else if (mustClose) {
+      out = { speech: "That version lands. We can close this moment here.", move: "LEG_DONE", awaiting: "NONE", demonstration: null };
+    } else {
+      const reaction = lastWasTipParrot
+        ? "That's the technique itself; now use it on your real answer."
+        : lastStudent?.move === "ATTEMPT" && lastStudent.parroted === true
+          ? "Put it in your own words this time."
+          : "";
+      out = {
+        speech: composeInvite(reaction, chooseTechnique(safe, null, coachTextsInLeg), state.attemptsInLeg),
+        move: "INVITE_ATTEMPT",
+        awaiting: "ATTEMPT",
+        demonstration: null,
+      };
+    }
+    const fb = validateCoachSpeech(out.speech, speechCtx);
+    if (!fb.ok || mentionsGrade(out.speech)) {
+      throw new Error(`coach fallback speech failed its own gate (${fb.ok ? "MENTIONS_GRADE" : fb.reason})`);
+    }
     console.warn("[coach] all generation attempts rejected; delivering fallback");
-    chosen = { out: FALLBACK, closedAtSoftCap: false };
+    deps.trace?.({ kind: "FALLBACK", move: out.move });
+    chosen = { out, closedAtSoftCap: false };
   }
 
   // 7. Persist and return.

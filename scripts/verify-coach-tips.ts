@@ -24,6 +24,9 @@ import {
   validateDemonstration,
   validateCoachSpeech,
   isParrotOf,
+  isRecycledFrom,
+  isTechniqueParrot,
+  techniqueLine,
   MAX_DEMONSTRATIONS_PER_LEG,
   DEMONSTRATION_REJECT_REASONS,
   COACH_SPEECH_REJECT_REASONS,
@@ -402,6 +405,57 @@ console.log("\n7. PARROTING");
     ),
   );
   check("an empty attempt is not a parrot", !isParrotOf("", demonstration));
+}
+
+console.log("\n8. SPOKEN TECHNIQUE LINES, TECHNIQUE PARROTING, RECYCLING (Phase 23 L1/L2/L6)");
+{
+  const unsafe = TECHNIQUE_LIBRARY.filter((t) => {
+    try {
+      assertTipSafe(techniqueLine(t), { studentLine: "" });
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  check(`every library entry's spoken technique line passes assertTipSafe (${TECHNIQUE_LIBRARY.length})`, unsafe.length === 0, unsafe.map((t) => t.id).join(", "));
+  const headline = TECHNIQUE_LIBRARY.find((t) => t.id === "structure-headline-first")!;
+  check(
+    "techniqueLine names the technique then its reminder",
+    techniqueLine(headline) === "Try headline first: lead with your conclusion, then give at most two supports.",
+    techniqueLine(headline),
+  );
+  check(
+    "bite: a scripted line dressed as a technique fails the same gate",
+    (() => {
+      try {
+        assertTipSafe(techniqueLine({ name: "Open strong", reminder: 'Say "we cut handoff time by thirty percent" first.' }), { studentLine: "" });
+        return false;
+      } catch {
+        return true;
+      }
+    })(),
+  );
+  const structure = techniquesForCompetency("structure_and_clarity");
+  check("repeating a reminder back is a technique parrot", isTechniqueParrot("Lead with your conclusion, then give at most two supports.", structure));
+  check("repeating the spoken line back is a technique parrot", isTechniqueParrot(techniqueLine(headline), structure));
+  check(
+    "a full answer that applies the technique is NOT a technique parrot",
+    !isTechniqueParrot(
+      "We should fund the pilot. It cut handoff time by thirty percent, and one team can trial it for two weeks at no cost.",
+      structure,
+    ),
+  );
+  const leg1 =
+    "Sure. The biggest pushback came from the SVP of operations, who worried the rollout would slow her team. I answered with the data first.";
+  check(
+    "an attempt that reuses another leg's answer verbatim is recycled (reordered sentences too)",
+    isRecycledFrom("I answered with the data first. Sure, the biggest pushback came from the SVP of operations, who worried the rollout would slow her team.", [leg1]),
+  );
+  check(
+    "a different answer sharing a few nouns is NOT recycled",
+    !isRecycledFrom("At Leidos I built PIRS so partner data reached operations in a day; the SVP of operations sponsored the rollout.", [leg1]),
+  );
+  check("bite: with no earlier legs nothing is recycled", !isRecycledFrom(leg1, []));
 }
 
 async function runDatabaseSection() {

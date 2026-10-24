@@ -42,6 +42,13 @@ export interface CoachTurnOutput {
   demonstration: string | null;
 }
 
+/** A technique the coach may pick by id (from `techniquesForCompetency`). */
+export interface PromptTechnique {
+  id: string;
+  name: string;
+  reminder: string;
+}
+
 export interface CoachPromptInput {
   coachName: string;
   competency: { key: string; label: string; description: string };
@@ -64,6 +71,16 @@ export interface CoachPromptInput {
   softCapReached: boolean;
   isOpening: boolean;
   isResume: boolean;
+  /**
+   * Phase 23 L1/L2. Optional so older callers still build a prompt; coach.ts
+   * always passes them. The moves are enforced mechanically in coach.ts too.
+   */
+  techniques?: PromptTechnique[];
+  allowedMoves?: readonly CoachMove[];
+  /** The one diagnosis question for this leg has been asked. */
+  diagnosisCapReached?: boolean;
+  /** The student's latest utterance repeated a technique back instead of answering. */
+  lastUtteranceWasTipParrot?: boolean;
 }
 
 /**
@@ -116,10 +133,16 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
   lines.push("");
   lines.push("## How you coach");
   lines.push(
-    "1. ASK BEFORE TELLING. When something is weak, first ask the student to diagnose it (for example, what were you trying to land there?), then confirm or correct their diagnosis.",
+    "Fast reps. Every turn moves the student toward saying a better version out loud; no turn is wasted on chat.",
   );
   lines.push(
-    "2. The student attempts the rework FIRST, out loud, in their own words.",
+    "1. ONE QUESTION, THEN TEACH. You ask at most ONE diagnostic question per moment (in your opening). After the student's reply, never ask another question: confirm or correct their diagnosis in ONE short sentence, pick ONE technique from the list below by its id, and invite the attempt (move INVITE_ATTEMPT).",
+  );
+  lines.push(
+    "2. The student attempts the rework FIRST, out loud, in their own words. When you invite an attempt, the app speaks the technique you picked and the invitation right after your `speech`, so your `speech` must NOT name the technique or invite them itself: it is only your one-sentence reaction.",
+  );
+  lines.push(
+    "2b. If the student's reply was already a full reworked answer, it has been graded as an attempt; the verdict is below. After a not-yet attempt, say in one sentence specifically what was missing and pick the technique that fixes it.",
   );
   if (input.demonstrationAllowed) {
     lines.push(
@@ -131,10 +154,10 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
     );
   }
   lines.push(
-    "4. You decide when the leg is done: emit LEG_DONE only after an acceptable attempt (the grader's verdict is given to you below). If the attempt was parroted from a demonstration, ask for their own words instead.",
+    "4. Emit LEG_DONE right after an acceptable attempt (the grader's verdict is given to you below): one or two sentences naming what they did well. If the attempt was parroted from a demonstration, ask for their own words instead.",
   );
   lines.push(
-    "5. Spoken style: 1-3 short sentences per turn, warm, direct, no lists, no quotation marks around new lines, and never say \"try saying\".",
+    "5. Spoken style: 1-3 short sentences per turn, warm, direct, no lists, no quotation marks around new lines, and never say \"try saying\". Never mention a score, grade, rating or number for their attempt: grades are shown only when the session ends.",
   );
   lines.push("");
   lines.push("## This conversation");
@@ -171,19 +194,35 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
 
   if (input.isOpening) {
     lines.push(
-      "OPENING TURN: restate the objective in your own words (which skill, which moment, and that they will say a better version aloud), then ask your first diagnostic question." +
+      "OPENING TURN: in one or two short sentences restate the objective (which skill, which moment, and that they will say a better version aloud), then ask your ONE short diagnostic question (awaiting REPLY)." +
         (leg === "FRESH"
           ? " Introduce this second moment as another real moment of theirs showing the same skill."
           : ""),
     );
   }
   if (input.isResume) {
-    lines.push("RESUMING: give a one-sentence recap, then continue.");
+    lines.push("RESUMING: give a one-sentence recap, then continue (do not ask a new question; invite the attempt).");
   }
   if (lastAttempt) {
+    // No number here: the coach must not speak one (numeric grade only at the end).
     lines.push(
-      `Grader verdict on the latest attempt (${JSON.stringify(lastAttempt.text)}): score ${lastAttempt.score}, acceptable=${lastAttempt.acceptable}, parroted=${lastAttempt.parroted}. Rationale: ${lastAttempt.rationale}`,
+      `Grader verdict on the latest attempt (${JSON.stringify(lastAttempt.text)}): ${lastAttempt.acceptable ? "ACCEPTABLE" : "NOT YET"}, parroted=${lastAttempt.parroted}. Rationale: ${lastAttempt.rationale}`,
     );
+  }
+  if (input.lastUtteranceWasTipParrot) {
+    lines.push(
+      "The student's latest words repeated the technique itself instead of answering. Do not treat that as an attempt: in one sentence, ask them to use it on their real answer.",
+    );
+  }
+  if (input.diagnosisCapReached && !input.isOpening) {
+    lines.push("Your one diagnostic question has been asked. Do not ask another question.");
+  }
+  if (input.techniques && input.techniques.length > 0) {
+    lines.push("Techniques for this skill (pick ONE by id when you invite an attempt):");
+    for (const t of input.techniques) lines.push(`- ${t.id}: ${t.name}. ${t.reminder}`);
+  }
+  if (input.allowedMoves && input.allowedMoves.length > 0) {
+    lines.push(`Allowed moves this turn: ${input.allowedMoves.join(", ")}. Any other move is discarded.`);
   }
   if (input.softCapReached) {
     lines.push(
@@ -194,7 +233,7 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
   lines.push("");
   lines.push("## Output contract");
   lines.push(
-    `Reply with a single JSON object: {"speech": string, "move": one of ${COACH_MOVES.join(" | ")}, "awaiting": "REPLY" | "ATTEMPT" | "NONE", "demonstration": string | null}. awaiting is ATTEMPT when you have invited a rework, REPLY when you asked a question, NONE after LEG_DONE.`,
+    `Reply with a single JSON object: {"speech": string, "move": one of ${COACH_MOVES.join(" | ")}, "awaiting": "REPLY" | "ATTEMPT" | "NONE", "demonstration": string | null, "techniqueId": string | null}. awaiting is ATTEMPT when you have invited a rework, REPLY when you asked a question, NONE after LEG_DONE. techniqueId is the id you picked when awaiting is ATTEMPT, otherwise null.`,
   );
 
   return lines.join("\n");
