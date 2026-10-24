@@ -26,6 +26,7 @@ import { usePushToTalkRecorder } from "@/components/session/usePushToTalkRecorde
 import { useSyncVisualSpeaking, useVisualCapture } from "@/components/session/useVisualCapture";
 import CoachedBriefCard from "@/components/study-plan/coached/CoachedBriefCard";
 import CoachedMomentPanel from "@/components/study-plan/coached/CoachedMomentPanel";
+import { hrefForStep, type PathViewDTO } from "@/components/study-plan/PathPanel";
 import { visualBands, vocalBands } from "@/lib/metrics/bands";
 import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 import type { StartAvatarRequest } from "@/types";
@@ -172,7 +173,10 @@ const SPEECH_WAIT_MAX_MS = 45_000;
 const DEMONSTRATION_DISCLOSURE =
   "This is one version your coach said out loud — a separate thing from the technique tips. Now say it your own way.";
 
-const LEAVE_HREF = "/reports";
+/** Leaving returns to the plan the step belongs to; the session resumes on return. */
+function leaveHref(planId: string): string {
+  return `/study-plans/${planId}`;
+}
 
 export default function CoachedSessionShell({ planId, stepId }: CoachedSessionShellProps) {
   const coachedUrl = `/api/study-plans/path-steps/${stepId}/coached`;
@@ -205,6 +209,8 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   const turnInFlightRef = useRef(false);
   /** The latest coach turn that could not be voiced yet (stage not connected). */
   const pendingSpeechRef = useRef<CoachTurnDTO | null>(null);
+  /** Metrics collected for the complete PATCH; kept so a retry resends them. */
+  const collectedMetricsRef = useRef<DeliveryCapture | null>(null);
   const captionsEndRef = useRef<HTMLDivElement>(null);
 
   // Shared camera self-view + visual capture.
@@ -606,32 +612,46 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
     }
   }
 
+  /**
+   * Stops the shared capture and collects its metrics, once — the same
+   * stop-then-finish order the practice shell uses, so the metrics ride in the
+   * finish request. A retry after a failed PATCH reuses what was collected.
+   */
+  async function collectDeliveryMetrics(): Promise<DeliveryCapture> {
+    if (collectedMetricsRef.current) return collectedMetricsRef.current;
+    // Both stops are bounded and never throw by contract.
+    const visual = await stopVisualCapture();
+    let vocal: VocalMetrics | null = null;
+    try {
+      vocal = (await vocalCaptureRef.current?.drain()) ?? null;
+    } catch {
+      vocal = null;
+    }
+    const collected = { cameraMode: cameraModeRef.current, visual, vocal };
+    collectedMetricsRef.current = collected;
+    return collected;
+  }
+
   /** Last leg -> complete. Only offered when the server says legReady. */
   async function handleComplete(): Promise<void> {
     if (!legView || !legView.legReady || finishingLeg) return;
     setFinishingLeg(true);
     setLiveError(null);
     try {
+      const metrics = await collectDeliveryMetrics();
       const response = await fetch(coachedUrl, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "complete" }),
+        // `metrics` is the practice finish's SessionMetricsPayload shape. The
+        // route accepts it and, until the 23 migration adds columns, ignores it.
+        body: JSON.stringify({ action: "complete", metrics }),
       });
       if (!response.ok) {
         await handlePatchFailure(response, "Unable to finish this coached session.");
         return;
       }
-      // Collect what the shared capture measured, for the summary. Both stops
-      // are bounded and never throw by contract.
-      const visual = await stopVisualCapture();
-      let vocal: VocalMetrics | null = null;
-      try {
-        vocal = (await vocalCaptureRef.current?.drain()) ?? null;
-      } catch {
-        vocal = null;
-      }
-      setDelivery({ cameraMode: cameraModeRef.current, visual, vocal });
+      setDelivery(metrics);
       releaseMicrophone();
       releaseVisualCapture();
       vocalCaptureRef.current?.detachStream();
@@ -705,7 +725,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
     const moment = legView.moment;
     return (
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-8" aria-live="polite">
-        <LeaveBar />
+        <LeaveBar planId={planId} />
         {cameraStepOpen ? (
           // The SAME camera consent gate every practice type uses (shared
           // session chrome). Step 1 was the brief.
@@ -716,6 +736,8 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
             onLaunch={handleConsent}
             launchLabel={`Start with ${legView.coach.name}`}
             sessionNoun="session"
+            cameraOnDescription="Your camera and voice are analysed to give you delivery feedback in your end-of-session summary."
+            cameraOffDescription="Your voice is still analysed for your end-of-session summary; your camera isn't used, so visual delivery won't be described."
           />
         ) : moment ? (
           <CoachedBriefCard
@@ -740,9 +762,10 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   }
 
   const moment = legView.moment;
-  const attempts = legView.conversation
-    .filter((turn) => turn.speaker === "STUDENT" && turn.move === "ATTEMPT")
-    .map((turn) => ({ text: turn.text, acceptable: turn.acceptable, parroted: turn.parroted }));
+  // No per-try verdicts ("Accepted" / "Not yet" / "Repeated the coach") in the
+  // live room: live technique tips only, grading at the end (user decision
+  // 2026-10-24). The student's tries are already in the captions; every
+  // verdict and grade appears in the COMPLETE summary.
   const secondMomentNext = legView.leg === "REPLAY" && legView.legCount === 2;
   const partNumber = legView.leg === "FRESH" ? 2 : 1;
   const coachLabel = `Coach ${legView.coach.name}`;
@@ -756,7 +779,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
         <SessionStageHeader>
           <Button
             as={Link}
-            href={LEAVE_HREF}
+            href={leaveHref(planId)}
             isIconOnly
             aria-label="Leave coached session — it resumes where you left it"
             variant="light"
@@ -834,7 +857,6 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
             <CoachedMomentPanel
               counterpartLine={moment.counterpartLine}
               studentLine={moment.studentLine}
-              attempts={attempts}
               sessionLink={`/practice/${legView.underlyingTypeSlug}/report/${moment.sourceReportId}`}
             />
           ) : null}
@@ -956,12 +978,12 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
 }
 
 /** The labelled way out, before the live room opens. Resuming is server-side. */
-function LeaveBar() {
+function LeaveBar({ planId }: { planId: string }) {
   return (
     <div>
       <Button
         as={Link}
-        href={LEAVE_HREF}
+        href={leaveHref(planId)}
         variant="light"
         size="sm"
         startContent={<ArrowLeft className="h-4 w-4" />}
@@ -1026,6 +1048,40 @@ function TipRail({ tips }: { tips: CoachedTipDTO[] }) {
 // COMPLETE — the graded summary. The only place numeric grades appear.
 // ---------------------------------------------------------------------------
 
+/**
+ * The next path step's href, through PathPanel's own link contract
+ * (`hrefForStep`), read from the plan's path DTO after completion. Null while
+ * loading, when the path is finished, or when the next step has no
+ * destination yet — the caller then falls back to the plan page.
+ */
+function useNextStepHref(planId: string): string | null {
+  const [href, setHref] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/study-plans/${planId}/path`, {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!response.ok) return;
+        const data = (await response.json().catch(() => ({}))) as { path?: PathViewDTO | null };
+        const path = data.path;
+        if (!path?.nextStep) return;
+        const row = path.steps.find((step) => step.id === path.nextStep!.stepId);
+        const next = row ? hrefForStep(planId, row) : null;
+        if (!cancelled) setHref(next);
+      } catch {
+        // The plan-page fallback is always rendered; nothing to report.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [planId]);
+  return href;
+}
+
 function ScoreBadge({ label, score }: { label: string; score: number | null }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-[#b9dbe5] bg-white px-2.5 py-0.5 text-xs font-semibold text-[#0a7391]">
@@ -1045,6 +1101,7 @@ function CompleteLeg({
 }) {
   const pct = Math.round((legView.worth.coachedWeight / legView.worth.unaidedWeight) * 100);
   const legs = legView.summary?.legs ?? [];
+  const nextStepHref = useNextStepHref(planId);
   const vocalRows = delivery?.vocal ? vocalBands(delivery.vocal) : [];
   const visualRows = delivery?.visual ? visualBands(delivery.visual) : [];
 
@@ -1184,8 +1241,8 @@ function CompleteLeg({
       </article>
 
       <div className="flex flex-wrap justify-center gap-3">
-        <Button as={Link} href={`/study-plans/${planId}`} color="primary">
-          Continue your learning path
+        <Button as={Link} href={nextStepHref ?? `/study-plans/${planId}`} color="primary">
+          {nextStepHref ? "Go to your next step" : "Continue your learning path"}
         </Button>
         <Button as={Link} href="/mastery" variant="light">
           View your mastery

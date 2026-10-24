@@ -140,6 +140,26 @@ check(
   /from\s*["']@\/components\/session\/CameraConsentStep["']/.test(read("components/practice/SetupWizard.tsx")),
 );
 
+{
+  const consentSrc = read("components/session/CameraConsentStep.tsx");
+  check(
+    "practice consent wording is the default, byte-identical (camera-on line)",
+    consentSrc.includes('cameraOnDescription = "Visual and Vocal will be scored."'),
+  );
+  check(
+    "practice consent wording is the default, byte-identical (camera-off line)",
+    consentSrc.includes("I&apos;ll practice without being measured. Visual and Vocal\n      won&apos;t be scored this time."),
+  );
+  check(
+    "the practice wizard passes no consent-wording override",
+    !/cameraOnDescription|cameraOffDescription/.test(read("components/practice/SetupWizard.tsx")),
+  );
+  check(
+    "the coached shell passes its own summary-oriented consent wording",
+    /cameraOnDescription="Your camera and voice are analysed/.test(coachedSrc),
+  );
+}
+
 console.log("\nSection 5: bite-proof");
 const mutated = recorderSrc.replace(/\bshouldAbortPendingStart\b/g, "");
 check(
