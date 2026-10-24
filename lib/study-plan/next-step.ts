@@ -33,8 +33,10 @@
  *
  * ORDER — learn -> drill -> rework -> prove. For each of the top
  * `MAX_TARGETS` ranked competencies, one BLOCK:
- *   KNOWLEDGE_CHECK (only when a source moment exists — `unavailableCompetencies`
- *   excludes it), then 1-2 VOICE_DRILL (a drill needs no moment), then
+ *   KNOWLEDGE_CHECK (always: grounded in the student's own moment when one
+ *   exists, otherwise a CONCEPT check that quotes nobody — user decision
+ *   2026-10-24, so every path keeps learn -> drill -> prove), then 1-2
+ *   VOICE_DRILL (a drill needs no moment), then
  *   COACHED_SESSION (only when `coachedEvidence` qualifies it — the route's
  *   placement guard). The path ends with ONE UNAIDED_SESSION on the #1 target:
  *   the pre-filled prove-it session, which needs no moment.
@@ -204,6 +206,8 @@ function baseReasonFor(
 }
 
 const KNOWLEDGE_CHECK_CLAUSE = "This knowledge check covers the concept first.";
+const CONCEPT_CHECK_CLAUSE =
+  "This concept knowledge check covers the idea first; no moment from your sessions is available, so it quotes none.";
 const DRILL_CLAUSE = "This short voice drill is a spoken rep on it, graded at the end.";
 const SECOND_DRILL_CLAUSE = "This second voice drill is another spoken rep before you move on.";
 const COACHED_CLAUSE = "This coached session reworks one of your own moments where it was weakest.";
@@ -217,6 +221,7 @@ const DEGRADED_DRILL_CLAUSE =
 function stripCheckSentences(checkReason: string): string {
   return checkReason
     .replace(KNOWLEDGE_CHECK_CLAUSE, "")
+    .replace(CONCEPT_CHECK_CLAUSE, "")
     .split(/(?<=[.!?])\s+/)
     .filter((sentence) => sentence.trim() !== "" && !/knowledge check/i.test(sentence))
     .join(" ")
@@ -266,8 +271,8 @@ export function selectPathSteps(args: {
   mastery: MasteryResult;
   /** The step-count CAP, clamped into PATH_STEP_BOUNDS. */
   desiredCount: number;
-  /** Competency keys with no available source moment — cannot host a check
-   * or a coached step (a drill and the final session need no moment). */
+  /** Competency keys with no available source moment — cannot host a coached
+   * step; their knowledge check is a concept check. */
   unavailableCompetencies?: readonly CompetencyKey[];
   /** REQUIRED: competencies qualified for a coached step (scored by the
    * plan's source sessions AND with a qualifying moment). */
@@ -357,7 +362,7 @@ export function selectPathSteps(args: {
 
   const makeBlock = (entry: RankingEntry): Block => ({
     entry,
-    knowledgeCheck: !unavailableSet.has(entry.competencyKey),
+    knowledgeCheck: true,
     drills: 1,
     coached:
       !unavailableSet.has(entry.competencyKey) && coachedEvidence.has(entry.competencyKey),
@@ -408,7 +413,8 @@ export function selectPathSteps(args: {
   for (const block of blocks) {
     const base = block.entry.reason;
     if (block.knowledgeCheck) {
-      push("KNOWLEDGE_CHECK", block.entry, `${base} ${KNOWLEDGE_CHECK_CLAUSE}`);
+      const clause = unavailableSet.has(block.entry.competencyKey) ? CONCEPT_CHECK_CLAUSE : KNOWLEDGE_CHECK_CLAUSE;
+      push("KNOWLEDGE_CHECK", block.entry, `${base} ${clause}`);
     }
     for (let d = 0; d < block.drills; d += 1) {
       push("VOICE_DRILL", block.entry, `${base} ${d === 0 ? DRILL_CLAUSE : SECOND_DRILL_CLAUSE}`);
