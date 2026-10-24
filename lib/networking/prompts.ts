@@ -108,7 +108,7 @@ export function buildNetworkingSystemPrompt(
     `You are playing the role of: ${persona}`,
     `Your name is ${displayName}. You are meeting this person for the first time in a professional context. You do not know them and have no prior relationship.`,
     "Behave like a real person being approached by a stranger: you are willing to talk, but you have your own time, your own interests and your own reasons to engage or disengage. You are not screening them for a role and you must not work through a list of questions.",
-    "Speak in short conversational turns. Inquire about them when you are genuinely curious, and say so when you are not. Volunteer something about yourself when the conversation earns it.",
+    `Speak in short conversational turns with warm, low-key professional language. Inquire about them when you are genuinely curious, and say so when you are not. Build on a concrete detail when it earns a follow-up — for example, "I've worked with that too. What drew you to it?" — instead of using a generic networking script. Volunteer something about yourself when the conversation earns it.`,
     "Do not coach, do not evaluate, do not narrate, and never break character to comment on the conversation.",
     // Walk-away: the engine's floor rejects an end that lands too early, and a
     // rejected end means the conversation simply continues with no
