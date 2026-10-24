@@ -425,3 +425,94 @@ export function computeMastery(
     recentGrowth: recentGrowthFor(competencyResults),
   };
 }
+
+// === Per-study-plan baseline (Phase 23) ====================================
+
+export interface SincePlanSnapshotFigure {
+  competencyKey: string;
+  lifetimePercent: number | null;
+  currentPercent: number | null;
+}
+
+export interface SincePlanFigure {
+  percent: number | null;
+  evidenceCount: number;
+  weightSum: number;
+}
+
+export interface CompetencySincePlan {
+  competencyKey: CompetencyKey;
+  /** All-time figure from ledger rows with occurredAt < `since`. */
+  baseline: SincePlanFigure;
+  /** All-time figure from ledger rows with occurredAt <= `now`. */
+  now: SincePlanFigure;
+  /** now - baseline, one decimal; null when either side is unmeasured. */
+  delta: number | null;
+  /** Rows that landed in [since, now]. */
+  sinceEvidenceCount: number;
+  /** Up to MAX_WINDOW_DRIVERS activities in [since, now], strongest pull first. */
+  drivers: WindowDriver[];
+  /**
+   * The lifetime figure FROZEN into the path's selectionSnapshot at
+   * generation, when present. Reported alongside, never substituted for
+   * `baseline`: the snapshot predates any later-ingested history (e.g. the
+   * live-session backfill), so it can disagree with a ledger recompute.
+   */
+  snapshotLifetimePercent: number | null;
+}
+
+/**
+ * Growth since a study plan's path was generated, for the plan's targeted
+ * competencies. Pure: no database, no clock (`since` = the path's
+ * `generatedAt`, `now` from the caller). Baseline and now go through the
+ * same `figureFor` as every other figure, so the delta compares like with
+ * like; the frozen snapshot figure is echoed separately for reference.
+ *
+ * Unknown competency keys are skipped (the catalog decides what exists).
+ * Duplicate keys are collapsed, first occurrence wins the order.
+ */
+export function growthSincePlan(
+  contributions: ReadonlyArray<MasteryContributionRow>,
+  competencyKeys: ReadonlyArray<string>,
+  since: Date,
+  now: Date,
+  snapshot?: ReadonlyArray<SincePlanSnapshotFigure> | null
+): CompetencySincePlan[] {
+  for (const row of contributions) {
+    if (row.reversedAt !== null) {
+      throw new Error(
+        `growthSincePlan: row ${row.id} has a non-null reversedAt — reversed rows must be filtered by the caller (readContributions)`
+      );
+    }
+  }
+  if (since.getTime() > now.getTime()) {
+    throw new Error("growthSincePlan: `since` must not be after `now`");
+  }
+
+  const known = new Set<string>(COMPETENCIES.map((c) => c.key));
+  const keys = [...new Set(competencyKeys)].filter((k) => known.has(k)) as CompetencyKey[];
+  const snapshotByKey = new Map((snapshot ?? []).map((s) => [s.competencyKey, s]));
+
+  return keys.map((competencyKey) => {
+    const rows = contributions.filter(
+      (r) => r.competencyKey === competencyKey && r.occurredAt.getTime() <= now.getTime()
+    );
+    const beforeRows = rows.filter((r) => r.occurredAt.getTime() < since.getTime());
+    const sinceRows = rows.filter((r) => r.occurredAt.getTime() >= since.getTime());
+    const baseline = figureFor(beforeRows);
+    const current = figureFor(rows);
+    const delta =
+      baseline.percent !== null && current.percent !== null && sinceRows.length > 0
+        ? round1(current.percent - baseline.percent)
+        : null;
+    return {
+      competencyKey,
+      baseline: { percent: baseline.percent, evidenceCount: baseline.count, weightSum: baseline.weightSum },
+      now: { percent: current.percent, evidenceCount: current.count, weightSum: current.weightSum },
+      delta,
+      sinceEvidenceCount: sinceRows.length,
+      drivers: windowDriversFor(sinceRows, baseline.percent ?? current.percent),
+      snapshotLifetimePercent: snapshotByKey.get(competencyKey)?.lifetimePercent ?? null,
+    };
+  });
+}

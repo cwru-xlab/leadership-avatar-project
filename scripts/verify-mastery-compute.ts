@@ -12,6 +12,7 @@
  */
 import {
   computeMastery,
+  growthSincePlan,
   EVIDENCE_ORIGINS,
   MAX_WINDOW_DRIVERS,
   TREND_BUCKETS,
@@ -381,6 +382,45 @@ console.log("\n12. windowDelta, drivers and recentGrowth");
   // Bite: with the window moved so nothing is "in window", there is no growth.
   const later = computeMastery(rows, new Date(NOW.getTime() + 60 * DAY_MS));
   check("bite: no in-window evidence -> recentGrowth empty", later.recentGrowth.length === 0, JSON.stringify(later.recentGrowth));
+}
+
+console.log("\n13. growthSincePlan: per-study-plan baseline");
+{
+  const since = new Date(NOW.getTime() - 10 * DAY_MS);
+  const rows = [
+    // A: baseline 25 (before since), then 75 + 75 after -> now 58.3, delta 33.3
+    mkRow({ competencyKey: KEY_A, rawScore: 0.25, occurredAt: new Date(since.getTime() - DAY_MS), sourceReportId: "pre" }),
+    mkRow({ competencyKey: KEY_A, rawScore: 0.75, occurredAt: new Date(since.getTime() + DAY_MS), sourceReportId: "p1" }),
+    mkRow({ competencyKey: KEY_A, source: "CHECK_DETERMINISTIC", weight: 0.45, rawScore: 0.75, occurredAt: since, sourceAttemptId: "chk" }),
+    // B: drop — baseline 100, after 0
+    mkRow({ competencyKey: KEY_B, rawScore: 1, occurredAt: new Date(since.getTime() - DAY_MS) }),
+    mkRow({ competencyKey: KEY_B, rawScore: 0, occurredAt: new Date(since.getTime() + DAY_MS), sourceReportId: "p2" }),
+    // C: nothing since -> delta null
+    mkRow({ competencyKey: KEY_C, rawScore: 0.5, occurredAt: new Date(since.getTime() - DAY_MS) }),
+    // A row after `now` must be ignored
+    mkRow({ competencyKey: KEY_A, rawScore: 0, occurredAt: new Date(NOW.getTime() + DAY_MS), sourceReportId: "future" }),
+  ];
+  const snapshot = [{ competencyKey: KEY_A, lifetimePercent: null, currentPercent: null }, { competencyKey: KEY_B, lifetimePercent: 90, currentPercent: 90 }];
+  const out = growthSincePlan(rows, [KEY_A, KEY_B, KEY_C, KEY_A, "not_a_competency"], since, NOW, snapshot);
+  const get = (k: string) => out.find((r) => r.competencyKey === k)!;
+  check("one entry per distinct known key, in first-seen order", out.map((r) => r.competencyKey).join() === [KEY_A, KEY_B, KEY_C].join());
+  const a = get(KEY_A);
+  // now = (0.25*1 + 0.75*1 + 0.75*0.45) / 2.45 = 54.6
+  check("A baseline 25 from rows strictly before since", a.baseline.percent === 25 && a.baseline.evidenceCount === 1);
+  check("A now includes the row exactly at since and ignores the future row (54.6)", a.now.percent === 54.6 && a.now.evidenceCount === 3, `got ${a.now.percent}/${a.now.evidenceCount}`);
+  check("A delta = now - baseline", a.delta === 29.6, `got ${a.delta}`);
+  check("A sinceEvidenceCount 2, drivers name the report and the check", a.sinceEvidenceCount === 2 && a.drivers.length === 2 && a.drivers.some((d) => d.sourceAttemptId === "chk") && a.drivers.every((d) => d.sourceReportId !== "future"));
+  check("B shows a drop (negative delta)", get(KEY_B).delta === -50, `got ${get(KEY_B).delta}`);
+  check("C with nothing since has delta null", get(KEY_C).delta === null && get(KEY_C).sinceEvidenceCount === 0);
+  check("snapshot figure echoed, never substituted (A snapshot null, baseline 25)", a.snapshotLifetimePercent === null && get(KEY_B).snapshotLifetimePercent === 90 && get(KEY_B).baseline.percent === 100);
+  let threw = false;
+  try { growthSincePlan([mkRow({ reversedAt: NOW })], [KEY_A], since, NOW); } catch { threw = true; }
+  check("a reversed row THROWS", threw);
+  // Bite: moving `since` after every row makes everything baseline -> no deltas.
+  const late = growthSincePlan(rows, [KEY_A, KEY_B], NOW, NOW);
+  check("bite: since = now leaves no in-plan evidence, so every delta is null", late.every((r) => r.delta === null), JSON.stringify(late.map((r) => r.delta)));
+  const shuffled = growthSincePlan([...rows].reverse(), [KEY_A, KEY_B, KEY_C], since, NOW, snapshot);
+  check("deterministic under row order", JSON.stringify(shuffled) === JSON.stringify(out.slice(0, 3)));
 }
 
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}\n`);

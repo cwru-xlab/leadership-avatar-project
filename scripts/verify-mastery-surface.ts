@@ -442,7 +442,21 @@ console.log("\n8. GROWTH FIELDS: sources, trend, drivers, recent growth");
   check("growth DTO survives a JSON round trip", JSON.stringify(JSON.parse(JSON.stringify(dto))) === JSON.stringify(dto));
 
   const panelSource = readSource("components/mastery/MasteryPanel.tsx");
-  check('panel renders a "Recent growth" section', panelSource.includes("Recent growth") && panelSource.includes("mastery.recentGrowth"));
+  check('panel renders a "Recent movement" section', panelSource.includes("Recent movement") && panelSource.includes("mastery.recentGrowth"));
+  // Drops get a "Practice this" link to /paths, gated on a negative delta.
+  const practiceIssues = (src: string): string[] => {
+    const issues: string[] = [];
+    if (!src.includes("Practice this")) issues.push("no Practice this action");
+    if (!/href=\{`\/paths\?competency=\$\{encodeURIComponent\(entry\.competencyKey\)\}`\}/.test(src)) issues.push("no /paths?competency= link");
+    if (!/entry\.delta !== null && entry\.delta < 0 \? \(\s*<Link/.test(src)) issues.push("action not gated on a drop");
+    return issues;
+  };
+  check("drops get a 'Practice this' link to /paths?competency=<key>", practiceIssues(panelSource).length === 0, JSON.stringify(practiceIssues(panelSource)));
+  check(
+    "bite: removing the drop gate is caught",
+    practiceIssues(panelSource.replace("entry.delta !== null && entry.delta < 0 ? (", "true ? (")).length > 0
+  );
+  check("panel shows up AND down arrows (TrendingUp / TrendingDown)", panelSource.includes("TrendingUp") && panelSource.includes("TrendingDown"));
   check('panel renders evidence sources ("Evidence from")', panelSource.includes("Evidence from") && panelSource.includes("competency.sources"));
   check("panel renders a trend (Sparkline)", panelSource.includes("<Sparkline"));
   check("panel renders level badges", panelSource.includes("LevelBadge"));
@@ -461,6 +475,17 @@ console.log("\n8. GROWTH FIELDS: sources, trend, drivers, recent growth");
     "bite: the copy predicate FAILS on the old path-only sentence",
     copyIssues("built from every coached session\n and knowledge check you have completed.").length === 2
   );
+}
+
+// === Section 9: SINCE-PLAN ROUTE SHAPE =====================================
+console.log("\n9. SINCE-PLAN ROUTE SHAPE");
+{
+  const src = readSource("app/api/mastery/since-plan/route.ts");
+  check("since-plan exports GET only", /export\s+async\s+function\s+GET\b/.test(src) && !/export\s+async\s+function\s+(POST|PUT|PATCH|DELETE)\b/.test(src));
+  const scopeIssues = (s: string) => (/studyPlanPath\.findFirst\(\{\s*where:\s*\{\s*studyPlanId:\s*planId,\s*userId:\s*currentUser\.id/.test(s) ? [] : ["path lookup not scoped by userId"]);
+  check("plan lookup is scoped by the signed-in user", scopeIssues(src).length === 0);
+  check("bite: an unscoped lookup is caught", scopeIssues(src.replace(", userId: currentUser.id", "")).length > 0);
+  check("since-plan goes through toSincePlanDTO and growthSincePlan", src.includes("toSincePlanDTO") && src.includes("growthSincePlan") && src.includes("no-store"));
 }
 
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}`);
