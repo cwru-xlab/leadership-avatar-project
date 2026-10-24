@@ -47,6 +47,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [ ] **Phase 20: Difficult Conversation Walk-Outs** - The avatar leaves a difficult conversation when the student loses control of its hostility
 - [ ] **Phase 21: Adaptive Mastery Path** - Study plans become a tailored improvement path: measured mastery, generated practice aimed at the gap, knowledge checks, and in-session coaching
 - [ ] **Phase 22: Coached Mode** - Coached sessions get an actual coach: a coach persona, the avatar back, and a replay target worth reworking
+- [ ] **Phase 23: Learning Paths Hub** - Study plans and paths get their own tabs, mastery reflects live + path growth, and the path loop teaches
 
 ## Phase Details
 
@@ -1290,3 +1291,19 @@ Plans:
 - [ ] 22-14-PLAN.md — Shell state/flow: brief + consent, guarded opening, coach-closed legs, vendor degradation, scroll
 - [ ] 22-15-PLAN.md — Shell session layout: video coach + PTT, verbatim moment, demonstration card; surface battery
 - [ ] 22-16-PLAN.md — Validation battery + human browser UAT gate
+
+### Phase 23: Learning Paths Hub
+
+**Goal:** A student can reach study plans and paths from the sidebar, generate a
+path from any plan in one action, work through it in the same voice + video shell
+the practice features use, and see that growth on /mastery, which counts BOTH
+live practice sessions and path learning.
+
+**Depends on:** Phase 22 (shared session chrome, G4)
+
+**In scope:** (decided 2026-10-24, see 23-CONTEXT.md)
+1. "Study Plans" and "Paths" sidebar tabs; `/study-plans` index; `/paths` plan picker with inline path generation.
+2. Mastery integration: idempotent LIVE_SESSION backfill for pre-hook reports, per-source breakdown, weekly trend, "Recent movement" (ups and downs), per-plan "growth since this plan".
+3. An end-to-end learning-loop test (Playwright, real HeyGen + OpenAI) iterated until the path loop gives Duolingo/fizzylemon-quality learning, WITHOUT streaks or unlocking.
+
+**Explicitly NOT in scope:** changes to interview, case-study, networking, pitch or difficult-conversation behaviour; streaks; sequential unlocking; live numeric scores in coached sessions.
