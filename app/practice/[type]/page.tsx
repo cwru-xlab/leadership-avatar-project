@@ -416,6 +416,18 @@ export default function PracticeTypePage() {
     const prefill = info.prefill;
     if (prefill.kind === "interview") {
       setStoredCustomization(prefill.customization);
+      // Reused from the source session (user-scoped server-side): the same
+      // values the resume / job-posting steps would have written.
+      if (prefill.resume) {
+        setResumeId(prefill.resume.resumeId);
+        setResumeText(prefill.resume.resumeText);
+        setResumeFileName("Resume from your earlier session");
+      }
+      if (prefill.jobDescription) {
+        setJobDescriptionId(prefill.jobDescription.jobDescriptionId);
+        setJobDescriptionText(prefill.jobDescription.jobDescriptionText);
+        setJobDescriptionFileName("Job posting from your earlier session");
+      }
     } else if (prefill.kind === "networking") {
       setNetworkingCharacterId(prefill.characterId);
       setNetworkingInstanceId(prefill.personaId);
