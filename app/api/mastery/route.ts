@@ -5,6 +5,7 @@ import { siteConfig } from "@/config/site";
 import { readContributions } from "@/lib/mastery/ledger";
 import { computeMastery } from "@/lib/mastery/compute";
 import { toMasteryDTO } from "@/lib/mastery/mastery-dto";
+import { resolveActivityLinks } from "@/lib/mastery/activity-links";
 import { levelFor } from "@/lib/mastery/levels";
 import { goalProgress } from "@/lib/study-plan/goals";
 
@@ -59,7 +60,10 @@ export async function GET(request: NextRequest) {
     // tier/disclosure at render time would be too late, because the browser
     // already received the bare payload). The raw arithmetic output above
     // is never returned to a client directly — only the DTO below is.
-    const mastery = toMasteryDTO(result);
+    // Links for the "what moved it" lists are resolved here (a DB read,
+    // scoped to this user) and handed to the single exit — compute stays pure.
+    const activityLinks = await resolveActivityLinks(currentUser.id, result);
+    const mastery = toMasteryDTO(result, { activityLinks });
 
     // Levels are derived from the CURRENT figure, not the lifetime one. A
     // level is a claim about where the student stands NOW; levelling the

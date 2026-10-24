@@ -16,7 +16,13 @@
  * client") — every field below is named individually, never spread.
  */
 import { COMPETENCIES } from "./competencies";
-import type { CompetencyMastery, MasteryResult } from "./compute";
+import type {
+  CompetencySincePlan,
+  CompetencyMastery,
+  EvidenceOrigin,
+  MasteryResult,
+  WindowDriver,
+} from "./compute";
 import { evidenceTierFor, TIER_DISCLOSURE, type EvidenceTier } from "./thinness";
 
 export interface MasteryFigureDTO {
@@ -27,6 +33,69 @@ export interface MasteryFigureDTO {
   tierLabel: string;
 }
 
+/**
+ * Student-facing names for each evidence origin. Live practice is unaided
+ * work; checks and coached sessions are both "path learning" (study-plan
+ * steps). Lives here, at the single exit, so the panel never maps a raw
+ * source string itself.
+ */
+export const ORIGIN_LABELS: Record<EvidenceOrigin, string> = {
+  live: "Live practice",
+  check: "Knowledge checks",
+  coached: "Coached sessions",
+};
+
+/** Which group an origin belongs to, for the "live vs path" split. */
+export const ORIGIN_GROUP: Record<EvidenceOrigin, "live" | "path"> = {
+  live: "live",
+  check: "path",
+  coached: "path",
+};
+
+export interface OriginFigureDTO {
+  origin: EvidenceOrigin;
+  label: string;
+  group: "live" | "path";
+  lifetime: { percent: number | null; evidenceCount: number };
+  current: { percent: number | null; evidenceCount: number };
+}
+
+export interface TrendPointDTO {
+  endsAt: string;
+  /** The all-time figure as it stood at `endsAt`; null before any evidence. */
+  percent: number | null;
+  /** Evidence rows that landed in this 7-day bucket. */
+  count: number;
+}
+
+/** A resolved link for one contributing activity (built server-side). */
+export interface ActivityLink {
+  href: string;
+  label: string;
+}
+
+export interface WindowDriverDTO {
+  origin: EvidenceOrigin | null;
+  originLabel: string;
+  /** e.g. "Case study session", "Knowledge check", "Coached session". */
+  activityLabel: string;
+  occurredAt: string;
+  percent: number;
+  /** Null when the source no longer resolves (deleted report or plan). */
+  href: string | null;
+}
+
+export interface RecentGrowthDTO {
+  competencyKey: string;
+  label: string;
+  kind: "moved" | "new";
+  /** Change in the all-time figure since the window opened. Null for "new". */
+  delta: number | null;
+  windowStartPercent: number | null;
+  lifetimePercent: number | null;
+  drivers: WindowDriverDTO[];
+}
+
 export interface CompetencyMasteryDTO {
   competencyKey: string;
   label: string;
@@ -35,6 +104,12 @@ export interface CompetencyMasteryDTO {
   lifetime: MasteryFigureDTO;
   current: MasteryFigureDTO;
   lastContributionAt: string | null;
+  /** Where the evidence came from — one entry per origin, fixed order. */
+  sources: OriginFigureDTO[];
+  /** Rolling weekly points of the all-time figure, oldest first. */
+  trend: TrendPointDTO[];
+  windowChange: { startPercent: number | null; delta: number | null };
+  drivers: WindowDriverDTO[];
 }
 
 export interface MasteryDTO {
@@ -48,6 +123,51 @@ export interface MasteryDTO {
    * silently short-counted figure.
    */
   unmappedRowCount: number;
+  /** Competencies that moved most in the current window, with what moved them. */
+  recentGrowth: RecentGrowthDTO[];
+}
+
+export interface MasteryDTOOptions {
+  /** Keyed by `activityKeyForDriver`. Missing entries render with no link. */
+  activityLinks?: ReadonlyMap<string, ActivityLink>;
+}
+
+/**
+ * The key `activityLinks` is looked up by. Exported so the route's link
+ * resolver and this mapper agree on one spelling.
+ */
+export function activityKeyForDriver(driver: {
+  sourceReportId: string | null;
+  sourceAttemptId: string | null;
+  sourceCoachedSessionId: string | null;
+}): string | null {
+  if (driver.sourceReportId) return `report:${driver.sourceReportId}`;
+  if (driver.sourceAttemptId) return `attempt:${driver.sourceAttemptId}`;
+  if (driver.sourceCoachedSessionId) return `coached:${driver.sourceCoachedSessionId}`;
+  return null;
+}
+
+const FALLBACK_ACTIVITY_LABEL: Record<EvidenceOrigin, string> = {
+  live: "Live practice session",
+  check: "Knowledge check",
+  coached: "Coached session",
+};
+
+function driverDTOFor(
+  driver: WindowDriver,
+  links: ReadonlyMap<string, ActivityLink> | undefined
+): WindowDriverDTO {
+  const key = activityKeyForDriver(driver);
+  const link = key ? links?.get(key) : undefined;
+  return {
+    origin: driver.origin,
+    originLabel: driver.origin ? ORIGIN_LABELS[driver.origin] : driver.source,
+    activityLabel:
+      link?.label ?? (driver.origin ? FALLBACK_ACTIVITY_LABEL[driver.origin] : driver.source),
+    occurredAt: driver.occurredAt.toISOString(),
+    percent: driver.percent,
+    href: link?.href ?? null,
+  };
 }
 
 /**
@@ -84,7 +204,10 @@ function figureDTOFor(
   };
 }
 
-function competencyDTOFor(result: CompetencyMastery): CompetencyMasteryDTO {
+function competencyDTOFor(
+  result: CompetencyMastery,
+  links: ReadonlyMap<string, ActivityLink> | undefined
+): CompetencyMasteryDTO {
   const catalogEntry = COMPETENCIES.find(
     (c) => c.key === result.competencyKey
   );
@@ -117,6 +240,23 @@ function competencyDTOFor(result: CompetencyMastery): CompetencyMasteryDTO {
     lastContributionAt: result.lastContributionAt
       ? result.lastContributionAt.toISOString()
       : null,
+    sources: result.byOrigin.map((figure) => ({
+      origin: figure.origin,
+      label: ORIGIN_LABELS[figure.origin],
+      group: ORIGIN_GROUP[figure.origin],
+      lifetime: { percent: figure.lifetimePercent, evidenceCount: figure.lifetimeCount },
+      current: { percent: figure.currentPercent, evidenceCount: figure.currentCount },
+    })),
+    trend: result.trend.map((point) => ({
+      endsAt: point.endsAt.toISOString(),
+      percent: point.cumulativePercent,
+      count: point.bucketCount,
+    })),
+    windowChange: {
+      startPercent: result.windowStartLifetimePercent,
+      delta: result.windowDelta,
+    },
+    drivers: result.windowDrivers.map((driver) => driverDTOFor(driver, links)),
   };
 }
 
@@ -139,10 +279,33 @@ function competencyDTOFor(result: CompetencyMastery): CompetencyMasteryDTO {
  *
  * No `Date` object crosses this boundary; every date is an ISO string.
  */
-export function toMasteryDTO(result: MasteryResult): MasteryDTO {
+export function toMasteryDTO(
+  result: MasteryResult,
+  opts?: MasteryDTOOptions
+): MasteryDTO {
+  const links = opts?.activityLinks;
   const competencies = result.competencies
-    .map(competencyDTOFor)
+    .map((competency) => competencyDTOFor(competency, links))
     .sort((a, b) => a.order - b.order);
+
+  const byKey = new Map(competencies.map((c) => [c.competencyKey, c]));
+  const recentGrowth: RecentGrowthDTO[] = result.recentGrowth.map((entry) => {
+    const competency = byKey.get(entry.competencyKey);
+    if (!competency) {
+      throw new Error(
+        `toMasteryDTO: recentGrowth names "${entry.competencyKey}", which is not in the competency list`
+      );
+    }
+    return {
+      competencyKey: entry.competencyKey,
+      label: competency.label,
+      kind: entry.kind,
+      delta: entry.windowDelta,
+      windowStartPercent: competency.windowChange.startPercent,
+      lifetimePercent: competency.lifetime.percent,
+      drivers: competency.drivers,
+    };
+  });
 
   return {
     competencies,
@@ -155,5 +318,66 @@ export function toMasteryDTO(result: MasteryResult): MasteryDTO {
       startsAt: result.windowStart.toISOString(),
     },
     unmappedRowCount: result.unmappedRowCount,
+    recentGrowth,
+  };
+}
+
+// === Per-study-plan baseline DTO (Phase 23) ================================
+
+export interface CompetencySincePlanDTO {
+  competencyKey: string;
+  label: string;
+  /** All-time figure at path generation, recomputed from the ledger, with its tier. */
+  baseline: MasteryFigureDTO;
+  /** All-time figure now, with its tier. */
+  now: MasteryFigureDTO;
+  delta: number | null;
+  direction: "up" | "down" | "flat" | null;
+  sinceEvidenceCount: number;
+  drivers: WindowDriverDTO[];
+  /** The figure frozen into the path's selectionSnapshot, when present. */
+  snapshotLifetimePercent: number | null;
+}
+
+export interface SincePlanDTO {
+  planId: string;
+  since: string;
+  asOf: string;
+  competencies: CompetencySincePlanDTO[];
+}
+
+/**
+ * Single exit for the per-plan baseline, same discipline as `toMasteryDTO`:
+ * every figure carries its evidence tier and disclosure, labels come from
+ * COMPETENCIES, and no Date crosses the boundary.
+ */
+export function toSincePlanDTO(args: {
+  planId: string;
+  since: Date;
+  now: Date;
+  results: CompetencySincePlan[];
+  activityLinks?: ReadonlyMap<string, ActivityLink>;
+}): SincePlanDTO {
+  return {
+    planId: args.planId,
+    since: args.since.toISOString(),
+    asOf: args.now.toISOString(),
+    competencies: args.results.map((r) => {
+      const entry = COMPETENCIES.find((c) => c.key === r.competencyKey);
+      if (!entry) {
+        throw new Error(`toSincePlanDTO: competencyKey "${r.competencyKey}" has no entry in COMPETENCIES`);
+      }
+      return {
+        competencyKey: r.competencyKey,
+        label: entry.label,
+        baseline: figureDTOFor(r.baseline.percent, r.baseline.evidenceCount, r.baseline.weightSum),
+        now: figureDTOFor(r.now.percent, r.now.evidenceCount, r.now.weightSum),
+        delta: r.delta,
+        direction: r.delta === null ? null : r.delta > 0 ? "up" : r.delta < 0 ? "down" : "flat",
+        sinceEvidenceCount: r.sinceEvidenceCount,
+        drivers: r.drivers.map((d) => driverDTOFor(d, args.activityLinks)),
+        snapshotLifetimePercent: r.snapshotLifetimePercent,
+      };
+    }),
   };
 }

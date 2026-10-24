@@ -39,6 +39,11 @@ function blankCompetency(
     lifetimeWeightSum: 0,
     currentWeightSum: 0,
     lastContributionAt: null,
+    byOrigin: [],
+    trend: [],
+    windowStartLifetimePercent: null,
+    windowDelta: null,
+    windowDrivers: [],
     ...overrides,
   };
 }
@@ -54,6 +59,7 @@ function resultWith(
     windowStart: new Date(NOW.getTime() - 30 * 24 * 60 * 60 * 1000),
     windowDays: 30,
     unmappedRowCount: 0,
+    recentGrowth: [],
     ...overrides,
   };
 }
