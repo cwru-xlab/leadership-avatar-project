@@ -1,6 +1,11 @@
--- Phase 23 path engine: voice drills + prove-it link. Additive only: two new
--- tables and two nullable columns; no existing row changes meaning and every
--- old step kind stays valid. Hand-authored; applied by a human (REQ-74).
+-- Phase 23 path engine: voice drills + prove-it link + coached-session
+-- delivery metrics. Additive only: two new tables and five nullable columns;
+-- no existing row changes meaning and every old step kind stays valid. Hand-authored; applied by a human (REQ-74).
+
+-- AlterTable
+ALTER TABLE "CoachedSession" ADD COLUMN     "cameraMode" TEXT,
+ADD COLUMN     "visualMetrics" JSONB,
+ADD COLUMN     "vocalMetrics" JSONB;
 
 -- AlterTable
 ALTER TABLE "MasteryContribution" ADD COLUMN     "sourceVoiceDrillAttemptId" TEXT;

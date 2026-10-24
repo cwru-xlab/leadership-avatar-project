@@ -803,6 +803,13 @@ model CoachedSession {
   replayMomentScore Int?
   freshMomentScore  Int?
 
+  /// Phase 23 shared-shell coached session: delivery metrics captured during
+  /// the session, same shapes as InteractionReport (lib/metrics/types.ts).
+  /// Derived numbers only, never media (REQ-38). Null on every older row.
+  cameraMode    String? // "ON" | "OFF"
+  visualMetrics Json?
+  vocalMetrics  Json?
+
   /// Pre-Phase-22 rows only. Coached sessions no longer produce an
   /// InteractionReport.
   reportId String?
