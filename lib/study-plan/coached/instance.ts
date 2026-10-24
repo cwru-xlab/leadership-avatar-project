@@ -113,7 +113,7 @@ function deriveViewFromRow(row: {
   competencyKey: string;
   replaySourceReportId: string;
   replayTurnIndex: number;
-  freshScenarioPrompt: string;
+  freshScenarioPrompt: string | null; // nullable from Phase 22 (22-02)
   reportId: string | null;
   startedAt: Date;
   completedAt: Date | null;
@@ -123,7 +123,7 @@ function deriveViewFromRow(row: {
     : row.reportId
       ? "FRESH"
       : "REPLAY";
-  return { ...row, phase };
+  return { ...row, freshScenarioPrompt: row.freshScenarioPrompt ?? "", phase };
 }
 
 /**
