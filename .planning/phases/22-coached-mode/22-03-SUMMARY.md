@@ -43,7 +43,7 @@ Pure, I/O-free pleasantry filter and deterministic two-moment ranking (REPLAY pl
 - Thresholds (8 / 15 / 3) are PROVISIONAL UNTIL CALIBRATED.
 
 ## Deviations from Plan
-None - plan executed as written.
+**[Process] Shared-index sweep, self-corrected.** My first GREEN commit (12a2465) swept up 22-02's staged files (prisma/schema.prisma, the add_coached_mode migration, coached/instance.ts) because the git index is shared. Before the coordinator's no-rewrite instruction reached me, I had already undone it with `git reset --soft HEAD~1` and recommitted `moment-ranking.ts` alone as 3a6d7b7, restaging nothing of others'. 12a2465 is therefore no longer in history. Subsequent commits use explicit pathspecs.
 
 ## Self-Check: PASSED
 Files and commits verified present.
