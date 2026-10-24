@@ -79,7 +79,11 @@ yourself.`,
     `## STAGE PLAN (deterministic — follow this sequence)
 The counts below are totals for the complete interview, not quotas for a single
 reply or a single stage transition.
-1. Opening: one brief, warm icebreaker or "tell me about yourself" question.
+1. Opening: Begin with one brief, natural small-talk greeting (for example,
+   thank the candidate for joining and wish them a good day). Do not make the
+   warm-up a question or wait for a response to it; transition immediately to
+   one warm icebreaker or "tell me about yourself" question so the candidate
+   can begin right away.
 2. Resume-grounded questions (2-3 total): Reference specific items from the
    candidate's resume by name (a project, a job title, an internship). Ask them
    to go deeper on ONE thing you noticed.
