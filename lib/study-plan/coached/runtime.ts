@@ -1,43 +1,57 @@
 /**
- * Coached session REPLAY-to-FRESH orchestration — step entry, tip gating,
- * leg advancement, and completion (REQ-113/114/115/122).
+ * Coached session orchestration — step entry, coach turns, tip gating, leg
+ * closure and completion (REQ-113/114/115/122).
  *
- * FIRST, re-read `.planning/phases/21-adaptive-mastery-path/21-COACHED-ENGINE-DECISION.md`
- * before changing anything here: this module implements that decision rather
- * than re-deciding it. Binding statements this module relies on: coached mode
- * REUSES the engine's live session machinery but is NOT an `ENGINE_TYPES`
- * entry; it runs over the competency's underlying interaction type — the same
- * type the replayed moment came from; it produces a normal `InteractionReport`
- * scored by the existing evaluator; `CoachedSession.reportId` is the join
- * mastery reads to tell a coached report from an unaided one.
+ * FIRST, re-read `.planning/phases/22-coached-mode/22-COACH-LAYER-DECISION.md`
+ * before changing anything here: this module implements it. Binding
+ * statements: the coach is the ONLY presence in a coached session; both legs
+ * are real moments of the student's own (chosen by `selectCoachedMoments`),
+ * never a generated scenario; the COACH closes each leg (LEG_DONE); there is
+ * NO engine session, NO `InteractionReport` and no counterpart avatar (see
+ * the decision's "No counterpart"). Mastery comes from the coach's graded
+ * attempts via `recordCoachedContribution`.
  *
- * This module imports from `lib/engine/registry.ts` ONLY to validate the
- * underlying type slug resolves to a real, built-in engine type — it is the
- * ONLY place under `lib/study-plan/` authorized to import from `lib/engine/`
- * (`scripts/verify-knowledge-check-surface.ts`'s `ENGINE_IMPORT_CARVE_OUTS`
- * names exactly `lib/study-plan/coached/`, granted by the decision document
- * named above). This module is a CALLER only — it does NOT modify anything
- * under `lib/engine/`, and it does NOT register a `coached-practice` entry
- * in `ENGINE_TYPES` (21-12's section 2 guard still asserts the registry's
- * length is unchanged).
+ * This module imports from `lib/engine/registry.ts` ONLY to read the
+ * underlying type's display name; it is the ONLY place under `lib/study-plan/`
+ * authorized to import from `lib/engine/` (`ENGINE_IMPORT_CARVE_OUTS`). It is
+ * a CALLER only, modifies nothing under `lib/engine/`, and does NOT register a
+ * `coached-practice` entry in `ENGINE_TYPES`.
  */
 import { prisma } from "@/lib/prisma";
 import { s3Storage } from "@/lib/s3-client";
-import { asScoreMap } from "@/lib/report/snapshot";
-import { contributionInputsFromScoreMap } from "@/lib/mastery/from-report";
 import { COMPETENCIES, type CompetencyKey } from "@/lib/mastery/competencies";
+import { CONTRIBUTION_WEIGHTS } from "@/lib/mastery/weights";
 import { getEngineType } from "@/lib/engine/registry";
 
 import {
   createCoachedSession,
   finishCoachedSession,
+  markReplayLegComplete,
   readCoachedSession,
+  retargetLegacyCoachedSession,
   NotReachableOutsideAPathError,
   type CoachedPhase,
   type CoachedSessionView,
 } from "./instance";
-import { techniquesForCompetency, assertTipSafe, validateTip } from "./tips";
+import { techniquesForCompetency, assertTipSafe } from "./tips";
 import { recordCoachedContribution } from "./contribution";
+import {
+  selectCoachedMoments,
+  NoQualifyingMomentError,
+  type CoachedMomentSelection,
+  type SelectionOpts,
+} from "./moment-selection";
+import { momentFramingFor } from "./moment-ranking";
+import { resolveCoachForUser } from "./coach-identity";
+import { rubricDimensionsForCompetency } from "./coach-prompt";
+import {
+  coachTurn,
+  legStateFromTurns,
+  type CoachedTurnRow,
+  type CoachTurnDeps,
+  type CoachTurnResult,
+  type CoachTurnArgs,
+} from "./coach";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -57,12 +71,12 @@ export class ReplayMomentUnavailableError extends Error {
 }
 
 /** No source report of the student's evidences this step's competency with
- * a readable transcript — there is nothing eligible to replay. */
+ * a readable transcript — there is nothing eligible to work on. */
 export class NoEligibleReplayTargetError extends Error {
   constructor(stepId: string, competencyKey: string) {
     super(
       `No eligible replay target found for step ${stepId} (competency "${competencyKey}") — ` +
-        `no source report both scores this competency and has a readable transcript.`,
+        `no source report has a qualifying moment for this competency.`,
     );
     this.name = "NoEligibleReplayTargetError";
   }
@@ -94,22 +108,61 @@ export class CoachedLegOrderError extends Error {
   }
 }
 
+/** Thrown when a leg is closed or advanced before the coach delivered LEG_DONE. */
+export class CoachedLegNotDoneError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CoachedLegNotDoneError";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // View shape
 // ---------------------------------------------------------------------------
 
+export interface CoachedMomentView {
+  counterpartLine: string | null;
+  studentLine: string;
+  sourceReportId: string;
+  turnIndex: number;
+  sessionDate: string;
+}
+
+export interface CoachedTurnView {
+  seq: number;
+  speaker: "COACH" | "STUDENT";
+  move: string;
+  text: string;
+  demonstration: string | null;
+  score: number | null;
+  acceptable: boolean | null;
+  parroted: boolean | null;
+}
+
 export interface CoachedLegView {
   coachedSessionId: string;
   leg: "REPLAY" | "FRESH" | "COMPLETE";
+  legCount: 1 | 2;
+  thinEvidence: boolean;
   competencyKey: CompetencyKey;
-  /** REPLAY only: the student's own words being reworked, verbatim. */
-  replayMoment: { text: string; sourceReportId: string; turnIndex: number } | null;
-  /** FRESH only: the new situation exercising the same competency. */
-  freshScenarioPrompt: string | null;
+  competencyLabel: string;
+  competencyDescription: string;
+  coach: { name: string; avatarId: string; voiceId: string; isDefault: boolean };
+  /** The CURRENT leg's moment, verbatim; null on COMPLETE. */
+  moment: CoachedMomentView | null;
+  /** Current leg, ordered by seq. */
+  conversation: CoachedTurnView[];
+  awaiting: "REPLY" | "ATTEMPT" | "NONE" | null;
+  legReady: boolean;
+  attemptsInLeg: number;
   /** Technique reminders for this leg. Every entry has passed the tip gate. */
   tips: Array<{ id: string; name: string; reminder: string }>;
-  /** The engine type slug this leg runs over, for the session transport. */
   underlyingTypeSlug: string;
+  underlyingTypeName: string;
+  worth: { coachedWeight: number; unaidedWeight: number };
+  selectionBasis: "PER_TURN_SCORE" | "GROWTH_AREA_FALLBACK";
+  /** Current leg's moment: momentFramingFor(stored score) — REFINEMENT when above MAX_REWORKABLE_SCORE. */
+  momentFraming: "REWORK" | "REFINEMENT";
 }
 
 // ---------------------------------------------------------------------------
@@ -164,198 +217,83 @@ export async function tipsForLeg(args: {
 }
 
 // ---------------------------------------------------------------------------
-// Replay-target selection (deterministic) + the S3 transcript read
+// Moment resolution (the S3 read lives here, never in instance.ts)
 // ---------------------------------------------------------------------------
 
-interface ReplayTarget {
-  reportId: string;
-  turnIndex: number;
-  studentText: string;
+interface LegContext {
+  leg: "REPLAY" | "FRESH";
+  moment: CoachedMomentView;
+  typeSlug: string;
+  typeName: string;
+  framing: "REWORK" | "REFINEMENT";
 }
 
-/**
- * Selects the student's weakest-scoring source report for this competency,
- * deterministically: lowest normalized dimension score mapping to the
- * competency, tie-broken by most recent report. Within the chosen report,
- * the replay turn is the first (lowest-index) student ("user") turn with
- * non-empty content. Deterministic so a student who reloads before entering
- * gets the same moment.
- *
- * Reuses `contributionInputsFromScoreMap` (21-21's pure scoring step) purely
- * to compute each report's normalized per-competency score — nothing is
- * written here; this is a read-only selection.
- */
-async function selectReplayTarget(
+async function resolveLegContext(
   userId: string,
-  pathStepId: string,
-  competencyKey: CompetencyKey,
-): Promise<ReplayTarget> {
-  const step = await prisma.studyPlanPathStep.findFirst({
-    where: { id: pathStepId },
-    select: {
-      path: { select: { studyPlan: { select: { sourceReportIds: true } } } },
-    },
-  });
-
-  const sourceReportIds = Array.isArray(step?.path.studyPlan.sourceReportIds)
-    ? (step.path.studyPlan.sourceReportIds as unknown[]).filter(
-        (id): id is string => typeof id === "string",
-      )
-    : [];
-
-  if (sourceReportIds.length === 0) {
-    throw new NoEligibleReplayTargetError(pathStepId, competencyKey);
+  session: CoachedSessionView,
+  leg: "REPLAY" | "FRESH",
+): Promise<LegContext> {
+  const reportId = leg === "REPLAY" ? session.replaySourceReportId : session.freshSourceReportId;
+  const turnIndex = leg === "REPLAY" ? session.replayTurnIndex : session.freshTurnIndex;
+  const score = leg === "REPLAY" ? session.replayMomentScore : session.freshMomentScore;
+  if (reportId === null || turnIndex === null) {
+    throw new ReplayMomentUnavailableError(
+      `resolveLegContext: session ${session.id} has no ${leg} moment`,
+    );
   }
 
-  const reports = await prisma.interactionReport.findMany({
-    where: { id: { in: sourceReportIds }, userId, transcriptKey: { not: null } },
-    select: { id: true, scores: true, createdAt: true },
+  const report = await prisma.interactionReport.findFirst({
+    where: { id: reportId, userId },
+    select: { typeSlug: true, createdAt: true },
   });
+  if (!report) {
+    throw new ReplayMomentUnavailableError(
+      `resolveLegContext: source report ${reportId} no longer exists for user ${userId}`,
+    );
+  }
+  // Reading the registry is not registering in it.
+  const engineType = getEngineType(report.typeSlug);
+  if (!engineType) {
+    throw new Error(
+      `resolveLegContext: report typeSlug "${report.typeSlug}" is not a member of ENGINE_TYPES`,
+    );
+  }
 
-  let best: { reportId: string; rawScore: number; createdAt: Date } | null = null;
-
-  for (const report of reports) {
-    const scoreMap = asScoreMap(report.scores);
-    if (!scoreMap) continue;
-
-    const { inputs } = contributionInputsFromScoreMap({
-      scores: scoreMap,
-      userId,
-      // Placeholder source/occurredAt: this call computes a read-only
-      // per-competency rawScore for SELECTION, it writes nothing. The real
-      // write (with the real source/occurredAt) happens only in
-      // `recordCoachedContribution` (21-16), after the session completes.
-      source: "COACHED_SESSION",
-      occurredAt: report.createdAt,
-      sourceReportId: report.id,
-    });
-
-    const match = inputs.find((i) => i.competencyKey === competencyKey);
-    if (!match) continue;
-
-    if (
-      !best ||
-      match.rawScore < best.rawScore ||
-      (match.rawScore === best.rawScore && report.createdAt > best.createdAt)
-    ) {
-      best = { reportId: report.id, rawScore: match.rawScore, createdAt: report.createdAt };
+  const transcript = await s3Storage.getInterviewTranscript(userId, reportId);
+  const turn = transcript?.turns[turnIndex];
+  if (!transcript || !turn) {
+    throw new ReplayMomentUnavailableError(
+      `resolveLegContext: transcript or turn ${turnIndex} unavailable for report ${reportId}`,
+    );
+  }
+  let counterpartLine: string | null = null;
+  for (let i = turnIndex - 1; i >= 0; i -= 1) {
+    if (transcript.turns[i].role === "assistant") {
+      counterpartLine = transcript.turns[i].content; // VERBATIM
+      break;
     }
   }
 
-  if (!best) {
-    throw new NoEligibleReplayTargetError(pathStepId, competencyKey);
-  }
-
-  // THE S3 READ 21-12 DELIBERATELY PUSHED OUT OF instance.ts — it belongs
-  // here. Same accessor `lib/study-plan/checks/sources.ts` (21-25) already
-  // uses: `s3Storage.getInterviewTranscript`.
-  const transcript = await s3Storage.getInterviewTranscript(userId, best.reportId);
-  if (!transcript) {
-    throw new ReplayMomentUnavailableError(
-      `selectReplayTarget: no transcript readable for report ${best.reportId}`,
-    );
-  }
-
-  const turnIndex = transcript.turns.findIndex(
-    (t) => t.role === "user" && t.content.trim().length > 0,
-  );
-  if (turnIndex === -1) {
-    throw new ReplayMomentUnavailableError(
-      `selectReplayTarget: no student turn found in transcript for report ${best.reportId}`,
-    );
-  }
-
   return {
-    reportId: best.reportId,
-    turnIndex,
-    // VERBATIM — the next lines return this exactly, no trim/re-case/re-wrap.
-    studentText: transcript.turns[turnIndex].content,
+    leg,
+    moment: {
+      counterpartLine,
+      studentLine: turn.content, // VERBATIM — no trim/re-case/re-wrap.
+      sourceReportId: reportId,
+      turnIndex,
+      sessionDate: report.createdAt.toISOString(),
+    },
+    typeSlug: report.typeSlug,
+    typeName: engineType.name,
+    framing: momentFramingFor(score),
   };
 }
 
-/**
- * The real model call for the fresh scenario's text, isolated so it can be
- * swapped in tests. Generates ONLY the scenario text — no words for the
- * student to say.
- */
-async function defaultGenerateFreshScenarioText(args: {
-  competencyKey: CompetencyKey;
-  studentLine: string;
-}): Promise<string> {
-  const { competencyKey, studentLine } = args;
-  const competency = COMPETENCIES.find((c) => c.key === competencyKey);
-  const model = process.env.CHECK_GENERATION_MODEL || "gpt-4.1";
-
-  const system =
-    "You write a brief new practice scenario for a leadership-practice student. " +
-    "The scenario must exercise the SAME competency a prior moment evidenced, but must " +
-    "describe a DIFFERENT situation — it must not restate, quote, paraphrase, or echo the " +
-    "student's own prior words. Describe only the SITUATION the student will face; never " +
-    "write a line of dialogue or any words for the student to say, and never use quotation " +
-    "marks anywhere in your response. EXACTLY ONE plain sentence, under 220 characters total — " +
-    "shorter is better. Do not explain your reasoning, return only the sentence.";
-  const user =
-    `Competency: ${competency?.label ?? competencyKey}\n\n` +
-    `The student's prior moment (context only — do NOT quote or echo this):\n"""\n${studentLine}\n"""\n\n` +
-    "Write the new scenario now, as one sentence under 220 characters.";
-
-  const OpenAI = (await import("openai")).default;
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    timeout: 50_000,
-    maxRetries: 0,
-  });
-
-  const completion = await openai.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    max_tokens: 400,
-  });
-
-  const text = completion.choices[0]?.message?.content?.trim();
-  if (!text) {
-    throw new Error("defaultGenerateFreshScenarioText: model returned no content");
-  }
-  return text;
-}
-
-/** Bounded retries on a rejected scenario, mirroring 21-16's own documented
- * tradeoff: a rejected (good) generation costs one regeneration; an accepted
- * scripted/echoing one invalidates the transfer test. A model occasionally
- * uses a short quoted phrase for emphasis with no scripting intent at all —
- * one retry is usually enough, and this is DISCARD-AND-RETRY, never repair. */
-const MAX_FRESH_SCENARIO_ATTEMPTS = 4;
-
-async function generateFreshScenarioPrompt(args: {
-  competencyKey: CompetencyKey;
-  studentLine: string;
-}): Promise<string> {
-  let lastReason = "";
-  for (let attempt = 1; attempt <= MAX_FRESH_SCENARIO_ATTEMPTS; attempt += 1) {
-    const text = await defaultGenerateFreshScenarioText(args);
-
-    // A scenario that echoes the student's own line back is the replay
-    // again, not a transfer test — gated through the same tip-safety
-    // rejector before persisting, with the replayed line as
-    // context.studentLine. Non-throwing form here so a rejection can be
-    // discarded and retried rather than failing entry outright.
-    const result = validateTip(text, { studentLine: args.studentLine });
-    if (result.ok) return text;
-
-    lastReason = `${result.reason}: ${result.detail}`;
-    console.warn("generateFreshScenarioPrompt: discarding a rejected scenario, retrying", {
-      attempt,
-      reason: lastReason,
-    });
-  }
-
-  throw new Error(
-    `generateFreshScenarioPrompt: exhausted ${MAX_FRESH_SCENARIO_ATTEMPTS} attempts, ` +
-      `last rejection: ${lastReason}`,
-  );
+function loadTurnRows(coachedSessionId: string): Promise<CoachedTurnRow[]> {
+  return prisma.coachedTurn.findMany({
+    where: { coachedSessionId },
+    orderBy: { seq: "asc" },
+  }) as Promise<CoachedTurnRow[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -376,93 +314,154 @@ async function loadOwnedCoachedStep(userId: string, stepId: string) {
 // enterCoachedStep / buildLegView
 // ---------------------------------------------------------------------------
 
+function competencyInfo(key: CompetencyKey) {
+  const c = COMPETENCIES.find((x) => x.key === key);
+  return {
+    label: c?.label ?? key,
+    description: (c as { description?: string } | undefined)?.description ?? "",
+  };
+}
+
 /**
- * Builds the `CoachedLegView` for an existing session, re-reading the
- * replay transcript turn on every call (needed both to render it on REPLAY
- * and as `assertTipSafe`'s `studentLine` context on every leg) and
- * resolving `underlyingTypeSlug` from the replayed report's own `typeSlug`.
+ * Builds the `CoachedLegView` for an existing session. The current leg's
+ * moment text is re-read from the transcript on every call.
  */
 async function buildLegView(
   userId: string,
   session: CoachedSessionView,
 ): Promise<CoachedLegView> {
-  const replayReport = await prisma.interactionReport.findFirst({
-    where: { id: session.replaySourceReportId, userId },
-    select: { typeSlug: true },
-  });
-  if (!replayReport) {
-    throw new ReplayMomentUnavailableError(
-      `buildLegView: replay source report ${session.replaySourceReportId} no longer exists for user ${userId}`,
-    );
-  }
-  // Reading the registry is not registering in it — ENGINE_TYPES gains no
-  // coached entry by this lookup; 21-12's section 2 guard still asserts
-  // that. This only confirms the underlying type is a real, built-in one.
-  if (!getEngineType(replayReport.typeSlug)) {
-    throw new Error(
-      `buildLegView: replay report's typeSlug "${replayReport.typeSlug}" is not a member of ENGINE_TYPES`,
-    );
-  }
-
-  const transcript = await s3Storage.getInterviewTranscript(userId, session.replaySourceReportId);
-  const turn = transcript?.turns[session.replayTurnIndex];
-  if (!transcript || !turn) {
-    throw new ReplayMomentUnavailableError(
-      `buildLegView: transcript or turn ${session.replayTurnIndex} unavailable for report ${session.replaySourceReportId}`,
-    );
-  }
-  const studentLine = turn.content;
-
-  const leg = session.phase;
   const competencyKey = session.competencyKey as CompetencyKey;
+  const info = competencyInfo(competencyKey);
+  const coach = await resolveCoachForUser(userId);
+  const phase = session.phase;
+  // A pre-Phase-22 row has no basis; it is shown stale until a POST re-targets it.
+  const selectionBasis = session.selectionBasis ?? "GROWTH_AREA_FALLBACK";
+  const worth = {
+    coachedWeight: CONTRIBUTION_WEIGHTS.COACHED_SESSION,
+    unaidedWeight: CONTRIBUTION_WEIGHTS.LIVE_SESSION,
+  };
 
-  const replayMoment =
-    leg === "REPLAY"
-      ? {
-          // VERBATIM — no trim/re-case/re-wrap.
-          text: studentLine,
-          sourceReportId: session.replaySourceReportId,
-          turnIndex: session.replayTurnIndex,
-        }
-      : null;
+  if (phase === "COMPLETE") {
+    const ctx = await resolveLegContext(userId, session, "REPLAY");
+    return {
+      coachedSessionId: session.id,
+      leg: "COMPLETE",
+      legCount: session.legCount,
+      thinEvidence: session.legCount === 1,
+      competencyKey,
+      competencyLabel: info.label,
+      competencyDescription: info.description,
+      coach,
+      moment: null,
+      conversation: [],
+      awaiting: "NONE",
+      legReady: true,
+      attemptsInLeg: 0,
+      tips: [],
+      underlyingTypeSlug: ctx.typeSlug,
+      underlyingTypeName: ctx.typeName,
+      worth,
+      selectionBasis,
+      momentFraming: ctx.framing,
+    };
+  }
 
-  const freshScenarioPrompt = leg === "FRESH" ? session.freshScenarioPrompt : null;
-
-  const tips =
-    leg === "COMPLETE"
-      ? []
-      : await tipsForLeg({ competencyKey, leg, studentLine });
+  const ctx = await resolveLegContext(userId, session, phase);
+  const rows = await loadTurnRows(session.id);
+  const state = legStateFromTurns(rows, phase);
+  const conversation: CoachedTurnView[] = rows
+    .filter((r) => r.leg === phase)
+    .sort((a, b) => a.seq - b.seq)
+    .map((r) => ({
+      seq: r.seq,
+      speaker: r.speaker === "COACH" ? ("COACH" as const) : ("STUDENT" as const),
+      move: r.move,
+      text: r.text,
+      demonstration: r.demonstration,
+      score: r.score,
+      acceptable: r.acceptable,
+      parroted: r.parroted,
+    }));
+  const tips = await tipsForLeg({
+    competencyKey,
+    leg: phase,
+    studentLine: ctx.moment.studentLine,
+  });
 
   return {
     coachedSessionId: session.id,
-    leg,
+    leg: phase,
+    legCount: session.legCount,
+    thinEvidence: session.legCount === 1,
     competencyKey,
-    replayMoment,
-    freshScenarioPrompt,
+    competencyLabel: info.label,
+    competencyDescription: info.description,
+    coach,
+    moment: ctx.moment,
+    conversation,
+    awaiting: state.awaiting,
+    legReady: state.legReady,
+    attemptsInLeg: state.attemptsInLeg,
     tips,
-    underlyingTypeSlug: replayReport.typeSlug,
+    underlyingTypeSlug: ctx.typeSlug,
+    underlyingTypeName: ctx.typeName,
+    worth,
+    selectionBasis,
+    momentFraming: ctx.framing,
+  };
+}
+
+async function selectForStep(
+  userId: string,
+  stepId: string,
+  competencyKey: CompetencyKey,
+  scorer: SelectionOpts["scorer"],
+): Promise<CoachedMomentSelection> {
+  try {
+    return await selectCoachedMoments(
+      { userId, pathStepId: stepId, competencyKey },
+      scorer ? { scorer } : undefined,
+    );
+  } catch (err) {
+    if (err instanceof NoQualifyingMomentError) {
+      throw new NoEligibleReplayTargetError(stepId, competencyKey);
+    }
+    throw err;
+  }
+}
+
+function targetsFrom(sel: CoachedMomentSelection) {
+  return {
+    replaySourceReportId: sel.replay.reportId,
+    replayTurnIndex: sel.replay.turnIndex,
+    freshSourceReportId: sel.fresh?.reportId ?? null,
+    freshTurnIndex: sel.fresh?.turnIndex ?? null,
+    selectionBasis: sel.basis,
+    replayMomentScore: sel.replay.score,
+    freshMomentScore: sel.fresh?.score ?? null,
   };
 }
 
 /**
  * Enters (creating if needed) or resumes a `COACHED_SESSION` path step.
  *
- * `opts.createIfMissing` defaults to `true`. The HTTP GET handler (resume /
- * poll) passes `false` so a GET can never create a session — see
- * `CoachedSessionNotStartedError` above.
+ * `opts.createIfMissing` defaults to `true`. The HTTP GET handler passes
+ * `false` so a GET can never create or re-target a session.
+ *
+ * A session started under the Phase 21 rules (`selectionBasis === null`, not
+ * completed) carries no coach work; on a POST it is re-targeted to real
+ * moments. A completed one is left alone.
  */
 export async function enterCoachedStep(
   args: { userId: string; stepId: string },
-  opts: { createIfMissing?: boolean } = {},
+  opts: { createIfMissing?: boolean; scorer?: SelectionOpts["scorer"] } = {},
 ): Promise<CoachedLegView> {
   const { userId, stepId } = args;
   const createIfMissing = opts.createIfMissing ?? true;
 
-  // 1. THE ONLY ENTRY — require an already-persisted, user-owned
-  // COACHED_SESSION step. This re-checks what `createCoachedSession` also
-  // checks, because this function ALSO runs on the RESUME path where
-  // `createCoachedSession` is never called.
+  // THE ONLY ENTRY — require an already-persisted, user-owned COACHED_SESSION step.
   const step = await loadOwnedCoachedStep(userId, stepId);
+  const competencyKey = step.competencyKey as CompetencyKey;
 
   let session: CoachedSessionView;
 
@@ -470,28 +469,76 @@ export async function enterCoachedStep(
     const existing = await readCoachedSession(userId, step.coachedSessionId);
     if (!existing) throw new NotReachableOutsideAPathError(stepId);
     session = existing;
+    if (session.selectionBasis === null && session.completedAt === null && createIfMissing) {
+      const sel = await selectForStep(userId, stepId, competencyKey, opts.scorer);
+      session = await retargetLegacyCoachedSession(userId, session.id, targetsFrom(sel));
+    }
   } else {
     if (!createIfMissing) {
       throw new CoachedSessionNotStartedError(stepId);
     }
-
-    const competencyKey = step.competencyKey as CompetencyKey;
-    const target = await selectReplayTarget(userId, stepId, competencyKey);
-    const freshScenarioPrompt = await generateFreshScenarioPrompt({
-      competencyKey,
-      studentLine: target.studentText,
-    });
-
+    const sel = await selectForStep(userId, stepId, competencyKey, opts.scorer);
     session = await createCoachedSession({
       userId,
       pathStepId: stepId,
-      replaySourceReportId: target.reportId,
-      replayTurnIndex: target.turnIndex,
-      freshScenarioPrompt,
+      ...targetsFrom(sel),
     });
   }
 
   return buildLegView(userId, session);
+}
+
+// ---------------------------------------------------------------------------
+// takeCoachTurn
+// ---------------------------------------------------------------------------
+
+/**
+ * One coach turn. The session is resolved from the owned step — a session id
+ * is never accepted from the caller. `utterance === null` asks the coach to
+ * open or resume the leg.
+ */
+export async function takeCoachTurn(
+  args: { userId: string; stepId: string; utterance: CoachTurnArgs["utterance"] },
+  deps: CoachTurnDeps = {},
+): Promise<{ coachTurn: CoachTurnResult; leg: CoachedLegView }> {
+  const { userId, stepId, utterance } = args;
+  const step = await loadOwnedCoachedStep(userId, stepId);
+  if (!step.coachedSessionId) throw new CoachedSessionNotStartedError(stepId);
+
+  const session = await readCoachedSession(userId, step.coachedSessionId);
+  if (!session) throw new NotReachableOutsideAPathError(stepId);
+  if (session.phase === "COMPLETE") {
+    throw new CoachedLegOrderError(
+      `takeCoachTurn: session ${session.id} is already complete.`,
+    );
+  }
+
+  const ctx = await resolveLegContext(userId, session, session.phase);
+  const competencyKey = session.competencyKey as CompetencyKey;
+  const info = competencyInfo(competencyKey);
+  const coach = await resolveCoachForUser(userId);
+
+  const result = await coachTurn(
+    {
+      userId,
+      coachedSessionId: session.id,
+      leg: session.phase,
+      legCount: session.legCount,
+      momentFraming: ctx.framing,
+      moment: {
+        counterpartLine: ctx.moment.counterpartLine,
+        studentLine: ctx.moment.studentLine,
+      },
+      coach,
+      competency: { key: competencyKey, label: info.label, description: info.description },
+      rubricDimensions: rubricDimensionsForCompetency(ctx.typeSlug, competencyKey),
+      underlyingTypeName: ctx.typeName,
+      utterance,
+    },
+    deps,
+  );
+
+  return { coachTurn: result, leg: await buildLegView(userId, session) };
 }
 
 // ---------------------------------------------------------------------------
@@ -504,16 +551,27 @@ export type CoachedAction = "advance" | "complete";
 export type LegTransitionResult = "FRESH" | "COMPLETE" | "REJECTED";
 
 /**
- * The full REPLAY-then-FRESH ordering, as data: REPLAY + advance -> FRESH;
- * REPLAY + complete -> REJECTED; FRESH + advance -> REJECTED; FRESH +
- * complete -> COMPLETE; COMPLETE + anything -> REJECTED. `advanceToFresh`
- * and `completeCoachedSession` both consult this before doing anything else,
- * so the ordering can never silently drift from what this function says.
+ * The full REPLAY-then-FRESH ordering, as data. With a fresh moment:
+ * REPLAY + advance -> FRESH; REPLAY + complete -> REJECTED; FRESH + advance ->
+ * REJECTED; FRESH + complete -> COMPLETE; COMPLETE + anything -> REJECTED.
+ * Without one (thin evidence, one leg): REPLAY + complete -> COMPLETE and
+ * REPLAY + advance -> REJECTED.
  */
-export function nextLeg(current: CoachedPhase, action: CoachedAction): LegTransitionResult {
-  if (current === "REPLAY" && action === "advance") return "FRESH";
+export function nextLeg(
+  current: CoachedPhase,
+  action: CoachedAction,
+  opts: { hasFreshMoment: boolean } = { hasFreshMoment: true },
+): LegTransitionResult {
+  if (current === "REPLAY" && action === "advance" && opts.hasFreshMoment) return "FRESH";
+  if (current === "REPLAY" && action === "complete" && !opts.hasFreshMoment) return "COMPLETE";
   if (current === "FRESH" && action === "complete") return "COMPLETE";
   return "REJECTED";
+}
+
+async function currentLegReady(session: CoachedSessionView): Promise<boolean> {
+  if (session.phase === "COMPLETE") return false;
+  const rows = await loadTurnRows(session.id);
+  return legStateFromTurns(rows, session.phase).legReady;
 }
 
 // ---------------------------------------------------------------------------
@@ -521,57 +579,35 @@ export function nextLeg(current: CoachedPhase, action: CoachedAction): LegTransi
 // ---------------------------------------------------------------------------
 
 /**
- * Advances a session from REPLAY to FRESH. Requires the session be in
- * REPLAY — throws `CoachedLegOrderError` if already FRESH or COMPLETE; the
- * ordering is LOCKED by 21-CONTEXT.md ("replay first, then fresh") and a
- * caller that could skip the replay would make REQ-114 false while the data
- * still looked right.
- *
- * `replayReportId` is the `InteractionReport` the REPLAY leg's own live
- * conversation produced (the engine session machinery produces one for
- * every live session, REPLAY included). Recording it here, in
- * `CoachedSession.reportId`, is what makes `readCoachedSession`'s derivation
- * (`reportId` set => FRESH) read correctly the instant REPLAY finishes;
- * `completeCoachedSession` below OVERWRITES this same column with the FRESH
- * leg's own report id when the session actually completes. There is NO
+ * Advances a session from REPLAY to FRESH. Requires REPLAY, a fresh moment,
+ * and a REPLAY leg the coach has closed (LEG_DONE). There is NO
  * `advanceToReplay` and no way to reach FRESH without REPLAY having
  * completed — both absences are deliberate.
  */
 export async function advanceToFresh(args: {
   userId: string;
   coachedSessionId: string;
-  replayReportId: string;
 }): Promise<CoachedLegView> {
-  const { userId, coachedSessionId, replayReportId } = args;
+  const { userId, coachedSessionId } = args;
 
   const session = await readCoachedSession(userId, coachedSessionId);
   if (!session) throw new NotReachableOutsideAPathError(coachedSessionId);
 
-  if (nextLeg(session.phase, "advance") === "REJECTED") {
+  if (nextLeg(session.phase, "advance", { hasFreshMoment: session.legCount === 2 }) === "REJECTED") {
     throw new CoachedLegOrderError(
-      `advanceToFresh: session ${coachedSessionId} is in phase "${session.phase}", not REPLAY — ` +
-        `there is no advanceToReplay and no way to reach FRESH without REPLAY completing first.`,
+      `advanceToFresh: session ${coachedSessionId} is in phase "${session.phase}" with ${session.legCount} leg(s) — ` +
+        `FRESH is reachable only from a completed REPLAY leg of a two-leg session.`,
+    );
+  }
+  if (!(await currentLegReady(session))) {
+    throw new CoachedLegNotDoneError(
+      `advanceToFresh: the coach has not closed the REPLAY leg of session ${coachedSessionId}.`,
     );
   }
 
-  const replayReport = await prisma.interactionReport.findFirst({
-    where: { id: replayReportId, userId },
-    select: { id: true },
-  });
-  if (!replayReport) {
-    throw new ReplayMomentUnavailableError(
-      `advanceToFresh: replayReportId ${replayReportId} does not exist or is not owned by user ${userId}`,
-    );
-  }
-
-  await prisma.coachedSession.update({
-    where: { id: coachedSessionId },
-    data: { reportId: replayReportId },
-  });
-
+  await markReplayLegComplete(userId, coachedSessionId);
   const updated = await readCoachedSession(userId, coachedSessionId);
   if (!updated) throw new NotReachableOutsideAPathError(coachedSessionId);
-
   return buildLegView(userId, updated);
 }
 
@@ -580,39 +616,35 @@ export async function advanceToFresh(args: {
 // ---------------------------------------------------------------------------
 
 /**
- * Completes a coached session. Requires the session be in FRESH — a session
- * completed from REPLAY would evidence only the scaffolded leg.
+ * Completes a coached session once its final leg is coach-closed (FRESH for a
+ * two-leg session, REPLAY for a thin-evidence one).
  *
  * ORDER IS MANDATORY: `finishCoachedSession` FIRST, `recordCoachedContribution`
- * SECOND. `recordCoachedContribution` (21-16) requires `completedAt` and
- * `reportId` to be non-null and THROWS otherwise — `finishCoachedSession`
- * (21-12) is what sets both, so calling the contribution writer first always
- * fails. This is a correctness property of the two modules' own contracts,
- * not a style preference.
- *
- * Each is called exactly once. Both are individually idempotent
- * (`finishCoachedSession` throws on a second finish; `recordCoachedContribution`
- * returns `{ written: 0 }` on a retry) — that idempotence is a safety net for
- * a retried request, not a license to call either twice on purpose here.
+ * SECOND. `recordCoachedContribution` requires `completedAt` and THROWS
+ * otherwise. Each is called exactly once.
  */
 export async function completeCoachedSession(args: {
   userId: string;
   coachedSessionId: string;
-  reportId: string;
 }): Promise<{ contributionsWritten: number }> {
-  const { userId, coachedSessionId, reportId } = args;
+  const { userId, coachedSessionId } = args;
 
   const session = await readCoachedSession(userId, coachedSessionId);
   if (!session) throw new NotReachableOutsideAPathError(coachedSessionId);
 
-  if (nextLeg(session.phase, "complete") === "REJECTED") {
+  if (nextLeg(session.phase, "complete", { hasFreshMoment: session.legCount === 2 }) === "REJECTED") {
     throw new CoachedLegOrderError(
-      `completeCoachedSession: session ${coachedSessionId} is in phase "${session.phase}", not FRESH — ` +
-        `a session completed from REPLAY would evidence only the scaffolded leg.`,
+      `completeCoachedSession: session ${coachedSessionId} is in phase "${session.phase}" with ${session.legCount} leg(s) — ` +
+        `it cannot be completed from here.`,
+    );
+  }
+  if (!(await currentLegReady(session))) {
+    throw new CoachedLegNotDoneError(
+      `completeCoachedSession: the coach has not closed the ${session.phase} leg of session ${coachedSessionId}.`,
     );
   }
 
-  await finishCoachedSession(userId, coachedSessionId, reportId);
+  await finishCoachedSession(userId, coachedSessionId);
   const { written } = await recordCoachedContribution({ userId, coachedSessionId });
 
   return { contributionsWritten: written };
