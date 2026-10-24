@@ -7,6 +7,9 @@ export interface StudyPlanSummaryDTO {
   title: string;
   sourceReportCount: number;
   savedAt: string;
+  /** The plan's own one-paragraph summary (content.summary), so list views
+   * such as /study-plans can show it without fetching each full plan. */
+  summary: string;
   priorityThemes: Array<{ priority: number; theme: string }>;
 }
 
@@ -26,6 +29,7 @@ export function toStudyPlanSummaryDTO(row: StudyPlan): StudyPlanSummaryDTO {
     title: row.title,
     sourceReportCount: row.sourceReportCount,
     savedAt: row.savedAt.toISOString(),
+    summary: content.summary,
     priorityThemes: content.priorityThemes.map(({ priority, theme }) => ({ priority, theme })),
   };
 }
@@ -37,6 +41,7 @@ export function toStudyPlanDTO(row: StudyPlan): StudyPlanDTO {
     title: row.title,
     sourceReportCount: row.sourceReportCount,
     savedAt: row.savedAt.toISOString(),
+    summary: content.summary,
     priorityThemes: content.priorityThemes.map(({ priority, theme }) => ({ priority, theme })),
     content,
   };
