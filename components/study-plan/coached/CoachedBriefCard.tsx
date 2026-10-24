@@ -5,6 +5,7 @@ import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
 
 import CoachedMomentPanel from "./CoachedMomentPanel";
+import { formatMomentDate } from "./format-moment-date";
 
 /**
  * Pre-entry brief. Nothing auto-starts: the avatar is mounted only after the
@@ -37,6 +38,7 @@ export default function CoachedBriefCard({
   resuming,
 }: CoachedBriefCardProps) {
   const pct = Math.round((worth.coachedWeight / worth.unaidedWeight) * 100);
+  const momentDate = formatMomentDate(moment.sessionDate);
 
   return (
     <section aria-labelledby="coached-brief-heading" className="space-y-5">
@@ -49,7 +51,8 @@ export default function CoachedBriefCard({
 
       <div className="space-y-2">
         <p className="text-sm font-semibold text-[#385463]">
-          The moment you will rework, from your session on {moment.sessionDate}
+          The moment you will rework
+          {momentDate ? `, from your session on ${momentDate}` : ""}
         </p>
         <CoachedMomentPanel
           counterpartLine={moment.counterpartLine}
