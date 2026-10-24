@@ -309,7 +309,8 @@ console.log("\n6. CAMERA_BLOCK_COPY defined exactly once (REQ-70)");
           : "         (none)")
     );
   }
-  if (defs[0] !== "components/practice/steps/CameraConsentStep.tsx") {
+  // Moved to the shared session chrome (Phase 22 G4, 22-SHARED-SHELL-DECISION.md).
+  if (defs[0] !== "components/session/CameraConsentStep.tsx") {
     fail(
       `CAMERA_BLOCK_COPY must live in CameraConsentStep.tsx, found in ${defs[0]}`
     );
