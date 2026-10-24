@@ -349,6 +349,8 @@ export async function startSession({
   interviewerName: rawInterviewerName,
   resumeId: rawResumeId,
   resumeText: rawResumeText,
+  jobDescriptionId: rawJobDescriptionId,
+  jobDescriptionText: rawJobDescriptionText,
   language,
   timeBudgetOverrideSeconds,
   difficulty: rawDifficulty,
@@ -366,6 +368,9 @@ export async function startSession({
   interviewerName?: unknown;
   resumeId?: unknown;
   resumeText?: unknown;
+  /** Attached job posting (quick task 003) — interview types only. */
+  jobDescriptionId?: unknown;
+  jobDescriptionText?: unknown;
   language?: unknown;
   /** Student-proposed session length in seconds; server clamps. */
   timeBudgetOverrideSeconds?: unknown;
@@ -483,6 +488,17 @@ export async function startSession({
       typeof rawResumeText === "string"
         ? truncate(rawResumeText, MAX_RESUME_TEXT_LENGTH)
         : null;
+    // Same validation shape as the resume pair above: a server-issued UUID or
+    // null (a pasted posting legitimately has no id), and a truncated string.
+    const jobDescriptionId =
+      typeof rawJobDescriptionId === "string" &&
+      UUID_V4_REGEX.test(rawJobDescriptionId)
+        ? rawJobDescriptionId
+        : null;
+    const jobDescriptionText =
+      typeof rawJobDescriptionText === "string"
+        ? truncate(rawJobDescriptionText, MAX_RESUME_TEXT_LENGTH)
+        : null;
 
     const inputSnapshot: InterviewInputSnapshot = {
       kind: "interview",
@@ -496,6 +512,8 @@ export async function startSession({
       targetMinutes: customizationRecord.targetMinutes,
       targetQuestionCount: customizationRecord.targetQuestionCount,
       interviewerPersona: customizationRecord.interviewerPersona,
+      jobDescriptionId,
+      jobDescriptionText,
     };
 
     const report = await prisma.interactionReport.create({
