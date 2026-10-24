@@ -62,8 +62,8 @@ import {
 } from "@/lib/metrics/visual-capture";
 import { createVocalCapture, type VocalCaptureHandle } from "@/lib/metrics/vocal-capture";
 import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
-import { SelfViewThumbnail } from "@/components/metrics/SelfViewThumbnail";
-import { FaceDetectionBanner } from "@/components/metrics/FaceDetectionBanner";
+import { SelfViewThumbnail } from "@/components/session/SelfViewThumbnail";
+import { FaceDetectionBanner } from "@/components/session/FaceDetectionBanner";
 import type { CaseStudy, InteractionLog, StartAvatarRequest } from "@/types";
 import CaseStudySessionView from "@/components/practice/CaseStudySessionView";
 

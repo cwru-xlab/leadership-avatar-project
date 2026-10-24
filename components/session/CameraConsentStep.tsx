@@ -2,7 +2,9 @@
 
 /**
  * THE ONE camera-mode consent gate for every engine-backed practice type
- * (REQ-70).
+ * (REQ-70), and for coached sessions (Phase 22 G3). Lives in the shared
+ * session chrome (`components/session/`, 22-SHARED-SHELL-DECISION.md) so both
+ * the practice wizard and the coached shell use this single copy.
  *
  * `CameraBlockReason` and `CAMERA_BLOCK_COPY` previously lived verbatim in both
  * `app/interview/[type]/page.tsx` and `app/case-play/[caseId]/page.tsx`. That
@@ -13,7 +15,7 @@
  * through this step.
  */
 
-import MetricsConsentDialog from "@/components/metrics/MetricsConsentDialog";
+import MetricsConsentDialog from "@/components/session/MetricsConsentDialog";
 import type { CameraMode } from "@/lib/metrics/types";
 import { requestCameraStream } from "@/lib/metrics/visual-capture";
 import { Button } from "@heroui/button";
@@ -58,6 +60,13 @@ export interface CameraConsentStepProps {
    * uses "Start" to match today's case-play intro (REQ-69).
    */
   launchLabel?: string;
+  /**
+   * The noun in "This choice is locked once the {sessionNoun} starts".
+   * Defaults to "interview" so every practice type renders exactly as it did
+   * before this step moved into the shared session chrome; a coached session
+   * passes "session".
+   */
+  sessionNoun?: string;
 }
 
 export default function CameraConsentStep({
@@ -67,6 +76,7 @@ export default function CameraConsentStep({
   onLaunch,
   launching = false,
   launchLabel = "Start interview",
+  sessionNoun = "interview",
 }: CameraConsentStepProps) {
   // Camera-mode decision, made BEFORE the session and LOCKED — see
   // 10-CONTEXT.md "Camera mode is locked at session start".
@@ -167,7 +177,7 @@ export default function CameraConsentStep({
                 Practice with your camera on?
               </h2>
               <p className="mt-3 max-w-xl text-[15px] leading-7 text-[#58727f]">
-                This choice is locked once the interview starts — you
+                This choice is locked once the {sessionNoun} starts — you
                 can&apos;t switch it part-way, in either direction.
               </p>
             </div>
