@@ -351,8 +351,8 @@ console.log("\n6. COACH SPEECH GATE");
   const r8 = validateCoachSpeech('A stronger close is "we will deliver the pilot by the end of March".', ctx);
   check("8. quoting a NEW line -> CONTAINS_SCRIPTED_QUOTE", !r8.ok && r8.reason === "CONTAINS_SCRIPTED_QUOTE", JSON.stringify(r8));
 
-  const r8b = validateCoachSpeech('Lean on the "name it, claim it" move.', ctx);
-  check("8b. near-miss PASSES: a short quoted term of art", r8b.ok, JSON.stringify(r8b));
+  const r8b = validateCoachSpeech('Lean on the "call it out" move.', ctx);
+  check("8b. near-miss PASSES: a 3-word quoted term of art, under the 4-word threshold", r8b.ok, JSON.stringify(r8b));
 
   const r9 = validateCoachSpeech(
     "They said: can you walk me through why the budget slipped again this quarter. How did that land?",
