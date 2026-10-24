@@ -1271,7 +1271,7 @@ this one:
 layer is built in `lib/study-plan/coached/`, where 21-COACHED-ENGINE-DECISION.md already
 put it; nothing under `lib/engine/` or `components/practice/` changes in this phase.
 
-**Plans:** 9/16 plans executed
+**Plans:** 11/16 plans executed
 
 Plans:
 - [ ] 22-01-PLAN.md — Decision records (coach layer, avatar mount) + REQ-114/115/116 amendments

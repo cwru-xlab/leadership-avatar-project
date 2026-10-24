@@ -2,12 +2,12 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.1 — Consequence & Deck Breadth
-**Updated:** 2026-10-23 (Phase 22 Waves 1-2 complete — 22-01..22-09. Wave 2: per-turn competency scoring + cached moment selection with shared placement predicate (22-07); coach identity (default "Ann", Ann Therapist avatar + "Ann - IA" voice), coach persona prompt and verify-coach-containment (22-08); coach grade as COACHED_SESSION contribution at shared MODEL_GRADED_WEIGHT 0.20, no InteractionReport (22-09). Orchestrator fix: coach-prompt no longer a third competencyForDimension importer; verify-levels-goals exempts walkOutLocked. Migration applied locally only — prod NOT migrated. Milestone v1.1.)
+**Updated:** 2026-10-23 (Phase 22 Waves 1-3 complete — 22-01..22-11. Wave 3: gradeCoachedAttempt + gated coachTurn orchestrator, containment closure now non-empty (22-10); Settings "Your coach" card + /api/settings/coach with roster-validated PUT (22-11). Wave 2: per-turn competency scoring + cached moment selection with shared placement predicate (22-07); coach identity (default "Ann", Ann Therapist avatar + "Ann - IA" voice), coach persona prompt and verify-coach-containment (22-08); coach grade as COACHED_SESSION contribution at shared MODEL_GRADED_WEIGHT 0.20, no InteractionReport (22-09). Orchestrator fix: coach-prompt no longer a third competencyForDimension importer; verify-levels-goals exempts walkOutLocked. Migration applied locally only — prod NOT migrated. Milestone v1.1.)
 
 ## Current Position
 
-**Phase:** 22 — Coached Mode (Waves 1-2 of 8 complete; Wave 3 next)
-**Plan:** 22-01..22-09 complete; 22-10, 22-11 next (Wave 3). 22-16 is the blocking human browser UAT; REQ-113/114/115 stay Pending until it is approved.
+**Phase:** 22 — Coached Mode (Waves 1-3 of 8 complete; Wave 4 next)
+**Plan:** 22-01..22-11 complete; 22-12 next (Wave 4). 22-16 is the blocking human browser UAT; REQ-113/114/115 stay Pending until it is approved.
 **Status:** Practice tree and `lib/engine/` unchanged vs 59f6166. Open: containment runtime-marker scan covers 4/13 engine types (others by import closure only); path-route placement latency vs 60s maxDuration unmeasured with a real model; UAT needs a freshly generated path.
 **Last activity:** 2026-10-21 — quick task 006 (study-plan picker-as-modal +
 saved-plan own-route) complete, two commits (`1eeb762` feat, `86ae306`
