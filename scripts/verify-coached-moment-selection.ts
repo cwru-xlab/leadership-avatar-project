@@ -39,6 +39,7 @@ async function main() {
   const { initialProgress } = await import("../lib/interview/types");
   const { createPath } = await import("../lib/study-plan/path");
   const { selectPathSteps } = await import("../lib/study-plan/next-step");
+  const { planEvidenceFromReports } = await import("../lib/study-plan/plan-targets");
   const { computeMastery } = await import("../lib/mastery/compute");
   const { loadCoachedEvidence } = await import("../lib/study-plan/coached/evidence");
   const { loadGenerationSources } = await import("../lib/study-plan/checks/sources");
@@ -305,7 +306,9 @@ async function main() {
       check("P0. route calls selectCoachedMomentsFromReports(", /selectCoachedMomentsFromReports\(/.test(route));
       check("P0b. route handles NoQualifyingMomentError", /NoQualifyingMomentError/.test(route));
 
-      // Mirrors the route's walk: first qualifying competency in ranking order.
+      // Mirrors the route (Phase 23): plan-first selection (planEvidence from
+      // the same reports, cap 10), then EVERY target with interim evidence is
+      // qualified by the shared selector; only qualified ones get coached.
       async function place(reportsForPlan: string[], scorer: TurnScorer) {
         const sources = await loadGenerationSources(userId, reportsForPlan, { readTranscript });
         const evidence = await loadCoachedEvidence(userId, reportsForPlan);
@@ -316,23 +319,34 @@ async function main() {
         const unavailable = mastery.competencies
           .map((c) => c.competencyKey)
           .filter((k) => !sources.momentsByCompetency.has(k));
-        const first = selectPathSteps({ mastery, desiredCount: 7, unavailableCompetencies: unavailable, coachedEvidence: interim });
-        const order = first.ranking.map((r) => r.competencyKey).filter((k) => interim.has(k));
+        const scoredRows = await prisma.interactionReport.findMany({
+          where: { id: { in: reportsForPlan }, userId, status: "READY" },
+          select: { id: true, userId: true, scores: true, createdAt: true },
+        });
+        const planEvidence = planEvidenceFromReports(scoredRows);
+        const first = selectPathSteps({ mastery, desiredCount: 10, unavailableCompetencies: unavailable, coachedEvidence: interim, planEvidence });
+        const order = first.targets.filter((k) => interim.has(k));
         let placed: typeof COMP | null = null;
+        const qualified = new Map<string, { lowestPercent: number }>();
         for (const k of order) {
           try {
             await selectCoachedMomentsFromReports(
               { userId, reportIds: reportsForPlan, competencyKey: k },
               { scorer, readTranscript },
             );
-            placed = k as typeof COMP;
-            break;
+            if (!placed) placed = k as typeof COMP;
+            qualified.set(k, interim.get(k)!);
           } catch (e) {
             if (!(e instanceof NoQualifyingMomentError)) throw e;
           }
         }
-        const qualified = placed ? new Map([[placed, interim.get(placed)!]]) : new Map();
-        const second = selectPathSteps({ mastery, desiredCount: 7, unavailableCompetencies: unavailable, coachedEvidence: qualified });
+        const second = selectPathSteps({
+          mastery,
+          desiredCount: 10,
+          unavailableCompetencies: unavailable,
+          coachedEvidence: qualified as Map<never, { lowestPercent: number }>,
+          planEvidence,
+        });
         return { order, placed, second };
       }
 
