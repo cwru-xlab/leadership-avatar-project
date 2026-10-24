@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.1 — Consequence & Deck Breadth
-**Updated:** 2026-10-23 (Phase 22 Wave 1 complete — 22-01..22-06. Decision records written; additive migration `20261123000000_add_coached_mode` applied to local `leadership_avatar_dev` only — prod NOT migrated, build does not run migrations; moment ranking, scored-evidence coached-step gate, gated demonstration carve-out, and second avatar mount shipped. Disclosed shared-index commit sweeps: 22-02 files live in `caf0dc0`, 22-03 SUMMARY in `4d78f9d`; content intact, no further history rewrite. Milestone v1.1.)
+**Updated:** 2026-10-23 (Phase 22 Waves 1-2 complete — 22-01..22-09. Wave 2: per-turn competency scoring + cached moment selection with shared placement predicate (22-07); coach identity (default "Ann", Ann Therapist avatar + "Ann - IA" voice), coach persona prompt and verify-coach-containment (22-08); coach grade as COACHED_SESSION contribution at shared MODEL_GRADED_WEIGHT 0.20, no InteractionReport (22-09). Orchestrator fix: coach-prompt no longer a third competencyForDimension importer; verify-levels-goals exempts walkOutLocked. Migration applied locally only — prod NOT migrated. Milestone v1.1.)
 
 ## Current Position
 
-**Phase:** 22 — Coached Mode (Wave 1 of 8 complete; Wave 2 next)
-**Plan:** 22-01..22-06 complete; 22-07, 22-08, 22-09 next (Wave 2). 22-16 is the blocking human browser UAT; REQ-113/114/115 stay Pending until it is approved.
-**Status:** Wave 1 shipped. Practice tree and `lib/engine/` unchanged vs 59f6166. 22-04 note: stored step reasons are not recomputed, so UAT needs a freshly generated path.
+**Phase:** 22 — Coached Mode (Waves 1-2 of 8 complete; Wave 3 next)
+**Plan:** 22-01..22-09 complete; 22-10, 22-11 next (Wave 3). 22-16 is the blocking human browser UAT; REQ-113/114/115 stay Pending until it is approved.
+**Status:** Practice tree and `lib/engine/` unchanged vs 59f6166. Open: containment runtime-marker scan covers 4/13 engine types (others by import closure only); path-route placement latency vs 60s maxDuration unmeasured with a real model; UAT needs a freshly generated path.
 **Last activity:** 2026-10-21 — quick task 006 (study-plan picker-as-modal +
 saved-plan own-route) complete, two commits (`1eeb762` feat, `86ae306`
 test). The "Choose which interviews to use" picker built in quick-005 moved
