@@ -24,6 +24,10 @@ import { loadGenerationSources } from "@/lib/study-plan/checks/sources";
 import { generateChecksForCompetency } from "@/lib/study-plan/checks/generate";
 import { readCoachedSession } from "@/lib/study-plan/coached/instance";
 import { loadCoachedEvidence } from "@/lib/study-plan/coached/evidence";
+import {
+  selectCoachedMomentsFromReports,
+  NoQualifyingMomentError,
+} from "@/lib/study-plan/coached/moment-selection";
 import { ENGINE_TYPES } from "@/lib/engine/registry";
 import { SHARED_RUBRIC_DIMENSION_KEYS } from "@/lib/engine/types";
 
@@ -320,17 +324,58 @@ export async function POST(
       (key) => !sources.momentsByCompetency.has(key),
     );
 
-    // Scored-evidence availability guard (22-CONTEXT.md): a coached step needs
-    // BOTH a score from this plan's own source reports AND a moment. Moments
-    // alone were insufficient -- they come from historical reports while the
-    // NONE tier comes from the (empty) mastery ledger, which produced a
-    // self-contradictory reason. INTERIM: 22-07 Task 3 replaces this with the
-    // isQualifyingMoment-based guard.
+    // COACHED PLACEMENT GUARD (22-CONTEXT.md, 22-07 Task 3). A coached step is
+    // placed only on a competency where entry will find a qualifying turn:
+    // the walk below calls selectCoachedMomentsFromReports, the SAME
+    // isQualifyingMoment-based selector entry uses, so placement and entry
+    // cannot disagree and a placed step cannot dead-end (the 409 path is
+    // reachable only if data changed after placement).
+    //
+    // 1. Interim candidates: competencies the plan's own source reports scored
+    //    AND that have a moment (scored evidence and moments come from
+    //    different sources; either alone produced a self-contradictory reason).
     const evidence = await loadCoachedEvidence(currentUser.id, reportIds);
-    const coachedEvidence = new Map(
+    const interimCoachedEvidence = new Map(
       Array.from(evidence.entries()).filter(([key]) => sources.momentsByCompetency.has(key)),
     );
 
+    // 2. Pure, deterministic first pass, only to get the availability ranking.
+    const firstPass = selectPathSteps({
+      mastery,
+      desiredCount: DEFAULT_DESIRED_STEP_COUNT,
+      unavailableCompetencies,
+      coachedEvidence: interimCoachedEvidence,
+    });
+
+    // 3. Walk the ranking; stop at the FIRST competency that has a qualifying
+    //    moment. Latency: in the common case only ONE competency's reports are
+    //    scored (reports in parallel, one model call each) inside this route's
+    //    existing maxDuration; scores are cached, so entry re-scores nothing.
+    const coachedEvidence = new Map<CompetencyKey, { lowestPercent: number }>();
+    for (const ranked of firstPass.ranking) {
+      const candidate = interimCoachedEvidence.get(ranked.competencyKey);
+      if (!candidate) continue;
+      try {
+        await selectCoachedMomentsFromReports({
+          userId: currentUser.id,
+          reportIds,
+          competencyKey: ranked.competencyKey,
+        });
+        coachedEvidence.set(ranked.competencyKey, candidate);
+        break;
+      } catch (error) {
+        if (error instanceof NoQualifyingMomentError) continue;
+        // Scoring infrastructure trouble must not block path generation:
+        // treat this competency as not placeable and keep walking.
+        console.warn(
+          `Study-plan path ${planId}: coached qualification check failed for ${ranked.competencyKey}:`,
+          error instanceof Error ? error.name : "UnknownError",
+        );
+      }
+    }
+
+    // 4. Second pure pass with ONLY the qualified competency (empty =>
+    //    coachedOmitted).
     const selection = selectPathSteps({
       mastery,
       desiredCount: DEFAULT_DESIRED_STEP_COUNT,
