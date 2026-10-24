@@ -42,6 +42,7 @@ export interface ContributionInput {
   occurredAt: Date;
   sourceReportId?: string | null;
   sourceAttemptId?: string | null;
+  sourceCoachedSessionId?: string | null;
 }
 
 export interface MasteryContributionRow {
@@ -53,6 +54,7 @@ export interface MasteryContributionRow {
   weight: number;
   sourceReportId: string | null;
   sourceAttemptId: string | null;
+  sourceCoachedSessionId: string | null;
   reversedAt: Date | null;
   reversedReason: string | null;
   occurredAt: Date;
@@ -138,6 +140,7 @@ export async function recordContributions(
     occurredAt: input.occurredAt,
     sourceReportId: input.sourceReportId ?? null,
     sourceAttemptId: input.sourceAttemptId ?? null,
+    sourceCoachedSessionId: input.sourceCoachedSessionId ?? null,
   }));
 
   const result = await prisma.masteryContribution.createMany({ data: rows });
