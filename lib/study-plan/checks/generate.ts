@@ -70,6 +70,23 @@ Never invent a "source_report_id" or "quoted_turn_index" that was not given to y
 
 Return between 1 and the requested number of candidates. A candidate that quotes nobody (quoted_text is null) is acceptable ONLY for "MULTIPLE_CHOICE" and "FILL_IN_BLANK" — "REWRITE_WEAK_LINE" and "PICK_BETTER_RESPONSE" are both defined by reworking the student's own line and therefore always require a non-null quoted_text.`;
 
+/**
+ * CONCEPT MODE (Phase 23 user decision, 2026-10-24): "generate a concept
+ * knowledge check (multiple choice or pick-the-better-response) that does not
+ * quote the student, so every path keeps learn -> drill -> prove" when the
+ * competency has NO student moment. No transcript text is sent, and the gate
+ * below DISCARDS any candidate that quotes anyone or names a source — with no
+ * moment supplied there is nothing a quote could be verified against, so the
+ * verbatim guarantee is kept by refusing quotes outright, not by trusting.
+ */
+export const CONCEPT_CHECK_FORMATS = ["MULTIPLE_CHOICE", "PICK_BETTER_RESPONSE"] as const;
+
+export const CONCEPT_CHECK_SYSTEM_PROMPT = `You write concept knowledge-check questions for a leadership-practice student about ONE competency. No session moments are available, so the question tests the IDEA of the competency, not anything the student said.
+
+Use only the "MULTIPLE_CHOICE" or "PICK_BETTER_RESPONSE" format. For PICK_BETTER_RESPONSE, both candidates are short constructed responses to the same situation (neither is the student's), and answer_key.betterIndex marks the stronger one. For MULTIPLE_CHOICE, answer_key.correctIndex marks the one correct option.
+
+"quoted_text", "source_report_id" and "quoted_turn_index" MUST all be null: never quote or attribute any words to the student.`;
+
 // ---------------------------------------------------------------------------
 // Strict JSON schema
 // ---------------------------------------------------------------------------
@@ -248,6 +265,9 @@ export interface GenerateChecksArgs {
   desiredCount: number;
   /** Injected for testing. Defaults to the real OpenAI call. */
   callModel?: (payload: unknown) => Promise<unknown>;
+  /** Concept mode: no student moment exists for this competency (see
+   * CONCEPT_CHECK_SYSTEM_PROMPT). `moments` must then be empty. */
+  concept?: boolean;
 }
 
 export async function generateChecksForCompetency(
@@ -271,6 +291,16 @@ export async function generateChecksForCompetency(
   // array is right there on `args`, and reaching for it instead of the
   // prepared payload would be a one-line mistake that bypasses the boundary
   // entirely.
+  const concept = args.concept === true;
+  if (concept && args.moments.length > 0) {
+    return {
+      ok: false,
+      reason: "concept mode is only for a competency with no student moment",
+      discarded,
+      model,
+    };
+  }
+
   const prepared = prepareMomentsForGeneration({
     requestingUserId: args.userId,
     moments: args.moments,
@@ -286,6 +316,7 @@ export async function generateChecksForCompetency(
   );
 
   const userMessage = JSON.stringify({
+    ...(concept ? { mode: "CONCEPT", allowedFormats: CONCEPT_CHECK_FORMATS } : {}),
     competency: {
       key: competency.key,
       label: competency.label,
@@ -309,7 +340,7 @@ export async function generateChecksForCompetency(
   try {
     raw = await callModel({
       model,
-      system: CHECK_GENERATION_SYSTEM_PROMPT,
+      system: concept ? CONCEPT_CHECK_SYSTEM_PROMPT : CHECK_GENERATION_SYSTEM_PROMPT,
       user: userMessage,
       schema: CHECK_GENERATION_SCHEMA,
     });
@@ -371,6 +402,14 @@ export async function generateChecksForCompetency(
       return;
     }
     const format = formatValue as CheckFormat;
+    if (concept && !(CONCEPT_CHECK_FORMATS as readonly string[]).includes(format)) {
+      discarded.push({
+        index,
+        stage: "shape",
+        reason: `${format} is not a concept-check format (MULTIPLE_CHOICE or PICK_BETTER_RESPONSE only)`,
+      });
+      return;
+    }
 
     const promptValue = rawCandidate.prompt;
     if (typeof promptValue !== "string" || promptValue.trim().length === 0) {
@@ -423,7 +462,18 @@ export async function generateChecksForCompetency(
     // formats are defined by reworking the student's own line, so an
     // unquoted one is a generic question from the authored bank the
     // Deferred list in 21-CONTEXT.md rejects.
-    if (
+    // CONCEPT GATE: no moment was supplied, so any quote or provenance is
+    // unverifiable — DISCARD, never strip it and keep the candidate.
+    if (concept) {
+      if (quotedText !== null || sourceReportId !== null || quotedTurnIndex !== null) {
+        discarded.push({
+          index,
+          stage: "quote",
+          reason: "a concept check must not quote or attribute words to the student (no moment was supplied to verify against)",
+        });
+        return;
+      }
+    } else if (
       (format === "REWRITE_WEAK_LINE" || format === "PICK_BETTER_RESPONSE") &&
       quotedText === null
     ) {

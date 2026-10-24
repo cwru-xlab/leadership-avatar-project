@@ -38,7 +38,14 @@ import { planEvidenceFromReports } from "./plan-targets";
 
 /** What the practice page seeds its wizard state from. */
 export type ProveItPrefill =
-  | { kind: "interview"; customization: InterviewCustomizationInput }
+  | {
+      kind: "interview";
+      customization: InterviewCustomizationInput;
+      /** The source session's resume, reused as-is (user decision 2026-10-24). */
+      resume: { resumeId: string | null; resumeText: string } | null;
+      /** The source session's job posting, reused as-is. */
+      jobDescription: { jobDescriptionId: string | null; jobDescriptionText: string } | null;
+    }
   | { kind: "networking"; characterId: string | null; personaId: string | null; goal: string }
   | {
       kind: "pitch-elevator";
@@ -53,6 +60,9 @@ export type ProveItPrefill =
 
 export interface ProveItSourceReport {
   id: string;
+  /** Owner of the report; only the requesting user's own reports may seed a
+   * prefill (resume, job posting and pasted persona are personal data). */
+  userId: string;
   typeSlug: string;
   createdAt: Date;
   scores: unknown;
@@ -79,6 +89,15 @@ function labelFor(key: CompetencyKey): string {
 }
 
 /**
+ * PURE ownership gate (belt-and-braces on top of the userId-scoped query):
+ * drops any report not owned by the requesting user, so a prefill can never
+ * carry another student's resume, job posting or pasted persona.
+ */
+export function ownedSourceReports<T extends { userId: string }>(reports: readonly T[], requestingUserId: string): T[] {
+  return reports.filter((r) => r.userId === requestingUserId);
+}
+
+/**
  * PURE. The plan's "most relevant source session" for the target skill: among
  * source reports that scored the competency, the one that scored it LOWEST
  * (the session the skill most needs proving against); ties -> most recent.
@@ -92,7 +111,7 @@ export function chooseProveItSource(
   const byRecency = reports.slice().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   let best: { report: ProveItSourceReport; percent: number } | null = null;
   for (const report of byRecency) {
-    const ev = planEvidenceFromReports([{ id: report.id, userId: "", scores: report.scores, createdAt: report.createdAt }]).get(competencyKey);
+    const ev = planEvidenceFromReports([{ id: report.id, userId: report.userId, scores: report.scores, createdAt: report.createdAt }]).get(competencyKey);
     if (!ev) continue;
     if (!best || ev.meanPercent < best.percent) best = { report, percent: ev.meanPercent };
   }
@@ -121,9 +140,16 @@ function interviewCustomization(
     const dial = PERSONALITY_DIALS.find((d) =>
       d.clause ? snap.interviewerPersona === `${base.interviewerPersona}, ${d.clause}` : snap.interviewerPersona === base.interviewerPersona,
     );
-    if (dial) out.personalitySlug = dial.slug;
-    // A distilled pasted-profile persona is deliberately NOT re-used: the
-    // student would have to re-confirm whose profile it is. Open question.
+    if (dial) {
+      out.personalitySlug = dial.slug;
+    } else {
+      // Neither the preset persona nor preset + a dial: it was a pasted,
+      // DISTILLED profile persona (composePersona stores it verbatim, already
+      // capped). Reused as-is (user decision 2026-10-24); the display name the
+      // session showed was stored as interviewerName.
+      out.distilledPersona = snap.interviewerPersona;
+      if (snap.interviewerName) out.personaDisplayName = snap.interviewerName;
+    }
   }
   return out;
 }
@@ -134,7 +160,14 @@ export function prefillFromSnapshot(typeSlug: string, rawSnapshot: unknown): Pro
   if (!snap) return { kind: "none" };
   switch (snap.kind) {
     case "interview":
-      return { kind: "interview", customization: interviewCustomization(typeSlug, snap) };
+      return {
+        kind: "interview",
+        customization: interviewCustomization(typeSlug, snap),
+        resume: snap.resumeText ? { resumeId: snap.resumeId, resumeText: snap.resumeText } : null,
+        jobDescription: snap.jobDescriptionText
+          ? { jobDescriptionId: snap.jobDescriptionId ?? null, jobDescriptionText: snap.jobDescriptionText }
+          : null,
+      };
     case "networking":
       if (!snap.goal) return { kind: "none" };
       return {
@@ -207,10 +240,13 @@ export async function resolveProveIt(
   const rawIds = step.path.studyPlan.sourceReportIds;
   const reportIds = Array.isArray(rawIds) ? rawIds.filter((id): id is string => typeof id === "string") : [];
   if (reportIds.length === 0) return null;
-  const reports = await prisma.interactionReport.findMany({
-    where: { id: { in: reportIds }, userId, status: "READY" },
-    select: { id: true, typeSlug: true, createdAt: true, scores: true, inputSnapshot: true },
-  });
+  const reports = ownedSourceReports(
+    await prisma.interactionReport.findMany({
+      where: { id: { in: reportIds }, userId, status: "READY" },
+      select: { id: true, userId: true, typeSlug: true, createdAt: true, scores: true, inputSnapshot: true },
+    }),
+    userId,
+  );
 
   const competencyKey = step.competencyKey as CompetencyKey;
   const source = chooseProveItSource(reports, competencyKey);
