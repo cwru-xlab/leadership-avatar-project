@@ -28,8 +28,11 @@ import { extractSessionMoments, type SessionMoment } from "../lib/study-plan/mom
 import { validateVerbatimQuote } from "../lib/study-plan/verbatim";
 import {
   generateChecksForCompetency,
+  CONCEPT_CHECK_SYSTEM_PROMPT,
   type GenerationOutcome,
 } from "../lib/study-plan/checks/generate";
+import { gradeDeterministic } from "../lib/study-plan/checks/grade";
+import type { AnswerKey, CheckPayload } from "../lib/study-plan/checks/types";
 
 let checks = 0;
 let failures = 0;
@@ -569,6 +572,97 @@ async function main() {
         !new RegExp(`\\b${SELF_NAME}\\b`).test(capturedUserMessage),
       );
       check("NO row written (empty candidates array)", (await rowsForPlan()).length === 0);
+    }
+
+    // -------------------------------------------------------------------
+    // 14. CONCEPT MODE (Phase 23) — no student moment: quote nobody
+    // -------------------------------------------------------------------
+    console.log("\n14. CONCEPT MODE — a competency with no moment gets a check that quotes nobody");
+    {
+      const noQuote = { quoted_text: null, source_report_id: null, quoted_turn_index: null };
+      const conceptPbr = pbrCandidate({
+        ...noQuote,
+        payload: {
+          ...blankPayload(),
+          candidates: [
+            "I hear the deadline worry; here is the one change I propose and why.",
+            "Let's just see how it goes and revisit later.",
+          ],
+          rationalePrompt: "Which response keeps the position clear?",
+        },
+      });
+      let capturedSystem = "";
+      let capturedUser = "";
+      async function runConcept(candidates: unknown[], momentsOverride?: SessionMoment[]) {
+        const moments = momentsOverride ?? [];
+        return generateChecksForCompetency({
+          userId,
+          studyPlanId,
+          competencyKey: COMPETENCY_KEY,
+          selfNames: [SELF_NAME],
+          moments,
+          momentOwnerUserIds: moments.map(() => userId),
+          transcriptsByReportId: new Map(),
+          desiredCount: 2,
+          concept: true,
+          callModel: async (payload: unknown) => {
+            const p = payload as { system: string; user: string };
+            capturedSystem = p.system;
+            capturedUser = p.user;
+            return { candidates };
+          },
+        });
+      }
+
+      const ok = await runConcept([mcCandidate(noQuote), conceptPbr]);
+      check("concept: unquoted MC + constructed PBR both persisted", ok.ok === true && ok.created === 2, ok);
+      const rows = await rowsForPlan();
+      check(
+        "concept rows carry no quote and no provenance",
+        rows.length === 2 && rows.every((r) => r.quotedText === null && r.sourceReportId === null && r.quotedTurnIndex === null),
+        rows.map((r) => r.quotedText),
+      );
+      check("concept mode sends the concept system prompt", capturedSystem === CONCEPT_CHECK_SYSTEM_PROMPT);
+      check(
+        "concept mode sends no transcript text and marks the mode",
+        capturedUser.includes('"mode":"CONCEPT"') && !capturedUser.includes(DISTINCT_LINE) && !capturedUser.includes(SECOND_LINE),
+      );
+      const pbrRow = rows.find((r) => r.format === "PICK_BETTER_RESPONSE");
+      const graded = pbrRow
+        ? gradeDeterministic("PICK_BETTER_RESPONSE", pbrRow.payload as unknown as CheckPayload, pbrRow.answerKey as unknown as AnswerKey, { betterIndex: 0 })
+        : null;
+      check("a concept PBR is graded by the existing deterministic grader", graded?.correct === true, graded);
+      await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
+
+      // BITE-PROOFS: the same quoted candidate that moment mode ACCEPTS
+      // (scenario 1) is DISCARDED in concept mode — nothing to verify it against.
+      const quoted = await runConcept([mcCandidate()]);
+      check(
+        "bite-proof: a quoted candidate is DISCARDED in concept mode (stage quote), 0 rows",
+        quoted.ok === false && quoted.discarded.some((d) => d.stage === "quote") && (await rowsForPlan()).length === 0,
+        quoted,
+      );
+      const provenanceOnly = await runConcept([mcCandidate({ quoted_text: null })]);
+      check(
+        "bite-proof: provenance without a quote is DISCARDED in concept mode",
+        provenanceOnly.ok === false && provenanceOnly.discarded.some((d) => d.stage === "quote"),
+      );
+      const fib = await runConcept([fibCandidate(noQuote)]);
+      check(
+        "concept mode allows only MULTIPLE_CHOICE / PICK_BETTER_RESPONSE",
+        fib.ok === false && fib.discarded.some((d) => d.stage === "shape"),
+        fib,
+      );
+      const withMoments = await runConcept([mcCandidate(noQuote)], ALL_MOMENTS);
+      check("concept mode refuses to run when moments exist", withMoments.ok === false);
+      // Moment mode is unchanged: an unquoted PBR is still discarded there.
+      const momentUnquotedPbr = await run(stub([conceptPbr]));
+      check(
+        "moment mode still DISCARDS an unquoted PICK_BETTER_RESPONSE (verbatim guardrail intact)",
+        momentUnquotedPbr.ok === false && momentUnquotedPbr.discarded.some((d) => d.stage === "quote"),
+        momentUnquotedPbr,
+      );
+      await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
     }
 
     console.log(`\n${checks} checks run, ${failures} failed.`);

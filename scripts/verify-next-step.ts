@@ -309,13 +309,27 @@ console.log("\n7. UNAVAILABLE");
     coachedEvidence: ALL_EVIDENCE,
   });
 
-  const hostsNoKnowledgeCheck = !selection.steps.some(
+  // Phase 23 user decision: a competency with no moment still gets a
+  // CONCEPT knowledge check (quoting nobody), never a coached step.
+  const conceptCheck = selection.steps.find(
     (s) => s.kind === "KNOWLEDGE_CHECK" && s.competencyKey === weakest
   );
   const hostsNoCoachedSession = !selection.steps.some(
     (s) => s.kind === "COACHED_SESSION" && s.competencyKey === weakest
   );
-  check("unavailable weakest hosts no KNOWLEDGE_CHECK", hostsNoKnowledgeCheck);
+  check(
+    "unavailable weakest hosts a CONCEPT knowledge check whose reason says it quotes none",
+    !!conceptCheck && conceptCheck.selectionReason.includes("concept knowledge check") && conceptCheck.selectionReason.includes("quotes none"),
+    conceptCheck?.selectionReason
+  );
+  check(
+    "a moment-backed check is NOT worded as a concept check",
+    selection.steps.filter((s) => s.kind === "KNOWLEDGE_CHECK" && s.competencyKey !== weakest).every((s) => !s.selectionReason.includes("concept knowledge check"))
+  );
+  check(
+    "degrading a concept check to a drill drops every check sentence",
+    !!conceptCheck && !/knowledge check/i.test(reasonForDegradedCheckToDrill(conceptCheck.selectionReason))
+  );
   check("unavailable weakest hosts no COACHED_SESSION", hostsNoCoachedSession);
 
   check(
@@ -942,8 +956,17 @@ console.log("\n16. BUDGET SWEEP (deterministic enumeration)");
           if (sel.steps.length > cap) problems.push(`${tag}: over the cap ${cap}`);
           if (validatePathSteps(sel.steps).length) problems.push(`${tag}: invalid ${validatePathSteps(sel.steps)}`);
           if (orderIssues(sel.steps).length) problems.push(`${tag}: ${orderIssues(sel.steps)}`);
-          if (sel.steps.some((s) => (s.kind === "KNOWLEDGE_CHECK" || s.kind === "COACHED_SESSION") && unavailable.includes(s.competencyKey)))
-            problems.push(`${tag}: unavailable competency hosts a check/coached step`);
+          if (sel.steps.some((s) => s.kind === "COACHED_SESSION" && unavailable.includes(s.competencyKey)))
+            problems.push(`${tag}: unavailable competency hosts a coached step`);
+          if (sel.steps[0].kind !== "KNOWLEDGE_CHECK") problems.push(`${tag}: the path does not open with a knowledge check`);
+          // learn -> drill -> prove: every targeted block opens with a check.
+          for (const t of sel.targets) {
+            const first = sel.steps.find((s) => s.competencyKey === t && s.kind !== "UNAIDED_SESSION");
+            if (first?.kind !== "KNOWLEDGE_CHECK" && sel.steps.filter((s) => s.kind !== "UNAIDED_SESSION").some((s) => s.competencyKey === t)) {
+              // a fill block may be trimmed to a drill only when the cap is tight
+              if (cap >= 7) problems.push(`${tag}: target ${t} has no opening knowledge check`);
+            }
+          }
         }
       }
     }
