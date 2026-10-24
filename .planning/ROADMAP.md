@@ -46,6 +46,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [ ] **Phase 19: Deck-Led Pitch Family** - Four more deck-led pitch modes alongside the investor deck, sharing one deck capability
 - [ ] **Phase 20: Difficult Conversation Walk-Outs** - The avatar leaves a difficult conversation when the student loses control of its hostility
 - [ ] **Phase 21: Adaptive Mastery Path** - Study plans become a tailored improvement path: measured mastery, generated practice aimed at the gap, knowledge checks, and in-session coaching
+- [ ] **Phase 22: Coached Mode** - Coached sessions get an actual coach: a coach persona, the avatar back, and a replay target worth reworking
 
 ## Phase Details
 
@@ -1218,3 +1219,53 @@ closed its own work in `17-CLOSE-RECORD.md`.
 Phases 15 and 16 completed their deferred Pass 1 keyboard UAT as a human-reported
 PASS on 2026-10-05. The record remains evidence-PARTIAL because IDs and item-level
 notes were not supplied; see `17-KEYBOARD-PASS-1.md`.
+
+### Phase 22: Coached Mode
+
+**Goal:** A coached session is recognizably coaching. Phase 21 shipped the path
+step, the runtime, the tip rail and the contribution weight, then closed without
+the coach itself — `3893c39` reverted REQ-113/114/115 after UAT found
+`CoachedSessionShell` starting an ordinary interview session (`typeSlug:
+underlyingTypeSlug`) with no coach system prompt, because no coach prompt exists
+anywhere in `lib/`. The avatar was printing "Coach:" in front of the general
+interviewer. This phase closes that gap and the three defects found alongside it.
+
+**Depends on:** Phase 21
+
+**In scope:**
+1. **A coach persona.** A real coach system prompt under `lib/engine/`, which
+   means revisiting `21-COACHED-ENGINE-DECISION.md`'s binding "coached mode is
+   NOT an `ENGINE_TYPES` entry" conclusion rather than working around it. 21-12's
+   registry-length guard and 21-20's no-gate reasoning both rest on that
+   conclusion, so changing it is a decision this phase must make in writing.
+2. **The avatar.** 21-24 built a text-only shell to satisfy 21-12's isolation
+   guard against `components/practice/` — `InteractiveAvatarWrapper` and the
+   visual/vocal capture pipeline were the undisclosed cost. Either the guard or
+   the text-only presentation has to give.
+3. **A replay target worth reworking.** `lib/study-plan/coached/runtime.ts`
+   selects turn index 0, observed replaying "I'm ready to begin the interview."
+   Nothing selects for a turn that actually evidences the competency.
+4. **A stated objective, and scrolling.** The student is given no account of what
+   the session is for, and the page does not scroll.
+
+Also here, because it is the same root cause as 3: `lib/study-plan/next-step.ts`
+composes "has no scored evidence yet" (`:168`) with "This coached session reworks
+a moment where it showed" (`:185`) — self-contradictory, observed verbatim. The
+availability guard tests whether MOMENTS exist, not whether SCORED EVIDENCE does.
+
+**Explicitly NOT in scope** — these are real and go to a later phase, not into
+this one:
+- Four generated options for `PICK_BETTER_RESPONSE` (today `types.ts:56` hard-codes
+  two, one of them the student's verbatim line)
+- Conversational context in `REWRITE_WEAK_LINE` prompts
+- A plan-scoped practice entry (`PathPanel.tsx:104` links to a bare
+  `/practice/{slug}` wizard with no tailoring or brief)
+- Back-link destinations and scroll restoration
+- Backfilling `MasteryContribution` from the existing READY reports (0 rows
+  against 72 — recorded in `3893c39`, why every competency reads NONE)
+- Sidebar tabs and breakout views for study plans and paths
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 22 to break down)
