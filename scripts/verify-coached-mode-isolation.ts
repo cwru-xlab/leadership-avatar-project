@@ -195,9 +195,11 @@ async function runDatabaseSection() {
   const {
     createCoachedSession,
     finishCoachedSession,
+    markReplayLegComplete,
+    retargetLegacyCoachedSession,
     NotReachableOutsideAPathError,
     InvalidReplayTargetError,
-    InvalidFreshScenarioError,
+    InvalidFreshMomentError,
   } = await import("../lib/study-plan/coached/instance");
 
   const COMPETENCY_KEY = "delivery_presence" as const;
@@ -314,7 +316,11 @@ async function runDatabaseSection() {
         pathStepId: knowledgeCheckStep.id,
         replaySourceReportId: report.id,
         replayTurnIndex: 0,
-        freshScenarioPrompt: "A fresh scenario prompt.",
+        freshSourceReportId: null,
+        freshTurnIndex: null,
+        selectionBasis: "PER_TURN_SCORE" as const,
+        replayMomentScore: 2,
+        freshMomentScore: null,
       });
     } catch (err) {
       threwOnWrongKind = err instanceof NotReachableOutsideAPathError;
@@ -332,7 +338,11 @@ async function runDatabaseSection() {
         pathStepId: coachedStep.id,
         replaySourceReportId: otherReport.id,
         replayTurnIndex: 0,
-        freshScenarioPrompt: "A fresh scenario prompt.",
+        freshSourceReportId: null,
+        freshTurnIndex: null,
+        selectionBasis: "PER_TURN_SCORE" as const,
+        replayMomentScore: 2,
+        freshMomentScore: null,
       });
     } catch (err) {
       threwOnForeignStep = err instanceof NotReachableOutsideAPathError;
@@ -350,7 +360,11 @@ async function runDatabaseSection() {
         pathStepId: coachedStep.id,
         replaySourceReportId: report.id,
         replayTurnIndex: 999,
-        freshScenarioPrompt: "A fresh scenario prompt.",
+        freshSourceReportId: null,
+        freshTurnIndex: null,
+        selectionBasis: "PER_TURN_SCORE" as const,
+        replayMomentScore: 2,
+        freshMomentScore: null,
       });
     } catch (err) {
       threwOnBadTurnIndex = err instanceof InvalidReplayTargetError;
@@ -368,7 +382,11 @@ async function runDatabaseSection() {
         pathStepId: coachedStep.id,
         replaySourceReportId: otherReport.id,
         replayTurnIndex: 0,
-        freshScenarioPrompt: "A fresh scenario prompt.",
+        freshSourceReportId: null,
+        freshTurnIndex: null,
+        selectionBasis: "PER_TURN_SCORE" as const,
+        replayMomentScore: 2,
+        freshMomentScore: null,
       });
     } catch (err) {
       threwOnForeignReport = err instanceof InvalidReplayTargetError;
@@ -378,7 +396,7 @@ async function runDatabaseSection() {
       threwOnForeignReport,
     );
 
-    // Empty freshScenarioPrompt throws.
+    // Half-set fresh moment throws.
     let threwOnEmptyFresh = false;
     try {
       await createCoachedSession({
@@ -386,15 +404,57 @@ async function runDatabaseSection() {
         pathStepId: coachedStep.id,
         replaySourceReportId: report.id,
         replayTurnIndex: 0,
-        freshScenarioPrompt: "   ",
+        freshSourceReportId: report.id,
+        freshTurnIndex: null,
+        selectionBasis: "PER_TURN_SCORE" as const,
+        replayMomentScore: 2,
+        freshMomentScore: 2,
       });
     } catch (err) {
-      threwOnEmptyFresh = err instanceof InvalidFreshScenarioError;
+      threwOnEmptyFresh = err instanceof InvalidFreshMomentError;
     }
     check(
-      "createCoachedSession with empty freshScenarioPrompt throws InvalidFreshScenarioError",
+      "createCoachedSession with a half-set fresh moment throws InvalidFreshMomentError",
       threwOnEmptyFresh,
     );
+
+    // Fresh equal to replay throws.
+    let threwOnSameMoment = false;
+    try {
+      await createCoachedSession({
+        userId,
+        pathStepId: coachedStep.id,
+        replaySourceReportId: report.id,
+        replayTurnIndex: 1,
+        freshSourceReportId: report.id,
+        freshTurnIndex: 1,
+        selectionBasis: "PER_TURN_SCORE",
+        replayMomentScore: 2,
+        freshMomentScore: 2,
+      });
+    } catch (err) {
+      threwOnSameMoment = err instanceof InvalidFreshMomentError;
+    }
+    check("fresh moment equal to replay moment throws InvalidFreshMomentError", threwOnSameMoment);
+
+    // Foreign fresh report throws.
+    let threwOnForeignFresh = false;
+    try {
+      await createCoachedSession({
+        userId,
+        pathStepId: coachedStep.id,
+        replaySourceReportId: report.id,
+        replayTurnIndex: 1,
+        freshSourceReportId: otherReport.id,
+        freshTurnIndex: 2,
+        selectionBasis: "PER_TURN_SCORE",
+        replayMomentScore: 2,
+        freshMomentScore: 2,
+      });
+    } catch (err) {
+      threwOnForeignFresh = err instanceof InvalidFreshMomentError;
+    }
+    check("another user's fresh report throws InvalidFreshMomentError", threwOnForeignFresh);
 
     // A valid create succeeds, writes coachedSessionId back, and a second
     // identical create returns the SAME session rather than erroring or
@@ -404,10 +464,15 @@ async function runDatabaseSection() {
       pathStepId: coachedStep.id,
       replaySourceReportId: report.id,
       replayTurnIndex: 0,
-      freshScenarioPrompt: "A fresh scenario exercising the same competency.",
+      freshSourceReportId: report.id,
+      freshTurnIndex: 3,
+      selectionBasis: "PER_TURN_SCORE",
+      replayMomentScore: 2,
+      freshMomentScore: 3,
     });
     check("valid createCoachedSession succeeds", !!createdSession.id);
     check("created session has phase REPLAY", createdSession.phase === "REPLAY");
+    check("two-moment session has legCount 2", createdSession.legCount === 2);
 
     const stepAfterCreate = await prisma.studyPlanPathStep.findUnique({
       where: { id: coachedStep.id },
@@ -422,7 +487,11 @@ async function runDatabaseSection() {
       pathStepId: coachedStep.id,
       replaySourceReportId: report.id,
       replayTurnIndex: 0,
-      freshScenarioPrompt: "A different prompt text on the duplicate call.",
+      freshSourceReportId: report.id,
+      freshTurnIndex: 3,
+      selectionBasis: "PER_TURN_SCORE",
+      replayMomentScore: 2,
+      freshMomentScore: 3,
     });
     check(
       "a second identical create returns the SAME session id (resumes, does not duplicate)",
@@ -443,8 +512,39 @@ async function runDatabaseSection() {
       where: { userId },
     });
 
-    const finishReport = await makeReport(userId, 3);
-    await finishCoachedSession(userId, createdSession.id, finishReport.id);
+    // Phase derivation: REPLAY -> FRESH (after markReplayLegComplete) -> COMPLETE.
+    await markReplayLegComplete(userId, createdSession.id);
+    const { readCoachedSession } = await import("../lib/study-plan/coached/instance");
+    const midSession = await readCoachedSession(userId, createdSession.id);
+    check("phase reads FRESH after markReplayLegComplete", midSession?.phase === "FRESH");
+    let threwOnSecondMark = false;
+    try {
+      await markReplayLegComplete(userId, createdSession.id);
+    } catch {
+      threwOnSecondMark = true;
+    }
+    check("markReplayLegComplete twice throws", threwOnSecondMark);
+
+    // A completed or Phase 22 session must not be re-targeted.
+    let threwOnRetargetNew = false;
+    try {
+      await retargetLegacyCoachedSession(userId, createdSession.id, {
+        replaySourceReportId: report.id,
+        replayTurnIndex: 1,
+        freshSourceReportId: null,
+        freshTurnIndex: null,
+        selectionBasis: "PER_TURN_SCORE",
+        replayMomentScore: 2,
+        freshMomentScore: null,
+      });
+    } catch {
+      threwOnRetargetNew = true;
+    }
+    check("retargetLegacyCoachedSession refuses a row with a selectionBasis", threwOnRetargetNew);
+
+    await finishCoachedSession(userId, createdSession.id);
+    const doneSession = await readCoachedSession(userId, createdSession.id);
+    check("phase reads COMPLETE after finishCoachedSession (no reportId needed)", doneSession?.phase === "COMPLETE");
 
     const stepAfterFinish = await prisma.studyPlanPathStep.findUnique({
       where: { id: coachedStep.id },
@@ -459,8 +559,8 @@ async function runDatabaseSection() {
       where: { id: createdSession.id },
     });
     check(
-      "finishCoachedSession writes reportId and completedAt",
-      finishedSession?.reportId === finishReport.id && finishedSession?.completedAt != null,
+      "finishCoachedSession writes completedAt and no reportId",
+      finishedSession?.reportId === null && finishedSession?.completedAt != null,
     );
 
     const contributionCountAfter = await prisma.masteryContribution.count({
@@ -470,6 +570,46 @@ async function runDatabaseSection() {
       "finishCoachedSession writes NO MasteryContribution row (21-16 is the single writer)",
       contributionCountAfter === contributionCountBefore,
       `before=${contributionCountBefore} after=${contributionCountAfter}`,
+    );
+
+    // Legacy (selectionBasis null, incomplete) row may be re-targeted; a thin
+    // session (both fresh null) is accepted on a second path.
+    const plan2 = await makeStudyPlan(userId, "Coached Isolation Verify Plan 2");
+    const path2 = await createPath({
+      userId,
+      studyPlanId: plan2.id,
+      steps: makeSteps(),
+      selectionSnapshot: { note: "coached-isolation-verify-2" },
+    });
+    const coachedStep2 = path2.steps.find((s) => s.kind === "COACHED_SESSION")!;
+    const thin = await createCoachedSession({
+      userId,
+      pathStepId: coachedStep2.id,
+      replaySourceReportId: report.id,
+      replayTurnIndex: 2,
+      freshSourceReportId: null,
+      freshTurnIndex: null,
+      selectionBasis: "GROWTH_AREA_FALLBACK",
+      replayMomentScore: null,
+      freshMomentScore: null,
+    });
+    check("thin evidence (both fresh null) is accepted with legCount 1", thin.legCount === 1);
+    await prisma.coachedSession.update({
+      where: { id: thin.id },
+      data: { selectionBasis: null },
+    });
+    const retargeted = await retargetLegacyCoachedSession(userId, thin.id, {
+      replaySourceReportId: report.id,
+      replayTurnIndex: 4,
+      freshSourceReportId: report.id,
+      freshTurnIndex: 5,
+      selectionBasis: "PER_TURN_SCORE",
+      replayMomentScore: 2,
+      freshMomentScore: 3,
+    });
+    check(
+      "retargetLegacyCoachedSession rewrites a legacy incomplete row",
+      retargeted.replayTurnIndex === 4 && retargeted.freshTurnIndex === 5 && retargeted.selectionBasis === "PER_TURN_SCORE",
     );
   } finally {
     if (reportIds.length > 0) {
