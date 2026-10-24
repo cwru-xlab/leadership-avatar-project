@@ -20,7 +20,7 @@ import type { CameraMode } from "@/lib/metrics/types";
 import { requestCameraStream } from "@/lib/metrics/visual-capture";
 import { Button } from "@heroui/button";
 import { ArrowRight, Camera, CameraOff, CircleAlert } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 export type CameraBlockReason = "DENIED" | "NOT_FOUND" | "UNAVAILABLE";
 
@@ -67,6 +67,14 @@ export interface CameraConsentStepProps {
    * passes "session".
    */
   sessionNoun?: string;
+  /**
+   * Line under "Practice with my camera on". Defaults to the practice copy,
+   * byte-identical; a coached session passes its own (it feeds a summary, not
+   * a scored report).
+   */
+  cameraOnDescription?: ReactNode;
+  /** Line under "Camera off". Defaults to the practice copy, byte-identical. */
+  cameraOffDescription?: ReactNode;
 }
 
 export default function CameraConsentStep({
@@ -77,6 +85,13 @@ export default function CameraConsentStep({
   launching = false,
   launchLabel = "Start interview",
   sessionNoun = "interview",
+  cameraOnDescription = "Visual and Vocal will be scored.",
+  cameraOffDescription = (
+    <>
+      I&apos;ll practice without being measured. Visual and Vocal
+      won&apos;t be scored this time.
+    </>
+  ),
 }: CameraConsentStepProps) {
   // Camera-mode decision, made BEFORE the session and LOCKED — see
   // 10-CONTEXT.md "Camera mode is locked at session start".
@@ -226,7 +241,7 @@ export default function CameraConsentStep({
                     Practice with my camera on
                   </span>
                   <span className="text-sm leading-6 text-[#58727f]">
-                    Visual and Vocal will be scored.
+                    {cameraOnDescription}
                   </span>
                 </button>
                 <button
@@ -241,8 +256,7 @@ export default function CameraConsentStep({
                   </span>
                   <span className="font-serif text-xl">Camera off</span>
                   <span className="text-sm leading-6 text-[#58727f]">
-                    I&apos;ll practice without being measured. Visual and Vocal
-                    won&apos;t be scored this time.
+                    {cameraOffDescription}
                   </span>
                 </button>
               </div>

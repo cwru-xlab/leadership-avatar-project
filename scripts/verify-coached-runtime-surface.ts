@@ -541,6 +541,28 @@ console.log("\n6c. NUMERIC GRADES ONLY AT THE END (user decision 2026-10-24)");
   );
 }
 
+console.log("\n6e. FOLLOW-UPS — no live verdicts, metrics on complete, leave to the plan");
+{
+  const completeAt = shellSource.indexOf("function ScoreBadge(");
+  const liveSource = completeAt === -1 ? shellSource : shellSource.slice(0, completeAt);
+  check(
+    "the live room passes no per-try attempts (no Accepted / Not yet verdicts) to the moment panel",
+    !/attempts=\{/.test(liveSource),
+  );
+  check(
+    "the complete PATCH carries the metrics block",
+    /JSON\.stringify\(\{\s*action:\s*"complete",\s*metrics\s*\}\)/.test(shellSource),
+  );
+  check(
+    "leaving goes to the plan page (/study-plans/{planId})",
+    /function leaveHref\(planId: string\)[\s\S]*?`\/study-plans\/\$\{planId\}`/.test(shellSource),
+  );
+  check(
+    "the next-step link uses PathPanel's hrefForStep contract",
+    /import \{ hrefForStep[^}]*\} from "@\/components\/study-plan\/PathPanel"/.test(shellSource),
+  );
+}
+
 console.log("\n7. VERBATIM MOMENT");
 {
   const p = verbatimProblems(momentSource);

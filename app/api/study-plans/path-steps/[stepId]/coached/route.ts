@@ -143,8 +143,11 @@ export async function GET(
 /**
  * PATCH — a coach turn, advance, or finish, discriminated on body `action`
  * (`turn` | `advance` | `complete`). Any other `action` is 400; there is no
- * default verb. `advance` and `complete` take no body fields: the coach, not
- * the client, decides when a leg is done.
+ * default verb. `advance` and `complete` take no leg-control fields: the
+ * coach, not the client, decides when a leg is done. `complete` MAY carry an
+ * optional `metrics` block ({ cameraMode, visual, vocal } — the same
+ * `SessionMetricsPayload` shape a practice finish sends), which is accepted
+ * and currently ignored; see the TODO at the complete branch.
  */
 export async function PATCH(
   request: NextRequest,
@@ -248,6 +251,13 @@ export async function PATCH(
         const leg = await advanceToFresh({ userId: currentUser.id, coachedSessionId });
         return response({ leg }, 200);
       }
+      // TODO(23-migration): persist the optional `metrics` block
+      // ({ cameraMode, visual, vocal }) once the migration adds
+      // CoachedSession.cameraMode / visualMetrics / vocalMetrics. Parse it with
+      // `parseMetricsPayload` (lib/metrics/ingest.ts) exactly as the practice
+      // finish does, and honour camera consent server-side (force OFF without
+      // `videoAnalysisConsentAt`, as `resolveCameraMode` does). Until then it
+      // is accepted and deliberately ignored: no column exists to hold it.
       const { contributionsWritten } = await completeCoachedSession({
         userId: currentUser.id,
         coachedSessionId,
