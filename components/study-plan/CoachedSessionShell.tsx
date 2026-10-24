@@ -3,54 +3,49 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@heroui/button";
-import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
-import { Textarea } from "@heroui/input";
+
+import CoachAvatarStage, {
+  type CoachAvatarHandle,
+} from "@/components/study-plan/coached/CoachAvatarStage";
+import CoachedBriefCard from "@/components/study-plan/coached/CoachedBriefCard";
+import CoachedMomentPanel from "@/components/study-plan/coached/CoachedMomentPanel";
+import { useCoachedPushToTalk } from "@/components/study-plan/coached/useCoachedPushToTalk";
 
 /**
- * Coached session shell — REPLAY leg, tip rail, transition, FRESH leg,
- * finish (REQ-114, REQ-115, REQ-116).
+ * Coached session shell (Phase 22): brief -> consent -> guarded opening ->
+ * coach-closed legs -> complete.
  *
- * This is the student-facing surface 21-23's runtime exists to serve: that
- * plan made coached mode reachable over HTTP, but "a student can COMPLETE
- * it" and "every tip actually rendered" are both claims about what a
- * student OBSERVES, and there is no screen until this file.
+ * The avatar mount follows 22-AVATAR-MOUNT-DECISION.md: a second mount of the
+ * shared avatar primitive (`CoachAvatarStage`), never an import of the unaided
+ * practice shell. The student answers aloud (`useCoachedPushToTalk`); there is
+ * no typed path.
  *
- * REUSE, NOT IMPORT. `components/practice/PracticeSessionShell.tsx` was
- * read for its session transport (the engine's generic session-start /
- * turn / session-finish lifecycle) but is NOT imported, extended, or
- * modified here — 21-12's isolation guard asserts nothing under
- * `components/practice/` knows about coached mode, and "sharing" the shell
- * is the cheapest way to violate that. The reusable piece this file
- * actually needs is thin enough (three JSON fetches: start / turn / finish,
- * against the SAME engine session endpoints the practice shell itself
- * calls) that it is written fresh below rather than factored into a shared
- * module neither shell would otherwise need — `git diff --name-only --
- * components/practice/` stays empty either way. What is deliberately NOT
- * reused is the practice shell's HeyGen avatar video/audio rendering
- * (`InteractiveAvatarWrapper`) and its visual/vocal capture pipeline — a
- * coached session is still a real, scored, turn-taking live session against
- * the same `/api/practice/session/start`, `/api/interaction/chat`, and
- * `/api/practice/session/finish` endpoints an unaided one uses, presented
- * here as a text conversation rather than a video call. See the SUMMARY for
- * this plan for the explicit record of that scope decision.
+ * This file owns STATE AND FLOW. The rendering below is a deliberately plain
+ * single column; plan 22-15 replaces it with the real session layout (avatar
+ * and push-to-talk integration, moment panel placement, demonstration card).
+ * The seams it should use: `submitUtterance` (bind to the hook's
+ * `onTranscript`), `stageRef`, `videoUnavailable`, and the leg view.
  *
- * STATE MACHINE — mirrors the server, never leads it. `legView.leg` is
- * taken from a server response (GET/POST/PATCH against 21-23's route) and
- * is NEVER set from a local literal "FRESH" or "COMPLETE" string. Advancing
- * past REPLAY, or completing from FRESH, always re-reads (or is handed) the
- * server's own view of the leg — see `refreshLeg`, `handleAdvance`, and
- * `handleComplete` below. A client-side optimistic advance is how a student
- * could reach the fresh leg without the replay leg actually being recorded,
- * which would make REQ-114 false in the data while looking fine on screen.
+ * FLOW
+ * - The avatar is NOT mounted until the student presses the brief's button
+ *   (`consented`, a UI-only flag, not a leg). Nothing speaks before consent.
+ * - The coach's opening turn is requested exactly once per leg through
+ *   `requestOpeningTurn`, which is ref-guarded and may be triggered by the
+ *   stage becoming ready, the stage failing, or a fallback timeout. A video
+ *   vendor that fails or never reports ready therefore cannot hang a session;
+ *   the session continues as captions (degraded mode, not a design choice).
+ * - The coach, not the student, closes a leg. No forward control exists until
+ *   the server says `legReady`.
+ *
+ * STATE MACHINE: mirrors the server, never leads it. `legView` is taken from
+ * server responses only (GET / POST / PATCH) and is never assigned from a
+ * local literal; completing re-reads the server's view.
  */
 
 // ---------------------------------------------------------------------------
 // Client-side types mirroring lib/study-plan/coached/runtime.ts's
-// `CoachedLegView` response shape. NOT imported from that module — it pulls
-// in Prisma, S3, and the engine registry, none of which may reach a client
-// bundle. Mirrored the same way KnowledgeCheckCard.tsx mirrors its own
-// route's response shapes.
+// `CoachedLegView`. NOT imported: that module is server-only (Prisma, S3).
 // ---------------------------------------------------------------------------
 
 interface CoachedTipDTO {
@@ -59,23 +54,54 @@ interface CoachedTipDTO {
   reminder: string;
 }
 
-interface ReplayMomentDTO {
-  text: string;
+interface CoachedMomentDTO {
+  counterpartLine: string | null;
+  studentLine: string;
   sourceReportId: string;
   turnIndex: number;
+  sessionDate: string;
+}
+
+interface CoachedTurnDTO {
+  seq: number;
+  speaker: "COACH" | "STUDENT";
+  move: string;
+  text: string;
+  demonstration: string | null;
+  score: number | null;
+  acceptable: boolean | null;
+  parroted: boolean | null;
 }
 
 interface CoachedLegDTO {
   coachedSessionId: string;
   leg: "REPLAY" | "FRESH" | "COMPLETE";
+  legCount: 1 | 2;
+  thinEvidence: boolean;
   competencyKey: string;
-  replayMoment: ReplayMomentDTO | null;
-  freshScenarioPrompt: string | null;
+  competencyLabel: string;
+  competencyDescription: string;
+  coach: { name: string; avatarId: string; voiceId: string; isDefault: boolean };
+  moment: CoachedMomentDTO | null;
+  conversation: CoachedTurnDTO[];
+  awaiting: "REPLY" | "ATTEMPT" | "NONE" | null;
+  legReady: boolean;
+  attemptsInLeg: number;
   tips: CoachedTipDTO[];
   underlyingTypeSlug: string;
+  underlyingTypeName: string;
+  worth: { coachedWeight: number; unaidedWeight: number };
+  selectionBasis: "PER_TURN_SCORE" | "GROWTH_AREA_FALLBACK";
+  momentFraming: "REWORK" | "REFINEMENT";
 }
 
-type ChatTurn = { role: "user" | "assistant"; content: string };
+interface CoachTurnDTO {
+  speech: string;
+  move: string;
+  awaiting: "REPLY" | "ATTEMPT" | "NONE";
+  demonstration: string | null;
+  closedAtSoftCap: boolean;
+}
 
 type UiPhase = "LOADING" | "NEEDS_LOGIN" | "NOT_FOUND" | "ENTRY_ERROR" | "READY";
 
@@ -84,13 +110,10 @@ export interface CoachedSessionShellProps {
   stepId: string;
 }
 
-/** Turns a `competencyKey` like "structuring_feedback" into "Structuring feedback"
- * without importing `lib/mastery/competencies.ts` — that module pulls in
- * `lib/engine/registry.ts`, which must never reach a client bundle. */
-function formatCompetencyLabel(key: string): string {
-  const spaced = key.replace(/[_-]+/g, " ").trim().toLowerCase();
-  return spaced.length > 0 ? spaced[0].toUpperCase() + spaced.slice(1) : key;
-}
+/** Provisional until calibrated against real vendor connect times. */
+const OPENING_FALLBACK_MS = 15_000;
+/** Upper bound on waiting for the avatar to finish a line before the next. */
+const SPEECH_WAIT_MAX_MS = 45_000;
 
 export default function CoachedSessionShell({ stepId }: CoachedSessionShellProps) {
   const coachedUrl = `/api/study-plans/path-steps/${stepId}/coached`;
@@ -98,25 +121,24 @@ export default function CoachedSessionShell({ stepId }: CoachedSessionShellProps
   const [uiPhase, setUiPhase] = useState<UiPhase>("LOADING");
   const [entryError, setEntryError] = useState<string | null>(null);
   const [legView, setLegView] = useState<CoachedLegDTO | null>(null);
-  const [contributionsWritten, setContributionsWritten] = useState<number | null>(null);
 
-  // Per-leg live-session sub-state — reset whenever the server-reported leg
-  // changes (see the effect below keyed on `legKeyRef`).
-  const [sessionReportId, setSessionReportId] = useState<string | null>(null);
-  const [turns, setTurns] = useState<ChatTurn[]>([]);
-  const [draftTurn, setDraftTurn] = useState("");
-  const [startingSession, setStartingSession] = useState(false);
-  const [sendingTurn, setSendingTurn] = useState(false);
+  // UI-only flow state (none of these is a leg).
+  const [consented, setConsented] = useState(false);
+  const [videoUnavailable, setVideoUnavailable] = useState(false);
+  const [coachBusy, setCoachBusy] = useState(false);
   const [finishingLeg, setFinishingLeg] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
+  const [latestDemonstration, setLatestDemonstration] = useState<string | null>(null);
 
-  const legKeyRef = useRef<string | null>(null);
+  const stageRef = useRef<CoachAvatarHandle>(null);
+  const stageReadyRef = useRef(false);
+  const openingRequestedRef = useRef(false);
+  const openingTimerRef = useRef<number | null>(null);
+  const turnInFlightRef = useRef(false);
 
   /**
-   * Reads (or, on first entry, enters) the step's coached session. ALWAYS
-   * the thing that sets `legView` — there is no other writer of it in this
-   * component, which is what makes "the leg is never advanced client-side"
-   * a structural fact rather than a convention.
+   * Reads (or, on first entry, enters) the step's coached session. The only
+   * writer of `legView` besides the PATCH responses that return a leg.
    */
   const refreshLeg = useCallback(
     async (opts?: { allowCreate?: boolean }): Promise<void> => {
@@ -132,8 +154,7 @@ export default function CoachedSessionShell({ stepId }: CoachedSessionShellProps
       }
       if (response.status === 404) {
         if (!opts?.allowCreate) {
-          // No session yet — enter it. A GET never creates one itself
-          // (21-23's route guarantees this), so this is the ONE retry.
+          // No session yet. A GET never creates one, so this is the one retry.
           await refreshLeg({ allowCreate: true });
           return;
         }
@@ -142,9 +163,7 @@ export default function CoachedSessionShell({ stepId }: CoachedSessionShellProps
       }
       if (response.status === 409) {
         const data = (await response.json().catch(() => ({}))) as { error?: string };
-        setEntryError(
-          data.error ?? "The original session's transcript could not be read.",
-        );
+        setEntryError(data.error ?? "The original session's transcript could not be read.");
         setUiPhase("ENTRY_ERROR");
         return;
       }
@@ -162,201 +181,224 @@ export default function CoachedSessionShell({ stepId }: CoachedSessionShellProps
   );
 
   useEffect(() => {
-    refreshLeg();
-    // Intentionally run once on mount only — `refreshLeg` is stable across
-    // the component's life (it closes only over `coachedUrl`, which never
-    // changes for a mounted shell) and re-running it on every render would
-    // turn "resume on GET" into a resume-on-every-paint.
+    void refreshLeg();
+    // Mount only: `refreshLeg` closes over `coachedUrl`, which never changes
+    // for a mounted shell.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reset the live-session sub-state exactly when the SERVER-reported leg
-  // changes — never on a local action. This is what lets the student leave
-  // and return mid-leg without losing an in-flight conversation on a mere
-  // re-render.
+  // Stop the avatar session when the shell unmounts (the stage also stops
+  // itself on unmount; this covers the handle being held past it).
   useEffect(() => {
-    if (!legView) return;
-    const key = `${legView.coachedSessionId}:${legView.leg}`;
-    if (legKeyRef.current === key) return;
-    legKeyRef.current = key;
-    setSessionReportId(null);
-    setTurns([]);
-    setDraftTurn("");
-    setLiveError(null);
-  }, [legView]);
+    return () => {
+      if (openingTimerRef.current !== null) window.clearTimeout(openingTimerRef.current);
+      stageRef.current?.stop();
+    };
+  }, []);
 
   // -------------------------------------------------------------------------
-  // Live session transport — start / turn / finish, against the SAME
-  // engine-generic endpoints `components/practice/PracticeSessionShell.tsx`
-  // calls, written fresh here rather than imported from it.
+  // Coach turns
   // -------------------------------------------------------------------------
 
-  async function startLiveSession(): Promise<void> {
-    if (!legView) return;
-    setStartingSession(true);
-    setLiveError(null);
-    try {
-      const response = await fetch("/api/practice/session/start", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ typeSlug: legView.underlyingTypeSlug }),
-      });
-      const data = (await response.json().catch(() => ({}))) as {
-        reportId?: string;
-        error?: string;
-      };
-      if (!response.ok || typeof data.reportId !== "string") {
-        setLiveError(data.error ?? "Unable to start this leg's session.");
-        return;
-      }
-      setSessionReportId(data.reportId);
-    } finally {
-      setStartingSession(false);
+  /** Speaks a coach turn through the avatar when it is live; otherwise the
+   * text is already on screen as a caption and nothing is spoken. */
+  async function voiceCoachTurn(turn: CoachTurnDTO): Promise<void> {
+    setLatestDemonstration(turn.demonstration);
+    const stage = stageRef.current;
+    if (!stage || !stage.isReady()) return;
+    stage.speak(turn.speech);
+    if (turn.demonstration) {
+      await stage.waitForSpeechEnd(SPEECH_WAIT_MAX_MS);
+      if (stage.isReady()) stage.speak(turn.demonstration);
     }
   }
 
-  async function sendTurn(): Promise<void> {
-    if (!legView || !sessionReportId) return;
-    const content = draftTurn.trim();
-    if (!content || sendingTurn) return;
-
-    const nextTurns: ChatTurn[] = [...turns, { role: "user", content }];
-    setTurns(nextTurns);
-    setDraftTurn("");
-    setSendingTurn(true);
-    setLiveError(null);
-
-    try {
-      const response = await fetch("/api/interaction/chat", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: nextTurns,
-          engine: { typeSlug: legView.underlyingTypeSlug },
-          reportId: sessionReportId,
-        }),
-      });
-
-      if (!response.ok || !response.body) {
-        setLiveError("The coach could not respond. Please try again.");
-        return;
-      }
-
-      const assistantText = await readAssistantReply(response.body);
-      if (assistantText) {
-        setTurns((prev) => [...prev, { role: "assistant", content: assistantText }]);
-      }
-    } catch {
-      setLiveError("We couldn't reach the server. Please try again.");
-    } finally {
-      setSendingTurn(false);
+  /** Reads a non-ok PATCH response: a 409 resynchronizes from the server. */
+  async function handlePatchFailure(
+    response: Response,
+    fallbackMessage: string,
+  ): Promise<void> {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    if (response.status === 409) {
+      await refreshLeg();
+      return;
     }
+    setLiveError(data.error ?? fallbackMessage);
   }
 
   /**
-   * Finishes this leg's own live session, then polls the report until the
-   * evaluator has actually scored it (session/finish returns 202 fast and
-   * schedules evaluation — `completeCoachedSession`'s contribution writer
-   * requires scores to exist, so advancing or completing before they land
-   * would under-report what this leg evidenced). Returns whether the
-   * report is ready to be handed to the coached route.
+   * Asks the coach to open (or resume) the current leg. Idempotent per leg:
+   * the ref makes any second trigger a no-op, so the stage becoming ready,
+   * the stage failing and the fallback timeout can all call it safely.
    */
-  async function finishLiveSessionAndWaitReady(reportId: string): Promise<boolean> {
-    const finishResponse = await fetch("/api/practice/session/finish", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reportId, turns }),
-    });
-    if (!finishResponse.ok && finishResponse.status !== 409) {
-      setLiveError("Unable to finish this leg's session.");
-      return false;
-    }
-
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      const reportResponse = await fetch(`/api/practice/report/${reportId}`, {
+  async function requestOpeningTurn(): Promise<void> {
+    if (openingRequestedRef.current) return;
+    openingRequestedRef.current = true;
+    setCoachBusy(true);
+    setLiveError(null);
+    try {
+      const response = await fetch(coachedUrl, {
+        method: "PATCH",
         credentials: "include",
-        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "turn" }),
       });
-      const reportData = (await reportResponse.json().catch(() => ({}))) as {
-        report?: { status?: string };
-      };
-      const status = reportData.report?.status;
-      if (status === "READY") return true;
-      if (status === "FAILED") {
-        setLiveError("This leg's session could not be scored. Please try again.");
-        return false;
+      if (!response.ok) {
+        // Let the student retry the opening rather than sit on a dead session.
+        openingRequestedRef.current = false;
+        await handlePatchFailure(response, "Your coach could not start. Please try again.");
+        return;
       }
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const data = (await response.json()) as { coachTurn: CoachTurnDTO; leg: CoachedLegDTO };
+      setLegView(data.leg);
+      await voiceCoachTurn(data.coachTurn);
+    } catch {
+      openingRequestedRef.current = false;
+      setLiveError("We couldn't reach the server. Please try again.");
+    } finally {
+      setCoachBusy(false);
     }
-
-    setLiveError("Scoring is taking longer than expected — please wait a moment and try again.");
-    return false;
   }
 
-  /** REPLAY -> FRESH. The ONLY forward control out of REPLAY. */
+  async function submitUtterance(utterance: {
+    text: string;
+    spokenDurationMs: number;
+  }): Promise<void> {
+    if (turnInFlightRef.current) return;
+    turnInFlightRef.current = true;
+    setCoachBusy(true);
+    setLiveError(null);
+    try {
+      const response = await fetch(coachedUrl, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "turn", utterance }),
+      });
+      if (!response.ok) {
+        await handlePatchFailure(response, "The coach could not respond. Please try again.");
+        return;
+      }
+      const data = (await response.json()) as { coachTurn: CoachTurnDTO; leg: CoachedLegDTO };
+      setLegView(data.leg);
+      await voiceCoachTurn(data.coachTurn);
+    } catch {
+      setLiveError("We couldn't reach the server. Please try again.");
+    } finally {
+      turnInFlightRef.current = false;
+      setCoachBusy(false);
+    }
+  }
+
+  // Stage callbacks. All three opening triggers are only reachable after
+  // consent: the stage is not mounted before it, and the timer starts in the
+  // consent handler.
+  function handleStageReady(): void {
+    stageReadyRef.current = true;
+    if (openingTimerRef.current !== null) {
+      window.clearTimeout(openingTimerRef.current);
+      openingTimerRef.current = null;
+    }
+    void requestOpeningTurn();
+  }
+
+  function handleStageError(): void {
+    stageReadyRef.current = false;
+    setVideoUnavailable(true);
+    void requestOpeningTurn();
+  }
+
+  function handleConsent(): void {
+    setConsented(true);
+    if (openingTimerRef.current !== null) window.clearTimeout(openingTimerRef.current);
+    openingTimerRef.current = window.setTimeout(() => {
+      openingTimerRef.current = null;
+      if (stageReadyRef.current) return;
+      setVideoUnavailable(true);
+      void requestOpeningTurn();
+    }, OPENING_FALLBACK_MS);
+  }
+
+  // -------------------------------------------------------------------------
+  // Leg close: the coach closed it (legReady), the student confirms moving on.
+  // -------------------------------------------------------------------------
+
+  /** First leg -> second leg. Only offered when the server says legReady. */
   async function handleAdvance(): Promise<void> {
-    if (!legView || !sessionReportId || finishingLeg) return;
+    if (!legView || !legView.legReady || finishingLeg) return;
     setFinishingLeg(true);
+    setLiveError(null);
     try {
-      const ready = await finishLiveSessionAndWaitReady(sessionReportId);
-      if (!ready) return;
-
       const response = await fetch(coachedUrl, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "advance", replayReportId: sessionReportId }),
+        body: JSON.stringify({ action: "advance" }),
       });
-      const data = (await response.json().catch(() => ({}))) as {
-        leg?: CoachedLegDTO;
-        error?: string;
-        currentLeg?: string | null;
-      };
-      if (response.ok && data.leg) {
-        setLegView(data.leg);
-      } else {
-        setLiveError(data.error ?? "Unable to move to the fresh situation.");
+      if (!response.ok) {
+        await handlePatchFailure(response, "Unable to move to the second moment.");
+        return;
       }
+      const data = (await response.json()) as { leg: CoachedLegDTO };
+      setLegView(data.leg);
+      setLatestDemonstration(null);
+      // New leg, new opening. The stage stays mounted across legs.
+      openingRequestedRef.current = false;
+      await requestOpeningTurn();
+    } catch {
+      setLiveError("We couldn't reach the server. Please try again.");
     } finally {
       setFinishingLeg(false);
     }
   }
 
-  /** FRESH -> COMPLETE. The ONLY forward control out of FRESH. */
+  /** Last leg -> complete. Only offered when the server says legReady. */
   async function handleComplete(): Promise<void> {
-    if (!legView || !sessionReportId || finishingLeg) return;
+    if (!legView || !legView.legReady || finishingLeg) return;
     setFinishingLeg(true);
+    setLiveError(null);
     try {
-      const ready = await finishLiveSessionAndWaitReady(sessionReportId);
-      if (!ready) return;
-
       const response = await fetch(coachedUrl, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "complete", reportId: sessionReportId }),
+        body: JSON.stringify({ action: "complete" }),
       });
-      const data = (await response.json().catch(() => ({}))) as {
-        contributionsWritten?: number;
-        error?: string;
-      };
-      if (response.ok) {
-        setContributionsWritten(
-          typeof data.contributionsWritten === "number" ? data.contributionsWritten : 0,
-        );
-        // Mirror the server, never lead it: the COMPLETE leg is read back
-        // from a fresh GET, not assigned as a local literal.
-        await refreshLeg();
-      } else {
-        setLiveError(data.error ?? "Unable to finish this coached session.");
+      if (!response.ok) {
+        await handlePatchFailure(response, "Unable to finish this coached session.");
+        return;
       }
+      stageRef.current?.stop();
+      // Mirror the server: the finished view is read back, not assigned.
+      await refreshLeg();
+    } catch {
+      setLiveError("We couldn't reach the server. Please try again.");
     } finally {
       setFinishingLeg(false);
     }
   }
+
+  // -------------------------------------------------------------------------
+  // Spoken answers (minimal wiring; 22-15 places the controls)
+  // -------------------------------------------------------------------------
+
+  const canSpeak =
+    consented &&
+    legView !== null &&
+    legView.leg !== "COMPLETE" &&
+    !legView.legReady &&
+    legView.awaiting !== "NONE" &&
+    legView.conversation.length > 0 &&
+    !coachBusy &&
+    !finishingLeg;
+
+  const pushToTalk = useCoachedPushToTalk({
+    enabled: canSpeak,
+    onBeforeRecord: () => stageRef.current?.interrupt(),
+    onTranscript: (t) => {
+      void submitUtterance({ text: t.text, spokenDurationMs: Math.round(t.durationMs) });
+    },
+  });
 
   // -------------------------------------------------------------------------
   // Render
@@ -366,7 +408,7 @@ export default function CoachedSessionShell({ stepId }: CoachedSessionShellProps
     return (
       <div className="flex flex-col items-center gap-3 py-16" aria-live="polite">
         <Spinner size="lg" />
-        <p className="text-sm text-[#58727f]">Setting up your coached session…</p>
+        <p className="text-sm text-[#58727f]">Your coach is choosing the moment to work on…</p>
       </div>
     );
   }
@@ -406,307 +448,151 @@ export default function CoachedSessionShell({ stepId }: CoachedSessionShellProps
     );
   }
 
-  const competencyLabel = formatCompetencyLabel(legView.competencyKey);
-
-  return (
-    <div className="mx-auto max-w-3xl space-y-8 py-8" aria-live="polite">
-      {legView.leg === "REPLAY" && (
-        <ReplayLeg
-          legView={legView}
-          competencyLabel={competencyLabel}
-          underlyingTypeSlug={legView.underlyingTypeSlug}
-          sessionReportId={sessionReportId}
-          turns={turns}
-          draftTurn={draftTurn}
-          onDraftTurnChange={setDraftTurn}
-          startingSession={startingSession}
-          sendingTurn={sendingTurn}
-          finishingLeg={finishingLeg}
-          liveError={liveError}
-          onStartSession={startLiveSession}
-          onSendTurn={sendTurn}
-          onAdvance={handleAdvance}
-        />
-      )}
-
-      {legView.leg === "FRESH" && (
-        <FreshLeg
-          legView={legView}
-          competencyLabel={competencyLabel}
-          underlyingTypeSlug={legView.underlyingTypeSlug}
-          sessionReportId={sessionReportId}
-          turns={turns}
-          draftTurn={draftTurn}
-          onDraftTurnChange={setDraftTurn}
-          startingSession={startingSession}
-          sendingTurn={sendingTurn}
-          finishingLeg={finishingLeg}
-          liveError={liveError}
-          onStartSession={startLiveSession}
-          onSendTurn={sendTurn}
-          onComplete={handleComplete}
-        />
-      )}
-
-      {legView.leg === "COMPLETE" && (
-        <CompleteLeg contributionsWritten={contributionsWritten} />
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// SSE reply reader — parses the shared `/api/interaction/chat` stream
-// format (`data: {"type":"content","content":"<cumulative text>"}`), and
-// returns only the final cumulative content, never a token-by-token splice.
-// ---------------------------------------------------------------------------
-
-async function readAssistantReply(body: ReadableStream<Uint8Array>): Promise<string> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let latest = "";
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const frames = buffer.split("\n\n");
-    buffer = frames.pop() ?? "";
-    for (const frame of frames) {
-      const line = frame.split("\n").find((l) => l.startsWith("data: "));
-      if (!line) continue;
-      try {
-        const event = JSON.parse(line.slice(6)) as {
-          type?: string;
-          content?: string;
-        };
-        if (event.type === "content" && typeof event.content === "string") {
-          latest = event.content;
-        }
-      } catch {
-        // Skip a malformed frame; the next one still carries the
-        // cumulative text.
-      }
-    }
-  }
-
-  return latest;
-}
-
-// ---------------------------------------------------------------------------
-// Live session area — shared between REPLAY and FRESH.
-// ---------------------------------------------------------------------------
-
-interface LiveSessionAreaProps {
-  underlyingTypeSlug: string;
-  sessionReportId: string | null;
-  turns: ChatTurn[];
-  draftTurn: string;
-  onDraftTurnChange: (value: string) => void;
-  startingSession: boolean;
-  sendingTurn: boolean;
-  onStartSession: () => void;
-  onSendTurn: () => void;
-}
-
-function LiveSessionArea({
-  sessionReportId,
-  turns,
-  draftTurn,
-  onDraftTurnChange,
-  startingSession,
-  sendingTurn,
-  onStartSession,
-  onSendTurn,
-}: LiveSessionAreaProps) {
-  if (!sessionReportId) {
+  if (legView.leg === "COMPLETE") {
     return (
-      <Card className="border border-[#dce8ed]">
-        <CardBody className="items-center gap-3 p-6 text-center">
-          <p className="text-sm text-[#385463]">
-            When you&apos;re ready, start the conversation.
-          </p>
-          <Button color="primary" isDisabled={startingSession} onPress={onStartSession}>
-            {startingSession ? <Spinner size="sm" /> : "Start the conversation"}
-          </Button>
-        </CardBody>
-      </Card>
+      <div className="mx-auto max-w-3xl space-y-8 px-4 py-8" aria-live="polite">
+        <CompleteLeg legView={legView} />
+      </div>
     );
   }
 
+  if (!consented) {
+    const moment = legView.moment;
+    return (
+      <div className="mx-auto max-w-3xl space-y-8 px-4 py-8" aria-live="polite">
+        {moment ? (
+          <CoachedBriefCard
+            coachName={legView.coach.name}
+            competencyLabel={legView.competencyLabel}
+            competencyDescription={legView.competencyDescription}
+            moment={{
+              counterpartLine: moment.counterpartLine,
+              studentLine: moment.studentLine,
+              sessionDate: moment.sessionDate,
+            }}
+            momentFraming={legView.momentFraming}
+            legCount={legView.legCount}
+            worth={legView.worth}
+            onStart={handleConsent}
+            starting={false}
+            resuming={legView.conversation.length > 0}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  const moment = legView.moment;
+  const coachTurns = legView.conversation.filter((turn) => turn.speaker === "COACH");
+  const latestCoachTurn = coachTurns.length > 0 ? coachTurns[coachTurns.length - 1] : null;
+  const attempts = legView.conversation
+    .filter((turn) => turn.speaker === "STUDENT" && turn.move === "ATTEMPT")
+    .map((turn) => ({ text: turn.text, acceptable: turn.acceptable, parroted: turn.parroted }));
+  const secondMomentNext = legView.leg === "REPLAY" && legView.legCount === 2;
+
   return (
-    <Card className="border border-[#dce8ed]">
-      <CardBody className="space-y-4 p-6">
-        <div className="space-y-3" aria-live="polite">
-          {turns.length === 0 && (
-            <p className="text-sm text-[#58727f]">
-              Say the first thing you&apos;d say. The coach will respond.
+    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8" aria-live="polite">
+      <section aria-labelledby="coached-session-heading" className="space-y-5">
+        <div>
+          <h1 id="coached-session-heading" className="font-serif text-2xl text-[#102331]">
+            {legView.competencyLabel}
+          </h1>
+          {legView.thinEvidence ? (
+            <p className="mt-1 text-sm text-[#385463]">
+              This session has one part: there was not a second moment clear enough to use.
             </p>
-          )}
-          {turns.map((turn, index) => (
-            <p
-              key={index}
-              className={
-                turn.role === "user"
-                  ? "rounded-lg bg-[#eaf7fa] p-3 text-sm text-[#102331]"
-                  : "rounded-lg bg-[#f8fbfc] p-3 text-sm text-[#385463]"
-              }
-            >
-              <span className="font-semibold">
-                {turn.role === "user" ? "You: " : "Coach: "}
-              </span>
-              {turn.content}
+          ) : null}
+          {videoUnavailable ? (
+            <p className="mt-1 text-sm text-[#385463]" role="status">
+              The video coach couldn&apos;t connect, so your coach will continue in text.
             </p>
-          ))}
+          ) : null}
         </div>
 
-        <Textarea
-          aria-label="Your response"
-          placeholder="Type what you'd say…"
-          value={draftTurn}
-          onValueChange={onDraftTurnChange}
-          minRows={2}
-          isDisabled={sendingTurn}
+        <CoachAvatarStage
+          ref={stageRef}
+          coach={legView.coach}
+          onReady={handleStageReady}
+          onError={handleStageError}
         />
-        <Button
-          color="primary"
-          isDisabled={sendingTurn || draftTurn.trim().length === 0}
-          onPress={onSendTurn}
-        >
-          {sendingTurn ? <Spinner size="sm" /> : "Send"}
-        </Button>
-      </CardBody>
-    </Card>
-  );
-}
 
-// ---------------------------------------------------------------------------
-// REPLAY leg
-// ---------------------------------------------------------------------------
-
-interface ReplayLegProps extends LiveSessionAreaProps {
-  legView: CoachedLegDTO;
-  competencyLabel: string;
-  finishingLeg: boolean;
-  liveError: string | null;
-  onAdvance: () => void;
-}
-
-function ReplayLeg(props: ReplayLegProps) {
-  const { legView, competencyLabel, finishingLeg, liveError, onAdvance } = props;
-  const moment = legView.replayMoment;
-
-  return (
-    <section aria-labelledby="coached-replay-heading" className="space-y-5">
-      <h1 id="coached-replay-heading" className="font-serif text-2xl text-[#102331]">
-        First, let&apos;s rework what you actually said.
-      </h1>
-      <p className="text-sm text-[#58727f]">Competency: {competencyLabel}</p>
-
-      {moment && (
-        <div className="rounded-xl border border-[#b9dbe5] bg-[#eaf7fa] p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
-            Your own words
+        <div className="rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4" aria-live="polite">
+          <p className="text-xs font-bold uppercase tracking-wide text-[#58727f]">
+            {legView.coach.name}
           </p>
-          {/*
-            VERBATIM, UNTOUCHED. No .trim(), no ellipsizing, no re-casing, no
-            whitespace collapsing between the server's response and the
-            screen. 21-04's verbatim gate, 21-10's generation, and 21-23's
-            delivery all guarantee this text matches the stored transcript
-            exactly — the last place that guarantee could be broken is a
-            cosmetic class or a `.slice()` right here. `pre-wrap` is what
-            lets the original line breaks and spacing render exactly as
-            stored, rather than being collapsed by normal HTML whitespace
-            handling.
-          */}
-          <blockquote
-            className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#173847]"
-          >
-            {moment.text}
-          </blockquote>
-          <Link
-            href={`/practice/${legView.underlyingTypeSlug}/report/${moment.sourceReportId}`}
-            className="mt-2 inline-block text-xs font-semibold text-[#006b87] underline underline-offset-2"
-          >
-            View the session this came from
-          </Link>
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#173847]">
+            {latestCoachTurn ? latestCoachTurn.text : "Your coach is getting ready…"}
+          </p>
+          {latestDemonstration ? (
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#385463]">
+              {latestDemonstration}
+            </p>
+          ) : null}
         </div>
-      )}
 
-      <div className="grid gap-6 md:grid-cols-[2fr,1fr]">
-        <LiveSessionArea {...props} />
+        {moment ? (
+          <CoachedMomentPanel
+            counterpartLine={moment.counterpartLine}
+            studentLine={moment.studentLine}
+            attempts={attempts}
+            sessionLink={`/practice/${legView.underlyingTypeSlug}/report/${moment.sourceReportId}`}
+          />
+        ) : null}
+
+        {!legView.legReady ? (
+          <div className="space-y-2">
+            <Button
+              color="primary"
+              isDisabled={!canSpeak || pushToTalk.isTranscribing}
+              onPressStart={() => void pushToTalk.startRecording()}
+              onPressEnd={() => void pushToTalk.stopRecording()}
+            >
+              {pushToTalk.isRecording
+                ? "Listening… release to send"
+                : pushToTalk.isTranscribing || coachBusy
+                  ? "Working…"
+                  : "Hold to speak"}
+            </Button>
+            {pushToTalk.partialTranscript ? (
+              <p className="text-sm text-[#58727f]">{pushToTalk.partialTranscript}</p>
+            ) : null}
+            {pushToTalk.micUnavailable ? (
+              <p className="text-sm text-[#9b2c2c]" role="alert">
+                Your microphone isn&apos;t available. Allow microphone access to continue.
+              </p>
+            ) : pushToTalk.error ? (
+              <p className="text-sm text-[#9b2c2c]" role="alert">
+                {pushToTalk.error}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {liveError ? (
+          <p className="text-sm text-[#9b2c2c]" role="alert">
+            {liveError}
+          </p>
+        ) : null}
+
         <TipRail tips={legView.tips} />
-      </div>
 
-      {liveError && (
-        <p className="text-sm text-[#9b2c2c]" role="alert">
-          {liveError}
-        </p>
-      )}
-
-      <Button
-        color="primary"
-        isDisabled={!props.sessionReportId || finishingLeg}
-        onPress={onAdvance}
-      >
-        {finishingLeg ? <Spinner size="sm" /> : "Done with the replay — show me a fresh situation"}
-      </Button>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// FRESH leg — the replay moment is NOT shown again here. The point of this
-// leg is transfer, and showing the original moment again would invite
-// repetition rather than proving the skill carries to a new situation.
-// ---------------------------------------------------------------------------
-
-interface FreshLegProps extends LiveSessionAreaProps {
-  legView: CoachedLegDTO;
-  competencyLabel: string;
-  finishingLeg: boolean;
-  liveError: string | null;
-  onComplete: () => void;
-}
-
-function FreshLeg(props: FreshLegProps) {
-  const { legView, competencyLabel, finishingLeg, liveError, onComplete } = props;
-
-  return (
-    <section aria-labelledby="coached-fresh-heading" className="space-y-5">
-      <h1 id="coached-fresh-heading" className="font-serif text-2xl text-[#102331]">
-        Now a new situation, same skill.
-      </h1>
-      <p className="text-sm text-[#58727f]">
-        This exercises the same competency: {competencyLabel}.
-      </p>
-
-      {legView.freshScenarioPrompt && (
-        <div className="rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4">
-          <p className="text-sm leading-6 text-[#385463]">{legView.freshScenarioPrompt}</p>
-        </div>
-      )}
-
-      <div className="grid gap-6 md:grid-cols-[2fr,1fr]">
-        <LiveSessionArea {...props} />
-        <TipRail tips={legView.tips} />
-      </div>
-
-      {liveError && (
-        <p className="text-sm text-[#9b2c2c]" role="alert">
-          {liveError}
-        </p>
-      )}
-
-      <Button
-        color="primary"
-        isDisabled={!props.sessionReportId || finishingLeg}
-        onPress={onComplete}
-      >
-        {finishingLeg ? <Spinner size="sm" /> : "Finish"}
-      </Button>
-    </section>
+        {legView.legReady ? (
+          <Button
+            color="primary"
+            isDisabled={finishingLeg}
+            onPress={secondMomentNext ? handleAdvance : handleComplete}
+          >
+            {finishingLeg ? (
+              <Spinner size="sm" />
+            ) : secondMomentNext ? (
+              "Continue to your second moment"
+            ) : (
+              "Finish session"
+            )}
+          </Button>
+        ) : null}
+      </section>
+    </div>
   );
 }
 
@@ -759,22 +645,16 @@ function TipRail({ tips }: { tips: CoachedTipDTO[] }) {
 // COMPLETE
 // ---------------------------------------------------------------------------
 
-function CompleteLeg({ contributionsWritten }: { contributionsWritten: number | null }) {
+function CompleteLeg({ legView }: { legView: CoachedLegDTO }) {
+  const pct = Math.round((legView.worth.coachedWeight / legView.worth.unaidedWeight) * 100);
   return (
     <section aria-labelledby="coached-complete-heading" className="space-y-5 text-center">
       <h1 id="coached-complete-heading" className="font-serif text-2xl text-[#102331]">
         Session complete.
       </h1>
       <p className="text-sm leading-6 text-[#385463]">
-        {contributionsWritten !== null && contributionsWritten > 0
-          ? `This session has been scored and moved your mastery in ${contributionsWritten} ${
-              contributionsWritten === 1 ? "competency" : "competencies"
-            }.`
-          : "This session has been scored."}
-      </p>
-      <p className="text-sm leading-6 text-[#58727f]">
-        A coached session counts for less toward your mastery than practicing
-        unaided, because the coach helped.
+        Your coach graded your reworked lines, and {legView.competencyLabel} moved at the coached
+        weight ({pct}% of an unaided session).
       </p>
       <div className="flex justify-center gap-3">
         <Button as={Link} href="/mastery" color="primary">
