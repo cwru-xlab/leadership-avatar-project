@@ -188,6 +188,12 @@ export interface SetupStepDeclaration {
  */
 export interface LiveSystemPromptExtra {
   resumeText?: string;
+  /**
+   * Interview types only (quick task 003): the job posting the candidate is
+   * targeting. Session-constant and resent byte-identically every turn, the
+   * same discipline `resumeText` follows. Empty/absent when none was attached.
+   */
+  jobDescriptionText?: string;
   language?: AttemptLanguage;
   /**
    * Networking character path (16-07): wizard characterId is not on
