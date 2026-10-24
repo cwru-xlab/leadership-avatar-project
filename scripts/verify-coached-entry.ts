@@ -3,9 +3,11 @@
  * REPLAY-then-FRESH ordering cannot be skipped, that the tip gate actually
  * sits inside `tipsForLeg`, that `finishCoachedSession` runs before
  * `recordCoachedContribution`, and — against a live database — that
- * `enterCoachedStep` is idempotent/deterministic, the replay text is
- * byte-identical to the stored transcript, and a coached report does not
- * ALSO produce a `LIVE_SESSION` mastery contribution (21-21's guard).
+ * `enterCoachedStep` selects two real moments (stubbed scorer), is
+ * idempotent/deterministic, the moment text is byte-identical to the stored
+ * transcript, the coach (not an engine session) closes each leg, no
+ * InteractionReport is produced, and a Phase 21 session is re-targeted.
+ * (Updated in 22-12 from the Phase 21 report-based flow.)
  *
  * Style mirrors scripts/verify-coached-mode-isolation.ts and
  * scripts/verify-path-model.ts. Sections 1-3 run with NO env vars. Section 4
@@ -167,6 +169,16 @@ console.log("\n2. LEG ORDERING — no database, with an inverted (permissive-var
     return LEG_TRANSITION_TABLE.every((row) => fn(row.current, row.action) === row.expected);
   }
 
+  // 22-12: a thin-evidence session (no fresh moment) completes after its one leg.
+  check(
+    "thin evidence: nextLeg(REPLAY, complete, {hasFreshMoment:false}) === COMPLETE",
+    nextLeg("REPLAY", "complete", { hasFreshMoment: false }) === "COMPLETE",
+  );
+  check(
+    "thin evidence: nextLeg(REPLAY, advance, {hasFreshMoment:false}) === REJECTED",
+    nextLeg("REPLAY", "advance", { hasFreshMoment: false }) === "REJECTED",
+  );
+
   for (const row of LEG_TRANSITION_TABLE) {
     check(
       `nextLeg(${row.current}, ${row.action}) === ${row.expected}`,
@@ -259,8 +271,12 @@ console.log("\n3. TIP GATE AND FINISH SEQUENCE — source assertions on runtime.
   );
 
   check(
-    "runtime.ts does NOT call prisma.interactionReport.create (the report comes from the engine's own session machinery)",
+    "runtime.ts does NOT call prisma.interactionReport.create (Phase 22: a coached session produces no report)",
     !/prisma\.interactionReport\.create/.test(src),
+  );
+  check(
+    "runtime.ts references no engine session transport or generated scenario",
+    !/interaction\/chat|practice\/session|liveSystemPrompt|freshScenario/.test(src),
   );
 }
 
@@ -277,12 +293,12 @@ async function runDatabaseSection() {
   const { s3Storage } = await import("../lib/s3-client");
   const { initialProgress } = await import("../lib/interview/types");
   const { CONTRIBUTION_WEIGHTS } = await import("../lib/mastery/weights");
-  const { recordLiveSessionContributions } = await import("../lib/mastery/from-report");
   const {
     enterCoachedStep,
     advanceToFresh,
     completeCoachedSession,
     CoachedLegOrderError,
+    CoachedLegNotDoneError,
   } = await import("../lib/study-plan/coached/runtime");
   const { NotReachableOutsideAPathError } = await import("../lib/study-plan/coached/instance");
 
@@ -296,10 +312,6 @@ async function runDatabaseSection() {
   let otherUserId = "";
   const studyPlanIds: string[] = [];
   const reportIds: string[] = [];
-
-  function makeTurn(role: "user" | "assistant", content: string, timestamp: number) {
-    return { role, content, timestamp };
-  }
 
   function makeSteps(competencyKey: typeof COMPETENCY_KEY) {
     return [
@@ -323,7 +335,7 @@ async function runDatabaseSection() {
         position: 3,
         kind: "COACHED_SESSION" as const,
         competencyKey,
-        selectionReason: "verify-coached-entry: coached session step (never entered)",
+        selectionReason: "verify-coached-entry: coached session step (legacy)",
         knowledgeCheckId: null,
         coachedSessionId: null,
       },
@@ -346,23 +358,37 @@ async function runDatabaseSection() {
     ];
   }
 
-  async function makeReportWithTranscript(
-    owner: string,
-    visualScore: number,
-    knownTurnContent: string,
-  ) {
+  // Two substantive student turns per report, so selection has real candidates.
+  async function makeReportWithTranscript(owner: string, lines: [string, string]) {
     const report = await prisma.interactionReport.create({
       data: {
         userId: owner,
         typeSlug: "general",
-        turnCount: 3,
+        status: "READY",
+        turnCount: 5,
         transcriptKey: "pending",
-        scores: { visual: visualScore } as unknown as object,
+        scores: { visual: 2 } as unknown as object,
+        // Moments are built from growth-area timecodes (turn i at 0:i0).
+        reportStructured: {
+          overall_summary: "verify",
+          strengths: [],
+          growth_areas: [
+            { title: "Verify growth", detail: "d", suggestion: "s", timecodes: ["0:10", "0:30"], source: null, dimension: null },
+          ],
+          category_notes: { visual: null, vocal: null, content: null, behavioral: null },
+          rubric_notes: [],
+          practice_next: "verify",
+        } as unknown as object,
       },
     });
     reportIds.push(report.id);
 
-    const startedAt = Date.now() - 60_000;
+    const startedAt = 1_700_000_000_000;
+    const t = (role: "user" | "assistant", content: string, i: number) => ({
+      role,
+      content,
+      timestamp: startedAt + i * 10_000,
+    });
     const transcript = {
       version: 1 as const,
       reportId: report.id,
@@ -372,17 +398,33 @@ async function runDatabaseSection() {
       startedAt,
       updatedAt: Date.now(),
       turns: [
-        makeTurn("assistant", "Tell me about a time you led under pressure.", startedAt + 1000),
-        makeTurn("user", knownTurnContent, startedAt + 2000),
-        makeTurn("assistant", "Thank you.", startedAt + 3000),
+        t("assistant", "Tell me about a time you led under pressure.", 0),
+        t("user", lines[0], 1),
+        t("assistant", "What happened next with the team?", 2),
+        t("user", lines[1], 3),
+        t("assistant", "Thank you.", 4),
       ],
       progress: initialProgress(),
     };
     const key = await s3Storage.saveInterviewTranscript(owner, report.id, transcript);
     await prisma.interactionReport.update({ where: { id: report.id }, data: { transcriptKey: key } });
-
-    return { report, transcript };
+    return report;
   }
+
+  // Stub scorer: a distinct, deterministic score per line. No model call.
+  const WEAK_LINE =
+    "I think maybe we could possibly try to think about doing something like that eventually.";
+  const MID_LINE =
+    "I told the team that the release would slip because we had not tested the payment flow properly.";
+  const STRONG_LINE =
+    "I will own the rollout plan and report back by Friday with concrete numbers for everyone.";
+  const OTHER_LINE =
+    "Then I asked each owner to commit to a date and I wrote those dates in the shared channel.";
+  const scorer = async ({ turns }: { turns: Array<{ turnIndex: number; studentText: string }> }) =>
+    turns.map((tr) => {
+      const score = tr.studentText === WEAK_LINE ? 1 : tr.studentText === MID_LINE ? 2 : tr.studentText === OTHER_LINE ? 3 : 4;
+      return { turnIndex: tr.turnIndex, evidencesCompetency: true, score, rationale: "stub" };
+    });
 
   try {
     const user = await prisma.user.create({
@@ -394,15 +436,8 @@ async function runDatabaseSection() {
     });
     otherUserId = otherUser.id;
 
-    // A WEAK report (visual=2 -> normalized 0.25) and a STRONGER report
-    // (visual=4 -> normalized 0.75) — the weak one must be the one selected.
-    const WEAK_LINE =
-      "I think maybe we could possibly try to think about doing something like that eventually.";
-    const STRONG_LINE =
-      "I will own the rollout plan and report back by Friday with concrete numbers.";
-
-    const { report: weakReport } = await makeReportWithTranscript(userId, 2, WEAK_LINE);
-    await makeReportWithTranscript(userId, 4, STRONG_LINE);
+    const weakReport = await makeReportWithTranscript(userId, [WEAK_LINE, STRONG_LINE]);
+    const midReport = await makeReportWithTranscript(userId, [MID_LINE, OTHER_LINE]);
 
     const plan = await prisma.studyPlan.create({
       data: {
@@ -425,229 +460,199 @@ async function runDatabaseSection() {
     });
 
     const knowledgeCheckStep = path.steps.find((s) => s.kind === "KNOWLEDGE_CHECK")!;
-    const coachedStep = path.steps.find(
-      (s) => s.kind === "COACHED_SESSION" && s.position === 2,
-    )!;
-    const neverEnteredCoachedStep = path.steps.find(
-      (s) => s.kind === "COACHED_SESSION" && s.position === 3,
-    )!;
+    const coachedStep = path.steps.find((s) => s.kind === "COACHED_SESSION" && s.position === 2)!;
+    const legacyStep = path.steps.find((s) => s.kind === "COACHED_SESSION" && s.position === 3)!;
 
-    // enterCoachedStep on a KNOWLEDGE_CHECK step throws.
     let threwOnWrongKind = false;
     try {
-      await enterCoachedStep({ userId, stepId: knowledgeCheckStep.id });
+      await enterCoachedStep({ userId, stepId: knowledgeCheckStep.id }, { scorer });
     } catch (err) {
       threwOnWrongKind = err instanceof NotReachableOutsideAPathError;
     }
     check("enterCoachedStep on a KNOWLEDGE_CHECK step throws", threwOnWrongKind);
 
-    // enterCoachedStep on another user's step throws.
     let threwOnForeignStep = false;
     try {
-      await enterCoachedStep({ userId: otherUserId, stepId: coachedStep.id });
+      await enterCoachedStep({ userId: otherUserId, stepId: coachedStep.id }, { scorer });
     } catch (err) {
       threwOnForeignStep = err instanceof NotReachableOutsideAPathError;
     }
     check("enterCoachedStep on another user's step throws", threwOnForeignStep);
 
-    // markStepComplete on the step BEFORE entry throws (21-08's reject half,
-    // exercised through the real flow — the never-entered sibling step).
     let threwOnPrematureComplete = false;
     try {
-      await markStepComplete(userId, neverEnteredCoachedStep.id);
+      await markStepComplete(userId, coachedStep.id);
     } catch {
       threwOnPrematureComplete = true;
     }
     check("markStepComplete on the step BEFORE entry throws", threwOnPrematureComplete);
 
-    // enterCoachedStep CREATES the session, selects the WEAK report
-    // deterministically, writes coachedSessionId back, returns REPLAY, and
-    // the replay text is BYTE-IDENTICAL (===) to the stored transcript turn.
-    const firstLeg = await enterCoachedStep({ userId, stepId: coachedStep.id });
+    const reportCountBefore = await prisma.interactionReport.count({ where: { userId } });
+
+    // First entry: two real moments, REPLAY first, never turn 0, verbatim.
+    const firstLeg = await enterCoachedStep({ userId, stepId: coachedStep.id }, { scorer });
     check("enterCoachedStep returns leg REPLAY on first entry", firstLeg.leg === "REPLAY");
+    check("a two-moment session has legCount 2 and is not thin", firstLeg.legCount === 2 && !firstLeg.thinEvidence);
     check(
-      "enterCoachedStep selected the WEAK-scoring report deterministically",
-      firstLeg.replayMoment?.sourceReportId === weakReport.id,
-      `actual sourceReportId=${firstLeg.replayMoment?.sourceReportId}`,
+      "the REPLAY moment is the lowest-scored one, from the WEAK report, text byte-identical (===)",
+      firstLeg.moment?.sourceReportId === weakReport.id && firstLeg.moment?.studentLine === WEAK_LINE,
+      `actual=${JSON.stringify(firstLeg.moment)}`,
     );
+    check("the REPLAY moment is not turn 0", (firstLeg.moment?.turnIndex ?? 0) > 0);
     check(
-      "replayMoment.text is BYTE-IDENTICAL (===) to the stored transcript turn",
-      firstLeg.replayMoment?.text === WEAK_LINE,
-      `actual="${firstLeg.replayMoment?.text}"`,
+      "the counterpart line is the nearest preceding avatar turn, verbatim",
+      firstLeg.moment?.counterpartLine === "Tell me about a time you led under pressure.",
     );
     check(
       "every returned tip passed the tip gate (non-empty reminder text)",
       firstLeg.tips.every((t) => typeof t.reminder === "string" && t.reminder.length > 0),
     );
 
-    const stepAfterEntry = await prisma.studyPlanPathStep.findUnique({
-      where: { id: coachedStep.id },
-    });
+    const stored = await prisma.coachedSession.findUnique({ where: { id: firstLeg.coachedSessionId } });
+    check(
+      "the stored session has a distinct fresh moment and a selectionBasis",
+      !!stored?.freshSourceReportId &&
+        !(stored.freshSourceReportId === stored.replaySourceReportId && stored.freshTurnIndex === stored.replayTurnIndex) &&
+        stored.selectionBasis === "PER_TURN_SCORE" &&
+        stored.freshScenarioPrompt === null,
+    );
+
+    const stepAfterEntry = await prisma.studyPlanPathStep.findUnique({ where: { id: coachedStep.id } });
     check(
       "coachedSessionId was written back onto the step",
       stepAfterEntry?.coachedSessionId === firstLeg.coachedSessionId,
     );
 
-    // A second enterCoachedStep is idempotent and deterministic.
-    const secondLeg = await enterCoachedStep({ userId, stepId: coachedStep.id });
+    const secondLeg = await enterCoachedStep({ userId, stepId: coachedStep.id }, { scorer });
     check(
-      "a second enterCoachedStep returns the SAME coachedSessionId",
-      secondLeg.coachedSessionId === firstLeg.coachedSessionId,
-    );
-    check(
-      "a second enterCoachedStep returns the SAME replay moment",
-      secondLeg.replayMoment?.text === firstLeg.replayMoment?.text &&
-        secondLeg.replayMoment?.turnIndex === firstLeg.replayMoment?.turnIndex,
-    );
-    check(
-      "a second enterCoachedStep returns the SAME tips",
-      JSON.stringify(secondLeg.tips) === JSON.stringify(firstLeg.tips),
+      "a second enterCoachedStep returns the SAME session, moment and tips",
+      secondLeg.coachedSessionId === firstLeg.coachedSessionId &&
+        secondLeg.moment?.studentLine === firstLeg.moment?.studentLine &&
+        JSON.stringify(secondLeg.tips) === JSON.stringify(firstLeg.tips),
     );
 
     const contributionCountBefore = await prisma.masteryContribution.count({ where: { userId } });
 
-    // completeCoachedSession while in REPLAY throws and writes no contribution.
+    // The coach closes legs. Seed coach rows directly (no model): the coach
+    // battery (verify-coach-turn) proves how these rows are produced.
+    async function seedClosedLeg(leg: "REPLAY" | "FRESH", seqStart: number, score: number) {
+      await prisma.coachedTurn.createMany({
+        data: [
+          { coachedSessionId: firstLeg.coachedSessionId, leg, seq: seqStart, speaker: "COACH", move: "OPEN", awaiting: "REPLY", text: "What were you aiming for?" },
+          { coachedSessionId: firstLeg.coachedSessionId, leg, seq: seqStart + 1, speaker: "STUDENT", move: "ATTEMPT", text: "I will own it and report Friday.", score, acceptable: true, parroted: false, spokenDurationMs: 4000 },
+          { coachedSessionId: firstLeg.coachedSessionId, leg, seq: seqStart + 2, speaker: "COACH", move: "LEG_DONE", awaiting: "NONE", text: "That is the move.", closedAtSoftCap: false },
+        ],
+      });
+    }
+
+    // Nothing may advance or complete before the coach closes the leg.
+    let threwNotDone = false;
+    try {
+      await advanceToFresh({ userId, coachedSessionId: firstLeg.coachedSessionId });
+    } catch (err) {
+      threwNotDone = err instanceof CoachedLegNotDoneError;
+    }
+    check("advanceToFresh before the coach closes REPLAY throws CoachedLegNotDoneError", threwNotDone);
+
     let threwOnCompleteFromReplay = false;
     try {
-      await completeCoachedSession({
-        userId,
-        coachedSessionId: firstLeg.coachedSessionId,
-        reportId: weakReport.id,
-      });
+      await completeCoachedSession({ userId, coachedSessionId: firstLeg.coachedSessionId });
     } catch (err) {
       threwOnCompleteFromReplay = err instanceof CoachedLegOrderError;
     }
+    check("completeCoachedSession while in REPLAY (two legs) throws CoachedLegOrderError", threwOnCompleteFromReplay);
     check(
-      "completeCoachedSession while in REPLAY throws CoachedLegOrderError",
-      threwOnCompleteFromReplay,
+      "the rejected calls wrote NO contribution",
+      (await prisma.masteryContribution.count({ where: { userId } })) === contributionCountBefore,
     );
-    const contributionCountAfterRejectedComplete = await prisma.masteryContribution.count({
-      where: { userId },
-    });
+
+    await seedClosedLeg("REPLAY", 1, 4);
+    const freshLeg = await advanceToFresh({ userId, coachedSessionId: firstLeg.coachedSessionId });
+    check("advanceToFresh returns leg FRESH after the coach closed REPLAY", freshLeg.leg === "FRESH");
     check(
-      "the rejected completeCoachedSession call wrote NO contribution",
-      contributionCountAfterRejectedComplete === contributionCountBefore,
+      "the FRESH leg shows the second real moment, not the replay one",
+      !!freshLeg.moment && freshLeg.moment.studentLine !== WEAK_LINE && freshLeg.conversation.length === 0,
     );
 
-    // advanceToFresh then completeCoachedSession: the REPLAY leg's own live
-    // conversation produces its own report (simulated here as a second,
-    // already-READY report — the engine's own session machinery is what
-    // actually produces this in production).
-    const { report: replayLegReport } = await makeReportWithTranscript(
-      userId,
-      3,
-      "A third report, standing in for the REPLAY leg's own live conversation.",
-    );
-    const freshLeg = await advanceToFresh({
-      userId,
-      coachedSessionId: firstLeg.coachedSessionId,
-      replayReportId: replayLegReport.id,
-    });
-    check("advanceToFresh returns leg FRESH", freshLeg.leg === "FRESH");
+    let threwCompleteBeforeFreshDone = false;
+    try {
+      await completeCoachedSession({ userId, coachedSessionId: firstLeg.coachedSessionId });
+    } catch (err) {
+      threwCompleteBeforeFreshDone = err instanceof CoachedLegNotDoneError;
+    }
+    check("completeCoachedSession before the coach closes FRESH throws CoachedLegNotDoneError", threwCompleteBeforeFreshDone);
 
-    const { report: freshLegReport } = await makeReportWithTranscript(
-      userId,
-      5,
-      "A fourth report, standing in for the FRESH leg's own live conversation.",
-    );
-    // FRESH leg's own report must itself score the competency for
-    // recordCoachedContribution to write a row.
-    await prisma.interactionReport.update({
-      where: { id: freshLegReport.id },
-      data: { scores: { visual: 4 } as unknown as object },
-    });
-
+    await seedClosedLeg("FRESH", 4, 5);
     const { contributionsWritten } = await completeCoachedSession({
       userId,
       coachedSessionId: firstLeg.coachedSessionId,
-      reportId: freshLegReport.id,
     });
     check("completeCoachedSession writes at least one contribution", contributionsWritten >= 1);
 
-    const stepAfterComplete = await prisma.studyPlanPathStep.findUnique({
-      where: { id: coachedStep.id },
-    });
-    check(
-      "the step becomes COMPLETE",
-      stepAfterComplete?.status === "COMPLETE",
-      `status=${stepAfterComplete?.status}`,
-    );
+    const stepAfterComplete = await prisma.studyPlanPathStep.findUnique({ where: { id: coachedStep.id } });
+    check("the step becomes COMPLETE", stepAfterComplete?.status === "COMPLETE", `status=${stepAfterComplete?.status}`);
 
     const coachedRows = await prisma.masteryContribution.findMany({
-      where: { userId, source: "COACHED_SESSION", sourceReportId: freshLegReport.id },
+      where: { userId, source: "COACHED_SESSION", sourceCoachedSessionId: firstLeg.coachedSessionId },
     });
+    check("COACHED_SESSION rows exist for the session", coachedRows.length >= 1, `count=${coachedRows.length}`);
     check(
-      "readContributions shows exactly one COACHED_SESSION row for the FRESH report",
-      coachedRows.length === 1,
-      `count=${coachedRows.length}`,
-    );
-    check(
-      `the COACHED_SESSION row's weight === CONTRIBUTION_WEIGHTS.COACHED_SESSION (${CONTRIBUTION_WEIGHTS.COACHED_SESSION})`,
-      coachedRows[0]?.weight === CONTRIBUTION_WEIGHTS.COACHED_SESSION,
-      `actual weight=${coachedRows[0]?.weight}`,
+      `every COACHED_SESSION row's weight === CONTRIBUTION_WEIGHTS.COACHED_SESSION (${CONTRIBUTION_WEIGHTS.COACHED_SESSION})`,
+      coachedRows.every((r) => r.weight === CONTRIBUTION_WEIGHTS.COACHED_SESSION),
     );
     check(
       "CONTRIBUTION_WEIGHTS.COACHED_SESSION is strictly less than CONTRIBUTION_WEIGHTS.LIVE_SESSION",
       CONTRIBUTION_WEIGHTS.COACHED_SESSION < CONTRIBUTION_WEIGHTS.LIVE_SESSION,
     );
 
-    // A second completeCoachedSession adds no further rows — the session is
-    // now COMPLETE, so the order guard rejects before any mapping work runs.
     let threwOnSecondComplete = false;
     try {
-      await completeCoachedSession({
-        userId,
-        coachedSessionId: firstLeg.coachedSessionId,
-        reportId: freshLegReport.id,
-      });
+      await completeCoachedSession({ userId, coachedSessionId: firstLeg.coachedSessionId });
     } catch {
       threwOnSecondComplete = true;
     }
     check("a second completeCoachedSession throws (session is already COMPLETE)", threwOnSecondComplete);
-    const coachedRowsAfterRetry = await prisma.masteryContribution.findMany({
-      where: { userId, source: "COACHED_SESSION", sourceReportId: freshLegReport.id },
-    });
     check(
       "a second completeCoachedSession adds NO further rows",
-      coachedRowsAfterRetry.length === coachedRows.length,
-      `before=${coachedRows.length} after=${coachedRowsAfterRetry.length}`,
+      (await prisma.masteryContribution.count({
+        where: { userId, source: "COACHED_SESSION", sourceCoachedSessionId: firstLeg.coachedSessionId },
+      })) === coachedRows.length,
     );
 
-    // END-TO-END CONFIRMATION of 21-21's unconditional coached-session skip
-    // guard, reached through the real coached flow and the FRESH report's
-    // real id. If this ever returns anything other than
-    // skipped: "coached-session" with written: 0, that is a REAL FINDING —
-    // the guard was dropped, moved after the mapping call, or made
-    // conditional in lib/mastery/from-report.ts. That file is NOT in this
-    // plan's files_modified; escalate rather than "fixing" it here.
-    const liveIngestionResult = await recordLiveSessionContributions({ reportId: freshLegReport.id });
-    const guardHeld = liveIngestionResult.skipped === "coached-session" && liveIngestionResult.written === 0;
-    if (!guardHeld) {
-      console.log(
-        "  ESCALATE: 21-21's recordLiveSessionContributions coached-session guard did NOT hold " +
-          `for a real coached report (result=${JSON.stringify(liveIngestionResult)}). This is a real ` +
-          "finding in lib/mastery/from-report.ts, not a bug in this verifier — do not patch it from " +
-          "this plan's files_modified.",
-      );
-    }
     check(
-      "recordLiveSessionContributions skips the coached report (skipped: \"coached-session\", written: 0)",
-      guardHeld,
-      `actual=${JSON.stringify(liveIngestionResult)}`,
+      "the whole coached flow produced NO InteractionReport and no LIVE_SESSION row",
+      (await prisma.interactionReport.count({ where: { userId } })) === reportCountBefore &&
+        (await prisma.masteryContribution.count({ where: { userId, source: "LIVE_SESSION" } })) === 0,
     );
 
-    const liveRowsForCoachedReport = await prisma.masteryContribution.count({
-      where: { sourceReportId: freshLegReport.id, source: "LIVE_SESSION" },
+    // Phase 21 legacy session: a GET leaves it untouched, a POST re-targets it.
+    const legacy = await prisma.coachedSession.create({
+      data: {
+        userId,
+        pathStepId: legacyStep.id,
+        competencyKey: COMPETENCY_KEY,
+        replaySourceReportId: midReport.id,
+        replayTurnIndex: 1,
+        freshScenarioPrompt: "A generated Phase 21 scenario.",
+      },
     });
+    await prisma.studyPlanPathStep.update({ where: { id: legacyStep.id }, data: { coachedSessionId: legacy.id } });
+
+    await enterCoachedStep({ userId, stepId: legacyStep.id }, { createIfMissing: false, scorer });
+    const legacyAfterGet = await prisma.coachedSession.findUnique({ where: { id: legacy.id } });
+    check("a GET does not re-target a legacy session", legacyAfterGet?.selectionBasis === null);
+
+    await enterCoachedStep({ userId, stepId: legacyStep.id }, { scorer });
+    const legacyAfterPost = await prisma.coachedSession.findUnique({ where: { id: legacy.id } });
     check(
-      "ZERO LIVE_SESSION rows exist for the coached session's report",
-      liveRowsForCoachedReport === 0,
-      `count=${liveRowsForCoachedReport}`,
+      "a POST re-targets a legacy unworked session to real moments",
+      legacyAfterPost?.selectionBasis === "PER_TURN_SCORE" && !!legacyAfterPost.freshSourceReportId,
     );
   } finally {
     if (reportIds.length > 0) {
       await prisma.coachedSession.deleteMany({ where: { replaySourceReportId: { in: reportIds } } });
-      await prisma.masteryContribution.deleteMany({ where: { sourceReportId: { in: reportIds } } });
+      await prisma.masteryContribution.deleteMany({ where: { userId } });
+      await prisma.momentCompetencyScore.deleteMany({ where: { reportId: { in: reportIds } } });
       await prisma.interactionReport.deleteMany({ where: { id: { in: reportIds } } });
     }
     if (studyPlanIds.length > 0) {
