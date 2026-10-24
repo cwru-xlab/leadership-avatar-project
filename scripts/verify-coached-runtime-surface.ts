@@ -557,9 +557,16 @@ console.log("\n6e. FOLLOW-UPS — no live verdicts, metrics on complete, leave t
     "leaving goes to the plan page (/study-plans/{planId})",
     /function leaveHref\(planId: string\)[\s\S]*?`\/study-plans\/\$\{planId\}`/.test(shellSource),
   );
+  // Phase 23: the next-step lookup moved to the shared useNextStepHref hook
+  // (the coached summary and the voice drill result both use it). The
+  // contract is unchanged: the shell reaches PathPanel's hrefForStep through it.
+  const nextStepHookSource = readFileSync(abs("components", "study-plan", "useNextStepHref.ts"), "utf8");
   check(
-    "the next-step link uses PathPanel's hrefForStep contract",
-    /import \{ hrefForStep[^}]*\} from "@\/components\/study-plan\/PathPanel"/.test(shellSource),
+    "the next-step link uses PathPanel's hrefForStep contract (via the shared useNextStepHref hook)",
+    /import \{ useNextStepHref \} from "@\/components\/study-plan\/useNextStepHref"/.test(shellSource) &&
+      /import \{ hrefForStep[^}]*\} from "@\/components\/study-plan\/PathPanel"/.test(nextStepHookSource) &&
+      /hrefForStep\(planId, row\)/.test(nextStepHookSource) &&
+      /path\.nextStep/.test(nextStepHookSource),
   );
 }
 
