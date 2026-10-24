@@ -215,12 +215,19 @@ export async function PATCH(
         utterance = { text: u.text, spokenDurationMs: u.spokenDurationMs };
       }
       try {
-        const { coachTurn, leg } = await takeCoachTurn({
+        const { coachTurn: result, leg } = await takeCoachTurn({
           userId: currentUser.id,
           stepId,
           utterance,
         });
-        return response({ coachTurn, leg }, 200);
+        // The client contract is the FLAT coach turn ({ speech, move,
+        // awaiting, demonstration, closedAtSoftCap }). `takeCoachTurn`
+        // returns `{ coachTurn: CoachTurnResult }`, and CoachTurnResult itself
+        // wraps `{ coachTurn, legState }`; sending it unwrapped made the shell
+        // read `speech` as undefined, so the avatar was asked to speak nothing
+        // (UAT G2: "the avatar doesn't speak in coach mode") and no
+        // demonstration ever rendered.
+        return response({ coachTurn: result.coachTurn, leg }, 200);
       } catch (error) {
         if (error instanceof UnspokenAttemptError) {
           return response({ error: "That attempt was not spoken aloud." }, 400);
