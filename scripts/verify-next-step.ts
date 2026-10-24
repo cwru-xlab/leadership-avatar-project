@@ -16,6 +16,7 @@ import {
   TIE_BREAK_ORDER,
   type StepSelection,
 } from "../lib/study-plan/next-step";
+import { coachedEvidenceFromReports } from "../lib/study-plan/coached/evidence";
 import { validatePathSteps, type PathWithSteps } from "../lib/study-plan/path";
 import { COMPETENCIES, type CompetencyKey } from "../lib/mastery/competencies";
 import type { CompetencyMastery, MasteryResult } from "../lib/mastery/compute";
@@ -34,6 +35,12 @@ function check(name: string, pass: boolean, detail?: string) {
 const ALL_KEYS = COMPETENCIES.map((c) => c.key) as CompetencyKey[];
 const NOW = new Date("2026-10-16T12:00:00Z");
 const WINDOW_START = new Date(NOW.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+/** Scored evidence for every competency, so pre-existing cases keep their
+ * meaning (the coached step lands where it always did). */
+const ALL_EVIDENCE = new Map<CompetencyKey, { lowestPercent: number }>(
+  ALL_KEYS.map((k) => [k, { lowestPercent: 40 }])
+);
 
 function blank(
   key: CompetencyKey,
@@ -101,7 +108,7 @@ console.log("\n1. SINGLE WEAKEST");
     established(ALL_KEYS[6], 80),
   ];
   const mastery = resultWith(competencies);
-  const selection = selectPathSteps({ mastery, desiredCount: 7 });
+  const selection = selectPathSteps({ mastery, desiredCount: 7, coachedEvidence: ALL_EVIDENCE });
 
   check(
     "rank 1 is the 30% competency",
@@ -126,7 +133,7 @@ console.log("\n2. ALL NULL");
 {
   const competencies = ALL_KEYS.map((k) => blank(k));
   const mastery = resultWith(competencies);
-  const selection = selectPathSteps({ mastery, desiredCount: 7 });
+  const selection = selectPathSteps({ mastery, desiredCount: 7, coachedEvidence: ALL_EVIDENCE });
 
   check(
     "ranking follows TIE_BREAK_ORDER exactly",
@@ -159,7 +166,7 @@ console.log("\n3. NULL BEATS MEASURED");
     ...ALL_KEYS.slice(2).map((k) => established(k, 90)),
   ];
   const mastery = resultWith(competencies);
-  const selection = selectPathSteps({ mastery, desiredCount: 7 });
+  const selection = selectPathSteps({ mastery, desiredCount: 7, coachedEvidence: ALL_EVIDENCE });
 
   check(
     "the unmeasured competency ranks first",
@@ -194,7 +201,7 @@ console.log("\n4. EXACT TIE + DETERMINISM UNDER SHUFFLE");
     ),
   ];
   const mastery = resultWith(competencies);
-  const selection = selectPathSteps({ mastery, desiredCount: 7 });
+  const selection = selectPathSteps({ mastery, desiredCount: 7, coachedEvidence: ALL_EVIDENCE });
 
   const tieBreakIndexA = TIE_BREAK_ORDER.indexOf(tiedA);
   const tieBreakIndexB = TIE_BREAK_ORDER.indexOf(tiedB);
@@ -212,6 +219,7 @@ console.log("\n4. EXACT TIE + DETERMINISM UNDER SHUFFLE");
   const shuffledSelection = selectPathSteps({
     mastery: shuffledMastery,
     desiredCount: 7,
+    coachedEvidence: ALL_EVIDENCE,
   });
   check(
     "shuffled input produces an identical ranking",
@@ -231,8 +239,8 @@ console.log("\n5. DETERMINISM — same input, two calls");
     ...ALL_KEYS.slice(1).map((k) => established(k, 70)),
   ];
   const mastery = resultWith(competencies);
-  const first = selectPathSteps({ mastery, desiredCount: 6 });
-  const second = selectPathSteps({ mastery, desiredCount: 6 });
+  const first = selectPathSteps({ mastery, desiredCount: 6, coachedEvidence: ALL_EVIDENCE });
+  const second = selectPathSteps({ mastery, desiredCount: 6, coachedEvidence: ALL_EVIDENCE });
   check(
     "two calls on the same input deep-equal, including reasons",
     JSON.stringify(first) === JSON.stringify(second)
@@ -244,13 +252,13 @@ console.log("\n6. BOUNDS");
   const competencies = ALL_KEYS.map((k, i) => established(k, 50 + i));
   const mastery = resultWith(competencies);
 
-  const low = selectPathSteps({ mastery, desiredCount: 2 });
+  const low = selectPathSteps({ mastery, desiredCount: 2, coachedEvidence: ALL_EVIDENCE });
   check("desiredCount 2 clamps to 5 steps", low.steps.length === 5);
 
-  const high = selectPathSteps({ mastery, desiredCount: 40 });
+  const high = selectPathSteps({ mastery, desiredCount: 40, coachedEvidence: ALL_EVIDENCE });
   check("desiredCount 40 clamps to 10 steps", high.steps.length === 10);
 
-  const exact = selectPathSteps({ mastery, desiredCount: 7 });
+  const exact = selectPathSteps({ mastery, desiredCount: 7, coachedEvidence: ALL_EVIDENCE });
   check("desiredCount 7 stays 7", exact.steps.length === 7);
 
   for (const [label, selection] of [
@@ -283,6 +291,7 @@ console.log("\n7. UNAVAILABLE");
     mastery,
     desiredCount: 7,
     unavailableCompetencies: [weakest],
+    coachedEvidence: ALL_EVIDENCE,
   });
 
   const hostsNoKnowledgeCheck = !selection.steps.some(
@@ -319,7 +328,7 @@ console.log("\n8. SMALL CATALOG (synthetic 3-competency result)");
     established(ALL_KEYS[2], 80),
   ];
   const mastery = resultWith(synthetic);
-  const selection = selectPathSteps({ mastery, desiredCount: 5 });
+  const selection = selectPathSteps({ mastery, desiredCount: 5, coachedEvidence: ALL_EVIDENCE });
 
   check("still produces at least 5 steps", selection.steps.length >= 5);
   check(
@@ -341,7 +350,7 @@ console.log("\n9. REASON QUALITY");
     ...ALL_KEYS.slice(2).map((k) => established(k, 60)),
   ];
   const mastery = resultWith(competencies);
-  const selection = selectPathSteps({ mastery, desiredCount: 7 });
+  const selection = selectPathSteps({ mastery, desiredCount: 7, coachedEvidence: ALL_EVIDENCE });
 
   for (const r of selection.ranking) {
     const label = COMPETENCIES.find((c) => c.key === r.competencyKey)!.label;
@@ -427,6 +436,104 @@ console.log("\n10. nextStepFor");
   ]);
   const r4 = nextStepFor(allComplete);
   check("all complete -> null", r4 === null);
+}
+
+console.log("\n11. COACHED REASON IS TRUTHFUL");
+{
+  // The contradiction detector: a reason that claims no scored evidence AND
+  // describes a coached rework.
+  const contradictory = (reason: string) =>
+    reason.includes("no scored evidence") && reason.toLowerCase().includes("coached");
+
+  const mastery = resultWith(ALL_KEYS.map((k) => blank(k)));
+  const evKeys = [ALL_KEYS[3], ALL_KEYS[5]];
+  const evidence = new Map<CompetencyKey, { lowestPercent: number }>(
+    evKeys.map((k, i) => [k, { lowestPercent: 31 + i }])
+  );
+  const selection = selectPathSteps({
+    mastery,
+    desiredCount: 7,
+    coachedEvidence: evidence,
+  });
+  const first = selection.steps[0];
+  check(
+    "all-NONE + evidence: position 1 is COACHED_SESSION on an evidenced competency",
+    first.kind === "COACHED_SESSION" && evKeys.includes(first.competencyKey)
+  );
+  check(
+    "coached NONE reason says 'no mastery figure yet' and carries the percent",
+    first.selectionReason.includes("no mastery figure yet") &&
+      first.selectionReason.includes(`${evidence.get(first.competencyKey)!.lowestPercent}%`),
+    first.selectionReason
+  );
+  check(
+    "no step reason contains both 'no scored evidence' and 'coached'",
+    selection.steps.every((s) => !contradictory(s.selectionReason)),
+    JSON.stringify(selection.steps.map((s) => s.selectionReason))
+  );
+  check("coachedOmitted is false when a step was placed", selection.coachedOmitted === false);
+  check(
+    "result accepted by validatePathSteps",
+    validatePathSteps(selection.steps).length === 0
+  );
+
+  const none = selectPathSteps({
+    mastery,
+    desiredCount: 7,
+    coachedEvidence: new Map(),
+  });
+  check(
+    "empty evidence: no COACHED_SESSION step and coachedOmitted",
+    !none.steps.some((s) => s.kind === "COACHED_SESSION") && none.coachedOmitted === true
+  );
+  check(
+    "empty evidence: path still accepted by validatePathSteps",
+    validatePathSteps(none.steps).length === 0,
+    JSON.stringify(validatePathSteps(none.steps))
+  );
+
+  const third = selection.ranking[2].competencyKey;
+  const thirdOnly = selectPathSteps({
+    mastery,
+    desiredCount: 7,
+    coachedEvidence: new Map([[third, { lowestPercent: 22 }]]),
+  });
+  check(
+    "evidence only on rank #3: it still gets position 1",
+    thirdOnly.steps[0].kind === "COACHED_SESSION" &&
+      thirdOnly.steps[0].competencyKey === third
+  );
+
+  // Bite-proof: the OLD composition must be flagged by the detector.
+  const oldBase = `${COMPETENCIES[0].label} has no scored evidence yet, so it is ranked ahead of every measured competency.`;
+  const oldComposed = `${oldBase} This coached session reworks a moment where it showed.`;
+  check("bite-proof: detector flags the old contradictory composition", contradictory(oldComposed));
+}
+
+console.log("\n12. coachedEvidenceFromReports");
+{
+  // 1..5 rubric scores; dimension keys come from the real catalog.
+  const dim = COMPETENCIES[0].dimensionKeys[0];
+  const mk = (id: string, v: number | null) => ({
+    id,
+    userId: "u1",
+    scores: { [dim]: v },
+    createdAt: NOW,
+  });
+  const ev = coachedEvidenceFromReports([mk("r1", 5), mk("r2", 2), mk("r3", null)]);
+  const got = ev.get(COMPETENCIES[0].key);
+  const lowAlone = coachedEvidenceFromReports([mk("r2", 2)]).get(COMPETENCIES[0].key)!.lowestPercent;
+  const highAlone = coachedEvidenceFromReports([mk("r1", 5)]).get(COMPETENCIES[0].key)!.lowestPercent;
+  check("lowest percent kept across reports", got?.lowestPercent === lowAlone && lowAlone < highAlone,
+    JSON.stringify(got)
+  );
+  check(
+    "both scoring report ids listed, null-score report absent",
+    !!got && got.scoredReportIds.includes("r1") && got.scoredReportIds.includes("r2") && !got.scoredReportIds.includes("r3"),
+    JSON.stringify(got)
+  );
+  const nullOnly = coachedEvidenceFromReports([{ id: "r4", userId: "u1", scores: null, createdAt: NOW }]);
+  check("null scores contribute nothing", nullOnly.size === 0);
 }
 
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}\n`);
