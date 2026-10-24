@@ -341,12 +341,13 @@ function openingProblems(src: string): string[] {
 
   // (a) the stage is rendered only after the consent gate has returned.
   const gate = src.search(/if\s*\(\s*!consented\s*\)\s*\{/);
-  const stageAt = src.indexOf("<CoachAvatarStage");
+  // Phase 22 G4: the stage is the shared SessionAvatar (components/session/).
+  const stageAt = src.indexOf("<SessionAvatar");
   if (gate === -1) problems.push("no `if (!consented)` gate");
   else {
     const gateEnd = src.indexOf("\n  }\n", gate);
     if (!/return\s*\(/.test(src.slice(gate, gateEnd))) problems.push("consent gate does not return");
-    if (stageAt === -1 || stageAt < gateEnd) problems.push("<CoachAvatarStage is not behind the consent gate");
+    if (stageAt === -1 || stageAt < gateEnd) problems.push("<SessionAvatar is not behind the consent gate");
   }
 
   // (b) the no-utterance turn PATCH lives only in requestOpeningTurn, behind a ref guard.
@@ -367,7 +368,12 @@ function openingProblems(src: string): string[] {
   if (setAt === -1 || setAt > fetchAt) problems.push("ref guard set missing before fetch");
 
   // (c) call sites.
-  const allowedFns = new Set(["handleStageReady", "handleStageError", "handleAdvance", "handleConsent"]);
+  // G2 (22-VALIDATION.md): the opening starts on CONNECTED (handleStageReady),
+  // like practice, or without video only on a definitive vendor failure
+  // (handleStageError) or the student's explicit choice after a slow connect
+  // (handleContinueWithoutVideo). handleConsent and timers may NOT request it:
+  // a timeout-fired opening before CONNECTED was the silent-coach defect.
+  const allowedFns = new Set(["handleStageReady", "handleStageError", "handleAdvance", "handleContinueWithoutVideo"]);
   const callRe = /requestOpeningTurn\(/g;
   let m: RegExpExecArray | null;
   while ((m = callRe.exec(src)) !== null) {
@@ -381,16 +387,13 @@ function openingProblems(src: string): string[] {
       const rest = src.slice(effectAt);
       const endRel = rest.indexOf("\n  }, [");
       const seg = endRel === -1 ? rest : rest.slice(0, rest.indexOf("\n", endRel + 6));
-      const timerOk = /setTimeout\s*\(/.test(src.slice(effectAt, m.index));
-      if (!/consent/i.test(seg)) problems.push(`call at ${m.index} is in an effect not conditioned on consent`);
-      else if (!timerOk) problems.push(`call at ${m.index} is in a consent effect but not in a setTimeout callback`);
+      void seg;
+      problems.push(`call at ${m.index} is in an effect — the opening may only start from a stage callback or an explicit student action`);
       continue;
     }
     const name = fnMatch ? fnMatch[1] : "<top level>";
     if (!allowedFns.has(name)) {
       problems.push(`call at ${m.index} is in ${name}, not an allowed call site`);
-    } else if (name === "handleConsent" && !/setTimeout\s*\(/.test(src.slice(fnAt, m.index))) {
-      problems.push(`call at ${m.index} in handleConsent is not inside a setTimeout callback`);
     }
   }
   return problems;
@@ -464,12 +467,57 @@ console.log("\n6. CONSENT-GATED, GUARDED OPENING");
     noGuard !== shellSource && openingProblems(noGuard).length > 0,
   );
   const stray = shellSource.replace(
-    "  function handleConsent(): void {",
-    "  function strayCaller(): void {\n    void requestOpeningTurn();\n  }\n\n  function handleConsent(): void {",
+    "  function handleConsent(",
+    "  function strayCaller(): void {\n    void requestOpeningTurn();\n  }\n\n  function handleConsent(",
   );
   check(
     "bite-proof: a call from an unlisted function is caught",
     stray !== shellSource && openingProblems(stray).length > 0,
+  );
+}
+
+console.log("\n6b. G2 — COACH SPEECH IS QUEUED, NEVER DROPPED; NO TIMER-FIRED OPENING");
+{
+  const queueProblems = (src: string): string[] => {
+    const problems: string[] = [];
+    const voice = functionBody(src, "voiceCoachTurn") ?? "";
+    if (!voice) problems.push("voiceCoachTurn not found");
+    if (!/pendingSpeechRef\.current\s*=\s*turn;\s*return;/.test(voice)) {
+      problems.push("voiceCoachTurn does not queue the turn when the stage is not connected");
+    }
+    const ready = functionBody(src, "handleStageReady") ?? "";
+    if (!/flushPendingSpeech\(\)/.test(ready)) problems.push("handleStageReady does not flush queued speech");
+    const consent = functionBody(src, "handleConsent") ?? "";
+    if (/requestOpeningTurn\(/.test(consent)) problems.push("handleConsent requests the opening");
+    return problems;
+  };
+  const p = queueProblems(shellSource);
+  check("unvoiced coach turns are queued and flushed on CONNECTED; consent never fires the opening", p.length === 0, JSON.stringify(p));
+  const dropped = shellSource.replace("pendingSpeechRef.current = turn;\n      return;", "return;");
+  check("bite-proof: dropping instead of queueing is caught", dropped !== shellSource && queueProblems(dropped).length > 0);
+  const timerOpening = shellSource.replace(
+    "      if (!stageReadyRef.current) setSlowConnect(true);",
+    "      if (!stageReadyRef.current) void requestOpeningTurn();",
+  );
+  check(
+    "bite-proof: a timer-fired opening in handleConsent is caught",
+    timerOpening !== shellSource && (queueProblems(timerOpening).length > 0 || openingProblems(timerOpening).length > 0),
+  );
+}
+
+console.log("\n6c. NUMERIC GRADES ONLY AT THE END (user decision 2026-10-24)");
+{
+  const runtimeSource = readFileSync(abs("lib", "study-plan", "coached", "runtime.ts"), "utf8");
+  check(
+    "the runtime nulls every per-turn score in a live leg view",
+    /score:\s*null,/.test(runtimeSource) && !/score:\s*r\.score,\s*\n\s*acceptable:\s*r\.acceptable,\s*\n\s*parroted:\s*r\.parroted,\s*\n\s*\}\)\);/.test(runtimeSource),
+  );
+  // Outside CompleteLeg/ScoreBadge, the shell never renders a score.
+  const completeAt = shellSource.indexOf("function ScoreBadge(");
+  const liveSource = completeAt === -1 ? shellSource : shellSource.slice(0, completeAt);
+  check(
+    "the live room renders no `.score` / `/5` (scores appear only in the COMPLETE summary)",
+    !/\.score\b/.test(liveSource.replace(/\/\*[\s\S]*?\*\//g, "")) && !/\/5`/.test(liveSource),
   );
 }
 

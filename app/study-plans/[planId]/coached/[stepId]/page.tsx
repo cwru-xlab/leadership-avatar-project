@@ -2,9 +2,6 @@
 
 import { useEffect } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@heroui/button";
-import { ArrowLeft } from "lucide-react";
 
 import CoachedSessionShell from "@/components/study-plan/CoachedSessionShell";
 import { useLayout } from "@/lib/layout-context";
@@ -20,10 +17,10 @@ import { useLayout } from "@/lib/layout-context";
  * NO FETCHING, NO DATABASE ACCESS HERE. `CoachedSessionShell` owns the
  * entire session lifecycle (auth-gate-on-401, entry, leg reads, advance,
  * complete) — that keeps the leg state in exactly one place. This page's
- * only two jobs are: suppress the normal chrome (a live avatar conversation
- * inside a sidebar layout is a worse session), and offer a labelled way to
- * leave and come back, which works because 21-23's GET resumes from
- * whatever leg the student left on.
+ * only job is to suppress the normal chrome (a live avatar conversation
+ * inside a sidebar layout is a worse session) and be the scroll container.
+ * The labelled way to leave and come back is rendered by the shell; it works
+ * because 21-23's GET resumes from whatever leg the student left on.
  *
  * NO PATH MUTATION. Step completion happens server-side inside
  * `finishCoachedSession`, called from `completeCoachedSession` — this page
@@ -52,23 +49,10 @@ export default function CoachedSessionPage() {
     // h-dvh rather than h-full: the percentage-height chain through the flex
     // ancestors is not guaranteed (not verified in a browser).
     <div className="h-dvh overflow-y-auto bg-[#f8fbfc]">
-      <div className="mx-auto max-w-3xl px-4 pt-6">
-        <Button
-          as={Link}
-          href="/reports"
-          variant="light"
-          size="sm"
-          startContent={<ArrowLeft className="h-4 w-4" />}
-          className="-ml-2 self-start text-default-600 data-[hover=true]:bg-transparent"
-        >
-          Leave coached session
-        </Button>
-        <p className="mt-1 text-xs text-[#58727f]">
-          You can leave at any point — your coached session resumes right
-          where you left it when you come back.
-        </p>
-      </div>
-
+      {/* The labelled "Leave coached session" link lives in the shell: above
+          the brief and camera step, and in the live room's header (Phase 22
+          G4 — the live room is the shared dark session room, and a light bar
+          above it would split the screen). */}
       <CoachedSessionShell planId={planId} stepId={stepId} />
     </div>
   );
