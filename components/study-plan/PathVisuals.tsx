@@ -23,6 +23,8 @@ export type LevelsByCompetency = Record<string, { current: LevelResult; lifetime
 
 export interface PathMasteryData {
   levels: LevelsByCompetency;
+  /** competencyKey -> display label, from the mastery DTO. */
+  labels: Record<string, string>;
   goals: GoalProgress;
   timeZone: string;
 }
@@ -46,9 +48,15 @@ export function usePathMastery(): PathMasteryData | null {
           headers: browserTimeZone ? { "x-timezone": browserTimeZone } : undefined,
         });
         if (!response.ok) return;
-        const body = (await response.json().catch(() => null)) as Partial<PathMasteryData> | null;
+        const body = (await response.json().catch(() => null)) as
+          | (Partial<PathMasteryData> & {
+              mastery?: { competencies?: Array<{ competencyKey: string; label: string }> };
+            })
+          | null;
         if (!cancelled && body?.levels && body.goals) {
-          setData({ levels: body.levels, goals: body.goals, timeZone: body.timeZone ?? "" });
+          const labels: Record<string, string> = {};
+          for (const c of body.mastery?.competencies ?? []) labels[c.competencyKey] = c.label;
+          setData({ levels: body.levels, labels, goals: body.goals, timeZone: body.timeZone ?? "" });
         }
       } catch {
         // Best-effort only — see doc comment.
