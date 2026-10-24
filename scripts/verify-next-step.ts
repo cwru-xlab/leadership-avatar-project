@@ -55,6 +55,11 @@ function blank(
     lifetimeWeightSum: 0,
     currentWeightSum: 0,
     lastContributionAt: null,
+    byOrigin: [],
+    trend: [],
+    windowStartLifetimePercent: null,
+    windowDelta: null,
+    windowDrivers: [],
     ...overrides,
   };
 }
@@ -80,6 +85,7 @@ function resultWith(competencies: CompetencyMastery[]): MasteryResult {
     windowStart: WINDOW_START,
     windowDays: 30,
     unmappedRowCount: 0,
+    recentGrowth: [],
   };
 }
 

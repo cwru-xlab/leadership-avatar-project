@@ -10,7 +10,13 @@
  * Run: npx tsx scripts/verify-mastery-compute.ts
  * Must pass with NO `DATABASE_URL` and NO `OPENAI_API_KEY` set.
  */
-import { computeMastery } from "../lib/mastery/compute";
+import {
+  computeMastery,
+  EVIDENCE_ORIGINS,
+  MAX_WINDOW_DRIVERS,
+  TREND_BUCKETS,
+  type CompetencyMastery,
+} from "../lib/mastery/compute";
 import type { MasteryContributionRow } from "../lib/mastery/ledger";
 import { COMPETENCIES, type CompetencyKey } from "../lib/mastery/competencies";
 import { MASTERY_WINDOW_DAYS } from "../lib/mastery/weights";
@@ -266,6 +272,115 @@ console.log("\n9. A row with a non-null reversedAt THROWS");
     threw = true;
   }
   check("computeMastery throws when a supplied row is reversed", threw);
+}
+
+
+// === Phase 23: growth visibility fields ===================================
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The breakdown-sums predicate, factored out so its bite can be proven. */
+function originSumIssues(c: CompetencyMastery): string[] {
+  const issues: string[] = [];
+  if (c.byOrigin.length !== EVIDENCE_ORIGINS.length) issues.push("byOrigin length");
+  const lifetime = c.byOrigin.reduce((n, o) => n + o.lifetimeCount, 0);
+  const current = c.byOrigin.reduce((n, o) => n + o.currentCount, 0);
+  if (lifetime !== c.lifetimeEvidenceCount) issues.push(`lifetime ${lifetime} != ${c.lifetimeEvidenceCount}`);
+  if (current !== c.currentEvidenceCount) issues.push(`current ${current} != ${c.currentEvidenceCount}`);
+  return issues;
+}
+
+console.log("\n10. byOrigin: live vs path (check / coached) split from the source column");
+{
+  const rows = [
+    mkRow({ competencyKey: KEY_A, source: "LIVE_SESSION", weight: 1.0, rawScore: 0.75, sourceReportId: "r1", occurredAt: new Date(NOW.getTime() - 2 * DAY_MS) }),
+    mkRow({ competencyKey: KEY_A, source: "LIVE_SESSION", weight: 1.0, rawScore: 0.25, sourceReportId: "r0", occurredAt: new Date(WINDOW_START.getTime() - DAY_MS) }),
+    mkRow({ competencyKey: KEY_A, source: "CHECK_DETERMINISTIC", weight: 0.45, rawScore: 1, sourceAttemptId: "a1", occurredAt: new Date(NOW.getTime() - DAY_MS) }),
+    mkRow({ competencyKey: KEY_A, source: "CHECK_MODEL_GRADED", weight: 0.2, rawScore: 0, sourceAttemptId: "a2", occurredAt: new Date(NOW.getTime() - DAY_MS) }),
+    // A pre-Phase-22 coached row with its snapshotted 0.40 weight: the figure
+    // must use 0.40, not today's table value.
+    mkRow({ competencyKey: KEY_A, source: "COACHED_SESSION", weight: 0.4, rawScore: 0.5, sourceCoachedSessionId: "c1", occurredAt: new Date(NOW.getTime() - DAY_MS) }),
+  ];
+  const a = computeMastery(rows, NOW).competencies.find((c) => c.competencyKey === KEY_A)!;
+  const by = Object.fromEntries(a.byOrigin.map((o) => [o.origin, o]));
+  check("byOrigin is in EVIDENCE_ORIGINS order", a.byOrigin.map((o) => o.origin).join() === EVIDENCE_ORIGINS.join());
+  check("live: 2 lifetime rows, 1 current", by.live.lifetimeCount === 2 && by.live.currentCount === 1);
+  check("live lifetime percent = mean(0.75, 0.25) = 50", by.live.lifetimePercent === 50, `got ${by.live.lifetimePercent}`);
+  check("check: both check sources grouped (2 rows)", by.check.lifetimeCount === 2);
+  // (1*0.45 + 0*0.2) / 0.65 = 69.2307... -> 69.2
+  check("check percent uses each row's snapshotted weight (69.2)", by.check.lifetimePercent === 69.2, `got ${by.check.lifetimePercent}`);
+  check("coached: 1 row, weight 0.40 snapshotted", by.coached.lifetimeCount === 1 && by.coached.lifetimeWeightSum === 0.4);
+  check("origin counts sum to the competency's evidence counts", originSumIssues(a).length === 0, JSON.stringify(originSumIssues(a)));
+  const tampered: CompetencyMastery = { ...a, byOrigin: a.byOrigin.filter((o) => o.origin !== "check") };
+  check(
+    "bite: the sum predicate FAILS when an origin bucket is dropped",
+    originSumIssues(tampered).length > 0
+  );
+}
+
+console.log("\n11. trend: TREND_BUCKETS rolling weekly points of the lifetime figure");
+{
+  const rows = [
+    mkRow({ competencyKey: KEY_B, rawScore: 0.25, occurredAt: new Date(NOW.getTime() - 20 * DAY_MS) }),
+    mkRow({ competencyKey: KEY_B, rawScore: 0.75, occurredAt: new Date(NOW.getTime() - 3 * DAY_MS) }),
+  ];
+  const b = computeMastery(rows, NOW).competencies.find((c) => c.competencyKey === KEY_B)!;
+  check(`trend has ${TREND_BUCKETS} points`, b.trend.length === TREND_BUCKETS);
+  check("last point ends exactly at now", b.trend[b.trend.length - 1].endsAt.getTime() === NOW.getTime());
+  check("points are oldest first, 7 days apart", b.trend.every((p, i) => i === 0 || p.endsAt.getTime() - b.trend[i - 1].endsAt.getTime() === 7 * DAY_MS));
+  check("last point equals lifetimePercent", b.trend[b.trend.length - 1].cumulativePercent === b.lifetimePercent);
+  check("points before any evidence are null, not 0", b.trend[0].cumulativePercent === null);
+  // Bucket ending now-14d holds the -20d row only -> 25; final -> 50.
+  const at14 = b.trend[TREND_BUCKETS - 3];
+  check("the figure as it stood 14 days ago is 25 (only the older row)", at14.cumulativePercent === 25, `got ${at14.cumulativePercent}`);
+  check("bucket counts sum to rows inside the trend span", b.trend.reduce((n, p) => n + p.bucketCount, 0) === 2);
+  const shifted = computeMastery(rows, new Date(NOW.getTime() + 7 * DAY_MS)).competencies.find((c) => c.competencyKey === KEY_B)!;
+  check(
+    "bite: a different `now` yields a different series (now is honoured, not the clock)",
+    JSON.stringify(shifted.trend) !== JSON.stringify(b.trend)
+  );
+}
+
+console.log("\n12. windowDelta, drivers and recentGrowth");
+{
+  const before = new Date(WINDOW_START.getTime() - DAY_MS);
+  const inWin = new Date(NOW.getTime() - DAY_MS);
+  const rows = [
+    // KEY_A: baseline 25 -> in-window 75 x2 -> lifetime (0.25+0.75+0.75)/3 = 58.3; delta 33.3
+    mkRow({ competencyKey: KEY_A, rawScore: 0.25, occurredAt: before, sourceReportId: "old" }),
+    mkRow({ competencyKey: KEY_A, rawScore: 0.75, occurredAt: inWin, sourceReportId: "rA" }),
+    mkRow({ competencyKey: KEY_A, rawScore: 0.75, occurredAt: inWin, sourceReportId: "rB" }),
+    // KEY_B: baseline 50 -> in-window 62.5 -> lifetime 56.3; delta 6.3 (smaller)
+    mkRow({ competencyKey: KEY_B, rawScore: 0.5, occurredAt: before, sourceReportId: "old" }),
+    mkRow({ competencyKey: KEY_B, rawScore: 0.625, occurredAt: inWin, sourceReportId: "rA" }),
+    // KEY_C: only in-window -> "new"
+    mkRow({ competencyKey: KEY_C, source: "CHECK_DETERMINISTIC", weight: 0.45, rawScore: 1, occurredAt: inWin, sourceAttemptId: "att" }),
+    // KEY_D: only before the window -> no delta, not in recentGrowth
+    mkRow({ competencyKey: KEY_D, rawScore: 0.5, occurredAt: before }),
+    // Two rows from one report on one competency -> ONE driver
+    mkRow({ competencyKey: KEY_A, rawScore: 0.75, occurredAt: inWin, sourceReportId: "rA" }),
+  ];
+  const result = computeMastery(rows, NOW);
+  const get = (k: CompetencyKey) => result.competencies.find((c) => c.competencyKey === k)!;
+  const a = get(KEY_A);
+  check("A windowStartLifetimePercent = 25", a.windowStartLifetimePercent === 25, `got ${a.windowStartLifetimePercent}`);
+  check("A windowDelta = lifetime - start", a.windowDelta === Math.round((a.lifetimePercent! - 25) * 10) / 10, `got ${a.windowDelta}`);
+  check("C (first measured in window) has null delta", get(KEY_C).windowDelta === null && get(KEY_C).windowStartLifetimePercent === null);
+  check("D (no in-window evidence) has null delta", get(KEY_D).windowDelta === null);
+  check("A drivers: rows from one report are grouped (2 drivers, not 3)", a.windowDrivers.length === 2, JSON.stringify(a.windowDrivers.map((d) => d.sourceReportId)));
+  check("A drivers carry their report id and origin", a.windowDrivers.every((d) => d.origin === "live" && (d.sourceReportId === "rA" || d.sourceReportId === "rB")));
+  check("rA (two rows, weight 2) pulls harder than rB", a.windowDrivers[0].sourceReportId === "rA");
+  check(`drivers never exceed MAX_WINDOW_DRIVERS (${MAX_WINDOW_DRIVERS})`, result.competencies.every((c) => c.windowDrivers.length <= MAX_WINDOW_DRIVERS));
+  check("C driver is a check attempt", get(KEY_C).windowDrivers[0]?.origin === "check" && get(KEY_C).windowDrivers[0]?.sourceAttemptId === "att");
+  const growth = result.recentGrowth.map((g) => `${g.kind}:${g.competencyKey}`);
+  check(
+    "recentGrowth = moved by |delta| desc, then new",
+    growth.join() === [`moved:${KEY_A}`, `moved:${KEY_B}`, `new:${KEY_C}`].join(),
+    growth.join()
+  );
+  check("recentGrowth never names a competency with no in-window evidence", !growth.some((g) => g.endsWith(`:${KEY_D}`)));
+  // Bite: with the window moved so nothing is "in window", there is no growth.
+  const later = computeMastery(rows, new Date(NOW.getTime() + 60 * DAY_MS));
+  check("bite: no in-window evidence -> recentGrowth empty", later.recentGrowth.length === 0, JSON.stringify(later.recentGrowth));
 }
 
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}\n`);
