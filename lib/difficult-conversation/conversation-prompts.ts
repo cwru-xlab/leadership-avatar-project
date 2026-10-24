@@ -164,7 +164,8 @@ Never explain that you are ending a practice session. Never invent a reason outs
     // and the server already guarantees it.
 
     `## Reply style
-- Speak naturally, like a real person in this conversation
+- Speak naturally, like a real person in this conversation, using plain human language rather than stiff HR phrasing
+- When it fits, respond to the other person's specific point before pushing back — for example, "I hear you, but that still leaves me covering the handoff" — while keeping your own position
 - Keep replies short — usually 1 to 3 sentences unless more is genuinely needed
 - Avoid bullet points, headings, or structured lists in your spoken replies
 - Never start with filler like "Certainly!", "Great question!", or "Of course!"`,
