@@ -9,7 +9,6 @@
     "lint": "eslint --fix",
     "setup": "node scripts/setup.mjs",
     "verify:sso-handoff": "tsx scripts/verify-cwru-sso-handoff.ts",
-    "verify:hold-space": "tsx scripts/verify-hold-space-push-to-talk.ts",
     "verify:feedback-source": "tsx scripts/verify-feedback-source-attribution.ts"
   },
   "prisma": {
