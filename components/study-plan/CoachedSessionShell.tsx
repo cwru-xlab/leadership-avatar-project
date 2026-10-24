@@ -115,6 +115,9 @@ const OPENING_FALLBACK_MS = 15_000;
 /** Upper bound on waiting for the avatar to finish a line before the next. */
 const SPEECH_WAIT_MAX_MS = 45_000;
 
+const DEMONSTRATION_DISCLOSURE =
+  "This is one version your coach said out loud — a separate thing from the technique tips. Now say it your own way.";
+
 export default function CoachedSessionShell({ stepId }: CoachedSessionShellProps) {
   const coachedUrl = `/api/study-plans/path-steps/${stepId}/coached`;
 
@@ -135,6 +138,7 @@ export default function CoachedSessionShell({ stepId }: CoachedSessionShellProps
   const openingRequestedRef = useRef(false);
   const openingTimerRef = useRef<number | null>(null);
   const turnInFlightRef = useRef(false);
+  const captionsEndRef = useRef<HTMLDivElement>(null);
 
   /**
    * Reads (or, on first entry, enters) the step's coached session. The only
@@ -186,6 +190,12 @@ export default function CoachedSessionShell({ stepId }: CoachedSessionShellProps
     // for a mounted shell.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep the latest caption in view inside the page's own scroll.
+  const conversationLength = legView?.conversation.length ?? 0;
+  useEffect(() => {
+    captionsEndRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [conversationLength]);
 
   // Stop the avatar session when the shell unmounts (the stage also stops
   // itself on unmount; this covers the handle being held past it).
@@ -483,114 +493,161 @@ export default function CoachedSessionShell({ stepId }: CoachedSessionShellProps
   }
 
   const moment = legView.moment;
-  const coachTurns = legView.conversation.filter((turn) => turn.speaker === "COACH");
-  const latestCoachTurn = coachTurns.length > 0 ? coachTurns[coachTurns.length - 1] : null;
   const attempts = legView.conversation
     .filter((turn) => turn.speaker === "STUDENT" && turn.move === "ATTEMPT")
     .map((turn) => ({ text: turn.text, acceptable: turn.acceptable, parroted: turn.parroted }));
   const secondMomentNext = legView.leg === "REPLAY" && legView.legCount === 2;
+  const partNumber = legView.leg === "FRESH" ? 2 : 1;
+  const talkLabel =
+    legView.awaiting === "ATTEMPT" ? "Hold to say your better version" : "Hold to talk";
+  const talkDisabled = !canSpeak || pushToTalk.isTranscribing;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8" aria-live="polite">
-      <section aria-labelledby="coached-session-heading" className="space-y-5">
-        <div>
-          <h1 id="coached-session-heading" className="font-serif text-2xl text-[#102331]">
-            {legView.competencyLabel}
-          </h1>
-          {legView.thinEvidence ? (
-            <p className="mt-1 text-sm text-[#385463]">
-              This session has one part: there was not a second moment clear enough to use.
-            </p>
-          ) : null}
+    <div className="mx-auto max-w-6xl space-y-6 px-4 py-8" aria-live="polite">
+      <header className="space-y-1">
+        <h1 id="coached-session-heading" className="font-serif text-2xl text-[#102331]">
+          {legView.competencyLabel}
+        </h1>
+        <p className="text-sm text-[#58727f]">
+          Part {partNumber} of {legView.legCount}
+        </p>
+        {legView.thinEvidence ? (
+          <p className="text-sm text-[#385463]">
+            This session has one part: there was not a second moment clear enough to use.
+          </p>
+        ) : null}
+      </header>
+
+      <section
+        aria-labelledby="coached-session-heading"
+        className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr,2fr]"
+      >
+        {/* Left column: coach, captions, talk control. Stacks first on mobile. */}
+        <div className="min-w-0 space-y-4">
           {videoUnavailable ? (
-            <p className="mt-1 text-sm text-[#385463]" role="status">
+            <p
+              className="rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4 text-sm text-[#385463]"
+              role="status"
+            >
               The video coach couldn&apos;t connect, so your coach will continue in text.
             </p>
           ) : null}
-        </div>
+          {/* Stay mounted even when unavailable so its error state and unmount cleanup run. */}
+          <div className={videoUnavailable ? "hidden" : undefined}>
+            <CoachAvatarStage
+              ref={stageRef}
+              coach={legView.coach}
+              onReady={handleStageReady}
+              onError={handleStageError}
+            />
+          </div>
 
-        <CoachAvatarStage
-          ref={stageRef}
-          coach={legView.coach}
-          onReady={handleStageReady}
-          onError={handleStageError}
-        />
+          <div
+            className="space-y-3 rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4"
+            aria-label="Conversation captions"
+          >
+            {legView.conversation.length === 0 ? (
+              <p className="text-sm text-[#58727f]">Your coach is getting ready…</p>
+            ) : (
+              legView.conversation.map((turn) => (
+                <div key={turn.seq}>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[#58727f]">
+                    {turn.speaker === "COACH" ? `Coach ${legView.coach.name}` : "You"}
+                  </p>
+                  <p className="mt-0.5 whitespace-pre-wrap text-sm leading-6 text-[#173847]">
+                    {turn.text}
+                  </p>
+                </div>
+              ))
+            )}
+            <div ref={captionsEndRef} />
+          </div>
 
-        <div className="rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4" aria-live="polite">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#58727f]">
-            {legView.coach.name}
-          </p>
-          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#173847]">
-            {latestCoachTurn ? latestCoachTurn.text : "Your coach is getting ready…"}
-          </p>
-          {latestDemonstration ? (
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#385463]">
-              {latestDemonstration}
+          {!legView.legReady ? (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  color="primary"
+                  isDisabled={talkDisabled}
+                  onPressStart={() => void pushToTalk.startRecording()}
+                  onPressEnd={() => void pushToTalk.stopRecording()}
+                >
+                  {pushToTalk.isRecording
+                    ? "Listening… release to send"
+                    : pushToTalk.isTranscribing || coachBusy
+                      ? "Working…"
+                      : talkLabel}
+                </Button>
+                <span className="text-xs text-[#58727f]">or hold Space</span>
+              </div>
+              {pushToTalk.isTranscribing && pushToTalk.partialTranscript ? (
+                <p className="text-sm text-[#58727f]">{pushToTalk.partialTranscript}</p>
+              ) : null}
+              {pushToTalk.micUnavailable ? (
+                <p className="text-sm text-[#9b2c2c]" role="alert">
+                  Your microphone isn&apos;t available. Allow microphone access to continue.
+                </p>
+              ) : pushToTalk.error ? (
+                <p className="text-sm text-[#9b2c2c]" role="alert">
+                  {pushToTalk.error}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {liveError ? (
+            <p className="text-sm text-[#9b2c2c]" role="alert">
+              {liveError}
             </p>
+          ) : null}
+
+          {legView.legReady ? (
+            <Button
+              color="primary"
+              isDisabled={finishingLeg}
+              onPress={secondMomentNext ? handleAdvance : handleComplete}
+            >
+              {finishingLeg ? (
+                <Spinner size="sm" />
+              ) : secondMomentNext ? (
+                "Continue to your second moment"
+              ) : (
+                "Finish session"
+              )}
+            </Button>
           ) : null}
         </div>
 
-        {moment ? (
-          <CoachedMomentPanel
-            counterpartLine={moment.counterpartLine}
-            studentLine={moment.studentLine}
-            attempts={attempts}
-            sessionLink={`/practice/${legView.underlyingTypeSlug}/report/${moment.sourceReportId}`}
-          />
-        ) : null}
+        {/* Right column: the moment, the demonstration channel, the tip rail. */}
+        <div className="min-w-0 space-y-4">
+          {moment ? (
+            <CoachedMomentPanel
+              counterpartLine={moment.counterpartLine}
+              studentLine={moment.studentLine}
+              attempts={attempts}
+              sessionLink={`/practice/${legView.underlyingTypeSlug}/report/${moment.sourceReportId}`}
+            />
+          ) : null}
 
-        {!legView.legReady ? (
-          <div className="space-y-2">
-            <Button
-              color="primary"
-              isDisabled={!canSpeak || pushToTalk.isTranscribing}
-              onPressStart={() => void pushToTalk.startRecording()}
-              onPressEnd={() => void pushToTalk.stopRecording()}
+          {latestDemonstration ? (
+            <aside
+              aria-label="Coach example"
+              className="space-y-2 rounded-xl border border-[#f0d9a8] bg-[#fffaf0] p-4"
             >
-              {pushToTalk.isRecording
-                ? "Listening… release to send"
-                : pushToTalk.isTranscribing || coachBusy
-                  ? "Working…"
-                  : "Hold to speak"}
-            </Button>
-            {pushToTalk.partialTranscript ? (
-              <p className="text-sm text-[#58727f]">{pushToTalk.partialTranscript}</p>
-            ) : null}
-            {pushToTalk.micUnavailable ? (
-              <p className="text-sm text-[#9b2c2c]" role="alert">
-                Your microphone isn&apos;t available. Allow microphone access to continue.
+              <p className="text-xs font-bold uppercase tracking-wide text-[#8a5a00]">
+                {legView.coach.name}&apos;s example
               </p>
-            ) : pushToTalk.error ? (
-              <p className="text-sm text-[#9b2c2c]" role="alert">
-                {pushToTalk.error}
+              <p className="whitespace-pre-wrap text-sm leading-6 text-[#173847]">
+                {latestDemonstration}
               </p>
-            ) : null}
-          </div>
-        ) : null}
+              <p className="text-xs leading-5 text-[#58727f]">
+                {DEMONSTRATION_DISCLOSURE}
+              </p>
+            </aside>
+          ) : null}
 
-        {liveError ? (
-          <p className="text-sm text-[#9b2c2c]" role="alert">
-            {liveError}
-          </p>
-        ) : null}
-
-        <TipRail tips={legView.tips} />
-
-        {legView.legReady ? (
-          <Button
-            color="primary"
-            isDisabled={finishingLeg}
-            onPress={secondMomentNext ? handleAdvance : handleComplete}
-          >
-            {finishingLeg ? (
-              <Spinner size="sm" />
-            ) : secondMomentNext ? (
-              "Continue to your second moment"
-            ) : (
-              "Finish session"
-            )}
-          </Button>
-        ) : null}
+          <TipRail tips={legView.tips} />
+        </div>
       </section>
     </div>
   );
