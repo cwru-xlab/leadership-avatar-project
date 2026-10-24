@@ -18,6 +18,8 @@ import {
   History,
   GraduationCap,
   QrCode,
+  BookOpenCheck,
+  Route,
   LogOut,
   Menu,
   X,
@@ -41,6 +43,8 @@ const iconMap = {
   History,
   GraduationCap,
   QrCode,
+  BookOpenCheck,
+  Route,
 } as const;
 
 export const AuthNavbar = () => {
@@ -107,7 +111,9 @@ export const AuthNavbar = () => {
             {navItems.map((item) => {
               const IconComponent =
                 iconMap[item.icon as keyof typeof iconMap];
-              const isActive = pathname === item.href;
+              const isActive =
+                pathname === item.href ||
+                (item.href !== "/" && pathname.startsWith(item.href + "/"));
               return (
                 <li key={item.href}>
                   <NextLink
