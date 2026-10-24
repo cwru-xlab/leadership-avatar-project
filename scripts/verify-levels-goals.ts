@@ -46,6 +46,7 @@ function row(
     weight: 1,
     sourceReportId: opts?.sourceReportId ?? null,
     sourceAttemptId: opts?.sourceAttemptId ?? null,
+    sourceCoachedSessionId: null,
     reversedAt: null,
     reversedReason: null,
     occurredAt: new Date(occurredAt),
