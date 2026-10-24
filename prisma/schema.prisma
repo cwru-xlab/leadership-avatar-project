@@ -85,6 +85,12 @@ model User {
   gradingContests        GradingContest[]
   studyPlanPaths         StudyPlanPath[]
   coachedSessions        CoachedSession[]
+  momentCompetencyScores MomentCompetencyScore[]
+
+  /// Chosen once in Settings; null means the default coach.
+  coachAvatarId String?
+  coachVoiceId  String?
+  coachName     String?
 
   @@index([email])
   @@index([role])
@@ -551,6 +557,10 @@ model MasteryContribution {
   /// KnowledgeCheckAttempt id for a check-sourced contribution. Null otherwise.
   sourceAttemptId String?
 
+  /// Set for COACHED_SESSION rows written from Phase 22 on; coached sessions no
+  /// longer produce an InteractionReport.
+  sourceCoachedSessionId String?
+
   /// Non-null means a GradingContest reversed this contribution; it no longer
   /// counts toward mastery but the row is never deleted.
   reversedAt     DateTime?
@@ -565,6 +575,7 @@ model MasteryContribution {
   @@index([userId, competencyKey, occurredAt])
   @@index([userId, occurredAt])
   @@index([sourceAttemptId])
+  @@index([sourceCoachedSessionId])
 }
 
 /// One generated question, in any of the four formats all four formats ship
@@ -755,13 +766,100 @@ model CoachedSession {
   replaySourceReportId String
   replayTurnIndex      Int
 
-  freshScenarioPrompt String @db.Text
+  /// Pre-Phase-22 rows only; the fresh leg is now a second real moment, see
+  /// freshSourceReportId/freshTurnIndex.
+  freshScenarioPrompt String? @db.Text
 
-  /// The InteractionReport this session produced, once finished.
+  /// Second real moment for the FRESH leg. Both null means thin evidence (a
+  /// one-leg session); both set otherwise.
+  freshSourceReportId String?
+  freshTurnIndex      Int?
+
+  /// "PER_TURN_SCORE" | "GROWTH_AREA_FALLBACK". Null marks a pre-Phase-22 row.
+  selectionBasis String?
+
+  /// Set when the REPLAY leg closes.
+  replayLegCompletedAt DateTime?
+
+  /// The per-turn score (1..5) each moment was selected with; null under the
+  /// growth-area fallback. Lets the brief and the coach frame a moment scored
+  /// above MAX_REWORKABLE_SCORE as refinement.
+  replayMomentScore Int?
+  freshMomentScore  Int?
+
+  /// Pre-Phase-22 rows only. Coached sessions no longer produce an
+  /// InteractionReport.
   reportId String?
 
   startedAt   DateTime  @default(now())
   completedAt DateTime?
 
+  turns CoachedTurn[]
+
   @@index([userId, startedAt])
+}
+
+/// One utterance in a coached session's per-leg conversation: a coach move or
+/// a student reply/attempt. Discriminators are plain Strings, enforced in
+/// application code.
+model CoachedTurn {
+  id String @id @default(uuid())
+
+  coachedSessionId String
+  coachedSession   CoachedSession @relation(fields: [coachedSessionId], references: [id], onDelete: Cascade)
+
+  /// "REPLAY" | "FRESH"
+  leg String
+  seq Int
+
+  /// "COACH" | "STUDENT"
+  speaker String
+
+  /// Coach: OPEN | ASK_DIAGNOSIS | CONFIRM | CORRECT | INVITE_ATTEMPT |
+  /// DEMONSTRATE | LEG_DONE. Student: REPLY | ATTEMPT.
+  move String
+
+  /// Coach rows: "REPLY" | "ATTEMPT" | "NONE".
+  awaiting String?
+
+  text          String  @db.Text
+  demonstration String? @db.Text
+
+  /// Grade of a student ATTEMPT row.
+  score          Int?
+  acceptable     Boolean?
+  parroted       Boolean?
+  gradeRationale String?  @db.Text
+
+  spokenDurationMs Int?
+  closedAtSoftCap  Boolean?
+
+  createdAt DateTime @default(now())
+
+  @@unique([coachedSessionId, seq])
+  @@index([coachedSessionId, leg])
+}
+
+/// Cache of per-turn competency scores for 22-07's scorer, so the same moment
+/// is never re-scored. Soft pointer to InteractionReport, no FK (same
+/// convention as MasteryContribution.sourceReportId).
+model MomentCompetencyScore {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  reportId      String
+  turnIndex     Int
+  competencyKey String
+
+  evidencesCompetency Boolean
+  /// 1..5; null when the turn does not evidence the competency.
+  score               Int?
+  rationale           String  @db.Text
+  model               String
+
+  createdAt DateTime @default(now())
+
+  @@unique([reportId, turnIndex, competencyKey])
+  @@index([userId])
 }
