@@ -265,5 +265,66 @@ console.log("\n9. Weight-class bindings hold (===), with a bite-proof");
   );
 }
 
+console.log("\n10. VOICE_DRILL (Phase 23): coached weight, below live and deterministic, with bite-proofs");
+{
+  const bindingViolations = (weights: Record<ContributionSource, number>) =>
+    WEIGHT_CLASS_BINDINGS.filter(
+      (b) => weights[b.source] !== weights[b.sameClassAs]
+    ).map((b) => ({ source: b.source, sameClassAs: b.sameClassAs }));
+
+  check(
+    "VOICE_DRILL is a declared contribution source",
+    (CONTRIBUTION_SOURCES as readonly string[]).includes("VOICE_DRILL")
+  );
+  check(
+    "VOICE_DRILL weight === COACHED_SESSION weight",
+    CONTRIBUTION_WEIGHTS.VOICE_DRILL === CONTRIBUTION_WEIGHTS.COACHED_SESSION,
+    `VOICE_DRILL=${CONTRIBUTION_WEIGHTS.VOICE_DRILL}, COACHED_SESSION=${CONTRIBUTION_WEIGHTS.COACHED_SESSION}`
+  );
+  check(
+    "weightForSource('VOICE_DRILL') resolves (no unknown-source throw)",
+    weightForSource("VOICE_DRILL") === CONTRIBUTION_WEIGHTS.COACHED_SESSION
+  );
+  check(
+    "a VOICE_DRILL -> COACHED_SESSION binding is declared",
+    WEIGHT_CLASS_BINDINGS.some((b) => b.source === "VOICE_DRILL" && b.sameClassAs === "COACHED_SESSION")
+  );
+  check(
+    "orderings LIVE_SESSION > VOICE_DRILL and CHECK_DETERMINISTIC > VOICE_DRILL are declared",
+    WEIGHT_ORDERING_CONSTRAINTS.some((c) => c.greater === "LIVE_SESSION" && c.lesser === "VOICE_DRILL") &&
+      WEIGHT_ORDERING_CONSTRAINTS.some((c) => c.greater === "CHECK_DETERMINISTIC" && c.lesser === "VOICE_DRILL")
+  );
+
+  // Bite-proof 1: a drill counted like a live session breaks the ordering.
+  const drillAsLive: Record<ContributionSource, number> = { ...CONTRIBUTION_WEIGHTS, VOICE_DRILL: 1.0 };
+  check(
+    "bite-proof: VOICE_DRILL=1.0 violates LIVE_SESSION > VOICE_DRILL",
+    violations(drillAsLive).some((v) => v.greater === "LIVE_SESSION" && v.lesser === "VOICE_DRILL")
+  );
+  // Bite-proof 2: a drift from the coached weight breaks the binding.
+  const drifted: Record<ContributionSource, number> = { ...CONTRIBUTION_WEIGHTS, VOICE_DRILL: 0.25 };
+  check(
+    "bite-proof: VOICE_DRILL=0.25 violates the VOICE_DRILL === COACHED_SESSION binding",
+    bindingViolations(drifted).some((b) => b.source === "VOICE_DRILL")
+  );
+  // Validation accepts the new source.
+  let threw = false;
+  try {
+    validateContributionInputs([
+      {
+        userId: "u1",
+        competencyKey: "delivery_presence" as any,
+        source: "VOICE_DRILL",
+        rawScore: 0.5,
+        occurredAt: new Date(Date.now() - 1000),
+        sourceVoiceDrillAttemptId: "a1",
+      },
+    ]);
+  } catch {
+    threw = true;
+  }
+  check("validateContributionInputs accepts a VOICE_DRILL input", !threw);
+}
+
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}\n`);
 process.exit(failures === 0 ? 0 : 1);

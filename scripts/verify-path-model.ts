@@ -165,6 +165,26 @@ console.log("\n3. KIND/REFERENCE CONSISTENCY, including both coached halves");
     check("UNAIDED_SESSION carrying coachedSessionId rejected", validatePathSteps(withCs).length > 0);
   }
 
+  // VOICE_DRILL (Phase 23) — carries neither id, in every status.
+  {
+    for (const status of ["PENDING", "IN_PROGRESS", "COMPLETE"] as const) {
+      const ok = makeSteps(5, [{ kind: "VOICE_DRILL" as any, status }]);
+      check(
+        `VOICE_DRILL with neither id accepted (status ${status})`,
+        validatePathSteps(ok).length === 0,
+        JSON.stringify(validatePathSteps(ok)),
+      );
+    }
+    const withKc = makeSteps(5, [{ kind: "VOICE_DRILL" as any, knowledgeCheckId: "kc-1" }]);
+    check("VOICE_DRILL carrying knowledgeCheckId rejected", validatePathSteps(withKc).length > 0);
+    const withCs = makeSteps(5, [{ kind: "VOICE_DRILL" as any, coachedSessionId: "cs-1" }]);
+    check("VOICE_DRILL carrying coachedSessionId rejected", validatePathSteps(withCs).length > 0);
+    // Bite-proof: before Phase 23 an unknown kind fell through every branch
+    // and was silently accepted.
+    const typo = makeSteps(5, [{ kind: "VOICE_DRIL" as any }]);
+    check("unknown kind rejected (bite-proof for the fall-through)", validatePathSteps(typo).length > 0);
+  }
+
   // COACHED_SESSION — the amendment, both halves.
   {
     const pendingNull = makeSteps(5, [

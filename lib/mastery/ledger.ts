@@ -43,6 +43,8 @@ export interface ContributionInput {
   sourceReportId?: string | null;
   sourceAttemptId?: string | null;
   sourceCoachedSessionId?: string | null;
+  /** Phase 23: set only on VOICE_DRILL rows (the VoiceDrillAttempt id). */
+  sourceVoiceDrillAttemptId?: string | null;
 }
 
 export interface MasteryContributionRow {
@@ -55,6 +57,8 @@ export interface MasteryContributionRow {
   sourceReportId: string | null;
   sourceAttemptId: string | null;
   sourceCoachedSessionId: string | null;
+  /** Phase 23. Optional so rows read before the column exists still fit. */
+  sourceVoiceDrillAttemptId?: string | null;
   reversedAt: Date | null;
   reversedReason: string | null;
   occurredAt: Date;
@@ -141,6 +145,12 @@ export async function recordContributions(
     sourceReportId: input.sourceReportId ?? null,
     sourceAttemptId: input.sourceAttemptId ?? null,
     sourceCoachedSessionId: input.sourceCoachedSessionId ?? null,
+    // Spread ONLY when set: every non-drill write stays byte-identical to
+    // before Phase 23, so a database without the column (migration not yet
+    // applied) keeps accepting live-session, check and coached rows.
+    ...(input.sourceVoiceDrillAttemptId
+      ? { sourceVoiceDrillAttemptId: input.sourceVoiceDrillAttemptId }
+      : {}),
   }));
 
   const result = await prisma.masteryContribution.createMany({ data: rows });
