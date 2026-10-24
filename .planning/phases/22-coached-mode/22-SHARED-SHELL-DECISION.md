@@ -43,6 +43,14 @@ explicit "continue without video" after a 15s slow-connect notice — never
 from a timer. A coach turn that arrives while the stage is not connected is
 queued and spoken on CONNECTED (`pendingSpeechRef`), not dropped.
 
+Root cause found in the browser smoke test (2026-10-24): the PATCH turn route
+returned `CoachTurnResult` unwrapped (`{ coachTurn: { coachTurn, legState } }`),
+so the shell's `turn.speech` was `undefined` and EVERY coach turn — opening and
+later turns — was sent to the avatar as `speak_text, text: undefined`;
+demonstrations never rendered either. The route now sends the flat turn
+(`eeac920`). After the fix the smoke test shows the opening dispatched as
+`avatar.speak_text` with the coach's text, after CONNECTED.
+
 ## G3 — camera and capture
 
 Brief (step 1) -> the shared `CameraConsentStep` (step 2) -> live room with
