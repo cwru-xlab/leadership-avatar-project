@@ -225,6 +225,11 @@ console.log(
     CONTRIBUTION_WEIGHTS.LIVE_SESSION > CONTRIBUTION_WEIGHTS.COACHED_SESSION,
     `LIVE_SESSION=${CONTRIBUTION_WEIGHTS.LIVE_SESSION}, COACHED_SESSION=${CONTRIBUTION_WEIGHTS.COACHED_SESSION}`,
   );
+  check(
+    "CONTRIBUTION_WEIGHTS.COACHED_SESSION === CONTRIBUTION_WEIGHTS.CHECK_MODEL_GRADED (22-09 binding: never the deterministic weight)",
+    CONTRIBUTION_WEIGHTS.COACHED_SESSION === CONTRIBUTION_WEIGHTS.CHECK_MODEL_GRADED,
+    `COACHED_SESSION=${CONTRIBUTION_WEIGHTS.COACHED_SESSION}, CHECK_MODEL_GRADED=${CONTRIBUTION_WEIGHTS.CHECK_MODEL_GRADED}`,
+  );
 }
 
 console.log("\n5. DEMONSTRATION CARVE-OUT");
@@ -400,8 +405,68 @@ console.log("\n7. PARROTING");
 }
 
 async function runDatabaseSection() {
+  console.log("\n4. CONTRIBUTION — pure leg-to-input mapping (no database)");
+  {
+    const { contributionInputsFromCoachedLegs } = await import(
+      "../lib/study-plan/coached/contribution"
+    );
+    const base = {
+      userId: "u1",
+      coachedSessionId: "s1",
+      competencyKey: "delivery_presence" as const,
+      occurredAt: new Date("2026-10-01T00:00:00Z"),
+    };
+    const attempts = [
+      { leg: "REPLAY", score: 2, acceptable: false, parroted: false },
+      { leg: "REPLAY", score: 4, acceptable: true, parroted: false },
+      { leg: "REPLAY", score: 5, acceptable: true, parroted: true },
+      { leg: "FRESH", score: 3, acceptable: false, parroted: false },
+      { leg: "FRESH", score: 2, acceptable: false, parroted: false },
+    ];
+    const inputs = contributionInputsFromCoachedLegs({
+      ...base,
+      attempts,
+      legClosures: [
+        { leg: "REPLAY", closedAtSoftCap: false },
+        { leg: "FRESH", closedAtSoftCap: true },
+      ],
+    });
+    check("two closed legs yield two inputs", inputs.length === 2, JSON.stringify(inputs));
+    check(
+      "REPLAY takes the best acceptable non-parroted attempt (4 -> 0.75), ignoring the parroted 5",
+      inputs[0]?.rawScore === 0.75,
+      String(inputs[0]?.rawScore),
+    );
+    check(
+      "FRESH (soft cap) takes the best non-parroted attempt (3 -> 0.5)",
+      inputs[1]?.rawScore === 0.5,
+      String(inputs[1]?.rawScore),
+    );
+    check(
+      "every input is COACHED_SESSION, carries sourceCoachedSessionId and no report id",
+      inputs.every(
+        (i) =>
+          i.source === "COACHED_SESSION" &&
+          i.sourceCoachedSessionId === "s1" &&
+          i.sourceReportId === null,
+      ),
+    );
+    const noClosure = contributionInputsFromCoachedLegs({
+      ...base,
+      attempts,
+      legClosures: [],
+    });
+    check("no LEG_DONE rows -> no inputs", noClosure.length === 0);
+    const allParroted = contributionInputsFromCoachedLegs({
+      ...base,
+      attempts: [{ leg: "REPLAY", score: 5, acceptable: true, parroted: true }],
+      legClosures: [{ leg: "REPLAY", closedAtSoftCap: false }],
+    });
+    check("a leg whose only attempt is parroted emits nothing", allParroted.length === 0);
+  }
+
   if (!process.env.DATABASE_URL) {
-    skip("4. CONTRIBUTION (no DATABASE_URL set)");
+    skip("4. CONTRIBUTION database section (no DATABASE_URL set)");
     return;
   }
 
@@ -409,9 +474,6 @@ async function runDatabaseSection() {
 
   const { prisma } = await import("../lib/prisma");
   const { createPath } = await import("../lib/study-plan/path");
-  const { createCoachedSession, finishCoachedSession } = await import(
-    "../lib/study-plan/coached/instance"
-  );
   const { recordCoachedContribution } = await import(
     "../lib/study-plan/coached/contribution"
   );
@@ -421,11 +483,6 @@ async function runDatabaseSection() {
   const { computeMastery } = await import("../lib/mastery/compute");
 
   const COMPETENCY_KEY = "delivery_presence" as const;
-  // "content" maps to structure_and_clarity (not delivery_presence), which
-  // is used deliberately as the ALL-NULL competency below — a dimension
-  // belonging to a DIFFERENT competency than the coached step's own, so the
-  // all-null-yields-no-row assertion is not accidentally conflated with the
-  // step's own competency.
 
   const testId = randomUUID();
   const email = `coach-tips-verify-${testId}@example.com`;
@@ -434,7 +491,6 @@ async function runDatabaseSection() {
   let userId = "";
   let otherUserId = "";
   const studyPlanIds: string[] = [];
-  const reportIds: string[] = [];
   const contributionIds: string[] = [];
 
   async function makeStudyPlan(owner: string, title: string) {
@@ -453,20 +509,81 @@ async function runDatabaseSection() {
     return row;
   }
 
-  async function makeReport(
-    owner: string,
-    opts: { turnCount?: number; scores?: Record<string, number | null> },
-  ) {
-    const row = await prisma.interactionReport.create({
+  function makeFillerSteps(positions: number[]) {
+    return positions.map((position) => ({
+      position,
+      kind: "UNAIDED_SESSION" as const,
+      competencyKey: COMPETENCY_KEY,
+      selectionReason: "verify-coach-tips: unaided filler step",
+      knowledgeCheckId: null,
+      coachedSessionId: null,
+    }));
+  }
+
+  async function makePathStep(owner: string, title: string) {
+    const plan = await makeStudyPlan(owner, title);
+    const path = await createPath({
+      userId: owner,
+      studyPlanId: plan.id,
+      steps: [
+        {
+          position: 1,
+          kind: "COACHED_SESSION",
+          competencyKey: COMPETENCY_KEY,
+          selectionReason: "verify-coach-tips: coached session step",
+          knowledgeCheckId: null,
+          coachedSessionId: null,
+        },
+        ...makeFillerSteps([2, 3, 4, 5]),
+      ],
+      selectionSnapshot: { note: "verify-coach-tips" },
+    });
+    return path.steps.find((s) => s.kind === "COACHED_SESSION")!;
+  }
+
+  async function makeSession(owner: string, title: string, completed: boolean) {
+    const step = await makePathStep(owner, title);
+    return prisma.coachedSession.create({
       data: {
         userId: owner,
-        typeSlug: "general",
-        turnCount: opts.turnCount ?? 10,
-        scores: opts.scores ?? undefined,
+        pathStepId: step.id,
+        competencyKey: COMPETENCY_KEY,
+        replaySourceReportId: `verify-coach-tips-report-${testId}`,
+        replayTurnIndex: 0,
+        selectionBasis: "PER_TURN_SCORE",
+        completedAt: completed ? new Date("2026-10-10T00:00:00Z") : null,
       },
     });
-    reportIds.push(row.id);
-    return row;
+  }
+
+  let seq = 0;
+  async function addTurn(
+    sessionId: string,
+    t: {
+      leg: "REPLAY" | "FRESH";
+      speaker: "COACH" | "STUDENT";
+      move: string;
+      score?: number;
+      acceptable?: boolean;
+      parroted?: boolean;
+      closedAtSoftCap?: boolean;
+    },
+  ) {
+    seq += 1;
+    await prisma.coachedTurn.create({
+      data: {
+        coachedSessionId: sessionId,
+        leg: t.leg,
+        seq,
+        speaker: t.speaker,
+        move: t.move,
+        text: "verify-coach-tips fixture",
+        score: t.score ?? null,
+        acceptable: t.acceptable ?? null,
+        parroted: t.parroted ?? null,
+        closedAtSoftCap: t.closedAtSoftCap ?? null,
+      },
+    });
   }
 
   try {
@@ -479,14 +596,8 @@ async function runDatabaseSection() {
     });
     otherUserId = otherUser.id;
 
-    // A BASELINE contribution for delivery_presence, at a score deliberately
-    // far from the coached session's eventual rawScore (0.625, see below).
-    // Without a baseline, a weighted mean over contributions that ALL carry
-    // the identical rawScore is unweightable by construction (the weighted
-    // mean of n copies of the same value is that value, regardless of
-    // weight) — this baseline is what makes "the live weight pulls harder
-    // toward its own value than the coached weight does" a provable,
-    // non-degenerate claim rather than a vacuous one.
+    // A BASELINE contribution far from the coached rawScore, so "the live
+    // weight pulls harder than the coached weight" is non-degenerate.
     const baselineSourceReportId = `verify-coach-tips-baseline-${testId}`;
     await recordContributions([
       {
@@ -504,109 +615,66 @@ async function runDatabaseSection() {
     });
     if (baselineRow) contributionIds.push(baselineRow.id);
 
-    function makeFillerSteps(positions: number[]) {
-      return positions.map((position) => ({
-        position,
-        kind: "UNAIDED_SESSION" as const,
-        competencyKey: COMPETENCY_KEY,
-        selectionReason: "verify-coach-tips: unaided filler step",
-        knowledgeCheckId: null,
-        coachedSessionId: null,
-      }));
-    }
+    const session = await makeSession(userId, "Coach Tips Verify Plan", true);
 
-    const plan = await makeStudyPlan(userId, "Coach Tips Verify Plan");
-    const path = await createPath({
-      userId,
-      studyPlanId: plan.id,
-      steps: [
-        {
-          position: 1,
-          kind: "COACHED_SESSION",
-          competencyKey: COMPETENCY_KEY,
-          selectionReason: "verify-coach-tips: coached session step",
-          knowledgeCheckId: null,
-          coachedSessionId: null,
-        },
-        ...makeFillerSteps([2, 3, 4, 5]),
-      ],
-      selectionSnapshot: { note: "verify-coach-tips" },
-    });
-    const coachedStep = path.steps.find((s) => s.kind === "COACHED_SESSION")!;
+    // REPLAY: acceptable 4 (best acceptable), a parroted 5 that must be ignored.
+    await addTurn(session.id, { leg: "REPLAY", speaker: "STUDENT", move: "ATTEMPT", score: 2, acceptable: false, parroted: false });
+    await addTurn(session.id, { leg: "REPLAY", speaker: "STUDENT", move: "ATTEMPT", score: 4, acceptable: true, parroted: false });
+    await addTurn(session.id, { leg: "REPLAY", speaker: "STUDENT", move: "ATTEMPT", score: 5, acceptable: true, parroted: true });
+    await addTurn(session.id, { leg: "REPLAY", speaker: "COACH", move: "LEG_DONE", closedAtSoftCap: false });
+    // FRESH: acceptable 3.
+    await addTurn(session.id, { leg: "FRESH", speaker: "STUDENT", move: "ATTEMPT", score: 3, acceptable: true, parroted: false });
+    await addTurn(session.id, { leg: "FRESH", speaker: "COACH", move: "LEG_DONE", closedAtSoftCap: false });
 
-    const replayReport = await makeReport(userId, { turnCount: 5 });
-
-    const coachedSession = await createCoachedSession({
-      userId,
-      pathStepId: coachedStep.id,
-      replaySourceReportId: replayReport.id,
-      replayTurnIndex: 0,
-      freshScenarioPrompt: "A fresh scenario exercising the same competency.",
-    });
-
-    // Scores covering several dimensions including one null, and one
-    // dimension (content -> structure_and_clarity, a DIFFERENT competency)
-    // left entirely null so that competency gets no row.
-    const finishReport = await makeReport(userId, {
-      scores: { visual: 4, vocal: null, holding_the_room: 3, content: null },
-    });
-
-    await finishCoachedSession(userId, coachedSession.id, finishReport.id);
-
-    // Mastery figure BEFORE the coached contribution.
     const beforeRows = await readContributions(userId);
-    const beforeResult = computeMastery(beforeRows, new Date());
-    const beforeDelivery = beforeResult.competencies.find(
+    const beforeDelivery = computeMastery(beforeRows, new Date()).competencies.find(
       (c) => c.competencyKey === "delivery_presence",
     );
 
     const firstResult = await recordCoachedContribution({
       userId,
-      coachedSessionId: coachedSession.id,
+      coachedSessionId: session.id,
     });
-    check(
-      "recordCoachedContribution writes at least one row",
-      firstResult.written > 0,
-      JSON.stringify(firstResult),
-    );
+    check("recordCoachedContribution writes two rows (one per closed leg)", firstResult.written === 2, JSON.stringify(firstResult));
 
     const writtenRows = await prisma.masteryContribution.findMany({
-      where: { sourceReportId: finishReport.id },
+      where: { sourceCoachedSessionId: session.id },
+      orderBy: { rawScore: "desc" },
     });
     writtenRows.forEach((r) => contributionIds.push(r.id));
 
+    check("two rows are linked to the session by sourceCoachedSessionId", writtenRows.length === 2, String(writtenRows.length));
     check(
-      "one row per competency with at least one non-null dimension (delivery_presence only, here)",
-      writtenRows.length === 1 && writtenRows[0].competencyKey === "delivery_presence",
-      JSON.stringify(writtenRows.map((r) => r.competencyKey)),
+      "every written row has source COACHED_SESSION and no report link",
+      writtenRows.every((r) => r.source === "COACHED_SESSION" && r.sourceReportId === null),
+      JSON.stringify(writtenRows.map((r) => [r.source, r.sourceReportId])),
     );
     check(
-      "the all-null competency (structure_and_clarity, from the null `content` dimension) gets NO row",
-      !writtenRows.some((r) => r.competencyKey === "structure_and_clarity"),
-    );
-    check(
-      "every written row has source COACHED_SESSION",
-      writtenRows.every((r) => r.source === "COACHED_SESSION"),
-      JSON.stringify(writtenRows.map((r) => r.source)),
-    );
-    check(
-      "every written row's weight equals CONTRIBUTION_WEIGHTS.COACHED_SESSION",
-      writtenRows.every((r) => r.weight === CONTRIBUTION_WEIGHTS.COACHED_SESSION),
+      "every row's weight === COACHED_SESSION === CHECK_MODEL_GRADED",
+      writtenRows.every(
+        (r) =>
+          r.weight === CONTRIBUTION_WEIGHTS.COACHED_SESSION &&
+          r.weight === CONTRIBUTION_WEIGHTS.CHECK_MODEL_GRADED,
+      ),
       JSON.stringify(writtenRows.map((r) => r.weight)),
     );
+    check(
+      "weight is not the deterministic weight",
+      writtenRows.every((r) => r.weight !== CONTRIBUTION_WEIGHTS.CHECK_DETERMINISTIC),
+    );
+    check(
+      "rawScores are the normalized best acceptable attempt per leg (0.75 and 0.5); the parroted 5 is ignored",
+      writtenRows.length === 2 && writtenRows[0].rawScore === 0.75 && writtenRows[1].rawScore === 0.5,
+      JSON.stringify(writtenRows.map((r) => r.rawScore)),
+    );
 
-    // Second call: idempotent.
     const secondResult = await recordCoachedContribution({
       userId,
-      coachedSessionId: coachedSession.id,
+      coachedSessionId: session.id,
     });
-    check(
-      "a second call returns written:0",
-      secondResult.written === 0,
-      JSON.stringify(secondResult),
-    );
+    check("a second call returns written:0", secondResult.written === 0, JSON.stringify(secondResult));
     const rowsAfterSecondCall = await prisma.masteryContribution.findMany({
-      where: { sourceReportId: finishReport.id },
+      where: { sourceCoachedSessionId: session.id },
     });
     check(
       "row count is unchanged after the second call",
@@ -614,85 +682,48 @@ async function runDatabaseSection() {
       `before=${writtenRows.length}, after=${rowsAfterSecondCall.length}`,
     );
 
-    // Mastery figure AFTER the coached contribution: proven to have moved.
     const afterRows = await readContributions(userId);
-    const afterResult = computeMastery(afterRows, new Date());
-    const afterDelivery = afterResult.competencies.find(
+    const afterDelivery = computeMastery(afterRows, new Date()).competencies.find(
       (c) => c.competencyKey === "delivery_presence",
     );
     check(
       "the delivery_presence figure moved after the coached contribution was recorded",
       (beforeDelivery?.lifetimePercent ?? null) !== (afterDelivery?.lifetimePercent ?? null),
-      `before(baseline only)=${beforeDelivery?.lifetimePercent}, after(baseline+coached)=${afterDelivery?.lifetimePercent}`,
+      `before=${beforeDelivery?.lifetimePercent}, after=${afterDelivery?.lifetimePercent}`,
     );
 
     // A session with completedAt: null throws and writes nothing.
-    const uncompletedReplayReport = await makeReport(userId, { turnCount: 5 });
-    const uncompletedPath = await createPath({
-      userId,
-      studyPlanId: (await makeStudyPlan(userId, "Coach Tips Verify Plan 2")).id,
-      steps: [
-        {
-          position: 1,
-          kind: "COACHED_SESSION",
-          competencyKey: COMPETENCY_KEY,
-          selectionReason: "verify-coach-tips: uncompleted coached session step",
-          knowledgeCheckId: null,
-          coachedSessionId: null,
-        },
-        ...makeFillerSteps([2, 3, 4, 5]),
-      ],
-      selectionSnapshot: { note: "verify-coach-tips-uncompleted" },
-    });
-    const uncompletedStep = uncompletedPath.steps.find((s) => s.kind === "COACHED_SESSION")!;
-    const uncompletedSession = await createCoachedSession({
-      userId,
-      pathStepId: uncompletedStep.id,
-      replaySourceReportId: uncompletedReplayReport.id,
-      replayTurnIndex: 0,
-      freshScenarioPrompt: "A fresh scenario, never finished.",
-    });
-
+    const uncompleted = await makeSession(userId, "Coach Tips Verify Plan 2", false);
     let threwOnUncompleted = false;
     try {
-      await recordCoachedContribution({ userId, coachedSessionId: uncompletedSession.id });
+      await recordCoachedContribution({ userId, coachedSessionId: uncompleted.id });
     } catch {
       threwOnUncompleted = true;
     }
-    check(
-      "calling on a session with completedAt: null throws",
-      threwOnUncompleted,
-    );
-    const rowsForUncompletedCall = await prisma.masteryContribution.findMany({
-      where: { sourceReportId: { in: [uncompletedReplayReport.id] } },
-    });
+    check("calling on a session with completedAt: null throws", threwOnUncompleted);
     check(
       "the throwing call wrote nothing",
-      rowsForUncompletedCall.length === 0,
+      (await prisma.masteryContribution.count({ where: { sourceCoachedSessionId: uncompleted.id } })) === 0,
     );
+
+    // A completed session with no LEG_DONE rows writes nothing.
+    const noLegs = await makeSession(userId, "Coach Tips Verify Plan 3", true);
+    await addTurn(noLegs.id, { leg: "REPLAY", speaker: "STUDENT", move: "ATTEMPT", score: 4, acceptable: true, parroted: false });
+    const noLegsResult = await recordCoachedContribution({ userId, coachedSessionId: noLegs.id });
+    check("a session with no LEG_DONE rows writes 0", noLegsResult.written === 0, JSON.stringify(noLegsResult));
 
     // Calling with a different userId throws.
     let threwOnForeignUser = false;
     try {
-      await recordCoachedContribution({
-        userId: otherUserId,
-        coachedSessionId: coachedSession.id,
-      });
+      await recordCoachedContribution({ userId: otherUserId, coachedSessionId: session.id });
     } catch {
       threwOnForeignUser = true;
     }
     check("calling with a different userId throws", threwOnForeignUser);
 
-    // Write an equivalent LIVE_SESSION contribution with the SAME rawScore
-    // as the coached row, for the same competency, ON TOP of the baseline +
-    // coached state already measured as `afterDelivery` above. Because the
-    // baseline (0.1) differs from this shared rawScore (0.625), BOTH figures
-    // (baseline+coached, and baseline+coached+live) are pulled toward 0.625
-    // from the 0.1 baseline — but the live row's higher weight (1.00 vs the
-    // coached row's 0.40) must pull HARDER, landing the three-row figure
-    // measurably closer to the raw score than the two-row figure was. This
-    // is the concrete proof that the coached weighting counts for less in
-    // the arithmetic itself, not only in the weight table.
+    // LIVE_SESSION > COACHED_SESSION, in the arithmetic itself: an equal-
+    // rawScore live row pulls the figure closer to that score than the
+    // coached rows did.
     const coachedRow = writtenRows[0];
     const liveSourceReportId = `verify-coach-tips-live-equivalent-${testId}`;
     await recordContributions([
@@ -711,31 +742,21 @@ async function runDatabaseSection() {
     });
     if (liveRow) contributionIds.push(liveRow.id);
 
-    const finalRows = await readContributions(userId);
-    const finalResult = computeMastery(finalRows, new Date());
-    const finalDelivery = finalResult.competencies.find(
+    const finalDelivery = computeMastery(await readContributions(userId), new Date()).competencies.find(
       (c) => c.competencyKey === "delivery_presence",
     );
-
     const rawScorePercent = coachedRow.rawScore * 100;
-    const distanceBeforeLive = Math.abs(
-      (afterDelivery?.lifetimePercent ?? 0) - rawScorePercent,
-    );
-    const distanceAfterLive = Math.abs(
-      (finalDelivery?.lifetimePercent ?? 0) - rawScorePercent,
-    );
+    const distanceBeforeLive = Math.abs((afterDelivery?.lifetimePercent ?? 0) - rawScorePercent);
+    const distanceAfterLive = Math.abs((finalDelivery?.lifetimePercent ?? 0) - rawScorePercent);
     check(
       "adding an equal-rawScore LIVE_SESSION contribution pulls the figure measurably CLOSER to that raw score than the coached-only figure was",
       distanceAfterLive < distanceBeforeLive,
       `baseline+coached=${afterDelivery?.lifetimePercent} (distance ${distanceBeforeLive}), ` +
-        `baseline+coached+live=${finalDelivery?.lifetimePercent} (distance ${distanceAfterLive}), rawScorePercent=${rawScorePercent}`,
+        `+live=${finalDelivery?.lifetimePercent} (distance ${distanceAfterLive}), rawScorePercent=${rawScorePercent}`,
     );
   } finally {
     for (const id of contributionIds) {
       await prisma.masteryContribution.delete({ where: { id } }).catch(() => {});
-    }
-    for (const id of reportIds) {
-      await prisma.interactionReport.delete({ where: { id } }).catch(() => {});
     }
     for (const id of studyPlanIds) {
       await prisma.studyPlan.delete({ where: { id } }).catch(() => {});
