@@ -31,6 +31,10 @@ import { visualBands, vocalBands } from "@/lib/metrics/bands";
 import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 import type { StartAvatarRequest } from "@/types";
 
+/** Coached mode scores no visuals live; the banner says what is really affected. */
+const COACHED_FACE_BANNER_DETAIL =
+  "Move back into frame so your end-of-session delivery feedback can include visuals.";
+
 /**
  * Coached session shell (Phase 22): brief -> camera consent -> guarded
  * opening -> coach-closed legs -> graded summary.
@@ -972,7 +976,10 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
         </div>
       </SessionSidePane>
 
-      <FaceDetectionBanner visible={cameraMode === "ON" && faceMissing} />
+      <FaceDetectionBanner
+        visible={cameraMode === "ON" && faceMissing}
+        detail={COACHED_FACE_BANNER_DETAIL}
+      />
     </SessionRoom>
   );
 }
