@@ -28,6 +28,7 @@ import PathPanel, {
   KIND_LABEL,
 } from "@/components/study-plan/PathPanel";
 import GeneratePathCard from "@/components/study-plan/GeneratePathCard";
+import SincePlanGrowth from "@/components/study-plan/SincePlanGrowth";
 import { GoalsStrip, ProgressRing, usePathMastery } from "@/components/study-plan/PathVisuals";
 import { usePlansWithPaths, type PlanWithPath } from "@/components/study-plan/usePlansWithPaths";
 
@@ -285,11 +286,8 @@ function PathsHub() {
                       path={selected.path}
                       levels={mastery?.levels}
                       highlightCompetency={focusCompetency}
-                      // GROWTH-SINCE-PLAN SLOT: wire the per-plan "growth since
-                      // this plan was generated" strip here once
-                      // GET /api/mastery/since-plan?planId=… lands (mastery
-                      // worktree). Intentionally empty until then.
-                      growthSlot={null}
+                      // GROWTH-SINCE-PLAN SLOT
+                      growthSlot={<SincePlanGrowth planId={selected.plan.id} />}
                     />
                     <DegradedStepsNote count={degraded[selected.plan.id] ?? 0} />
                   </>
