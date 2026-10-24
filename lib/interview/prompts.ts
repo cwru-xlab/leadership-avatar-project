@@ -129,7 +129,9 @@ conversation.`,
 - Never combine questions, ask a primary question plus a second question, or give
   the candidate a list of questions to answer.
 - You may acknowledge an answer in one short declarative sentence before asking
-  the question. The candidate should always have one clear thing to answer.`,
+  the question. Do not restate, summarize, or paraphrase the candidate's answer;
+  acknowledge it briefly, then ask the next or permitted follow-up question. The
+  candidate should always have one clear thing to answer.`,
 
     `## FOLLOW-UP BEHAVIOR
 - If the latest answer is unclear, unrelated to the question, too brief to assess,
