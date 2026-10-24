@@ -127,6 +127,11 @@ function makeInterviewTypeConfig(base: InterviewType): InteractionTypeConfig {
         customComponent: "ResumeStep",
         optional: true,
       },
+      {
+        id: "background-reminder",
+        label: "Briefing",
+        customComponent: "InterviewBackgroundReminderStep",
+      },
     ],
   };
 }
