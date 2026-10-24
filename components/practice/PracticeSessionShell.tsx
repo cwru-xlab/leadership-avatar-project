@@ -1538,9 +1538,17 @@ function PracticeInterviewRoom({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col px-5 sm:px-8">
-          <div className="flex items-center justify-between border-y border-white/10 py-3 text-xs text-[#a9c5d6]">
-            <span>{progress.questionsAsked} of ~{targetQuestionCount} questions</span>
-            <span>{resumeFileName ? "Resume in context" : "Behavioral focus"}</span>
+          <div className="border-y border-white/10 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#73cee5]">
+              Practice flow
+            </p>
+            <p className="mt-1 text-xs leading-5 text-[#c4dbe7]">
+              Background, behavioral stories, and role-specific discussion. You&apos;ll have time to ask your questions at the end.
+            </p>
+            <div className="mt-2 flex items-center justify-between text-xs text-[#a9c5d6]">
+              <span>{progress.questionsAsked} of ~{targetQuestionCount} questions</span>
+              <span>{resumeFileName ? "Resume in context" : "Behavioral focus"}</span>
+            </div>
           </div>
 
           <div aria-live="polite" className="min-h-0 flex-1 space-y-5 overflow-y-auto py-6 pr-1">
