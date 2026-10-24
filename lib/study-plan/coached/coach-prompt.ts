@@ -15,7 +15,7 @@
  * dimension lookup, covered by the `lib/study-plan/coached/` carve-out.
  */
 import { listRubricDimensionsForSlug } from "../../engine/resolve";
-import { competencyForDimension } from "../../mastery/competencies";
+import { COMPETENCIES } from "../../mastery/competencies";
 
 /**
  * First line of every prompt this module builds. It exists so the containment
@@ -75,7 +75,10 @@ export function rubricDimensionsForCompetency(
   competencyKey: string,
 ): Array<{ key: string; label: string; description: string }> {
   const dims = listRubricDimensionsForSlug(typeSlug) ?? [];
-  return dims.filter((d) => competencyForDimension(d.key) === competencyKey);
+  const owned = new Set(
+    COMPETENCIES.find((c) => c.key === competencyKey)?.dimensionKeys ?? [],
+  );
+  return dims.filter((d) => owned.has(d.key));
 }
 
 export function buildCoachSystemPrompt(input: CoachPromptInput): string {
