@@ -54,6 +54,7 @@ import {
   MAX_DEMONSTRATIONS_PER_LEG,
   assertTipSafe,
   isParrotOf,
+  isRecycledFrom,
   isTechniqueParrot,
   techniqueLine,
   techniquesForCompetency,
@@ -61,7 +62,9 @@ import {
   type Technique,
 } from "./tips";
 import {
+  OFF_TOPIC_MAX_SCORE,
   gradeCoachedAttempt,
+  type CoachedAttemptGrade,
   type Grader,
 } from "./grade-attempt";
 import { classifyReply, type ReplyClassifier } from "./reply-classifier";
@@ -76,6 +79,17 @@ export const MAX_DIAGNOSIS_QUESTIONS_PER_LEG = 1;
 /** Spoken after the technique line when the coach invites an attempt. */
 export const INVITE_FIRST_ATTEMPT = "Now say your answer again, out loud, as if you're back in that moment.";
 export const INVITE_RETRY = "Give it one more try, out loud.";
+
+/**
+ * Phase 23 L6. Marks a stored attempt that did not answer this moment's prompt
+ * (off-topic per the grader, or recycled from the other leg). Internal: the
+ * rationale never leaves the server.
+ */
+export const OFF_TOPIC_PREFIX = "[OFF_TOPIC] ";
+export const RECYCLED_RATIONALE =
+  "Reuses the answer from the other moment word for word; it does not answer this moment's question.";
+export const isOffTopicRow = (r: Pick<CoachedTurnRow, "gradeRationale"> | null | undefined) =>
+  r?.gradeRationale?.startsWith(OFF_TOPIC_PREFIX) === true;
 
 export type Leg = "REPLAY" | "FRESH";
 export interface Msg {
@@ -333,7 +347,14 @@ export async function coachTurn(
     const trace = deps.trace ?? (() => {});
     let isAttempt = false;
     let tipParrot = false;
-    if (isTechniqueParrot(utterance.text, allTechniques)) {
+    // The student's own words from the OTHER leg (a different moment and prompt).
+    const otherLegWords = turns.filter((t) => t.leg !== args.leg && t.speaker === "STUDENT").map((t) => t.text);
+    const recycled = isRecycledFrom(utterance.text, otherLegWords);
+    if (recycled) {
+      // Graded (deterministically) so the coach can say so and it shows at the end (L6).
+      isAttempt = true;
+      trace({ kind: "UTTERANCE", storedAs: "ATTEMPT", reason: "RECYCLED_FROM_OTHER_LEG" });
+    } else if (isTechniqueParrot(utterance.text, allTechniques)) {
       // Repeating the technique back is never an answer (L1, case c).
       tipParrot = true;
       trace({ kind: "UTTERANCE", storedAs: "REPLY", reason: "PARROTS_TECHNIQUE" });
@@ -360,7 +381,9 @@ export async function coachTurn(
       const parroted = state.lastDemonstration
         ? isParrotOf(args.utterance.text, state.lastDemonstration)
         : false;
-      const grade = await gradeCoachedAttempt(
+      const grade: CoachedAttemptGrade = recycled
+        ? { score: OFF_TOPIC_MAX_SCORE, acceptable: false, rationale: RECYCLED_RATIONALE, onTopic: false }
+        : await gradeCoachedAttempt(
         {
           competency: args.competency,
           rubricDimensions: args.rubricDimensions,
@@ -377,10 +400,10 @@ export async function coachTurn(
         speaker: "STUDENT",
         move: "ATTEMPT",
         text: args.utterance.text, // VERBATIM from transcription
-        score: grade.score,
-        acceptable: !parroted && grade.acceptable,
+        score: grade.onTopic ? grade.score : Math.min(grade.score, OFF_TOPIC_MAX_SCORE),
+        acceptable: !parroted && grade.onTopic && grade.acceptable,
         parroted,
-        gradeRationale: grade.rationale,
+        gradeRationale: grade.onTopic ? grade.rationale : OFF_TOPIC_PREFIX + grade.rationale,
         spokenDurationMs: args.utterance.spokenDurationMs,
       });
     } else {
@@ -455,7 +478,8 @@ export async function coachTurn(
           score: last.score ?? 0,
           acceptable: last.acceptable === true,
           parroted: last.parroted === true,
-          rationale: last.gradeRationale ?? "",
+          rationale: (last.gradeRationale ?? "").replace(OFF_TOPIC_PREFIX, ""),
+          offTopic: isOffTopicRow(last),
         }
       : null,
     softCapReached,
@@ -586,6 +610,8 @@ export async function coachTurn(
     } else {
       const reaction = lastWasTipParrot
         ? "That's the technique itself; now use it on your real answer."
+        : lastStudent?.move === "ATTEMPT" && isOffTopicRow(lastStudent)
+          ? "That answer is about a different situation; this moment is about the question on your screen."
         : lastStudent?.move === "ATTEMPT" && lastStudent.parroted === true
           ? "Put it in your own words this time."
           : "";

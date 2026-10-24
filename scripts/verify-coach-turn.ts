@@ -494,6 +494,57 @@ async function main() {
       check("13c. bite: the old generic fallback would fail the 11c checks", linesNamed(OLD_GENERIC_FALLBACK) === 0 && OLD_GENERIC_FALLBACK.trim().endsWith("?"));
     }
 
+    // 14. L6 - an attempt must answer THIS moment's prompt
+    {
+      const { gradeCoachedAttempt } = await import("../lib/study-plan/coached/grade-attempt");
+      const gIn = {
+        competency: base("x").competency,
+        rubricDimensions: [],
+        counterpartLine: COUNTERPART,
+        originalLine: STUDENT_LINE,
+        attempt: "a",
+        spokenDurationMs: 1000,
+        demonstration: null,
+      };
+      const off = await gradeCoachedAttempt(gIn, { grader: async () => ({ score: 5, acceptable: true, onTopic: false, rationale: "different story" }) });
+      check("14a. grader: an off-topic verdict is never acceptable and scores at most 1", off.acceptable === false && off.score === 1 && off.onTopic === false);
+      const on = await gradeCoachedAttempt(gIn, { grader: async () => ({ score: 5, acceptable: true, onTopic: true, rationale: "ok" }) });
+      check("14a. bite: the same verdict on-topic stays acceptable at 5", on.acceptable === true && on.score === 5);
+
+      let graded = 0;
+      const counting5: CoachTurnDeps["grade"] = async () => {
+        graded += 1;
+        return { score: 5, acceptable: true, onTopic: true, rationale: "stub" };
+      };
+      const s = await newSession();
+      await turn(s, null, [OPEN]);
+      await turn(s, say(STRONG), [LEG_DONE], grader(5, true), stubClassifier(true).fn);
+      const fresh = (u: CoachTurnArgs["utterance"], q: Out[], g: CoachTurnDeps["grade"], c = stubClassifier(true)) =>
+        coachTurn({ ...base(s), leg: "FRESH", utterance: u }, { generate: stubGen(q).fn, grade: g, classifyReply: c.fn });
+      await fresh(null, [OPEN], counting5);
+      const RECYCLED =
+        "I made that call after the dry run failed, told the client the same day, and we shipped with zero downtime. We moved the launch two weeks so the data migration could finish cleanly.";
+      const cls = stubClassifier(true);
+      const r1 = await fresh(say(RECYCLED), [LEG_DONE], counting5, cls);
+      const att = await prisma.coachedTurn.findFirst({ where: { coachedSessionId: s, leg: "FRESH", speaker: "STUDENT" }, orderBy: { seq: "desc" } });
+      check("14b. moment-1's answer replayed in moment 2 is a graded ATTEMPT, score 1, not acceptable", att?.move === "ATTEMPT" && att?.score === 1 && att?.acceptable === false);
+      check("14b. ...detected deterministically: no grader or classifier call", graded === 0 && cls.calls() === 0);
+      check("14b. ...the leg is not closed, and the coach says it is a different situation and re-invites", !r1.legState.legReady && r1.coachTurn.move === "INVITE_ATTEMPT" && /different situation/.test(r1.coachTurn.speech) && linesNamed(r1.coachTurn.speech) === 1);
+      const offGrader: CoachTurnDeps["grade"] = async () => ({ score: 5, acceptable: true, onTopic: false, rationale: "answers a different question" });
+      const r2 = await fresh(say("At my last job I organised the offsite and everyone said the agenda was really clear and useful for the whole team"), [LEG_DONE], offGrader);
+      const att2 = await prisma.coachedTurn.findFirst({ where: { coachedSessionId: s, leg: "FRESH", speaker: "STUDENT" }, orderBy: { seq: "desc" } });
+      check("14c. a model off-topic verdict is stored score 1, not acceptable, and LEG_DONE is refused", att2?.score === 1 && att2?.acceptable === false && !r2.legState.legReady);
+      const r3 = await fresh(say("At my last job I organised the offsite and everyone said the agenda was really clear and useful for the whole team"), [LEG_DONE], counting5);
+      check("14c. bite: the same words graded on-topic are accepted and close the leg", r3.legState.legReady && r3.coachTurn.move === "LEG_DONE");
+    }
+    {
+      // Bite for the deterministic check: with no other leg, the same words are graded normally.
+      const s = await newSession();
+      await turn(s, null, [OPEN]);
+      const { res } = await turn(s, say("I made that call after the dry run failed, told the client the same day, and we shipped with zero downtime."), [LEG_DONE], grader(5, true), stubClassifier(true).fn);
+      check("14d. bite: without an earlier leg the same words are not 'recycled' and are accepted", res.legState.legReady);
+    }
+
     // 9. Re-validation sweep from stored data
     {
       const rows = await prisma.coachedTurn.findMany({

@@ -67,6 +67,8 @@ export interface CoachPromptInput {
     acceptable: boolean;
     parroted: boolean;
     rationale: string;
+    /** Phase 23 L6: the attempt did not answer this moment's prompt. */
+    offTopic?: boolean;
   } | null;
   softCapReached: boolean;
   isOpening: boolean;
@@ -146,7 +148,7 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
   );
   if (input.demonstrationAllowed) {
     lines.push(
-      "3. A demonstration is allowed right now. Give exactly ONE version of words to say, ONLY in the `demonstration` field (never inside `speech`), then ask the student to try again in their own words.",
+      "3. A demonstration is allowed right now. Give exactly ONE version of words to say, ONLY in the `demonstration` field (never inside `speech`), then ask the student to try again in their own words. It must answer THIS moment's question using only what the student said in this moment; never blend in another story.",
     );
   } else {
     lines.push(
@@ -208,6 +210,11 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
     lines.push(
       `Grader verdict on the latest attempt (${JSON.stringify(lastAttempt.text)}): ${lastAttempt.acceptable ? "ACCEPTABLE" : "NOT YET"}, parroted=${lastAttempt.parroted}. Rationale: ${lastAttempt.rationale}`,
     );
+    if (lastAttempt.offTopic) {
+      lines.push(
+        "That attempt did NOT answer this moment's question (it was about a different situation, or reused their answer from the other moment). Say so plainly in one sentence, remind them in your own words what this moment's question was about (never read it aloud), and invite them again.",
+      );
+    }
   }
   if (input.lastUtteranceWasTipParrot) {
     lines.push(

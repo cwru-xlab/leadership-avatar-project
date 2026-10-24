@@ -69,7 +69,8 @@ async function defaultClassifier(input: ReplyClassifyInput): Promise<unknown> {
     "they answer the original question again, directly, the way they would say it to the original listener " +
     "(it may start with a filler such as 'Sure' or 'OK, so'). It is NOT a reworked answer when they mainly talk " +
     "ABOUT their answer (what they meant, what they would change, what went wrong), ask a question, or repeat " +
-    "coaching advice. Quality does not matter: a weak answer that re-answers the prompt still counts. " +
+    "coaching advice. Quality and topic do not matter here: a weak answer, or an answer that is about the " +
+    "wrong situation, still counts as spoken AS an answer (it is graded separately). " +
     'Reply as JSON {"reanswers": boolean, "why": one short sentence}.';
   const completion = await openai.chat.completions.create({
     model: process.env.COACH_CLASSIFIER_MODEL || process.env.COACH_MODEL || "gpt-4.1",
