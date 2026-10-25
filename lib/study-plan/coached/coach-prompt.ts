@@ -150,7 +150,7 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
   );
   if (input.demonstrationAllowed) {
     lines.push(
-      "3. A demonstration is allowed right now. Give exactly ONE version of words to say, ONLY in the `demonstration` field (never inside `speech`), then ask the student to try again in their own words. It must answer THIS moment's question using only what the student said in this moment; never blend in another story.",
+      "3. A demonstration is allowed right now. Give exactly ONE version of words to say, ONLY in the `demonstration` field (never inside `speech`), then ask the student to try again in their own words. It must answer THIS moment's question and use ONLY facts the student actually said (in this moment or their tries here). Never invent names, numbers, results or achievements: wherever a fact is missing, write a bracketed slot such as [your result] or [the stakeholder]. Invented names or numbers are discarded.",
     );
   } else {
     lines.push(

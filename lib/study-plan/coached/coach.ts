@@ -56,7 +56,12 @@ import {
   isParrotOf,
   isRecycledFrom,
   isTechniqueParrot,
+  MAX_UNSUPPORTED_CONTENT_SHARE,
+  demonstrationTemplate,
+  distinctiveNameWords,
   sharesWordSpan,
+  unsupportedContentShare,
+  unsupportedDemonstrationFacts,
   techniqueLine,
   techniquesForCompetency,
   validateCoachSpeech,
@@ -95,6 +100,14 @@ export const MAX_INVITE_REACTION_LENGTH = 200;
  *                SOFT_CAP_ATTEMPTS_PER_LEG, flagged closedAtSoftCap)
  */
 export const DEMONSTRATE_AT_MISS = 3;
+/**
+ * User decision (L7 Q2): a demonstration may use only the student's own facts.
+ * A candidate with invented numbers or proper nouns is regenerated ONCE; a
+ * second such candidate ends generation with the placeholder template.
+ */
+export const MAX_UNSUPPORTED_DEMONSTRATIONS = 2;
+export const TEMPLATE_DEMONSTRATION_SPEECH =
+  "Here's the shape to follow. Fill each bracket with your own facts, then say it in your own words.";
 
 /**
  * Phase 23 L6. Marks a stored attempt that did not answer this moment's prompt
@@ -282,7 +295,9 @@ export function chooseTechnique(
 export function reactionParaphrasesTechnique(reaction: string, t: Technique | null): boolean {
   if (!t) return false;
   const norm = (x: string) => (x.toLowerCase().match(/[a-z0-9']+/g) ?? []).join(" ");
-  return norm(reaction).includes(norm(t.name)) || sharesWordSpan(reaction, t.reminder, 4);
+  const reactionWords = norm(reaction).split(" ");
+  const nameWordHit = distinctiveNameWords(t.name).some((w) => reactionWords.some((r) => r.startsWith(w.slice(0, 6))));
+  return norm(reaction).includes(norm(t.name)) || nameWordHit || sharesWordSpan(reaction, t.reminder, 4);
 }
 
 /** Reaction + technique line + invitation, as one spoken turn. */
@@ -499,7 +514,7 @@ export async function coachTurn(
         : [
           "INVITE_ATTEMPT",
           ...(diagnosisCapReached ? [] : (["ASK_DIAGNOSIS", "CONFIRM", "CORRECT"] as CoachMove[])),
-          ...(demonstrationAllowed ? (["DEMONSTRATE"] as CoachMove[]) : []),
+          // No early demonstration: it is the miss-3 step of the ladder (L7).
           ...(legDoneEarned ? (["LEG_DONE"] as CoachMove[]) : []),
         ];
   const safe = safeTechniques(args.competency.key, args.moment.studentLine);
@@ -510,6 +525,13 @@ export async function coachTurn(
   const studentAttempts = turns
     .filter((t) => t.leg === args.leg && t.speaker === "STUDENT" && t.move === "ATTEMPT")
     .map((t) => t.text);
+  // The student's own words in this leg plus the moment itself: the only
+  // facts a demonstration may use.
+  const factSources = [
+    args.moment.studentLine,
+    args.moment.counterpartLine ?? "",
+    ...turns.filter((t) => t.leg === args.leg && t.speaker === "STUDENT").map((t) => t.text),
+  ];
   const speechCtx = {
     studentLine: args.moment.studentLine,
     counterpartLine: args.moment.counterpartLine,
@@ -528,7 +550,8 @@ export async function coachTurn(
     moment: args.moment,
     attemptsInLeg: state.attemptsInLeg,
     demonstrationsInLeg: state.demonstrationsInLeg,
-    demonstrationAllowed,
+    // The prompt offers a demonstration only at the ladder's miss-3 step.
+    demonstrationAllowed: demonstrateNow,
     lastAttempt: last
       ? {
           text: last.text,
@@ -596,7 +619,10 @@ export async function coachTurn(
     }
     const composing = awaiting === "ATTEMPT" && move !== "DEMONSTRATE";
     const technique = composing ? chooseTechnique(safe, r.techniqueId, coachTextsInLeg) : null;
-    if (composing && reactionParaphrasesTechnique(r.speech, technique)) {
+    // Against EVERY technique, not only the chosen one: the model's own pick may
+    // have been overridden by the no-repeat rule, leaving a mismatched hint.
+    const reaction = r.speech as string;
+    if (composing && safe.some((t) => reactionParaphrasesTechnique(reaction, t))) {
       return { ok: false, reason: "REACTION_PARAPHRASES_TECHNIQUE" };
     }
     const speech = composing ? composeInvite(r.speech, technique, state.attemptsInLeg) : r.speech.trim();
@@ -620,6 +646,12 @@ export async function coachTurn(
         return { ok: false, reason: `DEMONSTRATION_${m?.[1] ?? "REJECTED"}` };
       }
       if (move !== "DEMONSTRATE") return { ok: false, reason: "DEMONSTRATION_WITHOUT_MOVE" };
+      const invented = unsupportedDemonstrationFacts(demonstration, factSources);
+      if (invented.length > 0) return { ok: false, reason: `DEMONSTRATION_UNSUPPORTED_FACTS:${invented.join("|")}` };
+      const share = unsupportedContentShare(demonstration, factSources);
+      if (share > MAX_UNSUPPORTED_CONTENT_SHARE) {
+        return { ok: false, reason: `DEMONSTRATION_UNSUPPORTED_FACTS:content ${Math.round(share * 100)}%` };
+      }
       if (state.lastAttempt?.acceptable === true) return { ok: false, reason: "DEMONSTRATION_AFTER_ACCEPTABLE" };
     } else if (move === "DEMONSTRATE") {
       return { ok: false, reason: "DEMONSTRATE_WITHOUT_DEMONSTRATION" };
@@ -641,7 +673,8 @@ export async function coachTurn(
   };
 
   let chosen: { out: CoachTurnOutput; closedAtSoftCap: boolean } | null = null;
-  for (let i = 0; i < MAX_COACH_GENERATION_ATTEMPTS && !chosen; i++) {
+  let unsupportedDemos = 0;
+  for (let i = 0; i < MAX_COACH_GENERATION_ATTEMPTS && !chosen && unsupportedDemos < MAX_UNSUPPORTED_DEMONSTRATIONS; i++) {
     let raw: unknown;
     try {
       raw = await generate(system, history);
@@ -652,6 +685,7 @@ export async function coachTurn(
     const res = check(raw);
     if (res.ok) chosen = { out: res.out, closedAtSoftCap: res.closedAtSoftCap };
     else {
+      if (res.reason.startsWith("DEMONSTRATION_UNSUPPORTED_FACTS")) unsupportedDemos += 1;
       console.info(`[coach] candidate ${i + 1} rejected: ${res.reason}`);
       deps.trace?.({ kind: "CANDIDATE_REJECTED", candidate: i + 1, reason: res.reason });
     }
@@ -670,6 +704,18 @@ export async function coachTurn(
       };
     } else if (mustClose) {
       out = { speech: "That version lands. We can close this moment here.", move: "LEG_DONE", awaiting: "NONE", demonstration: null };
+    } else if (demonstrateNow || unsupportedDemos >= MAX_UNSUPPORTED_DEMONSTRATIONS) {
+      // Structure only: every fact is a slot for the student's own.
+      out = {
+        speech: TEMPLATE_DEMONSTRATION_SPEECH,
+        move: "DEMONSTRATE",
+        awaiting: "ATTEMPT",
+        demonstration: demonstrationTemplate(args.competency.key),
+      };
+      assertTipSafe(out.demonstration!, {
+        studentLine: args.moment.studentLine,
+        gate: { kind: "DEMONSTRATION", attemptsInLeg: state.attemptsInLeg, demonstrationsInLeg: state.demonstrationsInLeg },
+      });
     } else if (closeKindly) {
       const takeaway = lastNamedTechnique(safe, coachTextsInLeg) ?? safe[0] ?? null;
       out = {

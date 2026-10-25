@@ -721,3 +721,114 @@ export function isRecycledFrom(attempt: string, earlier: readonly string[]): boo
 export function sharesWordSpan(haystack: string, source: string, minWords: number): boolean {
   return findSharedSpan(normalizeWords(haystack), normalizeWords(source), minWords) !== null;
 }
+
+// ---------------------------------------------------------------------------
+// Demonstration facts (Phase 23, user decision on L7 Q2)
+// ---------------------------------------------------------------------------
+
+/**
+ * A demonstration uses ONLY facts the student actually said (in this leg or
+ * the original moment). Where there are none it uses bracketed slots such as
+ * "[your result]", so it models STRUCTURE without inventing achievements.
+ *
+ * Cheap deterministic check: returns the numbers and proper nouns in a
+ * demonstration that appear in none of `sources`. Bracketed slots are
+ * ignored. A proper noun is an ALL-CAPS token of 2+ letters anywhere, or a
+ * Capitalised word that does not start a sentence (sentence starts are
+ * ambiguous and skipped: the check under-flags rather than over-flags). "I"
+ * and its contractions are never flagged. PROVISIONAL UNTIL CALIBRATED.
+ */
+export function unsupportedDemonstrationFacts(demonstration: string, sources: readonly string[]): string[] {
+  const text = demonstration.replace(/\[[^\]]*\]/g, " ");
+  const haystack = ` ${sources.join(" \n ").toLowerCase().replace(/[^a-z0-9%.'’ ]+/g, " ")} `;
+  const known = (tok: string) => {
+    const t = tok.toLowerCase().replace(/[’]/g, "'");
+    return new RegExp(`(^|[^a-z0-9])${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`).test(haystack.replace(/[’]/g, "'"));
+  };
+  const flagged = new Set<string>();
+  for (const m of text.matchAll(/\d[\d,.]*%?/g)) {
+    const num = m[0].replace(/[.,]+$/, "").replace(/,/g, "");
+    const digits = num.replace(/%$/, "");
+    if (!known(num) && !known(digits)) flagged.add(m[0].replace(/[.,]+$/, ""));
+  }
+  const sentences = text.split(/(?<=[.!?:;])\s+|\n+/);
+  for (const sentence of sentences) {
+    const words = sentence.trim().split(/\s+/).filter(Boolean);
+    words.forEach((raw, i) => {
+      const w = raw.replace(/^[^A-Za-z]+|[^A-Za-z'’-]+$/g, "");
+      if (!w || /^I(['’](m|d|ve|ll))?$/.test(w)) return;
+      const allCaps = /^[A-Z]{2,}s?$/.test(w);
+      const capitalised = /^[A-Z][a-z'’-]+$/.test(w) && i > 0;
+      // A plural of a known acronym ("SVPs" when the moment says "SVP") is known.
+      const isKnown = known(w) || (allCaps && /s$/.test(w) && known(w.slice(0, -1)));
+      if ((allCaps || capitalised) && !isKnown) flagged.add(w);
+    });
+  }
+  return [...flagged];
+}
+
+/**
+ * Placeholder-template demonstrations: structure only, every fact a slot.
+ * Used when the model's demonstration keeps inventing facts, or none can be
+ * produced. Each passes the DEMONSTRATION gate (verified in
+ * scripts/verify-coach-tips.ts).
+ */
+const DEMONSTRATION_TEMPLATES: Partial<Record<CompetencyKey, string>> = {
+  structure_and_clarity:
+    "[Your headline, the result in one sentence]. First, [the main thing you did]. Then, [the second thing you did]. That is why [the outcome].",
+  concision_and_focus: "[Your point in one sentence]. The one detail that proves it: [your strongest detail].",
+  audience_attunement:
+    "It sounds like [the feeling you noticed in them]. Before I share my view, [your one open question about their situation]?",
+  holding_position_under_pressure:
+    "I hear [their objection, in one phrase]. My position is still [your ask, in the same words as before], because [your strongest reason].",
+  credibility_of_the_case:
+    "According to [the source], [your key figure]. That is why [your ask]. One limit to be upfront about: [the limitation].",
+  outcome_achievement: "What I'm aiming for today is [your outcome]. So the next step I'd like is [the concrete next step].",
+  delivery_presence:
+    "[Your main point, said slowly]. (pause) [Your one supporting detail]. (pause) [Your closing line, landing the last word].",
+};
+const GENERIC_DEMONSTRATION_TEMPLATE =
+  "[Your main point in one sentence]. [The one detail that supports it]. [What happened as a result].";
+
+export function demonstrationTemplate(competencyKey: string): string {
+  return DEMONSTRATION_TEMPLATES[competencyKey as CompetencyKey] ?? GENERIC_DEMONSTRATION_TEMPLATE;
+}
+
+const CONTENT_STOPWORDS = new Set([
+  "about", "after", "again", "because", "before", "being", "could", "every", "first", "great", "their", "there",
+  "these", "thing", "things", "think", "those", "through", "which", "while", "would", "where", "really", "should",
+  "other", "still", "since", "might", "within", "without", "result", "overall", "instance", "example", "finally",
+  "second", "third", "making", "having", "doing", "started", "until", "actually", "basically", "honestly",
+]);
+const stem = (w: string) => w.slice(0, 5);
+
+/** Content words (5+ letters, not structural) of a text, lowercased. */
+function contentWords(text: string): string[] {
+  return (text.toLowerCase().match(/[a-z']+/g) ?? []).filter((w) => w.length >= 5 && !CONTENT_STOPWORDS.has(w));
+}
+
+/** PROVISIONAL UNTIL CALIBRATED. */
+export const MAX_UNSUPPORTED_CONTENT_SHARE = 0.5;
+
+/**
+ * Cheap complement to `unsupportedDemonstrationFacts` for invented details
+ * that carry no name or number ("our phased approach", "quarterly targets"):
+ * the share of the demonstration's content words (bracketed slots removed,
+ * compared by 5-letter stem) that appear nowhere in `sources`. Above
+ * MAX_UNSUPPORTED_CONTENT_SHARE the demonstration is treated as invented.
+ */
+export function unsupportedContentShare(demonstration: string, sources: readonly string[]): number {
+  const words = contentWords(demonstration.replace(/\[[^\]]*\]/g, " "));
+  if (words.length === 0) return 0;
+  const known = new Set(contentWords(sources.join(" ")).map(stem));
+  return words.filter((w) => !known.has(stem(w))).length / words.length;
+}
+
+/** Distinctive words (6+ letters) of a technique's name, for the paraphrase check. */
+const GENERIC_NAME_WORDS = new Set([
+  "sentence", "answer", "people", "listener", "response", "you're", "against", "detail", "hearing", "position",
+  "number", "pressure", "feeling", "address", "understanding", "progress", "evidence", "connect", "supporting",
+]);
+export function distinctiveNameWords(name: string): string[] {
+  return contentWords(name).filter((w) => w.length >= 6 && !GENERIC_NAME_WORDS.has(w));
+}

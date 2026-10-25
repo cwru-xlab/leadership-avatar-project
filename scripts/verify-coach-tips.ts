@@ -26,6 +26,9 @@ import {
   isParrotOf,
   isRecycledFrom,
   isTechniqueParrot,
+  demonstrationTemplate,
+  unsupportedContentShare,
+  unsupportedDemonstrationFacts,
   techniqueLine,
   MAX_DEMONSTRATIONS_PER_LEG,
   DEMONSTRATION_REJECT_REASONS,
@@ -456,6 +459,41 @@ console.log("\n8. SPOKEN TECHNIQUE LINES, TECHNIQUE PARROTING, RECYCLING (Phase 
     !isRecycledFrom("At Leidos I built PIRS so partner data reached operations in a day; the SVP of operations sponsored the rollout.", [leg1]),
   );
   check("bite: with no earlier legs nothing is recycled", !isRecycledFrom(leg1, []));
+}
+
+console.log("\n9. DEMONSTRATION FACTS (user decision: only the student's own facts, else [slots])");
+{
+  const said = ["I let a system called PIRS at Leidos.", "The SVP of Operations worried; the pilot cut handoff time by 30%."];
+  const invented = "At Acme, I led the rollout of Nimbus. The CFO agreed after a 2-week trial that cut costs by 40%.";
+  const flagged = unsupportedDemonstrationFacts(invented, said);
+  check("invented names and numbers are flagged", ["Acme", "Nimbus", "CFO", "2", "40%"].every((t) => flagged.includes(t)), flagged.join(","));
+  check(
+    "bite: the student's own names and numbers are not flagged",
+    unsupportedDemonstrationFacts("At Leidos I led PIRS. The SVP of Operations came round once the pilot cut handoff time by 30%.", said).length === 0,
+  );
+  check("a plural of a known acronym is not flagged (SVPs vs SVP)", unsupportedDemonstrationFacts("Two SVPs agreed.", ["an SVP raised it"]).length === 0);
+  check("bite: an unknown acronym's plural is flagged", unsupportedDemonstrationFacts("Two CFOs agreed.", ["an SVP raised it"]).includes("CFOs"));
+  check("bracketed slots are never flagged", unsupportedDemonstrationFacts("[Your headline]. Then [the Result at Acme in 2024].", []).length === 0);
+  check("'I' and sentence-initial words are not flagged", unsupportedDemonstrationFacts("I think so. Then I'm done.", []).length === 0);
+  const svp = ["The biggest pushback came from the SVP of Operations, who worried the rollout would slow her team. The pilot cut handoff time by 30%, then I offered a two-week trial."];
+  check(
+    "invented details without names or numbers exceed the content-share limit",
+    unsupportedContentShare("One executive asked how the change might affect quarterly targets, so I explained our projections and temporary gaps.", svp) > 0.5,
+  );
+  check(
+    "bite: a demonstration built from the student's own words stays under it",
+    unsupportedContentShare("The SVP of Operations worried the rollout would slow her team, so I led with the pilot: handoff time cut 30%.", svp) <= 0.5,
+  );
+  for (const c of COMPETENCIES) {
+    const t = demonstrationTemplate(c.key);
+    let gateOk = true;
+    try {
+      assertTipSafe(t, { studentLine: "", gate: { kind: "DEMONSTRATION", attemptsInLeg: 3, demonstrationsInLeg: 0 } });
+    } catch {
+      gateOk = false;
+    }
+    check(`template for ${c.key} passes the demonstration gate, uses [slots] and invents no facts`, gateOk && /\[[^\]]+\]/.test(t) && unsupportedDemonstrationFacts(t, []).length === 0, t);
+  }
 }
 
 async function runDatabaseSection() {
