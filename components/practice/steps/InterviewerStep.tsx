@@ -29,12 +29,18 @@ export interface InterviewerStepProps {
   nav: SetupStepNav;
   selectedInterviewerId: string | null;
   onSelect: (interviewer: InterviewerOption) => void;
+  /** Step heading; defaults to the interview wording (UAT K-6). */
+  heading?: string;
+  /** Role line under each avatar's name; defaults to the interview wording. */
+  roleLabel?: string;
 }
 
 export default function InterviewerStep({
   nav,
   selectedInterviewerId,
   onSelect,
+  heading = "Choose your interviewer.",
+  roleLabel = "Hiring manager",
 }: InterviewerStepProps) {
   const [interviewers, setInterviewers] = useState<InterviewerOption[]>([]);
   const [loadingInterviewers, setLoadingInterviewers] = useState(true);
@@ -93,7 +99,7 @@ export default function InterviewerStep({
             id="interviewer-heading"
             className="mt-1 font-serif text-3xl tracking-[-0.03em]"
           >
-            Choose your interviewer.
+            {heading}
           </h2>
         </div>
         <p className="max-w-md text-sm leading-6 text-[#58727f]">
@@ -152,7 +158,7 @@ export default function InterviewerStep({
                     </div>
                     <h3 className="font-serif text-2xl">{interviewer.name}</h3>
                     <p className="mt-1 text-sm text-white/78">
-                      Hiring manager · Live session
+                      {roleLabel} · Live session
                     </p>
                   </div>
                 </button>

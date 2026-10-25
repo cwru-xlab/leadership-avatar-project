@@ -12,7 +12,7 @@
 
 import { Button } from "@heroui/button";
 import { ChevronUp, Clock3 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const COLLAPSE_STORAGE_KEY = "pitch-deck:timer-collapsed";
 const WARN_AT_REMAINING_SECONDS = 300;
@@ -46,6 +46,14 @@ export default function DeckTimerPanel({
   const [now, setNow] = useState(() => Date.now());
   // Session-only collapse preference — UI chrome, not session data.
   const [collapsed, setCollapsed] = useState(() => readCollapsedPreference());
+  // Each state renders its own toggle, so the pressed button unmounts. Move
+  // focus to the replacement after a toggle, never on first render (UAT K-4).
+  const toggleRef = useRef<HTMLButtonElement | null>(null);
+  const toggledRef = useRef(false);
+  useEffect(() => {
+    if (!toggledRef.current) return;
+    toggleRef.current?.focus();
+  }, [collapsed]);
 
   // Keep ticking even when collapsed — collapse must not pause or reset.
   useEffect(() => {
@@ -85,6 +93,7 @@ export default function DeckTimerPanel({
         : "border-white/15 bg-[#07131f]/75 text-[#d3e7f5]";
 
   const toggleCollapsed = () => {
+    toggledRef.current = true;
     setCollapsed((prev) => {
       const next = !prev;
       try {
@@ -102,6 +111,7 @@ export default function DeckTimerPanel({
         <Button
           isIconOnly
           aria-expanded={false}
+          ref={toggleRef}
           aria-label="Show session timer"
           className={`border backdrop-blur-md ${tone}`}
           size="sm"
@@ -134,6 +144,7 @@ export default function DeckTimerPanel({
       <Button
         isIconOnly
         aria-expanded={true}
+        ref={toggleRef}
         aria-label="Hide session timer"
         className="text-inherit"
         size="sm"
