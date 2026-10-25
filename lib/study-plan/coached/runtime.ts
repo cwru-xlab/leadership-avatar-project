@@ -46,6 +46,7 @@ import { resolveCoachForUser } from "./coach-identity";
 import { rubricDimensionsForCompetency } from "./coach-prompt";
 import {
   coachTurn,
+  isOffTopicRow,
   legStateFromTurns,
   type CoachedTurnRow,
   type CoachTurnDeps,
@@ -179,6 +180,8 @@ export interface CoachedLegSummaryAttempt {
   score: number | null;
   acceptable: boolean | null;
   parroted: boolean | null;
+  /** Phase 23 L6/Q4: the try did not answer this moment's question (labelled "Off-topic"). */
+  offTopic: boolean;
 }
 
 export interface CoachedLegSummary {
@@ -408,6 +411,7 @@ async function buildSessionSummary(
         score: r.score,
         acceptable: r.acceptable,
         parroted: r.parroted,
+        offTopic: isOffTopicRow(r),
       })),
       gradedScore,
       gradedAttemptText: gradedAttempt?.text ?? null,

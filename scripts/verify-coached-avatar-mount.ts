@@ -257,6 +257,17 @@ console.log("\nSection 7: resumed brief shows part progress (23 L5)");
   check("L5 bite-proof: a shell without the progress prop is caught", !shellPasses(coachedSrc.replace(/progress=\{/, "progressX={")));
 }
 
+console.log("\nSection 8: off-topic tries are labelled in the end summary (23 Q4)");
+{
+  const runtimeSrc = read("lib/study-plan/coached/runtime.ts");
+  const maps = (src: string) => /offTopic:\s*isOffTopicRow\(r\)/.test(src);
+  const labels = (src: string) => /attempt\.offTopic\s*\?\s*`Off-topic/.test(src);
+  check("Q4: the summary marks each attempt offTopic from its stored grade", maps(runtimeSrc));
+  check("Q4: the summary renders an 'Off-topic' label for those tries", labels(coachedSrc));
+  check("Q4 bite-proof: a summary without the mapping is caught", !maps(runtimeSrc.replace("offTopic: isOffTopicRow(r)", "offTopic: false")));
+  check("Q4 bite-proof: a shell without the label is caught", !labels(coachedSrc.replace("`Off-topic", "`Other")));
+}
+
 if (failures === 0) {
   console.log("\nverify-coached-avatar-mount: ALL SECTIONS PASSED\n");
   process.exit(0);

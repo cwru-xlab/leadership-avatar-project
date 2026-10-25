@@ -13,6 +13,8 @@
  *   (c) the student parrots the coach's technique -> not accepted as an attempt
  *   (d) moment 2: the moment-1 answer recycled (verbatim, then paraphrased)
  *       -> never accepted
+ *   (e) four weak tries -> support escalates (a different technique each
+ *       miss, the demonstration after miss 3), then a kind close
  *
  * Needs DATABASE_URL, AWS and OPENAI_API_KEY:
  *   npx tsx --env-file=<.env.local> scripts/verify-coach-transcripts.ts
@@ -224,6 +226,38 @@ async function main() {
       const r2 = await say(PARAPHRASED_SVP);
       check("(d2) a paraphrased off-topic answer is not accepted either (model topic check)", r2.stored?.acceptable !== true && (r2.stored?.score ?? 1) <= 1);
       check("(d2) the leg is still open", !r2.res.legState.legReady);
+    }
+
+    console.log("\n(e) repeated misses: support escalates, then a kind close");
+    {
+      const s = await throwawaySession();
+      const say = driver(s, "REPLAY", m1);
+      await say(null);
+      const WEAK = [
+        "Yeah so there wasn't really a lot of skepticism, people were mostly fine with it and it went pretty good overall.",
+        "It was a good meeting, I think everyone kind of agreed in the end and there were not that many questions really.",
+        "Some people had questions I guess, but we talked about it for a while and then it was basically fine after that.",
+        "I don't remember exact questions, honestly it just went smoothly and the SVPs seemed happy enough with how it went.",
+      ];
+      const turns: Array<Awaited<ReturnType<typeof say>>> = [];
+      for (const w of WEAK) {
+        const r = await say(w);
+        turns.push(r);
+        if (r.res.legState.legReady) break;
+      }
+      const afterMiss = turns.filter((t) => t.stored?.move === "ATTEMPT" && t.stored.acceptable !== true);
+      const named1 = afterMiss.map((t) => named(t.res.coachTurn.speech)[0] ?? null);
+      const invitesAfterMiss = afterMiss.filter((t) => t.res.coachTurn.move === "INVITE_ATTEMPT");
+      let repeatedInARow = false;
+      const allInvites = turns.map((t) => named(t.res.coachTurn.speech)[0]).filter(Boolean);
+      for (let i = 1; i < allInvites.length; i++) if (allInvites[i] === allInvites[i - 1]) repeatedInARow = true;
+      check("(e) no tries were accepted (the fixture really misses)", turns.every((t) => t.stored?.acceptable !== true));
+      check("(e) misses 1-2 each name a technique", invitesAfterMiss.length >= 1 && invitesAfterMiss.every((t) => named(t.res.coachTurn.speech).length === 1));
+      check("(e) the same technique is never named twice in a row", !repeatedInARow, named1.join(" | "));
+      const third = afterMiss.find((t) => t.res.legState.attemptsInLeg === 3);
+      check("(e) after miss 3 the coach demonstrates and invites one last try", third?.res.coachTurn.move === "DEMONSTRATE" && third.res.coachTurn.awaiting === "ATTEMPT");
+      const last = turns[turns.length - 1];
+      check("(e) after the last try the coach closes kindly (LEG_DONE at the soft cap)", last.res.coachTurn.move === "LEG_DONE" && last.res.coachTurn.closedAtSoftCap === true && last.res.legState.attemptsInLeg === 4);
     }
   } finally {
     await prisma.coachedSession.deleteMany({ where: { id: { in: sessionIds } } }).catch(() => {});
