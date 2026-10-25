@@ -29,7 +29,10 @@ import {
   type DrillSessionContext,
 } from "../lib/study-plan/drill/brief";
 import { techniquesForCompetency } from "../lib/study-plan/coached/tips";
-import { gradeDrillAttempt, noteMatchesTechnique, reconcileNote } from "../lib/study-plan/drill/grade";
+import { gradeDrillAttempt, noteMatchesTechnique, reconcileNote, retryFocusFor, DRILL_RUBRIC_ANCHORS } from "../lib/study-plan/drill/grade";
+import { gradingSampling, GRADING_SEED } from "../lib/study-plan/grading-determinism";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { allowedDrillTechniques, rankDrillTechniques } from "../lib/study-plan/drill/brief";
 import { isWrittenTechnique } from "../lib/study-plan/checks/explain";
 import { COMPETENCIES } from "../lib/mastery/competencies";
@@ -317,7 +320,54 @@ async function qSections() {
   check("a note that already matches makes no regeneration call", noteCalls === 0 && matching.feedback.startsWith("Split any long"));
 }
 
+function rSections() {
+  console.log("\n8. Retry focus from the note when there is no quote");
+  const closeLoop = LIB.find((t) => t.name === "Close the loop")!;
+  const fromNote = retryFocusFor({ miss: null, worked: null }, "Try closing the loop by restating the question at the end to reinforce clarity.", KEY);
+  check("a 5/5 note about closing the loop focuses the retry on 'Close the loop'", fromNote?.techniqueId === closeLoop.id, JSON.stringify(fromNote));
+  const fromMiss = retryFocusFor(
+    { miss: { quote: "q q q", techniqueId: LIB[0].id, techniqueName: LIB[0].name, reminder: LIB[0].reminder }, worked: null },
+    "Try closing the loop by restating the question.",
+    KEY,
+  );
+  check("a quoted miss still wins over the note", fromMiss?.techniqueId === LIB[0].id);
+  check("bite-proof: an unrelated note yields no focus (falls back to the drill's technique)", retryFocusFor(null, "Keep going.", KEY) === null);
+
+  console.log("\n9. Deterministic grading");
+  const g = gradingSampling("gpt-4.1");
+  check("gpt-4.1 graders use temperature 0 and the fixed seed", g.temperature === 0 && g.seed === GRADING_SEED);
+  const r = gradingSampling("o3-mini");
+  check("a reasoning model gets the seed only (it rejects temperature)", r.temperature === undefined && r.seed === GRADING_SEED);
+  const root = join(__dirname, "..");
+  const graders = [
+    "lib/study-plan/drill/grade.ts",
+    "lib/study-plan/coached/grade-attempt.ts",
+    "lib/study-plan/checks/grade.ts",
+    "lib/study-plan/coached/moment-scoring.ts",
+    "lib/study-plan/coached/reply-classifier.ts",
+  ];
+  const callsWithoutSampling = (src: string) => {
+    const calls = src.split("chat.completions.create(").slice(1).map((c) => c.slice(0, c.indexOf("});")));
+    return calls.length === 0 ? -1 : calls.filter((c) => !c.includes("...gradingSampling(")).length;
+  };
+  for (const f of graders) {
+    const n = callsWithoutSampling(readFileSync(join(root, f), "utf8"));
+    check(`${f}: every model call uses gradingSampling`, n === 0, String(n));
+  }
+  for (const f of ["lib/study-plan/coached/coach.ts", "lib/study-plan/drill/brief.ts", "lib/study-plan/checks/generate.ts"]) {
+    check(`${f}: generation keeps its own sampling`, !readFileSync(join(root, f), "utf8").includes("gradingSampling"));
+  }
+  const drillSrc = readFileSync(join(root, graders[0]), "utf8");
+  check("bite-proof: dropping gradingSampling from a grader call is caught", callsWithoutSampling(drillSrc.replace("...gradingSampling(payload.model),", "")) > 0);
+  check(
+    "the drill grader sends 1/3/5 rubric anchors for every competency",
+    COMPETENCIES.every((c) => DRILL_RUBRIC_ANCHORS[c.key]?.[1] && DRILL_RUBRIC_ANCHORS[c.key]?.[3] && DRILL_RUBRIC_ANCHORS[c.key]?.[5]) &&
+      drillSrc.includes("rubric_anchors: DRILL_RUBRIC_ANCHORS[args.competencyKey]"),
+  );
+}
+
 qSections().then(() => {
+  rSections();
   console.log(failures === 0 ? `\nALL PASS (${passes} checks)\n` : `\nFAILED: ${failures} assertion(s), ${passes} passed\n`);
   process.exit(failures === 0 ? 0 : 1);
 });
