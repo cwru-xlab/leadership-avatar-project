@@ -59,6 +59,8 @@ You receive only anonymous score aggregates and closed-vocabulary behavioral rub
 
 Ground each theme only in the provided signals. A theme can be described as recurring only when supported by at least two reports; with one report, call it an observed development area. Be constructive and specific. Include strengths to leverage, ranked development themes, targeted exercises, verifiable readiness checks, and useful resources.
 
+Write every learner-facing text field—including plan titles and summaries, strength and priority themes and explanations, exercises, readiness checks, resources, and next-practice focus—in first person from the learner's perspective (I/my); never refer to the learner as you, the learner, or the student.
+
 Do not include dates, deadlines, schedules, calendar language, day-by-day or week-by-week sequencing, or time-to-complete claims. Exercises may include an estimated duration in minutes, but the plan must remain self-paced.`;
 
 export interface AnonymousBehavioralReport {
