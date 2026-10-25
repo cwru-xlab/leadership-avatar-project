@@ -205,7 +205,7 @@ function baseReasonFor(
   return `${globalFigureSentence(ranked)} It is not one of this plan's own weak skills, so it fills a remaining slot.`;
 }
 
-const KNOWLEDGE_CHECK_CLAUSE = "This knowledge check covers the concept first.";
+const KNOWLEDGE_CHECK_CLAUSE = "This knowledge check works on it in writing first, using a line from your own sessions.";
 const CONCEPT_CHECK_CLAUSE =
   "This concept knowledge check covers the idea first; no moment from your sessions is available, so it quotes none.";
 const DRILL_CLAUSE = "This short voice drill is a spoken rep on it, graded at the end.";
@@ -453,7 +453,9 @@ export function selectPathSteps(args: {
  *
  * Order: the lowest-`position` IN_PROGRESS step first (work already started,
  * e.g. an entered coached session, is resumed before anything new), else the
- * lowest-`position` PENDING step. Returns `null` only when every step is
+ * lowest-`position` PENDING step. An IN_PROGRESS UNAIDED_SESSION (a prove-it
+ * session launched but not finished) is not resumed early — it is taken in
+ * position order with the PENDING steps. Returns `null` only when every step is
  * COMPLETE or SKIPPED (or there are no steps at all). This is the single
  * source of truth for "what's next" — the path view adds no fallback.
  *
@@ -464,15 +466,22 @@ export function selectPathSteps(args: {
 export function nextStepFor(
   path: PathWithSteps
 ): { step: PathWithSteps["steps"][number]; reason: string } | null {
-  const lowestWithStatus = (status: string) => {
+  const lowestWhere = (match: (step: PathWithSteps["steps"][number]) => boolean) => {
     let lowest: PathWithSteps["steps"][number] | null = null;
     for (const step of path.steps) {
-      if (step.status !== status) continue;
+      if (!match(step)) continue;
       if (!lowest || step.position < lowest.position) lowest = step;
     }
     return lowest;
   };
 
-  const next = lowestWithStatus("IN_PROGRESS") ?? lowestWithStatus("PENDING");
+  // A launched-but-unfinished prove-it session is not resumable work (the
+  // practice session lives outside the path), so it waits its turn rather
+  // than pulling the student past the learning steps before it.
+  const resumable = lowestWhere(
+    (s) => s.status === "IN_PROGRESS" && s.kind !== "UNAIDED_SESSION"
+  );
+  const next =
+    resumable ?? lowestWhere((s) => s.status === "PENDING" || s.status === "IN_PROGRESS");
   return next ? { step: next, reason: next.selectionReason } : null;
 }

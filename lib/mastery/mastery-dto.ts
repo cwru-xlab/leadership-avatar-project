@@ -42,7 +42,7 @@ export interface MasteryFigureDTO {
 export const ORIGIN_LABELS: Record<EvidenceOrigin, string> = {
   live: "Live practice",
   check: "Knowledge checks",
-  coached: "Coached sessions",
+  coached: "Coached sessions & voice drills",
 };
 
 /** Which group an origin belongs to, for the "live vs path" split. */
@@ -341,6 +341,8 @@ export interface CompetencySincePlanDTO {
   delta: number | null;
   direction: "up" | "down" | "flat" | null;
   sinceEvidenceCount: number;
+  /** Weighted mean of only the evidence since the plan; null when none. */
+  sincePercent: number | null;
   drivers: WindowDriverDTO[];
   /** The figure frozen into the path's selectionSnapshot, when present. */
   snapshotLifetimePercent: number | null;
@@ -382,6 +384,7 @@ export function toSincePlanDTO(args: {
         delta: r.delta,
         direction: r.delta === null ? null : r.delta > 0 ? "up" : r.delta < 0 ? "down" : "flat",
         sinceEvidenceCount: r.sinceEvidenceCount,
+        sincePercent: r.sincePercent,
         drivers: r.drivers.map((d) => driverDTOFor(d, args.activityLinks)),
         snapshotLifetimePercent: r.snapshotLifetimePercent,
       };

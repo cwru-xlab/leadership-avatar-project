@@ -458,6 +458,12 @@ export interface CompetencySincePlan {
   delta: number | null;
   /** Rows that landed in [since, now]. */
   sinceEvidenceCount: number;
+  /**
+   * Weighted mean of only the rows in [since, now], one decimal; null when
+   * none landed. How the student has performed on this skill since the plan,
+   * as opposed to `now`, which blends in every earlier row.
+   */
+  sincePercent: number | null;
   /** Up to MAX_WINDOW_DRIVERS activities in [since, now], strongest pull first. */
   drivers: WindowDriver[];
   /**
@@ -519,6 +525,7 @@ export function growthSincePlan(
       now: { percent: current.percent, evidenceCount: current.count, weightSum: current.weightSum },
       delta,
       sinceEvidenceCount: sinceRows.length,
+      sincePercent: figureFor(sinceRows).percent,
       drivers: windowDriversFor(sinceRows, baseline.percent ?? current.percent),
       snapshotLifetimePercent: snapshotByKey.get(competencyKey)?.lifetimePercent ?? null,
     };

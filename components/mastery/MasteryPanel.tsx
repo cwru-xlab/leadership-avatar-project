@@ -342,7 +342,7 @@ function GoalRow({
         <Circle size={16} className="shrink-0 text-[#b7c7cd]" aria-hidden="true" />
       )}
       <span>
-        {label}: {completed} of {target}
+        {label}: {met ? `goal met · ${completed} done` : `${completed} of ${target}`}
       </span>
     </div>
   );
