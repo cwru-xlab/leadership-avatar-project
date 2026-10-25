@@ -133,7 +133,7 @@ function explanationLines(
     lines: [
       ...(miss ? [`What your pick missed: ${miss}`] : []),
       `Why it works: ${ex.why}`,
-      `Technique: ${ex.technique.name}`,
+      ...(ex.technique ? [`Technique: ${ex.technique.name}`] : []),
     ],
     options: ex.options,
   };

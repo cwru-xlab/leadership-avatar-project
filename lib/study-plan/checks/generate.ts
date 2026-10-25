@@ -37,12 +37,12 @@ import type { InterviewTranscript } from "../../interview/transcript";
 import type { SessionMoment } from "../moments";
 import { prepareMomentsForGeneration } from "../moment-boundary";
 import { validateVerbatimQuote } from "../verbatim";
-import { techniquesForCompetency } from "../coached/tips";
 import { promptMatchesInteraction } from "./copy";
 import {
   applyOrder,
   precedingAssistantTurn,
   sanitizeExplanation,
+  writtenTechniquesFor,
   shuffleOrder,
 } from "./explain";
 import {
@@ -83,7 +83,7 @@ For a "PICK_BETTER_RESPONSE" candidate, return 3 or 4 entries in "payload.candid
 Set "answer_key.betterIndex" to 1 and "payload.rationalePrompt" to null.
 
 EVERY candidate also carries a short teaching explanation shown AFTER the student answers:
-  - "technique_id": the id of the ONE technique from "techniques" the correct answer applies (copy the id exactly).
+  - "technique_id": the id of the ONE technique from "techniques" the correct answer applies (copy the id exactly), or null if none fits or "techniques" is empty.
   - "explanation": 1-2 sentences on why the correct answer works, naming that technique. Do not put the student's words in quotation marks.
   - "option_explanations": for MULTIPLE_CHOICE and PICK_BETTER_RESPONSE, one entry per option/candidate in the same order — null for the correct one, and for each other one a single sentence saying what it got wrong (which technique it breaks). For the student's own line, name what it was missing. Null for the other formats.
 
@@ -363,7 +363,8 @@ export async function generateChecksForCompetency(
     },
     // K2: the closed technique library for this competency — explanations
     // and distractors name these; an id outside this list is replaced.
-    techniques: techniquesForCompetency(competency.key).map((t) => ({
+    // Written checks never name a body/voice technique (explain.ts).
+    techniques: writtenTechniquesFor(competency.key).map((t) => ({
       id: t.id,
       name: t.name,
       reminder: t.reminder,
@@ -713,7 +714,7 @@ export async function generateChecksForCompetency(
     if (sanitized) {
       const explanation: CheckExplanation = sanitized.explanation;
       if (payload.format === "REWRITE_WEAK_LINE") {
-        payload = { ...payload, techniqueId: explanation.techniqueId };
+        if (explanation.techniqueId) payload = { ...payload, techniqueId: explanation.techniqueId };
       } else if (answerKey !== null) {
         answerKey = { ...answerKey, explanation } as AnswerKey;
       }
