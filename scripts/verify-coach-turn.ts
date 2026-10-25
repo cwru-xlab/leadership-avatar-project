@@ -568,6 +568,51 @@ async function main() {
       check("14d. bite: without an earlier leg the same words are not 'recycled' and are accepted", res.legState.legReady);
     }
 
+    // 15. L7 - support escalates across misses; never the same technique twice in a row
+    {
+      const { chooseTechnique, safeTechniques } = await import("../lib/study-plan/coached/coach");
+      const s = await newSession();
+      await turn(s, null, [OPEN]);
+      const HEAD = "structure-headline-first";
+      const inviteHead = { ...INVITE, techniqueId: HEAD } as Out;
+      const t0 = await turn(s, say("I think it was about the project"), [inviteHead]);
+      const miss = (n: number) => `Attempt ${n}: we did the project and it went fine for the team overall in the end`;
+      const m1 = await turn(s, say(miss(1)), [inviteHead]); // asks to repeat headline-first
+      const m2 = await turn(s, say(miss(2)), [inviteHead]);
+      const invites = [t0, m1, m2].map((x) => STRUCTURE_LINES.find((l) => x.res.coachTurn.speech.includes(l)) ?? "");
+      check("15a. every invite names exactly one technique", [t0, m1, m2].every((x) => linesNamed(x.res.coachTurn.speech) === 1));
+      check("15a. miss 1 and miss 2 each name a DIFFERENT technique from the one just before (a repeated id is overridden)", invites[0] !== invites[1] && invites[1] !== invites[2], invites.join(" | "));
+      const m3inv = await turn(s, say(miss(3)), [inviteHead]);
+      check("15b. after miss 3 a plain invite is refused: the demonstration is the only move", m3inv.rejected.length === 3 && m3inv.rejected.every((r) => r === "MOVE_NOT_ALLOWED_INVITE_ATTEMPT"), m3inv.rejected.join(","));
+      check("15b. ...and if no demonstration can be produced, the fallback still names a new technique", linesNamed(m3inv.res.coachTurn.speech) === 1 && !m3inv.res.coachTurn.speech.includes(invites[2]));
+      const s2 = await newSession();
+      await turn(s2, null, [OPEN]);
+      await turn(s2, say("I think it was about the project"), [INVITE]);
+      await turn(s2, say(miss(1)), [INVITE]);
+      await turn(s2, say(miss(2)), [INVITE]);
+      const demo = await turn(s2, say(miss(3)), [DEMONSTRATE]);
+      check("15c. miss 3 -> the gated demonstration, inviting one last try", demo.res.coachTurn.move === "DEMONSTRATE" && demo.res.coachTurn.awaiting === "ATTEMPT" && demo.res.coachTurn.demonstration === DEMO);
+      const close = await turn(s2, say(miss(4)), [INVITE]);
+      check("15d. after the last try (miss 4) only LEG_DONE is accepted; the fallback closes kindly with a takeaway", close.res.coachTurn.move === "LEG_DONE" && /takeaway/.test(close.res.coachTurn.speech) && close.res.coachTurn.closedAtSoftCap === true && close.res.legState.legReady);
+      const safe = safeTechniques("structure_and_clarity", STUDENT_LINE);
+      const prevText = `x ${techniqueLine(safe[0])} y`;
+      check("15e. bite: chooseTechnique overrides a request to repeat the last technique", chooseTechnique(safe, safe[0].id, [prevText])?.id !== safe[0].id);
+      check("15e. bite: with no previous technique the same request is honoured", chooseTechnique(safe, safe[0].id, [])?.id === safe[0].id);
+    }
+
+    // 16. Q6 - the reaction must not pre-paraphrase the technique the app speaks
+    {
+      const s = await newSession();
+      await turn(s, null, [OPEN]);
+      const PARA = { ...INVITE, speech: "Next time, lead with your conclusion so it lands.", techniqueId: "structure-headline-first" } as Out;
+      const r = await turn(s, say("I think it was about the project"), [PARA]);
+      check("16. a reaction paraphrasing the chosen technique is rejected (REACTION_PARAPHRASES_TECHNIQUE)", r.rejected.length === 3 && r.rejected.every((x) => x === "REACTION_PARAPHRASES_TECHNIQUE"), r.rejected.join(","));
+      const s2 = await newSession();
+      await turn(s2, null, [OPEN]);
+      const r2 = await turn(s2, say("I think it was about the project"), [{ ...PARA, speech: "You named the goal, but no example yet." } as Out]);
+      check("16. bite: a plain reaction with the same technique passes", r2.rejected.length === 0);
+    }
+
     // 9. Re-validation sweep from stored data
     {
       const rows = await prisma.coachedTurn.findMany({
