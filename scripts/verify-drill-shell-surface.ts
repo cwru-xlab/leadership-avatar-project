@@ -224,6 +224,25 @@ function main() {
   const inString = stripCommentsAndStrings('const s = "unlock";').toLowerCase();
   check("a term inside a string literal is not a false positive", !FORBIDDEN_TERMS.some((t) => inString.includes(t)));
 
+  console.log("\n5. PRACTICE AGAIN on completed steps (review, never gating)");
+  const panel = read("components", "study-plan", "PathPanel.tsx");
+  const practiceIssues = (src: string): string[] => {
+    const out: string[] = [];
+    const block = src.slice(src.indexOf('step.status === "COMPLETE" && href ?'), src.indexOf("Practice again") + 20);
+    if (!/step\.status === "COMPLETE" && href \?/.test(src)) out.push("no completed-step branch");
+    if (!/Practice again/.test(block)) out.push("no Practice again label");
+    if (!/href=\{href\}/.test(block)) out.push("Practice again does not use hrefForStep's destination");
+    if (/kind ===|isUnlocked|locked|streak/i.test(block)) out.push("Practice again is conditioned on kind/gating");
+    return out;
+  };
+  const pi = practiceIssues(panel);
+  check("every completed step with a destination shows Practice again (any kind)", pi.length === 0, JSON.stringify(pi));
+  check(
+    "bite-proof: restricting Practice again to drills is caught",
+    practiceIssues(panel.replace('step.status === "COMPLETE" && href ?', 'step.status === "COMPLETE" && step.kind === "VOICE_DRILL" && href ?')).length > 0,
+  );
+  check("bite-proof: removing the label is caught", practiceIssues(panel.replace("Practice again", "Review")).length > 0);
+
   console.log(failures === 0 ? `\nALL PASS (${passCount} checks)\n` : `\nFAILED: ${failures} assertion(s), ${passCount} passed\n`);
   process.exit(failures === 0 ? 0 : 1);
 }
