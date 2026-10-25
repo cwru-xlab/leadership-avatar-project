@@ -113,7 +113,7 @@ function issues(s: Sources): string[] {
     out.push("the avatar session is stopped outside unmount (retry cannot reuse it)");
   }
   if (/return runner;/.test(s.shell) || !/\{runner\}/.test(s.shell)) out.push("the runner does not keep one tree position under the result");
-  if (!/setRetryFocus\(\s*graded\?\.attempt\.pointers\?\.miss\?\.techniqueName/.test(s.shell)) {
+  if (!/setRetryFocus\(\s*graded\?\.attempt\.retryFocus\?\.techniqueName/.test(s.shell)) {
     out.push("the retry focus does not come from the last note's technique");
   }
 
