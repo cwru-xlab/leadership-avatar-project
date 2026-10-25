@@ -33,7 +33,14 @@ import {
 } from "../lib/study-plan/checks/generate";
 import { gradeDeterministic } from "../lib/study-plan/checks/grade";
 import type { AnswerKey, CheckPayload } from "../lib/study-plan/checks/types";
-import { applyOrder, precedingAssistantTurn, shuffleOrder } from "../lib/study-plan/checks/explain";
+import {
+  applyOrder,
+  bestTechniqueFor,
+  precedingAssistantTurn,
+  sanitizeExplanation,
+  shuffleOrder,
+  writtenTechniquesFor,
+} from "../lib/study-plan/checks/explain";
 import { displayPrompt, FALLBACK_PROMPT } from "../lib/study-plan/checks/copy";
 import { techniquesForCompetency } from "../lib/study-plan/coached/tips";
 import { toKeylessCheckDTO } from "../app/api/study-plans/checks/[checkId]/attempt/route";
@@ -761,7 +768,11 @@ async function main() {
           continue;
         }
         const key = row.answerKey as unknown as { explanation?: { techniqueId: string; why: string; options: (string | null)[] | null } };
-        check(`${row.format}: answer key carries an explanation with a library technique`, !!key.explanation && library.has(key.explanation.techniqueId), key.explanation);
+        check(
+          `${row.format}: answer key carries an explanation whose technique is a library id or null (none fits)`,
+          !!key.explanation && (key.explanation.techniqueId === null || library.has(key.explanation.techniqueId)),
+          key.explanation,
+        );
         const dto = JSON.stringify(toKeylessCheckDTO(row));
         check(`${row.format}: the keyless DTO carries no explanation (it would reveal the answer)`, !dto.includes(key.explanation?.why ?? "@@none@@") && !dto.includes("explanation"));
       }
@@ -794,9 +805,14 @@ async function main() {
       ]));
       check("ok: a bad explanation does not cost the check", bad.ok === true && bad.created === 1, bad);
       const [badRow] = await rowsForPlan();
-      const badKey = badRow!.answerKey as unknown as { explanation: { techniqueId: string; why: string; options: (string | null)[] } };
-      check("bite-proof: a technique id from ANOTHER competency is replaced by this competency's", library.has(badKey.explanation.techniqueId), badKey.explanation);
-      check("bite-proof: an explanation that misquotes the student is replaced by the template", !badKey.explanation.why.includes("common ground eventually") && badKey.explanation.why.startsWith("The stronger answer uses"), badKey.explanation.why);
+      const badKey = badRow!.answerKey as unknown as { explanation: { techniqueId: string | null; why: string; options: (string | null)[] } };
+      check(
+        "bite-proof: a technique id from ANOTHER competency is never stored (dropped or replaced by a matching one)",
+        badKey.explanation.techniqueId !== "pressure-restate-the-ask" &&
+          (badKey.explanation.techniqueId === null || library.has(badKey.explanation.techniqueId)),
+        badKey.explanation,
+      );
+      check("bite-proof: an explanation that misquotes the student is replaced by the template", !badKey.explanation.why.includes("common ground eventually") && badKey.explanation.why.startsWith("The stronger answer"), badKey.explanation.why);
       check("bite-proof: misaligned option misses become templates, correct option null", badKey.explanation.options.length === 4 && badKey.explanation.options.filter((o) => o === null).length === 1, badKey.explanation.options);
       await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
 
@@ -805,6 +821,34 @@ async function main() {
       const okKey = okRow?.answerKey as unknown as { explanation: { why: string } } | undefined;
       check("an explanation quoting an option EXACTLY is kept", okQuote.ok === true && !!okKey?.explanation.why.includes(PBR_BURIED), okKey);
       await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
+    }
+
+    console.log("\n16b. Q2 — no default technique; never a body/voice technique on a written check");
+    {
+      check("writtenTechniquesFor(delivery_presence) is empty (eyes/shoulders/pace/pause/room are spoken-only)", writtenTechniquesFor("delivery_presence").length === 0);
+      check("the visible-breath pressure move is excluded too", !writtenTechniquesFor("holding_position_under_pressure").some((t) => t.id === "pressure-slow-your-response"));
+      const delivery = sanitizeExplanation({
+        competencyKey: "delivery_presence",
+        proposed: { techniqueId: "delivery-eyes-up", why: "Eyes up shows presence.", options: null },
+        optionCount: null, correctIndex: null, quotableSources: [], matchText: "eyes shoulders pace pause camera",
+      });
+      check(
+        "bite-proof: a proposed delivery technique is dropped (techniqueId null) and its why replaced",
+        delivery?.explanation.techniqueId === null && !/eyes|shoulder|pace/i.test(delivery.explanation.why),
+        delivery,
+      );
+      const noMatch = sanitizeExplanation({
+        competencyKey: COMPETENCY_KEY,
+        proposed: { techniqueId: null, why: null, options: null },
+        optionCount: null, correctIndex: null, quotableSources: [], matchText: "zzz qqq",
+      });
+      check(
+        "bite-proof: nothing matches -> techniqueId null, NOT the competency's first technique",
+        noMatch?.explanation.techniqueId === null && noMatch.explanation.techniqueId !== techniquesForCompetency(COMPETENCY_KEY)[0]!.id,
+        noMatch,
+      );
+      check("bestTechniqueFor returns null with zero overlap", bestTechniqueFor(COMPETENCY_KEY, "zzz qqq") === null);
+      check("bestTechniqueFor still matches on overlap", bestTechniqueFor(COMPETENCY_KEY, "lead with your conclusion")?.id === "structure-headline-first");
     }
 
     console.log("\n17. K3 — the prompt matches the interaction");
