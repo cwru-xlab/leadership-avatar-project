@@ -69,10 +69,22 @@ export function buildInterviewSystemPrompt(
       " from the generic role and industry labels."
     : "";
 
-  const resumeSection = resumeText.trim()
+  const hasResume = Boolean(resumeText.trim());
+  const resumeSection = hasResume
     ? resumeText.trim()
     : "(No resume provided. Skip the resume-grounded stage and ask one extra " +
       "behavioral question in its place. Do not invent details about the candidate's background.)";
+
+  const resumeAttributionRule = hasResume
+    ? `## RESUME ATTRIBUTION
+When you introduce a specific detail from the candidate's resume that the candidate
+has not already stated in this conversation, attribute it naturally in your spoken
+question — for example, "On your resume, I saw..." or "I noticed on your resume...".
+If the candidate has already supplied the detail in conversation, respond naturally
+to what they said; do not force a resume reference. Only attribute a detail to the
+resume when it actually appears in the resume provided above. Never invent a resume
+detail or imply that you saw one there.`
+    : "";
 
   const caseSection = type.caseBackground?.trim()
     ? `- Case/scenario background: ${type.caseBackground.trim()}`
@@ -97,6 +109,8 @@ capacity, communication skill, and emotional intelligence — not just technical
 knowledge. You are gathering the raw material that a separate evaluation step will
 grade later, so your job is to elicit rich, specific responses, not to grade them
 yourself.`,
+
+    resumeAttributionRule,
 
     `## STAGE PLAN (deterministic — follow this sequence)
 The counts below are totals for the complete interview, not quotas for a single
