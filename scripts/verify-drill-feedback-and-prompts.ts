@@ -364,6 +364,15 @@ function rSections() {
     COMPETENCIES.every((c) => DRILL_RUBRIC_ANCHORS[c.key]?.[1] && DRILL_RUBRIC_ANCHORS[c.key]?.[3] && DRILL_RUBRIC_ANCHORS[c.key]?.[5]) &&
       drillSrc.includes("rubric_anchors: DRILL_RUBRIC_ANCHORS[args.competencyKey]"),
   );
+  const coachedSrc = readFileSync(join(root, "lib/study-plan/coached/grade-attempt.ts"), "utf8");
+  const anchorCopyIssue = (src: string) =>
+    !/rubricAnchors: RUBRIC_ANCHORS\[/.test(src) ||
+    COMPETENCIES.some((c) => [1, 3, 5].some((n) => src.includes(DRILL_RUBRIC_ANCHORS[c.key][n as 1 | 3 | 5])));
+  check("the coached grader sends the SAME shared anchors (imported, not copied)", !anchorCopyIssue(coachedSrc));
+  check(
+    "bite-proof: a pasted copy of an anchor in the coached grader is caught",
+    anchorCopyIssue(coachedSrc + `\n// ${DRILL_RUBRIC_ANCHORS.structure_and_clarity[3]}`),
+  );
 }
 
 qSections().then(() => {
