@@ -464,6 +464,15 @@ export interface CompetencySincePlan {
    * as opposed to `now`, which blends in every earlier row.
    */
   sincePercent: number | null;
+  /**
+   * The same since-plan rows split into path learning (checks, drills,
+   * coached sessions) and live practice, so a finished path can show what
+   * the path itself earned even when live sessions dominate the window.
+   */
+  sinceBySource: {
+    path: { percent: number | null; count: number };
+    live: { percent: number | null; count: number };
+  };
   /** Up to MAX_WINDOW_DRIVERS activities in [since, now], strongest pull first. */
   drivers: WindowDriver[];
   /**
@@ -526,6 +535,17 @@ export function growthSincePlan(
       delta,
       sinceEvidenceCount: sinceRows.length,
       sincePercent: figureFor(sinceRows).percent,
+      sinceBySource: (() => {
+        const live = sinceRows.filter((r) => originForSource(r.source) === "live");
+        const path = sinceRows.filter((r) => {
+          const origin = originForSource(r.source);
+          return origin !== null && origin !== "live";
+        });
+        return {
+          path: { percent: figureFor(path).percent, count: path.length },
+          live: { percent: figureFor(live).percent, count: live.length },
+        };
+      })(),
       drivers: windowDriversFor(sinceRows, baseline.percent ?? current.percent),
       snapshotLifetimePercent: snapshotByKey.get(competencyKey)?.lifetimePercent ?? null,
     };

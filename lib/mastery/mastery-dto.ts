@@ -343,6 +343,11 @@ export interface CompetencySincePlanDTO {
   sinceEvidenceCount: number;
   /** Weighted mean of only the evidence since the plan; null when none. */
   sincePercent: number | null;
+  /** Since-plan figures split into path learning and live practice. */
+  sinceBySource: {
+    path: { percent: number | null; count: number };
+    live: { percent: number | null; count: number };
+  };
   drivers: WindowDriverDTO[];
   /** The figure frozen into the path's selectionSnapshot, when present. */
   snapshotLifetimePercent: number | null;
@@ -385,6 +390,7 @@ export function toSincePlanDTO(args: {
         direction: r.delta === null ? null : r.delta > 0 ? "up" : r.delta < 0 ? "down" : "flat",
         sinceEvidenceCount: r.sinceEvidenceCount,
         sincePercent: r.sincePercent,
+        sinceBySource: r.sinceBySource,
         drivers: r.drivers.map((d) => driverDTOFor(d, args.activityLinks)),
         snapshotLifetimePercent: r.snapshotLifetimePercent,
       };

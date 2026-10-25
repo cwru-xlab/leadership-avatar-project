@@ -412,6 +412,10 @@ console.log("\n13. growthSincePlan: per-study-plan baseline");
   check("A sinceEvidenceCount 2, drivers name the report and the check", a.sinceEvidenceCount === 2 && a.drivers.length === 2 && a.drivers.some((d) => d.sourceAttemptId === "chk") && a.drivers.every((d) => d.sourceReportId !== "future"));
   check("A sincePercent is the weighted mean of only the since rows (75)", a.sincePercent === 75, `got ${a.sincePercent}`);
   check("C with nothing since has sincePercent null", get(KEY_C).sincePercent === null);
+  // A's since rows: one LIVE_SESSION (75) and one CHECK_DETERMINISTIC (75).
+  check("A sinceBySource splits path vs live", a.sinceBySource.live.count === 1 && a.sinceBySource.path.count === 1 && a.sinceBySource.path.percent === 75 && a.sinceBySource.live.percent === 75, JSON.stringify(a.sinceBySource));
+  check("B since rows are all live (no path work)", get(KEY_B).sinceBySource.path.count === 0 && get(KEY_B).sinceBySource.path.percent === null && get(KEY_B).sinceBySource.live.percent === 0);
+  check("bite-proof: counts sum to sinceEvidenceCount", a.sinceBySource.path.count + a.sinceBySource.live.count === a.sinceEvidenceCount);
   check("B shows a drop (negative delta)", get(KEY_B).delta === -50, `got ${get(KEY_B).delta}`);
   check("C with nothing since has delta null", get(KEY_C).delta === null && get(KEY_C).sinceEvidenceCount === 0);
   check("snapshot figure echoed, never substituted (A snapshot null, baseline 25)", a.snapshotLifetimePercent === null && get(KEY_B).snapshotLifetimePercent === 90 && get(KEY_B).baseline.percent === 100);
