@@ -2,7 +2,7 @@
 
 **Updated:** 2026-10-25
 **Branch:** feat/study-plan-expansion (not pushed)
-**Status:** automated + agent-driven e2e evidence COMPLETE; human UAT PENDING (see bottom).
+**Status:** COMPLETE — agent-verified (Playwright, real HeyGen/OpenAI), not human. The user decided this closes the UAT gate (2026-10-25).
 
 Phase 23 was run as an orchestrated multi-worktree effort (worktrees under
 `../leadership-avatar-wt/`), not through GSD PLAN/SUMMARY files. Decisions are
@@ -50,9 +50,12 @@ Screenshots: session scratchpad `e2e/shots/r3/` (not committed).
 
 ## Open
 
-- **Human UAT** — not run. Steps: `22-VALIDATION.md` ## UAT round 2, plus
-  `/paths` → pick a plan → generate → check → drill → coached → growth card → Mastery.
-- **Production migration** `20261124000000_add_voice_drills_and_prove_it` (and
+- **UAT:** closed as agent-verified (2026-10-25). After the origin/dev merge the
+  loop was re-run with tap-to-send: drill 4/5 with quoted feedback, coached
+  feedback ladder, a live interview from prove-it to a READY report, and
+  prove-it completion plus a growth-card update. The rebuild button was
+  exercised on the legacy plan; a 409 guards paths that have progress.
+- **Production migration** (human, at merge: `23-DEPLOY-NOTE.md`) `20261124000000_add_voice_drills_and_prove_it` (and
   Phase 21/22 migrations) applied locally only.
 - Rebuilt path for a plan with no qualifying moments has no coached step
   (by design: coached steps require a scored moment).

@@ -45,9 +45,9 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [ ] **Phase 18: Avatar Disengagement & Walk-Out** - A session the avatar is losing actually ends, as a recorded failure with an explained decline
 - [ ] **Phase 19: Deck-Led Pitch Family** - Four more deck-led pitch modes alongside the investor deck, sharing one deck capability
 - [ ] **Phase 20: Difficult Conversation Walk-Outs** - The avatar leaves a difficult conversation when the student loses control of its hostility
-- [ ] **Phase 21: Adaptive Mastery Path** - Study plans become a tailored improvement path: measured mastery, generated practice aimed at the gap, knowledge checks, and in-session coaching
-- [ ] **Phase 22: Coached Mode** - Coached sessions get an actual coach: a coach persona, the avatar back, and a replay target worth reworking
-- [ ] **Phase 23: Learning Paths Hub** - Study plans and paths get their own tabs, mastery reflects live + path growth, and the path loop teaches (implementation + e2e complete 2026-10-25; human UAT pending — see 23-VALIDATION.md)
+- [x] **Phase 21: Adaptive Mastery Path** - Study plans become a tailored improvement path: measured mastery, generated practice aimed at the gap, knowledge checks, and in-session coaching
+- [x] **Phase 22: Coached Mode** - Coached sessions get an actual coach: a coach persona, the avatar back, and a replay target worth reworking
+- [x] **Phase 23: Learning Paths Hub** - Study plans and paths get their own tabs, mastery reflects live + path growth, and the path loop teaches (completed 2026-10-25, agent-verified UAT)
 
 ## Phase Details
 
@@ -1179,7 +1179,7 @@ Plans:
 - [x] 21-23-PLAN.md — Coached runtime: path-step-only entry route and the REPLAY-to-FRESH orchestration with every tip gated — complete 2026-10-20, see `21-23-SUMMARY.md`
 - [x] 21-24-PLAN.md — Coached session shell and page: verbatim replay, technique-reminder rail, fresh leg, finish
 - [x] 21-25-PLAN.md — Ownership-scoped generation-source assembler: the single supplier of 21-10's inputs and the path route's availability pre-check
-- [ ] 21-20-PLAN.md — Full battery, human UAT against five Success Criteria, REQ-85 Phase 18 revision handoff, calibration record (human-verified)
+- [x] 21-20-PLAN.md — Full battery, human UAT against five Success Criteria, REQ-85 Phase 18 revision handoff, calibration record (human-verified)
 
 
 
@@ -1290,7 +1290,7 @@ Plans:
 - [x] 22-13-PLAN.md — Coached route turn/advance/complete + end-to-end battery
 - [x] 22-14-PLAN.md — Shell state/flow: brief + consent, guarded opening, coach-closed legs, vendor degradation, scroll
 - [x] 22-15-PLAN.md — Shell session layout: video coach + PTT, verbatim moment, demonstration card; surface battery
-- [ ] 22-16-PLAN.md — Validation battery + human browser UAT gate
+- [x] 22-16-PLAN.md — Validation battery + human browser UAT gate
 
 ### Phase 23: Learning Paths Hub
 
