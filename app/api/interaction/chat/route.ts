@@ -305,6 +305,7 @@ function attachTerminationToStream(
                     const parsed = parseEngineTurn(accumulated, config, {
                       ...parseOpts,
                       disengagementValue: disengagement.value,
+                      severeContent: disengagement.severe === true,
                     });
 
                     // Server-decided, from the type's own closed vocabulary.

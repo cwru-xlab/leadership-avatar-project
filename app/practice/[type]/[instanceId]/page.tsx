@@ -307,11 +307,6 @@ export default function PracticeInstancePage() {
           language="en"
           hideDefaultEndControl
           autoFinishOnAvatarEnd
-          // The chat route mints the walk-out proof and reads the session
-          // clock from the owned report — without it a DC walk-out has no
-          // proof and every episode is stamped 0s (UAT F20-2). Same top-level
-          // key the pitch page sends.
-          extraChatBody={{ reportId }}
           defaultReportTitle={
             dcTitle.trim()
               ? `Courageous conversation · ${dcTitle.trim().slice(0, 60)}`
