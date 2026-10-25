@@ -59,7 +59,8 @@ function row(p: Partial<CoachedTurnRow> & Pick<CoachedTurnRow, "seq" | "speaker"
 
 const STUDENT_LINE = "We did some stuff and it kind of worked out for the team I guess";
 const COUNTERPART = "Tell me about a time you led a project through a difficult stretch";
-const DEMO = "Open with the result, then name the one decision you made and what it changed.";
+// Built only from the fixture student's own words (demonstrations may not invent facts).
+const DEMO = "We finished the project through a difficult stretch, and it worked out for the team.";
 
 type Out = {
   speech: string;
@@ -282,15 +283,18 @@ async function main() {
       check("2. no demonstration anywhere in the stored session", (await prisma.coachedTurn.count({ where: { coachedSessionId: s, demonstration: { not: null } } })) === 0);
     }
 
-    // 3. One demonstration after a weak attempt; a second is rejected
+    // 3. One demonstration (the ladder's miss-3 step, L7); never earlier; a second is rejected
     {
       const s = await newSession();
       await turn(s, null, [OPEN]);
       await turn(s, say("It was about the project"), [INVITE]);
-      const first = await turn(s, say("We finished the thing and it mostly went fine"), [DEMONSTRATE]);
-      check("3. DEMONSTRATE delivered after a weak attempt", first.res.coachTurn.move === "DEMONSTRATE" && first.res.coachTurn.demonstration === DEMO);
+      const early = await turn(s, say("We finished the thing and it mostly went fine"), [DEMONSTRATE]);
+      check("3. a demonstration after miss 1 is refused (escalation, L7)", early.res.coachTurn.demonstration === null && early.rejected.every((r) => r === "MOVE_NOT_ALLOWED_DEMONSTRATE"));
+      await turn(s, say("We got through it in the end and the team was fine with that"), [INVITE]);
+      const first = await turn(s, say("Basically it worked out for the team after a while"), [DEMONSTRATE]);
+      check("3. DEMONSTRATE delivered after miss 3", first.res.coachTurn.move === "DEMONSTRATE" && first.res.coachTurn.demonstration === DEMO);
       const second = await turn(s, say("So we shipped it and the team was happy about it"), [DEMONSTRATE]);
-      check("3. second DEMONSTRATE in the leg rejected (fallback delivered)", second.res.coachTurn.demonstration === null && second.res.coachTurn.move === "INVITE_ATTEMPT");
+      check("3. second DEMONSTRATE in the leg rejected (the kind close is delivered instead)", second.res.coachTurn.demonstration === null && second.res.coachTurn.move === "LEG_DONE");
       check("3. exactly one demonstration stored", second.res.legState.demonstrationsInLeg === 1);
       let limitMsg = "";
       try {
@@ -306,7 +310,9 @@ async function main() {
       const s = await newSession();
       await turn(s, null, [OPEN]);
       await turn(s, say("It was about the project"), [INVITE]);
-      await turn(s, say("We finished the thing and it mostly went fine"), [DEMONSTRATE]);
+      await turn(s, say("We finished the thing and it mostly went fine"), [INVITE]);
+      await turn(s, say("We got through it in the end and the team was fine with that"), [INVITE]);
+      await turn(s, say("Basically it worked out for the team after a while"), [DEMONSTRATE]);
       await turn(s, say(DEMO), [INVITE], grader(5, true));
       const att = await prisma.coachedTurn.findFirst({ where: { coachedSessionId: s, speaker: "STUDENT", move: "ATTEMPT" }, orderBy: { seq: "desc" } });
       check("4. verbatim demonstration stored parroted=true", att?.parroted === true);
@@ -584,7 +590,7 @@ async function main() {
       check("15a. miss 1 and miss 2 each name a DIFFERENT technique from the one just before (a repeated id is overridden)", invites[0] !== invites[1] && invites[1] !== invites[2], invites.join(" | "));
       const m3inv = await turn(s, say(miss(3)), [inviteHead]);
       check("15b. after miss 3 a plain invite is refused: the demonstration is the only move", m3inv.rejected.length === 3 && m3inv.rejected.every((r) => r === "MOVE_NOT_ALLOWED_INVITE_ATTEMPT"), m3inv.rejected.join(","));
-      check("15b. ...and if no demonstration can be produced, the fallback still names a new technique", linesNamed(m3inv.res.coachTurn.speech) === 1 && !m3inv.res.coachTurn.speech.includes(invites[2]));
+      check("15b. ...and if no demonstration can be produced, the fallback is the [slot] template demonstration", m3inv.res.coachTurn.move === "DEMONSTRATE" && /\[[^\]]+\]/.test(m3inv.res.coachTurn.demonstration ?? ""));
       const s2 = await newSession();
       await turn(s2, null, [OPEN]);
       await turn(s2, say("I think it was about the project"), [INVITE]);
@@ -611,6 +617,39 @@ async function main() {
       await turn(s2, null, [OPEN]);
       const r2 = await turn(s2, say("I think it was about the project"), [{ ...PARA, speech: "You named the goal, but no example yet." } as Out]);
       check("16. bite: a plain reaction with the same technique passes", r2.rejected.length === 0);
+      const s3 = await newSession();
+      await turn(s3, null, [OPEN]);
+      const r3 = await turn(s3, say("I think it was about the project"), [{ ...INVITE, speech: "Use a signpost as you move along.", techniqueId: "structure-signpost-transitions" } as Out]);
+      const s4 = await newSession();
+      await turn(s4, null, [OPEN]);
+      const r4 = await turn(s4, say("I think it was about the project"), [{ ...INVITE, speech: "Put your headline up front this time.", techniqueId: "structure-signpost-transitions" } as Out]);
+      check("16. a reaction hinting at a DIFFERENT technique than the one spoken is rejected too", r4.rejected.length === 3 && r4.rejected.every((x) => x === "REACTION_PARAPHRASES_TECHNIQUE"), r4.rejected.join(","));
+      check("16. a reaction using the technique's distinctive name word ('signpost') is rejected", r3.rejected.length === 3 && r3.rejected.every((x) => x === "REACTION_PARAPHRASES_TECHNIQUE"), r3.rejected.join(","));
+    }
+
+    // 17. Demonstrations use only the student's facts (user decision, L7 Q2)
+    {
+      const { demonstrationTemplate } = await import("../lib/study-plan/coached/tips");
+      const INVENTED: Out = { ...DEMONSTRATE, demonstration: "At Acme I led the Nimbus rollout, and it cut costs by 40% in 2 weeks." };
+      const setup = async () => {
+        const s = await newSession();
+        await turn(s, null, [OPEN]);
+        await turn(s, say("It was about the project"), [INVITE]);
+        await turn(s, say("We finished the thing and it mostly went fine"), [INVITE]);
+        await turn(s, say("We got through it in the end and the team was fine with that"), [INVITE]);
+        return s; // the next weak attempt is miss 3, where the demonstration is due
+      };
+      const s = await setup();
+      const r = await turn(s, say("Basically it worked out for the team after a while"), [INVENTED]);
+      check("17a. a demonstration with invented names/numbers is rejected, regenerated once, then stops", r.calls === 2 && r.rejected.length === 2 && r.rejected.every((x) => x.startsWith("DEMONSTRATION_UNSUPPORTED_FACTS")), `calls=${r.calls} ${r.rejected.join(",")}`);
+      check("17a. ...and the placeholder-template demonstration is delivered instead", r.res.coachTurn.move === "DEMONSTRATE" && r.res.coachTurn.demonstration === demonstrationTemplate("structure_and_clarity"));
+      const s2 = await setup();
+      const r2 = await turn(s2, say("At Acme I ran the Nimbus rollout, we cut costs by 40% in 2 weeks"), [INVENTED]);
+      check("17b. bite: the same demonstration is accepted when the student said those facts", r2.rejected.length === 0 && r2.res.coachTurn.demonstration === INVENTED.demonstration);
+      const s3 = await setup();
+      const VAGUE_INVENT: Out = { ...DEMONSTRATE, demonstration: "One executive asked how the change might affect quarterly targets, so I explained our projections and the plan for temporary gaps." };
+      const r3 = await turn(s3, say("Basically it worked out for the team after a while"), [VAGUE_INVENT]);
+      check("17c. invented details with no name or number are caught by the content-share check, then the template", r3.rejected.length === 2 && r3.rejected.every((x) => x.includes("content")) && r3.res.coachTurn.demonstration === demonstrationTemplate("structure_and_clarity"), r3.rejected.join(","));
     }
 
     // 9. Re-validation sweep from stored data
