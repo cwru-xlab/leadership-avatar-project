@@ -14,6 +14,9 @@ import {
   CheckNotFoundError,
   RewriteGradingFailedError,
 } from "@/lib/study-plan/checks/grade";
+import { precedingAssistantTurn } from "@/lib/study-plan/checks/explain";
+import { validateVerbatimQuote } from "@/lib/study-plan/verbatim";
+import { s3Storage } from "@/lib/s3-client";
 
 export const runtime = "nodejs";
 // Raised only for REWRITE_WEAK_LINE's model-graded call — the three closed
@@ -188,6 +191,31 @@ export interface AttemptMarkDTO {
   contested: boolean;
 }
 
+/**
+ * K5 for rows generated before the context line was stored: re-read the
+ * owner's transcript, re-run the verbatim gate on the stored quote at its
+ * stored turn, and return the nearest preceding assistant turn EXACTLY.
+ * Any failure (no transcript, quote no longer validates) shows no context
+ * rather than a guessed one. Read-only: nothing is written back.
+ */
+async function legacyContextLine(
+  userId: string,
+  row: { sourceReportId: string | null; quotedTurnIndex: number | null; quotedText: string | null },
+): Promise<string | null> {
+  if (!row.sourceReportId || row.quotedTurnIndex === null || !row.quotedText) return null;
+  try {
+    const transcript = await s3Storage.getInterviewTranscript(userId, row.sourceReportId);
+    if (!transcript) return null;
+    const result = validateVerbatimQuote(row.quotedText, transcript, {
+      expectedTurnIndex: row.quotedTurnIndex,
+    });
+    if (!result.ok) return null;
+    return precedingAssistantTurn(transcript, result.turnIndex);
+  } catch {
+    return null;
+  }
+}
+
 async function loadAttemptMark(
   checkId: string,
   userId: string
@@ -236,6 +264,14 @@ export async function GET(
     if (!row) return response(NOT_FOUND, 404);
 
     const check = toKeylessCheckDTO(row);
+    if (
+      (check.payload.format === "REWRITE_WEAK_LINE" ||
+        check.payload.format === "PICK_BETTER_RESPONSE") &&
+      !check.payload.contextLine
+    ) {
+      const contextLine = await legacyContextLine(currentUser.id, row);
+      if (contextLine) check.payload = { ...check.payload, contextLine };
+    }
     const attempt = await loadAttemptMark(checkId, currentUser.id);
 
     return response({ check, attempt }, 200);
