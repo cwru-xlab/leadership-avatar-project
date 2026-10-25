@@ -205,15 +205,24 @@ console.log("\n4. REGISTRY");
 // ---------------------------------------------------------------------------
 console.log("\n5. ENGINE UNTOUCHED since Phase 22 base (59f6166)");
 {
+  // Engine edits merged in from the team's `dev` branch are not coached-mode
+  // work; the guard is that no commit authored on this line touches the
+  // engine. Uncommitted edits are caught too.
   let out = "";
   let ran = true;
   try {
-    out = execSync("git diff --name-only 59f6166 -- lib/engine/", { cwd: ROOT, encoding: "utf8" }).trim();
+    const hasDev = execSync("git rev-parse --verify --quiet origin/dev || true", { cwd: ROOT, encoding: "utf8" }).trim() !== "";
+    const commits = execSync(
+      `git log --no-merges --format=%h 59f6166..HEAD ${hasDev ? "--not origin/dev" : ""} -- lib/engine/`,
+      { cwd: ROOT, encoding: "utf8" },
+    ).trim();
+    const uncommitted = execSync("git diff --name-only HEAD -- lib/engine/", { cwd: ROOT, encoding: "utf8" }).trim();
+    out = [commits, uncommitted].filter(Boolean).join("\n");
   } catch (e) {
     ran = false;
-    check("git diff ran", false, String(e));
+    check("git log ran", false, String(e));
   }
-  if (ran) check("no changes under lib/engine/", out === "", out);
+  if (ran) check("no changes under lib/engine/ from this branch's own commits", out === "", out);
 }
 
 // ---------------------------------------------------------------------------
