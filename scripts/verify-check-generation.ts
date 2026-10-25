@@ -33,6 +33,10 @@ import {
 } from "../lib/study-plan/checks/generate";
 import { gradeDeterministic } from "../lib/study-plan/checks/grade";
 import type { AnswerKey, CheckPayload } from "../lib/study-plan/checks/types";
+import { applyOrder, precedingAssistantTurn, shuffleOrder } from "../lib/study-plan/checks/explain";
+import { displayPrompt, FALLBACK_PROMPT } from "../lib/study-plan/checks/copy";
+import { techniquesForCompetency } from "../lib/study-plan/coached/tips";
+import { toKeylessCheckDTO } from "../app/api/study-plans/checks/[checkId]/attempt/route";
 
 let checks = 0;
 let failures = 0;
@@ -205,16 +209,31 @@ function fibCandidate(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+const PBR_STRONG =
+  "We agreed on a phased launch: I opened with that decision, then gave the two data points that got us there.";
+const PBR_BURIED =
+  "We looked at usage data, then support load, then the hiring plan, and in the end we agreed on a phased launch.";
+const PBR_HEDGED = "I kind of went along with whatever my manager wanted, sort of, in the end.";
+
 function pbrCandidate(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     format: "PICK_BETTER_RESPONSE",
-    prompt: "Which of these two responses handles the disagreement better?",
+    prompt: "Which response handles the disagreement best?",
     payload: {
       ...blankPayload(),
-      candidates: [DISTINCT_LINE, "I just went along with whatever my manager wanted."],
-      rationalePrompt: "Why is the first response stronger?",
+      // Canonical order (K1): student line, strong target, distractors.
+      candidates: [DISTINCT_LINE, PBR_STRONG, PBR_BURIED, PBR_HEDGED],
+      rationalePrompt: null,
     },
-    answer_key: { ...blankAnswerKey(), betterIndex: 0 },
+    answer_key: { ...blankAnswerKey(), betterIndex: 1 },
+    technique_id: "structure-headline-first",
+    explanation: "Leading with the decision lets the listener follow the two supports that come after it.",
+    option_explanations: [
+      "Your line tells the story without ever stating the decision up front.",
+      null,
+      "The content is strong but the decision is buried at the very end.",
+      "The hedges hide the position instead of stating it.",
+    ],
     quoted_text: DISTINCT_LINE,
     source_report_id: REPORT_ID,
     quoted_turn_index: 1,
@@ -587,9 +606,11 @@ async function main() {
           candidates: [
             "I hear the deadline worry; here is the one change I propose and why.",
             "Let's just see how it goes and revisit later.",
+            "There are many factors, and eventually maybe we change one thing.",
           ],
-          rationalePrompt: "Which response keeps the position clear?",
+          rationalePrompt: null,
         },
+        answer_key: { ...blankAnswerKey(), betterIndex: 0 },
       });
       let capturedSystem = "";
       let capturedUser = "";
@@ -628,8 +649,11 @@ async function main() {
         capturedUser.includes('"mode":"CONCEPT"') && !capturedUser.includes(DISTINCT_LINE) && !capturedUser.includes(SECOND_LINE),
       );
       const pbrRow = rows.find((r) => r.format === "PICK_BETTER_RESPONSE");
+      const strongConcept = "I hear the deadline worry; here is the one change I propose and why.";
       const graded = pbrRow
-        ? gradeDeterministic("PICK_BETTER_RESPONSE", pbrRow.payload as unknown as CheckPayload, pbrRow.answerKey as unknown as AnswerKey, { betterIndex: 0 })
+        ? gradeDeterministic("PICK_BETTER_RESPONSE", pbrRow.payload as unknown as CheckPayload, pbrRow.answerKey as unknown as AnswerKey, {
+            betterIndex: (pbrRow.payload as unknown as { candidates: string[] }).candidates.indexOf(strongConcept),
+          })
         : null;
       check("a concept PBR is graded by the existing deterministic grader", graded?.correct === true, graded);
       await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
@@ -662,6 +686,163 @@ async function main() {
         momentUnquotedPbr.ok === false && momentUnquotedPbr.discarded.some((d) => d.stage === "quote"),
         momentUnquotedPbr,
       );
+      await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
+    }
+
+    // -------------------------------------------------------------------
+    // 15-18. PHASE 23 — checks that teach (K1, K2, K3, K5)
+    // -------------------------------------------------------------------
+    console.log("\n15. K1 — 3-4 pick-better options, shuffled deterministically per check");
+    {
+      const outcome = await run(stub([pbrCandidate()]));
+      check("ok: a 4-option PBR persists", outcome.ok === true && outcome.created === 1, outcome);
+      const [row] = await rowsForPlan();
+      const payload = row?.payload as unknown as { candidates: string[]; rationalePrompt: string | null };
+      const key = row?.answerKey as unknown as { betterIndex: number; explanation?: { options: (string | null)[] | null } };
+      check(
+        "persisted candidates are a permutation of the 4 inputs (student line included verbatim)",
+        !!payload && payload.candidates.length === 4 &&
+          [DISTINCT_LINE, PBR_STRONG, PBR_BURIED, PBR_HEDGED].every((c) => payload.candidates.includes(c)),
+        payload?.candidates,
+      );
+      check("the stored key points at the strong target's TEXT after the shuffle", payload?.candidates[key?.betterIndex ?? -1] === PBR_STRONG, key);
+      check(
+        "the order is reproducible from the row id alone (shuffleOrder(id))",
+        !!row && JSON.stringify(applyOrder([DISTINCT_LINE, PBR_STRONG, PBR_BURIED, PBR_HEDGED], shuffleOrder(row.id, 4))) === JSON.stringify(payload.candidates),
+      );
+      check("shuffleOrder is deterministic", JSON.stringify(shuffleOrder("seed-x", 4)) === JSON.stringify(shuffleOrder("seed-x", 4)));
+      const orders = new Set(Array.from({ length: 40 }, (_, i) => shuffleOrder(`seed-${i}`, 4)[0]));
+      check("bite-proof: across ids the first slot varies (the student line is not pinned to slot 0)", orders.size >= 3, [...orders]);
+      check("new rows store rationalePrompt: null", payload?.rationalePrompt === null);
+      const graded = row
+        ? gradeDeterministic("PICK_BETTER_RESPONSE", row.payload as unknown as CheckPayload, row.answerKey as unknown as AnswerKey, { betterIndex: key.betterIndex })
+        : null;
+      check("grading stays deterministic on the shuffled row (strong target is correct)", graded?.correct === true, graded);
+      await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
+
+      const twoOption = await run(stub([pbrCandidate({ payload: { ...blankPayload(), candidates: [DISTINCT_LINE, PBR_STRONG], rationalePrompt: null } })]));
+      check(
+        "bite-proof: a NEW 2-option PBR is DISCARDED (stage payload)",
+        twoOption.ok === false && twoOption.discarded.some((d) => d.stage === "payload"),
+        twoOption,
+      );
+      const studentBest = await run(stub([pbrCandidate({ answer_key: { ...blankAnswerKey(), betterIndex: 0 } })]));
+      check(
+        "bite-proof: a PBR whose key marks the student's own line as better is DISCARDED",
+        studentBest.ok === false && studentBest.discarded.some((d) => d.stage === "answer_key"),
+        studentBest,
+      );
+      const outOfRange = await run(stub([pbrCandidate({ payload: { ...blankPayload(), candidates: [DISTINCT_LINE, PBR_STRONG, PBR_BURIED], rationalePrompt: null }, answer_key: { ...blankAnswerKey(), betterIndex: 3 } })]));
+      check("bite-proof: a betterIndex past the candidates is DISCARDED", outOfRange.ok === false, outOfRange);
+      const studentNotFirst = await run(stub([pbrCandidate({ payload: { ...blankPayload(), candidates: [PBR_STRONG, DISTINCT_LINE, PBR_BURIED], rationalePrompt: null }, answer_key: { ...blankAnswerKey(), betterIndex: 0 } })]));
+      check(
+        "bite-proof: the verbatim gate still requires the student's line in canonical slot 0 (pre-shuffle)",
+        studentNotFirst.ok === false && studentNotFirst.discarded.some((d) => d.stage === "quote"),
+        studentNotFirst,
+      );
+      check("no rows persisted by the bite-proof runs", (await rowsForPlan()).length === 0);
+    }
+
+    console.log("\n16. K2 — every format stores a library-technique explanation; never a misquote");
+    {
+      const outcome = await run(stub([
+        mcCandidate({ technique_id: "structure-headline-first", explanation: "Documenting the compromise closes the loop on the disagreement.", option_explanations: ["Escalating skips the conversation.", null, "Ignoring it leaves it open.", "Delay leaves it open."] }),
+        fibCandidate(),
+        pbrCandidate(),
+        rwlCandidate({ technique_id: "structure-close-the-loop" }),
+      ]));
+      check("ok: 4 rows", outcome.ok === true && outcome.created === 4, outcome);
+      const rows = await rowsForPlan();
+      const library = new Set(techniquesForCompetency(COMPETENCY_KEY).map((t) => t.id));
+      for (const row of rows) {
+        if (row.format === "REWRITE_WEAK_LINE") {
+          const p = row.payload as unknown as { techniqueId?: string };
+          check("REWRITE: payload.techniqueId is the model's valid library id", p.techniqueId === "structure-close-the-loop", p);
+          continue;
+        }
+        const key = row.answerKey as unknown as { explanation?: { techniqueId: string; why: string; options: (string | null)[] | null } };
+        check(`${row.format}: answer key carries an explanation with a library technique`, !!key.explanation && library.has(key.explanation.techniqueId), key.explanation);
+        const dto = JSON.stringify(toKeylessCheckDTO(row));
+        check(`${row.format}: the keyless DTO carries no explanation (it would reveal the answer)`, !dto.includes(key.explanation?.why ?? "@@none@@") && !dto.includes("explanation"));
+      }
+      const mcRow = rows.find((r) => r.format === "MULTIPLE_CHOICE")!;
+      const mcPayload = mcRow.payload as unknown as { options: string[] };
+      const mcKey = mcRow.answerKey as unknown as { correctIndex: number; explanation: { options: (string | null)[] } };
+      check("MC: options are shuffled with the key following the correct TEXT", mcPayload.options[mcKey.correctIndex] === "Document the compromise", mcPayload);
+      check(
+        "MC: per-option misses follow their option through the shuffle",
+        mcKey.explanation.options[mcPayload.options.indexOf("Escalate immediately")] === "Escalating skips the conversation." &&
+          mcKey.explanation.options[mcKey.correctIndex] === null,
+        mcKey.explanation.options,
+      );
+      const pbrRow = rows.find((r) => r.format === "PICK_BETTER_RESPONSE")!;
+      const pbrPayload = pbrRow.payload as unknown as { candidates: string[] };
+      const pbrKey = pbrRow.answerKey as unknown as AnswerKey & { betterIndex: number };
+      const buriedIdx = pbrPayload.candidates.indexOf(PBR_BURIED);
+      const wrong = gradeDeterministic("PICK_BETTER_RESPONSE", pbrPayload as unknown as CheckPayload, pbrKey, { betterIndex: buriedIdx }, { competencyKey: COMPETENCY_KEY, prompt: pbrRow.prompt });
+      check(
+        "a wrong pick explains what THAT distractor got wrong, why the answer works, and names the technique",
+        wrong.detail.includes("What your pick missed: The content is strong but the decision is buried") &&
+          wrong.detail.includes("Why it works: Leading with the decision") &&
+          wrong.detail.includes("Technique: Headline first"),
+        wrong.detail,
+      );
+      await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
+
+      const bad = await run(stub([
+        mcCandidate({ technique_id: "pressure-restate-the-ask", explanation: 'You said "we found common ground eventually" which is the key.', option_explanations: ["a", null] }),
+      ]));
+      check("ok: a bad explanation does not cost the check", bad.ok === true && bad.created === 1, bad);
+      const [badRow] = await rowsForPlan();
+      const badKey = badRow!.answerKey as unknown as { explanation: { techniqueId: string; why: string; options: (string | null)[] } };
+      check("bite-proof: a technique id from ANOTHER competency is replaced by this competency's", library.has(badKey.explanation.techniqueId), badKey.explanation);
+      check("bite-proof: an explanation that misquotes the student is replaced by the template", !badKey.explanation.why.includes("common ground eventually") && badKey.explanation.why.startsWith("The stronger answer uses"), badKey.explanation.why);
+      check("bite-proof: misaligned option misses become templates, correct option null", badKey.explanation.options.length === 4 && badKey.explanation.options.filter((o) => o === null).length === 1, badKey.explanation.options);
+      await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
+
+      const okQuote = await run(stub([pbrCandidate({ explanation: `It states the decision first, unlike "${PBR_BURIED}"` })]));
+      const [okRow] = await rowsForPlan();
+      const okKey = okRow?.answerKey as unknown as { explanation: { why: string } } | undefined;
+      check("an explanation quoting an option EXACTLY is kept", okQuote.ok === true && !!okKey?.explanation.why.includes(PBR_BURIED), okKey);
+      await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
+    }
+
+    console.log("\n17. K3 — the prompt matches the interaction");
+    {
+      const explain = await run(stub([pbrCandidate({ prompt: "Explain which answer is more attuned to the audience and why." })]));
+      check("bite-proof: an 'explain why' prompt is DISCARDED (stage prompt)", explain.ok === false && explain.discarded.some((d) => d.stage === "prompt"), explain);
+      const restated = await run(stub([pbrCandidate({ prompt: `Which is stronger: 1. ${DISTINCT_LINE} 2. ${PBR_STRONG}?` })]));
+      check("bite-proof: a prompt that restates the candidates is DISCARDED", restated.ok === false && restated.discarded.some((d) => d.stage === "prompt"), restated);
+      const trailingWhy = await run(stub([mcCandidate({ prompt: "Which option is best? Why?" })]));
+      check("bite-proof: a trailing 'Why?' is DISCARDED", trailingWhy.ok === false, trailingWhy);
+      const leadingWhy = await run(stub([mcCandidate({ prompt: "Why does documenting the compromise help most?" })]));
+      check("a leading 'Why does…' MC stem is a real question and is KEPT", leadingWhy.ok === true, leadingWhy);
+      check("copy fallback: a legacy explain prompt displays fixed PBR copy", displayPrompt("Explain which answer is more attuned and why.", { format: "PICK_BETTER_RESPONSE", candidates: ["aaaa", "bbbb"], rationalePrompt: null }) === FALLBACK_PROMPT.PICK_BETTER_RESPONSE);
+      await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
+    }
+
+    console.log("\n18. K5 — the rewrite carries the exact preceding assistant turn");
+    {
+      const outcome = await run(stub([rwlCandidate(), pbrCandidate()]));
+      check("ok: 2 rows", outcome.ok === true && outcome.created === 2, outcome);
+      const rows = await rowsForPlan();
+      const rwl = rows.find((r) => r.format === "REWRITE_WEAK_LINE")!.payload as unknown as { contextLine?: string };
+      const pbr = rows.find((r) => r.format === "PICK_BETTER_RESPONSE")!.payload as unknown as { contextLine?: string };
+      check("REWRITE contextLine is byte-identical to transcript turn 2 (the assistant turn before turn 3)", rwl.contextLine === CHECK_TRANSCRIPT.turns[2]!.content, rwl.contextLine);
+      check("PBR contextLine is byte-identical to transcript turn 0", pbr.contextLine === CHECK_TRANSCRIPT.turns[0]!.content, pbr.contextLine);
+      await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
+
+      const forged = await run(stub([rwlCandidate({ payload: { ...rwlCandidate().payload, contextLine: "The interviewer praised your answer warmly.", techniqueId: "pressure-restate-the-ask" } })]));
+      const [forgedRow] = await rowsForPlan();
+      const fp = forgedRow?.payload as unknown as { contextLine?: string; techniqueId?: string } | undefined;
+      check(
+        "bite-proof: a model-supplied contextLine is IGNORED — the transcript's turn is stored",
+        forged.ok === true && fp?.contextLine === CHECK_TRANSCRIPT.turns[2]!.content,
+        fp,
+      );
+      check("bite-proof: a model-supplied off-competency techniqueId is IGNORED", !!fp && fp.techniqueId !== "pressure-restate-the-ask" && techniquesForCompetency(COMPETENCY_KEY).some((t) => t.id === fp.techniqueId), fp);
+      check("precedingAssistantTurn: null for an assistant turn index", precedingAssistantTurn(CHECK_TRANSCRIPT, 2) === null);
+      check("precedingAssistantTurn: exact for turn 1", precedingAssistantTurn(CHECK_TRANSCRIPT, 1) === CHECK_TRANSCRIPT.turns[0]!.content);
       await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
     }
 

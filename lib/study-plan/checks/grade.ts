@@ -63,6 +63,8 @@ import {
 } from "@/lib/mastery/weights";
 import { validateContributionInputs } from "@/lib/mastery/ledger";
 import type { CompetencyKey } from "@/lib/mastery/competencies";
+import type { Technique } from "@/lib/study-plan/coached/tips";
+import { bestTechniqueFor, explanationFor, techniqueById } from "./explain";
 
 // ---------------------------------------------------------------------------
 // Weight-class ordering — duplicated from 21-05's verifier DELIBERATELY. This
@@ -105,6 +107,43 @@ interface PickBetterResponseResponse {
   betterIndex: number;
 }
 
+/**
+ * Optional grading context (Phase 23, K2). With a competency key, every
+ * result explains WHY, tied to a named library technique — the stored
+ * explanation when the check has one, a template for older rows. Without
+ * it (pure callers that predate K2) the detail is the bare verdict.
+ * Correctness and score NEVER depend on this context.
+ */
+export interface GradeContext {
+  competencyKey?: string;
+  prompt?: string;
+}
+
+function explanationLines(
+  ctx: GradeContext | undefined,
+  stored: Parameters<typeof explanationFor>[1],
+  matchText: string,
+  missIndex: number | null,
+): { lines: string[]; options: (string | null)[] | null } {
+  if (!ctx?.competencyKey) return { lines: [], options: null };
+  const ex = explanationFor(ctx.competencyKey, stored, `${ctx.prompt ?? ""} ${matchText}`);
+  if (!ex) return { lines: [], options: null };
+  const miss = missIndex !== null ? ex.options?.[missIndex] ?? null : null;
+  return {
+    lines: [
+      ...(miss ? [`What your pick missed: ${miss}`] : []),
+      `Why it works: ${ex.why}`,
+      `Technique: ${ex.technique.name}`,
+    ],
+    options: ex.options,
+  };
+}
+
+/** One line per part; the card renders each line on its own row. */
+function joinDetail(lines: string[]): string {
+  return lines.join("\n");
+}
+
 function normalizeBlank(value: string): string {
   // NFC, trim, collapse internal whitespace runs to one space, case-fold.
   // See the module doc comment above for why this differs from verbatim.ts.
@@ -143,7 +182,8 @@ function readSelectedIndex(
 function gradeMultipleChoice(
   payload: CheckPayload,
   answerKey: AnswerKey | null,
-  response: unknown
+  response: unknown,
+  ctx?: GradeContext
 ): DeterministicGrade {
   if (payload.format !== "MULTIPLE_CHOICE") {
     throw new Error("gradeMultipleChoice: payload.format must be MULTIPLE_CHOICE");
@@ -158,20 +198,30 @@ function gradeMultipleChoice(
     "gradeMultipleChoice"
   );
   const correct = selectedIndex === answerKey.correctIndex;
-  const correctOptionText = payload.options[answerKey.correctIndex];
+  const correctOptionText = payload.options[answerKey.correctIndex]!;
+  const why = explanationLines(
+    ctx,
+    "explanation" in answerKey ? answerKey.explanation : undefined,
+    correctOptionText,
+    correct ? null : selectedIndex,
+  );
   return {
     correct,
     score: correct ? 1 : 0,
-    detail: correct
-      ? "Correct."
-      : `Not quite — the correct option was: "${correctOptionText}"`,
+    detail: joinDetail([
+      correct
+        ? "Nice work — that's the best answer."
+        : `Not quite — the correct option was: "${correctOptionText}"`,
+      ...why.lines,
+    ]),
   };
 }
 
 function gradePickBetterResponse(
   payload: CheckPayload,
   answerKey: AnswerKey | null,
-  response: unknown
+  response: unknown,
+  ctx?: GradeContext
 ): DeterministicGrade {
   if (payload.format !== "PICK_BETTER_RESPONSE") {
     throw new Error(
@@ -181,27 +231,42 @@ function gradePickBetterResponse(
   if (!answerKey || !("betterIndex" in answerKey)) {
     throw new Error("gradePickBetterResponse: answerKey must carry betterIndex");
   }
+  // A stored key pointing past the stored candidates is a corrupt row, not
+  // a wrong answer — fail loudly rather than mark anything.
+  if (answerKey.betterIndex >= payload.candidates.length) {
+    throw new Error("gradePickBetterResponse: answerKey.betterIndex is out of range for the stored candidates");
+  }
   const betterIndex = readSelectedIndex(
     response,
     "betterIndex",
-    1,
+    payload.candidates.length - 1,
     "gradePickBetterResponse"
   );
   const correct = betterIndex === answerKey.betterIndex;
-  const correctCandidateText = payload.candidates[answerKey.betterIndex];
+  const correctCandidateText = payload.candidates[answerKey.betterIndex]!;
+  const why = explanationLines(
+    ctx,
+    "explanation" in answerKey ? answerKey.explanation : undefined,
+    correctCandidateText,
+    correct ? null : betterIndex,
+  );
   return {
     correct,
     score: correct ? 1 : 0,
-    detail: correct
-      ? "Correct."
-      : `Not quite — the better response was: "${correctCandidateText}"`,
+    detail: joinDetail([
+      correct
+        ? "Nice work — that's the stronger response."
+        : `Not quite — the better response was: "${correctCandidateText}"`,
+      ...why.lines,
+    ]),
   };
 }
 
 function gradeFillInBlank(
   payload: CheckPayload,
   answerKey: AnswerKey | null,
-  response: unknown
+  response: unknown,
+  ctx?: GradeContext
 ): DeterministicGrade {
   if (payload.format !== "FILL_IN_BLANK") {
     throw new Error("gradeFillInBlank: payload.format must be FILL_IN_BLANK");
@@ -226,6 +291,7 @@ function gradeFillInBlank(
   }
 
   let blanksCorrect = 0;
+  const missedBlanks: string[] = [];
   for (let i = 0; i < blanks.length; i++) {
     const submitted = blanks[i];
     if (typeof submitted !== "string") {
@@ -247,13 +313,30 @@ function gradeFillInBlank(
       (entry) => normalizeBlank(entry) === normalizedSubmitted
     );
     if (isCorrect) blanksCorrect += 1;
+    else missedBlanks.push(`Blank ${i + 1} accepts: "${acceptedForBlank[0]}"`);
   }
 
   const score = blanksCorrect / payload.blankCount;
+  const allCorrect = blanksCorrect === payload.blankCount;
+  const filled = payload.segments
+    .map((seg, i) => (i < answerKey.accepted.length ? `${seg}${answerKey.accepted[i]![0]}` : seg))
+    .join("");
+  const why = explanationLines(
+    ctx,
+    "explanation" in answerKey ? answerKey.explanation : undefined,
+    filled,
+    null,
+  );
   return {
-    correct: blanksCorrect === payload.blankCount,
+    correct: allCorrect,
     score,
-    detail: `${blanksCorrect} of ${payload.blankCount} blank(s) correct.`,
+    detail: joinDetail([
+      allCorrect
+        ? `Nice work — ${blanksCorrect} of ${payload.blankCount} blank(s) correct.`
+        : `${blanksCorrect} of ${payload.blankCount} blank(s) correct.`,
+      ...missedBlanks,
+      ...why.lines,
+    ]),
   };
 }
 
@@ -269,15 +352,16 @@ export function gradeDeterministic(
   format: CheckFormat,
   payload: CheckPayload,
   answerKey: AnswerKey | null,
-  response: unknown
+  response: unknown,
+  ctx?: GradeContext
 ): DeterministicGrade {
   switch (format) {
     case "MULTIPLE_CHOICE":
-      return gradeMultipleChoice(payload, answerKey, response);
+      return gradeMultipleChoice(payload, answerKey, response, ctx);
     case "PICK_BETTER_RESPONSE":
-      return gradePickBetterResponse(payload, answerKey, response);
+      return gradePickBetterResponse(payload, answerKey, response, ctx);
     case "FILL_IN_BLANK":
-      return gradeFillInBlank(payload, answerKey, response);
+      return gradeFillInBlank(payload, answerKey, response, ctx);
     case "REWRITE_WEAK_LINE":
       throw new Error(
         "gradeDeterministic: REWRITE_WEAK_LINE has no deterministic grade — " +
@@ -329,6 +413,7 @@ export interface RewriteGradeModelResponse {
 export type CallRewriteModel = (args: {
   payload: RewriteWeakLinePayload;
   response: { rewrittenLine: string };
+  technique?: Pick<Technique, "name" | "reminder"> | null;
 }) => Promise<RewriteGradeModelResponse>;
 
 export type RewriteGradeOutcome =
@@ -338,6 +423,7 @@ export type RewriteGradeOutcome =
 async function defaultCallRewriteModel(args: {
   payload: RewriteWeakLinePayload;
   response: { rewrittenLine: string };
+  technique?: Pick<Technique, "name" | "reminder"> | null;
 }): Promise<RewriteGradeModelResponse> {
   const OpenAI = (await import("openai")).default;
   const model = process.env.REWRITE_GRADING_MODEL || "gpt-4.1";
@@ -352,9 +438,16 @@ async function defaultCallRewriteModel(args: {
     "against a technique hint and a fixed list of rubric criteria. Score 1 " +
     "(did not apply the technique) to 5 (applied it fully). For each rubric " +
     "criterion, report whether the rewrite satisfies it, in the SAME ORDER the " +
-    "criteria were given. Do not invent criteria.";
+    "criteria were given. Do not invent criteria. When `contextLine` is " +
+    "present it is what the other person said just before the weak line: " +
+    "judge whether the rewrite answers it. Write the rationale as 1-2 " +
+    "sentences addressed to the student (\"you\"), naming the technique by " +
+    "its name when one is given, and saying what the rewrite did or still " +
+    "needs to do. Do not quote the student's words.";
 
   const userMessage = JSON.stringify({
+    contextLine: args.payload.contextLine ?? null,
+    technique: args.technique ?? null,
     weakLine: args.payload.weakLine,
     techniqueHint: args.payload.techniqueHint,
     rubricCriteria: args.payload.rubricCriteria,
@@ -394,13 +487,18 @@ export async function gradeRewriteWithModel(args: {
   payload: RewriteWeakLinePayload;
   response: { rewrittenLine: string };
   callModel?: CallRewriteModel;
+  technique?: Pick<Technique, "name" | "reminder"> | null;
 }): Promise<RewriteGradeOutcome> {
   const callModel = args.callModel ?? defaultCallRewriteModel;
   const model = process.env.REWRITE_GRADING_MODEL || "gpt-4.1";
 
   let raw: RewriteGradeModelResponse;
   try {
-    raw = await callModel({ payload: args.payload, response: args.response });
+    raw = await callModel({
+      payload: args.payload,
+      response: args.response,
+      technique: args.technique ?? null,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { ok: false, reason: `Rewrite grading model call failed: ${message}` };
@@ -444,6 +542,18 @@ export async function gradeRewriteWithModel(args: {
 // ---------------------------------------------------------------------------
 // submitAndGrade — the one database-touching entry point
 // ---------------------------------------------------------------------------
+
+/** The stored library technique, or the best match for older rows. */
+export function rewriteTechniqueFor(
+  competencyKey: string,
+  payload: RewriteWeakLinePayload,
+  prompt: string,
+): Technique | null {
+  return (
+    techniqueById(competencyKey, payload.techniqueId) ??
+    bestTechniqueFor(competencyKey, `${prompt} ${payload.techniqueHint}`)
+  );
+}
 
 export class AlreadyAnsweredError extends Error {
   constructor(public readonly knowledgeCheckId: string) {
@@ -516,7 +626,10 @@ export async function submitAndGrade(args: {
   let graderRationale: string;
 
   if (isDeterministicFormat(format)) {
-    const grade = gradeDeterministic(format, payload, answerKey, args.response);
+    const grade = gradeDeterministic(format, payload, answerKey, args.response, {
+      competencyKey: check.competencyKey,
+      prompt: check.prompt,
+    });
     correct = grade.correct;
     score = grade.score;
     gradedBy = "DETERMINISTIC";
@@ -528,10 +641,12 @@ export async function submitAndGrade(args: {
         "submitAndGrade: non-deterministic format must be REWRITE_WEAK_LINE"
       );
     }
+    const technique = rewriteTechniqueFor(check.competencyKey, payload, check.prompt);
     const outcome = await gradeRewriteWithModel({
       payload,
       response: args.response as { rewrittenLine: string },
       callModel: args.callModel,
+      technique,
     });
     if ("ok" in outcome && outcome.ok === false) {
       throw new RewriteGradingFailedError(outcome.reason);
@@ -541,7 +656,10 @@ export async function submitAndGrade(args: {
     score = success.score;
     gradedBy = "MODEL";
     graderModel = success.model;
-    graderRationale = success.rationale;
+    // K2: the result names the library technique the rewrite practises.
+    graderRationale = technique
+      ? joinDetail([success.rationale, `Technique: ${technique.name} — ${technique.reminder}`])
+      : success.rationale;
   }
 
   const source = CONTRIBUTION_SOURCE_FOR_FORMAT(format);

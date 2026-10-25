@@ -553,6 +553,39 @@ async function main() {
       ),
       JSON.stringify(flaggedList2.map((f) => f.contestCount))
     );
+
+    console.log("\n13. PHASE 23 — a 4-option check with a stored explanation stays contestable");
+    {
+      const why = "Leading with the decision frames the details that follow.";
+      const pbr = await prisma.knowledgeCheck.create({
+        data: {
+          userId,
+          studyPlanId: plan.id,
+          competencyKey: "structure_and_clarity",
+          format: "PICK_BETTER_RESPONSE",
+          prompt: "Which response handles this moment best?",
+          payload: validateCheckPayload("PICK_BETTER_RESPONSE", {
+            candidates: ["Conclusion last.", "Your line.", "Conclusion first.", "Hedged, sort of."],
+            rationalePrompt: null,
+          }) as object,
+          answerKey: validateAnswerKey("PICK_BETTER_RESPONSE", {
+            betterIndex: 2,
+            explanation: { techniqueId: "structure-headline-first", why, options: ["Buried.", "Missing.", null, "Hedged."] },
+          }) as object,
+          generationModel: "verify-grading-contest-stub",
+        },
+      });
+      knowledgeCheckIds.push(pbr.id);
+      const graded = await submitAndGrade({ userId, knowledgeCheckId: pbr.id, response: { betterIndex: 0 } });
+      check("13. the wrong pick is graded deterministically with an explanation", graded.correct === false && graded.detail.includes(why), graded.detail);
+      const contest = await raiseContest({ userId, attemptId: graded.attemptId, reason: "I think the first one was actually fine." });
+      const after = await prisma.knowledgeCheckAttempt.findUnique({ where: { id: graded.attemptId } });
+      check(
+        "13. contesting it flags without re-grading: the stored explanation and mark stand",
+        !!contest && after?.graderRationale === graded.detail && after?.correct === false,
+        JSON.stringify(after)
+      );
+    }
   } finally {
     const userIds = [userId, otherUserId].filter(Boolean);
     await prisma.gradingContest.deleteMany({ where: { userId: { in: userIds } } });
