@@ -409,16 +409,26 @@ export function computeDisengagement({
     0,
   );
   const cueContribution = clamp(cueAccel, 0, 1) * w.maxCueAcceleration;
-  const value = clamp(
-    Math.max(clamp(signals.priorValue), computed + cueContribution),
-  );
   const effectiveThreshold =
     threshold != null && Number.isFinite(threshold) ? clamp(threshold) : null;
+  // Severe content (slurs, harassment, threats aimed at the person) carries
+  // the derived value to the threshold on its own (UAT 2026-10-25 F20-1, user
+  // decision). Doing it HERE, in the signal path, keeps one source of truth:
+  // the live crossing, the signed walk-out proof, the finish-time
+  // re-derivation and resolveTermination's threshold gate all read this value.
+  const severeLift =
+    signals.severeContent && effectiveThreshold !== null ? effectiveThreshold : 0;
+  const value = clamp(
+    Math.max(clamp(signals.priorValue), computed + cueContribution, severeLift),
+  );
   const crossed = effectiveThreshold !== null && value >= effectiveThreshold;
   const dominantCauses = contributions
     .filter(([, contribution]) => contribution > 0)
     .sort((left, right) => right[1] - left[1])
     .map(([cause]) => cause);
+  if (severeLift > 0 && !dominantCauses.includes("severe_content")) {
+    dominantCauses.unshift("severe_content");
+  }
   const episodes: DisengagementEpisode[] = [];
 
   for (const band of RISE_BANDS) {

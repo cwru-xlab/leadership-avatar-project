@@ -38,6 +38,7 @@ import {
 } from "@/lib/interview/types";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import { getEngineType } from "@/lib/engine/registry";
+import { getInterviewType } from "@/lib/interview/types";
 import { parseEngineTurn } from "@/lib/engine/turn-control";
 import type {
   DisengagementComputeResult,
@@ -280,6 +281,7 @@ function PracticeInterviewRoom({
   const extraChatBodyRef = useRef(extraChatBody);
   const checkpointing =
     getEngineType(sessionConfig.typeSlug)?.checkpointing ?? "none";
+  const isInterviewSession = Boolean(getInterviewType(sessionConfig.typeSlug));
   const targetQuestionCount =
     sessionConfig.limits.targetQuestionCount ??
     sessionConfig.customization?.targetQuestionCount ??
@@ -589,10 +591,15 @@ function PracticeInterviewRoom({
   const sendMessage = useCallback(
     async (candidateMessage: string, forceWalkOutFarewell = false) => {
       const content = candidateMessage.trim();
+      // The forced farewell is scheduled from inside the crossing turn's own
+      // request, so the closure it runs through can still see `sending` (and
+      // `isPaused`) from that render — gating it on them dropped it silently
+      // and left the student locked in (UAT F18-1). It is one-shot by
+      // `forcedFarewellRequestedRef`, so it needs neither gate.
       if (
         (!content && !forceWalkOutFarewell) ||
-        sending ||
-        isPaused ||
+        (sending && !forceWalkOutFarewell) ||
+        (isPaused && !forceWalkOutFarewell) ||
         (walkOutLockRef.current && !forceWalkOutFarewell)
       ) {
         return;
@@ -1236,6 +1243,10 @@ function PracticeInterviewRoom({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col px-5 sm:px-8">
+          {/* Interview agenda (dev #55): interview types only — pitches,
+              networking and difficult conversations have no question count
+              or resume (UAT 2026-10-25). */}
+          {isInterviewSession ? (
           <div className="border-y border-white/10 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#73cee5]">
               Practice flow
@@ -1248,6 +1259,7 @@ function PracticeInterviewRoom({
               <span>{resumeFileName ? "Resume in context" : "Behavioral focus"}</span>
             </div>
           </div>
+          ) : null}
 
           <div aria-live="polite" className="min-h-0 flex-1 space-y-5 overflow-y-auto py-6 pr-1">
             {!messages.length && !streamingText && (

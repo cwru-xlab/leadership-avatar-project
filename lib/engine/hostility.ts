@@ -217,7 +217,23 @@ function isShoutingSignal(original: string): boolean {
  * reachable without committing real slur text to the repo.
  */
 const SEVERE_HARASSMENT_PHRASES =
-  /\b(wear something (tighter|sexier).{0,20}(like watching|like looking)|nicer to me in private.{0,30}go (a lot )?better|keep touching (my|your) (arm|hand|leg).{0,40}where it goes)\b/i;
+  /\b(wear something (tighter|sexier|shorter|more revealing)|nicer to me in private.{0,30}go (a lot )?better|keep touching (my|your) (arm|hand|leg).{0,40}where it goes|(sleep|hook up) with me.{0,40}(promotion|raise|job|review|offer)|(promotion|raise|job|review|offer).{0,40}(sleep|hook up) with me|(come|sit) (on|in) my lap|send me (a )?(pics|pictures|photos) of (yourself|you)|you look (so )?(hot|sexy) (in|when)|i (like|love) (looking at|watching) your (body|legs|chest|ass))\b/i;
+
+/**
+ * Threats of violence or intimidation aimed at the person (UAT 2026-10-25,
+ * user decision: a severe remark ends the session at once). Conservative on
+ * purpose: each pattern needs a first-person threat AND a second-person
+ * target, so "this deal will kill me" or "I'll hit the deadline" never match.
+ */
+const SEVERE_THREAT_PHRASES =
+  /\b(i('| wi)ll|i'm going to|i am going to|gonna) (hurt|kill|beat|punch|hit|stab|shoot|smack|slap|choke|destroy) you\b|\bi know where you live\b|\bwatch your back\b|\byou('| wi)ll (regret|pay for) (this|that|it)\b.{0,40}\b(hurt|find you|outside|after work)\b|\b(meet|see) you (outside|in the parking lot)\b.{0,30}\b(settle|handle|deal with) (this|it)\b/i;
+
+/**
+ * Demeaning someone for who they are, without needing slur text in this
+ * file (UAT 2026-10-25). Matches identity-targeted exclusion phrases only.
+ */
+const SEVERE_IDENTITY_PHRASES =
+  /\b(go back to (your|where you came from|your own) (country|people)?|people like you (don't|do not|shouldn't|should not) (belong|work here|be here)|(your|you) people (are|always) (lazy|stupid|criminals|animals))\b/i;
 
 /**
  * Masked placeholder tokens used only by `scripts/verify-hostility-detector.ts`'s
@@ -248,8 +264,16 @@ export function detectHostility(text: string): HostilityVerdict {
   if (SEVERE_PLACEHOLDER_PATTERN.test(text)) {
     matched.add("severe_identity_slur");
   }
-  if (SEVERE_HARASSMENT_PHRASES.test(normalizeForMatching(text))) {
+  // Transcripts use typographic apostrophes; the threat patterns spell "I'll".
+  const normalizedForSevere = normalizeForMatching(text.replace(/[\u2018\u2019]/g, "'"));
+  if (SEVERE_HARASSMENT_PHRASES.test(normalizedForSevere)) {
     matched.add("severe_harassment");
+  }
+  if (SEVERE_THREAT_PHRASES.test(normalizedForSevere)) {
+    matched.add("severe_threat");
+  }
+  if (SEVERE_IDENTITY_PHRASES.test(normalizedForSevere)) {
+    matched.add("severe_identity_slur");
   }
 
   if (matched.size > 0) {

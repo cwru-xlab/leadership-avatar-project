@@ -59,6 +59,7 @@ const MAX_QUOTE_LENGTH = 240;
 const SEVERE_CHARACTERIZATIONS: Record<string, string> = {
   severe_identity_slur: "[a slur directed at the character — not repeated here]",
   severe_harassment: "[a sexually harassing remark — not repeated here]",
+  severe_threat: "[a threat directed at the character — not repeated here]",
 };
 
 const DEFAULT_SEVERE_CHARACTERIZATION =
