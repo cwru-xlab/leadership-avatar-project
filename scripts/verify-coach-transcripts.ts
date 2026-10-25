@@ -29,7 +29,7 @@ import { createPath } from "../lib/study-plan/path";
 import { coachTurn, type CoachTurnArgs, type CoachTraceEvent } from "../lib/study-plan/coached/coach";
 import { resolveCoachForUser } from "../lib/study-plan/coached/coach-identity";
 import { rubricDimensionsForCompetency } from "../lib/study-plan/coached/coach-prompt";
-import { techniqueLine, techniquesForCompetency } from "../lib/study-plan/coached/tips";
+import { techniqueLine, techniquesForCompetency, unsupportedContentShare, unsupportedDemonstrationFacts } from "../lib/study-plan/coached/tips";
 
 const EMAIL = "alice.johnson@case.edu";
 const KEY = "structure_and_clarity" as const;
@@ -238,6 +238,8 @@ async function main() {
         "It was a good meeting, I think everyone kind of agreed in the end and there were not that many questions really.",
         "Some people had questions I guess, but we talked about it for a while and then it was basically fine after that.",
         "I don't remember exact questions, honestly it just went smoothly and the SVPs seemed happy enough with how it went.",
+        // Spare: the first line is sometimes classified as a reply, not a try.
+        "Like I said, nobody really pushed back much, so there is not a lot more to say about that meeting I think.",
       ];
       const turns: Array<Awaited<ReturnType<typeof say>>> = [];
       for (const w of WEAK) {
@@ -256,6 +258,13 @@ async function main() {
       check("(e) the same technique is never named twice in a row", !repeatedInARow, named1.join(" | "));
       const third = afterMiss.find((t) => t.res.legState.attemptsInLeg === 3);
       check("(e) after miss 3 the coach demonstrates and invites one last try", third?.res.coachTurn.move === "DEMONSTRATE" && third.res.coachTurn.awaiting === "ATTEMPT");
+      const demo = third?.res.coachTurn.demonstration ?? "";
+      const said = [m1.studentLine, m1.counterpartLine ?? "", ...WEAK];
+      const invented = unsupportedDemonstrationFacts(demo, said);
+      const share = unsupportedContentShare(demo, said);
+      console.log(`      demonstration facts check: invented names/numbers=[${invented.join(", ")}], unsupported content=${Math.round(share * 100)}%, uses [slots]=${/\[[^\]]+\]/.test(demo)}`);
+      check("(e) the demonstration invents no names or numbers the student never said", demo.length > 0 && invented.length === 0, invented.join(","));
+      check("(e) ...and invents no unsupported detail (content share within the limit)", share <= 0.5, `${share}`);
       const last = turns[turns.length - 1];
       check("(e) after the last try the coach closes kindly (LEG_DONE at the soft cap)", last.res.coachTurn.move === "LEG_DONE" && last.res.coachTurn.closedAtSoftCap === true && last.res.legState.attemptsInLeg === 4);
     }
