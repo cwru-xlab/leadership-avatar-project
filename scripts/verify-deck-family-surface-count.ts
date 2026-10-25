@@ -669,7 +669,8 @@ console.log("\n6. Adding a mode is data");
 
     const bearingName = libFiles.filter(
       (f) =>
-        f.toLowerCase().includes(word) &&
+        // "push-to-talk" is the shared recording control, not the talk mode.
+        f.toLowerCase().replace(/push-to-talk/g, "").includes(word) &&
         f !== expectedType &&
         f !== expectedPrompts,
     );
