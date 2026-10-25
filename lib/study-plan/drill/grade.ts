@@ -18,6 +18,7 @@ import { normalizeRubricScore } from "../../mastery/weights";
 import type { VisualMetrics, VocalMetrics } from "../../metrics/types";
 import { techniquesForCompetency, validateTip } from "../coached/tips";
 import type { DrillDeliverySummary, DrillPointers } from "./types";
+import { allowedDrillTechniques } from "./brief";
 
 export class DrillGradingFailedError extends Error {
   constructor(reason: string) {
@@ -122,7 +123,8 @@ export function parseDrillPointers(
   p: Record<string, unknown>,
   ctx: { competencyKey: CompetencyKey; transcript: string; score: number; drillTechniqueId?: string | null },
 ): DrillPointers {
-  const library = techniquesForCompetency(ctx.competencyKey);
+  // Q2: a content drill never points at a body/voice-only technique.
+  const library = allowedDrillTechniques(ctx.competencyKey);
   let miss: DrillPointers["miss"] = null;
   const missQuote = typeof p.miss_quote === "string" ? exactExcerpt(p.miss_quote, ctx.transcript) : null;
   if (missQuote) {
@@ -279,6 +281,8 @@ export async function gradeDrillAttempt(args: {
   transcript: string;
   delivery: DrillDeliverySummary;
   callModel?: (payload: { model: string; system: string; user: string }) => Promise<unknown>;
+  /** Q1's one note regeneration; defaults to a real model call. */
+  callNoteModel?: (payload: { model: string; system: string; user: string }) => Promise<unknown>;
 }): Promise<DrillGrade> {
   const model = process.env.DRILL_GRADING_MODEL || process.env.CHECK_GRADING_MODEL || "gpt-4.1";
   const competency = COMPETENCIES.find((c) => c.key === args.competencyKey);
@@ -288,7 +292,7 @@ export async function gradeDrillAttempt(args: {
     competency: { label: competency.label, description: competency.description },
     scenario: args.scenarioPrompt,
     live_technique_reminder: args.tipText,
-    allowed_techniques: techniquesForCompetency(args.competencyKey).map((t) => ({ id: t.id, name: t.name, reminder: t.reminder })),
+    allowed_techniques: allowedDrillTechniques(args.competencyKey).map((t) => ({ id: t.id, name: t.name, reminder: t.reminder })),
     transcript: args.transcript,
     delivery: args.delivery,
   });
@@ -299,13 +303,119 @@ export async function gradeDrillAttempt(args: {
   } catch (error) {
     throw new DrillGradingFailedError(error instanceof Error ? error.message : String(error));
   }
-  return parseDrillGrade(raw, {
+  const grade = parseDrillGrade(raw, {
     competencyKey: args.competencyKey,
     transcript: args.transcript,
     model,
     excludeTechniqueReminder: args.tipText,
     drillTechniqueId: args.techniqueId ?? null,
   });
+
+  // Q1: the note must be about the technique the quote points at. One
+  // regeneration; if that does not match either, the technique's reminder.
+  const miss = grade.pointers.miss;
+  if (!miss || (!grade.feedbackReplaced && noteMatchesTechnique(grade.feedback, miss.techniqueId, args.competencyKey))) {
+    return grade;
+  }
+  let regenerated: string | null = null;
+  try {
+    const rawNote = await (args.callNoteModel ?? defaultCallNoteModel)({
+      model,
+      system: DRILL_NOTE_SYSTEM_PROMPT,
+      user: JSON.stringify({
+        competency: competency.label,
+        technique: { name: miss.techniqueName, reminder: miss.reminder },
+        where_in_their_answer: miss.quote,
+      }),
+    });
+    const parsedNote = typeof rawNote === "string" ? (JSON.parse(rawNote) as { feedback?: unknown }) : (rawNote as { feedback?: unknown });
+    regenerated = typeof parsedNote?.feedback === "string" ? parsedNote.feedback.trim() : null;
+  } catch {
+    regenerated = null;
+  }
+  return reconcileNote(grade, regenerated, args.competencyKey, args.transcript);
+}
+
+export const DRILL_NOTE_SYSTEM_PROMPT = `Write ONE sentence, in the second person, telling a student what to try next time. It must be about the named technique and nothing else, applied at the named spot in their answer. Never give them words to say, never quote them, never write a sample line. Return {"feedback": "..."}.`;
+
+const DRILL_NOTE_SCHEMA = {
+  name: "voice_drill_note",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["feedback"],
+    properties: { feedback: { type: "string" } },
+  },
+} as const;
+
+async function defaultCallNoteModel(payload: { model: string; system: string; user: string }): Promise<unknown> {
+  const OpenAI = (await import("openai")).default;
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 20_000, maxRetries: 0 });
+  const completion = await openai.chat.completions.create({
+    model: payload.model,
+    messages: [
+      { role: "system", content: payload.system },
+      { role: "user", content: payload.user },
+    ],
+    max_tokens: 150,
+    response_format: { type: "json_schema", json_schema: DRILL_NOTE_SCHEMA },
+  });
+  return completion.choices[0]?.message?.content ?? "";
+}
+
+const NOTE_STOPWORDS = new Set(["your", "with", "that", "this", "them", "what", "when", "next", "time", "more", "each", "just", "into", "from", "they", "their", "then", "than", "before", "after"]);
+
+/** Crude stem so "splitting"/"split", "sentences"/"sentence" meet. */
+function stemmedWords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^a-z']+/)
+      .filter((w) => w.length > 3 && !NOTE_STOPWORDS.has(w))
+      .map((w) => w.replace(/(ing|ed|es|s)$/, "").replace(/(.)\1$/, "$1")),
+  );
+}
+
+/**
+ * PURE (Q1): the note is "about" `techniqueId` when that technique shares at
+ * least two (stemmed) words with it and no other technique of the competency
+ * shares more. PROVISIONAL UNTIL CALIBRATED.
+ */
+export function noteMatchesTechnique(note: string, techniqueId: string, competencyKey: CompetencyKey): boolean {
+  const noteWords = stemmedWords(note);
+  let target = 0;
+  let bestOther = 0;
+  for (const t of techniquesForCompetency(competencyKey)) {
+    let score = 0;
+    for (const w of stemmedWords(`${t.name} ${t.reminder}`)) if (noteWords.has(w)) score += 1;
+    if (t.id === techniqueId) target = score;
+    else bestOther = Math.max(bestOther, score);
+  }
+  return target >= 2 && target >= bestOther;
+}
+
+/**
+ * PURE (Q1): picks the final note once a regeneration was tried. The
+ * regenerated note is kept only if it passes the tip rules AND matches the
+ * pointer's technique; otherwise the technique's own reminder is the note.
+ */
+export function reconcileNote(
+  grade: DrillGrade,
+  regenerated: string | null,
+  competencyKey: CompetencyKey,
+  transcript: string,
+): DrillGrade {
+  const miss = grade.pointers.miss;
+  if (!miss) return grade;
+  if (
+    regenerated &&
+    validateTip(regenerated, { studentLine: transcript }).ok &&
+    noteMatchesTechnique(regenerated, miss.techniqueId, competencyKey)
+  ) {
+    return { ...grade, feedback: regenerated, feedbackReplaced: false };
+  }
+  return { ...grade, feedback: miss.reminder, feedbackReplaced: true };
 }
 
 /**

@@ -77,7 +77,7 @@ export default function DrillResult({
             </p>
           ) : null}
           {miss ? <p className="text-sm leading-6 text-[#385463]">{miss.reminder}</p> : null}
-          {attempt.feedback ? (
+          {attempt.feedback && attempt.feedback !== miss?.reminder ? (
             <p className="whitespace-pre-wrap text-sm leading-6 text-[#173847]">{attempt.feedback}</p>
           ) : null}
         </article>
