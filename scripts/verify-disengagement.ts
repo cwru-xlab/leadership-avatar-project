@@ -13,6 +13,7 @@ import {
 } from "../lib/engine/disengagement";
 import { SEVERE_PLACEHOLDER_TOKENS, detectHostility } from "../lib/engine/hostility";
 import { DIFFICULT_CONVERSATION_TYPE } from "../lib/difficult-conversation/conversation-type";
+import { parseEngineTurn } from "../lib/engine/turn-control";
 
 let failures = 0;
 
@@ -835,6 +836,21 @@ console.log("\n16. UAT 2026-10-25 — one severe remark ends a DC on its own (F2
   const firm = run(["I disagree with your rating and I want it reviewed."]);
   check("a firm, professional objection does not cross", firm.crossed === false && firm.severe === false);
   check("identity-demeaning phrase is severe", detectHostility("People like you don't belong here.").severe === true);
+  // Live acceptance: a severe end marker before the 4-turn floor is accepted
+  // at chat time only when the severe flag reaches the gate.
+  const marker = 'I\'m stepping out. <engine-end reason="walked_out" />';
+  const liveOpts = { assistantTurnCount: 2, disengagementValue: policy.disengagementThreshold ?? 0.6 };
+  // parseEngineTurn reads only typeSlug, limits and terminationPolicy here.
+  const dcConfig = {
+    ...DIFFICULT_CONVERSATION_TYPE,
+    typeSlug: DIFFICULT_CONVERSATION_TYPE.slug,
+  } as unknown as Parameters<typeof parseEngineTurn>[1];
+  const accepted = parseEngineTurn(marker, dcConfig, { ...liveOpts, severeContent: true });
+  check("a severe walk-out before the floor is accepted live", accepted.termination?.reason === "walked_out", JSON.stringify(accepted.termination));
+  const rejected = parseEngineTurn(marker, dcConfig, { ...liveOpts, severeContent: false });
+  check("bite-proof: without the severe flag the same marker is rejected below the floor", rejected.termination == null);
+  const sessionSrc = readFileSync("lib/engine/session.ts", "utf8");
+  check("finish gates on the proof's server-chosen reason when it matches", /source === "avatar" && proofMatchesTranscript && walkOutProof!\.reason\s*\?\s*walkOutProof!\.reason/.test(sessionSrc));
   // Bite-proof: the SAME signals with severeContent off stay below the line,
   // so it is the severe lift — not ordinary hostility — that crosses.
   const sig = extractDisengagementSignals({

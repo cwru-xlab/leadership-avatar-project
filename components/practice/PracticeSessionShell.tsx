@@ -79,6 +79,8 @@ type WalkOutMetadata = {
   disengagementCue?: DisengagementCue | null;
   walkOutFinal?: boolean;
   walkOutProof?: string | null;
+  /** Server-derived end reason from the type's own vocabulary. */
+  walkOutReason?: string | null;
   /** Server declined the one-shot forced farewell this turn asked for
    * (proof missing/invalid, or an end-of-turn metadata computation failed).
    * See debug: elevator-walkout-dead-end. */
@@ -668,6 +670,11 @@ function PracticeInterviewRoom({
               },
             },
             ...(extraChatBodyRef.current ?? {}),
+            // The row THIS shell will finish. Sent after the caller's extra
+            // body so a page-level reportId that drifted (a double launch
+            // made a second row) can never bind the walk-out proof to a row
+            // other than the one finishSession checks it against (UAT F20-2).
+            ...(reportIdRef.current ? { reportId: reportIdRef.current } : {}),
           }),
         });
 
@@ -785,7 +792,10 @@ function PracticeInterviewRoom({
           }
 
           pendingTerminationRef.current = {
-            reason: acceptedTermination?.reason ?? "lost_interest",
+            reason:
+              acceptedTermination?.reason ??
+              walkOutMetadata?.walkOutReason ??
+              "lost_interest",
             source: "avatar",
           };
           // A declined or dropped forced farewell can still carry an
@@ -922,6 +932,10 @@ function PracticeInterviewRoom({
   });
 
   useEffect(() => {
+    // Re-arm on (re)mount. React Strict Mode runs mount → cleanup → mount in
+    // development; without this the first cleanup leaves the flag true for the
+    // whole session and the walk-out never auto-finishes (UAT 2026-10-25).
+    walkOutFinishCancelledRef.current = false;
     return () => {
       walkOutFinishCancelledRef.current = true;
       releaseMicrophone();
@@ -1225,6 +1239,7 @@ function PracticeInterviewRoom({
         <div className="relative z-10 mt-auto px-5 pb-6 pt-36 sm:px-8 lg:hidden">
           <InterviewStatus
             interviewerName={interviewerName}
+            isInterviewSession={isInterviewSession}
             stageLabel={stageLabel}
             elapsedSeconds={elapsedSeconds}
             avatarReady={avatarReady}
@@ -1236,6 +1251,7 @@ function PracticeInterviewRoom({
         <div className="hidden px-8 pb-5 pt-7 lg:block">
           <InterviewStatus
             interviewerName={interviewerName}
+            isInterviewSession={isInterviewSession}
             stageLabel={stageLabel}
             elapsedSeconds={elapsedSeconds}
             avatarReady={avatarReady}
@@ -1476,8 +1492,11 @@ function InterviewStatus({
   stageLabel,
   elapsedSeconds,
   avatarReady,
+  isInterviewSession,
 }: {
   interviewerName: string;
+  /** Interview types say "Interview with"; every other type "Conversation with" (UAT D17-1). */
+  isInterviewSession: boolean;
   stageLabel: string;
   elapsedSeconds: number;
   avatarReady: boolean;
@@ -1487,7 +1506,7 @@ function InterviewStatus({
   return (
     <SessionStatus
       eyebrow="Leadership Avatar practice"
-      title={<>Interview with {interviewerName}</>}
+      title={<>{isInterviewSession ? "Interview" : "Conversation"} with {interviewerName}</>}
       subtitle={avatarReady ? `${stageLabel} stage` : "Connecting securely"}
       elapsedSeconds={elapsedSeconds}
     />

@@ -25,7 +25,6 @@ const chatRoute = read("app/api/interaction/chat/route.ts");
 const finishRoute = read("app/api/practice/session/finish/route.ts");
 const session = read("lib/engine/session.ts");
 const pitchPage = read("app/practice/[type]/page.tsx");
-const dcPage = read("app/practice/[type]/[instanceId]/page.tsx");
 const prompts = read("lib/engine/prompts.ts");
 
 check(
@@ -399,15 +398,41 @@ console.log("\n9. UAT 2026-10-25 — the forced farewell is never dropped (F18-1
   check(!farewellGuardOk(bitten), "bite-proof: a bare `sending ||` gate is caught");
 }
 
-console.log("\n10. UAT 2026-10-25 — DC chat turns carry the reportId (F20-2)");
+console.log("\n10. UAT 2026-10-25 — chat turns carry the shell's own reportId (F20-2)");
 {
-  const dcShellCarriesReport = (src: string) => {
-    const start = src.indexOf("autoFinishOnAvatarEnd");
-    const block = start === -1 ? "" : src.slice(start, src.indexOf("/>", start));
-    return /extraChatBody=\{\{\s*reportId\s*\}\}/.test(block);
-  };
-  check(dcShellCarriesReport(dcPage), "the DC page passes extraChatBody={{ reportId }} to the walk-out shell");
-  check(!dcShellCarriesReport(dcPage.replace(/extraChatBody=\{\{\s*reportId\s*\}\}/, "")), "bite-proof: dropping it is caught");
+  // Every engine chat turn must name the row this shell finishes, AFTER any
+  // caller-supplied body, so the walk-out proof and the session clock bind to
+  // the same report finishSession verifies.
+  const carriesOwnReport = (src: string) =>
+    /\.\.\.\(extraChatBodyRef\.current \?\? \{\}\),[\s\S]{0,500}\.\.\.\(reportIdRef\.current \? \{ reportId: reportIdRef\.current \} : \{\}\)/.test(src);
+  check(carriesOwnReport(shell), "the chat body sends reportIdRef after the extra body");
+  check(!carriesOwnReport(shell.replace("...(reportIdRef.current ? { reportId: reportIdRef.current } : {})", "")), "bite-proof: dropping it is caught");
+}
+
+console.log("\n11. UAT 2026-10-25 — auto-finish survives Strict Mode; the record matches the live crossing");
+{
+  // React Strict Mode runs mount -> cleanup -> mount in dev. The cleanup sets
+  // the cancel flag, so the effect body must re-arm it or the walk-out never
+  // auto-finishes.
+  const rearmed = (src: string) =>
+    /useEffect\(\(\) => \{[\s\S]{0,400}walkOutFinishCancelledRef\.current = false;[\s\S]{0,200}return \(\) => \{\s*walkOutFinishCancelledRef\.current = true;/.test(src);
+  check(rearmed(shell), "the unmount effect re-arms walkOutFinishCancelledRef on mount");
+  check(!rearmed(shell.replace("walkOutFinishCancelledRef.current = false;", "")), "bite-proof: removing the re-arm is caught");
+  // Finish uses the signed live result as a floor so a crossing that needed
+  // the avatar cue (stripped from submitted turns) is still recorded.
+  const floored = (src: string) =>
+    /walkOutProof!\.disengagement\.value > replayedDisengagement\.value[\s\S]{0,80}\? walkOutProof!\.disengagement/.test(src);
+  check(floored(session), "finishSession floors the replayed value with the signed live result");
+  check(!floored(session.replace("? walkOutProof!.disengagement", "? replayedDisengagement")), "bite-proof: dropping the floor is caught");
+}
+
+console.log("\n12. UAT 2026-10-25 — non-interview sessions are not labelled interviews (D17-1, agenda)");
+{
+  const headerOk = (src: string) =>
+    /\{isInterviewSession \? "Interview" : "Conversation"\} with \{interviewerName\}/.test(src) &&
+    /\{isInterviewSession \? \(\s*<div className="border-y border-white\/10 py-3">/.test(src);
+  check(headerOk(shell), "session header and interview agenda block are interview-only");
+  check(!headerOk(shell.replace('{isInterviewSession ? "Interview" : "Conversation"} with', "Interview with")), "bite-proof: a hard-coded 'Interview with' is caught");
 }
 
 if (failures > 0) {
