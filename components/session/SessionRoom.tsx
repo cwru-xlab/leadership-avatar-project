@@ -83,17 +83,25 @@ export function SessionLiveBadge({ label }: { label: string }) {
   );
 }
 
-/** Eyebrow, title, subtitle and the elapsed-time chip. */
+/**
+ * Eyebrow, title, subtitle and the elapsed-time chip. `clockLabel` (optional)
+ * replaces the chip's text, e.g. for a countdown; without it the chip shows
+ * the elapsed time exactly as before.
+ */
 export function SessionStatus({
   eyebrow,
   title,
   subtitle,
   elapsedSeconds,
+  clockLabel,
+  clockAriaLabel,
 }: {
   eyebrow: string;
   title: ReactNode;
   subtitle: ReactNode;
   elapsedSeconds: number;
+  clockLabel?: string;
+  clockAriaLabel?: string;
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
@@ -102,8 +110,13 @@ export function SessionStatus({
         <h1 className="mt-1 font-serif text-2xl tracking-[-0.02em] text-white">{title}</h1>
         <p className="mt-1.5 text-sm text-[#a7c2d2]">{subtitle}</p>
       </div>
-      <Chip size="sm" variant="flat" className="border border-[#31596d] bg-[#102b3a] text-[#bfe5f2]">
-        {formatElapsed(elapsedSeconds)}
+      <Chip
+        size="sm"
+        variant="flat"
+        className="border border-[#31596d] bg-[#102b3a] text-[#bfe5f2]"
+        aria-label={clockAriaLabel}
+      >
+        {clockLabel ?? formatElapsed(elapsedSeconds)}
       </Chip>
     </div>
   );
