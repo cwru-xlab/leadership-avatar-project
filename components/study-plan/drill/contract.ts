@@ -44,6 +44,14 @@ export interface VoiceDrillRunnerProps {
   cameraMode: CameraMode;
   /** Who sets the scene: the student's chosen coach. */
   coach: DrillCoach;
+  /** 0 for the first rep; each "Try again" increments it on the same mount. */
+  rep: number;
+  /** False while the result is shown over the (kept-alive) room. */
+  active: boolean;
+  /** Technique NAME (closed library) the retry line names; null on rep 0. */
+  retryFocus: string | null;
+  /** The avatar session ended (e.g. idle timeout) — remount for the next rep. */
+  onStageLost?: () => void;
   /**
    * Fired with the graded attempt (score 1..5, feedback, delivery) and the
    * capture this visit produced, for the end-only delivery bands.
