@@ -28,6 +28,7 @@
  * convenience overload here that fetches its own sources — that overload is
  * how the ownership scoping gets bypassed.
  */
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../../prisma";
@@ -36,6 +37,14 @@ import type { InterviewTranscript } from "../../interview/transcript";
 import type { SessionMoment } from "../moments";
 import { prepareMomentsForGeneration } from "../moment-boundary";
 import { validateVerbatimQuote } from "../verbatim";
+import { techniquesForCompetency } from "../coached/tips";
+import { promptMatchesInteraction } from "./copy";
+import {
+  applyOrder,
+  precedingAssistantTurn,
+  sanitizeExplanation,
+  shuffleOrder,
+} from "./explain";
 import {
   CHECK_FORMATS,
   validateCheckPayload,
@@ -43,6 +52,7 @@ import {
   type CheckFormat,
   type CheckPayload,
   type AnswerKey,
+  type CheckExplanation,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -64,7 +74,20 @@ Every "quoted_text" you return MUST be reproduced CHARACTER FOR CHARACTER from o
 
 If you cannot reproduce a moment's words exactly for a candidate, OMIT that candidate entirely rather than approximating it. An approximated quote is worse than no candidate at all.
 
-For a "REWRITE_WEAK_LINE" candidate, the "payload.weakLine" field MUST be byte-identical to "quoted_text" — it is the same string in both places, not a rephrasing of it. For a "PICK_BETTER_RESPONSE" candidate, "payload.candidates[0]" MUST be byte-identical to "quoted_text" for the same reason: the first candidate is always the student's own verbatim line, and the second is a constructed alternative.
+For a "REWRITE_WEAK_LINE" candidate, the "payload.weakLine" field MUST be byte-identical to "quoted_text" — it is the same string in both places, not a rephrasing of it.
+
+For a "PICK_BETTER_RESPONSE" candidate, return 3 or 4 entries in "payload.candidates", in THIS order (the server shuffles them later):
+  [0] the student's own line, byte-identical to "quoted_text";
+  [1] the strong target response to the same moment, which applies one technique from "techniques" well;
+  [2] and optionally [3] plausible-but-flawed distractors: each sounds competent but breaks ONE specific technique from "techniques" (for example, strong content with the headline buried at the end). Each distractor must be clearly weaker than [1] for a named reason, and must not be the student's line.
+Set "answer_key.betterIndex" to 1 and "payload.rationalePrompt" to null.
+
+EVERY candidate also carries a short teaching explanation shown AFTER the student answers:
+  - "technique_id": the id of the ONE technique from "techniques" the correct answer applies (copy the id exactly).
+  - "explanation": 1-2 sentences on why the correct answer works, naming that technique. Do not put the student's words in quotation marks.
+  - "option_explanations": for MULTIPLE_CHOICE and PICK_BETTER_RESPONSE, one entry per option/candidate in the same order — null for the correct one, and for each other one a single sentence saying what it got wrong (which technique it breaks). For the student's own line, name what it was missing. Null for the other formats.
+
+"prompt" is the question shown above the options. It is ONE short question answered entirely by the interaction (choosing an option, filling the blanks, or writing the rewrite). It MUST NOT ask the student to explain, justify or say why — there is no box for an explanation — and it MUST NOT repeat the options, the candidates or the student's line, which are shown separately.
 
 Never invent a "source_report_id" or "quoted_turn_index" that was not given to you in the supplied moments. Never attribute a line to the student that was spoken by the avatar.
 
@@ -79,11 +102,18 @@ Return between 1 and the requested number of candidates. A candidate that quotes
  * moment supplied there is nothing a quote could be verified against, so the
  * verbatim guarantee is kept by refusing quotes outright, not by trusting.
  */
+/** Matches the payload validator's contextLine bound (types.ts LIMITS). */
+const MAX_CONTEXT_LINE_LENGTH = 2000;
+
 export const CONCEPT_CHECK_FORMATS = ["MULTIPLE_CHOICE", "PICK_BETTER_RESPONSE"] as const;
 
 export const CONCEPT_CHECK_SYSTEM_PROMPT = `You write concept knowledge-check questions for a leadership-practice student about ONE competency. No session moments are available, so the question tests the IDEA of the competency, not anything the student said.
 
-Use only the "MULTIPLE_CHOICE" or "PICK_BETTER_RESPONSE" format. For PICK_BETTER_RESPONSE, both candidates are short constructed responses to the same situation (neither is the student's), and answer_key.betterIndex marks the stronger one. For MULTIPLE_CHOICE, answer_key.correctIndex marks the one correct option.
+Use only the "MULTIPLE_CHOICE" or "PICK_BETTER_RESPONSE" format. For PICK_BETTER_RESPONSE, give 3 or 4 short constructed responses to the same situation (none is the student's): one strong response that applies a technique from "techniques" well, and 2-3 plausible-but-flawed distractors that each break ONE specific technique from "techniques". answer_key.betterIndex marks the strong one; payload.rationalePrompt is null. For MULTIPLE_CHOICE, answer_key.correctIndex marks the one correct option.
+
+Every candidate carries "technique_id" (the id of the technique the correct answer applies, copied exactly from "techniques"), "explanation" (1-2 sentences on why the correct answer works, naming that technique) and "option_explanations" (one entry per option in order: null for the correct one, one sentence on what each other option got wrong).
+
+"prompt" is ONE short question answered by choosing an option. It MUST NOT ask the student to explain, justify or say why (there is no box for that) and MUST NOT repeat the options.
 
 "quoted_text", "source_report_id" and "quoted_turn_index" MUST all be null: never quote or attribute any words to the student.`;
 
@@ -121,6 +151,9 @@ export const CHECK_GENERATION_SCHEMA = {
             "quoted_text",
             "source_report_id",
             "quoted_turn_index",
+            "technique_id",
+            "explanation",
+            "option_explanations",
           ],
           properties: {
             format: { type: "string", enum: [...CHECK_FORMATS] },
@@ -177,6 +210,12 @@ export const CHECK_GENERATION_SCHEMA = {
             quoted_text: { type: ["string", "null"] },
             source_report_id: { type: ["string", "null"] },
             quoted_turn_index: { type: ["integer", "null"] },
+            technique_id: { type: ["string", "null"] },
+            explanation: { type: ["string", "null"] },
+            option_explanations: {
+              type: ["array", "null"],
+              items: { type: ["string", "null"] },
+            },
           },
         },
       },
@@ -195,7 +234,7 @@ export const CHECK_GENERATION_SCHEMA = {
  */
 export interface DiscardRecord {
   index: number;
-  stage: "shape" | "payload" | "answer_key" | "quote";
+  stage: "shape" | "payload" | "answer_key" | "quote" | "prompt";
   reason: string;
 }
 
@@ -322,6 +361,13 @@ export async function generateChecksForCompetency(
       label: competency.label,
       description: competency.description,
     },
+    // K2: the closed technique library for this competency — explanations
+    // and distractors name these; an id outside this list is replaced.
+    techniques: techniquesForCompetency(competency.key).map((t) => ({
+      id: t.id,
+      name: t.name,
+      reminder: t.reminder,
+    })),
     growthAreaTitles: linkedGrowthAreaTitles,
     desiredCount: args.desiredCount,
     moments: prepared.moments.map((m) => ({
@@ -372,6 +418,7 @@ export async function generateChecksForCompetency(
   }
 
   interface Survivor {
+    id: string;
     format: CheckFormat;
     prompt: string;
     payload: CheckPayload;
@@ -435,6 +482,30 @@ export async function generateChecksForCompetency(
       return;
     }
 
+    // K3: the question must fit the card — no "explain why" with no box
+    // for it, no restating the options shown right below. Discarded, not
+    // rewritten: the copy is the model's, and a fixed stem would not know
+    // what the question was about.
+    if (!promptMatchesInteraction(promptValue, payload)) {
+      discarded.push({
+        index,
+        stage: "prompt",
+        reason: "prompt asks for an explanation the card cannot take, or restates the options",
+      });
+      return;
+    }
+
+    // K1: a new pick-the-better check has 3-4 options. The 2-option shape
+    // stays valid for stored rows only.
+    if (payload.format === "PICK_BETTER_RESPONSE" && payload.candidates.length < 3) {
+      discarded.push({
+        index,
+        stage: "payload",
+        reason: "PICK_BETTER_RESPONSE needs 3-4 candidates (student line, strong target, 1-2 distractors)",
+      });
+      return;
+    }
+
     let answerKey: AnswerKey | null;
     try {
       const answerKeyRaw =
@@ -445,6 +516,35 @@ export async function generateChecksForCompetency(
         index,
         stage: "answer_key",
         reason: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+
+    // Generation-owned fields are NEVER taken from the model: the context
+    // line comes from the transcript (K5), the technique id and the
+    // explanation from the sanitizer below (K2). A disobedient model that
+    // fills them in has them stripped here.
+    if (payload.format === "REWRITE_WEAK_LINE" || payload.format === "PICK_BETTER_RESPONSE") {
+      const { contextLine: _c, ...rest } = payload as typeof payload & { techniqueId?: unknown };
+      const { techniqueId: _t, ...clean } = rest as typeof rest & { techniqueId?: unknown };
+      payload = clean as CheckPayload;
+    }
+    if (answerKey !== null && "explanation" in answerKey) {
+      const { explanation: _e, ...cleanKey } = answerKey;
+      answerKey = cleanKey as AnswerKey;
+    }
+
+    // A key pointing past the options would make the check unanswerable.
+    if (
+      payload.format === "PICK_BETTER_RESPONSE" &&
+      answerKey !== null &&
+      "betterIndex" in answerKey &&
+      answerKey.betterIndex >= payload.candidates.length
+    ) {
+      discarded.push({
+        index,
+        stage: "answer_key",
+        reason: "betterIndex is out of range for the candidates",
       });
       return;
     }
@@ -537,10 +637,90 @@ export async function generateChecksForCompetency(
           });
           return;
         }
+        // The student's weak line is the thing being improved on; a check
+        // whose key marks it "better" teaches nothing.
+        if (answerKey && "betterIndex" in answerKey && answerKey.betterIndex === 0) {
+          discarded.push({
+            index,
+            stage: "answer_key",
+            reason: "PICK_BETTER_RESPONSE must not mark the student's own line as the better response",
+          });
+          return;
+        }
+      }
+
+      // K5: the conversational context — the nearest assistant turn before
+      // the VALIDATED turn, copied exactly from the stored transcript. Never
+      // model text, so nothing the model says can reach this field.
+      if (format === "REWRITE_WEAK_LINE" || format === "PICK_BETTER_RESPONSE") {
+        const context = precedingAssistantTurn(transcript, result.turnIndex);
+        if (context !== null && context.length > 0 && context.length <= MAX_CONTEXT_LINE_LENGTH) {
+          payload = { ...payload, contextLine: context } as CheckPayload;
+        }
+      }
+    }
+
+    // K1: deterministic per-check shuffle. The id is minted here so the
+    // order is a pure function of the stored row's own id.
+    const id = randomUUID();
+    let options: string[] | null = null;
+    let correctIndex: number | null = null;
+    let optionMisses: (string | null)[] | null = Array.isArray(rawCandidate.option_explanations)
+      ? (rawCandidate.option_explanations as unknown[]).map((e) => (typeof e === "string" ? e : null))
+      : null;
+    if (payload.format === "MULTIPLE_CHOICE" || payload.format === "PICK_BETTER_RESPONSE") {
+      const items = payload.format === "MULTIPLE_CHOICE" ? payload.options : payload.candidates;
+      const keyIndex =
+        answerKey && "correctIndex" in answerKey
+          ? answerKey.correctIndex
+          : answerKey && "betterIndex" in answerKey
+            ? answerKey.betterIndex
+            : 0;
+      const order = shuffleOrder(id, items.length);
+      options = applyOrder(items, order);
+      correctIndex = order.indexOf(keyIndex);
+      optionMisses =
+        optionMisses && optionMisses.length === items.length ? applyOrder(optionMisses, order) : null;
+      if (payload.format === "MULTIPLE_CHOICE") {
+        payload = { ...payload, options };
+        answerKey = { correctIndex };
+      } else {
+        payload = { ...payload, candidates: options, rationalePrompt: null };
+        answerKey = { betterIndex: correctIndex };
+      }
+    }
+
+    // K2: the explanation, stored inside the answer key (never sent to the
+    // browser before submission). Sanitized against the closed library and
+    // the no-misquote rule; parts that fail are replaced by templates.
+    const quotable = [
+      ...(options ?? []),
+      ...(quotedText ? [quotedText] : []),
+      ...("contextLine" in payload && payload.contextLine ? [payload.contextLine] : []),
+    ];
+    const sanitized = sanitizeExplanation({
+      competencyKey: args.competencyKey,
+      proposed: {
+        techniqueId: typeof rawCandidate.technique_id === "string" ? rawCandidate.technique_id : null,
+        why: typeof rawCandidate.explanation === "string" ? rawCandidate.explanation : null,
+        options: optionMisses,
+      },
+      optionCount: options ? options.length : null,
+      correctIndex,
+      quotableSources: quotable,
+      matchText: `${promptValue} ${correctIndex !== null && options ? options[correctIndex] : ""}`,
+    });
+    if (sanitized) {
+      const explanation: CheckExplanation = sanitized.explanation;
+      if (payload.format === "REWRITE_WEAK_LINE") {
+        payload = { ...payload, techniqueId: explanation.techniqueId };
+      } else if (answerKey !== null) {
+        answerKey = { ...answerKey, explanation } as AnswerKey;
       }
     }
 
     survivors.push({
+      id,
       format,
       prompt: promptValue,
       payload,
@@ -565,6 +745,7 @@ export async function generateChecksForCompetency(
   // STEP 6. Persist survivors only, with their provenance.
   await prisma.knowledgeCheck.createMany({
     data: survivors.map((s) => ({
+      id: s.id,
       userId: args.userId,
       studyPlanId: args.studyPlanId,
       competencyKey: args.competencyKey,
