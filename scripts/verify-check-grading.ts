@@ -37,6 +37,7 @@ import {
   type RewriteWeakLinePayload,
 } from "../lib/study-plan/checks/types";
 import { CONTRIBUTION_WEIGHTS, normalizeRubricScore } from "../lib/mastery/weights";
+import { techniquesForCompetency } from "../lib/study-plan/coached/tips";
 import { Prisma } from "@prisma/client";
 
 let failures = 0;
@@ -166,6 +167,69 @@ console.log("\n2. PICK_BETTER_RESPONSE");
       () => gradeDeterministic("PICK_BETTER_RESPONSE", payload, answerKey, {}),
       "pbr-missing"
     )
+  );
+}
+
+console.log("\n2b. PHASE 23 — 3-4 options and an explanation tied to a named technique (K1/K2)");
+{
+  // A LEGACY 2-option row with no stored explanation still renders and grades,
+  // and (given the competency) explains with a template + named technique.
+  const legacy = validateCheckPayload("PICK_BETTER_RESPONSE", {
+    candidates: ["I think maybe we could possibly try something else?", "Let's pause here and regroup."],
+    rationalePrompt: "Explain which is stronger and why.",
+  }) as PickBetterResponsePayload;
+  const legacyKey = validateAnswerKey("PICK_BETTER_RESPONSE", { betterIndex: 1 });
+  const ctx = { competencyKey: "concision_and_focus", prompt: "Which response is stronger?" };
+  const legacyWrong = gradeDeterministic("PICK_BETTER_RESPONSE", legacy, legacyKey, { betterIndex: 0 }, ctx);
+  const legacyRight = gradeDeterministic("PICK_BETTER_RESPONSE", legacy, legacyKey, { betterIndex: 1 }, ctx);
+  check("legacy 2-option row: correctness unchanged by the context", legacyWrong.correct === false && legacyRight.correct === true);
+  const conciseNames = techniquesForCompetency("concision_and_focus").map((t) => t.name);
+  check(
+    "legacy row: a wrong answer still explains WHY with a template naming a library technique",
+    legacyWrong.detail.includes("Why it works: ") &&
+      conciseNames.some((n) => legacyWrong.detail.includes(`Technique: ${n}`)),
+    legacyWrong.detail
+  );
+  check("a correct answer gets a positive confirmation", legacyRight.detail.startsWith("Nice work"), legacyRight.detail);
+  check(
+    "bite-proof: WITHOUT a competency the detail carries no explanation (the template is wired to the context, not hardcoded)",
+    !gradeDeterministic("PICK_BETTER_RESPONSE", legacy, legacyKey, { betterIndex: 0 }).detail.includes("Why it works")
+  );
+
+  const four = validateCheckPayload("PICK_BETTER_RESPONSE", {
+    candidates: ["Buried headline answer.", "Your original line here.", "Headline-first answer.", "Hedged answer, sort of."],
+    rationalePrompt: null,
+  }) as PickBetterResponsePayload;
+  const fourKey = validateAnswerKey("PICK_BETTER_RESPONSE", {
+    betterIndex: 2,
+    explanation: {
+      techniqueId: "structure-headline-first",
+      why: "Stating the conclusion first gives the listener a frame for the details.",
+      options: ["Strong content, but the conclusion arrives last.", "Your line never states a conclusion.", null, "The hedges blur the point."],
+    },
+  });
+  const sctx = { competencyKey: "structure_and_clarity", prompt: "Which response is strongest?" };
+  const pickBuried = gradeDeterministic("PICK_BETTER_RESPONSE", four, fourKey, { betterIndex: 0 }, sctx);
+  check("4-option: index 0..3 accepted; the stored key decides", pickBuried.correct === false && gradeDeterministic("PICK_BETTER_RESPONSE", four, fourKey, { betterIndex: 2 }, sctx).correct === true);
+  check(
+    "4-option wrong pick: says what THAT option got wrong + why + the named technique",
+    pickBuried.detail.includes("What your pick missed: Strong content, but the conclusion arrives last.") &&
+      pickBuried.detail.includes("Why it works: Stating the conclusion first") &&
+      pickBuried.detail.includes("Technique: Headline first"),
+    pickBuried.detail
+  );
+  check(
+    "bite-proof: picking a DIFFERENT distractor gives THAT distractor's miss",
+    gradeDeterministic("PICK_BETTER_RESPONSE", four, fourKey, { betterIndex: 3 }, sctx).detail.includes("The hedges blur the point."),
+  );
+  check("4-option: betterIndex 4 throws", expectThrow(() => gradeDeterministic("PICK_BETTER_RESPONSE", four, fourKey, { betterIndex: 4 }), "pbr4-oob"));
+  check(
+    "a stored key past the stored candidates throws (corrupt row, not a wrong answer)",
+    expectThrow(() => gradeDeterministic("PICK_BETTER_RESPONSE", legacy, validateAnswerKey("PICK_BETTER_RESPONSE", { betterIndex: 3 }), { betterIndex: 0 }), "pbr-corrupt")
+  );
+  check(
+    "a stored technique id from ANOTHER competency is not trusted (template technique instead)",
+    !gradeDeterministic("PICK_BETTER_RESPONSE", four, fourKey, { betterIndex: 0 }, { competencyKey: "delivery_presence" }).detail.includes("Headline first"),
   );
 }
 
@@ -637,8 +701,10 @@ async function runDatabaseSection() {
     });
 
     let modelWasCalled = false;
-    const scoringStub: CallRewriteModel = async () => {
+    let techniqueSent: { name: string } | null | undefined;
+    const scoringStub: CallRewriteModel = async (callArgs) => {
       modelWasCalled = true;
+      techniqueSent = callArgs.technique;
       return {
         score: 4,
         rationale: "Mostly applies the technique; some hedging remains.",
@@ -652,6 +718,18 @@ async function runDatabaseSection() {
       callModel: scoringStub,
     });
     check("7h. REWRITE_WEAK_LINE submission DID reach the model", modelWasCalled);
+    const deliveryNames = techniquesForCompetency("delivery_presence").map((t) => t.name);
+    check(
+      "7h. K2: the grader is handed a library technique for the competency (legacy row: best match)",
+      !!techniqueSent && deliveryNames.includes(techniqueSent.name),
+      JSON.stringify(techniqueSent)
+    );
+    check(
+      "7h. K2: the rewrite result names that technique after the grader's rationale",
+      rwlOutcome.detail.startsWith("Mostly applies the technique") &&
+        rwlOutcome.detail.includes(`Technique: ${techniqueSent?.name}`),
+      rwlOutcome.detail
+    );
     check(
       "7h. REWRITE_WEAK_LINE round trip: gradedBy MODEL, correct is null (no binary correct for a rewrite)",
       rwlOutcome.gradedBy === "MODEL" && rwlOutcome.correct === null,
