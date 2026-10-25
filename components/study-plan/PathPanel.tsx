@@ -179,6 +179,29 @@ export function continueTargetFor(
 
 type NodeState = "done" | "next" | "pending";
 
+/**
+ * When a step follows another on the same competency, their stored reasons
+ * share the same "why this skill" sentences and differ only in the closing
+ * "what this step does" sentence. Returns that differing tail so the trail
+ * does not repeat the paragraph; the full stored reason stays one click away.
+ * Null means: render the stored reason as-is.
+ */
+export function repeatedReasonPurpose(
+  step: PathStepViewDTO,
+  previous: PathStepViewDTO | undefined,
+): string | null {
+  if (!previous || previous.competencyKey !== step.competencyKey) return null;
+  const sentences = (text: string) => text.match(/[^.!?]+[.!?]+(\s+|$)/g) ?? [text];
+  const mine = sentences(step.selectionReason);
+  const theirs = sentences(previous.selectionReason);
+  let shared = 0;
+  while (shared < mine.length && shared < theirs.length && mine[shared].trim() === theirs[shared].trim()) {
+    shared += 1;
+  }
+  if (shared === 0 || shared === mine.length) return null;
+  return mine.slice(shared).join("").trim();
+}
+
 function TrailNode({ state, kind }: { state: NodeState; kind: PathStepKind }) {
   const Icon = KIND_ICON[kind];
   if (state === "done") {
@@ -391,9 +414,25 @@ export default function PathPanel({
                   <p className="text-sm font-semibold text-[#102331]">{step.competencyLabel}</p>
                   {levels ? <LevelBadge level={levels[step.competencyKey]?.current} /> : null}
                 </div>
-                <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-[#385463]">
-                  {step.selectionReason}
-                </p>
+                {(() => {
+                  const purpose = repeatedReasonPurpose(step, orderedSteps[index - 1]);
+                  if (purpose === null) {
+                    return (
+                      <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-[#385463]">
+                        {step.selectionReason}
+                      </p>
+                    );
+                  }
+                  return (
+                    <>
+                      <p className="mt-1.5 text-sm leading-6 text-[#385463]">{purpose}</p>
+                      <details className="mt-1 text-xs text-[#58727f]">
+                        <summary className="cursor-pointer select-none">Why this skill</summary>
+                        <p className="mt-1 whitespace-pre-wrap leading-5">{step.selectionReason}</p>
+                      </details>
+                    </>
+                  );
+                })()}
                 {step.proveIt ? (
                   <p className="mt-1.5 text-xs leading-5 text-[#58727f]">{step.proveIt.brief}</p>
                 ) : null}

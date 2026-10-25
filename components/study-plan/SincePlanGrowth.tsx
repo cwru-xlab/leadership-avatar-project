@@ -67,7 +67,12 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
         <p className="mt-2 text-sm text-[#58727f]">
           No new evidence yet. Each step you finish below will show its effect on these skills here.
         </p>
-      ) : null}
+      ) : (
+        <p className="mt-2 text-xs text-[#58727f]">
+          All-time figures blend every session you have done, so they move slowly. &quot;Since this plan&quot;
+          is how you have scored on the skill since this plan was generated.
+        </p>
+      )}
       <ul className="mt-3 grid gap-2 sm:grid-cols-2">
         {data.competencies.map((c) => {
           const Icon =
@@ -78,7 +83,6 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
               : c.direction === "down"
                 ? "text-[#b4471f]"
                 : "text-[#58727f]";
-          const driver = c.drivers[0];
           return (
             <li key={c.competencyKey} className="rounded-lg border border-[#e3ebee] bg-white p-3">
               <div className="flex items-center justify-between gap-2">
@@ -92,13 +96,30 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
                 ) : null}
               </div>
               <p className="mt-1 text-xs text-[#58727f]">
-                {formatPercent(c.baseline.percent)} → {formatPercent(c.now.percent)}
+                All time {formatPercent(c.baseline.percent)} → {formatPercent(c.now.percent)}
                 {c.now.disclosure ? ` · ${c.now.tierLabel}` : ""}
               </p>
-              {driver?.href ? (
-                <Link href={driver.href} className="mt-1 block text-xs text-[#0a7391] underline-offset-2 hover:underline">
-                  Moved by: {driver.activityLabel}
-                </Link>
+              {c.sincePercent !== null ? (
+                <p className="mt-1 text-xs font-semibold text-[#102331]">
+                  Since this plan: {c.sincePercent}% across {c.sinceEvidenceCount}{" "}
+                  {c.sinceEvidenceCount === 1 ? "piece" : "pieces"} of evidence
+                </p>
+              ) : null}
+              {c.drivers.length > 0 ? (
+                <ul className="mt-1 space-y-0.5">
+                  {c.drivers.map((driver, index) => (
+                    <li key={`${driver.occurredAt}-${index}`} className="text-xs text-[#58727f]">
+                      {driver.href ? (
+                        <Link href={driver.href} className="text-[#0a7391] underline-offset-2 hover:underline">
+                          {driver.activityLabel}
+                        </Link>
+                      ) : (
+                        driver.activityLabel
+                      )}{" "}
+                      · {driver.percent}%
+                    </li>
+                  ))}
+                </ul>
               ) : null}
             </li>
           );

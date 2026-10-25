@@ -71,7 +71,7 @@ export default function MasteryPage() {
         <p className="mt-2 text-sm text-[#58727f]">
           Your overall standing and a per-competency breakdown, built from every scored live practice
           session (interviews, case studies, networking, pitches and difficult conversations) and
-          every knowledge check and coached session in your study plans.
+          every knowledge check, voice drill and coached session in your study paths.
         </p>
 
         <div className="mt-8">

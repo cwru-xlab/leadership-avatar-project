@@ -178,7 +178,7 @@ function GoalMeter({
           ) : (
             <Circle size={14} className="text-[#b7c7cd]" aria-hidden="true" />
           )}
-          {completed} of {target}
+          {met ? `Goal met · ${completed} done` : `${completed} of ${target}`}
         </span>
       </div>
       <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#e3ecf0]">

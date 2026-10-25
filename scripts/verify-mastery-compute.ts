@@ -410,6 +410,8 @@ console.log("\n13. growthSincePlan: per-study-plan baseline");
   check("A now includes the row exactly at since and ignores the future row (54.6)", a.now.percent === 54.6 && a.now.evidenceCount === 3, `got ${a.now.percent}/${a.now.evidenceCount}`);
   check("A delta = now - baseline", a.delta === 29.6, `got ${a.delta}`);
   check("A sinceEvidenceCount 2, drivers name the report and the check", a.sinceEvidenceCount === 2 && a.drivers.length === 2 && a.drivers.some((d) => d.sourceAttemptId === "chk") && a.drivers.every((d) => d.sourceReportId !== "future"));
+  check("A sincePercent is the weighted mean of only the since rows (75)", a.sincePercent === 75, `got ${a.sincePercent}`);
+  check("C with nothing since has sincePercent null", get(KEY_C).sincePercent === null);
   check("B shows a drop (negative delta)", get(KEY_B).delta === -50, `got ${get(KEY_B).delta}`);
   check("C with nothing since has delta null", get(KEY_C).delta === null && get(KEY_C).sinceEvidenceCount === 0);
   check("snapshot figure echoed, never substituted (A snapshot null, baseline 25)", a.snapshotLifetimePercent === null && get(KEY_B).snapshotLifetimePercent === 90 && get(KEY_B).baseline.percent === 100);

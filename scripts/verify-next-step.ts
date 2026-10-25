@@ -405,7 +405,7 @@ console.log("\n9. REASON QUALITY");
 console.log("\n10. nextStepFor");
 {
   function fakePath(
-    steps: Array<{ position: number; status: string; selectionReason: string }>
+    steps: Array<{ position: number; status: string; selectionReason: string; kind?: string }>
   ): PathWithSteps {
     return {
       id: "path-1",
@@ -417,7 +417,7 @@ console.log("\n10. nextStepFor");
         id: `step-${i + 1}`,
         pathId: "path-1",
         position: s.position,
-        kind: "KNOWLEDGE_CHECK",
+        kind: s.kind ?? "KNOWLEDGE_CHECK",
         competencyKey: ALL_KEYS[0],
         selectionReason: s.selectionReason,
         knowledgeCheckId: "check-1",
@@ -495,6 +495,26 @@ console.log("\n10. nextStepFor");
   ]);
   const r7 = nextStepFor(twoInProgress);
   check("two IN_PROGRESS steps -> the lowest position", r7?.step.position === 1);
+
+  // A launched-but-unfinished prove-it session does not jump the queue.
+  const proveItStarted = fakePath([
+    { position: 1, status: "COMPLETE", selectionReason: "SENTINEL-ONE" },
+    { position: 2, status: "PENDING", selectionReason: "SENTINEL-TWO" },
+    { position: 3, status: "IN_PROGRESS", selectionReason: "SENTINEL-THREE", kind: "UNAIDED_SESSION" },
+  ]);
+  const r8 = nextStepFor(proveItStarted);
+  check(
+    "IN_PROGRESS prove-it at 3 with PENDING at 2 -> returns 2 (learning order kept)",
+    r8?.step.position === 2 && r8.reason === "SENTINEL-TWO"
+  );
+  const proveItLast = fakePath([
+    { position: 1, status: "COMPLETE", selectionReason: "SENTINEL-ONE" },
+    { position: 2, status: "IN_PROGRESS", selectionReason: "SENTINEL-TWO", kind: "UNAIDED_SESSION" },
+  ]);
+  check(
+    "only an IN_PROGRESS prove-it left -> returns it",
+    nextStepFor(proveItLast)?.step.position === 2
+  );
 
   const skippedOnly = fakePath([
     { position: 1, status: "SKIPPED", selectionReason: "SENTINEL-ONE" },
