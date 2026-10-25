@@ -54,22 +54,22 @@ export default function ConversationEndBanner({
 
     return (
       <aside
-        className="mb-6 rounded-2xl border border-[#c5d5df] bg-[#f4f8fa] px-5 py-4 text-[#102331]"
+        className="mb-6 rounded-2xl border border-t-2 border-t-[#b79b4c] shadow-[0_10px_24px_rgba(0,48,135,0.08)] motion-safe:transition-[border-color,box-shadow] motion-safe:duration-200 border-[#b8c7d8] bg-[#f4f7fa] px-5 py-4 text-[#102a4c]"
         data-outcome={reason}
         data-testid="conversation-end-banner"
       >
-        <p className="font-serif text-xl leading-snug">{headline}</p>
+        <h2 className="font-serif text-xl leading-snug text-[#003087]">{headline}</h2>
         {specificReasons ? (
-          <p className="mt-2 text-sm leading-relaxed text-[#3a5563]">
+          <p className="mt-2 text-sm leading-relaxed text-[#334155]">
             {specificReasons}
           </p>
         ) : null}
         {typeof timecodeSeconds === "number" ? (
-          <p className="mt-2 font-mono text-sm tabular-nums text-[#526c7b]">
+          <p className="mt-2 font-mono text-sm tabular-nums text-[#52657a]">
             It turned around {formatTimecode(timecodeSeconds)}.
           </p>
         ) : null}
-        <p className="mt-3 text-sm text-[#3a5563]">{STILL_SCORED_LINE}</p>
+        <p className="mt-3 text-sm text-[#334155]">{STILL_SCORED_LINE}</p>
       </aside>
     );
   }
@@ -77,7 +77,7 @@ export default function ConversationEndBanner({
   if (reason === "student_closed_in_character") {
     return (
       <aside
-        className="mb-6 rounded-2xl border border-[#d4e2e9] bg-[#f7fafb] px-5 py-3 text-[#3a5563]"
+        className="mb-6 rounded-2xl border border-[#c7d2df] bg-[#f6f8fb] px-5 py-3 text-[#334155]"
         data-outcome={reason}
         data-testid="conversation-end-banner"
       >
@@ -89,7 +89,7 @@ export default function ConversationEndBanner({
   if (reason === "student_left_session") {
     return (
       <aside
-        className="mb-6 rounded-2xl border border-[#d4e2e9] bg-[#f7fafb] px-5 py-3 text-[#3a5563]"
+        className="mb-6 rounded-2xl border border-[#c7d2df] bg-[#f6f8fb] px-5 py-3 text-[#334155]"
         data-outcome={reason}
         data-testid="conversation-end-banner"
       >

@@ -57,25 +57,25 @@ export default function ConversationOutcomePanel({
 
   return (
     <section
-      className="mb-6 rounded-2xl border border-dashed border-[#9bb5ad] bg-transparent px-5 py-4"
+      className="mb-6 rounded-2xl border border-t-2 border-t-[#b79b4c] [border-top-style:solid] shadow-[0_10px_24px_rgba(0,48,135,0.08)] motion-safe:transition-[border-color,box-shadow] motion-safe:duration-200 border-dashed border-[#8295ad] bg-transparent px-5 py-4"
       data-not-a-score="true"
       data-testid="conversation-outcome-panel"
     >
-      <p className="text-xs font-medium uppercase tracking-[0.08em] text-[#6a8391]">
+      <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-[#003087]">
         Outcome record
-      </p>
-      <p className="mt-2 font-serif text-xl text-[#102331]">{statusLabel}</p>
+      </h2>
+      <p className="mt-2 font-serif text-xl text-[#102a4c]">{statusLabel}</p>
       {outcome.objectiveNote ? (
-        <p className="mt-2 text-sm leading-relaxed text-[#3a5563]">
+        <p className="mt-2 text-sm leading-relaxed text-[#334155]">
           {outcome.objectiveNote}
         </p>
       ) : null}
-      <p className="mt-3 text-sm leading-relaxed text-[#526c7b]">
+      <p className="mt-3 text-sm leading-relaxed text-[#52657a]">
         {OUTCOME_NOT_A_SCORE_CAPTION}
       </p>
       {showPairing ? (
         <p
-          className="mt-3 text-sm leading-relaxed text-[#102331]"
+          className="mt-3 text-sm leading-relaxed text-[#102a4c]"
           data-testid="objective-approach-pairing"
         >
           {OBJECTIVE_APPROACH_PAIRING_LINE}
