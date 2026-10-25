@@ -1,7 +1,8 @@
 /**
  * Resolves the activities named in a mastery result's "what moved it" lists
  * into student-facing links: a live session to its report, a knowledge-check
- * attempt to its check page, a coached session to its study-plan step.
+ * attempt to its check page, a coached session to its study-plan step, a
+ * voice-drill attempt to its drill step.
  *
  * Kept out of `compute.ts` (which stays pure — no database, no clock) and
  * out of `mastery-dto.ts` (which stays a synchronous mapper). The route calls
@@ -35,14 +36,16 @@ export async function resolveDriverLinks(
   const reportIds = new Set<string>();
   const attemptIds = new Set<string>();
   const coachedIds = new Set<string>();
+  const drillAttemptIds = new Set<string>();
 
   for (const driver of drivers) {
     if (driver.sourceReportId) reportIds.add(driver.sourceReportId);
     else if (driver.sourceAttemptId) attemptIds.add(driver.sourceAttemptId);
     else if (driver.sourceCoachedSessionId) coachedIds.add(driver.sourceCoachedSessionId);
+    else if (driver.sourceVoiceDrillAttemptId) drillAttemptIds.add(driver.sourceVoiceDrillAttemptId);
   }
 
-  const [reports, attempts, coached] = await Promise.all([
+  const [reports, attempts, coached, drillAttempts] = await Promise.all([
     reportIds.size
       ? prisma.interactionReport.findMany({
           where: { id: { in: [...reportIds] }, userId },
@@ -65,6 +68,20 @@ export async function resolveDriverLinks(
             id: true,
             pathStepId: true,
             pathStep: { select: { path: { select: { studyPlanId: true } } } },
+          },
+        })
+      : [],
+    drillAttemptIds.size
+      ? prisma.voiceDrillAttempt.findMany({
+          where: { id: { in: [...drillAttemptIds] }, userId },
+          select: {
+            id: true,
+            voiceDrill: {
+              select: {
+                pathStepId: true,
+                pathStep: { select: { path: { select: { studyPlanId: true } } } },
+              },
+            },
           },
         })
       : [],
@@ -110,6 +127,21 @@ export async function resolveDriverLinks(
       links.set(key, {
         href: `/study-plans/${session.pathStep.path.studyPlanId}/coached/${session.pathStepId}`,
         label: "Coached session",
+      });
+    }
+  }
+
+  for (const attempt of drillAttempts) {
+    const key = activityKeyForDriver({
+      sourceReportId: null,
+      sourceAttemptId: null,
+      sourceCoachedSessionId: null,
+      sourceVoiceDrillAttemptId: attempt.id,
+    });
+    if (key) {
+      links.set(key, {
+        href: `/study-plans/${attempt.voiceDrill.pathStep.path.studyPlanId}/drills/${attempt.voiceDrill.pathStepId}`,
+        label: "Voice drill",
       });
     }
   }

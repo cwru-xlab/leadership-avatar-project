@@ -89,6 +89,8 @@ export interface WindowDriver {
   sourceReportId: string | null;
   sourceAttemptId: string | null;
   sourceCoachedSessionId: string | null;
+  /** Phase 23: the voice-drill attempt that produced the rows, when any. */
+  sourceVoiceDrillAttemptId: string | null;
   occurredAt: Date;
   /** Weighted mean of this activity's rows, 0..100, one decimal. */
   percent: number;
@@ -265,6 +267,7 @@ function activityKeyFor(row: MasteryContributionRow): string {
   if (row.sourceReportId) return `report:${row.sourceReportId}`;
   if (row.sourceAttemptId) return `attempt:${row.sourceAttemptId}`;
   if (row.sourceCoachedSessionId) return `coached:${row.sourceCoachedSessionId}`;
+  if (row.sourceVoiceDrillAttemptId) return `drill:${row.sourceVoiceDrillAttemptId}`;
   return `row:${row.id}`;
 }
 
@@ -293,6 +296,7 @@ function windowDriversFor(
       sourceReportId: first.sourceReportId,
       sourceAttemptId: first.sourceAttemptId,
       sourceCoachedSessionId: first.sourceCoachedSessionId,
+      sourceVoiceDrillAttemptId: first.sourceVoiceDrillAttemptId ?? null,
       occurredAt: figure.lastAt,
       percent: figure.percent,
       // Rounded so float summation order (row order) can never reorder ties.
