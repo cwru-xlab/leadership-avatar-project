@@ -34,7 +34,13 @@ import {
   priorityThemesFromContent,
   themeMatchesFromPlan,
 } from "@/lib/study-plan/plan-targets";
-import { generateDrillBriefs, type DrillRequest } from "@/lib/study-plan/drill/brief";
+import {
+  buildDrillSessionContexts,
+  generateDrillBriefs,
+  type DrillRequest,
+} from "@/lib/study-plan/drill/brief";
+import { getEngineType } from "@/lib/engine/registry";
+import { asInputSnapshot } from "@/lib/report/snapshot";
 import {
   createVoiceDrillsForSteps,
   readDrillSummaries,
@@ -368,7 +374,7 @@ export async function POST(
       reportIds.length
         ? prisma.interactionReport.findMany({
             where: { id: { in: reportIds }, userId: currentUser.id, status: "READY" },
-            select: { id: true, userId: true, scores: true, createdAt: true },
+            select: { id: true, userId: true, scores: true, createdAt: true, typeSlug: true, inputSnapshot: true },
           })
         : Promise.resolve([]),
     ]);
@@ -507,9 +513,26 @@ export async function POST(
           theme: themeMatches.get(s.competencyKey)?.theme ?? null,
         };
       });
+    // D4: what the source sessions say about the student (type, role/industry,
+    // questions actually asked) so every drill prompt is specific to them.
+    const sessionContexts = buildDrillSessionContexts(
+      sourceReports.map((r) => {
+        const snap = asInputSnapshot(r.inputSnapshot);
+        const interview = snap && snap.kind === "interview" ? snap : null;
+        return {
+          id: r.id,
+          typeName: getEngineType(r.typeSlug)?.name ?? "interview",
+          roleTitle: interview?.roleTitle ?? null,
+          industry: interview?.industry ?? null,
+        };
+      }),
+      sources.transcriptsByReportId,
+      sources.selfNames,
+    );
     const drillBriefs = await generateDrillBriefs({
       userId: currentUser.id,
       requests: drillRequests,
+      sessionContexts,
       momentsByCompetency: sources.momentsByCompetency,
       transcriptsByReportId: sources.transcriptsByReportId,
       selfNames: sources.selfNames,
