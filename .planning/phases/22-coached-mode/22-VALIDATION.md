@@ -143,3 +143,18 @@ Steps reached: 1 (path generated), 2 (entry: failed, then entered after restart)
 - **G2 — coached avatar is silent.** Confirmed defect: `requestOpeningTurn` can fire from the 15s `OPENING_FALLBACK_MS` timeout before the stage reaches CONNECTED; `voiceCoachTurn` skips speech when `!isReady()`, and the ref guard means the opening is never voiced after a late connect. Practice starts its opening only from CONNECTED. Whether later turns also stay silent is not yet established.
 - **G3 — no camera / visual capture.** `22-AVATAR-MOUNT-DECISION.md` excluded it without surfacing it to the user. Wrong for Delivery & presence, whose dimensions include `visual`.
 - **G4 — second shell instead of shared interview UX.** User decision 2026-10-23: **extract shared session chrome** (camera consent step, camera preview + visual capture, push-to-talk controls, recorder/metering, captions/layout) from `components/practice/` into a neutral shared location used by both `PracticeSessionShell` and `CoachedSessionShell`. The coach layer stays in `lib/study-plan/coached/`. 21-12's isolation guard is amended deliberately (still forbids coached identifiers in `components/practice/`; permits imports from the shared location). This supersedes `22-AVATAR-MOUNT-DECISION.md` and invalidates the "practice tree untouched vs 59f6166" evidence, so normal practice sessions need a regression browser check (the 21-20 no-gate reasoning no longer holds).
+
+### Gap closure (2026-10-24/25, orchestrated worktrees, merged into feat/study-plan-expansion)
+
+- **G1:** process: the 2026-10-24 migration (`20261124000000_add_voice_drills_and_prove_it`) was applied locally with `prisma generate` AND a dev-server restart in the same step.
+- **G2:** closed. Two causes: (1) the opening could fire before CONNECTED; it now starts only on CONNECTED (or a definite video failure), and coach turns that arrive early are queued and spoken on connect. (2) The PATCH turn route double-wrapped `coachTurn`, so `speech` was `undefined` on EVERY turn (`eeac920`). Evidence: Playwright with real HeyGen and OpenAI (scratchpad `e2e/run1.log`, `run2.log`, `run3.log`): `avatar.speak_text` carried the coach's text for the opening and for every later turn across two full legs.
+- **G3:** closed. Shared camera consent (coached wording), self-view, face banner (coached copy), visual and vocal capture; metrics are sent on complete and persisted on `CoachedSession.cameraMode/visualMetrics/vocalMetrics`. The end-of-session summary shows delivery bands.
+- **G4:** closed per `22-SHARED-SHELL-DECISION.md` (supersedes `22-AVATAR-MOUNT-DECISION.md`). Chrome lives in `components/session/`, and both shells use it. The 21-12 guard was amended (section 3b). Practice regression: all 13 practice types load without console errors, and a live general interview started from the refactored shell (opening spoken, transcription, checkpoint, follow-up question; scratchpad `e2e/prove.log`).
+- **Coach quality (Phase 23 work on the coached runtime):** on-topic grading (an off-topic or recycled answer scores at most 1), one diagnosis question per leg, a spoken technique before every invite, escalation on misses (technique → different technique → fact-faithful demonstration → kind close), and grades shown only at the end.
+
+**Ready for UAT round 2.** Steps for the human:
+1. Open the Paths tab, pick a plan without a path, and generate one.
+2. Open a coached step: brief, then camera consent, then Ann speaks the opening.
+3. Answer one moment with a vague reply, then a strong rework. Confirm that a technique is spoken and that no numbers appear mid-session.
+4. Finish the session and confirm the summary (scores, delivery bands, next-step link).
+5. Run one normal interview to confirm practice is unchanged.
