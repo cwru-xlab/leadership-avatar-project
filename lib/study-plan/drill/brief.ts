@@ -31,13 +31,14 @@
 import { COMPETENCIES, type CompetencyKey } from "../../mastery/competencies";
 import type { InterviewTranscript } from "../../interview/transcript";
 import type { SessionMoment } from "../moments";
-import { prepareMomentsForGeneration } from "../moment-boundary";
+import { prepareMomentsForGeneration, redact } from "../moment-boundary";
 import { validateVerbatimQuote } from "../verbatim";
 import { techniquesForCompetency, validateCoachSpeech } from "../coached/tips";
 import { DRILL_DURATION, type PromptBasis, type VoiceDrillBrief } from "./types";
 
-/** One generic, second-person situation per competency, used when neither a
- * moment nor a theme can tailor the prompt. Hand-written; no scripted words. */
+/** One generic, second-person situation per competency — the LAST-RESORT
+ * template, used only when no moment, no source session and no theme can
+ * tailor the prompt. Hand-written; no scripted words. */
 export const SCENARIO_TEMPLATES: Readonly<Record<CompetencyKey, string>> = {
   delivery_presence:
     "Introduce yourself and the piece of work you are proudest of, as if you were opening an interview.",
@@ -66,6 +67,68 @@ function closingInstruction(key: CompetencyKey): string {
   return `Take ${DRILL_DURATION.minSeconds}-${DRILL_DURATION.maxSeconds} seconds and say it out loud, focusing on ${labelFor(key).toLowerCase()}.`;
 }
 
+/**
+ * What the plan's source sessions say about the student (D4): the practice
+ * type, the role/industry they practised for, and interviewer questions they
+ * were actually asked. Questions are the INTERVIEWER's words (never the
+ * student's), pass the same structural redactor as moments, and a question
+ * the redactor would alter is dropped, never sent redacted.
+ */
+export interface DrillSessionContext {
+  reportId: string;
+  typeName: string;
+  roleTitle: string | null;
+  industry: string | null;
+  questions: string[];
+}
+
+/** PROVISIONAL UNTIL CALIBRATED. */
+const QUESTIONS_PER_SESSION = 5;
+const QUESTION_LENGTH = { min: 20, max: 220 } as const;
+
+/** PURE: the last question sentence of an interviewer line, or null. */
+export function questionFromInterviewerLine(line: string, selfNames: string[]): string | null {
+  const sentences = line.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+/);
+  const question = [...sentences].reverse().find((x) => x.endsWith("?"));
+  if (!question) return null;
+  if (question.length < QUESTION_LENGTH.min || question.length > QUESTION_LENGTH.max) return null;
+  if (question.split(" ").length < 6) return null;
+  if (/["\u201C\u201D]/.test(question)) return null;
+  const { changed } = redact(question, selfNames);
+  return changed ? null : question;
+}
+
+/** PURE: one context per source session, questions from its transcript. */
+export function buildDrillSessionContexts(
+  reports: ReadonlyArray<{ id: string; typeName: string; roleTitle: string | null; industry: string | null }>,
+  transcriptsByReportId: ReadonlyMap<string, InterviewTranscript>,
+  selfNames: string[],
+): DrillSessionContext[] {
+  return reports.map((report) => {
+    const turns = transcriptsByReportId.get(report.id)?.turns ?? [];
+    const questions: string[] = [];
+    for (const turn of turns) {
+      if (turn.role !== "assistant") continue;
+      const q = questionFromInterviewerLine(turn.content, selfNames);
+      if (q && !questions.includes(q)) questions.push(q);
+      if (questions.length >= QUESTIONS_PER_SESSION) break;
+    }
+    return {
+      reportId: report.id,
+      typeName: report.typeName,
+      roleTitle: report.roleTitle?.trim() || null,
+      industry: report.industry?.trim() || null,
+      questions,
+    };
+  });
+}
+
+function practisedFor(ctx: DrillSessionContext): string {
+  const role = ctx.roleTitle ? ` for a ${ctx.roleTitle} role` : "";
+  const industry = ctx.industry ? ` in ${ctx.industry}` : "";
+  return `your ${ctx.typeName.toLowerCase()} practice${role}${industry}`;
+}
+
 export interface DrillRequest {
   /** Path position — the key the route uses to attach briefs to steps. */
   position: number;
@@ -84,7 +147,8 @@ export interface DrillRequest {
  */
 export function templateBrief(
   request: DrillRequest,
-  moments: ReadonlyArray<Pick<SessionMoment, "linkedGrowthAreaTitles">>,
+  moments: ReadonlyArray<Pick<SessionMoment, "linkedGrowthAreaTitles"> & Partial<Pick<SessionMoment, "precedingAvatarText">>>,
+  opts: { sessions?: ReadonlyArray<DrillSessionContext>; selfNames?: string[] } = {},
 ): VoiceDrillBrief {
   const techniques = techniquesForCompetency(request.competencyKey);
   const technique = techniques.length ? techniques[request.variant % techniques.length] : null;
@@ -92,11 +156,28 @@ export function templateBrief(
   const titled = moments.filter((m) => m.linkedGrowthAreaTitles.length > 0);
   const moment = titled.length ? titled[request.variant % titled.length] : null;
 
+  // A real question from the source sessions, varied by path position.
+  const selfNames = opts.selfNames ?? [];
+  const asked = (opts.sessions ?? []).flatMap((ctx) => ctx.questions.map((question) => ({ ctx, question })));
+  const pick = asked.length ? asked[(request.position + request.variant) % asked.length] : null;
+  const sessionCtx = (opts.sessions ?? [])[0] ?? null;
+
   let promptBasis: PromptBasis;
   let scenarioPrompt: string;
   if (moment) {
     promptBasis = "MOMENT";
-    scenarioPrompt = `In one of the sessions this plan was built from, a moment was flagged for "${moment.linkedGrowthAreaTitles[0]}". Answer that same kind of question again. ${closingInstruction(request.competencyKey)}`;
+    const momentQuestion = moment.precedingAvatarText
+      ? questionFromInterviewerLine(moment.precedingAvatarText, selfNames)
+      : null;
+    scenarioPrompt = momentQuestion
+      ? `In one of the sessions this plan was built from, you were asked: ${momentQuestion} Your answer was flagged for "${moment.linkedGrowthAreaTitles[0]}". Answer it again now. ${closingInstruction(request.competencyKey)}`
+      : `In one of the sessions this plan was built from, a moment was flagged for "${moment.linkedGrowthAreaTitles[0]}". Answer that same kind of question again. ${closingInstruction(request.competencyKey)}`;
+  } else if (pick) {
+    promptBasis = "SESSION";
+    scenarioPrompt = `In ${practisedFor(pick.ctx)}, the interviewer asked: ${pick.question} Answer it again now. ${closingInstruction(request.competencyKey)}`;
+  } else if (sessionCtx && (sessionCtx.roleTitle || sessionCtx.industry)) {
+    promptBasis = "SESSION";
+    scenarioPrompt = `Picture ${practisedFor(sessionCtx)}. ${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
   } else if (request.theme) {
     promptBasis = "THEME";
     scenarioPrompt = `Your plan's priority theme is "${request.theme}". ${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
@@ -121,7 +202,7 @@ export function templateBrief(
 export const DRILL_GENERATION_SYSTEM_PROMPT = `You write short spoken-practice prompts ("voice drills") for a leadership-practice student. Each drill is a 60-90 second spoken rep on ONE competency.
 
 For each requested drill return:
-- "scenario_prompt": 1-3 sentences in the second person telling the student what situation to speak to. Tailor it to the student's own moments when supplied (the same kind of question they found hard), otherwise to the plan theme. Never give them words to say, never write a sample answer, never write lines of dialogue.
+- "scenario_prompt": 1-3 sentences in the second person telling the student what situation to speak to. It MUST be specific to this student: tailor it to their own moments when supplied (the same kind of question they found hard); otherwise ground it in one of "student_sessions" — name the role or industry they practised for and build on a question they were actually asked, paraphrased in your own words (never in quotation marks). Only when no sessions are supplied may you fall back to the plan theme. Never give them words to say, never write a sample answer, never write lines of dialogue.
 - "technique_id": exactly one id from that drill's "allowed_techniques".
 - "quoted_text": null, OR a line copied CHARACTER FOR CHARACTER from one of that drill's supplied moments' studentText (when the prompt reminds them what they said). If you quote, the quote must appear verbatim inside scenario_prompt, and "source_report_id"/"quoted_turn_index" must be that moment's. Otherwise all three are null.
 
@@ -194,6 +275,8 @@ export interface GenerateDrillBriefsArgs {
   momentsByCompetency: ReadonlyMap<CompetencyKey, SessionMoment[]>;
   transcriptsByReportId: ReadonlyMap<string, InterviewTranscript>;
   selfNames: string[];
+  /** The plan's source sessions (D4). Empty -> moments/theme/template only. */
+  sessionContexts?: ReadonlyArray<DrillSessionContext>;
   /** Injected for testing; defaults to the real OpenAI call. Pass `null` to
    * skip the model entirely (template only). */
   callModel?: ((payload: { model: string; system: string; user: string }) => Promise<unknown>) | null;
@@ -212,7 +295,13 @@ export async function generateDrillBriefs(
 ): Promise<{ briefs: Map<number, VoiceDrillBrief>; discarded: DrillDiscard[]; model: string | null }> {
   const briefs = new Map<number, VoiceDrillBrief>();
   for (const request of args.requests) {
-    briefs.set(request.position, templateBrief(request, args.momentsByCompetency.get(request.competencyKey) ?? []));
+    briefs.set(
+      request.position,
+      templateBrief(request, args.momentsByCompetency.get(request.competencyKey) ?? [], {
+        sessions: args.sessionContexts,
+        selfNames: args.selfNames,
+      }),
+    );
   }
   const discarded: DrillDiscard[] = [];
   if (args.requests.length === 0 || args.callModel === null) return { briefs, discarded, model: null };
@@ -238,7 +327,14 @@ export async function generateDrillBriefs(
     return { briefs, discarded, model };
   }
 
+  const sessions = args.sessionContexts ?? [];
   const userMessage = JSON.stringify({
+    student_sessions: sessions.map((ctx) => ({
+      type: ctx.typeName,
+      role: ctx.roleTitle,
+      industry: ctx.industry,
+      questions_asked: ctx.questions,
+    })),
     drills: args.requests.map((r) => {
       const competency = COMPETENCIES.find((c) => c.key === r.competencyKey)!;
       const moments = (preparedByCompetency.get(r.competencyKey) ?? []).slice(
@@ -290,6 +386,7 @@ export async function generateDrillBriefs(
       used,
       preparedByCompetency,
       transcriptsByReportId: args.transcriptsByReportId,
+      sessions,
       model,
     });
     if (!result.ok) {
@@ -315,6 +412,8 @@ export function validateCandidate(
     used: ReadonlySet<number>;
     preparedByCompetency: ReadonlyMap<CompetencyKey, ReadonlyArray<Pick<SessionMoment, "reportId" | "turnIndex">>>;
     transcriptsByReportId: ReadonlyMap<string, InterviewTranscript>;
+    /** When present and non-empty, an unquoted prompt must be grounded in them. */
+    sessions?: ReadonlyArray<DrillSessionContext>;
     model: string;
   },
 ): CandidateResult {
@@ -353,6 +452,10 @@ export function validateCandidate(
     if (!scenario.includes(quotedText)) return { ok: false, position, reason: "quote does not appear verbatim in the prompt" };
   }
 
+  if (quotedText === null && ctx.sessions && ctx.sessions.length > 0 && !groundedInSessions(scenario, ctx.sessions)) {
+    return { ok: false, position, reason: "prompt is not specific to the student's sessions (generic)" };
+  }
+
   const speech = validateCoachSpeech(scenario, {
     studentLine: quotedText ?? "",
     counterpartLine: null,
@@ -368,11 +471,52 @@ export function validateCandidate(
       scenarioPrompt: scenario,
       tipText: technique.reminder,
       techniqueId: technique.id,
-      promptBasis: quotedText !== null ? "MOMENT" : request.theme ? "THEME" : "COMPETENCY",
+      promptBasis:
+        quotedText !== null
+          ? "MOMENT"
+          : ctx.sessions && ctx.sessions.length > 0
+            ? "SESSION"
+            : request.theme
+              ? "THEME"
+              : "COMPETENCY",
       sourceReportId: quotedText !== null ? sourceReportId : null,
       quotedTurnIndex: quotedText !== null ? quotedTurnIndex : null,
       quotedText,
       generationModel: ctx.model,
     },
   };
+}
+
+const STOPWORDS = new Set([
+  "about", "would", "could", "should", "there", "their", "which", "where", "these", "those", "think",
+  "tell", "describe", "something", "situation", "example", "being", "while", "after", "before", "really",
+]);
+
+function contentWords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 5 && !STOPWORDS.has(w)),
+  );
+}
+
+/**
+ * PURE (D4 gate): an unquoted prompt counts as specific to the student when
+ * it names a role or industry they practised for, or shares at least two
+ * content words with a question they were actually asked.
+ */
+export function groundedInSessions(scenario: string, sessions: ReadonlyArray<DrillSessionContext>): boolean {
+  const lower = scenario.toLowerCase();
+  const words = contentWords(scenario);
+  return sessions.some((ctx) => {
+    if (ctx.roleTitle && lower.includes(ctx.roleTitle.toLowerCase())) return true;
+    if (ctx.industry && lower.includes(ctx.industry.toLowerCase())) return true;
+    return ctx.questions.some((q) => {
+      let shared = 0;
+      for (const w of contentWords(q)) if (words.has(w)) shared += 1;
+      return shared >= 2;
+    });
+  });
 }
