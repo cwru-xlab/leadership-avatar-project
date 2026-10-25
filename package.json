@@ -10,7 +10,8 @@
     "setup": "node scripts/setup.mjs",
     "verify:sso-handoff": "tsx scripts/verify-cwru-sso-handoff.ts",
     "verify:feedback-source": "tsx scripts/verify-feedback-source-attribution.ts",
-    "verify:response-countdown": "tsx scripts/verify-response-countdown.ts"
+    "verify:response-countdown": "tsx scripts/verify-response-countdown.ts",
+    "verify:study-plan-prompt": "tsx scripts/verify-study-plan-prompt.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
