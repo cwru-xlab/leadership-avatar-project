@@ -569,7 +569,7 @@ RUBRIC — SCORE AND COMMENT ON EACH CATEGORY BELOW
    visibly transcribed as disfluencies in the transcript, e.g. "um," "like" appear
    as text, but flag this as a rough transcript-based estimate, not a precise
    audio measurement)
-   - Speech rate (pacing)
+   - Speech rate (pacing): state the measured pace in words per minute and whether it falls within the 100–159 WPM interview target
    - Filler word frequency ("um," "like," "you know")
    - Volume & articulation quality (only from vocal_metrics — cannot infer from text)
 

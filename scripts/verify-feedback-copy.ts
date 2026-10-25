@@ -41,6 +41,22 @@ for (const path of [
 const guidance = source("components/practice/InterviewPaceGuidance.tsx");
 check("pace guidance states the existing 100–159 WPM range", guidance.includes("100–159 words per minute"));
 
+const interviewPrompts = source("lib/interview/prompts.ts");
+check(
+  "interview vocal feedback compares measured pace to the 100–159 WPM target",
+  interviewPrompts.includes("state the measured pace in words per minute") &&
+    interviewPrompts.includes("100–159 WPM interview target"),
+);
+
+const reportBody = source("components/report/ReportBody.tsx");
+const reportPage = source("app/practice/[type]/report/[reportId]/page.tsx");
+check(
+  "interview reports display assessed pace with the 100–159 WPM target",
+  reportBody.includes("Assessed pace:") &&
+    reportBody.includes("Interview target: 100–159 WPM.") &&
+    reportPage.includes('showInterviewPaceTarget={report.input?.kind === "interview"}'),
+);
+
 const practicePage = source("app/practice/[type]/page.tsx");
 check("only the interview composition mounts pace guidance", practicePage.includes("isInterview ? <InterviewPaceGuidance variant=\"setup\" /> : undefined") && practicePage.includes("isInterview ? <InterviewPaceGuidance variant=\"live\" /> : undefined"));
 

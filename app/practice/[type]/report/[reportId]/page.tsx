@@ -355,6 +355,7 @@ export default function PracticeReportPage() {
             markdown={report.reportMarkdown}
             scores={scores}
             metrics={report.metrics ?? null}
+            showInterviewPaceTarget={report.input?.kind === "interview"}
           />
         ) : report?.status === "FAILED" ? (
           <div className="flex flex-col items-start gap-3">
