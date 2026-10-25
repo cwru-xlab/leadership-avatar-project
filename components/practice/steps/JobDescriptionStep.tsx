@@ -36,6 +36,9 @@ import {
 import { type ChangeEvent, useState } from "react";
 
 const MAX_JOB_DESCRIPTION_SIZE_BYTES = 10 * 1024 * 1024;
+// This text is included in every chat turn, so keep the client payload aligned
+// with the server's per-turn prompt ceiling.
+const MAX_JOB_DESCRIPTION_TEXT_LENGTH = 60_000;
 
 export interface JobDescriptionStepProps {
   nav: SetupStepNav;
@@ -102,7 +105,9 @@ export default function JobDescriptionStep({
       setPasted("");
       onJobDescriptionChange({
         jobDescriptionId: data.jobDescriptionId,
-        jobDescriptionText: data.jobDescriptionText,
+        jobDescriptionText: data.jobDescriptionText
+          .trim()
+          .slice(0, MAX_JOB_DESCRIPTION_TEXT_LENGTH),
         jobDescriptionFileName: file.name,
       });
       addToast({ title: "Job posting ready", color: "success" });
@@ -125,7 +130,7 @@ export default function JobDescriptionStep({
     }
     onJobDescriptionChange({
       jobDescriptionId: null,
-      jobDescriptionText: text,
+      jobDescriptionText: text.slice(0, MAX_JOB_DESCRIPTION_TEXT_LENGTH),
       jobDescriptionFileName: undefined,
     });
     addToast({ title: "Job posting ready", color: "success" });
@@ -231,6 +236,7 @@ export default function JobDescriptionStep({
                 labelPlacement="outside"
                 minRows={7}
                 placeholder="Paste the responsibilities, requirements, and title from the posting…"
+                maxLength={MAX_JOB_DESCRIPTION_TEXT_LENGTH}
                 value={pasted}
                 onValueChange={setPasted}
               />
@@ -297,7 +303,15 @@ export default function JobDescriptionStep({
               color="primary"
               isDisabled={uploading}
               endContent={<ArrowRight size={17} />}
-              onPress={nav.goNext}
+              onPress={() => {
+                // The footer is the primary exit path. Promote an unsaved
+                // paste so it cannot silently disappear when the user
+                // advances without first pressing "Use this posting".
+                if (pasted.trim()) {
+                  savePasted();
+                }
+                nav.goNext();
+              }}
             >
               Continue
             </Button>

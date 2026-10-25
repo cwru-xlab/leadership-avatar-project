@@ -21,7 +21,6 @@ import {
   SessionStagePane,
   SessionStatus,
 } from "@/components/session/SessionRoom";
-import { useHoldToTalkKey } from "@/components/session/useHoldToTalkKey";
 import { usePushToTalkRecorder } from "@/components/session/usePushToTalkRecorder";
 import { useSyncVisualSpeaking, useVisualCapture } from "@/components/session/useVisualCapture";
 import {
@@ -41,7 +40,7 @@ import type { StartAvatarRequest } from "@/types";
  * The live VOICE_DRILL rep, built on the shared session chrome in
  * `components/session/` (the same pieces CoachedSessionShell uses — nothing
  * copied, nothing from components/practice): avatar stage + keep-alive,
- * push-to-talk recorder with vocal capture, hold-Space, self-view with face
+ * push-to-talk recorder with vocal capture, self-view with face
  * detection and visual capture, and the dark two-pane room.
  *
  * FLOW
@@ -54,7 +53,7 @@ import type { StartAvatarRequest } from "@/types";
  *   texts are spoken separately and verbatim — no tip is composed here.
  * - A retry does NOT re-read the scenario (it stays on screen): the coach
  *   says one line naming the library technique to focus on.
- * - The student answers by tap or hold-Space; each recording becomes a
+ * - The student answers by tap-to-send; each recording becomes a
  *   caption. The countdown starts on the first recording and is SOFT: at 0:00
  *   it asks the student to wrap up, it never stops them.
  * - Finish stops the capture, POSTs transcript + metrics, and hands the graded
@@ -283,8 +282,6 @@ export default function VoiceDrillRunner({
 
   const talkLockRef = useRef(true);
   talkLockRef.current = !canSpeak;
-  const keyEnabledRef = useRef(false);
-  keyEnabledRef.current = canSpeak;
 
   const handleTranscript = useCallback((transcript: string, elapsedMs: number) => {
     setTalkError(null);
@@ -302,7 +299,6 @@ export default function VoiceDrillRunner({
     toggleRecording,
     releaseMicrophone,
     vocalCaptureRef,
-    cancelPendingStartRef,
   } = usePushToTalkRecorder({
     language: "en",
     sending: finishing,
@@ -323,7 +319,7 @@ export default function VoiceDrillRunner({
     onRejected: (reason) =>
       setTalkError(
         reason === "too-short"
-          ? "Nothing was recorded. Tap the microphone (or hold Space), speak, then send."
+          ? "Nothing was recorded. Tap the microphone, speak, then tap again to send."
           : "No speech was detected. Check that the right microphone is selected and not muted.",
       ),
     onTranscriptionFailed: (error) => {
@@ -339,7 +335,7 @@ export default function VoiceDrillRunner({
   });
 
   // Unmount: release the microphone, the camera and the avatar. Declared
-  // BEFORE the hold-Space listener, as in the other shells.
+  // as in the other shells.
   useEffect(() => {
     return () => {
       releaseMicrophone();
@@ -375,12 +371,6 @@ export default function VoiceDrillRunner({
     // Keyed on the rep only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rep]);
-
-  const startRecordingRef = useRef<(() => void) | null>(null);
-  const stopRecordingRef = useRef<(() => void) | null>(null);
-  startRecordingRef.current = startRecording;
-  stopRecordingRef.current = stopRecording;
-  useHoldToTalkKey({ startRecordingRef, stopRecordingRef, cancelPendingStartRef, keyEnabledRef });
 
   // -------------------------------------------------------------------------
   // Finish: stop capture -> POST -> hand the graded attempt up.
@@ -586,7 +576,6 @@ export default function VoiceDrillRunner({
               isTranscribing={isTranscribing}
               isDisabled={!canSpeak || isTranscribing}
               onToggle={toggleRecording}
-              showSpaceHint={canSpeak}
               idleLabel={idleLabel}
               recordingLabel="Tap again when done"
               startAriaLabel={idleLabel}

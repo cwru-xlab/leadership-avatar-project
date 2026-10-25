@@ -34,6 +34,7 @@ import { siteConfig } from "@/config/site";
 import { prisma } from "@/lib/prisma";
 import { loadDeckManifest } from "@/lib/deck/store";
 import { resolveDeckFairValueBand } from "@/lib/pitch/fair-value-band";
+import { asInputSnapshot } from "@/lib/report/snapshot";
 import {
   ratchetHighWaterMark,
   resolveRevealedSlides,
@@ -418,9 +419,11 @@ function assembleLegacyCaseStudyPrompt(
 ): string {
   const styleGuide = `## Reply Style
 - Speak naturally and conversationally, like a real person in a meeting or interview
+- Make the exchange feel relational: respond to one concrete detail before moving on (for example, "That sounds like a tough handoff. What happened next?") instead of using scripted acknowledgments
 - Keep responses short and to the point — 1 to 3 sentences unless more detail is truly needed
 - Avoid bullet points, formal headings, or structured lists in your replies
 - Never start with filler phrases like "Certainly!", "Great question!", or "Of course!"
+- Do not restate, summarize, or paraphrase what the participant just said; acknowledge it briefly, then add a new question or value
 - If you don't know something, say so simply and move on`;
 
   // ── CACHE PREFIX ──────────────────────────────────────────────────────
@@ -585,9 +588,9 @@ export async function POST(request: NextRequest) {
             ? interviewInput.resumeText
             : "";
       const resumeText = rawResume.slice(0, MAX_RESUME_TEXT_LENGTH);
-      // Session-constant: the client resends the identical string every turn,
-      // which is what keeps the assembled system prompt byte-stable (REQ-73).
-      const jobDescriptionText = (
+      // Legacy fallback only. For a started, owned interview below, this is
+      // replaced with the session snapshot so the prompt cannot vary by turn.
+      let jobDescriptionText = (
         typeof rawJobDescriptionText === "string" ? rawJobDescriptionText : ""
       ).slice(0, MAX_JOB_DESCRIPTION_TEXT_LENGTH);
       const progress = normalizeProgress(
@@ -595,6 +598,21 @@ export async function POST(request: NextRequest) {
       );
       const startedAt = engineTurn?.startedAt ?? interviewInput?.startedAt;
       const isInterview = Boolean(getInterviewType(sessionConfig.typeSlug));
+
+      // An interview's job posting is captured at session start. Prefer that
+      // authenticated, persisted value over a browser-supplied turn payload so
+      // the interviewer context is genuinely session-constant. Keep the
+      // client value only for legacy turns that have no owned report.
+      if (isInterview && currentUser && typeof rawReportId === "string") {
+        const report = await prisma.interactionReport.findFirst({
+          where: { id: rawReportId, userId: currentUser.id },
+          select: { inputSnapshot: true },
+        });
+        const snapshot = report ? asInputSnapshot(report.inputSnapshot) : null;
+        if (snapshot?.kind === "interview") {
+          jobDescriptionText = snapshot.jobDescriptionText ?? "";
+        }
+      }
 
       interviewStyleTurnControl = isInterview;
 

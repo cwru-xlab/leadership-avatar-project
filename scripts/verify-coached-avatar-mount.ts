@@ -5,10 +5,9 @@
  *
  * The coached shell and the practice shell mount the SAME session chrome from
  * components/session/: the avatar stage + keep-alive, the push-to-talk
- * recorder with vocal capture, the hold-Space listener, and the camera
+ * recorder with vocal capture (tap-to-send), and the camera
  * self-view with visual capture. The retired coached duplicates
  * (CoachAvatarStage.tsx, useCoachedPushToTalk.ts) must stay gone, and the key
- * rules still come from lib/practice/push-to-talk-key, never re-implemented.
  *
  * Section 4 used to assert components/practice/ was untouched since 59f6166;
  * the user's G4 decision deliberately invalidated that (the chrome was lifted
@@ -45,29 +44,9 @@ function read(rel: string) {
 
 const avatarSrc = read("components/session/SessionAvatar.tsx");
 const recorderSrc = read("components/session/usePushToTalkRecorder.ts");
-const keySrc = read("components/session/useHoldToTalkKey.ts");
 const visualSrc = read("components/session/useVisualCapture.ts");
 const coachedSrc = read("components/study-plan/CoachedSessionShell.tsx");
 const practiceSrc = read("components/practice/PracticeSessionShell.tsx");
-
-const SHARED_FNS = [
-  "isPushToTalkKey",
-  "isPushToTalkBlockingTarget",
-  "describeKeyTarget",
-  "shouldAbortPendingStart",
-];
-
-/** Names of the shared key functions NOT imported (across the given sources). */
-function missingSharedImports(...srcs: string[]): string[] {
-  const imported = new Set<string>();
-  for (const src of srcs) {
-    const m = src.match(
-      /import\s*\{([^}]*)\}\s*from\s*["']@\/lib\/practice\/push-to-talk-key["']/,
-    );
-    for (const name of m ? m[1].split(",").map((s) => s.trim()) : []) imported.add(name);
-  }
-  return SHARED_FNS.filter((f) => !imported.has(f));
-}
 
 console.log("\nSection 1: the shared avatar stage reuses the HeyGen primitive");
 check(
@@ -84,16 +63,15 @@ for (const [name, src] of [["CoachedSessionShell", coachedSrc], ["PracticeSessio
   );
 }
 
-console.log("\nSection 2: the shared recorder reuses the shared push-to-talk rules");
+console.log("\nSection 2: tap-to-send only (dev #37), one shared recorder");
 check(
-  "the recorder + key hook import all four push-to-talk-key functions",
-  missingSharedImports(recorderSrc, keySrc).length === 0,
-  `missing: ${missingSharedImports(recorderSrc, keySrc).join(", ")}`,
+  "the hold-Space key hook is retired",
+  !existsSync(resolve(ROOT, "components/session/useHoldToTalkKey.ts")) &&
+    !existsSync(resolve(ROOT, "lib/practice/push-to-talk-key.ts")),
 );
-const redefined = SHARED_FNS.filter((f) =>
-  new RegExp(`(function\\s+${f}\\b|(const|let|var)\\s+${f}\\s*=)`).test(recorderSrc + keySrc),
-);
-check("neither re-implements any of them", redefined.length === 0, redefined.join(", "));
+for (const [name, src] of [["usePushToTalkRecorder", recorderSrc], ["CoachedSessionShell", coachedSrc], ["PracticeSessionShell", practiceSrc]] as const) {
+  check(`${name}: no window keydown listener (no hold-Space)`, !/addEventListener\(\s*["']keydown["']/.test(src));
+}
 check(
   "the recorder imports createVocalCapture",
   /import\s*\{[^}]*createVocalCapture[^}]*\}\s*from\s*["']@\/lib\/metrics\/vocal-capture["']/.test(recorderSrc),
@@ -133,7 +111,7 @@ check(
 
 console.log("\nSection 4: both shells use the shared session chrome");
 for (const [name, src] of [["CoachedSessionShell", coachedSrc], ["PracticeSessionShell", practiceSrc]] as const) {
-  for (const mod of ["usePushToTalkRecorder", "useHoldToTalkKey", "useVisualCapture", "SessionRoom", "SelfViewThumbnail", "FaceDetectionBanner"]) {
+  for (const mod of ["usePushToTalkRecorder", "useVisualCapture", "SessionRoom", "SelfViewThumbnail", "FaceDetectionBanner"]) {
     check(
       `${name} imports @/components/session/${mod}`,
       new RegExp(`from\\s*["']@\\/components\\/session\\/${mod}["']`).test(src),
@@ -170,10 +148,10 @@ check(
 }
 
 console.log("\nSection 5: bite-proof");
-const mutated = recorderSrc.replace(/\bshouldAbortPendingStart\b/g, "");
+const mutated = `${coachedSrc}\nwindow.addEventListener("keydown", onKey);`;
 check(
-  "removing the shouldAbortPendingStart import is caught by the section-2 check",
-  missingSharedImports(mutated, keySrc).includes("shouldAbortPendingStart"),
+  "re-adding a keydown (hold-Space) listener is caught by the section-2 check",
+  /addEventListener\(\s*["']keydown["']/.test(mutated),
 );
 const practiceImportInCoached = `import X from "@/components/practice/PracticeSessionShell";\n${coachedSrc}`;
 check(

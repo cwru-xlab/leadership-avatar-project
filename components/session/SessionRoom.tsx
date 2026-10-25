@@ -132,9 +132,9 @@ export function PushToTalkControl({
   isTranscribing,
   isDisabled,
   onToggle,
-  showSpaceHint,
   idleLabel = "Tap to record",
   recordingLabel = "Tap again to send",
+  submittedLabel = "Answer submitted",
   startAriaLabel = "Start recording answer",
   stopAriaLabel = "Stop recording and send answer",
 }: {
@@ -142,31 +142,34 @@ export function PushToTalkControl({
   isTranscribing: boolean;
   isDisabled: boolean;
   onToggle: () => void;
-  showSpaceHint: boolean;
   idleLabel?: string;
   recordingLabel?: string;
+  submittedLabel?: string;
   startAriaLabel?: string;
   stopAriaLabel?: string;
 }) {
+  // Tap-to-send (dev #37): one tap starts the recording, the next sends it.
   return (
     <div className="flex items-center gap-2">
       <Button
         size="sm"
-        variant={isRecording ? "solid" : "flat"}
-        color={isRecording ? "danger" : "default"}
+        variant={isRecording || isTranscribing ? "solid" : "flat"}
+        color={isRecording ? "danger" : isTranscribing ? "primary" : "default"}
         className="font-medium text-[#d7eaf3]"
         isDisabled={isDisabled}
+        isLoading={isTranscribing}
         onPress={onToggle}
-        aria-label={isRecording ? stopAriaLabel : startAriaLabel}
+        aria-label={
+          isTranscribing
+            ? "Recorded answer submitted for transcription"
+            : isRecording
+              ? stopAriaLabel
+              : startAriaLabel
+        }
         startContent={isRecording ? <MicOff size={15} /> : <Mic size={15} />}
       >
-        {isTranscribing ? "Transcribing…" : isRecording ? recordingLabel : idleLabel}
+        {isTranscribing ? submittedLabel : isRecording ? recordingLabel : idleLabel}
       </Button>
-      {showSpaceHint ? (
-        <span className="hidden text-[11px] leading-4 text-[#82a5b8] sm:inline">
-          or hold <kbd className="rounded border border-white/20 bg-white/5 px-1 py-0.5 font-sans text-[10px] text-[#d7eaf3]">Space</kbd> to talk
-        </span>
-      ) : null}
     </div>
   );
 }

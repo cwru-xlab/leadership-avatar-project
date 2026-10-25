@@ -22,11 +22,8 @@
  * - The toasts and the avatar interrupt are notification callbacks, read
  *   through refs at call time (they carry no closure state that matters).
  *
- * The hold-Space listener is deliberately NOT in this hook — see
- * `useHoldToTalkKey`. Its cleanup must run AFTER the owning shell's own
- * unmount cleanup (which detaches `recorder.onstop` before stopping), and a
- * hook's effects run in the position the hook is called, so the shell calls
- * `useHoldToTalkKey` where its own listener effect used to live.
+ * Input is tap-to-send only (dev #37 removed hold-Space): `toggleRecording`
+ * is the single entry point every shell wires to its record button.
  *
  * REQ-85: this hook renders nothing and exposes no live meter value. The RMS
  * peak is used only to reject a silent recording.
@@ -34,7 +31,6 @@
 
 import { type MutableRefObject, useCallback, useEffect, useRef, useState } from "react";
 
-import { shouldAbortPendingStart } from "@/lib/practice/push-to-talk-key";
 import { createVocalCapture, type VocalCaptureHandle } from "@/lib/metrics/vocal-capture";
 
 export const MIN_RECORDING_MS = 400;
@@ -97,10 +93,6 @@ export function usePushToTalkRecorder({
   const meterSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const recordingStartInFlightRef = useRef(false);
-  // Lets a release that lands before `getMicrophone()` resolves abort the
-  // late-arriving start (the tap-and-release race) — set by the release path
-  // in `useHoldToTalkKey`, read by `startRecording`.
-  const cancelPendingStartRef = useRef(false);
   const vocalCaptureRef = useRef<VocalCaptureHandle | null>(null);
 
   const [partialTranscript, setPartialTranscript] = useState("");
@@ -286,20 +278,9 @@ export function usePushToTalkRecorder({
       return;
     }
     recordingStartInFlightRef.current = true;
-    // Each start owns a fresh cancel flag — a stale cancel left over from an
-    // earlier hold must not kill a later start.
-    cancelPendingStartRef.current = false;
     try {
       const stream = await getMicrophone();
-      if (
-        shouldAbortPendingStart({
-          sending,
-          isTranscribing,
-          isPaused,
-          walkOutLocked: lockRef.current,
-          startCancelled: cancelPendingStartRef.current,
-        })
-      ) {
+      if (sending || isTranscribing || isPaused || lockRef.current) {
         return;
       }
       const recorder = new MediaRecorder(stream, {
@@ -368,7 +349,5 @@ export function usePushToTalkRecorder({
     releaseMicrophone,
     /** The vocal capture engine, created on mount. Drain or detach via this. */
     vocalCaptureRef,
-    /** Read by `useHoldToTalkKey` to abort a start released mid-acquisition. */
-    cancelPendingStartRef,
   };
 }
