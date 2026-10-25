@@ -183,12 +183,31 @@ console.log("\n2b. PHASE 23 — 3-4 options and an explanation tied to a named t
   const legacyWrong = gradeDeterministic("PICK_BETTER_RESPONSE", legacy, legacyKey, { betterIndex: 0 }, ctx);
   const legacyRight = gradeDeterministic("PICK_BETTER_RESPONSE", legacy, legacyKey, { betterIndex: 1 }, ctx);
   check("legacy 2-option row: correctness unchanged by the context", legacyWrong.correct === false && legacyRight.correct === true);
-  const conciseNames = techniquesForCompetency("concision_and_focus").map((t) => t.name);
   check(
-    "legacy row: a wrong answer still explains WHY with a template naming a library technique",
-    legacyWrong.detail.includes("Why it works: ") &&
-      conciseNames.some((n) => legacyWrong.detail.includes(`Technique: ${n}`)),
+    "legacy row, nothing matches: still explains WHY, and the technique line is DROPPED (no default pick)",
+    legacyWrong.detail.includes("Why it works: ") && !legacyWrong.detail.includes("Technique:") &&
+      !techniquesForCompetency("concision_and_focus").some((t) => legacyWrong.detail.includes(t.name)),
     legacyWrong.detail
+  );
+  const matched = gradeDeterministic("PICK_BETTER_RESPONSE", legacy, legacyKey, { betterIndex: 0 }, { competencyKey: "concision_and_focus", prompt: "Which response trims the hedging qualifiers?" });
+  check("legacy row with an overlap: the matching technique is named", matched.detail.includes("Technique: Trim your qualifiers"), matched.detail);
+  const deliveryCtx = { competencyKey: "delivery_presence", prompt: "Which reply keeps your eyes up, shoulders back and a slower pace with a pause?" };
+  const deliveryWrong = gradeDeterministic("PICK_BETTER_RESPONSE", legacy, legacyKey, { betterIndex: 0 }, deliveryCtx);
+  check(
+    "bite-proof: a delivery check NEVER names a body/voice technique, even when the prompt matches one",
+    deliveryWrong.detail.includes("Why it works: ") && !deliveryWrong.detail.includes("Technique:") &&
+      !techniquesForCompetency("delivery_presence").some((t) => deliveryWrong.detail.includes(t.name)),
+    deliveryWrong.detail
+  );
+  const storedDeliveryKey = validateAnswerKey("PICK_BETTER_RESPONSE", {
+    betterIndex: 1,
+    explanation: { techniqueId: "delivery-own-the-room", why: "Addressing the whole room shows command.", options: ["x", null] },
+  });
+  const storedDelivery = gradeDeterministic("PICK_BETTER_RESPONSE", legacy, storedDeliveryKey, { betterIndex: 0 }, deliveryCtx);
+  check(
+    "bite-proof: a STORED delivery technique is not shown on a written check",
+    !storedDelivery.detail.includes("Address the whole room") && !storedDelivery.detail.includes("Technique:"),
+    storedDelivery.detail
   );
   check("a correct answer gets a positive confirmation", legacyRight.detail.startsWith("Nice work"), legacyRight.detail);
   check(
@@ -720,14 +739,13 @@ async function runDatabaseSection() {
     check("7h. REWRITE_WEAK_LINE submission DID reach the model", modelWasCalled);
     const deliveryNames = techniquesForCompetency("delivery_presence").map((t) => t.name);
     check(
-      "7h. K2: the grader is handed a library technique for the competency (legacy row: best match)",
-      !!techniqueSent && deliveryNames.includes(techniqueSent.name),
+      "7h. Q2: a delivery_presence rewrite (written) is handed NO body/voice technique",
+      techniqueSent === null && deliveryNames.length > 0,
       JSON.stringify(techniqueSent)
     );
     check(
-      "7h. K2: the rewrite result names that technique after the grader's rationale",
-      rwlOutcome.detail.startsWith("Mostly applies the technique") &&
-        rwlOutcome.detail.includes(`Technique: ${techniqueSent?.name}`),
+      "7h. Q2: the rewrite result is the grader's rationale with no technique line",
+      rwlOutcome.detail === "Mostly applies the technique; some hedging remains.",
       rwlOutcome.detail
     );
     check(
