@@ -62,6 +62,7 @@ import {
 } from "lucide-react";
 
 import { LevelBadge, ProgressRing, type LevelsByCompetency } from "@/components/study-plan/PathVisuals";
+import RebuildPathNotice from "@/components/study-plan/RebuildPathNotice";
 
 const PLACEHOLDER_KNOWLEDGE_CHECK_ID = "__PENDING_GENERATION__";
 
@@ -92,6 +93,8 @@ export interface PathViewDTO {
   generatedAt: string;
   steps: PathStepViewDTO[];
   nextStep: { stepId: string; reason: string } | null;
+  /** Legacy-shaped and never started: may be rebuilt (RebuildPathNotice). */
+  rebuildable?: boolean;
 }
 
 export const KIND_LABEL: Record<PathStepKind, string> = {
@@ -266,6 +269,7 @@ export default function PathPanel({
   levels,
   growthSlot,
   highlightCompetency,
+  onRebuilt,
 }: {
   planId: string;
   path: PathViewDTO;
@@ -281,6 +285,8 @@ export default function PathPanel({
   /** When set (e.g. /paths?competency=<key>), steps targeting this
    * competency are outlined and the first one is scrolled into view. */
   highlightCompetency?: string | null;
+  /** Receives the fresh path when the student rebuilds a legacy one. */
+  onRebuilt?: (path: PathViewDTO, degradedStepCount: number) => void;
 }) {
   const total = path.steps.length;
   const complete = path.steps.filter(isStepDone).length;
@@ -331,6 +337,12 @@ export default function PathPanel({
 
       {/* GROWTH-SINCE-PLAN SLOT — see the `growthSlot` prop. */}
       {growthSlot ? <div className="mt-5">{growthSlot}</div> : null}
+
+      {path.rebuildable && onRebuilt ? (
+        <div className="mt-5">
+          <RebuildPathNotice planId={planId} onRebuilt={onRebuilt} />
+        </div>
+      ) : null}
 
       {allDone ? (
         <PathCompleteCard total={total} />
