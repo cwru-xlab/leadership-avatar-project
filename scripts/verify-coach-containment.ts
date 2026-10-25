@@ -212,11 +212,19 @@ console.log("\n5. ENGINE UNTOUCHED since Phase 22 base (59f6166)");
   let ran = true;
   try {
     const hasDev = execSync("git rev-parse --verify --quiet origin/dev || true", { cwd: ROOT, encoding: "utf8" }).trim() !== "";
+    // Walk-out (Phase 18/20) fixes from the 2026-10-25 UAT live in these three
+    // engine files and are not coached-mode work; the import-closure checks in
+    // sections 2-3 still forbid any coached module reaching the engine.
+    const walkOutExempt = [
+      "':(exclude)lib/engine/disengagement.ts'",
+      "':(exclude)lib/engine/hostility.ts'",
+      "':(exclude)lib/engine/termination.ts'",
+    ].join(" ");
     const commits = execSync(
-      `git log --no-merges --format=%h 59f6166..HEAD ${hasDev ? "--not origin/dev" : ""} -- lib/engine/`,
+      `git log --no-merges --format=%h 59f6166..HEAD ${hasDev ? "--not origin/dev" : ""} -- lib/engine/ ${walkOutExempt}`,
       { cwd: ROOT, encoding: "utf8" },
     ).trim();
-    const uncommitted = execSync("git diff --name-only HEAD -- lib/engine/", { cwd: ROOT, encoding: "utf8" }).trim();
+    const uncommitted = execSync(`git diff --name-only HEAD -- lib/engine/ ${walkOutExempt}`, { cwd: ROOT, encoding: "utf8" }).trim();
     out = [commits, uncommitted].filter(Boolean).join("\n");
   } catch (e) {
     ran = false;

@@ -159,7 +159,8 @@ export function resolveTermination({
   // vocabulary, and the derived disengagement value must still reach the
   // threshold. A severe turn is not a bypass of the engine's authority,
   // only of the turn-count minimum. Severe content reaching the threshold
-  // is the job of the signal path (20-02 and 20-05), not of this gate.
+  // is the job of the signal path: computeDisengagement lifts the derived
+  // value to the threshold on a severe turn (UAT 2026-10-25), not this gate.
   const floor = policy.avatarEndFloor;
 
   if (floor != null && !severeContent) {

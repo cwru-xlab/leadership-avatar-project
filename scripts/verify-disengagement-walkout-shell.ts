@@ -25,6 +25,7 @@ const chatRoute = read("app/api/interaction/chat/route.ts");
 const finishRoute = read("app/api/practice/session/finish/route.ts");
 const session = read("lib/engine/session.ts");
 const pitchPage = read("app/practice/[type]/page.tsx");
+const dcPage = read("app/practice/[type]/[instanceId]/page.tsx");
 const prompts = read("lib/engine/prompts.ts");
 
 check(
@@ -378,6 +379,36 @@ check(
     /SessionSafetyPanel/.test(dcLauncher),
   "DC launcher keeps the one always-visible exit (hideDefaultEndControl + SessionSafetyPanel)",
 );
+
+console.log("\n9. UAT 2026-10-25 — the forced farewell is never dropped (F18-1)");
+{
+  // The farewell is scheduled from inside the crossing turn's request, so the
+  // closure it runs through can still see `sending === true`. The entry guard
+  // must exempt it, or the student is locked in with no final statement.
+  const farewellGuardOk = (src: string) => {
+    const start = src.indexOf("const content = candidateMessage.trim();");
+    const guard = start === -1 ? "" : src.slice(start, src.indexOf("return;", start));
+    return (
+      /\(sending && !forceWalkOutFarewell\)/.test(guard) &&
+      !/\n\s*sending \|\|/.test(guard) &&
+      !/\n\s*isPaused \|\|/.test(guard)
+    );
+  };
+  check(farewellGuardOk(shell), "sendMessage's entry guard lets the one-shot forced farewell through while `sending`");
+  const bitten = shell.replace("(sending && !forceWalkOutFarewell) ||", "sending ||");
+  check(!farewellGuardOk(bitten), "bite-proof: a bare `sending ||` gate is caught");
+}
+
+console.log("\n10. UAT 2026-10-25 — DC chat turns carry the reportId (F20-2)");
+{
+  const dcShellCarriesReport = (src: string) => {
+    const start = src.indexOf("autoFinishOnAvatarEnd");
+    const block = start === -1 ? "" : src.slice(start, src.indexOf("/>", start));
+    return /extraChatBody=\{\{\s*reportId\s*\}\}/.test(block);
+  };
+  check(dcShellCarriesReport(dcPage), "the DC page passes extraChatBody={{ reportId }} to the walk-out shell");
+  check(!dcShellCarriesReport(dcPage.replace(/extraChatBody=\{\{\s*reportId\s*\}\}/, "")), "bite-proof: dropping it is caught");
+}
 
 if (failures > 0) {
   console.error(`\n${failures} walk-out shell check(s) failed.`);
