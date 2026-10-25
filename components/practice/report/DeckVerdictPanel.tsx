@@ -136,11 +136,11 @@ function FundingVerdict({ report }: { report: ReportDTO }) {
   return (
     <VerdictCard heading="Funding verdict" testId="funding-verdict-panel">
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-[#e3ecef] bg-[#f7fafb] px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#6a8391]">
+        <div className="rounded-xl border border-[#d8e1eb] bg-[#f6f8fb] px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
             You requested
           </p>
-          <p className="mt-2 text-sm text-[#102331]">
+          <p className="mt-2 text-sm text-[#102a4c]">
             <span
               className="font-mono tabular-nums"
               data-testid="funding-requested-amount"
@@ -149,12 +149,12 @@ function FundingVerdict({ report }: { report: ReportDTO }) {
             </span>
           </p>
         </div>
-        <div className="rounded-xl border border-[#e3ecef] bg-[#f7fafb] px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#6a8391]">
+        <div className="rounded-xl border border-[#d8e1eb] bg-[#f6f8fb] px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
             The reviewer would fund
           </p>
           <p
-            className="mt-2 text-sm font-medium text-[#102331]"
+            className="mt-2 text-sm font-medium text-[#102a4c]"
             data-testid="funding-position"
           >
             {outcome.fundingPosition
@@ -162,7 +162,7 @@ function FundingVerdict({ report }: { report: ReportDTO }) {
               : "Not recorded"}
           </p>
           {outcome.fundedAmountUsd != null ? (
-            <p className="mt-1 text-sm text-[#102331]">
+            <p className="mt-1 text-sm text-[#102a4c]">
               <span
                 className="font-mono tabular-nums"
                 data-testid="funding-funded-amount"
@@ -175,7 +175,7 @@ function FundingVerdict({ report }: { report: ReportDTO }) {
       </div>
       {outcome.fundingRationale ? (
         <p
-          className="mt-4 text-sm leading-relaxed text-[#3a5563]"
+          className="mt-4 text-sm leading-relaxed text-[#334155]"
           data-testid="funding-rationale"
         >
           {outcome.fundingRationale}
@@ -233,7 +233,7 @@ function ProductVerdict({ report }: { report: ReportDTO }) {
   return (
     <VerdictCard heading="Buyer verdict" testId="product-verdict-panel">
       <p
-        className="font-serif text-xl text-[#102331]"
+        className="font-serif text-xl text-[#102a4c]"
         data-testid="buyer-position"
       >
         {outcome.buyerPosition
@@ -241,7 +241,7 @@ function ProductVerdict({ report }: { report: ReportDTO }) {
           : "Not recorded"}
       </p>
       <p
-        className="mt-3 text-sm leading-relaxed text-[#3a5563]"
+        className="mt-3 text-sm leading-relaxed text-[#334155]"
         data-testid="blocking-objection"
       >
         {outcome.blockingObjection
@@ -302,23 +302,23 @@ function TalkVerdict({ report }: { report: ReportDTO }) {
   return (
     <VerdictCard heading="Audience takeaway" testId="talk-verdict-panel">
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-[#e3ecef] bg-[#f7fafb] px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#6a8391]">
+        <div className="rounded-xl border border-[#d8e1eb] bg-[#f6f8fb] px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
             You declared
           </p>
           <p
-            className="mt-2 text-sm text-[#102331]"
+            className="mt-2 text-sm text-[#102a4c]"
             data-testid="talk-declared-takeaway"
           >
             {declaredTakeaway ?? "Not recorded"}
           </p>
         </div>
-        <div className="rounded-xl border border-[#e3ecef] bg-[#f7fafb] px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#6a8391]">
+        <div className="rounded-xl border border-[#d8e1eb] bg-[#f6f8fb] px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
             The audience left with
           </p>
           <p
-            className="mt-2 text-sm text-[#102331]"
+            className="mt-2 text-sm text-[#102a4c]"
             data-testid="talk-heard-takeaway"
           >
             {outcome.takeawayHeard ?? "Not recorded"}
@@ -326,7 +326,7 @@ function TalkVerdict({ report }: { report: ReportDTO }) {
         </div>
       </div>
       <p
-        className="mt-4 text-sm leading-relaxed text-[#3a5563]"
+        className="mt-4 text-sm leading-relaxed text-[#334155]"
         data-testid="talk-match-sentence"
       >
         {matchSentence}
@@ -350,16 +350,16 @@ function VerdictCard({
 }) {
   return (
     <section
-      className="mb-6 rounded-2xl border border-[#d4e2e9] bg-white px-5 py-5"
+      className="mb-6 rounded-2xl border border-t-2 border-t-[#b79b4c] shadow-[0_10px_24px_rgba(0,48,135,0.08)] motion-safe:transition-[border-color,box-shadow] motion-safe:duration-200 border-[#c7d2df] bg-[#ffffff] px-5 py-5"
       data-testid={testId}
     >
-      <p className="text-xs font-medium uppercase tracking-[0.08em] text-[#6a8391]">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#003087]">
         Verdict
       </p>
-      <p className="mt-1 font-serif text-xl text-[#102331]">{heading}</p>
+      <h2 className="mt-1 font-serif text-xl text-[#003087]">{heading}</h2>
       <div className="mt-4">{children}</div>
       <p
-        className="mt-4 text-sm leading-relaxed text-[#526c7b]"
+        className="mt-4 text-sm leading-relaxed text-[#52657a]"
         data-not-a-score="true"
         data-testid="verdict-not-a-score-note"
       >
