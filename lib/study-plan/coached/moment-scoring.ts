@@ -29,6 +29,7 @@ import {
   DIMENSION_TO_COMPETENCY,
   type CompetencyKey,
 } from "@/lib/mastery/competencies";
+import { gradingSampling } from "../grading-determinism";
 
 export interface TurnToScore {
   turnIndex: number;
@@ -151,6 +152,7 @@ async function callModelOnce(args: {
       { role: "user", content: userMessage },
     ],
     max_tokens: 2_000,
+    ...gradingSampling(coachModel()),
     response_format: { type: "json_object" },
   });
   const content = completion.choices[0]?.message?.content;
