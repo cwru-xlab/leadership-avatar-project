@@ -65,6 +65,7 @@ import { validateContributionInputs } from "@/lib/mastery/ledger";
 import type { CompetencyKey } from "@/lib/mastery/competencies";
 import type { Technique } from "@/lib/study-plan/coached/tips";
 import { bestTechniqueFor, explanationFor, techniqueById } from "./explain";
+import { gradingSampling } from "../grading-determinism";
 
 // ---------------------------------------------------------------------------
 // Weight-class ordering — duplicated from 21-05's verifier DELIBERATELY. This
@@ -461,6 +462,7 @@ async function defaultCallRewriteModel(args: {
       { role: "user", content: userMessage },
     ],
     max_tokens: 1_000,
+    ...gradingSampling(model),
     response_format: {
       type: "json_schema",
       json_schema: REWRITE_GRADING_SCHEMA,

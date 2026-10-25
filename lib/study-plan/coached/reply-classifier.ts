@@ -17,6 +17,7 @@
  * then teaches and invites, which costs one turn, while a wrongly graded
  * reply could close a leg on something that was not an answer.
  */
+import { gradingSampling } from "../grading-determinism";
 
 export const MIN_ATTEMPT_WORDS = 12; // PROVISIONAL UNTIL CALIBRATED
 export const MAX_CLASSIFY_ATTEMPTS = 2;
@@ -88,6 +89,7 @@ async function defaultClassifier(input: ReplyClassifyInput): Promise<unknown> {
       },
     ],
     max_tokens: 120,
+    ...gradingSampling(process.env.COACH_CLASSIFIER_MODEL || process.env.COACH_MODEL || "gpt-4.1"),
     response_format: { type: "json_schema", json_schema: SCHEMA },
   });
   const content = completion.choices[0]?.message?.content;

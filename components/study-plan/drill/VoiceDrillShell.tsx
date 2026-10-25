@@ -107,9 +107,10 @@ export default function VoiceDrillShell({
   }
 
   function handleTryAgain(): void {
-    // The coach names ONE technique: from the last note's pointer, else the drill's own.
+    // The coach names ONE technique: the server's retry focus (the quoted
+    // miss, else the technique the note is about), else the drill's own.
     setRetryFocus(
-      graded?.attempt.pointers?.miss?.techniqueName ??
+      graded?.attempt.retryFocus?.techniqueName ??
         drill.techniqueName ??
         null,
     );
