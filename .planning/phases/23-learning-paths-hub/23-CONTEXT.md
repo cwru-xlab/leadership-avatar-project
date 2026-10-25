@@ -25,3 +25,11 @@ Do not change how interview, case studies, networking practice, practice pitches
 - **Prove-it step:** the final UNAIDED_SESSION opens the plan's source practice type with setup pre-filled and a brief naming the target skill; practice behaviour is unchanged when not pre-filled. Graded as a normal live session.
 - **Order:** learn → drill → rework → prove (knowledge check, voice drill(s), coached rework of the real moment, then one pre-filled unaided session).
 - **Since-plan baseline:** ledger-recomputed figure before the path's generatedAt (the selection snapshot is null for plans generated before the backfill).
+
+## Round three (user, 2026-10-24/25)
+
+- **Weak line:** plan skills averaging below 70% are weak targets; plan skills at or above 70% rank after themes and global gaps; never-measured skills are "absent" gaps.
+- **Concept checks:** when a skill has no quotable student moment, generate a concept check (MC / pick-better) that quotes nothing, so every path keeps learn → drill → prove.
+- **Prove-it carry-over:** reuse the source session's resume, job posting and pasted interviewer persona (ownership-scoped); decks need re-upload.
+- **Demonstrations:** use only facts the student actually said; otherwise bracketed placeholders ("[your result]"). Never invent achievements.
+- **Migration 20261124000000_add_voice_drills_and_prove_it:** applied to the LOCAL dev DB with the user's go-ahead (2026-10-24). Prod NOT migrated.
