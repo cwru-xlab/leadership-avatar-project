@@ -33,7 +33,8 @@ import type { InterviewTranscript } from "../../interview/transcript";
 import type { SessionMoment } from "../moments";
 import { prepareMomentsForGeneration, redact } from "../moment-boundary";
 import { validateVerbatimQuote } from "../verbatim";
-import { techniquesForCompetency, validateCoachSpeech } from "../coached/tips";
+import { techniquesForCompetency, validateCoachSpeech, type Technique } from "../coached/tips";
+import { isWrittenTechnique } from "../checks/explain";
 import { DRILL_DURATION, type PromptBasis, type VoiceDrillBrief } from "./types";
 
 /** One generic, second-person situation per competency — the LAST-RESORT
@@ -150,8 +151,6 @@ export function templateBrief(
   moments: ReadonlyArray<Pick<SessionMoment, "linkedGrowthAreaTitles"> & Partial<Pick<SessionMoment, "precedingAvatarText">>>,
   opts: { sessions?: ReadonlyArray<DrillSessionContext>; selfNames?: string[] } = {},
 ): VoiceDrillBrief {
-  const techniques = techniquesForCompetency(request.competencyKey);
-  const technique = techniques.length ? techniques[request.variant % techniques.length] : null;
 
   const titled = moments.filter((m) => m.linkedGrowthAreaTitles.length > 0);
   const moment = titled.length ? titled[request.variant % titled.length] : null;
@@ -185,6 +184,12 @@ export function templateBrief(
     promptBasis = "COMPETENCY";
     scenarioPrompt = `${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
   }
+
+  // Q2: the technique that FITS this prompt (and its weak-moment flag), never
+  // a library-position pick. A later drill on the same competency takes the
+  // next-best fit so the two reps practise different moves.
+  const ranked = rankDrillTechniques(request.competencyKey, scenarioPrompt, moment?.linkedGrowthAreaTitles ?? []);
+  const technique = ranked.length ? ranked[Math.min(request.variant, ranked.length - 1)] : null;
 
   return {
     competencyKey: request.competencyKey,
@@ -345,7 +350,7 @@ export async function generateDrillBriefs(
         position: r.position,
         competency: { label: competency.label, description: competency.description },
         plan_theme: r.theme,
-        allowed_techniques: techniquesForCompetency(r.competencyKey).map((t) => ({ id: t.id, name: t.name })),
+        allowed_techniques: allowedDrillTechniques(r.competencyKey).map((t) => ({ id: t.id, name: t.name })),
         moments: moments.map((m) => ({
           reportId: m.reportId,
           turnIndex: m.turnIndex,
@@ -430,7 +435,7 @@ export function validateCandidate(
     return { ok: false, position, reason: `scenario_prompt length ${scenario.length} outside ${MIN_SCENARIO_LENGTH}-${MAX_SCENARIO_LENGTH}` };
   }
 
-  const technique = techniquesForCompetency(request.competencyKey).find((t) => t.id === c.technique_id);
+  const technique = allowedDrillTechniques(request.competencyKey).find((t) => t.id === c.technique_id);
   if (!technique) return { ok: false, position, reason: `technique_id ${JSON.stringify(c.technique_id)} is not in this competency's library` };
 
   const quotedText = typeof c.quoted_text === "string" ? c.quoted_text : null;
@@ -519,4 +524,58 @@ export function groundedInSessions(scenario: string, sessions: ReadonlyArray<Dri
       return shared >= 2;
     });
   });
+}
+
+/**
+ * Q2: the techniques a drill on this competency may use. A delivery drill may
+ * use any delivery move; a CONTENT drill (every other competency) never gets
+ * a body/voice-only technique (the checks' spoken-only exclusion).
+ */
+export function allowedDrillTechniques(competencyKey: CompetencyKey): readonly Technique[] {
+  const library = techniquesForCompetency(competencyKey);
+  return competencyKey === "delivery_presence" ? library : library.filter(isWrittenTechnique);
+}
+
+function fitWords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^a-z']+/)
+      .filter((w) => w.length > 3 && !STOPWORDS.has(w) && !FIT_STOPWORDS.has(w))
+      .map((w) => w.replace(/(ing|ed|es|s)$/, "").replace(/(.)\1$/, "$1")),
+  );
+}
+
+const FIT_STOPWORDS = new Set(["your", "with", "that", "this", "them", "what", "when", "they", "from", "into", "then", "than", "said", "says", "focus", "answer", "seconds", "take", "loud", "out"]);
+
+function stableHash(text: string): number {
+  let h = 0;
+  for (let i = 0; i < text.length; i += 1) h = (h * 31 + text.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/**
+ * PURE (Q2): allowed techniques ranked by fit — word overlap of name +
+ * reminder with the scenario, with the weak-moment flag counted double. Ties
+ * are ordered by a hash of the scenario text (content, not path position).
+ */
+export function rankDrillTechniques(
+  competencyKey: CompetencyKey,
+  scenario: string,
+  flagTitles: readonly string[],
+): Technique[] {
+  const scenarioWords = fitWords(scenario);
+  const flagWords = fitWords(flagTitles.join(" "));
+  const seed = stableHash(scenario);
+  return allowedDrillTechniques(competencyKey)
+    .map((t) => {
+      let score = 0;
+      for (const w of fitWords(`${t.name} ${t.reminder}`)) {
+        if (scenarioWords.has(w)) score += 1;
+        if (flagWords.has(w)) score += 2;
+      }
+      return { t, score, tie: stableHash(`${seed}:${t.id}`) };
+    })
+    .sort((a, b) => b.score - a.score || a.tie - b.tie)
+    .map((x) => x.t);
 }
