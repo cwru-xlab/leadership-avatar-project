@@ -140,10 +140,12 @@ export function activityKeyForDriver(driver: {
   sourceReportId: string | null;
   sourceAttemptId: string | null;
   sourceCoachedSessionId: string | null;
+  sourceVoiceDrillAttemptId?: string | null;
 }): string | null {
   if (driver.sourceReportId) return `report:${driver.sourceReportId}`;
   if (driver.sourceAttemptId) return `attempt:${driver.sourceAttemptId}`;
   if (driver.sourceCoachedSessionId) return `coached:${driver.sourceCoachedSessionId}`;
+  if (driver.sourceVoiceDrillAttemptId) return `drill:${driver.sourceVoiceDrillAttemptId}`;
   return null;
 }
 
@@ -163,7 +165,12 @@ function driverDTOFor(
     origin: driver.origin,
     originLabel: driver.origin ? ORIGIN_LABELS[driver.origin] : driver.source,
     activityLabel:
-      link?.label ?? (driver.origin ? FALLBACK_ACTIVITY_LABEL[driver.origin] : driver.source),
+      link?.label ??
+      (driver.source === "VOICE_DRILL"
+        ? "Voice drill"
+        : driver.origin
+          ? FALLBACK_ACTIVITY_LABEL[driver.origin]
+          : driver.source),
     occurredAt: driver.occurredAt.toISOString(),
     percent: driver.percent,
     href: link?.href ?? null,
