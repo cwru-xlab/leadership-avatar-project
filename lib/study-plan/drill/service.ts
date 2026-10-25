@@ -23,6 +23,7 @@ import {
   deliverySummary,
   encodeGraderRecord,
   gradeDrillAttempt,
+  retryFocusFor,
 } from "./grade";
 import * as repo from "./repository";
 import {
@@ -104,7 +105,7 @@ async function ensureDrill(userId: string, step: Awaited<ReturnType<typeof loadD
   return repo.createVoiceDrill(userId, step.id, brief);
 }
 
-export function attemptDTO(row: repo.VoiceDrillAttemptRow): VoiceDrillAttemptDTO {
+export function attemptDTO(row: repo.VoiceDrillAttemptRow, competencyKey?: CompetencyKey): VoiceDrillAttemptDTO {
   const done = row.completedAt !== null;
   return {
     id: row.id,
@@ -117,6 +118,9 @@ export function attemptDTO(row: repo.VoiceDrillAttemptRow): VoiceDrillAttemptDTO
       ? deliverySummary(asVisualMetrics(row.visualMetrics), asVocalMetrics(row.vocalMetrics), row.spokenDurationMs)
       : null,
     pointers: done ? decodeGraderRecord(row.graderRationale).pointers : null,
+    retryFocus: done
+      ? retryFocusFor(decodeGraderRecord(row.graderRationale).pointers, competencyKey ? row.feedback : null, competencyKey)
+      : null,
   };
 }
 
@@ -136,7 +140,7 @@ export async function getDrill(userId: string, stepId: string): Promise<VoiceDri
     quotedText: drill.quotedText,
     durationSeconds: DRILL_DURATION,
     stepStatus: step.status,
-    attempts: attempts.map(attemptDTO),
+    attempts: attempts.map((a) => attemptDTO(a, competencyKey)),
   };
 }
 
@@ -156,7 +160,7 @@ export async function startAttempt(
       data: { status: "IN_PROGRESS" },
     });
   }
-  return attemptDTO(attempt);
+  return attemptDTO(attempt, step.competencyKey as CompetencyKey);
 }
 
 function wordCount(text: string): number {
@@ -247,5 +251,5 @@ export async function completeAttempt(
   }
 
   const row = await repo.readAttempt(userId, drill.id, attempt.id);
-  return attemptDTO(row!);
+  return attemptDTO(row!, competencyKey);
 }

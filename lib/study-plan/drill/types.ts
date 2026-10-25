@@ -68,6 +68,8 @@ export interface VoiceDrillAttemptDTO {
   delivery: DrillDeliverySummary | null;
   /** Exact-quote pointers (null while open, or for a legacy attempt). */
   pointers: DrillPointers | null;
+  /** The library technique "Try again" focuses on (null while open / no match). */
+  retryFocus: { techniqueId: string; techniqueName: string } | null;
 }
 
 /**
