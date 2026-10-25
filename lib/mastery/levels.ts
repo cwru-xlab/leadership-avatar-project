@@ -79,6 +79,11 @@ export interface LevelResult {
    * what makes a level PROGRESSION rather than a static badge: there is
    * always a visible next target, until there genuinely is none. */
   nextLevelAtPercent: number | null;
+  /** The figure the level was resolved from, so the badge can show how far
+   * the student is toward the next level; null when unmeasured. */
+  percent: number | null;
+  /** The minPercent of the CURRENT level (the bar's start); null when unmeasured. */
+  levelFloorPercent: number | null;
 }
 
 /**
@@ -117,6 +122,8 @@ export function levelFor(args: {
       name: "Not yet measured",
       provisional: false,
       nextLevelAtPercent: null,
+      percent: null,
+      levelFloorPercent: null,
     };
   }
 
@@ -142,5 +149,7 @@ export function levelFor(args: {
     name: resolved.name,
     provisional: tier === "THIN",
     nextLevelAtPercent: nextThreshold ? nextThreshold.minPercent : null,
+    percent,
+    levelFloorPercent: resolved.minPercent,
   };
 }

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 /**
  * Proves plan 21-17's two additions (per-competency levels, daily/weekly
  * goals) and — the larger half — proves the two mechanics 21-CONTEXT.md
@@ -479,6 +480,18 @@ check(
 
 console.log(`\nTotal checks: ${checkCount}`);
 console.log("");
+console.log("\nLevel progress (UAT 2026-10-25: small gains must be visible)");
+{
+  const r = levelFor({ percent: 39.2, tier: "ESTABLISHED" });
+  check("level carries its figure and floor for a progress bar", r.percent === 39.2 && r.levelFloorPercent === 0 && r.nextLevelAtPercent === 40);
+  const unmeasured = levelFor({ percent: null, tier: "ESTABLISHED" });
+  check("unmeasured carries no progress figures", unmeasured.percent === null && unmeasured.levelFloorPercent === null);
+  const badge = readFileSync("components/study-plan/PathVisuals.tsx", "utf8");
+  const shows = (src: string) => /<LevelProgress level=\{level\} \/>/.test(src) && /pts to Lv/.test(src);
+  check("LevelBadge renders progress toward the next level", shows(badge));
+  check("bite-proof: removing the progress render is caught", !shows(badge.replace("<LevelProgress level={level} />", "")));
+}
+
 if (failures > 0) {
   console.log(`${failures} check(s) FAILED`);
   process.exit(1);

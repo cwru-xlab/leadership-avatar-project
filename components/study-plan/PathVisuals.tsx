@@ -124,6 +124,34 @@ export function ProgressRing({
 }
 
 /** "Lv 3 · Competent" pill, from a pre-computed LevelResult. */
+/**
+ * How far the recent-form figure sits between this level's floor and the next
+ * level, so a small gain from one path step is visible even when the level
+ * itself does not change.
+ */
+function LevelProgress({ level }: { level: LevelResult }) {
+  const { percent, levelFloorPercent, nextLevelAtPercent } = level;
+  if (percent === null || levelFloorPercent === null || nextLevelAtPercent === null) return null;
+  const span = nextLevelAtPercent - levelFloorPercent;
+  const fill = span > 0 ? Math.min(1, Math.max(0, (percent - levelFloorPercent) / span)) : 0;
+  const toGo = Math.max(0, Math.ceil((nextLevelAtPercent - percent) * 10) / 10);
+  return (
+    <span className="ml-1 inline-flex items-center gap-1 font-normal text-[#58727f]">
+      <span
+        className="inline-block h-1.5 w-10 overflow-hidden rounded-full bg-[#cfe3ea]"
+        role="progressbar"
+        aria-label={`Progress to level ${(level.level ?? 0) + 1}`}
+        aria-valuemin={levelFloorPercent}
+        aria-valuemax={nextLevelAtPercent}
+        aria-valuenow={percent}
+      >
+        <span className="block h-full rounded-full bg-[#0a7391]" style={{ width: `${Math.round(fill * 100)}%` }} />
+      </span>
+      {toGo} pts to Lv {(level.level ?? 0) + 1}
+    </span>
+  );
+}
+
 export function LevelBadge({ level }: { level: LevelResult | undefined }) {
   if (!level) return null;
   if (level.level === null) {
@@ -147,6 +175,7 @@ export function LevelBadge({ level }: { level: LevelResult | undefined }) {
       </span>
       {level.name}
       {level.provisional ? <span className="font-normal text-[#58727f]">· provisional</span> : null}
+      <LevelProgress level={level} />
     </span>
   );
 }
