@@ -157,6 +157,7 @@ export default function PracticePitchesPickerPage() {
                 color="primary"
                 endContent={<ArrowRight size={16} />}
                 onPress={() => router.push(`/practice/${ELEVATOR_OPTION.slug}`)}
+                aria-label={`Start ${ELEVATOR_OPTION.title}`}
               >
                 Start
               </Button>
@@ -257,6 +258,7 @@ export default function PracticePitchesPickerPage() {
                     color="primary"
                     endContent={<ArrowRight size={16} />}
                     onPress={() => router.push(`/practice/${mode.slug}`)}
+                    aria-label={`Start ${mode.cardTitle}`}
                   >
                     Start
                   </Button>

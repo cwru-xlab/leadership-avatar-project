@@ -356,7 +356,7 @@ function VerdictCard({
       <p className="text-xs font-medium uppercase tracking-[0.08em] text-[#6a8391]">
         Verdict
       </p>
-      <p className="mt-1 font-serif text-xl text-[#102331]">{heading}</p>
+      <h2 className="mt-1 font-serif text-xl text-[#102331]">{heading}</h2>
       <div className="mt-4">{children}</div>
       <p
         className="mt-4 text-sm leading-relaxed text-[#526c7b]"

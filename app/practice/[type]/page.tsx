@@ -643,6 +643,7 @@ export default function PracticeTypePage() {
                 <DeckViewerPanel
                   deckId={deckUpload.deckId}
                   layout="stage"
+                  audienceLabel={deckMode?.listenerLine.toLowerCase()}
                   slides={deckUpload.slides}
                   onFurthestChange={setFurthestSlide}
                 />
@@ -942,12 +943,15 @@ export default function PracticeTypePage() {
                 />
               );
             }
-            if (stepId === "session-length") {
+            if (stepId === "session-length" && deckMode) {
+              // D19-1: the slider uses THIS mode's envelope — the same range
+              // the type's adjustableRangeSeconds clamps to on the server.
               return (
                 <SessionLengthStep
                   nav={nav}
                   sessionLength={sessionLength}
                   slideCount={deckUpload?.slideCount ?? null}
+                  envelopeSeconds={deckMode.envelopeSeconds}
                   onChange={setSessionLength}
                 />
               );
@@ -1004,6 +1008,12 @@ export default function PracticeTypePage() {
                   nav={nav}
                   selectedInterviewerId={selectedInterviewer?.avatarId ?? null}
                   onSelect={setSelectedInterviewer}
+                  {...(isPitch
+                    ? {
+                        heading: "Choose who you'll pitch to.",
+                        roleLabel: deckMode?.listenerLine ?? "Pitch listener",
+                      }
+                    : {})}
                 />
               );
             }

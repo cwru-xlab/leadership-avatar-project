@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@heroui/button";
 import { ArrowLeft } from "lucide-react";
 
 import { title } from "@/components/primitives";
@@ -41,16 +40,16 @@ export default async function EditConversationPage({
   return (
     <div className="space-y-8 py-2 md:py-4">
       <div className="flex flex-col gap-3">
-        <Button
-          as={Link}
+        {/* Plain styled next/link, not HeroUI Button as={Link}: this is a
+            server component, and passing the Link function as a prop to a
+            client component throws at render (D15-2). */}
+        <Link
           href="/conversations"
-          variant="light"
-          size="sm"
-          startContent={<ArrowLeft className="w-4 h-4" />}
-          className="self-start -ml-2 text-default-600 data-[hover=true]:bg-transparent"
+          className="self-start -ml-2 inline-flex items-center gap-2 rounded-small px-3 h-8 text-small text-default-600 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
         >
+          <ArrowLeft className="w-4 h-4" />
           Back to conversations
-        </Button>
+        </Link>
         <h1 className={title({ fullWidth: true })}>Edit conversation</h1>
         <p className="max-w-2xl text-default-500">
           Edits to a published scenario go live after the safety check. A
