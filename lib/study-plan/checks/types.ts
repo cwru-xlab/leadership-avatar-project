@@ -49,12 +49,23 @@ export interface FillInBlankPayload {
 
 export interface PickBetterResponsePayload {
   format: "PICK_BETTER_RESPONSE";
-  // One candidate SHOULD be the student's own verbatim line and the other a
-  // constructed alternative — but this module does not enforce which, since
-  // 21-10 owns generation and the verbatim guarantee (lib/study-plan/verbatim.ts).
-  // Cross-referencing that gate here would duplicate it in two places.
-  candidates: [string, string];
+  // Phase 23 (K1): 2-4 candidates. A pre-Phase-23 row has exactly 2 (the
+  // student's verbatim line first, one constructed alternative); a new row has
+  // 3-4 (the student's verbatim line, the strong target, 1-2 flawed
+  // distractors), shuffled deterministically per check at generation time.
+  // This module does not enforce which candidate is the student's — 21-10
+  // owns generation and the verbatim guarantee (lib/study-plan/verbatim.ts).
+  candidates: string[];
+  // Legacy only: new generation stores null. Never rendered as an
+  // instruction (it asked the student to "explain", and there is no input).
   rationalePrompt: string | null;
+  /**
+   * Phase 23 (K5): what the other person said immediately before the
+   * student's quoted line — the nearest preceding assistant turn, copied
+   * EXACTLY from the stored transcript by generation (never model text).
+   * Absent on older rows.
+   */
+  contextLine?: string | null;
 }
 
 export interface RewriteWeakLinePayload {
@@ -62,6 +73,11 @@ export interface RewriteWeakLinePayload {
   weakLine: string;
   techniqueHint: string;
   rubricCriteria: string[];
+  /** Phase 23 (K5): see PickBetterResponsePayload.contextLine. */
+  contextLine?: string | null;
+  /** Phase 23 (K2): the closed-library technique (coached/tips.ts) the
+   * rewrite practises. Absent on older rows. */
+  techniqueId?: string | null;
 }
 
 export type CheckPayload =
@@ -70,16 +86,35 @@ export type CheckPayload =
   | PickBetterResponsePayload
   | RewriteWeakLinePayload;
 
+/**
+ * Phase 23 (K2): the post-answer explanation, stored INSIDE the answer key
+ * because it reveals the answer — the answer key column is the one place the
+ * keyless DTO never reads, so the explanation cannot reach the browser before
+ * submission. Absent on older rows (grading falls back to a template).
+ *   techniqueId — a TECHNIQUE_LIBRARY id for the check's competency
+ *   why         — 1-2 sentences on why the correct answer works
+ *   options     — per option (MC options / PBR candidates, same order),
+ *                 what that option got wrong; null for the correct one
+ */
+export interface CheckExplanation {
+  techniqueId: string;
+  why: string;
+  options: (string | null)[] | null;
+}
+
 export interface MultipleChoiceAnswerKey {
   correctIndex: number;
+  explanation?: CheckExplanation;
 }
 
 export interface FillInBlankAnswerKey {
   accepted: string[][];
+  explanation?: CheckExplanation;
 }
 
 export interface PickBetterResponseAnswerKey {
-  betterIndex: 0 | 1;
+  betterIndex: number;
+  explanation?: CheckExplanation;
 }
 
 /**
@@ -102,7 +137,13 @@ const LIMITS = {
   fibSegmentLength: 500,
   fibAcceptedPerBlankMax: 20,
   fibAcceptedLength: 80,
+  pbrCandidateCountMin: 2,
+  pbrCandidateCountMax: 4,
   pbrCandidateLength: 600,
+  contextLineLength: 2000,
+  techniqueIdLength: 80,
+  explanationWhyLength: 400,
+  explanationOptionLength: 300,
   pbrRationaleLength: 500,
   rwlWeakLineMax: 600,
   rwlTechniqueHintLength: 240,
@@ -160,6 +201,36 @@ function readInteger(value: unknown, min: number, max: number, label: string): n
   return value;
 }
 
+function readExplanation(
+  value: unknown,
+  optionCount: number | readonly [number, number] | null,
+  label: string
+): CheckExplanation | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!isRecord(value)) throw new Error(`${label} explanation must be an object`);
+  const techniqueId = readString(
+    value.techniqueId,
+    1,
+    LIMITS.techniqueIdLength,
+    `${label} explanation.techniqueId`
+  );
+  const why = readString(value.why, 1, LIMITS.explanationWhyLength, `${label} explanation.why`);
+  let options: (string | null)[] | null = null;
+  if (value.options !== undefined && value.options !== null) {
+    if (optionCount === null) {
+      throw new Error(`${label} explanation.options is only valid for an option-based format`);
+    }
+    const [min, max] = typeof optionCount === "number" ? [optionCount, optionCount] : optionCount;
+    if (!Array.isArray(value.options) || value.options.length < min || value.options.length > max) {
+      throw new Error(`${label} explanation.options must have between ${min} and ${max} entries`);
+    }
+    options = value.options.map((entry, i) =>
+      readStringOrNull(entry, LIMITS.explanationOptionLength, `${label} explanation.options[${i}]`)
+    );
+  }
+  return { techniqueId, why, options };
+}
+
 function assertDistinct(values: string[], label: string): void {
   const seen = new Set<string>();
   for (const value of values) {
@@ -192,8 +263,10 @@ function validateMultipleChoicePayload(value: unknown): MultipleChoicePayload {
 
 function validateMultipleChoiceAnswerKey(value: unknown): MultipleChoiceAnswerKey {
   if (!isRecord(value)) throw new Error("Multiple-choice answer key must be an object");
+  const explanation = readExplanation(value.explanation, LIMITS.mcOptionCount, "Multiple-choice");
   return {
     correctIndex: readInteger(value.correctIndex, 0, 3, "Multiple-choice correctIndex"),
+    ...(explanation ? { explanation } : {}),
   };
 }
 
@@ -240,7 +313,8 @@ function validateFillInBlankAnswerKey(value: unknown): FillInBlankAnswerKey {
       `Fill-in-the-blank accepted[${i}]`
     )
   );
-  return { accepted };
+  const explanation = readExplanation(value.explanation, null, "Fill-in-the-blank");
+  return { accepted, ...(explanation ? { explanation } : {}) };
 }
 
 // ---------------------------------------------------------------------------
@@ -251,8 +325,14 @@ function validatePickBetterResponsePayload(value: unknown): PickBetterResponsePa
   if (!isRecord(value)) {
     throw new Error("Pick-the-better-response payload must be an object");
   }
-  if (!Array.isArray(value.candidates) || value.candidates.length !== 2) {
-    throw new Error("Pick-the-better-response candidates must contain exactly 2 items");
+  if (
+    !Array.isArray(value.candidates) ||
+    value.candidates.length < LIMITS.pbrCandidateCountMin ||
+    value.candidates.length > LIMITS.pbrCandidateCountMax
+  ) {
+    throw new Error(
+      `Pick-the-better-response candidates must contain between ${LIMITS.pbrCandidateCountMin} and ${LIMITS.pbrCandidateCountMax} items`
+    );
   }
   const candidates = value.candidates.map((candidate, i) =>
     readString(
@@ -261,14 +341,24 @@ function validatePickBetterResponsePayload(value: unknown): PickBetterResponsePa
       LIMITS.pbrCandidateLength,
       `Pick-the-better-response candidates[${i}]`
     )
-  ) as [string, string];
+  );
   assertDistinct(candidates, "Pick-the-better-response candidates");
   const rationalePrompt = readStringOrNull(
     value.rationalePrompt,
     LIMITS.pbrRationaleLength,
     "Pick-the-better-response rationalePrompt"
   );
-  return { format: "PICK_BETTER_RESPONSE", candidates, rationalePrompt };
+  const contextLine = readStringOrNull(
+    value.contextLine,
+    LIMITS.contextLineLength,
+    "Pick-the-better-response contextLine"
+  );
+  return {
+    format: "PICK_BETTER_RESPONSE",
+    candidates,
+    rationalePrompt,
+    ...(contextLine !== null ? { contextLine } : {}),
+  };
 }
 
 function validatePickBetterResponseAnswerKey(
@@ -277,13 +367,20 @@ function validatePickBetterResponseAnswerKey(
   if (!isRecord(value)) {
     throw new Error("Pick-the-better-response answer key must be an object");
   }
+  // The range against the stored payload's candidate count is checked at
+  // grade time (gradePickBetterResponse); here only the absolute bound.
   const betterIndex = readInteger(
     value.betterIndex,
     0,
-    1,
+    LIMITS.pbrCandidateCountMax - 1,
     "Pick-the-better-response betterIndex"
   );
-  return { betterIndex: betterIndex as 0 | 1 };
+  const explanation = readExplanation(
+    value.explanation,
+    [LIMITS.pbrCandidateCountMin, LIMITS.pbrCandidateCountMax],
+    "Pick-the-better-response"
+  );
+  return { betterIndex, ...(explanation ? { explanation } : {}) };
 }
 
 // ---------------------------------------------------------------------------
@@ -317,7 +414,24 @@ function validateRewriteWeakLinePayload(value: unknown): RewriteWeakLinePayload 
     LIMITS.rwlRubricCriterionLength,
     "Rewrite-a-weak-line rubricCriteria"
   );
-  return { format: "REWRITE_WEAK_LINE", weakLine, techniqueHint, rubricCriteria };
+  const contextLine = readStringOrNull(
+    value.contextLine,
+    LIMITS.contextLineLength,
+    "Rewrite-a-weak-line contextLine"
+  );
+  const techniqueId = readStringOrNull(
+    value.techniqueId,
+    LIMITS.techniqueIdLength,
+    "Rewrite-a-weak-line techniqueId"
+  );
+  return {
+    format: "REWRITE_WEAK_LINE",
+    weakLine,
+    techniqueHint,
+    rubricCriteria,
+    ...(contextLine !== null ? { contextLine } : {}),
+    ...(techniqueId !== null ? { techniqueId } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------

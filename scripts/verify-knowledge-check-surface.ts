@@ -177,11 +177,29 @@ console.log("\n1c. PICK_BETTER_RESPONSE");
       }),
     "candidates"
   );
+  // Phase 23 (K1): 3-4 candidates are the new shape; 2 stays valid for
+  // stored rows; 1 and 5 are rejected.
+  expectOk("ACCEPT: three candidates (K1)", () => {
+    validateCheckPayload("PICK_BETTER_RESPONSE", {
+      candidates: ["One", "Two", "Three"],
+      rationalePrompt: null,
+    });
+  });
+  expectOk("ACCEPT: four candidates with a contextLine (K1/K5)", () => {
+    const p = validateCheckPayload("PICK_BETTER_RESPONSE", {
+      candidates: ["One", "Two", "Three", "Four"],
+      rationalePrompt: null,
+      contextLine: "Tell me about a time you disagreed.",
+    });
+    if (p.format !== "PICK_BETTER_RESPONSE" || p.contextLine !== "Tell me about a time you disagreed.") {
+      throw new Error("contextLine not carried");
+    }
+  });
   expectThrow(
-    "REJECT: three candidates",
+    "REJECT: five candidates",
     () =>
       validateCheckPayload("PICK_BETTER_RESPONSE", {
-        candidates: ["One", "Two", "Three"],
+        candidates: ["One", "Two", "Three", "Four", "Five"],
         rationalePrompt: null,
       }),
     "candidates"
@@ -195,10 +213,50 @@ console.log("\n1c. PICK_BETTER_RESPONSE");
       }),
     "candidates"
   );
+  expectOk("ACCEPT: betterIndex 3 (4 candidates)", () => {
+    validateAnswerKey("PICK_BETTER_RESPONSE", { betterIndex: 3 });
+  });
   expectThrow(
-    "REJECT: betterIndex 2",
-    () => validateAnswerKey("PICK_BETTER_RESPONSE", { betterIndex: 2 }),
+    "REJECT: betterIndex 4",
+    () => validateAnswerKey("PICK_BETTER_RESPONSE", { betterIndex: 4 }),
     "betterIndex"
+  );
+  // K2: the explanation rides in the answer key, validated.
+  expectOk("ACCEPT: answer key with an explanation", () => {
+    const key = validateAnswerKey("PICK_BETTER_RESPONSE", {
+      betterIndex: 1,
+      explanation: { techniqueId: "structure-headline-first", why: "It leads with the point.", options: ["Buried.", null, "Hedged."] },
+    });
+    if (!key || !("explanation" in key) || key.explanation?.options?.length !== 3) {
+      throw new Error("explanation not carried");
+    }
+  });
+  expectThrow(
+    "REJECT: an explanation with no why",
+    () =>
+      validateAnswerKey("PICK_BETTER_RESPONSE", {
+        betterIndex: 1,
+        explanation: { techniqueId: "structure-headline-first", why: "", options: null },
+      }),
+    "why"
+  );
+  expectThrow(
+    "REJECT: MC explanation options not matching the 4 options",
+    () =>
+      validateAnswerKey("MULTIPLE_CHOICE", {
+        correctIndex: 1,
+        explanation: { techniqueId: "structure-headline-first", why: "Because.", options: [null, "x"] },
+      }),
+    "options"
+  );
+  expectThrow(
+    "REJECT: per-option explanations on FILL_IN_BLANK",
+    () =>
+      validateAnswerKey("FILL_IN_BLANK", {
+        accepted: [["x"]],
+        explanation: { techniqueId: "structure-headline-first", why: "Because.", options: ["x"] },
+      }),
+    "options"
   );
   expectThrow(
     "REJECT: null answer key for PICK_BETTER_RESPONSE",
