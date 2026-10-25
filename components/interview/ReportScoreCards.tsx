@@ -236,8 +236,8 @@ function CardShell({
 }) {
   return (
     <div
-      className={`flex h-full min-h-[132px] flex-col rounded-2xl border p-5 ${
-        muted ? "border-[#e3ebee] bg-[#f5f8fa]" : "border-[#d4e2e9] bg-white"
+      className={`report-score-card flex h-full min-h-[132px] flex-col border p-5 ${
+        muted ? "report-score-card-muted bg-[#f5f8fa]" : "bg-white"
       }`}
     >
       <p

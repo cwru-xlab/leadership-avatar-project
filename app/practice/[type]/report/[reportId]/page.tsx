@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { addToast } from "@heroui/toast";
-import { ArrowLeft, CircleAlert, Sparkles } from "lucide-react";
+import { ArrowLeft, CircleAlert, Landmark } from "lucide-react";
 
 import ReportCustomizationStrip from "@/components/interview/ReportCustomizationStrip";
 import ReportScoreCards, {
@@ -210,7 +210,7 @@ export default function PracticeReportPage() {
         title="Your practice report"
         onBackToReports={() => router.push("/reports")}
       >
-        <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#d4e2e9] bg-white p-8 shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
+        <div className="report-status-card flex flex-col items-start gap-3 rounded-xl border p-8">
           <CircleAlert className="text-[#0a7391]" size={26} />
           <p className="font-serif text-2xl text-[#102331]">
             This report type isn&apos;t set up to display yet
@@ -234,7 +234,7 @@ export default function PracticeReportPage() {
         title="Your interview report"
         onBackToReports={() => router.push("/reports")}
       >
-        <div className="rounded-2xl border border-[#d4e2e9] bg-white p-8 text-center shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
+        <div className="report-status-card rounded-xl border p-8 text-center">
           <p className="font-serif text-2xl text-[#102331]">
             Please sign in to view this report.
           </p>
@@ -254,7 +254,7 @@ export default function PracticeReportPage() {
         backLabel="Back to practice"
         showBackAlways
       >
-        <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#d4e2e9] bg-white p-8 shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
+        <div className="report-status-card flex flex-col items-start gap-3 rounded-xl border p-8">
           <CircleAlert className="text-[#0a7391]" size={26} />
           <p className="font-serif text-2xl text-[#102331]">Report not found</p>
           <Button color="primary" onPress={() => router.push("/case-play")}>
@@ -278,7 +278,7 @@ export default function PracticeReportPage() {
         backLabel={isInterviewChrome ? "Back to my reports" : "Back to practice"}
         showBackAlways={!isInterviewChrome}
       >
-        <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#d4e2e9] bg-white p-8 shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
+        <div className="report-status-card flex flex-col items-start gap-3 rounded-xl border p-8">
           <CircleAlert className="text-[#0a7391]" size={26} />
           <p className="font-serif text-2xl text-[#102331]">{error}</p>
           <Button
@@ -348,7 +348,7 @@ export default function PracticeReportPage() {
         />
       )}
 
-      <div className="mt-6 rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_24px_60px_rgba(20,58,75,0.12)] sm:p-8">
+      <div className="report-content-card mt-6 rounded-xl border p-6 sm:p-8">
         {report?.status === "READY" ? (
           <ReportBody
             structured={report.reportStructured}
@@ -509,23 +509,23 @@ function ReportShell({
   const topBackHandler = onBackToReports ?? onBack;
 
   return (
-    <main className="min-h-[100dvh] bg-[#f5f8fa] text-[#102331]">
-      <div className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
+    <main className="report-page">
+      <div className="report-container">
         {showTopBack && topBackHandler && (
           <button
             type="button"
             onClick={topBackHandler}
-            className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-[#58727f] transition-colors hover:text-[#0a7391]"
+            className="report-back-link mb-7 inline-flex items-center gap-1.5 text-sm font-semibold underline decoration-transparent underline-offset-4"
           >
             <ArrowLeft size={16} />
             {backLabel}
           </button>
         )}
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0a7391]">
-          <Sparkles size={14} />
+        <div className="report-kicker flex items-center gap-2 text-xs font-bold uppercase">
+          <Landmark aria-hidden="true" size={15} strokeWidth={2.25} />
           Leadership Avatar Practice
         </div>
-        <h1 className="mt-3 font-serif text-3xl tracking-[-0.03em] text-[#102331] sm:text-4xl">
+        <h1 className="report-heading mt-3 max-w-3xl font-serif text-4xl tracking-[-0.035em] sm:text-5xl">
           {title}
         </h1>
         {(interviewerName || completedAt) && (
@@ -536,7 +536,7 @@ function ReportShell({
           </p>
         )}
 
-        <div className="mt-8">{children}</div>
+        <div className="mt-9">{children}</div>
 
         {/* Interview shell only — scenario has no bottom footer (REQ-69). */}
         {onPracticeAgain && (
