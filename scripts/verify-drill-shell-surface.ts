@@ -44,7 +44,6 @@ const SHARED_RUNNER_IMPORTS = [
   "SessionRoom",
   "usePushToTalkRecorder",
   "useVisualCapture",
-  "useHoldToTalkKey",
   "SelfViewThumbnail",
   "FaceDetectionBanner",
 ];
@@ -193,7 +192,7 @@ function main() {
     ["score wording in the banner", { runner: sources.runner.replace("so your drill feedback can include visuals", "so your Visual score is right") }, "mentions a score"],
     ["no quote pointer in the result", { result: sources.result.replace("{miss.quote}", "{miss.techniqueId}") }, "student's words"],
     ["the runner moving tree position", { shell: sources.shell.replace("{runner}", "") }, "tree position"],
-    ["a dropped shared import", { runner: sources.runner.replace('from "@/components/session/useHoldToTalkKey"', 'from "./hold"') }, "useHoldToTalkKey"],
+    ["a dropped shared import", { runner: sources.runner.replace('from "@/components/session/useVisualCapture"', 'from "./visual"') }, "useVisualCapture"],
     ["a mid-drill score", { runner: sources.runner.replace("{liveTip}</p>", "{liveTip}</p>{attempt.score}") }, "renders a score"],
     ["a composed tip", { runner: sources.runner.replace("speak(liveTip)", "speak(`Try this: ${liveTip}`)") }, "speak the tip"],
     ["speech before CONNECTED", { runner: sources.runner.replace("    void speakIntroOnce();\n  }\n\n  function handleStageInactive", "  }\n\n  function handleStageInactive") }, "handleStageReady"],

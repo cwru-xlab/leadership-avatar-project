@@ -51,6 +51,7 @@ import SetupWizard, {
 import InterviewerStep, {
   type InterviewerOption,
 } from "@/components/practice/steps/InterviewerStep";
+import InterviewBackgroundReminderStep from "@/components/practice/steps/InterviewBackgroundReminderStep";
 import ListenerKnowledgeStep, {
   type ListenerKnowledge,
 } from "@/components/practice/steps/ListenerKnowledgeStep";
@@ -1032,6 +1033,17 @@ export default function PracticeTypePage() {
                     setResumeText(next.resumeText);
                     setResumeFileName(next.resumeFileName);
                   }}
+                />
+              );
+            }
+            if (stepId === "background-reminder" && interviewType) {
+              return (
+                <InterviewBackgroundReminderStep
+                  hasResume={Boolean(resumeId)}
+                  industry={interviewType.defaultIndustry}
+                  interviewerName={listenerDisplayName || "Your interviewer"}
+                  nav={nav}
+                  roleTitle={interviewType.defaultRoleTitle}
                 />
               );
             }

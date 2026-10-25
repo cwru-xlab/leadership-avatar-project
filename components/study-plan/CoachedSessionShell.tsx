@@ -21,7 +21,6 @@ import {
   SessionStagePane,
   SessionStatus,
 } from "@/components/session/SessionRoom";
-import { useHoldToTalkKey } from "@/components/session/useHoldToTalkKey";
 import { usePushToTalkRecorder } from "@/components/session/usePushToTalkRecorder";
 import { useSyncVisualSpeaking, useVisualCapture } from "@/components/session/useVisualCapture";
 import CoachedBriefCard from "@/components/study-plan/coached/CoachedBriefCard";
@@ -43,7 +42,7 @@ const COACHED_FACE_BANNER_DETAIL =
  * 22-AVATAR-MOUNT-DECISION.md): the live room is built from the same session
  * chrome the interview/practice shell uses — `components/session/` — not a
  * second copy of it: the camera consent step, the avatar stage and keep-alive,
- * the push-to-talk recorder with vocal capture, the hold-Space listener, the
+ * the push-to-talk recorder with vocal capture, the
  * self-view with face detection and visual capture, and the room layout. The
  * coach layer itself stays server-side in `lib/study-plan/coached/`; nothing
  * from the practice component tree is imported here.
@@ -506,8 +505,6 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   /** Live mirror of `!canSpeak`: refuses a recording start (the recorder's lock). */
   const talkLockRef = useRef(true);
   talkLockRef.current = !canSpeak;
-  const keyEnabledRef = useRef(false);
-  keyEnabledRef.current = canSpeak;
 
   const submitUtteranceRef = useRef(submitUtterance);
   submitUtteranceRef.current = submitUtterance;
@@ -528,7 +525,6 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
     toggleRecording,
     releaseMicrophone,
     vocalCaptureRef,
-    cancelPendingStartRef,
   } = usePushToTalkRecorder({
     language: "en",
     sending: coachBusy || finishingLeg,
@@ -541,7 +537,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
     onRejected: (reason) =>
       setTalkError(
         reason === "too-short"
-          ? "Nothing was recorded. Tap the microphone (or hold Space), speak, then send."
+          ? "Nothing was recorded. Tap the microphone, speak, then tap again to send."
           : "No speech was detected. Check that the right microphone is selected and not muted.",
       ),
     onTranscriptionFailed: (error) => {
@@ -559,7 +555,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   });
 
   // Unmount: release the microphone, the camera and the avatar. Declared
-  // BEFORE the hold-Space listener, as in practice.
+  // as in practice.
   useEffect(() => {
     return () => {
       if (slowConnectTimerRef.current !== null) window.clearTimeout(slowConnectTimerRef.current);
@@ -571,12 +567,6 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   }, [releaseMicrophone, releaseVisualCapture, vocalCaptureRef]);
 
   useSyncVisualSpeaking(syncSpeaking, isRecording);
-
-  const startRecordingRef = useRef<(() => void) | null>(null);
-  const stopRecordingRef = useRef<(() => void) | null>(null);
-  startRecordingRef.current = startRecording;
-  stopRecordingRef.current = stopRecording;
-  useHoldToTalkKey({ startRecordingRef, stopRecordingRef, cancelPendingStartRef, keyEnabledRef });
 
   // -------------------------------------------------------------------------
   // Leg close: the coach closed it (legReady), the student confirms moving on.
@@ -940,7 +930,6 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
                 isTranscribing={isTranscribing}
                 isDisabled={!canSpeak || isTranscribing}
                 onToggle={toggleRecording}
-                showSpaceHint={canSpeak}
                 idleLabel={coachBusy ? "Your coach is responding…" : idleLabel}
                 recordingLabel="Tap again to send"
                 startAriaLabel={idleLabel}

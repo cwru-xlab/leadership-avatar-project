@@ -49,6 +49,7 @@ import { SelfViewThumbnail } from "@/components/session/SelfViewThumbnail";
 import { FaceDetectionBanner } from "@/components/session/FaceDetectionBanner";
 import { SessionAvatar, useAvatarKeepAlive } from "@/components/session/SessionAvatar";
 import {
+  formatElapsed,
   PushToTalkControl,
   SessionLiveBadge,
   SessionRoom,
@@ -58,7 +59,6 @@ import {
   SessionStatus,
 } from "@/components/session/SessionRoom";
 import { usePushToTalkRecorder } from "@/components/session/usePushToTalkRecorder";
-import { useHoldToTalkKey } from "@/components/session/useHoldToTalkKey";
 import {
   useSyncVisualSpeaking,
   useVisualCapture,
@@ -347,16 +347,6 @@ function PracticeInterviewRoom({
     [onOpeningTurnTimingChange, openingTurnPhase]
   );
   const openingSentRef = useRef(false);
-  // Hold-Space push-to-talk refs. `startRecordingRef`/`stopRecordingRef` let
-  // the window-level listener (`useHoldToTalkKey`, registered once, below)
-  // always call the current `startRecording`/`stopRecording` closures without
-  // re-subscribing on every `sending`/`isPaused` change — see the render-time
-  // assignment after the recorder hook. The recorder itself (MediaRecorder,
-  // metering, vocal capture, transcription) lives in the shared
-  // `usePushToTalkRecorder` (components/session/).
-  const startRecordingRef = useRef<(() => void) | null>(null);
-  const stopRecordingRef = useRef<(() => void) | null>(null);
-
   // Phase 10 metrics capture (REQ-35/43/49), via the shared session chrome.
   // The camera stream and visual engine stay null for the entire session when
   // cameraMode is "OFF" — the self-view and banner both render nothing then.
@@ -373,6 +363,8 @@ function PracticeInterviewRoom({
   const [progress, setProgress] = useState<InterviewProgress>(initialProgress);
   const [input, setInput] = useState("");
   const [streamingText, setStreamingText] = useState("");
+  const [isAwaitingResponse, setIsAwaitingResponse] = useState(false);
+  const [responseWaitSeconds, setResponseWaitSeconds] = useState(0);
   const [sending, setSending] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [avatarReady, setAvatarReady] = useState(false);
@@ -556,9 +548,7 @@ function PracticeInterviewRoom({
   // Vocal capture, the microphone release and the visual-capture release now
   // live in the shared session hooks (`usePushToTalkRecorder`,
   // `useVisualCapture`). The unmount cleanup effect that calls them is
-  // declared right after the recorder hook below — still BEFORE the hold-Space
-  // listener, so `releaseMicrophone()` detaches `recorder.onstop` before the
-  // listener's `releaseHold()` runs.
+  // declared right after the recorder hook below.
 
   // The provider reaps idle sessions; ping while connected and unpaused (the
   // shared `useAvatarKeepAlive`, moved verbatim from here).
@@ -576,6 +566,25 @@ function PracticeInterviewRoom({
     }, 1_000);
     return () => window.clearInterval(interval);
   }, [isPaused, avatarReady]);
+
+  // Begins immediately after a valid answer is submitted and clears when the
+  // completed response renders, as well as on every stream completion/error
+  // path. An elapsed time communicates that work is still in progress without
+  // implying a response-time estimate.
+  useEffect(() => {
+    if (!isAwaitingResponse) {
+      setResponseWaitSeconds(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    setResponseWaitSeconds(0);
+    const interval = window.setInterval(() => {
+      setResponseWaitSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1_000);
+
+    return () => window.clearInterval(interval);
+  }, [isAwaitingResponse]);
 
   const sendMessage = useCallback(
     async (candidateMessage: string, forceWalkOutFarewell = false) => {
@@ -616,6 +625,7 @@ function PracticeInterviewRoom({
       setInput("");
       setSending(true);
       setStreamingText("");
+      setIsAwaitingResponse(true);
 
       try {
         const response = await fetch("/api/interaction/chat", {
@@ -726,6 +736,10 @@ function PracticeInterviewRoom({
           walkOutProofRef.current = walkOutMetadata.walkOutProof;
         }
         appendMessage({ role: "assistant", content: parsedTurn.cleanedText });
+        // This shell buffers transport streaming until the clean, marker-free
+        // response can render. Clear the wait indicator at that visible handoff,
+        // rather than at the first byte the learner cannot yet see.
+        setIsAwaitingResponse(false);
         const nextProgress = parsedTurn.progress ?? progress;
         setProgress(nextProgress);
         checkpoint(nextProgress);
@@ -817,6 +831,7 @@ function PracticeInterviewRoom({
         });
       } finally {
         setStreamingText("");
+        setIsAwaitingResponse(false);
         setSending(false);
       }
     },
@@ -860,7 +875,6 @@ function PracticeInterviewRoom({
     toggleRecording,
     releaseMicrophone,
     vocalCaptureRef,
-    cancelPendingStartRef,
   } = usePushToTalkRecorder({
     language,
     sending,
@@ -958,29 +972,6 @@ function PracticeInterviewRoom({
     void sendMessage(input);
   }, [input, sendMessage]);
 
-  // Bare render-time assignment — the `sendMessageRef` pattern (see
-  // `sendMessageRef.current = sendMessage;` above), not a `useEffect`. A
-  // render-time assignment is current the instant the new callback identity
-  // exists; an effect-deferred one lags by a flush, and a key event landing
-  // in that window would call the previous (possibly stale) closure. The
-  // hold-Space listener effect below subscribes once with `[]` deps and
-  // reads through these refs instead of depending on `startRecording`/
-  // `stopRecording` directly — depending on them would re-subscribe on every
-  // `sending`/`isPaused` change, i.e. mid-hold, and the matching keyup would
-  // land on a listener that no longer exists, leaving the microphone open.
-  startRecordingRef.current = startRecording;
-  stopRecordingRef.current = stopRecording;
-
-  // Hold-Space push-to-talk: one window-level listener shared by every
-  // engine-backed interaction type via this single shell — no per-type prop
-  // or branch. Registered once (see the ref-refresh comment above for why) so
-  // it is never torn down and re-attached mid-hold. Declared AFTER the unmount
-  // cleanup effect, exactly where the listener effect used to sit.
-  useHoldToTalkKey({
-    startRecordingRef,
-    stopRecordingRef,
-    cancelPendingStartRef,
-  });
 
   const answeredCount = Math.max(
     0,
@@ -1245,9 +1236,17 @@ function PracticeInterviewRoom({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col px-5 sm:px-8">
-          <div className="flex items-center justify-between border-y border-white/10 py-3 text-xs text-[#a9c5d6]">
-            <span>{progress.questionsAsked} of ~{targetQuestionCount} questions</span>
-            <span>{resumeFileName ? "Resume in context" : "Behavioral focus"}</span>
+          <div className="border-y border-white/10 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#73cee5]">
+              Practice flow
+            </p>
+            <p className="mt-1 text-xs leading-5 text-[#c4dbe7]">
+              Background, behavioral stories, and role-specific discussion. You&apos;ll have time to ask your questions at the end.
+            </p>
+            <div className="mt-2 flex items-center justify-between text-xs text-[#a9c5d6]">
+              <span>{progress.questionsAsked} of ~{targetQuestionCount} questions</span>
+              <span>{resumeFileName ? "Resume in context" : "Behavioral focus"}</span>
+            </div>
           </div>
 
           <div aria-live="polite" className="min-h-0 flex-1 space-y-5 overflow-y-auto py-6 pr-1">
@@ -1288,6 +1287,16 @@ function PracticeInterviewRoom({
               </article>
             )}
           </div>
+          {isAwaitingResponse && !isPaused ? (
+            <div
+              role="status"
+              className="flex items-center gap-2 pb-4 text-sm text-[#b9d5e4]"
+            >
+              <Spinner color="primary" size="sm" aria-hidden="true" />
+              <span>Waiting for a response</span>
+              <span aria-hidden="true">· {formatElapsed(responseWaitSeconds)}</span>
+            </div>
+          ) : null}
         </div>
 
         <div className="border-t border-white/10 bg-[#091925] px-5 py-5 sm:px-8">
@@ -1343,7 +1352,6 @@ function PracticeInterviewRoom({
                     walkOutLock || sending || isTranscribing || !avatarReady
                   }
                   onToggle={toggleRecording}
-                  showSpaceHint={!walkOutLock && avatarReady}
                 />
                 <Button
                   size="sm"
