@@ -11,7 +11,9 @@ import {
   type DisengagementCause,
   type DisengagementWeights,
 } from "../lib/engine/disengagement";
-import { SEVERE_PLACEHOLDER_TOKENS } from "../lib/engine/hostility";
+import { SEVERE_PLACEHOLDER_TOKENS, detectHostility } from "../lib/engine/hostility";
+import { DIFFICULT_CONVERSATION_TYPE } from "../lib/difficult-conversation/conversation-type";
+import { parseEngineTurn } from "../lib/engine/turn-control";
 
 let failures = 0;
 
@@ -807,6 +809,62 @@ console.log(
       hostileAtCrossTurn.value - 0.6 >= REAL_CROSSING_MARGIN,
     `value was ${hostileAtCrossTurn?.value}, margin ${hostileAtCrossTurn ? hostileAtCrossTurn.value - 0.6 : "n/a"}`,
   );
+}
+
+console.log("\n16. UAT 2026-10-25 — one severe remark ends a DC on its own (F20-1)");
+{
+  const policy = DIFFICULT_CONVERSATION_TYPE.terminationPolicy;
+  const dcWeights = policy.disengagementWeights ?? undefined;
+  const run = (lines: string[]) =>
+    computeDisengagementOverTranscript({
+      transcript: alternatingTranscript(lines),
+      elapsedSeconds: 30,
+      budgetSeconds: null,
+      assistantTurnCount: 1,
+      threshold: policy.disengagementThreshold,
+      weights: dcWeights,
+    });
+  const harassment = run(["Wear something tighter next time, I like looking at you."]);
+  check("a single harassing remark crosses the DC threshold (real DC weights)", harassment.crossed === true && harassment.severe === true, JSON.stringify({ v: harassment.value }));
+  check("severe_content is named as the dominant cause", harassment.dominantCauses[0] === "severe_content", harassment.dominantCauses.join(","));
+  const threat = run(["If you write me up I'll hurt you, I know where you live."]);
+  check("a single threat crosses the DC threshold", threat.crossed === true && threat.severe === true, JSON.stringify({ v: threat.value }));
+  const curly = run(["I\u2019ll hurt you if this review goes badly."]);
+  check("a threat with a typographic apostrophe is still caught", curly.severe === true);
+  const blunt = run(["This deal will kill me, honestly. I'll hit the deadline though."]);
+  check("figures of speech are not threats (no false severe)", blunt.severe === false && blunt.crossed === false, JSON.stringify({ v: blunt.value }));
+  const firm = run(["I disagree with your rating and I want it reviewed."]);
+  check("a firm, professional objection does not cross", firm.crossed === false && firm.severe === false);
+  check("identity-demeaning phrase is severe", detectHostility("People like you don't belong here.").severe === true);
+  // Live acceptance: a severe end marker before the 4-turn floor is accepted
+  // at chat time only when the severe flag reaches the gate.
+  const marker = 'I\'m stepping out. <engine-end reason="walked_out" />';
+  const liveOpts = { assistantTurnCount: 2, disengagementValue: policy.disengagementThreshold ?? 0.6 };
+  // parseEngineTurn reads only typeSlug, limits and terminationPolicy here.
+  const dcConfig = {
+    ...DIFFICULT_CONVERSATION_TYPE,
+    typeSlug: DIFFICULT_CONVERSATION_TYPE.slug,
+  } as unknown as Parameters<typeof parseEngineTurn>[1];
+  const accepted = parseEngineTurn(marker, dcConfig, { ...liveOpts, severeContent: true });
+  check("a severe walk-out before the floor is accepted live", accepted.termination?.reason === "walked_out", JSON.stringify(accepted.termination));
+  const rejected = parseEngineTurn(marker, dcConfig, { ...liveOpts, severeContent: false });
+  check("bite-proof: without the severe flag the same marker is rejected below the floor", rejected.termination == null);
+  const sessionSrc = readFileSync("lib/engine/session.ts", "utf8");
+  check("finish gates on the proof's server-chosen reason when it matches", /source === "avatar" && proofMatchesTranscript && walkOutProof!\.reason\s*\?\s*walkOutProof!\.reason/.test(sessionSrc));
+  // Bite-proof: the SAME signals with severeContent off stay below the line,
+  // so it is the severe lift — not ordinary hostility — that crosses.
+  const sig = extractDisengagementSignals({
+    transcript: alternatingTranscript(["Wear something tighter next time, I like looking at you."]),
+    elapsedSeconds: 30,
+    budgetSeconds: null,
+    assistantTurnCount: 1,
+  });
+  const withoutSevere = computeDisengagement({
+    signals: { ...sig, severeContent: false },
+    threshold: policy.disengagementThreshold,
+    weights: dcWeights,
+  });
+  check("bite-proof: the same turn without the severe flag does NOT cross", sig.severeContent === true && withoutSevere.crossed === false, JSON.stringify({ v: withoutSevere.value }));
 }
 
 console.log(`\n${failures === 0 ? "ALL PASS" : `${failures} FAILURE(S)`}\n`);

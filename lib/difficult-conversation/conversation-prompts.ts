@@ -284,6 +284,11 @@ timecode and the effect either way.
 
 This is the only place the character speaks out of the conversation. It appears in the student's report and never during the session.
 
+## Wording
+
+- This is a conversation, not an interview. In every prose field call it "the conversation" and refer to the other person as "the character" or by their role — never "the interview" or "the interviewer".
+- Describe only what the transcript shows. Messages may have been typed, so do not claim a volume or tone of voice (for example "yelling" or "shouting"); say what was written instead, such as "insults typed in all capitals".
+
 ## Avatar-ended sessions
 
 If the character ended the conversation, score every dimension on what DID happen — never zero a dimension and never report an error. Do not cap, clamp, or zero any score because of an early end. State the specific reasons it turned and the approximate timecode where it turned.

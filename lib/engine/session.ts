@@ -1019,9 +1019,9 @@ export async function finishSession({
   }
 
   // ---- terminationReason + outcome (REQ-62 / REQ-64) ----
-  // A signed proof authorizes a walk-out record, but never supplies the value
-  // persisted or passed to termination policy. Re-derive that from the
-  // submitted transcript at the server-stamped proof clock.
+  // A signed proof authorizes a walk-out record. The value is re-derived from
+  // the submitted transcript at the server-stamped proof clock, with the
+  // proof's own signed live result as a floor (see derivedDisengagement).
   const normalizedTurns = normalizeTurns(rawTurns);
   const assistantTurnCount = normalizedTurns.filter(
     (turn) => turn.role === "assistant",
@@ -1046,7 +1046,7 @@ export async function finishSession({
   const proofMatchesTranscript =
     walkOutProof !== null &&
     walkOutProof.assistantTurnCount <= assistantTurnCount;
-  const derivedDisengagement = deriveFinishDisengagement({
+  const replayedDisengagement = deriveFinishDisengagement({
     turns: normalizedTurns,
     elapsedSeconds:
       walkOutProof?.elapsedSeconds ??
@@ -1058,6 +1058,18 @@ export async function finishSession({
     // the same arithmetic as the live gate that ended the session.
     weights: type.terminationPolicy.disengagementWeights ?? undefined,
   });
+  // The replay cannot see the avatar's cue (markers are stripped from the
+  // submitted turns) and covers the whole transcript where the live gate saw a
+  // 20-message window, so it can land below a crossing the server already
+  // computed and signed. The signed live result is server evidence (HMAC,
+  // 2-minute TTL, bound to user + report), so it is a floor here: the recorded
+  // decision always agrees with the live one (UAT 2026-10-25, user decision,
+  // amending Phase 18's "the proof never supplies the value").
+  const derivedDisengagement =
+    proofMatchesTranscript &&
+    walkOutProof!.disengagement.value > replayedDisengagement.value
+      ? walkOutProof!.disengagement
+      : replayedDisengagement;
   const source = terminationSource ?? "student";
   // Severity from SERVER evidence only: the signed proof when it matches this
   // transcript, otherwise the fresh re-derivation. Never a request body.
@@ -1070,7 +1082,13 @@ export async function finishSession({
   const termination = resolveTermination({
     policy: type.terminationPolicy,
     source,
-    reason: terminationReason ?? null,
+    // A matching proof carries the server-chosen reason from the type's own
+    // vocabulary; prefer it to the client's, which can be a generic fallback
+    // the type does not declare (UAT 2026-10-25).
+    reason:
+      source === "avatar" && proofMatchesTranscript && walkOutProof!.reason
+        ? walkOutProof!.reason
+        : terminationReason ?? null,
     assistantTurnCount,
     disengagementValue:
       needsWalkOutProof && !proofMatchesTranscript
@@ -1093,8 +1111,13 @@ export async function finishSession({
         severe: severeContent,
       });
   // Rejected terminations write both reason and timecode as null (13-07).
+  // The derived walk-out reason describes why the CHARACTER left; a student
+  // who ends the session keeps their own reason (UAT 2026-10-25 D15-1 — a
+  // student close was being recorded as `nothing_left_to_discuss`).
   const recordedTerminationReason = termination.ok
-    ? derivedWalkOutReason ?? termination.recordedReason
+    ? source === "avatar"
+      ? derivedWalkOutReason ?? termination.recordedReason
+      : termination.recordedReason
     : null;
   const recordedTerminationAtSeconds =
     termination.ok

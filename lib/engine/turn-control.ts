@@ -38,6 +38,8 @@ export interface ParseEngineTurnOptions {
   assistantTurnCount?: number;
   /** Trusted derived value supplied by the chat path for threshold-enabled types. */
   disengagementValue?: number;
+  /** Trusted severe-content flag from the same derivation (REQ-100 floor carve-out). */
+  severeContent?: boolean;
 }
 
 export interface ParsedEngineTurn {
@@ -85,6 +87,9 @@ export function parseEngineTurn(
       reason: rawTermination.reason,
       assistantTurnCount: options.assistantTurnCount,
       disengagementValue: options.disengagementValue,
+      // Without this a severe walk-out before the floor was rejected live and
+      // the student's report recorded no termination (UAT 2026-10-25).
+      severeContent: options.severeContent === true,
     });
 
     if (resolved.ok) {
