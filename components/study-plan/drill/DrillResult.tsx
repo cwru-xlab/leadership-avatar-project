@@ -37,6 +37,8 @@ export default function DrillResult({
   const nextStepHref = useNextStepHref(planId, attempt.id);
   const score = attempt.score;
   const change = score !== null && previousScore !== null ? score - previousScore : null;
+  const miss = attempt.pointers?.miss ?? null;
+  const worked = attempt.pointers?.worked ?? null;
 
   return (
     <section aria-labelledby="drill-result-heading" className="space-y-6">
@@ -63,10 +65,31 @@ export default function DrillResult({
         </p>
       </div>
 
-      {attempt.feedback ? (
-        <article className="space-y-2 rounded-xl border border-[#cfe6ee] bg-[#eaf7fa] p-5" aria-label="What to try next time">
+      {attempt.feedback || miss ? (
+        <article className="space-y-3 rounded-xl border border-[#cfe6ee] bg-[#eaf7fa] p-5" aria-label="What to try next time">
           <h2 className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">What to try next time</h2>
-          <p className="whitespace-pre-wrap text-base leading-7 text-[#102331]">{attempt.feedback}</p>
+          {miss ? (
+            // The quote is an exact excerpt of this attempt's transcript
+            // (validated server-side); the technique is a library entry.
+            <p className="text-base leading-7 text-[#102331]" data-testid="drill-miss-pointer">
+              In your answer: <q className="italic">{miss.quote}</q> → try{" "}
+              <span className="font-semibold">{miss.techniqueName}</span>
+            </p>
+          ) : null}
+          {miss ? <p className="text-sm leading-6 text-[#385463]">{miss.reminder}</p> : null}
+          {attempt.feedback ? (
+            <p className="whitespace-pre-wrap text-sm leading-6 text-[#173847]">{attempt.feedback}</p>
+          ) : null}
+        </article>
+      ) : null}
+
+      {worked ? (
+        <article className="space-y-2 rounded-xl border border-[#cfe9df] bg-[#f0faf5] p-5" aria-label="What worked">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-[#327b68]">What worked</h2>
+          <p className="text-base leading-7 text-[#102331]" data-testid="drill-worked-pointer">
+            <q className="italic">{worked.quote}</q>
+          </p>
+          <p className="text-sm leading-6 text-[#385463]">{worked.note}</p>
         </article>
       ) : null}
 

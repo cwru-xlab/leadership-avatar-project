@@ -17,7 +17,7 @@ import type { ContributionInput } from "../../mastery/ledger";
 import { normalizeRubricScore } from "../../mastery/weights";
 import type { VisualMetrics, VocalMetrics } from "../../metrics/types";
 import { techniquesForCompetency, validateTip } from "../coached/tips";
-import type { DrillDeliverySummary } from "./types";
+import type { DrillDeliverySummary, DrillPointers } from "./types";
 
 export class DrillGradingFailedError extends Error {
   constructor(reason: string) {
@@ -32,11 +32,15 @@ export const DRILL_GRADING_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["score", "feedback", "rationale"],
+    required: ["score", "feedback", "rationale", "miss_quote", "miss_technique_id", "worked_quote", "worked_note"],
     properties: {
       score: { type: "integer", enum: [1, 2, 3, 4, 5] },
       feedback: { type: "string" },
       rationale: { type: "string" },
+      miss_quote: { type: "string" },
+      miss_technique_id: { type: "string" },
+      worked_quote: { type: "string" },
+      worked_note: { type: "string" },
     },
   },
 } as const;
@@ -46,7 +50,119 @@ export const DRILL_GRADING_SYSTEM_PROMPT = `You grade one short spoken practice 
 Score ONLY the named competency, on this scale: 1 = not shown at all, 2 = attempted but weak, 3 = adequate, 4 = strong, 5 = excellent. Judge the transcript against the competency; use the delivery figures only as supporting evidence for delivery-related competencies. Do not score anything else.
 
 "feedback" is ONE sentence telling the student what to try next time: name a technique or move, in the second person. Never give them words to say, never quote them, never write a sample line.
-"rationale" is 1-2 sentences explaining the score, for the record.`;
+"rationale" is 1-2 sentences explaining the score, for the record.
+
+Point at the student's ACTUAL words:
+- "miss_quote": a short excerpt (3-25 words) copied CHARACTER FOR CHARACTER from the transcript, at the spot where the competency was weakest or the technique was missing. "" only if there is truly no such spot.
+- "miss_technique_id": exactly one id from "allowed_techniques" — the technique to try at that spot. "" when miss_quote is "".
+- "worked_quote": ONLY when the score is 4 or 5, a short excerpt (3-25 words) copied character for character from the transcript where the competency was shown well; otherwise "".
+- "worked_note": ONLY when the score is 4 or 5, one short second-person sentence naming what worked there (do not quote); otherwise "".
+Never invent or tidy up an excerpt: if you cannot copy it exactly, return "".`;
+
+/** Excerpt bounds for a pointer quote. PROVISIONAL UNTIL CALIBRATED. */
+export const POINTER_QUOTE_WORDS = { min: 3, max: 30 } as const;
+
+/** Lower-case, unify quotes/dashes, collapse whitespace — with an index map back. */
+function normalizeWithMap(text: string): { norm: string; map: number[] } {
+  let norm = "";
+  const map: number[] = [];
+  let lastSpace = true;
+  for (let i = 0; i < text.length; i += 1) {
+    let ch = text[i];
+    if (/[\u2018\u2019\u201B]/.test(ch)) ch = "'";
+    else if (/[\u201C\u201D]/.test(ch)) ch = '"';
+    else if (/[\u2013\u2014]/.test(ch)) ch = "-";
+    if (/\s/.test(ch)) {
+      if (lastSpace) continue;
+      ch = " ";
+      lastSpace = true;
+    } else {
+      lastSpace = false;
+    }
+    norm += ch.toLowerCase();
+    map.push(i);
+  }
+  return { norm: norm.trimEnd(), map };
+}
+
+/**
+ * PURE. Returns the student's own words for `quote` — the matching slice of
+ * `transcript` — or null when the quote is not a substring of it (after
+ * whitespace/case/curly-quote normalization) or is outside the word bounds.
+ * Surrounding quote marks and ellipses the model may add are ignored.
+ */
+export function exactExcerpt(quote: string, transcript: string): string | null {
+  const cleaned = quote.trim().replace(/^["'\u201C\u2018…. ]+|["'\u201D\u2019… ]+$/g, "").trim();
+  const words = cleaned.split(/\s+/).filter(Boolean).length;
+  if (words < POINTER_QUOTE_WORDS.min || words > POINTER_QUOTE_WORDS.max) return null;
+  const q = normalizeWithMap(cleaned).norm.trim();
+  const t = normalizeWithMap(transcript);
+  const at = t.norm.indexOf(q);
+  if (!q || at === -1) return null;
+  const start = t.map[at];
+  const end = t.map[at + q.length - 1];
+  return transcript.slice(start, end + 1);
+}
+
+/**
+ * PURE gate for the "point at their words" pointers. Each pointer is kept only
+ * when its quote is an exact excerpt of the transcript; the miss technique
+ * must come from the competency's closed library (else the drill's own
+ * technique, else dropped); "what worked" only for a 4-5 and only with a note
+ * that passes the tip rules.
+ */
+export function parseDrillPointers(
+  p: Record<string, unknown>,
+  ctx: { competencyKey: CompetencyKey; transcript: string; score: number; drillTechniqueId?: string | null },
+): DrillPointers {
+  const library = techniquesForCompetency(ctx.competencyKey);
+  let miss: DrillPointers["miss"] = null;
+  const missQuote = typeof p.miss_quote === "string" ? exactExcerpt(p.miss_quote, ctx.transcript) : null;
+  if (missQuote) {
+    const technique =
+      library.find((t) => t.id === p.miss_technique_id) ??
+      library.find((t) => t.id === ctx.drillTechniqueId) ??
+      null;
+    if (technique) {
+      miss = { quote: missQuote, techniqueId: technique.id, techniqueName: technique.name, reminder: technique.reminder };
+    }
+  }
+  let worked: DrillPointers["worked"] = null;
+  if (ctx.score >= 4) {
+    const workedQuote = typeof p.worked_quote === "string" ? exactExcerpt(p.worked_quote, ctx.transcript) : null;
+    const note = typeof p.worked_note === "string" ? p.worked_note.trim() : "";
+    if (workedQuote && note && note.length <= 200 && validateTip(note, { studentLine: ctx.transcript }).ok) {
+      worked = { quote: workedQuote, note };
+    }
+  }
+  return { miss, worked };
+}
+
+/**
+ * The pointers ride in the existing `graderRationale` text column as a JSON
+ * envelope (no schema change). PURE; a legacy plain-text rationale reads back
+ * as `{ rationale: text, pointers: null }`.
+ */
+export function encodeGraderRecord(rationale: string, pointers: DrillPointers): string {
+  return JSON.stringify({ v: 1, rationale, pointers });
+}
+
+export function decodeGraderRecord(stored: string | null): { rationale: string; pointers: DrillPointers | null } {
+  if (!stored) return { rationale: "", pointers: null };
+  try {
+    const parsed = JSON.parse(stored) as { v?: unknown; rationale?: unknown; pointers?: unknown };
+    if (parsed && parsed.v === 1 && parsed.pointers && typeof parsed.pointers === "object") {
+      const ptr = parsed.pointers as DrillPointers;
+      return {
+        rationale: typeof parsed.rationale === "string" ? parsed.rationale : "",
+        pointers: { miss: ptr.miss ?? null, worked: ptr.worked ?? null },
+      };
+    }
+  } catch {
+    // legacy plain text
+  }
+  return { rationale: stored, pointers: null };
+}
 
 /** PURE: the delivery figures shown with a result. */
 export function deliverySummary(
@@ -69,6 +185,8 @@ export interface DrillGrade {
   /** True when the model's note was replaced by a library reminder. */
   feedbackReplaced: boolean;
   rationale: string;
+  /** Exact-excerpt pointers into the student's own words (may be empty). */
+  pointers: DrillPointers;
   model: string;
 }
 
@@ -79,7 +197,13 @@ export interface DrillGrade {
  */
 export function parseDrillGrade(
   raw: unknown,
-  ctx: { competencyKey: CompetencyKey; transcript: string; model: string; excludeTechniqueReminder?: string },
+  ctx: {
+    competencyKey: CompetencyKey;
+    transcript: string;
+    model: string;
+    excludeTechniqueReminder?: string;
+    drillTechniqueId?: string | null;
+  },
 ): DrillGrade {
   let parsed: unknown;
   try {
@@ -98,10 +222,16 @@ export function parseDrillGrade(
   normalizeRubricScore(score);
 
   const rationale = typeof p.rationale === "string" ? p.rationale.trim().slice(0, 1000) : "";
+  const pointers = parseDrillPointers(p, {
+    competencyKey: ctx.competencyKey,
+    transcript: ctx.transcript,
+    score,
+    drillTechniqueId: ctx.drillTechniqueId,
+  });
   const proposed = typeof p.feedback === "string" ? p.feedback.trim() : "";
   const verdict = proposed ? validateTip(proposed, { studentLine: ctx.transcript }) : null;
   if (proposed && verdict?.ok) {
-    return { score, feedback: proposed, feedbackReplaced: false, rationale, model: ctx.model };
+    return { score, feedback: proposed, feedbackReplaced: false, rationale, pointers, model: ctx.model };
   }
   const library = techniquesForCompetency(ctx.competencyKey);
   const replacement =
@@ -112,6 +242,7 @@ export function parseDrillGrade(
     feedback: replacement ? replacement.reminder : `Next time, keep ${label.toLowerCase()} in focus from your first sentence.`,
     feedbackReplaced: true,
     rationale,
+    pointers,
     model: ctx.model,
   };
 }
@@ -125,7 +256,7 @@ async function defaultCallModel(payload: { model: string; system: string; user: 
       { role: "system", content: payload.system },
       { role: "user", content: payload.user },
     ],
-    max_tokens: 500,
+    max_tokens: 700,
     response_format: { type: "json_schema", json_schema: DRILL_GRADING_SCHEMA },
   });
   const content = completion.choices[0]?.message?.content;
@@ -137,6 +268,7 @@ export async function gradeDrillAttempt(args: {
   competencyKey: CompetencyKey;
   scenarioPrompt: string;
   tipText: string;
+  techniqueId?: string | null;
   transcript: string;
   delivery: DrillDeliverySummary;
   callModel?: (payload: { model: string; system: string; user: string }) => Promise<unknown>;
@@ -149,6 +281,7 @@ export async function gradeDrillAttempt(args: {
     competency: { label: competency.label, description: competency.description },
     scenario: args.scenarioPrompt,
     live_technique_reminder: args.tipText,
+    allowed_techniques: techniquesForCompetency(args.competencyKey).map((t) => ({ id: t.id, name: t.name, reminder: t.reminder })),
     transcript: args.transcript,
     delivery: args.delivery,
   });
@@ -164,6 +297,7 @@ export async function gradeDrillAttempt(args: {
     transcript: args.transcript,
     model,
     excludeTechniqueReminder: args.tipText,
+    drillTechniqueId: args.techniqueId ?? null,
   });
 }
 
