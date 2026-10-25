@@ -762,7 +762,7 @@ REQ-73.
 
 ### Phase 21 — Adaptive Mastery Path
 
-- **REQ-103** — [ ] A single cross-type competency catalog exists, derived
+- **REQ-103** — [x] A single cross-type competency catalog exists, derived
   mechanically from the engine's rubric dimensions (the four shared keys plus
   every type's `extraRubricDimensions`), with a TOTAL dimension-to-competency
   mapping: every dimension key in the registry maps to exactly one competency,
@@ -785,7 +785,7 @@ REQ-73.
   surface is REACHABLE from the authenticated student navigation — a page a
   student can only find by typing a URL does not satisfy this.
 
-- **REQ-107** — [ ] Both live sessions and knowledge-check completions move
+- **REQ-107** — [x] Both live sessions and knowledge-check completions move
   mastery through one shared contribution ledger, with a declared weight per
   source. Stated as the student-observable condition it has to be: **a
   completed practice session whose report reaches READY writes
@@ -830,14 +830,14 @@ REQ-73.
   quietly damaging mastery. A contest endpoint with no affordance does not
   satisfy this.
 
-- **REQ-113** — [ ] Coached practice is its own instance that a student can
+- **REQ-113** — [x] Coached practice is its own instance that a student can
   actually START, and START ONLY from a step in a study plan's path. Both
   halves are conditions: a path-step entry point EXISTS and works, and no
   normal practice entry point can launch it, proven by a negative guard. Its
   relationship to the engine is decided and recorded explicitly rather than
   left implicit.
 
-- **REQ-114** — [ ] A student can COMPLETE a coached session, and in
+- **REQ-114** — [x] A student can COMPLETE a coached session, and in
   completing it experiences REPLAY FIRST, THEN FRESH: the student is shown the
   actual transcript moment to rework and works it, and only then is presented
   a SECOND real moment of their own evidencing the same competency, which the
@@ -848,7 +848,7 @@ REQ-73.
   Amended 2026-10-23 by Phase 22 (22-CONTEXT.md 'Session shape': the fresh leg
   is a second real moment of the student's own, not a new scenario).
 
-- **REQ-115** — [ ] Coach tips are TECHNIQUE REMINDERS ONLY. A tip names the
+- **REQ-115** — [x] Coach tips are TECHNIQUE REMINDERS ONLY. A tip names the
   skill and never scripts the student's words; the
   coach may demonstrate ONE version only after the student has attempted the
   rework in that leg, enforced by the same mechanical gate, and presented as a
@@ -885,7 +885,7 @@ REQ-73.
   level and goal progress, and the existing study-plan surface on
   `app/reports/page.tsx` keeps working unchanged, regression-guarded.
 
-- **REQ-121** — [ ] REQ-103..REQ-120 and REQ-122..REQ-124 are recorded in
+- **REQ-121** — [x] REQ-103..REQ-120 and REQ-122..REQ-124 are recorded in
   REQUIREMENTS.md and ROADMAP.md, and the REQ-85 amendment is recorded as a
   Phase 18 revision handoff section in Phase 21's OWN validation record —
   `18-VALIDATION.md` is not edited.
@@ -903,7 +903,7 @@ REQ-73.
   states is satisfied by construction rather than by whatever a route
   improvises.
 
-- **REQ-124** — [ ] The mapping from a report's scored rubric dimensions UP
+- **REQ-124** — [x] The mapping from a report's scored rubric dimensions UP
   into competency contributions exists in exactly ONE module, used by BOTH
   live-session and coached-session ingestion. Two copies of that mapping is a
   REQ-124 failure, because they will diverge and the two sources will stop
@@ -969,28 +969,28 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-100 | Phase 20 | Complete |
 | REQ-101 | Phase 20 | Complete |
 | REQ-102 | Phase 20 | Complete |
-| REQ-103 | Phase 21 | Pending |
+| REQ-103 | Phase 21 | Complete (agent-verified 2026-10-25) |
 | REQ-104 | Phase 21 | Complete |
 | REQ-105 | Phase 21 | Complete |
 | REQ-106 | Phase 21 | Complete |
-| REQ-107 | Phase 21 | Pending |
+| REQ-107 | Phase 21 | Complete (agent-verified 2026-10-25) |
 | REQ-108 | Phase 21 | Complete |
 | REQ-109 | Phase 21 | Complete |
 | REQ-110 | Phase 21 | Complete |
 | REQ-111 | Phase 21 | Complete |
 | REQ-112 | Phase 21 | Complete |
-| REQ-113 | Phase 22 | Pending |
-| REQ-114 | Phase 22 | Pending |
-| REQ-115 | Phase 22 | Pending |
+| REQ-113 | Phase 22 | Complete (agent-verified 2026-10-25) |
+| REQ-114 | Phase 22 | Complete (agent-verified 2026-10-25) |
+| REQ-115 | Phase 22 | Complete (agent-verified 2026-10-25) |
 | REQ-116 | Phase 21 | Complete |
 | REQ-117 | Phase 21 | Complete |
 | REQ-118 | Phase 21 | Complete |
 | REQ-119 | Phase 21 | Complete |
 | REQ-120 | Phase 21 | Complete |
-| REQ-121 | Phase 21 | Pending |
+| REQ-121 | Phase 21 | Complete (agent-verified 2026-10-25) |
 | REQ-122 | Phase 21 | Complete |
 | REQ-123 | Phase 21 | Complete |
-| REQ-124 | Phase 21 | Pending |
+| REQ-124 | Phase 21 | Complete (agent-verified 2026-10-25) |
 
 **Coverage:**
 - v1.1 requirements: 51 total

@@ -158,3 +158,19 @@ Steps reached: 1 (path generated), 2 (entry: failed, then entered after restart)
 3. Answer one moment with a vague reply, then a strong rework. Confirm that a technique is spoken and that no numbers appear mid-session.
 4. Finish the session and confirm the summary (scores, delivery bands, next-step link).
 5. Run one normal interview to confirm practice is unchanged.
+
+### UAT round 2 — agent-verified (2026-10-25)
+
+**Verdict: APPROVED — agent-verified (Playwright, real HeyGen/OpenAI), not human.**
+The user decided on 2026-10-25 that agent-driven evidence closes this gate. The
+runs were on the branch after merging origin/dev, so input is tap-to-send
+everywhere (dev #37, extended to coached sessions and drills by user decision).
+
+1. Paths tab → plan without a path → generated in 11s from the picker. **PASS**
+2. Coached step: brief → camera consent (coached wording) → Ann speaks the opening on CONNECTED. **PASS**
+3. A vague or off-topic reply gets an escalating technique ladder (headline first → one idea per sentence → signpost transitions) with no numbers mid-session. An on-topic rework is accepted, and the session resumes mid-way after leaving. **PASS**
+4. Summary: Moment 1 1/5→5/5, Moment 2 2/5→4/5, delivery bands (pace, fillers, eye contact, framing…), "Go to your next step". **PASS**
+5. Normal practice after the merge: a live general interview (prove-it entry) ran opening agenda → three tapped answers → follow-ups → End → READY report. **PASS**
+
+Contributions: two COACHED_SESSION rows (one per leg) and no LIVE_SESSION row.
+REQ-113/114/115: **Complete (agent-verified)**.
