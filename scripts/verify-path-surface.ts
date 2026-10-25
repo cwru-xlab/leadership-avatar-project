@@ -868,6 +868,43 @@ function runSection9() {
   check("the forbidden-term scan DETECTS a planted identifier (bite proof)", FORBIDDEN_TERMS.some((t) => planted.includes(t)));
 }
 
+// ---------------------------------------------------------------------------
+// Section 10 — Phase 23 check card: next step through the path contract
+// ---------------------------------------------------------------------------
+
+async function runSection10() {
+  console.log("\n10. PHASE 23 CHECK CARD — next step via hrefForStep, no gating terms");
+  const { hrefForStep } = await import("../components/study-plan/PathPanel");
+  const base = {
+    id: "step-1", position: 1, competencyKey: "structure_and_clarity", competencyLabel: "Structure",
+    selectionReason: "r", status: "PENDING", completedAt: null, coachedSessionId: null,
+    practiceSlug: null, check: null, coachedPhase: null,
+  } as const;
+  check(
+    "hrefForStep: a KNOWLEDGE_CHECK step links to the check page contract",
+    hrefForStep("plan-1", { ...base, kind: "KNOWLEDGE_CHECK", knowledgeCheckId: "chk-9" }) === "/study-plans/plan-1/checks/chk-9",
+  );
+  check(
+    "hrefForStep: the placeholder id yields no link (the card then shows only back-to-plan)",
+    hrefForStep("plan-1", { ...base, kind: "KNOWLEDGE_CHECK", knowledgeCheckId: "__PENDING_GENERATION__" }) === null,
+  );
+  const card = fs.readFileSync(path.join(ROOT, "components/study-plan/KnowledgeCheckCard.tsx"), "utf-8");
+  check(
+    "the check card imports hrefForStep from PathPanel (no copied link contract)",
+    /import \{ hrefForStep[^}]*\} from "@\/components\/study-plan\/PathPanel"/.test(card) && !card.includes("/drills/") && !card.includes("/coached/"),
+  );
+  for (const rel of [
+    "components/study-plan/KnowledgeCheckCard.tsx",
+    "app/study-plans/[planId]/checks/[checkId]/page.tsx",
+    "lib/study-plan/checks/copy.ts",
+    "lib/study-plan/checks/explain.ts",
+  ]) {
+    const stripped = stripCommentsAndStrings(fs.readFileSync(path.join(ROOT, rel), "utf-8")).toLowerCase();
+    const matches = FORBIDDEN_TERMS.filter((term) => stripped.includes(term));
+    check(`${rel} contains no gating/streak term outside a comment or string`, matches.length === 0, JSON.stringify(matches));
+  }
+}
+
 async function main() {
   runSection1();
   runSection1Moved();
@@ -877,6 +914,7 @@ async function main() {
   runSection6();
   runSection8();
   runSection9();
+  await runSection10();
   await runDatabaseSections();
 
   console.log(

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ArrowRight, Check } from "lucide-react";
 import { Card, CardBody } from "@heroui/card";
 import { Button } from "@heroui/button";
 import { Textarea } from "@heroui/input";
@@ -12,6 +13,8 @@ import {
   type CheckFormat,
   type CheckPayload,
 } from "@/lib/study-plan/checks/types";
+import { displayPrompt } from "@/lib/study-plan/checks/copy";
+import { hrefForStep, type PathViewDTO } from "@/components/study-plan/PathPanel";
 
 /**
  * Client-side types mirroring the attempt route's response shapes
@@ -91,6 +94,15 @@ export default function KnowledgeCheckCard({
   const [contestError, setContestError] = useState<string | null>(null);
 
   const alreadyAnswered = attempt !== null;
+  const nextStepHref = useNextStepHref(planId, checkId, attempt?.id ?? null);
+  const contextLine =
+    check.payload.format === "REWRITE_WEAK_LINE" || check.payload.format === "PICK_BETTER_RESPONSE"
+      ? check.payload.contextLine ?? null
+      : null;
+  // PICK_BETTER_RESPONSE with context: the context block carries the
+  // session link instead of a "your own words" block, because that block
+  // would label one of the options as the student's and hand the answer away.
+  const showQuoteBlock = !(check.payload.format === "PICK_BETTER_RESPONSE" && contextLine);
 
   async function submit(responseBody: unknown) {
     setSubmitting(true);
@@ -163,10 +175,32 @@ export default function KnowledgeCheckCard({
   return (
     <Card className="border border-[#dce8ed]">
       <CardBody className="space-y-6 p-6">
-        <QuoteBlock quotedText={check.quotedText} />
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+            {FORMAT_LABEL[check.payload.format]}
+          </p>
+          {/* K3: the question always matches the interaction below it. */}
+          <h1 className="mt-1 font-serif text-xl leading-snug text-[#102331]">
+            {displayPrompt(check.prompt, check.payload)}
+          </h1>
+        </div>
+
+        {contextLine && (
+          <ContextBlock
+            contextLine={contextLine}
+            sourceReportId={showQuoteBlock ? null : check.quotedText?.sourceReportId ?? null}
+          />
+        )}
+
+        {showQuoteBlock && <QuoteBlock quotedText={check.quotedText} />}
 
         <FormatBody
           payload={check.payload}
+          weakLineShownAbove={
+            showQuoteBlock &&
+            check.payload.format === "REWRITE_WEAK_LINE" &&
+            check.quotedText?.text === check.payload.weakLine
+          }
           disabled={submitting || alreadyAnswered}
           selectedIndex={selectedIndex}
           onSelectedIndexChange={setSelectedIndex}
@@ -222,14 +256,117 @@ export default function KnowledgeCheckCard({
             onSubmitContest={handleContest}
           />
         )}
+
+        {attempt && (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {/* K4: straight on to the next path step, via PathPanel's own link contract. */}
+            {nextStepHref && (
+              <Button
+                as={Link}
+                href={nextStepHref}
+                color="primary"
+                endContent={<ArrowRight className="h-4 w-4" aria-hidden="true" />}
+              >
+                Continue to your next step
+              </Button>
+            )}
+            <Button
+              as={Link}
+              href={`/study-plans/${planId}`}
+              variant={nextStepHref ? "light" : "solid"}
+              color={nextStepHref ? "default" : "primary"}
+            >
+              Back to your study plan
+            </Button>
+          </div>
+        )}
       </CardBody>
     </Card>
   );
 }
 
+const FORMAT_LABEL: Record<CheckFormat, string> = {
+  MULTIPLE_CHOICE: "Multiple choice",
+  FILL_IN_BLANK: "Fill in the blank",
+  PICK_BETTER_RESPONSE: "Pick the better response",
+  REWRITE_WEAK_LINE: "Rewrite a weak line",
+};
+
+/**
+ * The next path step's href after this check is answered, read from the
+ * plan's path DTO (the path GET completes an answered check's step) and
+ * built by PathPanel's `hrefForStep`. Null while loading, when the path is
+ * finished, or when the next step would be this same check.
+ */
+function useNextStepHref(planId: string, checkId: string, attemptId: string | null): string | null {
+  const [href, setHref] = useState<string | null>(null);
+  useEffect(() => {
+    if (!attemptId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/study-plans/${planId}/path`, {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!response.ok) return;
+        const data = (await response.json().catch(() => ({}))) as { path?: PathViewDTO | null };
+        const path = data.path;
+        if (!path?.nextStep) return;
+        const row = path.steps.find((step) => step.id === path.nextStep!.stepId);
+        if (!row || (row.kind === "KNOWLEDGE_CHECK" && row.knowledgeCheckId === checkId)) return;
+        const next = hrefForStep(planId, row);
+        if (!cancelled) setHref(next);
+      } catch {
+        // "Back to your study plan" is always rendered; nothing to report.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [planId, checkId, attemptId]);
+  return href;
+}
+
 // ---------------------------------------------------------------------------
-// Quote block
+// Context + quote blocks
 // ---------------------------------------------------------------------------
+
+/**
+ * K5: what the other person said right before the student's line. Copied
+ * exactly from the stored transcript at generation (or re-derived from it,
+ * through the verbatim gate, for older rows) — rendered untouched, like the
+ * quote block below.
+ */
+function ContextBlock({
+  contextLine,
+  sourceReportId,
+}: {
+  contextLine: string;
+  sourceReportId: string | null;
+}) {
+  return (
+    <div className="rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-[#58727f]">
+        In your session, they said
+      </p>
+      <blockquote
+        className="mt-2 text-sm leading-6 text-[#173847]"
+        style={{ whiteSpace: "pre-wrap" }}
+      >
+        {contextLine}
+      </blockquote>
+      {sourceReportId && (
+        <Link
+          href={`/practice/reports/${sourceReportId}`}
+          className="mt-2 inline-block text-xs font-semibold text-[#006b87] underline underline-offset-2"
+        >
+          View the session this came from
+        </Link>
+      )}
+    </div>
+  );
+}
 
 function QuoteBlock({ quotedText }: { quotedText: QuotedTextDTO | null }) {
   if (!quotedText) return null;
@@ -270,6 +407,8 @@ function QuoteBlock({ quotedText }: { quotedText: QuotedTextDTO | null }) {
 
 interface FormatBodyProps {
   payload: CheckPayload;
+  /** The weak line is already on screen in the quote block above. */
+  weakLineShownAbove: boolean;
   disabled: boolean;
   selectedIndex: number | null;
   onSelectedIndexChange: (value: number) => void;
@@ -287,9 +426,7 @@ function FormatBody(props: FormatBodyProps) {
   if (payload.format === "MULTIPLE_CHOICE") {
     return (
       <fieldset disabled={props.disabled} className="space-y-3">
-        <legend className="font-serif text-lg text-[#102331]">
-          Pick the best answer
-        </legend>
+        <legend className="sr-only">Pick the best answer</legend>
         {payload.options.map((option, index) => (
           <label
             key={index}
@@ -312,12 +449,11 @@ function FormatBody(props: FormatBodyProps) {
   if (payload.format === "PICK_BETTER_RESPONSE") {
     return (
       <fieldset disabled={props.disabled} className="space-y-3">
-        <legend className="font-serif text-lg text-[#102331]">
-          Which response is stronger?
-        </legend>
-        {payload.rationalePrompt && (
-          <p className="text-sm text-[#58727f]">{payload.rationalePrompt}</p>
-        )}
+        <legend className="sr-only">Pick the stronger response</legend>
+        {/*
+          K3: the legacy `rationalePrompt` ("Explain which answer…") is NOT
+          rendered — the card takes a choice, not an explanation.
+        */}
         {/*
           Neither candidate is ever labelled "yours" — even when one is the
           student's own verbatim line — because naming it would hand the
@@ -346,9 +482,7 @@ function FormatBody(props: FormatBodyProps) {
     let blankCursor = 0;
     return (
       <fieldset disabled={props.disabled} className="space-y-1">
-        <legend className="font-serif text-lg text-[#102331]">
-          Fill in the blank
-        </legend>
+        <legend className="sr-only">Fill in the blank</legend>
         <p className="flex flex-wrap items-center gap-x-1 gap-y-2 text-sm leading-7 text-[#385463]">
           {payload.segments.map((segment, segmentIndex) => {
             const isLastSegment = segmentIndex === payload.segments.length - 1;
@@ -384,15 +518,15 @@ function FormatBody(props: FormatBodyProps) {
   // REWRITE_WEAK_LINE
   return (
     <fieldset disabled={props.disabled} className="space-y-3">
-      <legend className="font-serif text-lg text-[#102331]">
-        Rewrite the weak line
-      </legend>
-      <div className="rounded-lg border border-[#dce8ed] p-3 text-sm text-[#385463]">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
-          Your line
-        </p>
-        <p className="mt-1">{payload.weakLine}</p>
-      </div>
+      <legend className="sr-only">Rewrite the weak line</legend>
+      {!props.weakLineShownAbove && (
+        <div className="rounded-lg border border-[#dce8ed] p-3 text-sm text-[#385463]">
+          <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+            Your line
+          </p>
+          <p className="mt-1" style={{ whiteSpace: "pre-wrap" }}>{payload.weakLine}</p>
+        </div>
+      )}
       <div className="rounded-lg border border-[#dce8ed] p-3 text-sm text-[#385463]">
         <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
           Technique to apply
@@ -505,12 +639,23 @@ function MarkPanel({
         ? "Not quite"
         : "Graded";
 
+  const isCorrect = attempt.correct === true;
+
   return (
     <div
       aria-live="polite"
-      className="rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4"
+      className={
+        isCorrect
+          ? "rounded-xl border border-[#9fd5b8] bg-[#eef9f2] p-4"
+          : "rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4"
+      }
     >
-      <p className="font-semibold text-[#102331]">
+      <p className="flex items-center font-semibold text-[#102331]">
+        {isCorrect && (
+          <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#1f8a5b] text-white">
+            <Check size={14} strokeWidth={3} aria-hidden="true" />
+          </span>
+        )}
         {/* Correctness conveyed in TEXT, not only colour. */}
         {correctnessLabel}
         {!isRewrite && (
@@ -519,9 +664,7 @@ function MarkPanel({
           </span>
         )}
       </p>
-      {attempt.detail && (
-        <p className="mt-2 text-sm leading-6 text-[#385463]">{attempt.detail}</p>
-      )}
+      {attempt.detail && <DetailLines detail={attempt.detail} />}
 
       {/* CONTEST AFFORDANCE — visible only once a mark exists. */}
       {contestState === "idle" && (
@@ -573,6 +716,31 @@ function MarkPanel({
           unchanged.
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * K2: the grade detail is one line per part ("Why it works: …",
+ * "Technique: …"). A known label is set in bold; anything else (older
+ * single-line details) renders as plain text, unchanged.
+ */
+const DETAIL_LABELS = ["What your pick missed", "Why it works", "Technique"] as const;
+
+function DetailLines({ detail }: { detail: string }) {
+  const lines = detail.split("\n").filter((line) => line.trim().length > 0);
+  return (
+    <div className="mt-2 space-y-1.5 text-sm leading-6 text-[#385463]">
+      {lines.map((line, i) => {
+        const label = DETAIL_LABELS.find((l) => line.startsWith(`${l}: `));
+        if (!label) return <p key={i}>{line}</p>;
+        return (
+          <p key={i}>
+            <span className="font-semibold text-[#102331]">{label}:</span>{" "}
+            {line.slice(label.length + 2)}
+          </p>
+        );
+      })}
     </div>
   );
 }

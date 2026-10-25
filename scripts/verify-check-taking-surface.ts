@@ -349,6 +349,46 @@ async function runStaticSections() {
       );
     }
   }
+
+  console.log("\n3b. PHASE 23 — checks that teach (K1-K5) on the taking surface");
+  {
+    const cardSource = fs.readFileSync(CARD_PATH, "utf8");
+    // K2: an explanation in the key never reaches the DTO.
+    const why = "Leading with the decision frames the details that follow.";
+    const pbrRow = {
+      id: "fixture-pbr4",
+      format: "PICK_BETTER_RESPONSE",
+      competencyKey: "structure_and_clarity",
+      prompt: "Which response handles this moment best?",
+      payload: validateCheckPayload("PICK_BETTER_RESPONSE", {
+        candidates: ["Strong content, conclusion last.", "Your own line, verbatim.", "Conclusion first, two supports.", "Hedged, sort of."],
+        rationalePrompt: null,
+        contextLine: "So what did you decide about the launch?",
+      }),
+      quotedText: "Your own line, verbatim.",
+      sourceReportId: "fixture-report-1",
+      quotedTurnIndex: 3,
+      answerKey: validateAnswerKey("PICK_BETTER_RESPONSE", {
+        betterIndex: 2,
+        explanation: { techniqueId: "structure-headline-first", why, options: ["Buried.", "Missing.", null, "Hedged."] },
+      }),
+    };
+    const dto = toKeylessCheckDTO(pbrRow);
+    const serialized = JSON.stringify(dto);
+    check("K2: a key-borne explanation never reaches the DTO", !serialized.includes(why) && !serialized.includes("explanation") && !hasKeyLeak(serialized), serialized);
+    check("K1: a 4-candidate row reaches the DTO with all 4 options in stored order", dto.payload.format === "PICK_BETTER_RESPONSE" && dto.payload.candidates.length === 4 && dto.payload.candidates[2] === "Conclusion first, two supports.");
+    check("K5: the stored context line reaches the DTO exactly", dto.payload.format === "PICK_BETTER_RESPONSE" && dto.payload.contextLine === "So what did you decide about the launch?");
+
+    check("K3: the card never renders the legacy rationalePrompt", !/\{payload\.rationalePrompt\}/.test(cardSource) && !/payload\.rationalePrompt\s*&&/.test(cardSource));
+    check("K3: the card renders the question through displayPrompt (one predicate shared with generation)", cardSource.includes("displayPrompt(check.prompt, check.payload)"));
+    check("K4: the card offers 'Continue to your next step' via PathPanel's hrefForStep", cardSource.includes("Continue to your next step") && cardSource.includes("hrefForStep(planId, row)"));
+    check("K4: the next-step fetch reads the plan's path DTO", cardSource.includes("/api/study-plans/${planId}/path"));
+    check("K4: back-to-plan points at the plan, not /reports", cardSource.includes("href={`/study-plans/${planId}`}") && !fs.readFileSync(PAGE_PATH, "utf8").includes('href="/reports"'));
+    check("K4: the contest affordance is still rendered", cardSource.includes("This grading looks wrong"));
+    check("K5: the context block renders the line untouched (pre-wrap, no trim)", /function ContextBlock[\s\S]*?pre-wrap[\s\S]*?\{contextLine\}/.test(cardSource) && !/contextLine\.trim\(\)/.test(cardSource));
+    check("K2: the mark renders one row per explanation line", cardSource.includes('detail.split("\\n")'));
+    check("no streaks, hearts, lives or unlock mechanics in the card", !/streak|hearts?\b|lives\b|unlock/i.test(cardSource));
+  }
 }
 
 // ---------------------------------------------------------------------------
