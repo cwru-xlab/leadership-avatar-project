@@ -56,6 +56,7 @@ import {
   isParrotOf,
   isRecycledFrom,
   isTechniqueParrot,
+  sharesWordSpan,
   techniqueLine,
   techniquesForCompetency,
   validateCoachSpeech,
@@ -85,6 +86,15 @@ export const INVITE_RETRY = "Give it one more try, out loud.";
  * to speak and slows the rep. Rejected (regenerated), never truncated.
  */
 export const MAX_INVITE_REACTION_LENGTH = 200;
+
+/**
+ * Phase 23 L7: support ESCALATES across not-yet attempts in a leg.
+ *   miss 1, 2 -> a technique, never the one named just before (chooseTechnique)
+ *   miss 3    -> the demonstration (the gated carve-out), then one last try
+ *   miss 4    -> close kindly with a one-line takeaway (the soft cap:
+ *                SOFT_CAP_ATTEMPTS_PER_LEG, flagged closedAtSoftCap)
+ */
+export const DEMONSTRATE_AT_MISS = 3;
 
 /**
  * Phase 23 L6. Marks a stored attempt that did not answer this moment's prompt
@@ -235,9 +245,24 @@ export function safeTechniques(competencyKey: string, studentLine: string): Tech
   });
 }
 
+/** The technique most recently named aloud in this leg, if any. */
+export function lastNamedTechnique(
+  safe: readonly Technique[],
+  coachTextsInLeg: readonly string[],
+): Technique | null {
+  for (let i = coachTextsInLeg.length - 1; i >= 0; i--) {
+    const hit = safe.find((t) => coachTextsInLeg[i].includes(techniqueLine(t)));
+    if (hit) return hit;
+  }
+  return null;
+}
+
 /**
  * The technique to name: the model's pick when it is a safe library id,
  * otherwise the first safe technique not yet named in this leg (cycling).
+ * Phase 23 L7: NEVER the same technique twice in a row within a leg (a miss
+ * escalates support, it does not repeat it); a repeated pick is overridden,
+ * not regenerated. Only a competency with a single safe technique repeats.
  */
 export function chooseTechnique(
   safe: readonly Technique[],
@@ -245,10 +270,19 @@ export function chooseTechnique(
   coachTextsInLeg: readonly string[],
 ): Technique | null {
   if (safe.length === 0) return null;
-  const requested = typeof requestedId === "string" ? safe.find((t) => t.id === requestedId) : undefined;
+  const previous = lastNamedTechnique(safe, coachTextsInLeg);
+  const pool = safe.length > 1 && previous ? safe.filter((t) => t.id !== previous.id) : safe;
+  const requested = typeof requestedId === "string" ? pool.find((t) => t.id === requestedId) : undefined;
   if (requested) return requested;
-  const unused = safe.find((t) => !coachTextsInLeg.some((txt) => txt.includes(techniqueLine(t))));
-  return unused ?? safe[coachTextsInLeg.length % safe.length];
+  const unused = pool.find((t) => !coachTextsInLeg.some((txt) => txt.includes(techniqueLine(t))));
+  return unused ?? pool[coachTextsInLeg.length % pool.length];
+}
+
+/** True when a reaction already names or paraphrases the technique the app will speak (Q6). */
+export function reactionParaphrasesTechnique(reaction: string, t: Technique | null): boolean {
+  if (!t) return false;
+  const norm = (x: string) => (x.toLowerCase().match(/[a-z0-9']+/g) ?? []).join(" ");
+  return norm(reaction).includes(norm(t.name)) || sharesWordSpan(reaction, t.reminder, 4);
 }
 
 /** Reaction + technique line + invitation, as one spoken turn. */
@@ -442,11 +476,27 @@ export async function coachTurn(
   const mustClose = lastStudent?.move === "ATTEMPT" && lastStudent.acceptable === true;
   const lastWasTipParrot = lastStudent?.move === "REPLY" && lastStudent.parroted === true;
   const legDoneEarned = state.hasAcceptableAttempt || (softCapReached && state.attemptsInLeg >= 1);
+  // L7 escalation. Only a student ATTEMPT (not a reply) moves the ladder.
+  const lastWasMiss = lastStudent?.move === "ATTEMPT" && lastStudent.acceptable !== true;
+  const closeKindly = !mustClose && lastWasMiss && state.attemptsInLeg >= SOFT_CAP_ATTEMPTS_PER_LEG;
+  const demonstrateNow =
+    !mustClose && !closeKindly && lastWasMiss && state.attemptsInLeg >= DEMONSTRATE_AT_MISS && demonstrationAllowed;
+  const escalation: "TECHNIQUE" | "DEMONSTRATE" | "CLOSE" | null = isOpening || mustClose
+    ? null
+    : closeKindly
+      ? "CLOSE"
+      : demonstrateNow
+        ? "DEMONSTRATE"
+        : lastWasMiss
+          ? "TECHNIQUE"
+          : null;
   const allowedMoves: CoachMove[] = isOpening
     ? ["OPEN"]
-    : mustClose
+    : mustClose || closeKindly
       ? ["LEG_DONE"]
-      : [
+      : demonstrateNow
+        ? ["DEMONSTRATE"]
+        : [
           "INVITE_ATTEMPT",
           ...(diagnosisCapReached ? [] : (["ASK_DIAGNOSIS", "CONFIRM", "CORRECT"] as CoachMove[])),
           ...(demonstrationAllowed ? (["DEMONSTRATE"] as CoachMove[]) : []),
@@ -496,6 +546,7 @@ export async function coachTurn(
     allowedMoves,
     diagnosisCapReached,
     lastUtteranceWasTipParrot: lastWasTipParrot,
+    escalation,
   });
   const history = toHistory(turns, args.leg);
   const generate = deps.generate ?? defaultGenerate;
@@ -543,10 +594,12 @@ export async function coachTurn(
     if (awaiting === "ATTEMPT" && move !== "DEMONSTRATE" && r.speech.trim().length > MAX_INVITE_REACTION_LENGTH) {
       return { ok: false, reason: "INVITE_REACTION_TOO_LONG" };
     }
-    const speech =
-      awaiting === "ATTEMPT" && move !== "DEMONSTRATE"
-        ? composeInvite(r.speech, chooseTechnique(safe, r.techniqueId, coachTextsInLeg), state.attemptsInLeg)
-        : r.speech.trim();
+    const composing = awaiting === "ATTEMPT" && move !== "DEMONSTRATE";
+    const technique = composing ? chooseTechnique(safe, r.techniqueId, coachTextsInLeg) : null;
+    if (composing && reactionParaphrasesTechnique(r.speech, technique)) {
+      return { ok: false, reason: "REACTION_PARAPHRASES_TECHNIQUE" };
+    }
+    const speech = composing ? composeInvite(r.speech, technique, state.attemptsInLeg) : r.speech.trim();
 
     if (mentionsGrade(speech)) return { ok: false, reason: "SPEECH_MENTIONS_GRADE" };
     const sp = validateCoachSpeech(speech, speechCtx);
@@ -617,6 +670,16 @@ export async function coachTurn(
       };
     } else if (mustClose) {
       out = { speech: "That version lands. We can close this moment here.", move: "LEG_DONE", awaiting: "NONE", demonstration: null };
+    } else if (closeKindly) {
+      const takeaway = lastNamedTechnique(safe, coachTextsInLeg) ?? safe[0] ?? null;
+      out = {
+        speech:
+          "Thanks for sticking with it; we'll close this moment here." +
+          (takeaway ? ` Your one takeaway to practise: ${takeaway.name.toLowerCase()}. ${takeaway.reminder}` : ""),
+        move: "LEG_DONE",
+        awaiting: "NONE",
+        demonstration: null,
+      };
     } else {
       const reaction = lastWasTipParrot
         ? "That's the technique itself; now use it on your real answer."
@@ -638,7 +701,7 @@ export async function coachTurn(
     }
     console.warn("[coach] all generation attempts rejected; delivering fallback");
     deps.trace?.({ kind: "FALLBACK", move: out.move });
-    chosen = { out, closedAtSoftCap: false };
+    chosen = { out, closedAtSoftCap: out.move === "LEG_DONE" && !state.hasAcceptableAttempt };
   }
 
   // 7. Persist and return.

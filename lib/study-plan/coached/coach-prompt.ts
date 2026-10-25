@@ -83,6 +83,8 @@ export interface CoachPromptInput {
   diagnosisCapReached?: boolean;
   /** The student's latest utterance repeated a technique back instead of answering. */
   lastUtteranceWasTipParrot?: boolean;
+  /** Phase 23 L7: the support step after a not-yet attempt (enforced in coach.ts). */
+  escalation?: "TECHNIQUE" | "DEMONSTRATE" | "CLOSE" | null;
 }
 
 /**
@@ -141,7 +143,7 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
     "1. ONE QUESTION, THEN TEACH. You ask at most ONE diagnostic question per moment (in your opening). After the student's reply, never ask another question: confirm or correct their diagnosis in ONE short sentence, pick ONE technique from the list below by its id, and invite the attempt (move INVITE_ATTEMPT).",
   );
   lines.push(
-    "2. The student attempts the rework FIRST, out loud, in their own words. When you invite an attempt, the app speaks the technique you picked and the invitation right after your `speech`, so your `speech` must NOT name, explain or paraphrase the technique or invite them itself: it is only your ONE-sentence reaction (under 25 words; longer is discarded).",
+    "2. The student attempts the rework FIRST, out loud, in their own words. When you invite an attempt, the app speaks the technique you picked and the invitation right after your `speech`, so your `speech` must NOT name, explain, paraphrase or hint at ANY technique, and must not invite them itself: it is only your ONE-sentence reaction to what they said (under 25 words). A reaction that names or paraphrases the technique is discarded.",
   );
   lines.push(
     "2b. If the student's reply was already a full reworked answer, it has been graded as an attempt; the verdict is below. After a not-yet attempt, say in one sentence specifically what was missing and pick the technique that fixes it.",
@@ -219,6 +221,19 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
   if (input.lastUtteranceWasTipParrot) {
     lines.push(
       "The student's latest words repeated the technique itself instead of answering. Do not treat that as an attempt: in one sentence, ask them to use it on their real answer.",
+    );
+  }
+  if (input.escalation === "TECHNIQUE") {
+    lines.push(
+      "ESCALATION: that was a miss. Pick a DIFFERENT technique id from the one you named last time; repeating it is overridden.",
+    );
+  } else if (input.escalation === "DEMONSTRATE") {
+    lines.push(
+      "ESCALATION: that was the third miss. Now DEMONSTRATE: give one version of THIS moment's answer in the `demonstration` field, a short `speech` lead-in, and invite one last try in their own words (awaiting ATTEMPT).",
+    );
+  } else if (input.escalation === "CLOSE") {
+    lines.push(
+      "ESCALATION: that was the last try. Close kindly with LEG_DONE: one sentence of honest credit for the effort, then one line naming the single thing to practise next. No verdict and no number.",
     );
   }
   if (input.diagnosisCapReached && !input.isOpening) {
