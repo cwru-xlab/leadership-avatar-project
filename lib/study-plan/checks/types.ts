@@ -97,7 +97,8 @@ export type CheckPayload =
  *                 what that option got wrong; null for the correct one
  */
 export interface CheckExplanation {
-  techniqueId: string;
+  /** Null when no written technique fits — the result then names none. */
+  techniqueId: string | null;
   why: string;
   options: (string | null)[] | null;
 }
@@ -208,9 +209,8 @@ function readExplanation(
 ): CheckExplanation | undefined {
   if (value === undefined || value === null) return undefined;
   if (!isRecord(value)) throw new Error(`${label} explanation must be an object`);
-  const techniqueId = readString(
+  const techniqueId = readStringOrNull(
     value.techniqueId,
-    1,
     LIMITS.techniqueIdLength,
     `${label} explanation.techniqueId`
   );

@@ -17,7 +17,14 @@
  * weak explanation is not a reason to lose a valid question.)
  *
  * OLDER ROWS have no stored explanation; `explanationFor` falls back to a
- * template built from the best-matching technique for the competency.
+ * template built from the best-matching technique for the competency — and
+ * to a technique-free template when nothing matches. It NEVER falls back to
+ * the competency's first technique (user decision, 2026-10-24).
+ *
+ * WRITTEN FORMATS ONLY GET WRITTEN TECHNIQUES. Every check format is read
+ * and answered in text, so a body/voice technique (eyes, shoulders, pace,
+ * pauses, breath) can never be named on one — not by the template, and not
+ * from a stored or model-proposed id. See `isWrittenTechnique`.
  */
 import type { InterviewTranscript } from "../../interview/transcript";
 import {
@@ -31,6 +38,29 @@ export const EXPLANATION_LIMITS = { why: 400, option: 300 } as const;
 
 function isCompetencyKey(key: string): key is CompetencyKey {
   return COMPETENCIES.some((c) => c.key === key);
+}
+
+/**
+ * Library techniques that are about the body or the voice — meaningless on
+ * a written check. Every delivery_presence entry (eyes up, pace, pause after
+ * the point, sweep the room) plus the visible-breath move under pressure.
+ */
+const SPOKEN_ONLY_TECHNIQUE_IDS: ReadonlySet<string> = new Set([
+  "delivery-eyes-up",
+  "delivery-slow-down",
+  "delivery-pause-after-point",
+  "delivery-own-the-room",
+  "pressure-slow-your-response",
+]);
+
+export function isWrittenTechnique(t: Pick<Technique, "id">): boolean {
+  return !SPOKEN_ONLY_TECHNIQUE_IDS.has(t.id);
+}
+
+/** The techniques a written check may name for this competency (may be empty). */
+export function writtenTechniquesFor(competencyKey: string): Technique[] {
+  if (!isCompetencyKey(competencyKey)) return [];
+  return techniquesForCompetency(competencyKey).filter(isWrittenTechnique);
 }
 
 function lowerFirst(s: string): string {
@@ -47,18 +77,16 @@ function words(text: string): Set<string> {
 }
 
 /**
- * The library technique whose name + reminder shares the most words with
- * `text` (ties go to library order). Used only when no valid technique id
+ * The WRITTEN library technique whose name + reminder shares the most words
+ * with `text` (ties go to library order). Null when no technique shares a
+ * single word — never a default pick. Used only when no valid technique id
  * was stored — a heuristic for older rows, not a grading input.
  */
 export function bestTechniqueFor(competencyKey: string, text: string): Technique | null {
-  if (!isCompetencyKey(competencyKey)) return null;
-  const techniques = techniquesForCompetency(competencyKey);
-  if (techniques.length === 0) return null;
   const target = words(text);
-  let best = techniques[0]!;
-  let bestScore = -1;
-  for (const t of techniques) {
+  let best: Technique | null = null;
+  let bestScore = 0;
+  for (const t of writtenTechniquesFor(competencyKey)) {
     let score = 0;
     for (const w of words(`${t.name} ${t.reminder}`)) if (target.has(w)) score += 1;
     if (score > bestScore) {
@@ -69,18 +97,27 @@ export function bestTechniqueFor(competencyKey: string, text: string): Technique
   return best;
 }
 
-/** The library entry for `id` IF it belongs to this competency; else null. */
+/** The library entry for `id` IF it belongs to this competency AND is a
+ * written technique; else null. */
 export function techniqueById(competencyKey: string, id: string | null | undefined): Technique | null {
-  if (!id || !isCompetencyKey(competencyKey)) return null;
-  return techniquesForCompetency(competencyKey).find((t) => t.id === id) ?? null;
+  if (!id) return null;
+  return writtenTechniquesFor(competencyKey).find((t) => t.id === id) ?? null;
+}
+
+/** The technique-free "why" for when no written technique matches. */
+export function competencyWhy(competencyKey: string): string {
+  const c = COMPETENCIES.find((x) => x.key === competencyKey);
+  return c
+    ? `The stronger answer handles this moment better on ${c.label.toLowerCase()}: ${lowerFirst(c.description)}`
+    : "The stronger answer handles this moment better.";
 }
 
 export function templateWhy(t: Technique): string {
   return `The stronger answer uses "${t.name}": ${lowerFirst(t.reminder)}`;
 }
 
-export function templateOptionMiss(t: Technique): string {
-  return `This option doesn't apply "${t.name}".`;
+export function templateOptionMiss(t: Technique | null): string {
+  return t ? `This option doesn't apply "${t.name}".` : "This option is weaker than the stronger answer.";
 }
 
 /**
@@ -132,14 +169,15 @@ export interface SanitizedExplanation {
  * known competency.
  */
 export function sanitizeExplanation(args: SanitizeArgs): SanitizedExplanation | null {
+  if (!isCompetencyKey(args.competencyKey)) return null;
   const replaced: SanitizedExplanation["replaced"] = [];
   let technique = techniqueById(args.competencyKey, args.proposed.techniqueId);
   if (!technique) {
+    // No match -> no technique (null), never a default one.
     technique = bestTechniqueFor(args.competencyKey, args.matchText);
-    if (!technique) return null;
     replaced.push("techniqueId");
   }
-  const allowedQuotes = [technique.name];
+  const allowedQuotes = technique ? [technique.name] : [];
 
   const okText = (value: string | null | undefined, max: number): value is string =>
     typeof value === "string" &&
@@ -148,8 +186,11 @@ export function sanitizeExplanation(args: SanitizeArgs): SanitizedExplanation | 
     quotesAreVerbatim(value, args.quotableSources, allowedQuotes);
 
   let why = args.proposed.why?.trim() ?? null;
-  if (!okText(why, EXPLANATION_LIMITS.why)) {
-    why = templateWhy(technique);
+  // A model "why" written around a technique that was just replaced (or
+  // dropped) would name the wrong move; only keep it with its own technique.
+  const keepWhy = !replaced.includes("techniqueId");
+  if (!keepWhy || !okText(why, EXPLANATION_LIMITS.why)) {
+    why = technique ? templateWhy(technique) : competencyWhy(args.competencyKey);
     replaced.push("why");
   }
 
@@ -163,11 +204,11 @@ export function sanitizeExplanation(args: SanitizeArgs): SanitizedExplanation | 
       const entry = aligned ? proposed![i]?.trim() ?? null : null;
       if (okText(entry, EXPLANATION_LIMITS.option)) return entry;
       if (aligned && !replaced.includes("options")) replaced.push("options");
-      return templateOptionMiss(technique!);
+      return templateOptionMiss(technique);
     });
   }
 
-  return { explanation: { techniqueId: technique.id, why, options }, replaced };
+  return { explanation: { techniqueId: technique?.id ?? null, why: why!, options }, replaced };
 }
 
 /**
@@ -178,14 +219,24 @@ export function explanationFor(
   competencyKey: string,
   stored: CheckExplanation | undefined,
   matchText: string,
-): { technique: Technique; why: string; options: (string | null)[] | null } | null {
+): { technique: Technique | null; why: string; options: (string | null)[] | null } | null {
+  if (!isCompetencyKey(competencyKey)) return null;
+  if (stored && stored.techniqueId === null) {
+    return { technique: null, why: stored.why, options: stored.options };
+  }
   const storedTechnique = stored ? techniqueById(competencyKey, stored.techniqueId) : null;
   if (stored && storedTechnique) {
     return { technique: storedTechnique, why: stored.why, options: stored.options };
   }
+  // No stored explanation, or one naming a technique a written check may not
+  // show (e.g. an older delivery pick): template, technique line dropped
+  // when nothing matches.
   const technique = bestTechniqueFor(competencyKey, matchText);
-  if (!technique) return null;
-  return { technique, why: templateWhy(technique), options: null };
+  return {
+    technique,
+    why: technique ? templateWhy(technique) : competencyWhy(competencyKey),
+    options: null,
+  };
 }
 
 // ---------------------------------------------------------------------------
