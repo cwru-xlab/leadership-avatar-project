@@ -76,7 +76,7 @@ function issues(s: Sources): string[] {
     out.push("shell does not use the shared CameraConsentStep");
   }
   for (const [label, src] of Object.entries(s)) {
-    if (/new MediaRecorder|getUserMedia|createVocalCapture|\/api\/audio\/transcribe/.test(src)) {
+    if (/new MediaRecorder|getUserMedia|\/api\/audio\/transcribe/.test(src) || (src.match(/createVocalCapture\(/g) ?? []).length > 1) {
       out.push(`${label} re-implements recording/capture (copy of the shared shell)`);
     }
     if (/from\s+["']@\/components\/practice\//.test(src)) out.push(`${label} imports from components/practice`);
@@ -95,13 +95,32 @@ function issues(s: Sources): string[] {
     out.push("runner composes text around the tip");
   }
 
-  // 4. Speech only into a CONNECTED stage, once.
-  const speakBrief = body(runner, "speakBriefOnce");
-  if (!/briefSpokenRef\.current/.test(speakBrief) || !/stageReadyRef\.current/.test(speakBrief)) {
-    out.push("speakBriefOnce is not guarded by once + connected");
+  // 4. Speech only into a CONNECTED stage, once per rep.
+  const speakIntro = body(runner, "speakIntroOnce");
+  if (!/introSpokenForRepRef\.current === forRep/.test(speakIntro) || !/stageReadyRef\.current/.test(speakIntro)) {
+    out.push("speakIntroOnce is not guarded by once-per-rep + connected");
   }
-  if (!/speakBriefOnce\(\)/.test(body(runner, "handleStageReady"))) {
+  if (!/speakIntroOnce\(\)/.test(body(runner, "handleStageReady"))) {
     out.push("the brief is not spoken from handleStageReady (CONNECTED)");
+  }
+
+  // 4b. D2 retry: one line, no scenario re-read, avatar session reused.
+  const retryBranch = speakIntro.slice(speakIntro.indexOf("if (forRep > 0)"), speakIntro.indexOf("avatar.speak(drill.scenarioPrompt)"));
+  if (!/avatar\.speak\(retryLine\(retryFocusRef\.current\)\)/.test(retryBranch) || !/return;/.test(retryBranch)) {
+    out.push("a retry re-reads the scenario instead of the one retry line");
+  }
+  if ((runner.match(/stopSession\(\)/g) ?? []).length !== 1) {
+    out.push("the avatar session is stopped outside unmount (retry cannot reuse it)");
+  }
+  if (/return runner;/.test(s.shell) || !/\{runner\}/.test(s.shell)) out.push("the runner does not keep one tree position under the result");
+  if (!/setRetryFocus\(\s*graded\?\.attempt\.pointers\?\.miss\?\.techniqueName/.test(s.shell)) {
+    out.push("the retry focus does not come from the last note's technique");
+  }
+
+  // 4c. D3: drill face banner copy, no score wording.
+  const bannerDetail = /DRILL_FACE_BANNER_DETAIL\s*=\s*"([^"]*)"/.exec(s.runner)?.[1] ?? "";
+  if (!bannerDetail || /score/i.test(bannerDetail) || !/detail=\{DRILL_FACE_BANNER_DETAIL\}/.test(s.runner)) {
+    out.push("the face banner has no drill detail copy, or it mentions a score");
   }
 
   // 5. Completion payload per the contract.
@@ -129,8 +148,12 @@ function issues(s: Sources): string[] {
   if (!/href="\/mastery"/.test(s.result)) out.push("result has no mastery link");
   if (!/onPress=\{onTryAgain\}/.test(s.result) || !/Try again/.test(s.result)) out.push("result has no try-again");
   if (!/\{attempt\.feedback\}/.test(s.result)) out.push("result does not show the next-time note");
+  if (!/\{miss\.quote\}/.test(s.result) || !/\{miss\.techniqueName\}/.test(s.result)) out.push("result does not point at the student's words (D1)");
+  if (!/\{worked\.quote\}/.test(s.result)) out.push("result has no what-worked quote (D1)");
   if (!/<DeliveryBandsCard/.test(s.result)) out.push("result does not show delivery bands");
-  if (!/setRepKey/.test(s.shell) || !/key=\{repKey\}/.test(s.shell)) out.push("try-again does not start a fresh attempt");
+  if (!/setRep\(\(r\) => r \+ 1\)/.test(s.shell) || !/rep=\{rep\}/.test(s.shell) || !/beginAttempt\(rep\)/.test(s.runner)) {
+    out.push("try-again does not start a fresh attempt");
+  }
 
   // 9. The page keeps the fixed URL contract and loads via the API client.
   if (!s.page.includes("fetchDrill(params.stepId)")) out.push("page does not load the drill through fetchDrill");
@@ -165,10 +188,15 @@ function main() {
   console.log("\n3. BITE PROOFS (each mutation must be caught)");
   const mutations: Array<[string, Partial<Sources>, string]> = [
     ["a local copy of the recorder", { runner: sources.runner + "\nconst r = new MediaRecorder(s);" }, "re-implements"],
+    ["a retry that re-reads the scenario", { runner: sources.runner.replace("avatar.speak(retryLine(retryFocusRef.current));", "avatar.speak(drill.scenarioPrompt);") }, "retry line"],
+    ["stopping the avatar on grading", { runner: sources.runner.replace("avatarRef.current?.interrupt();\n      onGraded", "avatarRef.current?.stopSession();\n      onGraded") }, "stopped outside unmount"],
+    ["score wording in the banner", { runner: sources.runner.replace("so your drill feedback can include visuals", "so your Visual score is right") }, "mentions a score"],
+    ["no quote pointer in the result", { result: sources.result.replace("{miss.quote}", "{miss.techniqueId}") }, "student's words"],
+    ["the runner moving tree position", { shell: sources.shell.replace("{runner}", "") }, "tree position"],
     ["a dropped shared import", { runner: sources.runner.replace('from "@/components/session/useHoldToTalkKey"', 'from "./hold"') }, "useHoldToTalkKey"],
     ["a mid-drill score", { runner: sources.runner.replace("{liveTip}</p>", "{liveTip}</p>{attempt.score}") }, "renders a score"],
     ["a composed tip", { runner: sources.runner.replace("speak(liveTip)", "speak(`Try this: ${liveTip}`)") }, "speak the tip"],
-    ["speech before CONNECTED", { runner: sources.runner.replace("    void speakBriefOnce();\n  }\n\n  function handleStageInactive", "  }\n\n  function handleStageInactive") }, "handleStageReady"],
+    ["speech before CONNECTED", { runner: sources.runner.replace("    void speakIntroOnce();\n  }\n\n  function handleStageInactive", "  }\n\n  function handleStageInactive") }, "handleStageReady"],
     ["a missing metrics field", { runner: sources.runner.replace("metrics: { visual: delivery.visual, vocal: delivery.vocal },", "") }, "lacks metrics"],
     ["a hard stop at 0:00", { runner: sources.runner.replace("const overTime =", "if (remaining === 0) void handleFinish();\n  const overTime =") }, "hard stop"],
     ["no coach from Settings", { shell: sources.shell.replace('fetch("/api/settings/coach"', 'fetch("/api/coach"') }, "Settings"],

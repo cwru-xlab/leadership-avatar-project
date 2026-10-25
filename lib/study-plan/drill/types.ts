@@ -14,7 +14,8 @@ export const DRILL_DURATION = { minSeconds: 60, maxSeconds: 90 } as const;
  * (the student can simply try again). PROVISIONAL UNTIL CALIBRATED. */
 export const MIN_GRADABLE_TRANSCRIPT_WORDS = 25;
 
-export const PROMPT_BASES = ["MOMENT", "THEME", "COMPETENCY"] as const;
+/** SESSION (D4): grounded in a real source session (role/industry, a question asked). */
+export const PROMPT_BASES = ["MOMENT", "SESSION", "THEME", "COMPETENCY"] as const;
 export type PromptBasis = (typeof PROMPT_BASES)[number];
 
 /** What a VoiceDrill row stores about its brief. */
@@ -41,6 +42,8 @@ export interface VoiceDrillDTO {
   competencyLabel: string;
   scenarioPrompt: string;
   tipText: string;
+  /** The library name of the drill's own technique (null for a legacy brief). */
+  techniqueName: string | null;
   /** Present only when the prompt quotes the student's own line. */
   quotedText: string | null;
   durationSeconds: typeof DRILL_DURATION;
@@ -63,6 +66,20 @@ export interface VoiceDrillAttemptDTO {
   feedback: string | null;
   /** Delivery figures shown with the result (null while open). */
   delivery: DrillDeliverySummary | null;
+  /** Exact-quote pointers (null while open, or for a legacy attempt). */
+  pointers: DrillPointers | null;
+}
+
+/**
+ * Pointers into the student's OWN words (D1): each quote is an exact excerpt
+ * of the attempt transcript, validated server-side; anything that fails is
+ * dropped, never repaired.
+ */
+export interface DrillPointers {
+  /** Where the technique was missing, and the library technique to try there. */
+  miss: { quote: string; techniqueId: string; techniqueName: string; reminder: string } | null;
+  /** For a strong attempt (4-5): where it worked, and a one-line note. */
+  worked: { quote: string; note: string } | null;
 }
 
 export interface DrillDeliverySummary {

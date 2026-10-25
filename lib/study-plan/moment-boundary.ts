@@ -101,7 +101,7 @@ const PHONE_PATTERN = /\b(?:\+?\d[\d\-.\s()]{6,}\d)\b/g;
  * mitigation in place is that ANY moment altered by this function is
  * dropped entirely by the caller, never sent redacted.
  */
-function redact(text: string, selfNames: string[]): { output: string; changed: boolean } {
+export function redact(text: string, selfNames: string[]): { output: string; changed: boolean } {
   let output = text;
   output = output.replace(EMAIL_PATTERN, "[email]");
   output = output.replace(URL_PATTERN, "[link]");
