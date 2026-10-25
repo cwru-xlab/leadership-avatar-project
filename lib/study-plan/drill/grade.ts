@@ -53,9 +53,9 @@ Score ONLY the named competency, on this scale: 1 = not shown at all, 2 = attemp
 "rationale" is 1-2 sentences explaining the score, for the record.
 
 Point at the student's ACTUAL words:
-- "miss_quote": a short excerpt (3-25 words) copied CHARACTER FOR CHARACTER from the transcript, at the spot where the competency was weakest or the technique was missing. "" only if there is truly no such spot.
+- "miss_quote": a short excerpt (3-25 words, one sentence at most) copied CHARACTER FOR CHARACTER from the transcript, at the spot where the competency was weakest or the technique was missing — the spot your "feedback" is about. REQUIRED whenever the score is below 5; "" only for a 5.
 - "miss_technique_id": exactly one id from "allowed_techniques" — the technique to try at that spot. "" when miss_quote is "".
-- "worked_quote": ONLY when the score is 4 or 5, a short excerpt (3-25 words) copied character for character from the transcript where the competency was shown well; otherwise "".
+- "worked_quote": ONLY when the score is 4 or 5, a short excerpt (3-25 words, one sentence at most) copied character for character from the transcript where the competency was shown well; otherwise "".
 - "worked_note": ONLY when the score is 4 or 5, one short second-person sentence naming what worked there (do not quote); otherwise "".
 Never invent or tidy up an excerpt: if you cannot copy it exactly, return "".`;
 
@@ -92,9 +92,16 @@ function normalizeWithMap(text: string): { norm: string; map: number[] } {
  * Surrounding quote marks and ellipses the model may add are ignored.
  */
 export function exactExcerpt(quote: string, transcript: string): string | null {
-  const cleaned = quote.trim().replace(/^["'\u201C\u2018…. ]+|["'\u201D\u2019… ]+$/g, "").trim();
+  let cleaned = quote.trim().replace(/^["'\u201C\u2018…. ]+|["'\u201D\u2019… ]+$/g, "").trim();
+  // An over-long excerpt is shortened to its opening sentence, then to the
+  // word cap: a prefix of an exact excerpt is still the student's own words.
+  if (cleaned.split(/\s+/).filter(Boolean).length > POINTER_QUOTE_WORDS.max) {
+    const firstSentence = cleaned.split(/(?<=[.!?])\s+/)[0];
+    const tokens = firstSentence.split(/\s+/).filter(Boolean);
+    cleaned = tokens.slice(0, POINTER_QUOTE_WORDS.max).join(" ");
+  }
   const words = cleaned.split(/\s+/).filter(Boolean).length;
-  if (words < POINTER_QUOTE_WORDS.min || words > POINTER_QUOTE_WORDS.max) return null;
+  if (words < POINTER_QUOTE_WORDS.min) return null;
   const q = normalizeWithMap(cleaned).norm.trim();
   const t = normalizeWithMap(transcript);
   const at = t.norm.indexOf(q);
