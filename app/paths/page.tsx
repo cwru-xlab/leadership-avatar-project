@@ -286,8 +286,12 @@ function PathsHub() {
                       path={selected.path}
                       levels={mastery?.levels}
                       highlightCompetency={focusCompetency}
+                      onRebuilt={(path, degradedCount) => {
+                        setPathFor(selected.plan.id, path);
+                        setDegraded((d) => ({ ...d, [selected.plan.id]: degradedCount }));
+                      }}
                       // GROWTH-SINCE-PLAN SLOT
-                      growthSlot={<SincePlanGrowth planId={selected.plan.id} />}
+                      growthSlot={<SincePlanGrowth key={selected.path.id} planId={selected.plan.id} />}
                     />
                     <DegradedStepsNote count={degraded[selected.plan.id] ?? 0} />
                   </>

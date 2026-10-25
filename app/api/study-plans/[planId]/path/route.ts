@@ -21,6 +21,7 @@ import {
   reasonForDegradedCheckToDrill,
   PLACEHOLDER_KNOWLEDGE_CHECK_ID,
 } from "@/lib/study-plan/next-step";
+import { isLegacyPathShape, isRebuildablePath } from "@/lib/study-plan/legacy-path";
 import { loadGenerationSources } from "@/lib/study-plan/checks/sources";
 import { generateChecksForCompetency } from "@/lib/study-plan/checks/generate";
 import { readCoachedSession } from "@/lib/study-plan/coached/instance";
@@ -143,6 +144,8 @@ export interface PathDTO {
   generatedAt: string;
   steps: PathStepDTO[];
   nextStep: { stepId: string; reason: string } | null;
+  /** Legacy-shaped and never started: the student may rebuild it (DELETE). */
+  rebuildable: boolean;
 }
 
 function labelFor(key: CompetencyKey): string {
@@ -305,6 +308,8 @@ export async function buildPathDTO(userId: string, path: PathWithSteps): Promise
     generatedAt: path.generatedAt.toISOString(),
     steps,
     nextStep: next ? { stepId: next.step.id, reason: next.reason } : null,
+    rebuildable:
+      isLegacyPathShape(path.steps.map((s) => s.kind)) && (await isRebuildablePath(path.id)),
   };
 }
 
@@ -585,5 +590,44 @@ export async function POST(
   } catch (error) {
     console.error("Study-plan path generation failed:", error);
     return response({ error: "Unable to generate a path for this study plan." }, 500);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DELETE — rebuild a legacy path the student never started
+// ---------------------------------------------------------------------------
+
+/**
+ * Removes this plan's path ONLY when `isRebuildablePath` holds (pre-Phase-23
+ * shape, nothing started), so the client can POST a fresh one. Any other
+ * path is 409: a path with progress is never replaced.
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ planId: string }> },
+) {
+  try {
+    const currentUser = await authenticate(request);
+    if (!currentUser) return response({ error: "Unauthorized" }, 401);
+
+    const { planId } = await params;
+    if (typeof planId !== "string" || !UUID_REGEX.test(planId)) {
+      return response(NOT_FOUND, 404);
+    }
+
+    const path = await prisma.studyPlanPath.findFirst({
+      where: { studyPlanId: planId, userId: currentUser.id },
+      select: { id: true },
+    });
+    if (!path) return response(NOT_FOUND, 404);
+    if (!(await isRebuildablePath(path.id))) {
+      return response({ error: "This path has progress or is already current, so it can't be rebuilt." }, 409);
+    }
+
+    await prisma.studyPlanPath.delete({ where: { id: path.id } });
+    return response({ deleted: true }, 200);
+  } catch (error) {
+    console.error("Study-plan path rebuild failed:", error);
+    return response({ error: "Unable to rebuild this plan's path." }, 500);
   }
 }

@@ -216,7 +216,11 @@ export default function StudyPlanPage() {
                   planId={plan.id}
                   path={path}
                   levels={mastery?.levels}
-                  growthSlot={<SincePlanGrowth planId={plan.id} />}
+                  growthSlot={<SincePlanGrowth key={path.id} planId={plan.id} />}
+                  onRebuilt={(rebuilt, degraded) => {
+                    setPath(rebuilt);
+                    setDegradedStepCount(degraded);
+                  }}
                 />
                 <DegradedStepsNote count={degradedStepCount} />
               </>
