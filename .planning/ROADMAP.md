@@ -41,10 +41,10 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [x] **Phase 14: Practice Pitches** - Elevator pitch plus investor pitch-deck session with live slide gating and negotiation
 - [x] **Phase 15: Difficult Conversations** - Role-assuming avatars, seeded catalog plus student-authored publishable scenarios (completed 2026-10-04)
 - [x] **Phase 16: Networking Practice** - Practice against a described real person or a default character (completed 2026-10-04)
-- [ ] **Phase 17: v1.0 Close-Out** - Discharge the shared-DB migration, REQ-63 verification, deck-intake fixture fix and deferred keyboard UAT
-- [ ] **Phase 18: Avatar Disengagement & Walk-Out** - A session the avatar is losing actually ends, as a recorded failure with an explained decline
-- [ ] **Phase 19: Deck-Led Pitch Family** - Four more deck-led pitch modes alongside the investor deck, sharing one deck capability
-- [ ] **Phase 20: Difficult Conversation Walk-Outs** - The avatar leaves a difficult conversation when the student loses control of its hostility
+- [x] **Phase 17: v1.0 Close-Out** - Discharge the shared-DB migration, REQ-63 verification, deck-intake fixture fix and deferred keyboard UAT
+- [x] **Phase 18: Avatar Disengagement & Walk-Out** - A session the avatar is losing actually ends, as a recorded failure with an explained decline
+- [x] **Phase 19: Deck-Led Pitch Family** - Four more deck-led pitch modes alongside the investor deck, sharing one deck capability
+- [x] **Phase 20: Difficult Conversation Walk-Outs** - The avatar leaves a difficult conversation when the student loses control of its hostility
 - [x] **Phase 21: Adaptive Mastery Path** - Study plans become a tailored improvement path: measured mastery, generated practice aimed at the gap, knowledge checks, and in-session coaching
 - [x] **Phase 22: Coached Mode** - Coached sessions get an actual coach: a coach persona, the avatar back, and a replay target worth reworking
 - [x] **Phase 23: Learning Paths Hub** - Study plans and paths get their own tabs, mastery reflects live + path growth, and the path loop teaches (completed 2026-10-25, agent-verified UAT)
@@ -721,7 +721,7 @@ Plans:
       (`32c2fa1` — `DisengagementDeclinePanel`, the `DisengagementDeclineRecord`
       narrower, and both evaluator prompts constrained to cite only supplied
       session-clock episodes and the closed observable-cause vocabulary)
-- [~] 18-05-PLAN.md — Human UAT + 18-VALIDATION.md against SC1–5 / REQ-78–86
+- [x] 18-05-PLAN.md — Human UAT + 18-VALIDATION.md against SC1–5 / REQ-78–86
       (`d97422a` prepared the file. **RUN once on 2026-10-06 and it FAILED**,
       surfacing two defects the green battery had passed over — both since
       repaired in `3479921`/`62bf512`, neither by retuning a threshold:
@@ -862,7 +862,7 @@ Plans:
 - [x] 19-08-PLAN.md — Picker: two top cards, "With a deck" expands in place to five mode cards
 - [x] 19-09-PLAN.md — Descriptive unscored verdicts through the existing ReportChrome extras slot
 - [x] 19-10-PLAN.md — Surface-count guard proving no engine module, route, evaluator or report page was touched
-- [ ] 19-11-PLAN.md — Phase validation + Pass 2 keyboard UAT recorded in BOTH 18- and 19-VALIDATION (human-verified)
+- [x] 19-11-PLAN.md — Phase validation + Pass 2 keyboard UAT recorded in BOTH 18- and 19-VALIDATION (human-verified)
 
 
 ### Phase 20: Difficult Conversation Walk-Outs
@@ -1083,7 +1083,7 @@ Plans:
 - [x] 20-04-PLAN.md — Named severe-content carve-out in resolveTermination + cause-to-reason resolver + deliberate verifier amendment (REQ-100, REQ-101) — complete 2026-10-09, see `20-04-SUMMARY.md`
 - [x] 20-05-PLAN.md — Live wiring at both server callers, policy-supplied forced-farewell reason, single in-character ending path guarded (REQ-96, REQ-99, REQ-100, REQ-101) — complete 2026-10-16, see `20-05-SUMMARY.md`
 - [x] 20-06-PLAN.md — Server-side quote sanitizer on the way out of toReportDto, with its own adversarial battery; no score cap (REQ-102) — complete 2026-10-09, see `20-06-SUMMARY.md`
-- [ ] 20-07-PLAN.md — Human adversarial UAT + 20-VALIDATION.md, Phase 18 revision handoff, calibration record (all eight REQs, human-verified; GATED on 18-05)
+- [x] 20-07-PLAN.md — Human adversarial UAT + 20-VALIDATION.md, Phase 18 revision handoff, calibration record (all eight REQs, human-verified; GATED on 18-05)
 
 ### Phase 21: Adaptive Mastery Path
 **Goal:** Grow study plans from a static post-session artifact into a tailored

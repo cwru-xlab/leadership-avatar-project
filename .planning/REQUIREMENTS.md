@@ -633,42 +633,42 @@ REQ-73.
 
 ### Phase 18 — Avatar Disengagement & Walk-Out
 
-- **REQ-78** — [ ] The engine carries a per-turn DISENGAGEMENT value computed from
+- **REQ-78** — [x] The engine carries a per-turn DISENGAGEMENT value computed from
   observable session signals — elapsed time against the budget, turn count,
   repetition, response length, whether the student established common ground. The
   computation is deterministic and tunable without a model call.
 
-- **REQ-79** — [ ] The live avatar can emit a disengagement cue in its per-turn
+- **REQ-79** — [x] The live avatar can emit a disengagement cue in its per-turn
   structured output, and that cue ACCELERATES the derived value rather than
   replacing it. A self-reported cue alone cannot end a session, so the
   role-playing model never has sole authority over its own patience.
 
-- **REQ-80** — [ ] A type declares a disengagement THRESHOLD in config. Crossing it
+- **REQ-80** — [x] A type declares a disengagement THRESHOLD in config. Crossing it
   is what triggers a walk-out; a type that declares no threshold behaves exactly as
   it does today. Adding the capability touches no type that does not opt in.
 
-- **REQ-81** — [ ] Crossing the threshold plays exactly one final avatar statement
+- **REQ-81** — [x] Crossing the threshold plays exactly one final avatar statement
   that the student can neither interrupt nor respond to — push-to-talk and the text
   input are closed for its duration.
 
-- **REQ-82** — [ ] After that final statement the session ends automatically and
+- **REQ-82** — [x] After that final statement the session ends automatically and
   generates a report, without the student pressing End-session.
 
-- **REQ-83** — [ ] The auto-ended session is recorded as a FAILURE instance with an
+- **REQ-83** — [x] The auto-ended session is recorded as a FAILURE instance with an
   avatar-initiated termination reason — not a neutral finish and not an error state.
   It reuses Phase 13's `terminationPolicy` outcome record rather than adding a
   parallel field.
 
-- **REQ-84** — [ ] A walk-out can never fire before the type's `avatarEndFloor`
+- **REQ-84** — [x] A walk-out can never fire before the type's `avatarEndFloor`
   minimum assistant turns, so no student is abandoned on the opening turn.
   `lib/pitch/deck-type.ts` gains a real floor in place of its current
   `avatarEndFloor: null`.
 
-- **REQ-85** — [ ] No disengagement indicator, meter or warning appears in the
+- **REQ-85** — [x] No disengagement indicator, meter or warning appears in the
   session shell at any point. The student learns they were losing the room from the
   report, never from a gauge.
 
-- **REQ-86** — [ ] The report explains the decline: when engagement fell and what
+- **REQ-86** — [x] The report explains the decline: when engagement fell and what
   the student was doing at those points, on the session clock, consistent with
   Phase 12's episode-timeline convention. Nothing the pipeline cannot observe is
   asserted as a cause.
@@ -719,23 +719,23 @@ REQ-73.
   per-scenario field, no authoring surface, nothing for an author to
   misconfigure.
 
-- **REQ-96** — [ ] Hostility signals are added to the engine's observable cause
+- **REQ-96** — [x] Hostility signals are added to the engine's observable cause
   vocabulary — insults and profanity directed at the avatar, escalation and
   aggression, stonewalling, and slurs/harassment as a separate severe category —
   computed DETERMINISTICALLY. The avatar's structured cue may accelerate the
   value but can never end a session on its own (REQ-79's invariant holds).
 
-- **REQ-97** — [ ] Firm, uncomfortable, non-hostile language never trips the
+- **REQ-97** — [x] Firm, uncomfortable, non-hostile language never trips the
   walk-out. Only language targeting the PERSON counts, never language targeting
   the position or performance. Proven against the register the seven seeded
   confrontation scenarios actually require.
 
-- **REQ-98** — [ ] A caller-supplied, observable signal records that the student
+- **REQ-98** — [x] A caller-supplied, observable signal records that the student
   never acknowledged the avatar's position — the live twin of Phase 15's
   `empathy` dimension — defaulting to false so no model prose counts as live
   evidence merely by existing (REQ-80's posture).
 
-- **REQ-99** — [ ] Ordinary hostility ACCUMULATES across turns and the value
+- **REQ-99** — [x] Ordinary hostility ACCUMULATES across turns and the value
   ratchets one-way. There is no decay and no apology-driven recovery, preserving
   Phase 18's `computeDisengagementOverTranscript` fix.
 
@@ -944,15 +944,15 @@ Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 | REQ-75 | Phase 17 | Complete |
 | REQ-76 | Phase 17 | Complete |
 | REQ-77 | Phase 17 | Complete |
-| REQ-78 | Phase 18 | Pending |
-| REQ-79 | Phase 18 | Pending |
-| REQ-80 | Phase 18 | Pending |
-| REQ-81 | Phase 18 | Pending |
-| REQ-82 | Phase 18 | Pending |
-| REQ-83 | Phase 18 | Pending |
-| REQ-84 | Phase 18 | Pending |
-| REQ-85 | Phase 18 | Pending |
-| REQ-86 | Phase 18 | Pending |
+| REQ-78 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-79 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-80 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-81 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-82 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-83 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-84 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-85 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-86 | Phase 18 | Complete (agent-verified 2026-10-25) |
 | REQ-87 | Phase 19 | Complete |
 | REQ-88 | Phase 19 | Complete |
 | REQ-89 | Phase 19 | Complete |
