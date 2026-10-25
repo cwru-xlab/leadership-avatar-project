@@ -11,16 +11,24 @@ import DrillBrief from "@/components/study-plan/drill/DrillBrief";
 import DrillResult from "@/components/study-plan/drill/DrillResult";
 import VoiceDrillRunner from "@/components/study-plan/drill/VoiceDrillRunner";
 import { fetchDrill } from "@/components/study-plan/drill/api";
-import type { DrillCoach, DrillDelivery } from "@/components/study-plan/drill/contract";
+import type {
+  DrillCoach,
+  DrillDelivery,
+} from "@/components/study-plan/drill/contract";
 import { CONTRIBUTION_WEIGHTS } from "@/lib/mastery/weights";
 import type { CameraMode } from "@/lib/metrics/types";
-import type { VoiceDrillAttemptDTO, VoiceDrillDTO } from "@/lib/study-plan/drill/types";
+import type {
+  VoiceDrillAttemptDTO,
+  VoiceDrillDTO,
+} from "@/lib/study-plan/drill/types";
 
 /**
  * VOICE_DRILL flow: brief -> camera consent -> live rep (VoiceDrillRunner on
  * the shared session chrome) -> graded result. Two taps from the path to
  * speaking ("Start", then the camera choice); "Try again" goes straight back
- * into the room with the same camera choice.
+ * into the room with the same camera choice. The runner stays mounted (hidden)
+ * under the result so a retry reuses the live avatar session; it is remounted
+ * only if that session died in the meantime.
  *
  * No numbers before the result; no gating — any drill can be redone at any
  * time, and each finished attempt counts as its own evidence.
@@ -50,8 +58,12 @@ export default function VoiceDrillShell({
   const [coach, setCoach] = useState<DrillCoach | null>(null);
   const [coachError, setCoachError] = useState(false);
   const [graded, setGraded] = useState<GradedView | null>(null);
-  /** Remounts the runner for a fresh attempt. */
+  /** The rep counter the mounted runner follows (a retry increments it). */
+  const [rep, setRep] = useState(0);
+  const [retryFocus, setRetryFocus] = useState<string | null>(null);
+  /** Remounts the runner — only when its avatar session has died. */
   const [repKey, setRepKey] = useState(0);
+  const [stageLost, setStageLost] = useState(false);
 
   // The student's coach from Settings — the same identity coached mode uses.
   useEffect(() => {
@@ -71,13 +83,21 @@ export default function VoiceDrillShell({
     };
   }, []);
 
-  const worthPct = Math.round((CONTRIBUTION_WEIGHTS.VOICE_DRILL / CONTRIBUTION_WEIGHTS.LIVE_SESSION) * 100);
+  const worthPct = Math.round(
+    (CONTRIBUTION_WEIGHTS.VOICE_DRILL / CONTRIBUTION_WEIGHTS.LIVE_SESSION) *
+      100,
+  );
   const lastScore = (() => {
-    const done = drill.attempts.filter((a) => a.completedAt !== null && a.score !== null);
+    const done = drill.attempts.filter(
+      (a) => a.completedAt !== null && a.score !== null,
+    );
     return done.length > 0 ? done[done.length - 1].score : null;
   })();
 
-  function handleGraded(attempt: VoiceDrillAttemptDTO, delivery: DrillDelivery): void {
+  function handleGraded(
+    attempt: VoiceDrillAttemptDTO,
+    delivery: DrillDelivery,
+  ): void {
     setGraded({ attempt, delivery, previousScore: lastScore });
     setPhase("RESULT");
     // Refresh the attempts list (the brief shows finished attempts).
@@ -87,92 +107,131 @@ export default function VoiceDrillShell({
   }
 
   function handleTryAgain(): void {
+    // The coach names ONE technique: from the last note's pointer, else the drill's own.
+    setRetryFocus(
+      graded?.attempt.pointers?.miss?.techniqueName ??
+        drill.techniqueName ??
+        null,
+    );
     setGraded(null);
-    setRepKey((k) => k + 1);
+    if (stageLost) {
+      setStageLost(false);
+      setRepKey((k) => k + 1);
+    }
+    setRep((r) => r + 1);
     setPhase("ROOM");
   }
 
   const leaveHref = `/study-plans/${planId}`;
 
-  if (phase === "ROOM" && coach) {
-    return (
-      <VoiceDrillRunner
-        key={repKey}
-        planId={planId}
-        stepId={stepId}
-        drill={drill}
-        liveTip={drill.tipText}
-        durationSeconds={drill.durationSeconds}
-        cameraMode={cameraMode}
-        coach={coach}
-        onGraded={handleGraded}
-        onExit={() => router.push(leaveHref)}
-      />
-    );
-  }
-
-  return (
-    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8" aria-live="polite">
-      <Button
-        as={Link}
-        href={leaveHref}
-        variant="light"
-        size="sm"
-        startContent={<ArrowLeft className="h-4 w-4" />}
-        className="-ml-2 self-start text-default-600 data-[hover=true]:bg-transparent"
+  const runner =
+    (phase === "ROOM" || phase === "RESULT") && coach ? (
+      <div
+        className={phase === "ROOM" ? undefined : "hidden"}
+        aria-hidden={phase !== "ROOM"}
       >
-        Back to the path
-      </Button>
-
-      {phase === "RESULT" && graded ? (
-        <DrillResult
+        <VoiceDrillRunner
+          key={repKey}
           planId={planId}
-          competencyLabel={drill.competencyLabel}
-          attempt={graded.attempt}
-          previousScore={graded.previousScore}
-          delivery={graded.delivery}
-          worthPct={worthPct}
-          onTryAgain={handleTryAgain}
+          stepId={stepId}
+          drill={drill}
+          liveTip={drill.tipText}
+          durationSeconds={drill.durationSeconds}
+          cameraMode={cameraMode}
+          coach={coach}
+          rep={rep}
+          active={phase === "ROOM"}
+          retryFocus={retryFocus}
+          onGraded={handleGraded}
+          onExit={() => router.push(leaveHref)}
+          onStageLost={() => setStageLost(true)}
         />
-      ) : phase === "CONSENT" && coach ? (
-        <CameraConsentStep
-          stepNumber={2}
-          totalSteps={2}
-          onBack={() => setPhase("BRIEF")}
-          onLaunch={(mode) => {
-            setCameraMode(mode);
-            setPhase("ROOM");
-          }}
-          launchLabel={`Start with ${coach.name}`}
-          sessionNoun="drill"
-          cameraOnDescription="Your camera and voice are analysed to give you delivery feedback with your drill result."
-          cameraOffDescription="Your voice is still analysed for your drill result; your camera isn't used, so visual delivery won't be described."
-        />
-      ) : (
-        <>
-          <DrillBrief drill={drill} />
-          <div className="space-y-2 rounded-xl border border-[#dce8ed] bg-white p-5 text-sm leading-6 text-[#385463]">
-            <p>
-              {coach ? coach.name : "Your coach"} sets the scene out loud; then you answer out loud
-              and apply the technique above. No score while you talk.
-            </p>
-            <p>
-              Worth: {worthPct}% of an unaided practice session toward {drill.competencyLabel}.
-            </p>
-            <p className="flex items-center gap-1.5">
-              <Mic size={14} aria-hidden="true" /> You will need a microphone.
-            </p>
-          </div>
-          {coachError ? (
-            <p role="alert" className="text-sm text-[#9b2c2c]">
-              We couldn&apos;t load your coach. Refresh the page to try again.
-            </p>
-          ) : null}
-          <Button color="primary" size="lg" isDisabled={!coach} onPress={() => setPhase("CONSENT")}>
-            {drill.attempts.some((a) => a.completedAt !== null) ? "Drill it again" : "Start the drill"}
+      </div>
+    ) : null;
+
+  // ONE tree shape for every phase: the runner keeps its position (and so its
+  // mounted avatar session) when the result opens over it.
+  return (
+    <>
+      {runner}
+      {phase === "ROOM" ? null : (
+        <div
+          className="mx-auto max-w-3xl space-y-6 px-4 py-8"
+          aria-live="polite"
+        >
+          <Button
+            as={Link}
+            href={leaveHref}
+            variant="light"
+            size="sm"
+            startContent={<ArrowLeft className="h-4 w-4" />}
+            className="-ml-2 self-start text-default-600 data-[hover=true]:bg-transparent"
+          >
+            Back to the path
           </Button>
-        </>
+
+          {phase === "RESULT" && graded ? (
+            <DrillResult
+              planId={planId}
+              competencyLabel={drill.competencyLabel}
+              attempt={graded.attempt}
+              previousScore={graded.previousScore}
+              delivery={graded.delivery}
+              worthPct={worthPct}
+              onTryAgain={handleTryAgain}
+            />
+          ) : phase === "CONSENT" && coach ? (
+            <CameraConsentStep
+              stepNumber={2}
+              totalSteps={2}
+              onBack={() => setPhase("BRIEF")}
+              onLaunch={(mode) => {
+                setCameraMode(mode);
+                setPhase("ROOM");
+              }}
+              launchLabel={`Start with ${coach.name}`}
+              sessionNoun="drill"
+              cameraOnDescription="Your camera and voice are analysed to give you delivery feedback with your drill result."
+              cameraOffDescription="Your voice is still analysed for your drill result; your camera isn't used, so visual delivery won't be described."
+            />
+          ) : (
+            <>
+              <DrillBrief drill={drill} />
+              <div className="space-y-2 rounded-xl border border-[#dce8ed] bg-white p-5 text-sm leading-6 text-[#385463]">
+                <p>
+                  {coach ? coach.name : "Your coach"} sets the scene out loud;
+                  then you answer out loud and apply the technique above. No
+                  score while you talk.
+                </p>
+                <p>
+                  Worth: {worthPct}% of an unaided practice session toward{" "}
+                  {drill.competencyLabel}.
+                </p>
+                <p className="flex items-center gap-1.5">
+                  <Mic size={14} aria-hidden="true" /> You will need a
+                  microphone.
+                </p>
+              </div>
+              {coachError ? (
+                <p role="alert" className="text-sm text-[#9b2c2c]">
+                  We couldn&apos;t load your coach. Refresh the page to try
+                  again.
+                </p>
+              ) : null}
+              <Button
+                color="primary"
+                size="lg"
+                isDisabled={!coach}
+                onPress={() => setPhase("CONSENT")}
+              >
+                {drill.attempts.some((a) => a.completedAt !== null)
+                  ? "Drill it again"
+                  : "Start the drill"}
+              </Button>
+            </>
+          )}
+        </div>
       )}
-    </div>
+    </>
   );
 }

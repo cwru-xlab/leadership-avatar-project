@@ -15,10 +15,13 @@ import { recordContributions } from "../../mastery/ledger";
 import { asVisualMetrics, asVocalMetrics, parseMetricsPayload } from "../../metrics/ingest";
 import { markStepComplete } from "../path";
 import { priorityThemesFromContent, themeMatchesFromPlan } from "../plan-targets";
+import { techniquesForCompetency } from "../coached/tips";
 import { templateBrief } from "./brief";
 import {
   contributionInputFromDrillAttempt,
+  decodeGraderRecord,
   deliverySummary,
+  encodeGraderRecord,
   gradeDrillAttempt,
 } from "./grade";
 import * as repo from "./repository";
@@ -53,6 +56,10 @@ export class DrillTooShortError extends Error {
     super(`Too little speech to grade (${words} words; at least ${MIN_GRADABLE_TRANSCRIPT_WORDS} needed)`);
     this.name = "DrillTooShortError";
   }
+}
+
+function techniqueNameFor(key: CompetencyKey, techniqueId: string | null): string | null {
+  return techniquesForCompetency(key).find((t) => t.id === techniqueId)?.name ?? null;
 }
 
 function labelFor(key: CompetencyKey): string {
@@ -109,6 +116,7 @@ export function attemptDTO(row: repo.VoiceDrillAttemptRow): VoiceDrillAttemptDTO
     delivery: done
       ? deliverySummary(asVisualMetrics(row.visualMetrics), asVocalMetrics(row.vocalMetrics), row.spokenDurationMs)
       : null,
+    pointers: done ? decodeGraderRecord(row.graderRationale).pointers : null,
   };
 }
 
@@ -124,6 +132,7 @@ export async function getDrill(userId: string, stepId: string): Promise<VoiceDri
     competencyLabel: labelFor(competencyKey),
     scenarioPrompt: drill.scenarioPrompt,
     tipText: drill.tipText,
+    techniqueName: techniqueNameFor(competencyKey, drill.techniqueId),
     quotedText: drill.quotedText,
     durationSeconds: DRILL_DURATION,
     stepStatus: step.status,
@@ -197,6 +206,7 @@ export async function completeAttempt(
     competencyKey,
     scenarioPrompt: drill.scenarioPrompt,
     tipText: drill.tipText,
+    techniqueId: drill.techniqueId,
     transcript: body.transcript,
     delivery: deliverySummary(visual, vocal, body.spokenDurationMs),
   });
@@ -209,7 +219,7 @@ export async function completeAttempt(
     vocalMetrics: vocal,
     score: grade.score,
     feedback: grade.feedback,
-    graderRationale: grade.rationale,
+    graderRationale: encodeGraderRecord(grade.rationale, grade.pointers),
     graderModel: grade.model,
     completedAt,
   });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createVocalCapture } from "@/lib/metrics/vocal-capture";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { ChevronLeft, Lightbulb, Sparkles, Volume2 } from "lucide-react";
@@ -44,11 +45,15 @@ import type { StartAvatarRequest } from "@/types";
  * detection and visual capture, and the dark two-pane room.
  *
  * FLOW
- * - Mounting starts ONE attempt (ref-guarded; a redo is a new mount).
- * - The coach speaks `drill.scenarioPrompt` and then the fixed `liveTip`, once,
- *   when the stage reaches CONNECTED (the queued-speech fix: nothing is spoken
- *   into a stage that is not connected). The two server texts are spoken
- *   separately and verbatim — no tip is composed here.
+ * - Each rep (`rep` prop) starts ONE attempt (ref-guarded per rep). The
+ *   runner stays mounted across reps so a retry reuses the live avatar
+ *   session; the shell remounts it only when that session has died.
+ * - Rep 0: the coach speaks `drill.scenarioPrompt` and then the fixed
+ *   `liveTip`, once, when the stage reaches CONNECTED (the queued-speech fix:
+ *   nothing is spoken into a stage that is not connected). The two server
+ *   texts are spoken separately and verbatim — no tip is composed here.
+ * - A retry does NOT re-read the scenario (it stays on screen): the coach
+ *   says one line naming the library technique to focus on.
  * - The student answers by tap or hold-Space; each recording becomes a
  *   caption. The countdown starts on the first recording and is SOFT: at 0:00
  *   it asks the student to wrap up, it never stops them.
@@ -61,6 +66,13 @@ import type { StartAvatarRequest } from "@/types";
 const SLOW_CONNECT_NOTICE_MS = 15_000;
 /** Upper bound on waiting for the scenario line before the tip. */
 const SPEECH_WAIT_MAX_MS = 45_000;
+/** The drill room's face banner line: delivery feedback, no score wording. */
+const DRILL_FACE_BANNER_DETAIL = "Move back into frame so your drill feedback can include visuals.";
+
+/** The one retry line. `focus` is a technique NAME from the closed library. */
+export function retryLine(focus: string | null): string {
+  return focus ? `Same scenario. This time, focus on: ${focus}.` : "Same scenario. Give it another go.";
+}
 
 interface Segment {
   text: string;
@@ -78,8 +90,12 @@ export default function VoiceDrillRunner({
   durationSeconds,
   cameraMode,
   coach,
+  rep,
+  active,
+  retryFocus,
   onGraded,
   onExit,
+  onStageLost,
 }: VoiceDrillRunnerProps) {
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
@@ -96,8 +112,13 @@ export default function VoiceDrillRunner({
 
   const avatarRef = useRef<InteractiveAvatarRef>(null);
   const stageReadyRef = useRef(false);
-  const attemptRequestedRef = useRef(false);
-  const briefSpokenRef = useRef(false);
+  const attemptRequestedForRepRef = useRef<number | null>(null);
+  /** The rep whose opening line has been spoken (scenario+tip, or the retry line). */
+  const introSpokenForRepRef = useRef<number | null>(null);
+  const repRef = useRef(rep);
+  repRef.current = rep;
+  const retryFocusRef = useRef(retryFocus);
+  retryFocusRef.current = retryFocus;
   const answerStartedRef = useRef(false);
   const slowConnectTimerRef = useRef<number | null>(null);
   const answerStartedAtRef = useRef<number | null>(null);
@@ -115,14 +136,22 @@ export default function VoiceDrillRunner({
     syncSpeaking,
   } = useVisualCapture();
 
-  // One attempt per mount. The ref survives a dev double-effect.
-  useEffect(() => {
-    if (attemptRequestedRef.current) return;
-    attemptRequestedRef.current = true;
+  // One attempt per rep. The ref survives a dev double-effect.
+  function beginAttempt(forRep: number): void {
+    if (attemptRequestedForRepRef.current === forRep) return;
+    attemptRequestedForRepRef.current = forRep;
+    setAttemptId(null);
+    setStartError(null);
     startDrillAttempt(stepId, cameraMode)
-      .then((attempt) => setAttemptId(attempt.id))
+      .then((attempt) => {
+        if (repRef.current === forRep) setAttemptId(attempt.id);
+      })
       .catch((e: DrillApiError) => setStartError(e.error ?? "This drill could not start."));
-    // Mount only: the step and camera choice are fixed for a mounted rep.
+  }
+
+  useEffect(() => {
+    beginAttempt(rep);
+    // Mount only; later reps are started by the rep effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -148,6 +177,7 @@ export default function VoiceDrillRunner({
     captionsEndRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [segments.length]);
 
+  // Kept alive while the result shows too, so "Try again" reuses the session.
   useAvatarKeepAlive(avatarRef, stageReady && !finishing);
 
   const avatarConfig = useMemo<StartAvatarRequest>(
@@ -162,13 +192,22 @@ export default function VoiceDrillRunner({
     [coach.avatarId, coach.voiceId],
   );
 
-  /** Scenario, then the tip — once, and only into a connected stage. */
-  async function speakBriefOnce(): Promise<void> {
+  /**
+   * The rep's opening line — once per rep, and only into a connected stage.
+   * Rep 0: scenario, then the tip, both verbatim. A retry: the one retry line.
+   */
+  async function speakIntroOnce(): Promise<void> {
     const avatar = avatarRef.current;
-    if (briefSpokenRef.current || !avatar || !stageReadyRef.current) return;
-    briefSpokenRef.current = true;
+    const forRep = repRef.current;
+    if (introSpokenForRepRef.current === forRep || !avatar || !stageReadyRef.current) return;
+    introSpokenForRepRef.current = forRep;
     setCoachSpeaking(true);
     try {
+      if (forRep > 0) {
+        avatar.speak(retryLine(retryFocusRef.current));
+        await avatar.waitForSpeechEnd(SPEECH_WAIT_MAX_MS);
+        return;
+      }
       avatar.speak(drill.scenarioPrompt);
       await avatar.waitForSpeechEnd(SPEECH_WAIT_MAX_MS);
       // The tip stays on screen either way; it is not spoken over the student.
@@ -198,12 +237,16 @@ export default function VoiceDrillRunner({
     }
     // Capture after CONNECTED, never before, so it cannot delay the handshake.
     startCaptureIfAllowed();
-    void speakBriefOnce();
+    void speakIntroOnce();
   }
 
   function handleStageInactive(): void {
+    const wasReady = stageReadyRef.current;
     stageReadyRef.current = false;
     setStageReady(false);
+    // A session that dies between reps is reported, so the shell can
+    // remount (reconnect) for the next one.
+    if (wasReady) onStageLostRef.current?.();
   }
 
   function handleStageError(): void {
@@ -219,6 +262,8 @@ export default function VoiceDrillRunner({
     startCaptureIfAllowed();
   }
 
+  const onStageLostRef = useRef(onStageLost);
+  onStageLostRef.current = onStageLost;
   const stageHandlersRef = useRef({ ready: handleStageReady, inactive: handleStageInactive });
   stageHandlersRef.current = { ready: handleStageReady, inactive: handleStageInactive };
   const handleAvatarStateChange = useCallback((state: StreamingAvatarSessionState) => {
@@ -234,7 +279,7 @@ export default function VoiceDrillRunner({
   // -------------------------------------------------------------------------
 
   const connected = stageReady || videoUnavailable;
-  const canSpeak = connected && attemptId !== null && !finishing;
+  const canSpeak = active && connected && attemptId !== null && !finishing;
 
   const talkLockRef = useRef(true);
   talkLockRef.current = !canSpeak;
@@ -306,6 +351,31 @@ export default function VoiceDrillRunner({
 
   useSyncVisualSpeaking(syncSpeaking, isRecording);
 
+  // A new rep on the SAME mounted runner (retry with a live avatar session):
+  // fresh attempt, fresh answer, fresh capture, and the one retry line.
+  const lastRepRef = useRef(rep);
+  useEffect(() => {
+    if (lastRepRef.current === rep) return;
+    lastRepRef.current = rep;
+    setSegments([]);
+    setTalkError(null);
+    setFinishError(null);
+    setAnswerStartedAt(null);
+    answerStartedRef.current = false;
+    answerStartedAtRef.current = null;
+    collectedRef.current = null;
+    bodyRef.current = null;
+    // Vocal totals are cumulative per capture, so each rep gets its own; the
+    // recorder re-attaches the microphone to it on the next recording.
+    vocalCaptureRef.current?.detachStream();
+    vocalCaptureRef.current = createVocalCapture();
+    beginAttempt(rep);
+    if (stageReadyRef.current || videoUnavailable) startCaptureIfAllowed();
+    void speakIntroOnce();
+    // Keyed on the rep only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rep]);
+
   const startRecordingRef = useRef<(() => void) | null>(null);
   const stopRecordingRef = useRef<(() => void) | null>(null);
   startRecordingRef.current = startRecording;
@@ -349,10 +419,12 @@ export default function VoiceDrillRunner({
       };
       bodyRef.current = body;
       const graded = await completeDrillAttempt(stepId, attemptId, body);
+      // Microphone and camera go off with the result; the avatar session is
+      // kept (keep-alive) so a retry starts without a reconnect.
       releaseMicrophone();
       releaseVisualCapture();
       vocalCaptureRef.current?.detachStream();
-      avatarRef.current?.stopSession();
+      avatarRef.current?.interrupt();
       onGraded(graded, delivery);
     } catch (e) {
       const err = e as DrillApiError;
@@ -545,7 +617,7 @@ export default function VoiceDrillRunner({
         </div>
       </SessionSidePane>
 
-      <FaceDetectionBanner visible={cameraMode === "ON" && faceMissing} />
+      <FaceDetectionBanner visible={active && cameraMode === "ON" && faceMissing} detail={DRILL_FACE_BANNER_DETAIL} />
     </SessionRoom>
   );
 }
