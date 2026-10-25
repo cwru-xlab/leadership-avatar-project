@@ -69,8 +69,9 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
         </p>
       ) : (
         <p className="mt-2 text-xs text-[#58727f]">
-          All-time figures blend every session you have done, so they move slowly. &quot;Since this plan&quot;
-          is how you have scored on the skill since this plan was generated.
+          All-time figures blend every session you have done, so they move slowly. &quot;Path work&quot; is
+          how you scored on this path&apos;s own steps; &quot;Live practice since&quot; is your unaided sessions
+          since the plan was generated.
         </p>
       )}
       <ul className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -99,10 +100,16 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
                 All time {formatPercent(c.baseline.percent)} → {formatPercent(c.now.percent)}
                 {c.now.disclosure ? ` · ${c.now.tierLabel}` : ""}
               </p>
-              {c.sincePercent !== null ? (
-                <p className="mt-1 text-xs font-semibold text-[#102331]">
-                  Since this plan: {c.sincePercent}% across {c.sinceEvidenceCount}{" "}
-                  {c.sinceEvidenceCount === 1 ? "piece" : "pieces"} of evidence
+              {c.sinceBySource.path.percent !== null ? (
+                <p className="mt-1 text-xs font-semibold text-[#1a7f4b]">
+                  Path work: {c.sinceBySource.path.percent}% across {c.sinceBySource.path.count}{" "}
+                  {c.sinceBySource.path.count === 1 ? "step result" : "step results"}
+                </p>
+              ) : null}
+              {c.sinceBySource.live.percent !== null ? (
+                <p className="mt-0.5 text-xs text-[#385463]">
+                  Live practice since: {c.sinceBySource.live.percent}% across {c.sinceBySource.live.count}{" "}
+                  {c.sinceBySource.live.count === 1 ? "scored moment" : "scored moments"}
                 </p>
               ) : null}
               {c.drivers.length > 0 ? (
