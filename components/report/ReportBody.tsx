@@ -81,6 +81,7 @@ interface ReportBodyProps {
   markdown: string | null;
   scores: ReportScoreCardsProps["scores"];
   metrics: ReportScoreCardsProps["metrics"];
+  showInterviewPaceTarget?: boolean;
 }
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
@@ -118,6 +119,7 @@ export default function ReportBody({
   markdown,
   scores,
   metrics,
+  showInterviewPaceTarget = false,
 }: ReportBodyProps) {
   // Pre-structured rows: render exactly what they rendered before. No tabs,
   // no empty panels — the data to fill them does not exist.
@@ -278,6 +280,12 @@ export default function ReportBody({
           {metrics?.vocal && (
             <section className="flex flex-col gap-3">
               <SectionHeading>Voice</SectionHeading>
+              {showInterviewPaceTarget && (
+                <p className="text-small text-default-600">
+                  Assessed pace: {Math.round(metrics.vocal.words_per_minute)} WPM.
+                  Interview target: 100–159 WPM.
+                </p>
+              )}
               <BandList rows={vocalBands(metrics.vocal)} />
               {structured.category_notes.vocal && (
                 <Prose>{structured.category_notes.vocal}</Prose>
