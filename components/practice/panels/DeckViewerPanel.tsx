@@ -31,6 +31,8 @@ export interface DeckViewerPanelProps {
   onFurthestChange: (furthestIndex: number) => void;
   /** `stage` = full left-pane deck (pitch-deck primary). `compact` = overlay card. */
   layout?: "compact" | "stage";
+  /** Who the slides are shown to, for screen readers ("an investor", "a conference audience"). UAT K-5. */
+  audienceLabel?: string;
 }
 
 function slideUrl(deckId: string, index: number, thumb = false): string {
@@ -43,6 +45,7 @@ export default function DeckViewerPanel({
   slides,
   onFurthestChange,
   layout = "compact",
+  audienceLabel = "the listener",
 }: DeckViewerPanelProps) {
   const [current, setCurrent] = useState(0);
   const [furthest, setFurthest] = useState(0);
@@ -229,7 +232,7 @@ export default function DeckViewerPanel({
                 thumbRefs.current[slide.index] = el;
               }}
               aria-current={isCurrent ? "true" : undefined}
-              aria-label={`Slide ${slide.index + 1}${isCurrent ? ", current" : ""}${isSeen ? ", shown to the investor" : ", not yet shown"}`}
+              aria-label={`Slide ${slide.index + 1}${isCurrent ? ", current" : ""}${isSeen ? `, shown to ${audienceLabel}` : ", not yet shown"}`}
               className={[
                 "relative shrink-0 overflow-hidden rounded-md border-2 transition",
                 isCurrent
