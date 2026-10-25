@@ -26,9 +26,9 @@ import { usePushToTalkRecorder } from "@/components/session/usePushToTalkRecorde
 import { useSyncVisualSpeaking, useVisualCapture } from "@/components/session/useVisualCapture";
 import CoachedBriefCard from "@/components/study-plan/coached/CoachedBriefCard";
 import CoachedMomentPanel from "@/components/study-plan/coached/CoachedMomentPanel";
-import { hrefForStep, type PathViewDTO } from "@/components/study-plan/PathPanel";
-import { visualBands, vocalBands } from "@/lib/metrics/bands";
-import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
+import DeliveryBandsCard, { type DeliveryCapture } from "@/components/study-plan/DeliveryBandsCard";
+import { useNextStepHref } from "@/components/study-plan/useNextStepHref";
+import type { CameraMode, VocalMetrics } from "@/lib/metrics/types";
 import type { StartAvatarRequest } from "@/types";
 
 /** Coached mode scores no visuals live; the banner says what is really affected. */
@@ -151,13 +151,6 @@ interface CoachTurnDTO {
   awaiting: "REPLY" | "ATTEMPT" | "NONE";
   demonstration: string | null;
   closedAtSoftCap: boolean;
-}
-
-/** What the shared capture produced this visit, shown in the summary. */
-interface DeliveryCapture {
-  cameraMode: CameraMode;
-  visual: VisualMetrics | null;
-  vocal: VocalMetrics | null;
 }
 
 type UiPhase = "LOADING" | "NEEDS_LOGIN" | "NOT_FOUND" | "ENTRY_ERROR" | "READY";
@@ -1065,40 +1058,6 @@ function TipRail({ tips }: { tips: CoachedTipDTO[] }) {
 // COMPLETE — the graded summary. The only place numeric grades appear.
 // ---------------------------------------------------------------------------
 
-/**
- * The next path step's href, through PathPanel's own link contract
- * (`hrefForStep`), read from the plan's path DTO after completion. Null while
- * loading, when the path is finished, or when the next step has no
- * destination yet — the caller then falls back to the plan page.
- */
-function useNextStepHref(planId: string): string | null {
-  const [href, setHref] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await fetch(`/api/study-plans/${planId}/path`, {
-          cache: "no-store",
-          credentials: "include",
-        });
-        if (!response.ok) return;
-        const data = (await response.json().catch(() => ({}))) as { path?: PathViewDTO | null };
-        const path = data.path;
-        if (!path?.nextStep) return;
-        const row = path.steps.find((step) => step.id === path.nextStep!.stepId);
-        const next = row ? hrefForStep(planId, row) : null;
-        if (!cancelled) setHref(next);
-      } catch {
-        // The plan-page fallback is always rendered; nothing to report.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [planId]);
-  return href;
-}
-
 function ScoreBadge({ label, score }: { label: string; score: number | null }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-[#b9dbe5] bg-white px-2.5 py-0.5 text-xs font-semibold text-[#0a7391]">
@@ -1119,8 +1078,6 @@ function CompleteLeg({
   const pct = Math.round((legView.worth.coachedWeight / legView.worth.unaidedWeight) * 100);
   const legs = legView.summary?.legs ?? [];
   const nextStepHref = useNextStepHref(planId);
-  const vocalRows = delivery?.vocal ? vocalBands(delivery.vocal) : [];
-  const visualRows = delivery?.visual ? visualBands(delivery.visual) : [];
 
   return (
     <section aria-labelledby="coached-complete-heading" className="space-y-6">
@@ -1220,44 +1177,10 @@ function CompleteLeg({
         );
       })}
 
-      <article className="space-y-3 rounded-xl border border-[#dce8ed] bg-white p-5" aria-label="Delivery">
-        <h2 className="font-serif text-lg text-[#102331]">Delivery</h2>
-        {delivery ? (
-          <>
-            {vocalRows.length > 0 ? (
-              <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-                {vocalRows.map((row) => (
-                  <div key={`vocal-${row.label}`}>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-[#58727f]">{row.label}</dt>
-                    <dd className="text-sm text-[#173847]">{row.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p className="text-sm text-[#385463]">There wasn&apos;t enough speech captured to describe your voice.</p>
-            )}
-            {delivery.cameraMode === "OFF" ? (
-              <p className="text-sm text-[#385463]">Your camera was off, so visual delivery wasn&apos;t measured.</p>
-            ) : visualRows.length > 0 ? (
-              <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-                {visualRows.map((row) => (
-                  <div key={`visual-${row.label}`}>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-[#58727f]">{row.label}</dt>
-                    <dd className="text-sm text-[#173847]">{row.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p className="text-sm text-[#385463]">Your camera couldn&apos;t be measured this time.</p>
-            )}
-          </>
-        ) : (
-          <p className="text-sm text-[#385463]">
-            Delivery measurements are shown right after a session ends and aren&apos;t saved with
-            coached sessions yet.
-          </p>
-        )}
-      </article>
+      <DeliveryBandsCard
+        delivery={delivery}
+        emptyNote="Delivery measurements are shown right after a session ends and aren't saved with coached sessions yet."
+      />
 
       <div className="flex flex-wrap justify-center gap-3">
         <Button as={Link} href={nextStepHref ?? `/study-plans/${planId}`} color="primary">

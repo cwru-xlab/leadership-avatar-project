@@ -150,6 +150,11 @@ console.log("\n2. REGISTRY GUARD — coached mode is not, and has never become, 
 
 // ---------------------------------------------------------------------------
 const forbiddenIdentReForBite = /\b(CoachedSession|coachTip|techniqueReminder|COACHED_PHASES)\b/;
+// Phase 23: the voice drill is path-only too. Neither normal practice nor the
+// neutral shared chrome may import or name it.
+const drillImportRe =
+  /from\s+["'](?:@\/(?:lib\/study-plan\/drill|components\/study-plan\/drill)(?:\/[^"']*)?|(?:\.\.\/)+(?:study-plan\/)?drill(?:\/[^"']*)?)["']/;
+const drillIdentRe = /\b(VoiceDrill\w*|DrillCapture\w*|DrillCoach|DrillDelivery|startDrillAttempt|completeDrillAttempt|fetchDrill)\b/;
 
 console.log("\n3. NO COACHING IN NORMAL PRACTICE — walked, non-vacuously");
 {
@@ -181,6 +186,7 @@ console.log("\n3. NO COACHING IN NORMAL PRACTICE — walked, non-vacuously");
     const src = readFileSync(abs(...f.split("/")), "utf8");
     check(`no coached-mode import: ${f}`, !forbiddenImportRe.test(src));
     check(`no coached-mode identifier: ${f}`, !forbiddenIdentRe.test(src));
+    check(`no voice-drill import or identifier: ${f}`, !drillImportRe.test(src) && !drillIdentRe.test(src));
   }
 }
 
@@ -215,6 +221,7 @@ console.log("\n3b. SHARED SESSION CHROME — permitted to both trees, and neutra
       !sharedForbiddenImportRe.test(src),
     );
     check(`shared chrome names no coached identifier: ${f}`, !sharedForbiddenIdentRe.test(src));
+    check(`shared chrome names no voice-drill identifier: ${f}`, !drillImportRe.test(src) && !drillIdentRe.test(src));
   }
 
   // Both trees actually use it (the permission is exercised, not theoretical).
@@ -238,6 +245,19 @@ console.log("\n3b. SHARED SESSION CHROME — permitted to both trees, and neutra
   check(
     "bite-proof: a CoachedSession identifier in shared chrome is caught",
     sharedForbiddenIdentRe.test("const s: CoachedSession = null;"),
+  );
+  // The drill shell uses the shared chrome and nothing from practice.
+  const drillRunner = read("components/study-plan/drill/VoiceDrillRunner.tsx");
+  check("VoiceDrillRunner imports from components/session/ (permitted)", sharedImportRe.test(drillRunner));
+  check(
+    "VoiceDrillRunner imports nothing from components/practice/",
+    !/from\s+["']@\/components\/practice\//.test(drillRunner),
+  );
+  check(
+    "bite-proof: a voice-drill import or identifier in practice/shared chrome is caught",
+    drillImportRe.test('import { fetchDrill } from "@/components/study-plan/drill/api";') &&
+      drillIdentRe.test("const d: VoiceDrillDTO = x;") &&
+      !drillIdentRe.test(read("components/practice/PracticeSessionShell.tsx")),
   );
   check(
     "bite-proof: a coached identifier in the practice shell is still caught by section 3",
