@@ -55,6 +55,7 @@ import {
   ListChecks,
   MessagesSquare,
   Mic,
+  RotateCcw,
   Sparkles,
   Trophy,
   type LucideIcon,
@@ -417,6 +418,18 @@ export default function PathPanel({
                     ) : (
                       <span className="text-xs text-[#8298a3]">Preparing…</span>
                     )
+                  ) : step.status === "COMPLETE" && href ? (
+                    // Review, Duolingo-style: always open, never gates anything.
+                    // Each destination keeps its own redo rules (a drill redo
+                    // writes new evidence; a check shows its stored result).
+                    <Link
+                      href={href}
+                      data-testid="practice-again"
+                      className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold text-[#1f8a5b] hover:bg-[#eaf8f0]"
+                    >
+                      <RotateCcw size={14} aria-hidden="true" />
+                      Practice again
+                    </Link>
                   ) : null}
                 </div>
               </div>

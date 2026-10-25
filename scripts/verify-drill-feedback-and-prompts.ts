@@ -29,6 +29,10 @@ import {
   type DrillSessionContext,
 } from "../lib/study-plan/drill/brief";
 import { techniquesForCompetency } from "../lib/study-plan/coached/tips";
+import { gradeDrillAttempt, noteMatchesTechnique, reconcileNote } from "../lib/study-plan/drill/grade";
+import { allowedDrillTechniques, rankDrillTechniques } from "../lib/study-plan/drill/brief";
+import { isWrittenTechnique } from "../lib/study-plan/checks/explain";
+import { COMPETENCIES } from "../lib/mastery/competencies";
 import type { InterviewTranscript } from "../lib/interview/transcript";
 
 let failures = 0;
@@ -243,5 +247,77 @@ console.log("\n5. D4 — the model gate discards generic prompts");
   check("with no sessions supplied, the gate does not demand grounding", noSessions.ok);
 }
 
-console.log(failures === 0 ? `\nALL PASS (${passes} checks)\n` : `\nFAILED: ${failures} assertion(s), ${passes} passed\n`);
-process.exit(failures === 0 ? 0 : 1);
+async function qSections() {
+  console.log("\n6. Q2 — technique chosen to fit, never by position, never spoken-only on content");
+  for (const c of COMPETENCIES) {
+    const allowed = allowedDrillTechniques(c.key);
+    const ok = c.key === "delivery_presence" ? allowed.length === techniquesForCompetency(c.key).length : allowed.every(isWrittenTechnique);
+    check(`${c.key}: allowed techniques respect the spoken-only exclusion`, ok && allowed.length > 0);
+  }
+  const transitions = rankDrillTechniques(KEY, "Walk through the steps of your project and signpost each transition clearly.", []);
+  check("the best fit for a transitions prompt is 'Signpost your transitions'", transitions[0]?.name === "Signpost your transitions", transitions[0]?.name);
+  const flagged = rankDrillTechniques(KEY, "Tell me about your project.", ["Closing the loop on your answer"]);
+  check("the weak-moment flag steers the pick", flagged[0]?.name === "Close the loop", flagged[0]?.name);
+  const pressureContent = rankDrillTechniques("holding_position_under_pressure", "Your manager pushes back hard on your plan; slow down and hold your case.", []);
+  check(
+    "bite-proof: a content prompt that says 'slow down' still never gets the spoken-only pressure move",
+    !pressureContent.some((t) => t.id === "pressure-slow-your-response"),
+  );
+  const a = templateBrief({ position: 1, competencyKey: KEY, variant: 0, theme: null }, [], { sessions: SESSIONS });
+  const b = templateBrief({ position: 7, competencyKey: KEY, variant: 0, theme: null }, [], { sessions: SESSIONS });
+  check(
+    "the same prompt gets the same technique wherever it sits in the path (no position pick)",
+    a.scenarioPrompt !== b.scenarioPrompt || a.techniqueId === b.techniqueId,
+  );
+  const topFit = rankDrillTechniques(KEY, a.scenarioPrompt, [])[0];
+  check("a template's technique is the top fit for its own prompt", a.techniqueId === topFit?.id, `${a.techniqueId} vs ${topFit?.id}`);
+
+  console.log("\n7. Q1 — the note matches the quoted technique");
+  const oneIdea = LIB.find((t) => t.name === "One idea per sentence")!;
+  check("a note about splitting sentences matches 'One idea per sentence'", noteMatchesTechnique("Try splitting sentences so each has just one idea for clarity.", oneIdea.id, KEY));
+  check(
+    "bite-proof: a note about pausing between steps does NOT match it",
+    !noteMatchesTechnique("Experiment with pausing slightly between each step to help ideas land more distinctly.", oneIdea.id, KEY),
+  );
+  const graded = {
+    score: 4, feedback: "Pause between steps.", feedbackReplaced: false, rationale: "", model: "t",
+    pointers: { miss: { quote: "there were a lot of reasons", techniqueId: oneIdea.id, techniqueName: oneIdea.name, reminder: oneIdea.reminder }, worked: null },
+  };
+  check("a matching regenerated note is kept", reconcileNote(graded, "Split your longest sentence so each carries one idea.", KEY, TRANSCRIPT).feedback.startsWith("Split your longest"));
+  check("a mismatched regenerated note falls back to the technique's reminder", reconcileNote(graded, "Pause more.", KEY, TRANSCRIPT).feedback === oneIdea.reminder);
+  check("no regeneration (model failure) falls back to the reminder", reconcileNote(graded, null, KEY, TRANSCRIPT).feedback === oneIdea.reminder);
+
+  const firstRaw = JSON.stringify({
+    score: 3, feedback: "Experiment with pausing slightly between each step.", rationale: "r",
+    miss_quote: "there were a lot of reasons", miss_technique_id: oneIdea.id, worked_quote: "", worked_note: "",
+  });
+  let noteCalls = 0;
+  const regen = await gradeDrillAttempt({
+    competencyKey: KEY, scenarioPrompt: "s", tipText: LIB[0].reminder, transcript: TRANSCRIPT,
+    delivery: { wordsPerMinute: null, fillerWordCount: null, pauseCount: null, eyeContactPct: null, spokenSeconds: 20 },
+    callModel: async () => firstRaw,
+    callNoteModel: async () => { noteCalls += 1; return JSON.stringify({ feedback: "Split your longest sentence so each one carries a single idea." }); },
+  });
+  check("a mismatched note triggers exactly ONE regeneration, and the matching one is used", noteCalls === 1 && regen.feedback.startsWith("Split your longest"), regen.feedback);
+  noteCalls = 0;
+  const fallback = await gradeDrillAttempt({
+    competencyKey: KEY, scenarioPrompt: "s", tipText: LIB[0].reminder, transcript: TRANSCRIPT,
+    delivery: { wordsPerMinute: null, fillerWordCount: null, pauseCount: null, eyeContactPct: null, spokenSeconds: 20 },
+    callModel: async () => firstRaw,
+    callNoteModel: async () => { noteCalls += 1; return JSON.stringify({ feedback: "Slow down and breathe." }); },
+  });
+  check("a second mismatch uses the technique's reminder (no further calls)", noteCalls === 1 && fallback.feedback === oneIdea.reminder);
+  noteCalls = 0;
+  const matching = await gradeDrillAttempt({
+    competencyKey: KEY, scenarioPrompt: "s", tipText: LIB[0].reminder, transcript: TRANSCRIPT,
+    delivery: { wordsPerMinute: null, fillerWordCount: null, pauseCount: null, eyeContactPct: null, spokenSeconds: 20 },
+    callModel: async () => firstRaw.replace("Experiment with pausing slightly between each step.", "Split any long sentence so each carries one idea."),
+    callNoteModel: async () => { noteCalls += 1; return "{}"; },
+  });
+  check("a note that already matches makes no regeneration call", noteCalls === 0 && matching.feedback.startsWith("Split any long"));
+}
+
+qSections().then(() => {
+  console.log(failures === 0 ? `\nALL PASS (${passes} checks)\n` : `\nFAILED: ${failures} assertion(s), ${passes} passed\n`);
+  process.exit(failures === 0 ? 0 : 1);
+});
