@@ -716,3 +716,8 @@ export function isRecycledFrom(attempt: string, earlier: readonly string[]): boo
   const attemptNorm = normalizeWords(attempt);
   return earlier.some((e) => findSharedSpan(attemptNorm, normalizeWords(e), RECYCLE_SPAN_WORDS) !== null);
 }
+
+/** True when `haystack` contains a `minWords`-word run of `source` (punctuation- and case-insensitive). */
+export function sharesWordSpan(haystack: string, source: string, minWords: number): boolean {
+  return findSharedSpan(normalizeWords(haystack), normalizeWords(source), minWords) !== null;
+}

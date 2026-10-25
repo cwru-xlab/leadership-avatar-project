@@ -114,6 +114,8 @@ interface CoachedLegSummaryDTO {
     score: number | null;
     acceptable: boolean | null;
     parroted: boolean | null;
+    /** Did not answer this moment's question. */
+    offTopic?: boolean;
   }>;
   gradedScore: number | null;
   gradedAttemptText: string | null;
@@ -1201,7 +1203,9 @@ function CompleteLeg({
                     <li key={i} className="rounded-lg bg-[#f8fbfc] p-3">
                       <blockquote className="whitespace-pre-wrap">{attempt.text}</blockquote>
                       <p className="mt-1 text-xs text-[#58727f]">
-                        {attempt.parroted
+                        {attempt.offTopic
+                          ? `Off-topic — didn't answer this moment's question${attempt.score === null ? "" : ` (${attempt.score}/5)`}`
+                          : attempt.parroted
                           ? "Repeated the coach — not graded toward mastery"
                           : attempt.score === null
                             ? "Not scored"
