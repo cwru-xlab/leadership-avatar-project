@@ -33,3 +33,4 @@ Do not change how interview, case studies, networking practice, practice pitches
 - **Prove-it carry-over:** reuse the source session's resume, job posting and pasted interviewer persona (ownership-scoped); decks need re-upload.
 - **Demonstrations:** use only facts the student actually said; otherwise bracketed placeholders ("[your result]"). Never invent achievements.
 - **Migration 20261124000000_add_voice_drills_and_prove_it:** applied to the LOCAL dev DB with the user's go-ahead (2026-10-24). Prod NOT migrated.
+- **Grader determinism:** every path grader (drill, coached attempt, rewrite check, moment scoring, reply classifier) runs at temperature 0 with a fixed seed. The LIVE practice evaluator (`lib/engine/evaluation.ts`) is deliberately left untouched (user, 2026-10-25).
