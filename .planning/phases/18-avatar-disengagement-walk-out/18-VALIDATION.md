@@ -1,6 +1,7 @@
 ---
 phase: 18-avatar-disengagement-walk-out
-status: awaiting-human-uat
+status: agent-uat-failed
+verdict_basis: agent-verified (Playwright, real HeyGen/OpenAI), not human — user decision 2026-10-25
 requirements:
   - REQ-78
   - REQ-79
@@ -82,25 +83,25 @@ assertion or this record. Awaiting the human's choice; not decided here.
 
 | # | Criterion | Automated coverage | Human verdict / verbatim notes |
 |---|---|---|---|
-| SC1 | Repetitive, stalled, or non-tailored pitch loses engagement from deterministic observable signals; no live indicator appears. | Signal and no-meter verifiers pass. | **PENDING** |
-| SC2 | A structured avatar cue accelerates a walk-out but cannot end a cold session alone. | Cue/threshold verifier passes. | **PENDING** |
-| SC3 | A threshold crossing permits exactly one uninterruptible final statement, locks text and PTT, then auto-finishes. | Shell verifier passes. | **PENDING** |
-| SC4 | Auto-end records the avatar termination outcome and report explains session-clock decline from observable causes. | Report verifier passes. | **PENDING** |
-| SC5 | Types without a threshold retain existing behavior; walk-out respects each type floor. | Policy/floor verifier passes. | **PENDING** |
+| SC1 | Repetitive, stalled, or non-tailored pitch loses engagement from deterministic observable signals; no live indicator appears. | Signal and no-meter verifiers pass. | **PASS** — agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25. Runs E1/E2: value rose monotonically from observable causes only (`short_response_streak`, `no_common_ground`, `repeated_response`) and crossed on the 4th assistant turn (E1 0.067→0.133→0.483→0.500; E2 0→0→0.267→0.583). DOM polled every 300ms: zero meter/progress/role=meter elements and zero engagement/interest/disengag text. |
+| SC2 | A structured avatar cue accelerates a walk-out but cannot end a cold session alone. | Cue/threshold verifier passes. | **BLOCKED (partial)** — agent-verified (Playwright, real HeyGen/OpenAI), not human. Authority half consistent: no session ended below threshold in 3 sessions. The only live cue (`disengagement="rising"`, E1 crossing turn) coincided with the crossing, so acceleration was not isolated; and no walk-out can complete anyway (see SC3). |
+| SC3 | A threshold crossing permits exactly one uninterruptible final statement, locks text and PTT, then auto-finishes. | Shell verifier passes. | **FAIL — BLOCKER (F18-1)** — agent-verified (Playwright, real HeyGen/OpenAI), not human. Lock holds (textarea, Send and "Tap to record" all disabled; fill/click rejected). But in E1 and E2 (2/2) the crossing reply is suppressed, the one-shot forced-farewell request is **never sent**, no final statement is spoken, no `session/finish` is issued in 120s, and "End interview" is disabled — the student is trapped. Same dead end as 2026-10-14. |
+| SC4 | Auto-end records the avatar termination outcome and report explains session-clock decline from observable causes. | Report verifier passes. | **BLOCKED by F18-1** — agent-verified (Playwright, real HeyGen/OpenAI), not human. No report is reachable; reports `c53a3d50…` (E1) and `7e412c55…` (E2) stay `IN_PROGRESS`, `terminationReason` null. |
+| SC5 | Types without a threshold retain existing behavior; walk-out respects each type floor. | Policy/floor verifier passes. | **PASS** — agent-verified (Playwright, real HeyGen/OpenAI), not human. Opt-out (general interview, report `52fdc8f1…`): 7 assistant turns of "Ok." / "I don't know.", value reached 0.69 (above the elevator's 0.5) but `crossed:false`, `walkOutFinal:false` every turn, no lock. Elevator crossings came on assistant turn 4 (floor 2) — consistent, floor itself not isolated. |
 
 ## Requirement checklist — human evidence required
 
 | Requirement | Human verdict / notes |
 |---|---|
-| REQ-78 — Observable disengagement computation | **PENDING** |
-| REQ-79 — Cue accelerates, never replaces derived authority | **PENDING** |
-| REQ-80 — Threshold opt-in preserves other types | **PENDING** |
-| REQ-81 — Final avatar statement locks typed and PTT input | **PENDING** |
-| REQ-82 — Session auto-finishes after final statement | **PENDING** |
-| REQ-83 — Existing termination policy/outcome path is reused | **PENDING** |
+| REQ-78 — Observable disengagement computation | **PASS** — agent-verified (Playwright, real HeyGen/OpenAI), not human. Ratchet re-observed fixed (UAT Finding 1): never dropped on a novel reply in E1/E2, and in P20 run B held at 0.533 across two sincere apologies. |
+| REQ-79 — Cue accelerates, never replaces derived authority | **BLOCKED (partial)** — agent-verified (Playwright, real HeyGen/OpenAI), not human. No cue-only end observed; acceleration not isolated (see SC2). |
+| REQ-80 — Threshold opt-in preserves other types | **PASS** — agent-verified (Playwright, real HeyGen/OpenAI), not human. Interview at 0.69 never crossed or walked out (SC5). |
+| REQ-81 — Final avatar statement locks typed and PTT input | **FAIL (F18-1)** — agent-verified (Playwright, real HeyGen/OpenAI), not human. The lock half PASSES (typed + tap-to-record both disabled from the crossing on). The "exactly one final avatar statement" half fails: none is ever played. |
+| REQ-82 — Session auto-finishes after final statement | **FAIL — BLOCKER (F18-1)** — agent-verified (Playwright, real HeyGen/OpenAI), not human. No `session/finish` in 120s after the lock, 2/2 elevator runs. |
+| REQ-83 — Existing termination policy/outcome path is reused | **BLOCKED by F18-1** — agent-verified (Playwright, real HeyGen/OpenAI), not human. No auto-ended elevator report exists to inspect. (DC report `f37d8b5f…`, manually ended, does record `terminationReason: offensive_content`, `objectiveStatus: avatar_ended` through the same outcome path.) |
 | REQ-84 — Deck observes a real four-assistant-turn floor | **AMENDED/SUPERSEDED, verified 2026-10-09.** ROADMAP.md line ~665-673 and ~753-768 ("AMENDED 2026-10-08 by Phase 19 (user decision)"): the deck half of REQ-84 is reversed — `pitch-deck` now declares no `disengagementThreshold`, `avatarMayEnd: false`, `avatarEndReasons: []`; it cannot walk out at any turn count, so a four-turn floor is moot for it. Confirmed live by `scripts/verify-disengagement-termination.ts` §4 ("no deck mode opts into disengagement", "a maximally disengaged investor still cannot walk out") and §3 ("synthetic policy's floor rejects before four assistant turns even at maximum disengagement") — both PASS, re-run 2026-10-09. `pitch-elevator` retains its own two-assistant-turn floor and 0.5 threshold (unchanged, `524544e`) and is the only opted-in type; its floor is covered by the live human item below, not by this row. Do not re-run a deck fixture for this item at the Task 2 checkpoint — it is closed by this amendment, not pending. |
-| REQ-85 — No live engagement meter, warning, or gauge | **PENDING** |
-| REQ-86 — Report uses session-clock observable decline evidence | **PENDING** |
+| REQ-85 — No live engagement meter, warning, or gauge | **PASS** — agent-verified (Playwright, real HeyGen/OpenAI), not human. 300ms DOM poll across 6 live sessions: zero hits. Only "The conversation ended." appears, after the crossing. |
+| REQ-86 — Report uses session-clock observable decline evidence | **BLOCKED by F18-1** — agent-verified (Playwright, real HeyGen/OpenAI), not human. |
 
 ## Locked-design checks
 
@@ -109,9 +110,9 @@ assertion or this record. Awaiting the human's choice; not decided here.
 - [x] The flow extends `terminationPolicy` and `avatarEndFloor`; no parallel
   termination field was added.
 - [x] Pitch deck declares and enforces a four-assistant-turn floor.
-- [ ] Human observed the elevator stall walk-out and protected final statement.
-- [ ] Human observed the generated report's early-end banner and decline panel.
-- [ ] Human spot-checked a threshold opt-out type.
+- [ ] Elevator stall walk-out and protected final statement — agent-verified 2026-10-25: stall/crossing PASS, final statement FAIL (F18-1).
+- [ ] Generated report's early-end banner and decline panel — BLOCKED by F18-1 (agent-verified 2026-10-25).
+- [x] Threshold opt-out type spot-checked — agent-verified 2026-10-25 (general interview, PASS).
 - [x] Deck floor item SUPERSEDED, not requiring human test — see REQ-84 row
   above. The deck half of REQ-84 was reversed by Phase 19's 2026-10-08
   amendment (deck never walks out at any turn count); confirmed by
@@ -288,12 +289,110 @@ Side findings (not Phase 18 requirements, logged for triage):
   questions", "Behavioral focus", "Your resume is used only to personalize this
   practice interview", and a "We can't see your face" warning with camera off.
 
+## Agent-verified UAT run (2026-10-25) — replaces the human UAT by user decision
+
+**Verdict basis: agent-verified (Playwright, real HeyGen/OpenAI), not human.**
+The user decided on 2026-10-25 that agent-driven Playwright evidence on the real
+APIs replaces the human UAT for this gate. Claude drove headless Chromium (fake
+camera and microphone, camera **on**) against the local dev server on branch
+`feat/study-plan-expansion`, signed in as `alice.johnson@case.edu`. Every chat
+request and SSE `end` metadata frame was captured, and the DOM was polled every
+300ms for meters. Input used the current **tap-to-send** control: E1's first
+turn was a WAV played into the mic ("Tap to record" → "Tap again to send"); all
+other turns were typed. No product code was changed.
+
+Harness and raw evidence (scratchpad, not committed):
+`/private/tmp/claude-502/-Users-ajabreu79-projects-leadership-avatar-project/340699c5-21b8-4966-907f-40a827dcea9a/scratchpad/e2e/uat-walkout/`
+(`elev.js`, `optout.js`, `drive.js`; per-run `*.log` / `*.json`). Screenshots are in
+`/private/tmp/claude-502/-Users-ajabreu79-projects-leadership-avatar-project/340699c5-21b8-4966-907f-40a827dcea9a/scratchpad/e2e/shots/uat-walkout/`.
+
+### Script battery re-run (2026-10-25, HEAD `bea7c5a` + merge `8693a93`)
+
+| Command | Exit |
+|---|---:|
+| `npx tsx scripts/verify-disengagement.ts` | 0 |
+| `npx tsx scripts/verify-disengagement-termination.ts` | 0 |
+| `npx tsx scripts/verify-disengagement-walkout-shell.ts` | 0 |
+| `npx tsx scripts/verify-disengagement-report.ts` | 0 |
+| `npx tsx scripts/verify-pitch-types.ts` | **0** — the A/B disposition above has been settled since then: §6 now asserts `assistantTurnCount:4 + walked_out + NO disengagement evidence REJECTED (fails closed)` |
+| `npx tsc --noEmit --pretty false` | 0 |
+
+### Sessions
+
+| Run | Type | Script | Report id | Outcome |
+|---|---|---|---|---|
+| E1 | `pitch-elevator`, "Completely blind", camera on | pure stall: "It's an app." ×N (turn 0 by voice) | `c53a3d50-b874-43f4-a4fe-857618a23aeb` (stays IN_PROGRESS) | crossed at assistant turn 4 (0.500, cue `rising`) → lock → **dead end** |
+| E2 | same | two strong, tailored turns, then stall | `7e412c55-93e3-457a-99fc-afb9dc01a8b1` (stays IN_PROGRESS) | 0 → 0 → 0.267 → 0.583 crossed at assistant turn 4 → lock → **dead end** |
+| O1 | `general` interview (no threshold) | "Ok." / "I don't know." ×6 | `52fdc8f1-5525-40c6-b539-989e1becf701` | value 0.69, `crossed:false` every turn, no walk-out (expected) |
+
+### F18-1 — BLOCKER: the forced-farewell request never fires, so a walk-out traps the student
+
+Re-observed 2/2 elevator runs today, and the same as the 2026-10-14 agent run,
+**after** `4946922 fix(walkout): deliver the forced farewell and never leave the
+session locked`.
+
+Repro (E1, verbatim timings from `elev-A.log`):
+
+1. `/practice/pitch-elevator` → subject "A meal-planning app for busy parents" →
+   "Completely blind" → camera on → Start.
+2. Answer "It's an app." / "It's an app for stuff." / "Yeah. The app.".
+3. `15:59:10.248` the 4th chat response returns `walkOutFinal: true`,
+   `walkOutProof` present, `termination: null`, `disengagement.value 0.5,
+   crossed: true`.
+4. Expected: a second `POST /api/interaction/chat` with
+   `turnState.forceWalkOutFarewell: true` (the one-shot farewell). **Observed:
+   none is ever sent.** The crossing reply is suppressed by design, so nothing is
+   spoken.
+5. "The conversation ended." appears. Textarea, Send and "Tap to record" are
+   disabled. **"End interview" is also disabled.** No `POST
+   /api/practice/session/finish` in the following 120s; clock keeps running
+   (3:11 in `elev-A-w2-after.png`). The report row stays `IN_PROGRESS`.
+
+Likely cause (read from source, not instrumented):
+`PracticeSessionShell.tsx` schedules the retry with
+`window.setTimeout(() => void sendMessageRef.current?.("", true), 0)` from inside
+the crossing turn's `try`, then `return`s. `sendMessageRef.current` is only
+reassigned on re-render, and `sendMessage`'s guard opens with
+`if ((!content && !forceWalkOutFarewell) || sending || …) return;`. If the
+timeout runs before React re-renders with `setSending(false)` from `finally`, the
+stale closure still sees `sending === true` and returns silently. The 4946922
+fix only hardened the path **after** the forced request comes back, so it never
+runs when the request is not sent. `verify-disengagement-walkout-shell.ts` is a
+source-level check, so it cannot see the timing.
+
+The orchestrator decides the fix. No product code was changed here.
+
+### Other observations (not Phase 18 requirements)
+
+- **Calibration (note only, no change):** E2 crossed 0.5 after only **two**
+  short replies that followed two strong, tailored turns (0.267 → 0.583, about
+  34s on the session clock). That feels eager for an elevator pitch. E1's
+  crossing turn landed exactly on 0.500.
+- U2/U3 from 2026-10-14 are still present: "Opening stage", "0 of ~9 questions",
+  "Behavioral focus" and "Your resume is used only to personalize this practice
+  interview" appear in pitch mode, and the pitch-window panel still reads
+  "starts when you begin your pitch" after the pitch was typed.
+- Elevator episode `start_s` values move between replays (E1 turn 3: rise @25s;
+  turn 4: the same rise re-stamped @22s). Harmless for the gate; noted for REQ-86
+  once a report is reachable.
+
+### Phase 20 cross-reference
+
+Phase 20's 20-07 runs (see `20-VALIDATION.md`) hit the same F18-1 dead end in
+`difficult-conversation`. There the Phase 15 "End session" control stays enabled,
+so the student can leave manually. They also confirmed the REQ-78 ratchet holds
+across apologies.
+
 ## Calibration policy
 
 Do not retune thresholds, weights, or cue acceleration without explicit human
 calibration approval. Record any requested change here as a concrete follow-up.
 
-## Final human verdict
+## Final verdict — agent-verified (Playwright, real HeyGen/OpenAI), not human
 
-**PENDING — do not mark Phase 18 complete or update requirement checkboxes until
-human UAT evidence is supplied.**
+**FAIL (2026-10-25).** SC1 and SC5 PASS. SC3 FAILS on blocker F18-1: the forced
+farewell never fires, the session locks, and nothing finishes it. SC4 is BLOCKED
+behind F18-1, and SC2 is only partly shown. REQ-78, 80 and 85 PASS. REQ-81 and
+REQ-82 FAIL. REQ-79, 83 and 86 are BLOCKED. REQ-84 stays closed by amendment. Do not
+mark Phase 18 complete, and do not tick REQ-81/82/83/86 in REQUIREMENTS.md,
+until F18-1 is fixed and SC3/SC4 are re-run live.
