@@ -1,7 +1,7 @@
 # Phase 23 — Learning Paths Hub: Validation
 
 **Updated:** 2026-10-25
-**Branch:** feat/study-plan-expansion (not pushed)
+**Branch:** feat/study-plan-expansion (PR #65 into dev)
 **Status:** COMPLETE — agent-verified (Playwright, real HeyGen/OpenAI), not human. The user decided this closes the UAT gate (2026-10-25).
 
 Phase 23 was run as an orchestrated multi-worktree effort (worktrees under
