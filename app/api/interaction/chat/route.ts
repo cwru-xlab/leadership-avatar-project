@@ -305,6 +305,7 @@ function attachTerminationToStream(
                     const parsed = parseEngineTurn(accumulated, config, {
                       ...parseOpts,
                       disengagementValue: disengagement.value,
+                      severeContent: disengagement.severe === true,
                     });
 
                     // Server-decided, from the type's own closed vocabulary.
@@ -317,9 +318,10 @@ function attachTerminationToStream(
                     const minimumTurns =
                       config.terminationPolicy.avatarEndFloor
                         ?.minAssistantTurns ?? 0;
-                    // Severe content clears the floor (REQ-100) but NOT the
-                    // threshold: severity is a carve-out from the turn-count
-                    // minimum only, never a bypass of derived evidence.
+                    // Severe content clears the floor (REQ-100). It reaches
+                    // the threshold through the derived value itself
+                    // (computeDisengagement's severe lift), never by
+                    // bypassing derived evidence here.
                     const walkOutFinal =
                       config.terminationPolicy.disengagementThreshold !=
                         null &&

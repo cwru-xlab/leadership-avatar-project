@@ -38,6 +38,7 @@ import {
 } from "@/lib/interview/types";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import { getEngineType } from "@/lib/engine/registry";
+import { getInterviewType } from "@/lib/interview/types";
 import { parseEngineTurn } from "@/lib/engine/turn-control";
 import type {
   DisengagementComputeResult,
@@ -78,6 +79,8 @@ type WalkOutMetadata = {
   disengagementCue?: DisengagementCue | null;
   walkOutFinal?: boolean;
   walkOutProof?: string | null;
+  /** Server-derived end reason from the type's own vocabulary. */
+  walkOutReason?: string | null;
   /** Server declined the one-shot forced farewell this turn asked for
    * (proof missing/invalid, or an end-of-turn metadata computation failed).
    * See debug: elevator-walkout-dead-end. */
@@ -280,6 +283,7 @@ function PracticeInterviewRoom({
   const extraChatBodyRef = useRef(extraChatBody);
   const checkpointing =
     getEngineType(sessionConfig.typeSlug)?.checkpointing ?? "none";
+  const isInterviewSession = Boolean(getInterviewType(sessionConfig.typeSlug));
   const targetQuestionCount =
     sessionConfig.limits.targetQuestionCount ??
     sessionConfig.customization?.targetQuestionCount ??
@@ -589,10 +593,15 @@ function PracticeInterviewRoom({
   const sendMessage = useCallback(
     async (candidateMessage: string, forceWalkOutFarewell = false) => {
       const content = candidateMessage.trim();
+      // The forced farewell is scheduled from inside the crossing turn's own
+      // request, so the closure it runs through can still see `sending` (and
+      // `isPaused`) from that render — gating it on them dropped it silently
+      // and left the student locked in (UAT F18-1). It is one-shot by
+      // `forcedFarewellRequestedRef`, so it needs neither gate.
       if (
         (!content && !forceWalkOutFarewell) ||
-        sending ||
-        isPaused ||
+        (sending && !forceWalkOutFarewell) ||
+        (isPaused && !forceWalkOutFarewell) ||
         (walkOutLockRef.current && !forceWalkOutFarewell)
       ) {
         return;
@@ -661,6 +670,11 @@ function PracticeInterviewRoom({
               },
             },
             ...(extraChatBodyRef.current ?? {}),
+            // The row THIS shell will finish. Sent after the caller's extra
+            // body so a page-level reportId that drifted (a double launch
+            // made a second row) can never bind the walk-out proof to a row
+            // other than the one finishSession checks it against (UAT F20-2).
+            ...(reportIdRef.current ? { reportId: reportIdRef.current } : {}),
           }),
         });
 
@@ -778,7 +792,10 @@ function PracticeInterviewRoom({
           }
 
           pendingTerminationRef.current = {
-            reason: acceptedTermination?.reason ?? "lost_interest",
+            reason:
+              acceptedTermination?.reason ??
+              walkOutMetadata?.walkOutReason ??
+              "lost_interest",
             source: "avatar",
           };
           // A declined or dropped forced farewell can still carry an
@@ -915,6 +932,10 @@ function PracticeInterviewRoom({
   });
 
   useEffect(() => {
+    // Re-arm on (re)mount. React Strict Mode runs mount → cleanup → mount in
+    // development; without this the first cleanup leaves the flag true for the
+    // whole session and the walk-out never auto-finishes (UAT 2026-10-25).
+    walkOutFinishCancelledRef.current = false;
     return () => {
       walkOutFinishCancelledRef.current = true;
       releaseMicrophone();
@@ -1218,6 +1239,7 @@ function PracticeInterviewRoom({
         <div className="relative z-10 mt-auto px-5 pb-6 pt-36 sm:px-8 lg:hidden">
           <InterviewStatus
             interviewerName={interviewerName}
+            isInterviewSession={isInterviewSession}
             stageLabel={stageLabel}
             elapsedSeconds={elapsedSeconds}
             avatarReady={avatarReady}
@@ -1229,6 +1251,7 @@ function PracticeInterviewRoom({
         <div className="hidden px-8 pb-5 pt-7 lg:block">
           <InterviewStatus
             interviewerName={interviewerName}
+            isInterviewSession={isInterviewSession}
             stageLabel={stageLabel}
             elapsedSeconds={elapsedSeconds}
             avatarReady={avatarReady}
@@ -1236,6 +1259,10 @@ function PracticeInterviewRoom({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col px-5 sm:px-8">
+          {/* Interview agenda (dev #55): interview types only — pitches,
+              networking and difficult conversations have no question count
+              or resume (UAT 2026-10-25). */}
+          {isInterviewSession ? (
           <div className="border-y border-white/10 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#73cee5]">
               Practice flow
@@ -1248,6 +1275,7 @@ function PracticeInterviewRoom({
               <span>{resumeFileName ? "Resume in context" : "Behavioral focus"}</span>
             </div>
           </div>
+          ) : null}
 
           <div aria-live="polite" className="min-h-0 flex-1 space-y-5 overflow-y-auto py-6 pr-1">
             {!messages.length && !streamingText && (
@@ -1464,8 +1492,11 @@ function InterviewStatus({
   stageLabel,
   elapsedSeconds,
   avatarReady,
+  isInterviewSession,
 }: {
   interviewerName: string;
+  /** Interview types say "Interview with"; every other type "Conversation with" (UAT D17-1). */
+  isInterviewSession: boolean;
   stageLabel: string;
   elapsedSeconds: number;
   avatarReady: boolean;
@@ -1475,7 +1506,7 @@ function InterviewStatus({
   return (
     <SessionStatus
       eyebrow="Leadership Avatar practice"
-      title={<>Interview with {interviewerName}</>}
+      title={<>{isInterviewSession ? "Interview" : "Conversation"} with {interviewerName}</>}
       subtitle={avatarReady ? `${stageLabel} stage` : "Connecting securely"}
       elapsedSeconds={elapsedSeconds}
     />
