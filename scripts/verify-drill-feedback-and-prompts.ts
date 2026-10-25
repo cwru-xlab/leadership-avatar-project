@@ -59,6 +59,13 @@ console.log("\n1. D1 — exact excerpts");
   check("bite-proof: a tidied-up paraphrase is rejected", exactExcerpt("there were many reasons", TRANSCRIPT) === null);
   check("bite-proof: an invented quote is rejected", exactExcerpt("I always lead with my conclusion", TRANSCRIPT) === null);
   check("a 2-word excerpt is too short to point at", exactExcerpt("my internship", TRANSCRIPT) === null);
+  const long = exactExcerpt(TRANSCRIPT, TRANSCRIPT);
+  check(
+    "an over-long exact excerpt is shortened to its opening sentence (still the student's words)",
+    long !== null && TRANSCRIPT.startsWith(long) && long.split(/\s+/).length <= 30,
+    String(long),
+  );
+  check("bite-proof: an over-long INVENTED excerpt is still rejected", exactExcerpt("Invented words " + TRANSCRIPT, TRANSCRIPT) === null);
 }
 
 console.log("\n2. D1 — pointers");
