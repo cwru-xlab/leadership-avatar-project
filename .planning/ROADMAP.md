@@ -47,7 +47,7 @@ requirement tracking and carry no REQ IDs. Phase 6 onward is roadmapped properly
 - [ ] **Phase 20: Difficult Conversation Walk-Outs** - The avatar leaves a difficult conversation when the student loses control of its hostility
 - [ ] **Phase 21: Adaptive Mastery Path** - Study plans become a tailored improvement path: measured mastery, generated practice aimed at the gap, knowledge checks, and in-session coaching
 - [ ] **Phase 22: Coached Mode** - Coached sessions get an actual coach: a coach persona, the avatar back, and a replay target worth reworking
-- [ ] **Phase 23: Learning Paths Hub** - Study plans and paths get their own tabs, mastery reflects live + path growth, and the path loop teaches
+- [ ] **Phase 23: Learning Paths Hub** - Study plans and paths get their own tabs, mastery reflects live + path growth, and the path loop teaches (implementation + e2e complete 2026-10-25; human UAT pending — see 23-VALIDATION.md)
 
 ## Phase Details
 
@@ -1156,29 +1156,29 @@ read 2026-10-16). Recorded because two of its findings change the brief:
 
 Plans:
 - [x] 21-01-PLAN.md — Derive REQ-103..REQ-124 into REQUIREMENTS.md + Traceability + coverage, and the ROADMAP Requirements line — complete 2026-10-20, see `21-01-SUMMARY.md`
-- [ ] 21-02-PLAN.md — Cross-type competency catalog derived from the live rubric-dimension registry, with a total-mapping guard
-- [ ] 21-03-PLAN.md — Prisma models for the mastery ledger, four-format checks, attempts, contests, path, steps and coached sessions (migration unapplied)
-- [ ] 21-04-PLAN.md — Session-moment extraction and the exact-match-or-reject verbatim quote validator (TDD)
+- [x] 21-02-PLAN.md — Cross-type competency catalog derived from the live rubric-dimension registry, with a total-mapping guard
+- [x] 21-03-PLAN.md — Prisma models for the mastery ledger, four-format checks, attempts, contests, path, steps and coached sessions (migration unapplied)
+- [x] 21-04-PLAN.md — Session-moment extraction and the exact-match-or-reject verbatim quote validator (TDD)
 - [x] 21-05-PLAN.md — Contribution weight table with its locked orderings enforced, plus the append-only mastery ledger — complete 2026-10-20, see `21-05-SUMMARY.md`
 - [x] 21-06-PLAN.md — Four check payload formats inside the study-plan surface, with the no-engine-registry guard — complete 2026-10-20, see `21-06-SUMMARY.md`
 - [x] 21-07-PLAN.md — Named scoped privacy-boundary widening for own-moment generation; the existing generator frozen and proven frozen — complete 2026-10-20, see `21-07-SUMMARY.md`
 - [x] 21-08-PLAN.md — The path as a child of the study plan: 5-10 bound, new-plan-new-path, old paths reachable — complete 2026-10-20, see `21-08-SUMMARY.md`
 - [x] 21-09-PLAN.md — Deterministic lifetime and current-window mastery computation (TDD) — complete 2026-10-20, see `21-09-SUMMARY.md`
-- [ ] 21-10-PLAN.md — Four-format check generation from the student's own moments, with the verbatim gate proven against a disobedient stub
-- [ ] 21-11-PLAN.md — Deterministic grading for the three closed formats, model grading for rewrites at the lower weight (TDD)
+- [x] 21-10-PLAN.md — Four-format check generation from the student's own moments, with the verbatim gate proven against a disobedient stub
+- [x] 21-11-PLAN.md — Deterministic grading for the three closed formats, model grading for rewrites at the lower weight (TDD)
 - [x] 21-12-PLAN.md — Coached practice as its own path-only instance, replay-then-fresh, with the engine relationship decided in writing — complete 2026-10-20, see `21-12-SUMMARY.md`
 - [x] 21-13-PLAN.md — Evidence thinness tiers attached at the single server exit for mastery — complete 2026-10-20, see `21-13-SUMMARY.md`
 - [x] 21-14-PLAN.md — Deterministic explainable weakest-competency-first step selection (TDD) — complete 2026-10-20, see `21-14-SUMMARY.md`
 - [x] 21-15-PLAN.md — Contest a grading: immediate contribution reversal and generated-question flagging — complete 2026-10-20, see `21-15-SUMMARY.md`
 - [x] 21-16-PLAN.md — Technique-only coach tips enforced mechanically, and the coached-weight contribution — complete 2026-10-20, see `21-16-SUMMARY.md`
 - [x] 21-17-PLAN.md — Per-competency levels and daily/weekly goals, with no-streaks and no-unlocking negative guards — complete 2026-10-21, see `21-17-SUMMARY.md`
-- [ ] 21-18-PLAN.md — Mastery surface: overall figure plus per-competency breakdown with labelled dual figures and inline thinness
+- [x] 21-18-PLAN.md — Mastery surface: overall figure plus per-competency breakdown with labelled dual figures and inline thinness
 - [x] 21-19-PLAN.md — Path surface inside the study plan, additive to app/reports/page.tsx, with the existing-surface regression guard — complete 2026-10-21, see `21-19-SUMMARY.md`
 - [x] 21-21-PLAN.md — LIVE_SESSION ingestion on the report READY transition, and the single shared report-to-competency mapper — complete 2026-10-20, see `21-21-SUMMARY.md`
-- [ ] 21-22-PLAN.md — Knowledge-check taking surface: attempt route, four-format card with the contest affordance, and the page a path step links to
+- [x] 21-22-PLAN.md — Knowledge-check taking surface: attempt route, four-format card with the contest affordance, and the page a path step links to
 - [x] 21-23-PLAN.md — Coached runtime: path-step-only entry route and the REPLAY-to-FRESH orchestration with every tip gated — complete 2026-10-20, see `21-23-SUMMARY.md`
-- [ ] 21-24-PLAN.md — Coached session shell and page: verbatim replay, technique-reminder rail, fresh leg, finish
-- [ ] 21-25-PLAN.md — Ownership-scoped generation-source assembler: the single supplier of 21-10's inputs and the path route's availability pre-check
+- [x] 21-24-PLAN.md — Coached session shell and page: verbatim replay, technique-reminder rail, fresh leg, finish
+- [x] 21-25-PLAN.md — Ownership-scoped generation-source assembler: the single supplier of 21-10's inputs and the path route's availability pre-check
 - [ ] 21-20-PLAN.md — Full battery, human UAT against five Success Criteria, REQ-85 Phase 18 revision handoff, calibration record (human-verified)
 
 
@@ -1275,21 +1275,21 @@ put it; nothing under `lib/engine/` or `components/practice/` changes in this ph
 **Plans:** 15/16 plans executed
 
 Plans:
-- [ ] 22-01-PLAN.md — Decision records (coach layer, avatar mount) + REQ-114/115/116 amendments
-- [ ] 22-02-PLAN.md — Schema + hand-authored migration (human applies, REQ-74)
-- [ ] 22-03-PLAN.md — TDD: pleasantry filter + deterministic two-moment ranking
-- [ ] 22-04-PLAN.md — next-step.ts contradiction fix: coached steps require scored evidence
-- [ ] 22-05-PLAN.md — TDD: gated demonstration carve-out in assertTipSafe + coach speech gate
-- [ ] 22-06-PLAN.md — Second avatar mount + push-to-talk hook (components/practice/ untouched)
-- [ ] 22-07-PLAN.md — Per-turn competency scorer (cached) + moment selection + path placement guard on the same predicate
-- [ ] 22-08-PLAN.md — Coach identity + coach persona prompt + containment guard
-- [ ] 22-09-PLAN.md — Coach-graded contribution at the model-graded weight class
-- [ ] 22-10-PLAN.md — Coach turn orchestration: grade, gate, retry, persist
-- [ ] 22-11-PLAN.md — Settings coach picker with default
-- [ ] 22-12-PLAN.md — instance/runtime rebuild: two real moments, coach-closed legs, no engine session
-- [ ] 22-13-PLAN.md — Coached route turn/advance/complete + end-to-end battery
-- [ ] 22-14-PLAN.md — Shell state/flow: brief + consent, guarded opening, coach-closed legs, vendor degradation, scroll
-- [ ] 22-15-PLAN.md — Shell session layout: video coach + PTT, verbatim moment, demonstration card; surface battery
+- [x] 22-01-PLAN.md — Decision records (coach layer, avatar mount) + REQ-114/115/116 amendments
+- [x] 22-02-PLAN.md — Schema + hand-authored migration (human applies, REQ-74)
+- [x] 22-03-PLAN.md — TDD: pleasantry filter + deterministic two-moment ranking
+- [x] 22-04-PLAN.md — next-step.ts contradiction fix: coached steps require scored evidence
+- [x] 22-05-PLAN.md — TDD: gated demonstration carve-out in assertTipSafe + coach speech gate
+- [x] 22-06-PLAN.md — Second avatar mount + push-to-talk hook (components/practice/ untouched)
+- [x] 22-07-PLAN.md — Per-turn competency scorer (cached) + moment selection + path placement guard on the same predicate
+- [x] 22-08-PLAN.md — Coach identity + coach persona prompt + containment guard
+- [x] 22-09-PLAN.md — Coach-graded contribution at the model-graded weight class
+- [x] 22-10-PLAN.md — Coach turn orchestration: grade, gate, retry, persist
+- [x] 22-11-PLAN.md — Settings coach picker with default
+- [x] 22-12-PLAN.md — instance/runtime rebuild: two real moments, coach-closed legs, no engine session
+- [x] 22-13-PLAN.md — Coached route turn/advance/complete + end-to-end battery
+- [x] 22-14-PLAN.md — Shell state/flow: brief + consent, guarded opening, coach-closed legs, vendor degradation, scroll
+- [x] 22-15-PLAN.md — Shell session layout: video coach + PTT, verbatim moment, demonstration card; surface battery
 - [ ] 22-16-PLAN.md — Validation battery + human browser UAT gate
 
 ### Phase 23: Learning Paths Hub

@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.1 — Consequence & Deck Breadth
-**Updated:** 2026-10-23 (Phase 22 Waves 1-7 complete — 22-01..22-15. Wave 7: session layout (stage+captions+PTT left; moment panel, labelled demonstration card, TipRail right), surface battery sections 5-10 with bite-proofs (22-15; no browser smoke — no student login). Wave 6: brief card + consent gate, verbatim moment panel, guarded opening turn (ready/error/15s), coach-closed leg buttons, h-dvh overflow-y-auto page (22-14; scroll not yet browser-checked). Wave 5: coached route PATCH turn/advance/complete with error mapping, verify-coached-entry 152 checks incl. thin-evidence (22-13); full tsc clean. Wave 4: coach-only runtime with two real moments, no engine session/InteractionReport, verify-coached-entry rewritten to the new flow (22-12; coached route tsc errors expected until 22-13). Wave 3: gradeCoachedAttempt + gated coachTurn orchestrator, containment closure now non-empty (22-10); Settings "Your coach" card + /api/settings/coach with roster-validated PUT (22-11). Wave 2: per-turn competency scoring + cached moment selection with shared placement predicate (22-07); coach identity (default "Ann", Ann Therapist avatar + "Ann - IA" voice), coach persona prompt and verify-coach-containment (22-08); coach grade as COACHED_SESSION contribution at shared MODEL_GRADED_WEIGHT 0.20, no InteractionReport (22-09). Orchestrator fix: coach-prompt no longer a third competencyForDimension importer; verify-levels-goals exempts walkOutLocked. Migration applied locally only — prod NOT migrated. Milestone v1.1.)
+**Updated:** 2026-10-25 (Phase 23 implementation + agent-driven e2e complete; 90/90 verifiers, build green. Phases 17-23 each await a human UAT gate. Earlier detail for Phase 22 is in 22-VALIDATION.md.)
 
 ## Current Position
 
-**Phase:** 22 — Coached Mode (all 16 plans executed; UAT round 1 NOT approved — gap closure next)
-**Plan:** 22-16 Task 3 blocked on a passing UAT. Gaps G1-G4 in `22-VALIDATION.md` ## UAT: stale dev-server Prisma client (env), silent coach (opening fires from 15s fallback before CONNECTED), no camera, and user decision to extract shared session chrome from the interview shell (supersedes 22-AVATAR-MOUNT-DECISION.md; amend 21-12 guard; practice regression check needed). REQ-113/114/115 Pending.
-**Status:** Practice tree and `lib/engine/` unchanged vs 59f6166. Open: containment runtime-marker scan covers 4/13 engine types (others by import closure only); path-route placement latency vs 60s maxDuration unmeasured with a real model; UAT needs a freshly generated path.
+**Phase:** 23 — Learning Paths Hub (implementation + e2e complete; human UAT pending — `23-VALIDATION.md`)
+**Plan:** Phase 22 shared-shell gap closure (G1-G4) landed; 22-16 still blocked on human UAT round 2.
+**Status:** Open gates — human UATs 17-05, 18-05, 19-11, 20-07 (gated on 18-05), 21-20, 22-16, Phase 23; production migrations for Phases 21-23 unapplied; branch not pushed.
 **Last activity:** 2026-10-21 — quick task 006 (study-plan picker-as-modal +
 saved-plan own-route) complete, two commits (`1eeb762` feat, `86ae306`
 test). The "Choose which interviews to use" picker built in quick-005 moved
