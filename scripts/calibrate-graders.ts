@@ -3,8 +3,9 @@
  *
  * Grades the same 3 fixed answers (strong / middling / weak) 5 times each
  * through the VOICE_DRILL grader and the coached attempt grader, and reports
- * the spread. Targets: max - min <= 1 for every answer, and the medians keep
- * the strong > middling > weak ordering. Exits 1 when a target is missed.
+ * the spread. Targets: max - min <= 1 for every answer, the medians keep
+ * the strong > middling > weak ordering, and drill and coached agree within
+ * 1 point on each answer (shared anchors: lib/mastery/rubric-anchors.ts). Exits 1 when a target is missed.
  *
  * Needs OPENAI_API_KEY. Run:
  *   npx tsx --env-file=<.env.local> scripts/calibrate-graders.ts
@@ -98,6 +99,14 @@ async function main() {
     const ordered = m("strong") > m("middling") && m("middling") > m("weak");
     if (!ordered) failed = true;
     console.log(`${grader}: medians strong ${m("strong")} > middling ${m("middling")} > weak ${m("weak")} — ${ordered ? "ordering holds" : "ORDERING BROKEN"}`);
+  }
+  for (const answer of ANSWERS) {
+    const d = rows.find((r) => r.grader === "drill" && r.label === answer.label)!.scores;
+    const c = rows.find((r) => r.grader === "coached" && r.label === answer.label)!.scores;
+    const gap = Math.max(...d, ...c) - Math.min(...d, ...c);
+    const agree = gap <= 1;
+    if (!agree) failed = true;
+    console.log(`${answer.label}: drill vs coached, all 10 scores within ${gap} — ${agree ? "agree (<=1)" : "DISAGREE"}`);
   }
   console.log(failed ? "\nCALIBRATION TARGET MISSED\n" : "\nCALIBRATION TARGETS MET\n");
   process.exit(failed ? 1 : 0);

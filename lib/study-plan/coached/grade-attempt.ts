@@ -22,6 +22,8 @@
  * deterministically in coach.ts before the grader is called.)
  */
 import { gradingSampling } from "../grading-determinism";
+import { RUBRIC_ANCHORS } from "../../mastery/rubric-anchors";
+import type { CompetencyKey } from "../../mastery/competencies";
 
 export const COACHED_ACCEPTABLE_SCORE = 4; // PROVISIONAL UNTIL CALIBRATED
 export const MAX_GRADE_ATTEMPTS = 3; // first call + two retries
@@ -97,13 +99,16 @@ async function defaultGrader(args: GradeAttemptInput): Promise<unknown> {
     "recycled and off-topic. " +
     "Otherwise judge ONLY the single competency given, using the " +
     "rubric dimensions as what good looks like. Score 1 (not shown at all) to 5 " +
-    "(fully shown). Set acceptable=true only if the attempt genuinely shows the " +
+    "(fully shown). rubricAnchors (when present) describes what a 1, a 3 and a 5 look " +
+    "like for THIS competency: match the attempt to the closest anchor (2 and 4 sit " +
+    "between them), and reserve 5 for an attempt that fully meets the 5 anchor. Set acceptable=true only if the attempt genuinely shows the " +
     "competency. Do not reward length, polish or vocabulary unrelated to the " +
     "competency. The rationale is one or two plain sentences, 300 characters max.";
 
   const payload: Record<string, unknown> = {
     competency: args.competency,
     rubricDimensions: args.rubricDimensions,
+    rubricAnchors: RUBRIC_ANCHORS[args.competency.key as CompetencyKey] ?? null,
     originalLine: args.originalLine,
     questionTheyWereAnswering: args.counterpartLine,
     attempt: args.attempt,
