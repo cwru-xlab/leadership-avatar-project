@@ -1,6 +1,6 @@
 ---
 phase: 18-avatar-disengagement-walk-out
-status: agent-uat-failed
+status: complete-agent-verified
 verdict_basis: agent-verified (Playwright, real HeyGen/OpenAI), not human — user decision 2026-10-25
 requirements:
   - REQ-78
@@ -396,3 +396,50 @@ behind F18-1, and SC2 is only partly shown. REQ-78, 80 and 85 PASS. REQ-81 and
 REQ-82 FAIL. REQ-79, 83 and 86 are BLOCKED. REQ-84 stays closed by amendment. Do not
 mark Phase 18 complete, and do not tick REQ-81/82/83/86 in REQUIREMENTS.md,
 until F18-1 is fixed and SC3/SC4 are re-run live.
+
+## Pass 2 keyboard UAT (Phase 19 closing plan)
+
+**Date:** 2026-10-25. **Basis: agent-verified (Playwright, real HeyGen/OpenAI), not
+human** (the user decided agent evidence replaces the human UAT). This section
+covers the keyboard half only. It does not change this file's SC/REQ verdicts,
+which belong to 18-05. The authoritative shared record is
+[[.planning/phases/19-deck-led-pitch-family/19-KEYBOARD-PASS-2.md]] (items 13–15
+are Phase 18's).
+
+The Phase 18 items were exercised on `pitch-elevator`, because Phase 19 switched
+every deck mode's walk-out off (`19-CONTEXT.md` "Walk-out: OFF for every deck
+mode"; amendment recorded in `19-03-SUMMARY.md`). The run was on
+`http://localhost:3000`, before the separate walk-out fix (served on :3100). The
+items were not re-tested after that fix, per the coordinator.
+
+| Pass 2 item | Verdict | Observed (keyboard only) |
+|---|---|---|
+| 13 — final statement blocks both input paths | FAIL (F18-1) | The lock engaged after a stalled run (report `5a7b1394-f068-484f-a673-b033dfc4d821`). Textarea, Send, `Start recording answer` (tap-to-send; hold-Space was superseded by dev #37), `Leave interview` and `End interview` were all disabled. Tab reached only `Hide pitch timer` and the transcript region; typing + Enter changed nothing. So the inputs are inert, but no final statement ever played. |
+| 14 — auto-finish without End | FAIL (F18-1) | No finish or report within 7 minutes. With End also disabled, the keyboard user is trapped. This is the same blocker as F18-1 above. |
+| 15 — no disengagement meter anywhere in the shell | PASS | Full tab traversal plus DOM and accessibility scans at start, mid-stall and during the lock found no meter, gauge, `progressbar`/`meter` role or engagement or warning text. The scans were also clean in all six deck sessions. |
+
+
+## Re-test after fixes (2026-10-25, later) — agent-verified (Playwright, real HeyGen/OpenAI), not human
+
+User-approved fixes landed in `032ae98` and `57b221f`, merged in `a42eca1`.
+F18-1 had three separate causes:
+1. The forced farewell was dropped by a stale `sending` closure.
+2. A React Strict Mode cleanup left `walkOutFinishCancelledRef` true for the whole session, so auto-finish never fired in dev.
+3. The finish-time replay could not see the avatar cue and so rejected crossings the server had signed. The signed live result is now a floor, by user decision; this amends the locked rule "the proof never supplies the value".
+
+Live elevator walk-outs on the fixed build (port 3100, then merged):
+
+| Run | Path | Report | Recorded |
+|---|---|---|---|
+| elev3 | model ends on crossing turn | `183e200a` | finish POST 7s after farewell → report (record later fixed) |
+| elev5 | model ends on crossing turn | `0c610855` | `no_common_ground`, 46s, decline 0.8625, 4 episodes |
+| dbg2 | forced farewell | (debug run) | termination ok `lost_interest`, proof matched |
+| final2 | model ends on crossing turn | `97d9f6b3` | `unclear_ask`, 26s, decline 0.683, episodes 21s/26s; decline panel renders "Interest dropped around 0:26" |
+
+Verdicts (supersede the FAIL/BLOCKED rows above):
+- SC2 **PASS**. In elev3 the `high` cue lifted the value from 0.483 (the transcript-only replay) to 0.6 and crossed. The cue speeds up a walk-out but cannot end a cold session alone, as `verify-disengagement-termination` proves.
+- SC3 **PASS**. One uninterruptible final statement plays, typed input and tap-to-record lock, and the session auto-finishes.
+- SC4 **PASS**. Each report records the avatar termination with its reason, timecode and decline episodes, and the report explains the decline from observable causes.
+- REQ-79, REQ-81, REQ-82, REQ-83, REQ-86 **PASS**.
+
+**Final verdict: PASS — agent-verified (Playwright, real HeyGen/OpenAI), not human.**

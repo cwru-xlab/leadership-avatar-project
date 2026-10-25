@@ -1,6 +1,6 @@
 ---
 phase: 20-difficult-conversation-walk-outs
-status: agent-uat-failed
+status: complete-agent-verified
 verdict_basis: agent-verified (Playwright, real HeyGen/OpenAI), not human — user decision 2026-10-25
 requirements:
   - REQ-95
@@ -301,3 +301,36 @@ and its Traceability table lists REQ-95…102 as Complete. By this live evidence
 REQ-100 and REQ-101 are **not** met. The boxes and the Traceability table were
 left untouched here, so the orchestrator or planner can reconcile them. The
 Phase 20 roadmap `**Plans:**` line is the planner's to update.
+
+
+## Re-test after fixes (2026-10-25, later) — agent-verified (Playwright, real HeyGen/OpenAI), not human
+
+Fixes: F18-1 (shared with Phase 18, above). F20-1: a severe turn lifts the
+derived value to the threshold in the signal path, `turn-control` passes
+`severeContent` to the chat-time gate, and finish gates on the proof's
+server-chosen reason. A conservative set of threat, harassment and
+identity-demeaning patterns was added, with no slur text committed. F20-2:
+chat turns send the shell's own `reportIdRef` after the caller's extra body.
+The root cause was a double launch that left the page's reportId pointing
+at a second row, which the proof was then signed against. Copy: the
+evaluator says "the character" and "the conversation" and makes no
+tone-of-voice claims for typed text; the session header reads
+"Conversation with". Commits `032ae98`, `57b221f`, merged in `a42eca1`.
+
+| Run | Scenario | Report | Recorded |
+|---|---|---|---|
+| severe6 | one harassing remark, turn 0 (below the 4-turn floor) | `6ca5fd69` | `offensive_content`, 22s, decline 0.6, episodes `severe_content+hostility` at 13s; remark masked "[… not repeated here]" on Overview and Moments |
+| hostile (final3) | sustained insults through two apologies | `5dcaf470` | `escalated`, 55s, decline 0.65, episodes at 17s/21s/47s (real session clock) |
+
+Verdicts (supersede the FAIL rows above):
+- P20-SC1 **PASS**. Hostility accumulates, holds through apologies, crosses, the character leaves in character, and the session auto-finishes.
+- P20-SC3 **PASS**. One severe remark ends the conversation on its own, below the floor.
+- P20-SC4 **PASS**. The character delivers its final line, and the reason codes separate `escalated` from `offensive_content`.
+- P20-SC5 **PASS**. Timecoded reaction causes appear with explicit content sanitized, and no score is capped.
+- REQ-100, REQ-101 **PASS**.
+
+The decline-signals panel is a Phase 18 pitch surface. Difficult
+conversations explain the end through `ConversationEndBanner` plus
+`reactionCauses`, per REQ-102.
+
+**Final verdict: PASS — agent-verified (Playwright, real HeyGen/OpenAI), not human.**

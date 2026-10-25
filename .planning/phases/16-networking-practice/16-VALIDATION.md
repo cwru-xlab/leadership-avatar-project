@@ -18,7 +18,7 @@
 | **How verified** | Shared distiller extraction + gated networking distill route; generate → edit → distill path; wizard bring-in UI |
 | **Plans / evidence** | 16-01 (generate route), 16-05 (`lib/interview/persona-distill.ts` one prompt / one model call; interview route contract unchanged), 16-08 Task 3 block C (bring-in wizard — skipped under `skip_checkpoints`) |
 | **Session / report ids** | Distill-gate verify uses local DB only (no live HeyGen session id). Leak-test networking report for character path: `b9ccf6a4-92a2-4b8a-86d0-87344168fe4a` (16-09; built-in character, not paste) |
-| **Verdict** | **PASS (automated path)** — one `PERSONA_DISTILL_SYSTEM_PROMPT`, networking distill consumes attestation then calls shared `distillPersona`; interview distill still works (`verify-networking-distill-gate`). **UNVERIFIED (human)** — real paste → practice → report walk not run under `skip_checkpoints`. |
+| **Verdict** | **PASS (automated path)** — one `PERSONA_DISTILL_SYSTEM_PROMPT`, networking distill consumes attestation then calls shared `distillPersona`; interview distill still works (`verify-networking-distill-gate`). **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — real raw paste → attestation → distill → practice → report: `753e439e-2e0a-4631-93f2-64b6eced5d3f`; `17-KEYBOARD-PASS-1.md` §8 items 9–10.|
 
 ### Criterion 2 (P16-SC2)
 
@@ -30,7 +30,7 @@
 | **Plans / evidence** | 16-06 Task 3 (characters; human judgment skipped), 16-07 script sections 3 and 5, 16-08 Task 3 block A (skipped) |
 | **Reading of "no input"** | Per 16-CONTEXT.md: no **persona authoring**. Required goal + avatar pick are not "input" in the criterion's sense. |
 | **Session / report ids** | 16-09 startSession character `priya-malhotra`; report `b9ccf6a4-92a2-4b8a-86d0-87344168fe4a` |
-| **Verdict** | **PASS (automated)** — five characters (`priya-malhotra`, `marcus-okonkwo`, `elena-vasquez`, `devon-park`, `amira-hassan`); `verify-networking-characters` + `verify-networking-type` exit 0; startSession builds `kind:"networking"` snapshot. **UNVERIFIED (human)** — full avatar session from a character not run under `skip_checkpoints`. |
+| **Verdict** | **PASS (automated)** — five characters (`priya-malhotra`, `marcus-okonkwo`, `elena-vasquez`, `devon-park`, `amira-hassan`); `verify-networking-characters` + `verify-networking-type` exit 0; startSession builds `kind:"networking"` snapshot. **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — full avatar session with Amira Hassan, `2e7e90af-bedc-42cd-98aa-280b15a009b8`; `17-KEYBOARD-PASS-1.md` §8 item 8.|
 
 ### Criterion 3 (P16-SC3)
 
@@ -45,7 +45,7 @@
 
 | | |
 |---|---|
-| **Overall verdict** | **PASS** on both halves from automated evidence. Human confirmation of "nowhere to share/publish in UI" (Task 3 block D) remains **UNVERIFIED** under `skip_checkpoints`. |
+| **Overall verdict** | **PASS** on both halves from automated evidence. **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — no share or publish affordance on the networking wizard, session or report; the attestation is required before distill; `17-KEYBOARD-PASS-1.md` §8 items 9–10. |
 
 ### Criterion 4 (P16-SC4)
 
@@ -57,7 +57,7 @@
 | **Load-bearing leak evidence** | From `16-GOAL-LEAK-TEST.md`: sentinel `SENTINEL-GOAL-7Q4Z a referral into their team`; across eight exchanges × two body variants (**16 files**), **`SENTINEL-GOAL-7Q4Z` matches = 0**, **`7Q4Z` matches = 0**. Zero is the only passing answer. |
 | **Plans / evidence** | 16-07 seven dims + evaluator prompt (not hiring-screen); 16-09 leak test PASS automated; 16-10 Task 3 step 5 human narrative verdict — **skipped** |
 | **Session / report ids** | Report `b9ccf6a4-92a2-4b8a-86d0-87344168fe4a` (also `c98173b9-2d7a-424c-b717-bde48e5e1690`); Goal Progress scoreable in evaluation context |
-| **Verdict** | **PASS (assembly / persistence / rubric shape)** — Goal Progress is honest only if the avatar never saw the goal; sentinel match count **0/0**. **UNVERIFIED (human)** — Rapport / Self-Introduction narrative judgment on a finished live report (16-10 block; 16-11 blocks C/E). |
+| **Verdict** | **PASS (assembly / persistence / rubric shape)** — Goal Progress is honest only if the avatar never saw the goal; sentinel match count **0/0**. **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25), minor calibration D16-1** — narrative read on `2e7e90af…` and `753e439e…`; the Amira `commonGround` names the student's own topic; `17-KEYBOARD-PASS-1.md` §8 item 8.|
 
 ---
 
@@ -70,12 +70,12 @@
 | 3 | No second distillation path | One prompt declaration; networking distill imports shared module | **PASS** |
 | 4 | No networking setting | Characters + type have no `setting`/`venue` field (surface-count §9; 16-06) | **PASS** |
 | 5 | One short typed goal; no resume step | NetworkingGoalStep; no resume in networking `setupSteps` (16-08) | **PASS** |
-| 6 | Goal REQUIRED to start | `start-snapshot` rejects empty goal; wizard `canContinue` (16-08/16-09) | **PASS (automated)** / **UNVERIFIED (human)** |
-| 7 | Goal HIDDEN from avatar | 16-GOAL-LEAK-TEST **0/0** sentinel matches; allow-list visibleContext omits `goal` (16-07/16-09) | **PASS (automated)** / **UNVERIFIED (human behavior)** |
+| 6 | Goal REQUIRED to start | `start-snapshot` rejects empty goal; wizard `canContinue` (16-08/16-09) | **PASS (automated)** / **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — Continue disabled with an empty goal in both runs.|
+| 7 | Goal HIDDEN from avatar | 16-GOAL-LEAK-TEST **0/0** sentinel matches; allow-list visibleContext omits `goal` (16-07/16-09) | **PASS (automated)** / **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — no goal awareness on turn one in either session; `17-KEYBOARD-PASS-1.md` §8 item 13.|
 | 8 | Raw paste EPHEMERAL; distill retention contract unchanged | 16-05 extraction; surface-count §6 | **PASS** |
 | 9 | Distilled persona private owner-scoped instance | 16-04 store + routes; cross-student 404 | **PASS** |
 | 10 | NEVER publishable — affordance absent, not off | 16-CONTEXT decision 7; surface-count §5; no `published` on `networking-persona` | **PASS** |
-| 11 | Attestation checkbox gates paste | NetworkingPersonStep + GET/POST attestation (16-02/16-05/16-08) | **PASS (code)** / **UNVERIFIED (human)** |
+| 11 | Attestation checkbox gates paste | NetworkingPersonStep + GET/POST attestation (16-02/16-05/16-08) | **PASS (code)** / **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — "Use this person" disabled until the checkbox is ticked; `17-KEYBOARD-PASS-1.md` §8 item 9.|
 | 12 | Attestation persisted: user + timestamp + wording version | `NetworkingAttestation` model (16-02) | **PASS** |
 | 13 | Attestation enforced SERVER-SIDE before distillation | `consumeAttestation` before model (16-05 verify) | **PASS** |
 | 14 | Attestation on brought-in path only | Characters need no attestation (16-CONTEXT; 16-08) | **PASS** |
@@ -85,7 +85,7 @@
 | 18 | Characters as TypeScript code records — no migration, no seed | `lib/networking/characters.ts` only | **PASS** |
 | 19 | Student picks avatar/voice via existing picker; no pinned avatar id | InterviewerStep reused; no avatar id on character records (16-06/16-08) | **PASS** |
 | 20 | Seven dimensions; shared four never type-optional | 16-07 type record; surface-count §10 | **PASS** |
-| 21 | Outcome: ask-made, how-it-landed, common-ground | `NETWORKING_OUTCOME` + NetworkingOutcomePanel (16-07/16-10) | **PASS (structure)** / **UNVERIFIED (live panel)** |
+| 21 | Outcome: ask-made, how-it-landed, common-ground | `NETWORKING_OUTCOME` + NetworkingOutcomePanel (16-07/16-10) | **PASS (structure)** / **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — live panel shows ask made, how it landed and common ground on both reports.|
 | 22 | Avatar MAY end early with recorded reason | `avatarMayEnd` + `avatarEndReasons` (16-07); engine floor admit/reject (16-09) | **PASS (engine)** / **UNVERIFIED (real-session walk-away)** |
 | 23 | Floor preventing opening-seconds disengagement — SAME knob as 14-02 | `avatarEndFloor: { minAssistantTurns: 4 }` inherited field; enforcement in `resolveTermination` (16-03/16-07/16-09) | **PASS** |
 
@@ -95,12 +95,12 @@
 
 | Check | Evidence | Verdict |
 |---|---|---|
-| Interview session runs and reports | Phase 13 validation + engine types still resolve (`verify-engine-config`) | **PASS (automated / prior)** / **UNVERIFIED (fresh 16-11 keyboard)** |
-| Case-study session runs and reports | Prior Phase 13 validation | **PASS (prior)** / **UNVERIFIED (fresh)** |
+| Interview session runs and reports | Phase 13 validation + engine types still resolve (`verify-engine-config`) | **PASS (automated / prior)** / **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — `2987e20c-d8bb-47dc-af56-8588eb9e1baa`.|
+| Case-study session runs and reports | Prior Phase 13 validation | **PASS (prior)** / **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — `93a9c35c-ed36-429e-ab0e-79f7d6a0e41d`.|
 | Pre-Phase-13 interview report at old URL | 13-VALIDATION item 1 / id `…0001` | **PASS (prior Phase 13)** |
 | Pre-Phase-13 scenario report at old URL | 13-VALIDATION item 3 / id `…0004` | **PASS (prior Phase 13)** |
-| Phase 8 interview persona-paste flow unchanged | 16-05 contract unchanged; distill-gate asserts interview route | **PASS (automated)** / **UNVERIFIED (human wizard)** |
-| Pitch session still runs (if Phase 14 landed) | `pitch-elevator` in ENGINE_TYPES; resolves in surface-count §1 | **PASS (resolve)** / **UNVERIFIED (live session)** |
+| Phase 8 interview persona-paste flow unchanged | 16-05 contract unchanged; distill-gate asserts interview route | **PASS (automated)** / **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — `/interview` Customize → Build persona → session as "Karen Liu" (`2987e20c…`); minor D17-2 (textarea unlabeled); `17-KEYBOARD-PASS-1.md` §8 item 12.|
+| Pitch session still runs (if Phase 14 landed) | `pitch-elevator` in ENGINE_TYPES; resolves in surface-count §1 | **PASS (resolve)** / **PASS for deck pitches (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — six deck-mode reports READY (see `19-VALIDATION.md`). The elevator walk-out dead end (F18-1) is a Phase 18 item.|
 
 ---
 
@@ -149,8 +149,8 @@ Handoff for anyone revising Phase 13 (mirror of 14-15 Section 4). Fold these int
 |---|---|
 | Attestation migration on **shared** DB (16-02 Task 3) | **PENDING / hold** — local `leadership_avatar_dev` only; see `.planning/HANDOFF.md` |
 | Attestation wording human product/legal approval | **DRAFT v1** — not human-finalized under skip |
-| Human real-session UAT (walk-away, never-asked panel, narrative SC4) | **PASS (human-reported; evidence PARTIAL)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] items 8–10; session/report IDs and detailed observations not supplied. |
-| `verify-report-structure.ts` vs `difficult-conversation` required instance | Deferred — see `deferred-items.md` (Phase 15 gap) |
+| Real-session UAT (walk-away, never-asked panel, narrative SC4) | **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — `2e7e90af…`, `753e439e…`; `17-KEYBOARD-PASS-1.md` §8 items 8–10. Walk-away and the never-asked panel were not triggered: the ask was made both times and no early end occurred. Minor D16-1. |
+| `verify-report-structure.ts` vs `difficult-conversation` required instance | **No longer reproduces** — exit 0 on the 2026-10-25 re-run (flagged in Pass 1 item 12) |
 
 ---
 
@@ -158,7 +158,7 @@ Handoff for anyone revising Phase 13 (mirror of 14-15 Section 4). Fold these int
 
 Empty for Success Criteria / locked-decision **FAIL** rows — none recorded as FAIL.
 
-Human-unverified items are tracked as **UNVERIFIED** in Sections 1–3 and Section 5 open items, not as plannable product gaps. Pre-existing tooling debt is in `deferred-items.md`.
+Human-unverified items were tracked as UNVERIFIED. Pass 1 (2026-10-25, agent-verified) walked blocks B–G; see Section 5 and `17-KEYBOARD-PASS-1.md` §8. No Success Criterion is FAIL, so no gap entry is opened. Pre-existing tooling debt is in `deferred-items.md`.
 
 If a later human keyboard pass marks any Success Criterion **FAIL**, add an entry here in the shape `/gsd:plan-phase 16 --gaps` consumes:
 
@@ -195,14 +195,14 @@ If a later human keyboard pass marks any Success Criterion **FAIL**, add an entr
 
 | Block | Status |
 |---|---|
-| B — Tile live on dashboard | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 7. |
-| C — Fresh character session + SC4 narrative | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 8; session ID not supplied. |
-| D — Brought-in person + SC3 UI half | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 9; session ID not supplied. |
-| E — Raw-paste acceptance + leak citation | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 10. |
-| F — Calibration keep/change | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 11; no change requested. |
-| G — Regression keyboard + row sign-off | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 12; session ID and detailed notes not supplied. |
+| B — Tile live on dashboard | **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — Tab + Enter on the tile → `/practice/networking`; `17-KEYBOARD-PASS-1.md` §8 item 7. |
+| C — Fresh character session + SC4 narrative | **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — `2e7e90af-bedc-42cd-98aa-280b15a009b8`; minor D16-1; `17-KEYBOARD-PASS-1.md` §8 item 8. |
+| D — Brought-in person + SC3 UI half | **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — `753e439e-2e0a-4631-93f2-64b6eced5d3f`; `17-KEYBOARD-PASS-1.md` §8 item 9. |
+| E — Raw-paste acceptance + leak citation | **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — attestation POST precedes distill (which carries the `attestationId`); `17-KEYBOARD-PASS-1.md` §8 item 10. |
+| F — Calibration keep/change | **PASS — keep (Pass 1, agent judgement, not human)** — `17-KEYBOARD-PASS-1.md` §8 item 11. |
+| G — Regression keyboard + row sign-off | **PASS (Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25)** — persona-paste regression `2987e20c…`; stale `verify-report-structure` rows flagged; `17-KEYBOARD-PASS-1.md` §8 item 12. |
 
-**Phase 16 keyboard sign-off:** all six planned blocks were reported PASS by the human on 2026-10-05; see [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]]. The record remains evidence-**PARTIAL** because no session/report IDs, item-level notes, calibration detail, or run-environment detail was supplied.
+**Phase 16 keyboard sign-off: Pass 1 keyboard UAT performed 2026-10-25 under REQ-77 (plan 17-05)** — agent-verified (Playwright, real HeyGen/OpenAI), not human, by user decision; all six blocks PASS with session IDs (`17-KEYBOARD-PASS-1.md` §8). Earlier: all six planned blocks were reported PASS by the human on 2026-10-05; see [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]]. The record remains evidence-**PARTIAL** because no session/report IDs, item-level notes, calibration detail, or run-environment detail was supplied.
 
 ### Task 3 disposition (2026-10-04)
 
@@ -210,3 +210,13 @@ If a later human keyboard pass marks any Success Criterion **FAIL**, add an entr
 - No calibration tuning applied (block F unanswered).
 - No Success Criterion marked FAIL; no Section 6 product gap opened.
 - Resume signal for a later human: type `approved` after walking blocks B–G, or list FAIL rows + calibration changes.
+
+
+## Fixes applied after the agent-verified UAT (2026-10-25)
+
+User-approved fixes are in `57b221f` (walk-out branch) and `7d54505`
+(polish branch), merged in `a42eca1` and `58d8699`. Guards are in
+`scripts/verify-uat-polish.ts` (32 checks with bite-proofs) and
+`verify-disengagement-walkout-shell.ts` §10–12.
+- D16-1: the networking evaluator now requires common ground to be shared by BOTH people.
+- D17-1: the counterpart is referred to by name or role, and the header reads "Conversation with …".

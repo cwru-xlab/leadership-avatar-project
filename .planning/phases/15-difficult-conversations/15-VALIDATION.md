@@ -19,7 +19,7 @@
 | **Plans / evidence** | 15-04 seeded verification; 15-08 blocks A/C/D (human deferred); **15-DRIFT.md** probe tables |
 | **Session / report ids** | Drift harness uses live chat turns against seeded `confront-low-performer`-class prompts — **no human keyboard session id**. Live human seeded play (fire-team-member / decline-senior-request) **not run** under skip_checkpoints. |
 | **Drift probe table (load-bearing)** | See `15-DRIFT.md` §1. Summary: **receptive 11/11 PASS**; **guarded 11/11 PASS**; **hostile 10/11 PASS + 1 DEFERRED** (probe 5 rubric — mentions grades/scores while deflecting). Overall **32/33 automated PASS**; 1 DEFERRED human sign-off. |
-| **Verdict** | **PASS (automated drift harness + seeded catalog)** — 15-10 records P15-SC1 provisionally MET. **DEFERRED → /gsd/verify-work 15** for (a) hostile probe 5 human judgment, (b) full live seeded session confirming End-session + support note + no difficulty meter, (c) the one-sentence Criterion 1 verdict after a human has played a full session. |
+| **Verdict** | **PASS (automated drift harness + seeded catalog)** — 15-10 records P15-SC1 provisionally MET. **Pass 1 (2026-10-25, agent-verified (Playwright, real HeyGen/OpenAI), not human): PASS** — hostile probe 5 judged in role (session `d1dd4d7a-16e1-4347-bc1d-32e8ad71ee6e`); full seeded session `7914583f-47ec-4e6d-83a6-de835e175b25` confirmed End-session + support note from the first frame and no difficulty meter; one-sentence verdict: the character never drifted into coaching or narrator voice. See [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 items 1, 3, 13. (Was: DEFERRED.) |
 
 ### Criterion 2 (P15-SC2)
 
@@ -30,7 +30,7 @@
 | **How verified** | Five authoring routes + pre-publish gate (15-05); `/conversations` catalog + builder (15-07 blocks B/C) |
 | **Plans / evidence** | `verify-dc-routes` 14 sections exit 0; `verify-dc-prepublish` exit 0; `verify-dc-store` exit 0; 15-07 SUMMARY walkthrough deferred |
 | **Session / report ids** | Route corpus exercises add/edit/publish/unpublish against local S3/dev — **no human authoring session id** under skip_checkpoints. |
-| **Verdict** | **PASS (automated routes + store + prepublish)** — private create, gated publish, rejected save stays privately playable. **DEFERRED → /gsd/verify-work 15** for 15-07 blocks B–C (author → practise private → publish UI). |
+| **Verdict** | **PASS (automated routes + store + prepublish)** — private create, gated publish, rejected save stays privately playable. **Pass 1 (2026-10-25, agent-verified, not human): PASS with defects** — authored, practised privately (instance `afe65df9-…`), published from the UI; harsh firing scenario passed the gate. Defects D15-2 (owner edit page HTTP 500) and D15-3 (post-publish card still says private). See [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 item 2. (Was: DEFERRED.) |
 
 ### Criterion 3 (P15-SC3)
 
@@ -41,7 +41,7 @@
 | **How verified** | Play-path assertions (15-02); routes sections 11–13 (15-05); 15-07 block D (second account) |
 | **Plans / evidence** | `verify-dc-store` owner-scope + published discovery; `verify-dc-routes` cross-owner 404-not-403; list three sections |
 | **Session / report ids** | Automated cross-student 404 proofs only — **no second-account keyboard session**. |
-| **Verdict** | **PASS (automated ownership + discovery)** — published is discovery-only; non-owner edit/delete/get → not-found; author retains `ownerId`. **DEFERRED → /gsd/verify-work 15** for 15-07 block D (second account plays under "From other students"; author still owns). |
+| **Verdict** | **PASS (automated ownership + discovery)** — published is discovery-only; non-owner edit/delete/get → not-found; author retains `ownerId`. **Pass 1 (2026-10-25, agent-verified, not human): PASS** — `student@case.edu` sees the published scenario under "From other students" with Practice only; non-owner edit URL → 404; author list shows Published with Edit/Unpublish/Delete. See [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 item 2. (Was: DEFERRED.) |
 
 ### Criterion 4 (P15-SC4)
 
@@ -53,7 +53,7 @@
 | **Approach-vs-result matrix** | Case1 skilful/NOT met → **5 / not_met**; Case2 clumsy/MET → **1–2 / met**; Case3 skilful/MET → **5 / met**; Case4 poor/NOT → **1 / not_met\|partial**. Harness exit 0 (15-10-SUMMARY; reconfirmed 15-11 Task 3 block A). |
 | **Plans / evidence** | `verify-dc-type`, `verify-dc-report`, `dc-approach-vs-result` all exit 0 |
 | **Session / report ids** | Evaluator harness transcripts — **no live human report id** under skip_checkpoints. |
-| **Verdict** | **PASS (automated schema + evaluator matrix + report structure scripts)** — Objective achieved scores approach not result; outcome unscored. **DEFERRED → /gsd/verify-work 15** for 15-09 Task 3 steps 1–8 live report walk (eight cards, outcome panel, avatar-end banner, in-role reaction). |
+| **Verdict** | **PASS (automated schema + evaluator matrix + report structure scripts)** — Objective achieved scores approach not result; outcome unscored. **Pass 1 (2026-10-25, agent-verified, not human): PASS with defect D15-1 (major)** — live reports `7914583f…`, `0b52962a…`, `d1dd4d7a…` show eight dimensions, an unscored outcome record, an in-role reaction; but every student-ended session is bannered "They ended it — there was nothing left to say" (`terminationReason nothing_left_to_discuss`). See [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 items 1, 3, §8.3 D15-1. (Was: DEFERRED.) |
 
 ---
 
@@ -165,9 +165,9 @@ Handoff for anyone revising Phase 13 (mirror of 14-15 / 16-11 Section 4). Fold t
 
 | Item | Status |
 |---|---|
-| Hostile drift probe 5 human sign-off | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 13; item-level observation not supplied. |
-| Human UAT from 15-07 / 15-08 / 15-09 / 15-10 / 15-11 B–G | **PASS (human-reported; evidence PARTIAL)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] items 1–6; session/report IDs and detailed observations not supplied. |
-| `verify-report-structure.ts` vs `difficult-conversation` requires instance | Pre-existing tooling gap (also noted in 16-VALIDATION) — **not** a Phase 15 product FAIL |
+| Hostile drift probe 5 sign-off | **PASS — Pass 1, agent-verified (Playwright, real HeyGen/OpenAI), not human, 2026-10-25** — session `d1dd4d7a-16e1-4347-bc1d-32e8ad71ee6e` (hostile); deflections stayed in role and never named a score or rubric. [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 item 3. (Earlier: human-reported PASS 2026-10-05.) |
+| UAT from 15-07 / 15-08 / 15-09 / 15-10 / 15-11 B–G | **PASS with defects — Pass 1, agent-verified, not human, 2026-10-25** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 items 1–6 with session IDs. Defects: D15-1 (major, student-ended sessions recorded as avatar walk-outs), D15-2 (major, owner edit page 500), D15-3 and D15-4 (minor). |
+| `verify-report-structure.ts` vs `difficult-conversation` requires instance | Pre-existing tooling gap — **no longer reproduces** (exit 0 on 2026-10-25 re-run; flagged in Pass 1 item 6) |
 
 ---
 
@@ -175,7 +175,7 @@ Handoff for anyone revising Phase 13 (mirror of 14-15 / 16-11 Section 4). Fold t
 
 Empty for Success Criteria / locked-decision **FAIL** rows — none recorded as FAIL.
 
-Human-unverified / deferred keyboard items are tracked as **DEFERRED → /gsd/verify-work 15** in Sections 1–3 and Section 5, not as plannable product gaps.
+Human-unverified / deferred keyboard items were tracked as DEFERRED in Sections 1–3 and Section 5. Pass 1 (2026-10-25, agent-verified) has since walked them; see Section 5. No Success Criterion is FAIL, so no gap entry is opened. D15-1 / D15-2 are recorded as defects in `17-KEYBOARD-PASS-1.md` §8.3, not as SC gaps.
 
 If a later human keyboard pass marks any Success Criterion **FAIL**, add an entry here in the shape `/gsd:plan-phase 15 --gaps` consumes:
 
@@ -237,14 +237,14 @@ See `15-DRIFT.md` — reconfirm every probe row after a full human session; espe
 
 | Block | Status |
 |---|---|
-| B — Fresh seeded conversation (fire-team-member or decline-senior-request) at guarded | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 1; session ID not supplied. |
-| C — Author, publish, second account plays | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 2; session ID not supplied. |
-| D — Drift record reconfirm after full session | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 3; item-level drift sentence not supplied. |
-| E — Phase 13 regression keyboard | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 4; IDs/old URL not supplied. |
-| F — Calibration keep/change | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 5; no change requested. |
-| G — Row-by-row mark of Sections 1–2 | **PASS (human-reported)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] item 6; no disputed row supplied. |
+| B — Fresh seeded conversation (fire-team-member or decline-senior-request) at guarded | **PASS (Pass 1, agent-verified, not human)** — `7914583f-47ec-4e6d-83a6-de835e175b25`; [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 item 1. Defect D15-1 on the end banner. |
+| C — Author, publish, second account plays | **PASS with defects (Pass 1, agent-verified, not human)** — private practice on `afe65df9-…`; published scenario seen by `student@case.edu`; [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 item 2. D15-2, D15-3. |
+| D — Drift record reconfirm after full session | **PASS (Pass 1, agent-verified, not human)** — `d1dd4d7a-…` (hostile) + `0b52962a-…` (guarded); no drift; [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 item 3. |
+| E — Phase 13 regression keyboard | **PASS (Pass 1, agent-verified, not human)** — interview `2987e20c-…`, case-study `93a9c35c-…`, two old URLs 308 → render; [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 item 4. |
+| F — Calibration keep/change | **PASS — keep (Pass 1, agent judgement, not human)** — [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 item 5. |
+| G — Row-by-row mark of Sections 1–2 | **PASS, 2 rows flagged (Pass 1, agent-verified)** — Section 2 rows 16/17 contradicted by D15-1; stale `verify-report-structure` open item; [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]] §8 item 6. |
 
-**Phase 15 keyboard sign-off:** all six planned blocks were reported PASS by the human on 2026-10-05; see [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]]. The record remains evidence-**PARTIAL** because no session/report IDs, item-level notes, calibration detail, or run-environment detail was supplied.
+**Pass 1 keyboard UAT performed 2026-10-25 under REQ-77 (plan 17-05)** — agent-verified (Playwright, real HeyGen/OpenAI), not human, by user decision; all six blocks walked with session IDs and recorded in `17-KEYBOARD-PASS-1.md` §8. Earlier: **Phase 15 keyboard sign-off:** all six planned blocks were reported PASS by the human on 2026-10-05; see [[.planning/phases/17-v1-0-close-out/17-KEYBOARD-PASS-1]]. The record remains evidence-**PARTIAL** because no session/report IDs, item-level notes, calibration detail, or run-environment detail was supplied.
 
 ### Task 3 disposition (2026-10-04)
 
@@ -252,3 +252,16 @@ See `15-DRIFT.md` — reconfirm every probe row after a full human session; espe
 - No calibration tuning applied (block F unanswered).
 - No Success Criterion marked FAIL; no Section 6 product gap opened.
 - Resume signal for a later human: type `approved` after walking blocks B–G (and prior deferred checklists), or list FAIL rows + calibration changes.
+
+
+## Fixes applied after the agent-verified UAT (2026-10-25)
+
+User-approved fixes are in `57b221f` (walk-out branch) and `7d54505`
+(polish branch), merged in `a42eca1` and `58d8699`. Guards are in
+`scripts/verify-uat-polish.ts` (32 checks with bite-proofs) and
+`verify-disengagement-walkout-shell.ts` §10–12.
+- D15-1 (major): a student-ended conversation is no longer recorded as the character walking out. Only an avatar end gets a derived reason.
+- D15-2 (major): the `/conversations/<id>` edit page no longer returns HTTP 500.
+- D15-3: the post-create card reflects the published state.
+- D15-4: the difficulty radios support arrow keys (roving tabindex).
+- D17-1: the session header reads "Conversation with …", and the evaluator refers to "the character" and "the conversation".

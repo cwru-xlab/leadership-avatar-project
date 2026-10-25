@@ -2,13 +2,13 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.1 — Consequence & Deck Breadth
-**Updated:** 2026-10-25 (Phase 23 implementation + agent-driven e2e complete; 90/90 verifiers, build green. Phases 17-23 each await a human UAT gate. Earlier detail for Phase 22 is in 22-VALIDATION.md.)
+**Updated:** 2026-10-25 (Phases 17–23 closed as agent-verified by user decision; walk-out and keyboard-UAT defects fixed and re-tested live; PR #65 into dev.)
 
 ## Current Position
 
-**Phase:** 23 — Learning Paths Hub (implementation + e2e complete; human UAT pending — `23-VALIDATION.md`)
-**Plan:** Phase 22 shared-shell gap closure (G1-G4) landed; 22-16 still blocked on human UAT round 2.
-**Status:** Open gates — human UATs 17-05, 18-05, 19-11, 20-07 (gated on 18-05), 21-20, 22-16, Phase 23; production migrations for Phases 21-23 unapplied; branch not pushed.
+**Phase:** all roadmap phases through 23 complete (agent-verified UAT).
+**Plan:** none open.
+**Status:** Open items: the production migrations for Phases 21–23 are applied by a human at merge (`23-DEPLOY-NOTE.md`); PR #65 is under review.
 **Last activity:** 2026-10-21 — quick task 006 (study-plan picker-as-modal +
 saved-plan own-route) complete, two commits (`1eeb762` feat, `86ae306`
 test). The "Choose which interviews to use" picker built in quick-005 moved
