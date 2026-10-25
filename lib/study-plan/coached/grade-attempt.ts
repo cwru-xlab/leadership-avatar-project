@@ -21,6 +21,7 @@
  * repair of a malformed one. (Verbatim reuse of another leg's words is caught
  * deterministically in coach.ts before the grader is called.)
  */
+import { gradingSampling } from "../grading-determinism";
 
 export const COACHED_ACCEPTABLE_SCORE = 4; // PROVISIONAL UNTIL CALIBRATED
 export const MAX_GRADE_ATTEMPTS = 3; // first call + two retries
@@ -122,6 +123,7 @@ async function defaultGrader(args: GradeAttemptInput): Promise<unknown> {
       { role: "user", content: JSON.stringify(payload) },
     ],
     max_tokens: 400,
+    ...gradingSampling(model),
     response_format: { type: "json_schema", json_schema: GRADE_SCHEMA },
   });
   const content = completion.choices[0]?.message?.content;
