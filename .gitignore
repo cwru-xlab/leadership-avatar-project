@@ -39,6 +39,7 @@ CLAUDE.md
 .claude/
 .cursor/
 .omc/
+.planning/.omc
 
 requirements/
 
