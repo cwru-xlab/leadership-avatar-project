@@ -107,6 +107,17 @@ type ScenarioLegacyRow = {
 async function run() {
   console.log("PRE-DROP TOOLING: legacy reads via $queryRaw (Prisma models removed in 13-15).\n");
 
+  // After migration 20261004040000_drop_legacy_report_tables there is nothing
+  // left to compare against; say so instead of crashing.
+  const legacyTables = await prisma.$queryRaw<[{ count: bigint }]>`
+    SELECT COUNT(*)::bigint AS count FROM information_schema.tables
+    WHERE table_schema = current_schema() AND table_name IN ('InterviewReport', 'ScenarioReport')
+  `;
+  if (Number(legacyTables[0].count) === 0) {
+    console.log("SKIP: legacy report tables already dropped — backfill verification no longer applies.");
+    return 0;
+  }
+
   section("1. Count assertion");
 
   const interviewCountRows = await prisma.$queryRaw<[{ count: bigint }]>`
