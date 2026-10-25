@@ -94,7 +94,7 @@ export default function KnowledgeCheckPage() {
         <p className="text-[#385463]">This check is not available.</p>
         <Button
           as={Link}
-          href="/reports"
+          href={`/study-plans/${planId}`}
           className="mt-5"
           color="primary"
         >
@@ -108,7 +108,7 @@ export default function KnowledgeCheckPage() {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
         <p className="text-[#9b2c2c]">{loadError}</p>
-        <Button as={Link} href="/reports" className="mt-5" variant="light">
+        <Button as={Link} href={`/study-plans/${planId}`} className="mt-5" variant="light">
           Back to your study plan
         </Button>
       </div>
@@ -127,7 +127,7 @@ export default function KnowledgeCheckPage() {
     <div className="mx-auto max-w-2xl space-y-6 py-8">
       <Button
         as={Link}
-        href="/reports"
+        href={`/study-plans/${planId}`}
         variant="light"
         size="sm"
         startContent={<ArrowLeft className="h-4 w-4" />}
