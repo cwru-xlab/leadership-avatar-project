@@ -490,10 +490,15 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
         <Card className="border border-success-200 bg-success-50/40 shadow-none">
           <CardBody className="gap-4 p-6">
             <div>
-              <h3 className="font-semibold text-default-900">Saved — private</h3>
+              {/* Reflects the live state: after "Publish it" the card must not
+                  keep saying "private" (UAT D15-3). */}
+              <h3 className="font-semibold text-default-900">
+                {published ? "Saved — published" : "Saved — private"}
+              </h3>
               <p className="text-sm text-default-600 mt-1">
-                Practise it now, or publish it when you are ready. Nothing was
-                published automatically.
+                {published
+                  ? "Other students can now find and practise it. You can unpublish it at any time."
+                  : "Practise it now, or publish it when you are ready. Nothing was published automatically."}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -504,14 +509,16 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
               >
                 Practise it now
               </Button>
-              <Button
-                color="secondary"
-                variant="flat"
-                isLoading={isPublishing}
-                onPress={() => void handlePublish(true)}
-              >
-                Publish it
-              </Button>
+              {!published ? (
+                <Button
+                  color="secondary"
+                  variant="flat"
+                  isLoading={isPublishing}
+                  onPress={() => void handlePublish(true)}
+                >
+                  Publish it
+                </Button>
+              ) : null}
             </div>
           </CardBody>
         </Card>

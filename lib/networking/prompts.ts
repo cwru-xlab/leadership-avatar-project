@@ -139,7 +139,9 @@ The student had a GOAL that the other person in the conversation never saw. That
 OUTCOME RECORD (factual, not a score — fill honestly after scoring):
 - askMade (boolean): whether the student made a clear ask related to their goal.
 - askOutcome: exactly one of "agreed" | "deflected" | "declined" | "never-asked". "never-asked" is a legitimate and common outcome and must be reported honestly rather than softened.
-- commonGround (string or null): the most concrete shared interest, background, or hook that surfaced, or null if none.
+- commonGround (string or null): the most concrete interest, background, or hook that BOTH people turned out to share, or null if none. It must be something the other person also showed they have or care about — the student's own topic, pitch, or goal alone is not common ground.
+
+WORDING: in every prose field refer to the other person by their name or role, and to the session as "the conversation" — never with hiring-screen terms.
 
 If the session ended early on the other person's initiative, grade all seven dimensions anyway on what DID happen. Treat the early end as evidence about the conversation — not as a missing session, not as an error, and not as a reason to zero any dimension. (Phase 14 early-end report convention: every dimension still scored; the early end is a named outcome, never a crash.)`;
 

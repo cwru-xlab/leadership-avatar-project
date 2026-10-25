@@ -282,7 +282,7 @@ export default function DeckUploadStep({
         <div className="mt-7" aria-live="polite" aria-atomic="true">
           {(phase === "idle" || phase === "uploading" || phase === "processing") && (
             <label
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
+              className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-10 text-center transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-[#0a7391] ${
                 busy
                   ? "pointer-events-none border-[#a8c9d5] bg-[#f6fafb]"
                   : "border-[#bad1db] hover:border-[#0a7391] hover:bg-[#f4fbfd]"

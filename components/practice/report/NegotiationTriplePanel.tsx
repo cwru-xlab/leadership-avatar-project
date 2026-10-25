@@ -112,9 +112,9 @@ export default function NegotiationTriplePanel({
       <p className="text-xs font-medium uppercase tracking-[0.08em] text-[#6a8391]">
         Negotiation
       </p>
-      <p className="mt-1 font-serif text-xl text-[#102331]">
+      <h2 className="mt-1 font-serif text-xl text-[#102331]">
         Ask · Settled · Fair range
-      </p>
+      </h2>
 
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         <div className="rounded-xl border border-[#e3ecef] bg-[#f7fafb] px-4 py-3">

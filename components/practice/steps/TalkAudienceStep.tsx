@@ -192,6 +192,9 @@ export default function TalkAudienceStep({
           <Button
             color="primary"
             endContent={<ArrowRight size={17} />}
+            // Visibly and programmatically disabled until valid, like the
+            // other setup steps (UAT K-3).
+            isDisabled={!canAdvance}
             onPress={commitAndAdvance}
           >
             Continue
