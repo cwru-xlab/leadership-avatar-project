@@ -52,20 +52,20 @@ export default function PitchOutcomeBanner({ report }: PitchOutcomeBannerProps) 
 
   return (
     <aside
-      className="mb-6 rounded-2xl border border-[#0a7391]/45 bg-[#f0f7fa] px-5 py-4 text-[#102331]"
+      className="mb-6 rounded-2xl border border-t-2 border-t-[#b79b4c] shadow-[0_10px_24px_rgba(0,48,135,0.08)] motion-safe:transition-[border-color,box-shadow] motion-safe:duration-200 border-[#003087]/45 bg-[#f2f6fa] px-5 py-4 text-[#102a4c]"
       data-outcome={reason}
       data-testid="pitch-outcome-banner"
     >
-      <p className="font-serif text-xl leading-snug">{headline}</p>
-      <p className="mt-2 text-sm leading-relaxed text-[#3a5563]">
+      <h2 className="font-serif text-xl leading-snug text-[#003087]">{headline}</h2>
+      <p className="mt-2 text-sm leading-relaxed text-[#334155]">
         {earlyEndReasons ?? EARLY_END_REASONS_FALLBACK}
       </p>
       {typeof timecodeSeconds === "number" ? (
-        <p className="mt-2 font-mono text-sm tabular-nums text-[#526c7b]">
+        <p className="mt-2 font-mono text-sm tabular-nums text-[#52657a]">
           Interest dropped around {formatTimecode(timecodeSeconds)}.
         </p>
       ) : null}
-      <p className="mt-3 text-sm text-[#3a5563]">
+      <p className="mt-3 text-sm text-[#334155]">
         {EARLY_END_LIMITED_EVIDENCE_LINE}
       </p>
     </aside>
