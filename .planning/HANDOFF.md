@@ -1,16 +1,95 @@
 # Handoff — Leadership Avatar / Interview Practice
 
-**Written:** 2026-09-21 · **Last updated:** 2026-10-04 (rewritten for the v1.1 pickup)
-**Branch:** `feature/visual-analysis-expansion` (pushed; **329 commits ahead of `main`, no open PR**)
-**State at handoff:** Milestone **v1.0 shipped** — Phases 1–16 complete and verified,
-Phase 13 formally **closed 2026-10-04** (`13-CLOSE-RECORD.md`).
-Milestone **v1.1 (Consequence & Deck Breadth)** is planned but **not executed**:
-Phase 17 (v1.0 Close-Out, 7 plans) and Phase 18 (Avatar Disengagement & Walk-Out,
-5 plans) both have committed plans and no code written yet. Phase 19 is roadmapped
-only.
+**Written:** 2026-09-21 · **Last updated:** 2026-10-26 (`dev` pickup after study-plan expansion)
+**Branch:** `dev` (study-plan expansion is merged here). **Do not merge this into `main`.**
+**State at handoff:** Phases 21–23 (adaptive mastery path, coached mode, voice drills /
+prove-it / paths hub) plus the Weatherhead reports redesign are on `origin/dev`.
+Older sections below are the 2026-10-04 v1.0 pickup; they still describe traps that
+bite. **§0 is current. Use it first.**
 
 Read this file first, then `STATE.md`, then `ROADMAP.md`. Everything else in
 `.planning/` is per-phase detail you can read on demand.
+
+---
+
+## 0. Current pickup — 2026-10-26 (read this, then migrate)
+
+`feat/study-plan-expansion` is merged into `origin/dev`. Checkout **`dev`**,
+not `main` and not the old `feature/visual-analysis-expansion` branch.
+
+### 0.1 Local schema — three new additive migrations
+
+Pulling `dev` without migrating will 500 on `/study-plans`, `/paths`,
+`/mastery`, knowledge checks, coached sessions, and voice drills. The Vercel
+build does **not** migrate (REQ-74). You apply them locally.
+
+Confirm the target **before** anything else:
+
+```bash
+git checkout dev
+git pull origin dev
+npx prisma migrate status
+```
+
+That must print `leadership_avatar_dev` at `localhost:5432`. If it prints a
+remote host, **stop**. Do not migrate shared Lightsail or Vercel Preview/Production
+from an agent session. Humans apply those via [`docs/MIGRATIONS.md`](../docs/MIGRATIONS.md).
+
+If you are current through `20261102000000_add_auth_handoffs`, status should
+list these three as pending, in this order:
+
+| Migration | What it adds |
+|---|---|
+| `20261116000000_add_adaptive_mastery_path` | Mastery ledger, knowledge checks, contests, study-plan paths/steps, coached-session stub |
+| `20261123000000_add_coached_mode` | Coached turns, coach avatar fields on `User`, moment competency scores |
+| `20261124000000_add_voice_drills_and_prove_it` | `VoiceDrill` / `VoiceDrillAttempt`, prove-it `linkedReportId`, coached delivery metrics |
+
+All three are additive (new tables / nullable columns only). No `DROP TABLE`, no
+new `NOT NULL` on existing columns.
+
+Apply them to **local only**:
+
+```bash
+DATABASE_URL="postgresql://<youruser>@localhost:5432/leadership_avatar_dev" npx prisma migrate deploy
+DATABASE_URL="postgresql://<youruser>@localhost:5432/leadership_avatar_dev" npx prisma migrate status
+npx prisma generate
+```
+
+Status must then say `Database schema is up to date!` (18 migrations in
+`prisma/migrations`). Never `prisma migrate dev` or `prisma migrate reset` —
+both can offer to wipe the database.
+
+Optional, once, if `/mastery` says "Not yet measured" for interviews you already
+ran before this branch:
+
+```bash
+DATABASE_URL="postgresql://<youruser>@localhost:5432/leadership_avatar_dev" npx tsx scripts/backfill-live-mastery.ts
+DATABASE_URL="postgresql://<youruser>@localhost:5432/leadership_avatar_dev" npx tsx scripts/backfill-live-mastery.ts --apply
+```
+
+Dry-run first. `--apply` is idempotent. Production procedure (human-only) is
+`.planning/phases/23-learning-paths-hub/23-DEPLOY-NOTE.md`.
+
+### 0.2 What landed on `dev` that you will hit in the UI
+
+- New student hubs: `/study-plans`, `/study-plans/{id}`, `/paths`, `/mastery`,
+  plus check / coached / drill routes under a plan.
+- Reports hub (`/reports`) uses Weatherhead navy `#003087` / gold `#c99600`.
+  That palette is **reports + the extracted study-plan generator only**. Paths,
+  mastery, coached, and drills stay the older teal `#0a7391` / `#102331`.
+- Written learner-facing copy on generated plans, knowledge-check cards, and
+  drill banners is first person (`I` / `my`). Spoken coach lines stay second
+  person on purpose.
+- Interview WPM target in reports is **100–159**. The live-resume prompt has a
+  one-line forbid-invent sentence; wrapping it breaks `verify-live-resume-attribution`.
+- Smoke as `alice.johnson@case.edu` / `student123`:
+
+```bash
+npx playwright test e2e/alice-study-plan-merge.spec.ts
+```
+
+Needs `npm run dev` on port 3000. Also: `npx tsx scripts/verify-study-plan-first-person.ts`
+and `npx tsx scripts/verify-study-plan-prompt.ts`.
 
 **Everything in §1 marked "verified 2026-10-04" was actually run on this machine
 that day, not reasoned about.** Several long-standing claims in older versions of
@@ -180,7 +259,8 @@ macOS (darwin 24.2.0)**. Next 16.3.5.
 ```bash
 # 0. clone + branch — the work is NOT on main (see §8)
 git clone <repo> && cd leadership-avatar-project
-git checkout feature/visual-analysis-expansion
+git checkout dev
+git pull origin dev
 
 # 1. deps  (note: public/mediapipe is ~37MB of committed binaries — clone is slow)
 npm install
@@ -195,7 +275,7 @@ createdb leadership_avatar_dev
 # 4. confirm which DB you are about to touch BEFORE migrating
 npx prisma migrate status           # must say leadership_avatar_dev at localhost:5432
 
-# 5. apply all 14 migrations to your LOCAL db
+# 5. apply pending migrations to your LOCAL db (18 in tree as of 2026-10-26; see §0.1)
 DATABASE_URL="postgresql://<youruser>@localhost:5432/leadership_avatar_dev" npx prisma migrate deploy
 
 # 6. generate the client
@@ -290,10 +370,13 @@ As of 2026-10-04 the suite is green **except** `verify-deck-intake.ts`.
 
 ## 3. Migrations — settled, but read the correction
 
-**ALL 14 MIGRATIONS ARE APPLIED EVERYWHERE AS OF 2026-10-04.** The shared
-Lightsail DB reports `Database schema is up to date!` (14 of 14), run by a human.
-The local dev DB likewise (verified, §1.1). **Nothing is pending or held.** The
-table below is history.
+**As of 2026-10-04, the first 14 migrations were applied everywhere** (shared
+Lightsail reported `Database schema is up to date!`, 14 of 14, run by a human).
+**That snapshot is stale.** The tree now has **18** migrations. Three of them
+shipped with study-plan expansion and are **pending on any local DB that has
+not pulled `dev` and run `migrate deploy`** — see §0.1. Do not treat the 2026-10-04
+"nothing is pending" line as current. The table below is history plus the new
+rows.
 
 | Migration | Phase | Applied to shared DB? |
 |---|---|---|
@@ -311,6 +394,10 @@ table below is history.
 | `20261004043007_add_pitch_session_columns` | 14 | yes (2026-10-04) |
 | `20261004143500_add_interaction_report_title` | 14 | yes (2026-10-04) |
 | `20261101000000_add_networking_attestation` | 16 | yes (2026-10-04) |
+| `20261102000000_add_auth_handoffs` | SSO | apply per [`docs/MIGRATIONS.md`](../docs/MIGRATIONS.md) before any SSO-callback deploy |
+| `20261116000000_add_adaptive_mastery_path` | 21 | **local: you apply** (§0.1). Shared/prod: human only, not yet recorded here |
+| `20261123000000_add_coached_mode` | 22 | **local: you apply** (§0.1). Shared/prod: human only, not yet recorded here |
+| `20261124000000_add_voice_drills_and_prove_it` | 23 | **local: you apply** (§0.1). Shared/prod: human only, not yet recorded here |
 
 ### What the 2026-10-04 run found — this invalidated a lot of documentation
 
@@ -383,7 +470,10 @@ opened every interaction type that used to be a `coming-soon` tile:
   student-authored publishable scenarios. Phase 15.
 - **Networking Practice** — practice against a described real person (with an
   attestation gate) or a default character. Phase 16.
-- **My Reports** → `/reports`. **Settings** → `/settings`.
+- **My Reports** → `/reports` (Weatherhead navy/gold chrome). **Settings** → `/settings`.
+- **Study Plans** → `/study-plans` (generate from selected interviews; first-person
+  written copy). **Paths** → `/paths`. **Mastery** → `/mastery`. Knowledge checks,
+  coached sessions, and voice drills hang off a plan. See §0.
 
 The cohort/assignment/staff-oversight model was **removed** in Phase 11 — students
 are fully self-directed.
@@ -586,8 +676,9 @@ appears is the local, password-less
 
 ## 8. Suggested first moves
 
-1. **Get running locally (§2)** and sign in as `alice.johnson@case.edu`. Confirm
-   `npx prisma migrate status` says `leadership_avatar_dev` before anything else.
+1. **Get running locally (§0 then §2)** and sign in as `alice.johnson@case.edu`.
+   Confirm `npx prisma migrate status` says `leadership_avatar_dev` and that the
+   three Phase 21–23 migrations are applied before opening `/study-plans`.
 2. **Do one full interview end to end, camera ON** — dashboard → preset →
    customize → live session → report. ~10 minutes with the `early-career` preset,
    and it teaches you more than reading will. It exercises consent, the camera

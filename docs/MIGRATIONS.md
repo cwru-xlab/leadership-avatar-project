@@ -71,6 +71,37 @@ shape; then the human applies the migration; then Deploy 2 may remove the old
 shape. `20261004040000_drop_legacy_report_tables` is this project's precedent:
 it was safe only because both tables were empty.
 
+## Study-plan expansion migrations (Phases 21–23)
+
+These three additive migrations shipped on `origin/dev` with the study-plan
+expansion. They are **not** on `main`. A local checkout of `dev` 500s on the
+new hubs until they are applied. Shared Lightsail / Vercel Preview / Production
+remain human-only; do not restore `prisma migrate deploy` to `vercel.json`.
+
+Apply in this order (one `migrate deploy` applies whatever is pending):
+
+1. `20261116000000_add_adaptive_mastery_path` — mastery ledger, knowledge checks,
+   contests, study-plan paths/steps, coached-session stub.
+2. `20261123000000_add_coached_mode` — coached turns, coach fields on `User`,
+   moment competency scores.
+3. `20261124000000_add_voice_drills_and_prove_it` — `VoiceDrill` /
+   `VoiceDrillAttempt`, prove-it `linkedReportId`, coached delivery metrics.
+
+Local:
+
+```bash
+npx prisma migrate status
+DATABASE_URL="postgresql://<youruser>@localhost:5432/leadership_avatar_dev" npx prisma migrate deploy
+DATABASE_URL="postgresql://<youruser>@localhost:5432/leadership_avatar_dev" npx prisma migrate status
+npx prisma generate
+```
+
+Existing READY interview reports predating the live-session mastery hook have
+no ledger rows until a human (or local teammate) runs
+`npx tsx scripts/backfill-live-mastery.ts` (dry run) then the same with
+`--apply`. See `.planning/HANDOFF.md` §0 and
+`.planning/phases/23-learning-paths-hub/23-DEPLOY-NOTE.md`.
+
 ## Auth handoff migration (20261102000000_add_auth_handoffs)
 
 `20261102000000_add_auth_handoffs` is an **additive** migration that creates the
