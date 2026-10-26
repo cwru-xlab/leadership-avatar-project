@@ -248,17 +248,17 @@ export default function StudyPlanGenerator({
 
   return (
     <>
-      <Card className="border border-[#badbe5] bg-[linear-gradient(135deg,#ecf9fc,#ffffff)] shadow-[0_8px_24px_rgba(20,58,75,0.06)]">
+      <Card className="overflow-hidden border border-[#aabbd1] border-l-4 border-l-[#c99600] bg-white shadow-[0_8px_22px_rgba(16,36,63,0.08)]">
         <CardBody className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="flex gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0a7391] text-white"><BookOpenCheck size={22} /></div>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#003087] text-white shadow-sm"><BookOpenCheck size={22} /></div>
             <div>
-              <h2 className="font-serif text-2xl text-[#102331]">Build a self-paced study plan</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-[#58727f]">
+              <h2 className="font-serif text-2xl text-[#10243f]">Build a self-paced study plan</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-[#43546a]">
                 We&apos;ll identify recurring feedback themes from your completed interview reports and turn them into focused practice.
               </p>
               {eligibleReportCount < 1 && (
-                <p className="mt-2 text-sm font-medium text-[#58727f]">Finish an interview with feedback to build a study plan.</p>
+                <p className="mt-2 text-sm font-medium text-[#43546a]">Finish an interview with feedback to build a study plan.</p>
               )}
             </div>
           </div>
@@ -281,11 +281,11 @@ export default function StudyPlanGenerator({
                 Choose which interviews to use
               </ModalHeader>
               <ModalBody>
-                <p className="text-xs font-medium text-[#58727f]">
+                <p className="text-xs font-medium text-[#43546a]">
                   {(selectedReportIds ?? []).length} of {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} selected
                   {" "}· cap {MAX_REPORTS_PER_PLAN}
                 </p>
-                <p className="mt-1 text-sm text-[#58727f]">
+                <p className="mt-1 text-sm text-[#43546a]">
                   The most recent {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} are preselected. Deselect any and pick others instead.
                 </p>
                 <div className="mt-4 max-h-96 space-y-2 overflow-y-auto pr-1">
@@ -296,14 +296,14 @@ export default function StudyPlanGenerator({
                     return (
                       <div
                         key={report.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-[#e3ebee] bg-[#f8fbfc] px-3 py-2"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-[#dce3eb] bg-[#f7f9fb] px-3 py-2"
                       >
                         <Checkbox
                           isSelected={isSelected}
                           isDisabled={atCap}
                           onValueChange={() => toggleReportSelection(report.id)}
                         >
-                          <span className="text-sm text-[#102331]">
+                          <span className="text-sm text-[#10243f]">
                             {typeLabelForReport(report.typeSlug)}
                             {" · "}
                             {report.completedAt ? formatDate(report.completedAt) : "Date unknown"}
@@ -316,7 +316,7 @@ export default function StudyPlanGenerator({
                           </span>
                         </Checkbox>
                         {atCap && (
-                          <span className="shrink-0 text-xs font-medium text-[#8298a3]">
+                          <span className="shrink-0 text-xs font-medium text-[#5d6d7d]">
                             Cap reached — deselect one first
                           </span>
                         )}
@@ -345,16 +345,16 @@ export default function StudyPlanGenerator({
       {savedNotice && <p role="status" className="mt-4 rounded-xl border border-success-200 bg-success-50 p-4 text-sm text-success-700">{savedNotice}</p>}
 
       {preview && (
-        <section className="mt-6 rounded-2xl border-2 border-[#0a7391] bg-white p-5 shadow-[0_16px_40px_rgba(20,58,75,0.12)] sm:p-7">
+        <section className="mt-6 rounded-2xl border-2 border-[#003087] bg-white p-5 shadow-[0_16px_36px_rgba(0,48,135,0.14)] sm:p-7">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7391]">Preview — not saved yet</p>
-              <h2 className="mt-2 font-serif text-3xl text-[#102331]">{preview.content.title}</h2>
-              <p className="mt-2 max-w-3xl leading-7 text-[#385463]">{preview.content.summary}</p>
-              <p className="mt-2 text-xs text-[#58727f]">Based on {preview.sourceReportCount} completed {preview.sourceReportCount === 1 ? "report" : "reports"}.</p>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#003087]">Preview — not saved yet</p>
+              <h2 className="mt-2 font-serif text-3xl text-[#10243f]">{preview.content.title}</h2>
+              <p className="mt-2 max-w-3xl leading-7 text-[#33465d]">{preview.content.summary}</p>
+              <p className="mt-2 text-xs text-[#43546a]">Based on {preview.sourceReportCount} completed {preview.sourceReportCount === 1 ? "report" : "reports"}.</p>
               {/* Honest accounting alongside the count above — how many of
                   ALL eligible interviews fed this plan. */}
-              <p className="mt-1 text-xs text-[#58727f]">
+              <p className="mt-1 text-xs text-[#43546a]">
                 Built from {preview.consideredReportCount} of your {preview.eligibleReportCount} completed {preview.eligibleReportCount === 1 ? "interview" : "interviews"}.
               </p>
             </div>
