@@ -683,7 +683,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
       <div className="mx-auto max-w-xl py-16 text-center">
         <p className="text-[#385463]">This coached step is not available.</p>
         <Button as={Link} href="/reports" className="mt-5" color="primary">
-          Back to your study plan
+          Back to my study plan
         </Button>
       </div>
     );
@@ -696,7 +696,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
           {entryError ?? "Unable to load this coached step."}
         </p>
         <Button as={Link} href="/reports" className="mt-5" variant="light">
-          Back to your study plan
+          Back to my study plan
         </Button>
       </div>
     );
@@ -950,7 +950,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
               {finishingLeg ? (
                 <Spinner size="sm" />
               ) : secondMomentNext ? (
-                "Continue to your second moment"
+                "Continue to my second moment"
               ) : (
                 "Finish session"
               )}
@@ -1173,10 +1173,10 @@ function CompleteLeg({
 
       <div className="flex flex-wrap justify-center gap-3">
         <Button as={Link} href={nextStepHref ?? `/study-plans/${planId}`} color="primary">
-          {nextStepHref ? "Go to your next step" : "Continue your learning path"}
+          {nextStepHref ? "Go to my next step" : "Continue my learning path"}
         </Button>
         <Button as={Link} href="/mastery" variant="light">
-          View your mastery
+          View my mastery
         </Button>
       </div>
     </section>

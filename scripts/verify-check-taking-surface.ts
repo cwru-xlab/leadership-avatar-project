@@ -384,6 +384,11 @@ async function runStaticSections() {
     check("K4: the card offers 'Continue to my next step' via PathPanel's hrefForStep", cardSource.includes("Continue to my next step") && cardSource.includes("hrefForStep(planId, row)"));
     check("K4: the next-step fetch reads the plan's path DTO", cardSource.includes("/api/study-plans/${planId}/path"));
     check("K4: back-to-plan points at the plan, not /reports", cardSource.includes("href={`/study-plans/${planId}`}") && !fs.readFileSync(PAGE_PATH, "utf8").includes('href="/reports"'));
+    check(
+      "K4: page chrome uses first-person 'Back to my study plan'",
+      fs.readFileSync(PAGE_PATH, "utf8").includes("Back to my study plan") &&
+        !fs.readFileSync(PAGE_PATH, "utf8").includes("Back to your study plan"),
+    );
     check("K4: the contest affordance is still rendered", cardSource.includes("This grading looks wrong"));
     check("K5: the context block renders the line untouched (pre-wrap, no trim)", /function ContextBlock[\s\S]*?pre-wrap[\s\S]*?\{contextLine\}/.test(cardSource) && !/contextLine\.trim\(\)/.test(cardSource));
     check("K2: the mark renders one row per explanation line", cardSource.includes('detail.split("\\n")'));
