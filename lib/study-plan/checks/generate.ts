@@ -89,6 +89,8 @@ EVERY candidate also carries a short teaching explanation shown AFTER the studen
 
 "prompt" is the question shown above the options. It is ONE short question answered entirely by the interaction (choosing an option, filling the blanks, or writing the rewrite). It MUST NOT ask the student to explain, justify or say why — there is no box for an explanation — and it MUST NOT repeat the options, the candidates or the student's line, which are shown separately.
 
+Student-visible "prompt", "explanation", and "option_explanations" are written in first person from the learner's perspective (I/my); never refer to the learner as you, the learner, or the student. Phrase them as autonomy-supportive invitations (for example "I might try...", "I could...", "I can..."), not hard directives ("Try this", "You must").
+
 Never invent a "source_report_id" or "quoted_turn_index" that was not given to you in the supplied moments. Never attribute a line to the student that was spoken by the avatar.
 
 Return between 1 and the requested number of candidates. A candidate that quotes nobody (quoted_text is null) is acceptable ONLY for "MULTIPLE_CHOICE" and "FILL_IN_BLANK" — "REWRITE_WEAK_LINE" and "PICK_BETTER_RESPONSE" are both defined by reworking the student's own line and therefore always require a non-null quoted_text.`;
@@ -114,6 +116,8 @@ Use only the "MULTIPLE_CHOICE" or "PICK_BETTER_RESPONSE" format. For PICK_BETTER
 Every candidate carries "technique_id" (the id of the technique the correct answer applies, copied exactly from "techniques"), "explanation" (1-2 sentences on why the correct answer works, naming that technique) and "option_explanations" (one entry per option in order: null for the correct one, one sentence on what each other option got wrong).
 
 "prompt" is ONE short question answered by choosing an option. It MUST NOT ask the student to explain, justify or say why (there is no box for that) and MUST NOT repeat the options.
+
+Student-visible "prompt", "explanation", and "option_explanations" are written in first person from the learner's perspective (I/my); never refer to the learner as you, the learner, or the student. Phrase them as autonomy-supportive invitations (for example "I might try...", "I could...", "I can..."), not hard directives ("Try this", "You must").
 
 "quoted_text", "source_report_id" and "quoted_turn_index" MUST all be null: never quote or attribute any words to the student.`;
 

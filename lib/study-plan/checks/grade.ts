@@ -132,7 +132,7 @@ function explanationLines(
   const miss = missIndex !== null ? ex.options?.[missIndex] ?? null : null;
   return {
     lines: [
-      ...(miss ? [`What your pick missed: ${miss}`] : []),
+      ...(miss ? [`What my pick missed: ${miss}`] : []),
       `Why it works: ${ex.why}`,
       ...(ex.technique ? [`Technique: ${ex.technique.name}`] : []),
     ],
