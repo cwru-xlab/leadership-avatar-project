@@ -24,11 +24,11 @@ export default function DrillBrief({ drill }: { drill: VoiceDrillDTO }) {
       </div>
       <p className="mt-3 flex items-center gap-2 text-xs text-[#58727f]">
         <Timer size={14} aria-hidden="true" /> About {drill.durationSeconds.minSeconds}-
-        {drill.durationSeconds.maxSeconds} seconds, out loud. Graded once you finish.
+        {drill.durationSeconds.maxSeconds} seconds, out loud. Graded once I finish.
       </p>
       {completed.length > 0 ? (
         <div className="mt-5">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#58727f]">Your finished attempts</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-[#58727f]">My finished attempts</p>
           <ul className="mt-2 flex flex-col gap-2">
             {completed.map((a) => (
               <li key={a.id} className="rounded-xl border border-[#dce8ed] p-3 text-sm text-[#385463]">
