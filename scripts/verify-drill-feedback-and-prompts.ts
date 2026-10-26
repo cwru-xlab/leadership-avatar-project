@@ -29,7 +29,7 @@ import {
   type DrillSessionContext,
 } from "../lib/study-plan/drill/brief";
 import { techniquesForCompetency } from "../lib/study-plan/coached/tips";
-import { gradeDrillAttempt, noteMatchesTechnique, reconcileNote, retryFocusFor, DRILL_RUBRIC_ANCHORS } from "../lib/study-plan/drill/grade";
+import { gradeDrillAttempt, noteMatchesTechnique, reconcileNote, retryFocusFor, DRILL_RUBRIC_ANCHORS, DRILL_GRADING_SYSTEM_PROMPT, DRILL_NOTE_SYSTEM_PROMPT } from "../lib/study-plan/drill/grade";
 import { gradingSampling, GRADING_SEED } from "../lib/study-plan/grading-determinism";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -236,7 +236,7 @@ console.log("\n5. D4 — the model gate discards generic prompts");
     {
       ...base,
       scenario_prompt:
-        "In your product manager interview, you were asked how you influenced a team without formal authority. Answer again, putting your main point first.",
+        "In my product manager interview, I was asked how I influenced a team without formal authority. I answer again, putting my main point first.",
     },
     ctx,
   );
@@ -248,6 +248,17 @@ console.log("\n5. D4 — the model gate discards generic prompts");
     { ...ctx, sessions: [] },
   );
   check("with no sessions supplied, the gate does not demand grounding", noSessions.ok);
+  check(
+    "grader feedback instructions require first-person I/my invitations",
+    DRILL_GRADING_SYSTEM_PROMPT.includes("first person from the learner's perspective (I/my)") &&
+      DRILL_GRADING_SYSTEM_PROMPT.includes("Never refer to the learner as you") &&
+      !/in the second person/.test(DRILL_GRADING_SYSTEM_PROMPT.split('"rationale"')[0]),
+  );
+  check(
+    "note regeneration prompt requires first-person I/my invitations",
+    DRILL_NOTE_SYSTEM_PROMPT.includes("first person from the learner's perspective (I/my)") &&
+      !DRILL_NOTE_SYSTEM_PROMPT.includes("second person"),
+  );
 }
 
 async function qSections() {

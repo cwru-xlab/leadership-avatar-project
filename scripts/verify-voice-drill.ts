@@ -23,6 +23,7 @@ import {
   generateDrillBriefs,
   validateCandidate,
   SCENARIO_TEMPLATES,
+  DRILL_GENERATION_SYSTEM_PROMPT,
 } from "../lib/study-plan/drill/brief";
 import {
   parseDrillGrade,
@@ -95,6 +96,49 @@ console.log("1. DETERMINISTIC BRIEF");
   const withTheme = templateBrief({ position: 1, competencyKey: key, variant: 0, theme: "Organization of Responses" }, []);
   check("basis THEME quotes the plan theme", withTheme.promptBasis === "THEME" && withTheme.scenarioPrompt.includes('"Organization of Responses"'));
   check("basis COMPETENCY falls back to the hand-written scenario", v0.promptBasis === "COMPETENCY" && v0.scenarioPrompt.startsWith(SCENARIO_TEMPLATES[key]));
+  check(
+    "delivery_presence template is first person",
+    SCENARIO_TEMPLATES.delivery_presence ===
+      "I introduce myself and the piece of work I am proudest of, as if I were opening an interview.",
+  );
+  check(
+    "structure_and_clarity template is first person",
+    SCENARIO_TEMPLATES.structure_and_clarity ===
+      "I explain a decision I made recently: what I decided, why, and what happened as a result.",
+  );
+  check(
+    "concision_and_focus template is first person",
+    SCENARIO_TEMPLATES.concision_and_focus ===
+      "I summarise a project I worked on so that someone outside my field understands its point.",
+  );
+  check(
+    "audience_attunement template is first person",
+    SCENARIO_TEMPLATES.audience_attunement ===
+      "A colleague tells me they are frustrated that a shared deadline slipped. I respond to them.",
+  );
+  check(
+    "holding_position_under_pressure template is first person",
+    SCENARIO_TEMPLATES.holding_position_under_pressure ===
+      "I have proposed a plan and my manager says it costs too much. I respond, and keep my case.",
+  );
+  check(
+    "credibility_of_the_case template is first person",
+    SCENARIO_TEMPLATES.credibility_of_the_case ===
+      "I make the case for one change I would make where I work or study, and support it.",
+  );
+  check(
+    "outcome_achievement template is first person",
+    SCENARIO_TEMPLATES.outcome_achievement ===
+      "I have a few minutes with a senior person who could help my career. I use them to come away with a concrete next step.",
+  );
+  check("template closing instruction is first person", withTheme.scenarioPrompt.includes("I take 60-90 seconds"));
+  check("theme template uses My plan's priority theme", withTheme.scenarioPrompt.startsWith("My plan's priority theme"));
+  check(
+    "generation prompt requires first-person I/my scenario_prompt",
+    DRILL_GENERATION_SYSTEM_PROMPT.includes("first person from the learner's perspective (I/my)") &&
+      DRILL_GENERATION_SYSTEM_PROMPT.includes("never refer to the learner as you") &&
+      !DRILL_GENERATION_SYSTEM_PROMPT.includes("second person"),
+  );
 }
 
 console.log("\n2. MODEL CANDIDATE GATES (generation proposes, validation disposes)");

@@ -201,8 +201,7 @@ export default function VoiceDrillShell({
               <div className="space-y-2 rounded-xl border border-[#dce8ed] bg-white p-5 text-sm leading-6 text-[#385463]">
                 <p>
                   {coach ? coach.name : "My coach"} sets the scene out loud;
-                  then I answer out loud and apply the technique above. No
-                  score while I talk.
+                  then I answer out loud and apply the technique above. No score while I talk.
                 </p>
                 <p>
                   Worth: {worthPct}% of an unaided practice session toward{" "}

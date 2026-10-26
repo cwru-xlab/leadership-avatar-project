@@ -162,6 +162,40 @@ function issues(s: Sources): string[] {
   for (const [label, src] of Object.entries(s)) {
     if (/Textarea|<textarea|<input/.test(src)) out.push(`${label} has a typed-answer input`);
   }
+
+  // 11. Written chrome is first person from the learner (issue #66/#68).
+  const chrome = s.shell + s.result + s.runner + read("components", "study-plan", "drill", "DrillBrief.tsx");
+  const leftoverYou = [
+    "Graded once you finish",
+    "Your finished attempts",
+    "from your last try",
+    "In your answer",
+    "Go to your next step",
+    "Continue your learning path",
+    "View your mastery",
+    "Your camera and voice are analysed to give you",
+    "then you answer out loud",
+    "No score while you talk",
+    "You will need a microphone",
+    "You answer out loud",
+  ];
+  for (const phrase of leftoverYou) {
+    if (chrome.includes(phrase)) out.push(`second-person drill chrome still present: ${phrase}`);
+  }
+  if (!/Graded once I finish/.test(chrome)) out.push("brief does not say Graded once I finish");
+  if (!/My finished attempts/.test(chrome)) out.push("brief does not say My finished attempts");
+  if (!/from my last try/.test(chrome)) out.push("result does not say my last try");
+  if (!/In my answer/.test(chrome)) out.push("result does not say In my answer");
+  if (!/Go to my next step/.test(chrome) || !/Continue my learning path/.test(chrome)) {
+    out.push("result next-step copy is not first person");
+  }
+  if (!/View my mastery/.test(chrome)) out.push("result does not say View my mastery");
+  if (!/My camera and voice are analysed/.test(chrome)) out.push("consent banner is not first person");
+  if (!/then I answer out loud/.test(chrome) || !/No score while I talk/.test(chrome)) {
+    out.push("shell brief banner is not first person");
+  }
+  if (!/I will need a/.test(chrome)) out.push("shell does not say I will need a microphone");
+  if (!/I answer out loud, in one go/.test(chrome)) out.push("runner instructional banner is not first person");
   return out;
 }
 
