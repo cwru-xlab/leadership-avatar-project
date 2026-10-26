@@ -381,7 +381,7 @@ async function runStaticSections() {
 
     check("K3: the card never renders the legacy rationalePrompt", !/\{payload\.rationalePrompt\}/.test(cardSource) && !/payload\.rationalePrompt\s*&&/.test(cardSource));
     check("K3: the card renders the question through displayPrompt (one predicate shared with generation)", cardSource.includes("displayPrompt(check.prompt, check.payload)"));
-    check("K4: the card offers 'Continue to your next step' via PathPanel's hrefForStep", cardSource.includes("Continue to your next step") && cardSource.includes("hrefForStep(planId, row)"));
+    check("K4: the card offers 'Continue to my next step' via PathPanel's hrefForStep", cardSource.includes("Continue to my next step") && cardSource.includes("hrefForStep(planId, row)"));
     check("K4: the next-step fetch reads the plan's path DTO", cardSource.includes("/api/study-plans/${planId}/path"));
     check("K4: back-to-plan points at the plan, not /reports", cardSource.includes("href={`/study-plans/${planId}`}") && !fs.readFileSync(PAGE_PATH, "utf8").includes('href="/reports"'));
     check("K4: the contest affordance is still rendered", cardSource.includes("This grading looks wrong"));
