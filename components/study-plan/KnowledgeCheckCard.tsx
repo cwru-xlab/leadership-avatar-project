@@ -100,7 +100,7 @@ export default function KnowledgeCheckCard({
       ? check.payload.contextLine ?? null
       : null;
   // PICK_BETTER_RESPONSE with context: the context block carries the
-  // session link instead of a "your own words" block, because that block
+  // session link instead of a "My own words" block, because that block
   // would label one of the options as the student's and hand the answer away.
   const showQuoteBlock = !(check.payload.format === "PICK_BETTER_RESPONSE" && contextLine);
 
@@ -129,7 +129,7 @@ export default function KnowledgeCheckCard({
         // prior mark is rendered exactly as if it had just been submitted.
         setAttempt(data.attempt);
         setSubmitError(
-          "This check was already answered — showing your original result."
+          "This check was already answered — showing my original result."
         );
         return;
       }
@@ -267,7 +267,7 @@ export default function KnowledgeCheckCard({
                 color="primary"
                 endContent={<ArrowRight className="h-4 w-4" aria-hidden="true" />}
               >
-                Continue to your next step
+                Continue to my next step
               </Button>
             )}
             <Button
@@ -276,7 +276,7 @@ export default function KnowledgeCheckCard({
               variant={nextStepHref ? "light" : "solid"}
               color={nextStepHref ? "default" : "primary"}
             >
-              Back to your study plan
+              Back to my study plan
             </Button>
           </div>
         )}
@@ -318,7 +318,7 @@ function useNextStepHref(planId: string, checkId: string, attemptId: string | nu
         const next = hrefForStep(planId, row);
         if (!cancelled) setHref(next);
       } catch {
-        // "Back to your study plan" is always rendered; nothing to report.
+        // "Back to my study plan" is always rendered; nothing to report.
       }
     })();
     return () => {
@@ -348,7 +348,7 @@ function ContextBlock({
   return (
     <div className="rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4">
       <p className="text-xs font-bold uppercase tracking-wide text-[#58727f]">
-        In your session, they said
+        In my session, they said
       </p>
       <blockquote
         className="mt-2 text-sm leading-6 text-[#173847]"
@@ -373,7 +373,7 @@ function QuoteBlock({ quotedText }: { quotedText: QuotedTextDTO | null }) {
   return (
     <div className="rounded-xl border border-[#b9dbe5] bg-[#eaf7fa] p-4">
       <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
-        Your own words
+        My own words
       </p>
       {/*
         VERBATIM, UNTOUCHED. No .trim(), no ellipsizing, no re-casing, no
@@ -522,7 +522,7 @@ function FormatBody(props: FormatBodyProps) {
       {!props.weakLineShownAbove && (
         <div className="rounded-lg border border-[#dce8ed] p-3 text-sm text-[#385463]">
           <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
-            Your line
+            My line
           </p>
           <p className="mt-1" style={{ whiteSpace: "pre-wrap" }}>{payload.weakLine}</p>
         </div>
@@ -548,7 +548,7 @@ function FormatBody(props: FormatBodyProps) {
         </ul>
       </div>
       <Textarea
-        aria-label="Your rewrite"
+        aria-label="My rewrite"
         placeholder="Rewrite the line here…"
         value={props.rewrittenLine}
         onValueChange={props.onRewrittenLineChange}
@@ -711,8 +711,8 @@ function MarkPanel({
             contribution immediately, it does not re-grade or re-submit, and
             a student who is not told this will think nothing happened.
           */}
-          Noted. This answer&apos;s contribution to your mastery score has
-          been reversed while it&apos;s reviewed. Your mark above is
+          Noted. This answer&apos;s contribution to my mastery score has
+          been reversed while it&apos;s reviewed. My mark above is
           unchanged.
         </p>
       )}
@@ -725,19 +725,20 @@ function MarkPanel({
  * "Technique: …"). A known label is set in bold; anything else (older
  * single-line details) renders as plain text, unchanged.
  */
-const DETAIL_LABELS = ["What your pick missed", "Why it works", "Technique"] as const;
+const DETAIL_LABELS = ["What my pick missed", "What your pick missed", "Why it works", "Technique"] as const;
 
 function DetailLines({ detail }: { detail: string }) {
   const lines = detail.split("\n").filter((line) => line.trim().length > 0);
   return (
     <div className="mt-2 space-y-1.5 text-sm leading-6 text-[#385463]">
       {lines.map((line, i) => {
-        const label = DETAIL_LABELS.find((l) => line.startsWith(`${l}: `));
-        if (!label) return <p key={i}>{line}</p>;
+        const matched = DETAIL_LABELS.find((l) => line.startsWith(`${l}: `));
+        if (!matched) return <p key={i}>{line}</p>;
+        const label = matched === "What your pick missed" ? "What my pick missed" : matched;
         return (
           <p key={i}>
             <span className="font-semibold text-[#102331]">{label}:</span>{" "}
-            {line.slice(label.length + 2)}
+            {line.slice(matched.length + 2)}
           </p>
         );
       })}
