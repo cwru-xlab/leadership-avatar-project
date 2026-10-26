@@ -58,21 +58,21 @@ export default function DrillResult({
           {change === null
             ? `This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
             : change > 0
-              ? `Up ${change} from your last try. This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
+              ? `Up ${change} from my last try. This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
               : change === 0
-                ? `Level with your last try. This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
-                : `Below your last try (${previousScore}/5). It still counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`}
+                ? `Level with my last try. This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
+                : `Below my last try (${previousScore}/5). It still counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`}
         </p>
       </div>
 
       {attempt.feedback || miss ? (
-        <article className="space-y-3 rounded-xl border border-[#cfe6ee] bg-[#eaf7fa] p-5" aria-label="What to try next time">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">What to try next time</h2>
+        <article className="space-y-3 rounded-xl border border-[#cfe6ee] bg-[#eaf7fa] p-5" aria-label="What I might try next time">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">What I might try next time</h2>
           {miss ? (
             // The quote is an exact excerpt of this attempt's transcript
             // (validated server-side); the technique is a library entry.
             <p className="text-base leading-7 text-[#102331]" data-testid="drill-miss-pointer">
-              In your answer: <q className="italic">{miss.quote}</q> → try{" "}
+              In my answer: <q className="italic">{miss.quote}</q> → I might try{" "}
               <span className="font-semibold">{miss.techniqueName}</span>
             </p>
           ) : null}
@@ -103,10 +103,10 @@ export default function DrillResult({
           Try again
         </Button>
         <Button as={Link} href={nextStepHref ?? `/study-plans/${planId}`} color="primary">
-          {nextStepHref ? "Go to your next step" : "Continue your learning path"}
+          {nextStepHref ? "Go to my next step" : "Continue my learning path"}
         </Button>
         <Button as={Link} href="/mastery" variant="light">
-          View your mastery
+          View my mastery
         </Button>
       </div>
     </section>

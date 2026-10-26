@@ -37,24 +37,24 @@ import { techniquesForCompetency, validateCoachSpeech, type Technique } from "..
 import { isWrittenTechnique } from "../checks/explain";
 import { DRILL_DURATION, type PromptBasis, type VoiceDrillBrief } from "./types";
 
-/** One generic, second-person situation per competency — the LAST-RESORT
+/** One generic, first-person situation per competency — the LAST-RESORT
  * template, used only when no moment, no source session and no theme can
  * tailor the prompt. Hand-written; no scripted words. */
 export const SCENARIO_TEMPLATES: Readonly<Record<CompetencyKey, string>> = {
   delivery_presence:
-    "Introduce yourself and the piece of work you are proudest of, as if you were opening an interview.",
+    "I introduce myself and the piece of work I am proudest of, as if I were opening an interview.",
   structure_and_clarity:
-    "Explain a decision you made recently: what you decided, why, and what happened as a result.",
+    "I explain a decision I made recently: what I decided, why, and what happened as a result.",
   concision_and_focus:
-    "Summarise a project you worked on so that someone outside your field understands its point.",
+    "I summarise a project I worked on so that someone outside my field understands its point.",
   audience_attunement:
-    "A colleague tells you they are frustrated that a shared deadline slipped. Respond to them.",
+    "A colleague tells me they are frustrated that a shared deadline slipped. I respond to them.",
   holding_position_under_pressure:
-    "You have proposed a plan and your manager says it costs too much. Respond, and keep your case.",
+    "I have proposed a plan and my manager says it costs too much. I respond, and keep my case.",
   credibility_of_the_case:
-    "Make the case for one change you would make where you work or study, and support it.",
+    "I make the case for one change I would make where I work or study, and support it.",
   outcome_achievement:
-    "You have a few minutes with a senior person who could help your career. Use them to come away with a concrete next step.",
+    "I have a few minutes with a senior person who could help my career. I use them to come away with a concrete next step.",
 };
 
 const MAX_SCENARIO_LENGTH = 600;
@@ -65,7 +65,7 @@ function labelFor(key: CompetencyKey): string {
 }
 
 function closingInstruction(key: CompetencyKey): string {
-  return `Take ${DRILL_DURATION.minSeconds}-${DRILL_DURATION.maxSeconds} seconds and say it out loud, focusing on ${labelFor(key).toLowerCase()}.`;
+  return `I take ${DRILL_DURATION.minSeconds}-${DRILL_DURATION.maxSeconds} seconds and say it out loud, focusing on ${labelFor(key).toLowerCase()}.`;
 }
 
 /**
@@ -127,7 +127,7 @@ export function buildDrillSessionContexts(
 function practisedFor(ctx: DrillSessionContext): string {
   const role = ctx.roleTitle ? ` for a ${ctx.roleTitle} role` : "";
   const industry = ctx.industry ? ` in ${ctx.industry}` : "";
-  return `your ${ctx.typeName.toLowerCase()} practice${role}${industry}`;
+  return `my ${ctx.typeName.toLowerCase()} practice${role}${industry}`;
 }
 
 export interface DrillRequest {
@@ -169,17 +169,17 @@ export function templateBrief(
       ? questionFromInterviewerLine(moment.precedingAvatarText, selfNames)
       : null;
     scenarioPrompt = momentQuestion
-      ? `In one of the sessions this plan was built from, you were asked: ${momentQuestion} Your answer was flagged for "${moment.linkedGrowthAreaTitles[0]}". Answer it again now. ${closingInstruction(request.competencyKey)}`
-      : `In one of the sessions this plan was built from, a moment was flagged for "${moment.linkedGrowthAreaTitles[0]}". Answer that same kind of question again. ${closingInstruction(request.competencyKey)}`;
+      ? `In one of the sessions this plan was built from, I was asked: ${momentQuestion} My answer was flagged for "${moment.linkedGrowthAreaTitles[0]}". I answer it again now. ${closingInstruction(request.competencyKey)}`
+      : `In one of the sessions this plan was built from, a moment was flagged for "${moment.linkedGrowthAreaTitles[0]}". I answer that same kind of question again. ${closingInstruction(request.competencyKey)}`;
   } else if (pick) {
     promptBasis = "SESSION";
-    scenarioPrompt = `In ${practisedFor(pick.ctx)}, the interviewer asked: ${pick.question} Answer it again now. ${closingInstruction(request.competencyKey)}`;
+    scenarioPrompt = `In ${practisedFor(pick.ctx)}, the interviewer asked: ${pick.question} I answer it again now. ${closingInstruction(request.competencyKey)}`;
   } else if (sessionCtx && (sessionCtx.roleTitle || sessionCtx.industry)) {
     promptBasis = "SESSION";
-    scenarioPrompt = `Picture ${practisedFor(sessionCtx)}. ${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
+    scenarioPrompt = `I picture ${practisedFor(sessionCtx)}. ${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
   } else if (request.theme) {
     promptBasis = "THEME";
-    scenarioPrompt = `Your plan's priority theme is "${request.theme}". ${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
+    scenarioPrompt = `My plan's priority theme is "${request.theme}". ${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
   } else {
     promptBasis = "COMPETENCY";
     scenarioPrompt = `${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
@@ -207,7 +207,7 @@ export function templateBrief(
 export const DRILL_GENERATION_SYSTEM_PROMPT = `You write short spoken-practice prompts ("voice drills") for a leadership-practice student. Each drill is a 60-90 second spoken rep on ONE competency.
 
 For each requested drill return:
-- "scenario_prompt": 1-3 sentences in the second person telling the student what situation to speak to. It MUST be specific to this student: tailor it to their own moments when supplied (the same kind of question they found hard); otherwise ground it in one of "student_sessions" — name the role or industry they practised for and build on a question they were actually asked, paraphrased in your own words (never in quotation marks). Only when no sessions are supplied may you fall back to the plan theme. Never give them words to say, never write a sample answer, never write lines of dialogue.
+- "scenario_prompt": 1-3 sentences in first person from the learner's perspective (I/my) naming the situation to speak to; never refer to the learner as you, the learner, or the student. It MUST be specific to this student: tailor it to their own moments when supplied (the same kind of question they found hard); otherwise ground it in one of "student_sessions" — name the role or industry they practised for and build on a question they were actually asked, paraphrased in your own words (never in quotation marks). Only when no sessions are supplied may you fall back to the plan theme. Never give them words to say, never write a sample answer, never write lines of dialogue.
 - "technique_id": exactly one id from that drill's "allowed_techniques".
 - "quoted_text": null, OR a line copied CHARACTER FOR CHARACTER from one of that drill's supplied moments' studentText (when the prompt reminds them what they said). If you quote, the quote must appear verbatim inside scenario_prompt, and "source_report_id"/"quoted_turn_index" must be that moment's. Otherwise all three are null.
 

@@ -189,7 +189,7 @@ function main() {
     ["a local copy of the recorder", { runner: sources.runner + "\nconst r = new MediaRecorder(s);" }, "re-implements"],
     ["a retry that re-reads the scenario", { runner: sources.runner.replace("avatar.speak(retryLine(retryFocusRef.current));", "avatar.speak(drill.scenarioPrompt);") }, "retry line"],
     ["stopping the avatar on grading", { runner: sources.runner.replace("avatarRef.current?.interrupt();\n      onGraded", "avatarRef.current?.stopSession();\n      onGraded") }, "stopped outside unmount"],
-    ["score wording in the banner", { runner: sources.runner.replace("so your drill feedback can include visuals", "so your Visual score is right") }, "mentions a score"],
+    ["score wording in the banner", { runner: sources.runner.replace("so my drill feedback can include visuals", "so my Visual score is right") }, "mentions a score"],
     ["no quote pointer in the result", { result: sources.result.replace("{miss.quote}", "{miss.techniqueId}") }, "student's words"],
     ["the runner moving tree position", { shell: sources.shell.replace("{runner}", "") }, "tree position"],
     ["a dropped shared import", { runner: sources.runner.replace('from "@/components/session/useVisualCapture"', 'from "./visual"') }, "useVisualCapture"],
