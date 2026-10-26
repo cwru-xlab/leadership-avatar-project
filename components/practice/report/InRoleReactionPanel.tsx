@@ -45,15 +45,15 @@ function ReactionCauseRow({
   return (
     <li
       key={`${cause.timecodeSeconds}-${index}`}
-      className="flex flex-col gap-1 border-b border-[#e6eef2] pb-3 last:border-0 last:pb-0"
+      className="flex flex-col gap-1 border-b border-[#d8e1eb] pb-3 last:border-0 last:pb-0"
     >
-      <span className="font-mono text-sm tabular-nums text-[#526c7b]">
+      <span className="font-mono text-sm tabular-nums text-[#52657a]">
         {formatTimecode(cause.timecodeSeconds)}
       </span>
-      <span className="text-sm text-[#102331]">
+      <span className="text-sm text-[#102a4c]">
         &ldquo;{cause.quote}&rdquo;
       </span>
-      <span className="text-sm text-[#3a5563]">{cause.effect}</span>
+      <span className="text-sm text-[#334155]">{cause.effect}</span>
     </li>
   );
 }
@@ -71,13 +71,13 @@ export default function InRoleReactionPanel({
 
   return (
     <section
-      className="mb-6 rounded-2xl border border-[#d4e2e9] bg-white px-5 py-5 shadow-[0_12px_32px_rgba(20,58,75,0.06)]"
+      className="mb-6 rounded-2xl border border-t-2 border-t-[#b79b4c] shadow-[0_10px_24px_rgba(0,48,135,0.08)] motion-safe:transition-[border-color,box-shadow] motion-safe:duration-200 border-[#c7d2df] bg-[#ffffff] px-5 py-5"
       data-testid="in-role-reaction-panel"
     >
       {/* Heading names whose voice this is so the student never mistakes
           it for the evaluator or for coaching. */}
-      <h3 className="font-serif text-xl text-[#102331]">{role}, afterwards</h3>
-      <blockquote className="mt-4 border-l-2 border-[#0a7391]/30 pl-4 font-serif text-base italic leading-relaxed text-[#1a3340]">
+      <h2 className="font-serif text-xl text-[#003087]">{role}, afterwards</h2>
+      <blockquote className="mt-4 border-l-2 border-[#003087]/30 pl-4 font-serif text-base italic leading-relaxed text-[#17375e]">
         {outcome.inRoleReaction}
       </blockquote>
       {causes && causes.length > 0 ? (

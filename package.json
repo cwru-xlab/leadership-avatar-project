@@ -11,7 +11,9 @@
     "verify:sso-handoff": "tsx scripts/verify-cwru-sso-handoff.ts",
     "verify:feedback-source": "tsx scripts/verify-feedback-source-attribution.ts",
     "verify:job-description": "tsx scripts/verify-job-description-intake.ts",
-    "verify:response-countdown": "tsx scripts/verify-response-countdown.ts"
+    "verify:response-countdown": "tsx scripts/verify-response-countdown.ts",
+    "verify:study-plan-prompt": "tsx scripts/verify-study-plan-prompt.ts",
+    "verify:live-resume-attribution": "tsx scripts/verify-live-resume-attribution.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

@@ -81,11 +81,12 @@ interface ReportBodyProps {
   markdown: string | null;
   scores: ReportScoreCardsProps["scores"];
   metrics: ReportScoreCardsProps["metrics"];
+  showInterviewPaceTarget?: boolean;
 }
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-default-500">
+    <h3 className="report-section-label text-sm font-semibold uppercase tracking-[0.14em]">
       {children}
     </h3>
   );
@@ -118,6 +119,7 @@ export default function ReportBody({
   markdown,
   scores,
   metrics,
+  showInterviewPaceTarget = false,
 }: ReportBodyProps) {
   // Pre-structured rows: render exactly what they rendered before. No tabs,
   // no empty panels — the data to fill them does not exist.
@@ -142,7 +144,7 @@ export default function ReportBody({
   return (
     <Tabs
       aria-label="Report sections"
-      classNames={{ panel: "pt-6" }}
+      classNames={{ base: "report-tabs", panel: "pt-7" }}
       variant="underlined"
     >
       <Tab key="overview" title="Overview">
@@ -152,7 +154,7 @@ export default function ReportBody({
           {/* Promoted from the very bottom of the old report. It is the single
               most actionable line and was the hardest thing to find. */}
           {structured.practice_next && (
-            <section className="rounded-2xl border border-primary-200 bg-primary-50/50 p-5">
+            <section className="report-action-panel rounded-xl border p-5 sm:p-6">
               <SectionHeading>One thing to practice next time</SectionHeading>
               <p className="mt-2 text-medium leading-relaxed text-default-800">
                 {structured.practice_next}
@@ -189,7 +191,7 @@ export default function ReportBody({
                     <div className="flex flex-col gap-2 pb-2">
                       <Prose>{s.detail}</Prose>
                       {s.evidence && (
-                        <blockquote className="border-l-2 border-default-200 pl-3 text-small italic text-default-500">
+                        <blockquote className="border-l-2 border-[#a97928] pl-3 text-small italic text-default-500">
                           “{s.evidence}”
                         </blockquote>
                       )}
@@ -278,6 +280,12 @@ export default function ReportBody({
           {metrics?.vocal && (
             <section className="flex flex-col gap-3">
               <SectionHeading>Voice</SectionHeading>
+              {showInterviewPaceTarget && (
+                <p className="text-small text-default-600">
+                  Assessed pace: {Math.round(metrics.vocal.words_per_minute)} WPM.
+                  Interview target: 100–159 WPM.
+                </p>
+              )}
               <BandList rows={vocalBands(metrics.vocal)} />
               {structured.category_notes.vocal && (
                 <Prose>{structured.category_notes.vocal}</Prose>
