@@ -63,7 +63,13 @@ import { runAndPersistEvaluation } from "./evaluation-runner";
 import { validateOutcome } from "./outcome";
 import { getEngineType } from "./registry";
 import { resolveSessionConfig } from "./resolve";
-import { resolveTermination } from "./termination";
+import { resolveTermination, resolveWalkOutReason } from "./termination";
+import {
+  computeDisengagementOverTranscript,
+  type DisengagementComputeResult,
+  type DisengagementWeights,
+} from "./disengagement";
+import { verifyWalkOutProof } from "./walk-out-proof";
 import { clampAdjustableBudget } from "./time-budget";
 import type {
   DifficultConversationInstance,
@@ -99,8 +105,12 @@ function resolvePersistedBudget(
   return clampAdjustableBudget(config, override).seconds;
 }
 
-/** Build a PitchInputSnapshot from a pitch instance when one is supplied. */
-function pitchSnapshotFromInstance(
+/**
+ * Build a PitchInputSnapshot from a pitch instance when one is supplied.
+ * Exported for `scripts/verify-deck-family-plumbing.ts`'s fixture-only
+ * absence/back-compat proof.
+ */
+export function pitchSnapshotFromInstance(
   instance: InstanceConfig,
   budgetSeconds: number | null,
 ): PitchInputSnapshot | null {
@@ -128,12 +138,13 @@ function pitchSnapshotFromInstance(
       listenerKnowledge: null,
       deckId: instance.deckId,
       slideCount: instance.slideCount,
-      askPriceUsd: instance.askPriceUsd,
-      askEquityPct: instance.askEquityPct,
-      fairValueBand: instance.fairValueBand,
+      askPriceUsd: instance.askPriceUsd ?? null,
+      askEquityPct: instance.askEquityPct ?? null,
+      fairValueBand: instance.fairValueBand ?? null,
       firstTurnWindowSeconds: null,
       budgetSeconds,
       listenerPersona: null,
+      deckModeInputs: instance.modeInputs ?? null,
     };
   }
   return null;
@@ -175,6 +186,51 @@ function isValidProgress(value: unknown): value is InterviewProgress {
     Array.isArray(candidate.dodgedCategories) &&
     typeof candidate.followUpsUsed === "number"
   );
+}
+
+function deriveFinishDisengagement({
+  turns,
+  elapsedSeconds,
+  budgetSeconds,
+  threshold,
+  weights,
+}: {
+  turns: Array<{ role: string; content: string }>;
+  /** Server-stamped walk-out clock, never request handling wall-clock. */
+  elapsedSeconds: number;
+  budgetSeconds: number | null;
+  threshold: number | null | undefined;
+  /**
+   * The type's own profile. Must match what the chat route used, or the
+   * recorded value is computed with different arithmetic than the live gate
+   * that ended the session.
+   */
+  weights?: Partial<DisengagementWeights>;
+}): DisengagementComputeResult {
+  const assistantTurnCount = turns.filter(
+    (turn) => turn.role === "assistant",
+  ).length;
+
+  // Replays the transcript so the recorded value matches the ratcheted value
+  // the chat route streamed, rather than a from-scratch final-turn snapshot.
+  return computeDisengagementOverTranscript({
+    transcript: turns,
+    elapsedSeconds: Math.max(0, Math.trunc(elapsedSeconds)),
+    budgetSeconds,
+    assistantTurnCount,
+    threshold,
+    weights,
+  });
+}
+
+function declaredOutcomeFields(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const { disengagementDecline: _engineOwned, ...declared } = value as Record<
+    string,
+    unknown
+  >;
+  return declared;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,6 +349,8 @@ export async function startSession({
   interviewerName: rawInterviewerName,
   resumeId: rawResumeId,
   resumeText: rawResumeText,
+  jobDescriptionId: rawJobDescriptionId,
+  jobDescriptionText: rawJobDescriptionText,
   language,
   timeBudgetOverrideSeconds,
   difficulty: rawDifficulty,
@@ -310,6 +368,9 @@ export async function startSession({
   interviewerName?: unknown;
   resumeId?: unknown;
   resumeText?: unknown;
+  /** Attached job posting (quick task 003) — interview types only. */
+  jobDescriptionId?: unknown;
+  jobDescriptionText?: unknown;
   language?: unknown;
   /** Student-proposed session length in seconds; server clamps. */
   timeBudgetOverrideSeconds?: unknown;
@@ -427,6 +488,17 @@ export async function startSession({
       typeof rawResumeText === "string"
         ? truncate(rawResumeText, MAX_RESUME_TEXT_LENGTH)
         : null;
+    // Same validation shape as the resume pair above: a server-issued UUID or
+    // null (a pasted posting legitimately has no id), and a truncated string.
+    const jobDescriptionId =
+      typeof rawJobDescriptionId === "string" &&
+      UUID_V4_REGEX.test(rawJobDescriptionId)
+        ? rawJobDescriptionId
+        : null;
+    const jobDescriptionText =
+      typeof rawJobDescriptionText === "string"
+        ? truncate(rawJobDescriptionText, MAX_RESUME_TEXT_LENGTH)
+        : null;
 
     const inputSnapshot: InterviewInputSnapshot = {
       kind: "interview",
@@ -440,6 +512,8 @@ export async function startSession({
       targetMinutes: customizationRecord.targetMinutes,
       targetQuestionCount: customizationRecord.targetQuestionCount,
       interviewerPersona: customizationRecord.interviewerPersona,
+      jobDescriptionId,
+      jobDescriptionText,
     };
 
     const report = await prisma.interactionReport.create({
@@ -475,15 +549,26 @@ export async function startSession({
     // pitch-deck: fairValueBand is server-only. Always overwrite (or inject)
     // so a client-supplied band cannot let a student negotiate against a
     // band they chose (14-12). Ask-independent constant — see
-    // lib/pitch/fair-value-band.ts.
+    // lib/pitch/fair-value-band.ts. All five deck modes share this `kind`
+    // (Phase 19); only the negotiating mode gets a band — for every other
+    // mode, strip any client-supplied band/ask/equity entirely (the server,
+    // not the client, decides whether terms exist).
     let wizardInstance = rawInstance ?? undefined;
     if (wizardInstance?.kind === "pitch-deck") {
-      wizardInstance = {
-        ...wizardInstance,
-        fairValueBand: resolveDeckFairValueBand({
-          slideCount: wizardInstance.slideCount,
-        }),
-      };
+      const band = resolveDeckFairValueBand(typeSlug, {
+        slideCount: wizardInstance.slideCount,
+      });
+      if (band) {
+        wizardInstance = { ...wizardInstance, fairValueBand: band };
+      } else {
+        const {
+          fairValueBand: _band,
+          askPriceUsd: _ask,
+          askEquityPct: _equity,
+          ...rest
+        } = wizardInstance;
+        wizardInstance = rest;
+      }
     }
 
     const resolved = resolveSessionConfig(typeSlug, {
@@ -879,6 +964,7 @@ export async function finishSession({
   terminationSource,
   terminationAtSeconds: rawTerminationAtSeconds,
   outcome: rawOutcome,
+  walkOutProof: rawWalkOutProof,
   title: rawTitle,
 }: {
   userId: string;
@@ -893,6 +979,8 @@ export async function finishSession({
   /** Elapsed seconds when an avatar-initiated end was accepted. */
   terminationAtSeconds?: unknown;
   outcome?: unknown;
+  /** Short-lived signed server proof of an accepted threshold crossing. */
+  walkOutProof?: unknown;
   /** Optional student-chosen My Reports title. */
   title?: unknown;
 }): Promise<FinishSessionResult> {
@@ -931,34 +1019,135 @@ export async function finishSession({
   }
 
   // ---- terminationReason + outcome (REQ-62 / REQ-64) ----
+  // A signed proof authorizes a walk-out record. The value is re-derived from
+  // the submitted transcript at the server-stamped proof clock, with the
+  // proof's own signed live result as a floor (see derivedDisengagement).
+  const normalizedTurns = normalizeTurns(rawTurns);
+  const assistantTurnCount = normalizedTurns.filter(
+    (turn) => turn.role === "assistant",
+  ).length;
+  const serverElapsedSeconds = Math.max(
+    0,
+    Math.round((Date.now() - report.startedAt.getTime()) / 1000),
+  );
+  const normalizedTerminationAtSeconds =
+    typeof rawTerminationAtSeconds === "number" &&
+    Number.isFinite(rawTerminationAtSeconds)
+      ? Math.min(
+          serverElapsedSeconds,
+          Math.max(0, Math.trunc(rawTerminationAtSeconds)),
+        )
+      : null;
+  const walkOutProof = await verifyWalkOutProof({
+    token: rawWalkOutProof,
+    userId,
+    reportId: report.id,
+  });
+  const proofMatchesTranscript =
+    walkOutProof !== null &&
+    walkOutProof.assistantTurnCount <= assistantTurnCount;
+  const replayedDisengagement = deriveFinishDisengagement({
+    turns: normalizedTurns,
+    elapsedSeconds:
+      walkOutProof?.elapsedSeconds ??
+      normalizedTerminationAtSeconds ??
+      serverElapsedSeconds,
+    budgetSeconds: report.timeBudgetSeconds,
+    threshold: type.terminationPolicy.disengagementThreshold,
+    // Same profile the chat route used, so the recorded value is computed with
+    // the same arithmetic as the live gate that ended the session.
+    weights: type.terminationPolicy.disengagementWeights ?? undefined,
+  });
+  // The replay cannot see the avatar's cue (markers are stripped from the
+  // submitted turns) and covers the whole transcript where the live gate saw a
+  // 20-message window, so it can land below a crossing the server already
+  // computed and signed. The signed live result is server evidence (HMAC,
+  // 2-minute TTL, bound to user + report), so it is a floor here: the recorded
+  // decision always agrees with the live one (UAT 2026-10-25, user decision,
+  // amending Phase 18's "the proof never supplies the value").
+  const derivedDisengagement =
+    proofMatchesTranscript &&
+    walkOutProof!.disengagement.value > replayedDisengagement.value
+      ? walkOutProof!.disengagement
+      : replayedDisengagement;
   const source = terminationSource ?? "student";
+  // Severity from SERVER evidence only: the signed proof when it matches this
+  // transcript, otherwise the fresh re-derivation. Never a request body.
+  const severeContent = proofMatchesTranscript
+    ? walkOutProof!.severe
+    : derivedDisengagement.severe === true;
+  const needsWalkOutProof =
+    source === "avatar" &&
+    type.terminationPolicy.disengagementThreshold != null;
   const termination = resolveTermination({
     policy: type.terminationPolicy,
     source,
-    reason: terminationReason ?? null,
+    // A matching proof carries the server-chosen reason from the type's own
+    // vocabulary; prefer it to the client's, which can be a generic fallback
+    // the type does not declare (UAT 2026-10-25).
+    reason:
+      source === "avatar" && proofMatchesTranscript && walkOutProof!.reason
+        ? walkOutProof!.reason
+        : terminationReason ?? null,
+    assistantTurnCount,
+    disengagementValue:
+      needsWalkOutProof && !proofMatchesTranscript
+        ? undefined
+        : derivedDisengagement.value,
+    // The carve-out must apply on the RECORDED path too. Without it a severe
+    // session that legitimately ended below the floor would be rejected here
+    // and written as a non-termination, losing the evidence entirely.
+    severeContent,
   });
+  // The reason the type's own vocabulary maps for the dominant observable
+  // cause, preferred over the model's marker reason. This is what makes
+  // `offensive_content` queryably distinct from `escalated` in the report and
+  // in any later cohort query — the marker reason alone cannot carry that.
+  const derivedWalkOutReason = proofMatchesTranscript
+    ? walkOutProof!.reason
+    : resolveWalkOutReason({
+        policy: type.terminationPolicy,
+        dominantCauses: derivedDisengagement.dominantCauses,
+        severe: severeContent,
+      });
   // Rejected terminations write both reason and timecode as null (13-07).
+  // The derived walk-out reason describes why the CHARACTER left; a student
+  // who ends the session keeps their own reason (UAT 2026-10-25 D15-1 — a
+  // student close was being recorded as `nothing_left_to_discuss`).
   const recordedTerminationReason = termination.ok
-    ? termination.recordedReason
+    ? source === "avatar"
+      ? derivedWalkOutReason ?? termination.recordedReason
+      : termination.recordedReason
     : null;
   const recordedTerminationAtSeconds =
-    termination.ok &&
-    typeof rawTerminationAtSeconds === "number" &&
-    Number.isFinite(rawTerminationAtSeconds)
-      ? Math.max(0, Math.trunc(rawTerminationAtSeconds))
+    termination.ok
+      ? walkOutProof?.elapsedSeconds ?? normalizedTerminationAtSeconds
       : null;
 
   let recordedOutcome: Record<string, unknown> | null = null;
-  if (
-    rawOutcome &&
-    typeof rawOutcome === "object" &&
-    !Array.isArray(rawOutcome)
-  ) {
-    const validated = validateOutcome(
-      type.outcome,
-      rawOutcome as Record<string, unknown>,
-    );
+  // `disengagementDecline` is engine-owned operational evidence, never a
+  // type-declared learner outcome. Remove a forged copy but still retain valid
+  // ordinary outcome fields such as a pitch's negotiated terms.
+  const declaredOutcome = declaredOutcomeFields(rawOutcome);
+  if (declaredOutcome) {
+    const validated = validateOutcome(type.outcome, declaredOutcome);
     recordedOutcome = validated.ok ? validated.outcome : null;
+  }
+
+  if (
+    source === "avatar" &&
+    termination.ok &&
+    type.terminationPolicy.disengagementThreshold != null &&
+    proofMatchesTranscript
+  ) {
+    recordedOutcome = {
+      ...(recordedOutcome ?? {}),
+      disengagementDecline: {
+        value: derivedDisengagement.value,
+        episodes: derivedDisengagement.episodes,
+        severe: severeContent,
+      },
+    };
   }
 
   const snapshot = asInputSnapshot(report.inputSnapshot);
@@ -976,7 +1165,7 @@ export async function finishSession({
 
   // ---- Interview finish shape (finishPendingFlip: "request-path") ----
   if (type.finishPendingFlip === "request-path") {
-    const turns = normalizeTurns(rawTurns);
+    const turns = normalizedTurns;
     if (turns.length === 0) {
       return {
         ok: false,

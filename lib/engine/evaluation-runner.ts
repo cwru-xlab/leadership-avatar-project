@@ -30,6 +30,7 @@ import type { CameraMode } from "@/lib/metrics/types";
 import { loadDeckManifest } from "@/lib/deck/store";
 import { resolveDifficultConversationInstance } from "@/lib/difficult-conversation/resolve-instance";
 import { resolveDeckFairValueBand } from "@/lib/pitch/fair-value-band";
+import { deckModeNegotiates } from "@/lib/pitch/deck-modes";
 import { DECK_ENVELOPE_SECONDS } from "@/lib/pitch/session-length";
 import {
   asInputSnapshot,
@@ -38,6 +39,8 @@ import {
   type PitchInputSnapshot,
   type ScenarioInputSnapshot,
 } from "@/lib/report/snapshot";
+import { asDisengagementDeclineRecord } from "@/lib/report/dto";
+import { recordLiveSessionContributions } from "@/lib/mastery/from-report";
 import type { InteractionLog, InteractionEvent } from "@/types";
 
 import { runEvaluation } from "./evaluation";
@@ -187,10 +190,16 @@ function instanceFromScenarioSnapshot(
  * Pitch instances are reconstructible from the input snapshot. Elevator is
  * fully self-contained; deck reloads `slideTexts` from private deck storage
  * (texts are not duplicated into the snapshot).
+ *
+ * Exported for `scripts/verify-deck-family-plumbing.ts`, which passes a
+ * fixture `manifestLoader` so the proof needs no S3/network access. The
+ * real evaluation path always uses the default (`loadDeckManifest`).
  */
-async function instanceFromPitchSnapshot(
+export async function instanceFromPitchSnapshot(
   snapshot: PitchInputSnapshot,
   userId: string,
+  typeSlug: string,
+  manifestLoader: typeof loadDeckManifest = loadDeckManifest,
 ): Promise<InstanceConfig | null> {
   if (snapshot.pitchKind === "elevator") {
     if (
@@ -208,42 +217,54 @@ async function instanceFromPitchSnapshot(
 
   if (snapshot.pitchKind !== "deck") return null;
 
+  // Phase 19: all five deck modes share pitchKind "deck". The negotiation
+  // fields (askPriceUsd/askEquityPct) are no longer a hard precondition —
+  // requiring them here made every non-investor deck session unevaluable.
+  // Only deckId and a usable slideCount are required to reconstruct.
   if (
     typeof snapshot.deckId !== "string" ||
     !snapshot.deckId ||
     typeof snapshot.slideCount !== "number" ||
     !Number.isFinite(snapshot.slideCount) ||
-    snapshot.slideCount <= 0 ||
-    typeof snapshot.askPriceUsd !== "number" ||
-    !Number.isFinite(snapshot.askPriceUsd) ||
-    typeof snapshot.askEquityPct !== "number" ||
-    !Number.isFinite(snapshot.askEquityPct)
+    snapshot.slideCount <= 0
   ) {
     return null;
   }
 
-  const manifest = await loadDeckManifest(userId, snapshot.deckId);
+  const manifest = await manifestLoader(userId, snapshot.deckId);
   const slideTexts =
     manifest?.slides.map((slide) =>
       typeof slide.text === "string" ? slide.text : "",
     ) ?? Array.from({ length: Math.trunc(snapshot.slideCount) }, () => "");
+
+  const hasAsk =
+    typeof snapshot.askPriceUsd === "number" &&
+    Number.isFinite(snapshot.askPriceUsd);
+  const hasEquity =
+    typeof snapshot.askEquityPct === "number" &&
+    Number.isFinite(snapshot.askEquityPct);
+
+  const negotiates = deckModeNegotiates(typeSlug);
+  const fairValueBand = negotiates
+    ? snapshot.fairValueBand ??
+      resolveDeckFairValueBand(typeSlug, { slideCount: snapshot.slideCount })
+    : undefined;
 
   return {
     kind: "pitch-deck",
     deckId: snapshot.deckId,
     slideCount: Math.trunc(snapshot.slideCount),
     slideTexts,
-    askPriceUsd: snapshot.askPriceUsd,
-    askEquityPct: snapshot.askEquityPct,
-    fairValueBand:
-      snapshot.fairValueBand ??
-      resolveDeckFairValueBand({ slideCount: snapshot.slideCount }),
+    ...(hasAsk ? { askPriceUsd: snapshot.askPriceUsd as number } : {}),
+    ...(hasEquity ? { askEquityPct: snapshot.askEquityPct as number } : {}),
+    ...(fairValueBand ? { fairValueBand } : {}),
     proposedSeconds:
       typeof snapshot.budgetSeconds === "number" &&
       Number.isFinite(snapshot.budgetSeconds) &&
       snapshot.budgetSeconds > 0
         ? Math.trunc(snapshot.budgetSeconds)
         : DECK_ENVELOPE_SECONDS[0],
+    modeInputs: snapshot.deckModeInputs ?? undefined,
   };
 }
 
@@ -292,7 +313,11 @@ async function resolveConfigForReport(
   }
 
   if (snapshot?.kind === "pitch") {
-    const instance = await instanceFromPitchSnapshot(snapshot, userId);
+    const instance = await instanceFromPitchSnapshot(
+      snapshot,
+      userId,
+      typeSlug,
+    );
     if (!instance) {
       return {
         ok: false,
@@ -320,6 +345,7 @@ function buildEvaluationContextForReport(
     reason: string | null;
     atSeconds: number | null;
   },
+  outcome?: unknown,
 ): Record<string, unknown> {
   const type = getEngineType(config.typeSlug);
   if (!type) {
@@ -353,6 +379,25 @@ function buildEvaluationContextForReport(
           presetCustomization?.interviewerPersona ??
           "",
       },
+    };
+  }
+
+  // Finish owns termination and signed decline evidence. Supply pitch graders
+  // only the narrowed server-owned episode slice, never arbitrary outcome JSON.
+  if (
+    (base.kind === "pitch-elevator" || base.kind === "pitch-deck") &&
+    termination &&
+    typeof base === "object"
+  ) {
+    const outcomeRecord =
+      outcome && typeof outcome === "object" && !Array.isArray(outcome)
+        ? (outcome as Record<string, unknown>)
+        : null;
+    return {
+      ...base,
+      terminationReason: termination.reason,
+      terminationAtSeconds: termination.atSeconds,
+      disengagementDecline: asDisengagementDeclineRecord(outcomeRecord?.disengagementDecline),
     };
   }
 
@@ -539,6 +584,7 @@ export async function runAndPersistEvaluation({
         reason: report.terminationReason,
         atSeconds: report.terminationAtSeconds,
       },
+      report.outcome,
     );
 
     // Type-declared images (looked up via the type record — ResolvedSessionConfig
@@ -587,20 +633,30 @@ export async function runAndPersistEvaluation({
       // non-null outcome the finish route already set unless the evaluator
       // produced one.
       const produced = outcome.producedOutcome;
+      const storedOutcome =
+        report.outcome && typeof report.outcome === "object" && !Array.isArray(report.outcome)
+          ? (report.outcome as Record<string, unknown>)
+          : null;
+      const storedDecline = asDisengagementDeclineRecord(storedOutcome?.disengagementDecline);
       let outcomeToPersist: Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined;
       let validatedOutcome: Record<string, unknown> | null = null;
 
       if (produced !== null) {
         const validated = validateOutcome(resolved.config.outcome, produced);
         if (validated.ok) {
-          validatedOutcome = validated.outcome;
-          outcomeToPersist = validated.outcome as unknown as Prisma.InputJsonValue;
+          validatedOutcome = {
+            ...validated.outcome,
+            ...(storedDecline ? { disengagementDecline: storedDecline } : {}),
+          };
+          outcomeToPersist = validatedOutcome as unknown as Prisma.InputJsonValue;
         } else {
           console.warn(
-            "Engine evaluation: produced outcome failed validateOutcome; persisting null",
+            "Engine evaluation: produced outcome failed validateOutcome; preserving engine-owned decline evidence",
             { reportId, errors: validated.errors },
           );
-          outcomeToPersist = Prisma.JsonNull;
+          outcomeToPersist = storedDecline
+            ? ({ disengagementDecline: storedDecline } as unknown as Prisma.InputJsonValue)
+            : Prisma.JsonNull;
         }
       } else if (report.outcome == null) {
         // Evaluator produced nothing and finish left nothing — leave as-is
@@ -650,6 +706,19 @@ export async function runAndPersistEvaluation({
               ? "null"
               : "validated",
       });
+
+      // Phase 21 / REQ-107: a completed session must move mastery by itself. This is
+      // the only moment a report has final scores, so it is the only correct hook.
+      // AWAITED, not waitUntil: this function already runs inside a waitUntil, and
+      // nesting one would let the lambda freeze mid-write.
+      // WRAPPED: a mastery failure must never turn a successful report into a failed
+      // one. The student's report is the product; mastery is derived from it.
+      try {
+        const ingested = await recordLiveSessionContributions({ reportId });
+        console.info("Mastery live ingestion", { reportId, ...ingested });
+      } catch (masteryError) {
+        console.error("Mastery live ingestion failed", { reportId, error: masteryError });
+      }
       return;
     }
 

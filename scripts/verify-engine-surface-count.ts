@@ -211,16 +211,47 @@ console.log("\n5. Session shell + report page — exactly one each");
     "components/interview/InterviewSessionShell.tsx"
   );
 
-  const shells = walkFiles(abs("components")).filter((f) =>
-    /SessionShell\.tsx$/.test(f)
-  );
-  if (shells.length !== 1) {
+  /**
+   * Session shells are an ALLOWLIST, not a count of one.
+   *
+   * Plan 13-14 originally asserted exactly one, to stop a new interaction type
+   * spawning a parallel session UI. Phase 21 added a deliberate second:
+   * coached practice is reachable ONLY from a study-plan path step, and
+   * 21-CONTEXT.md locks that normal practice sessions stay UNTOUCHED. Reusing
+   * `PracticeSessionShell` would have meant editing `components/practice/` for
+   * a mode that must stay separate, so 21-24 built its own minimal shell
+   * instead — which is why `git diff -- components/practice/` is empty across
+   * the whole of Phase 21, and why 21-12's isolation verifier passes.
+   *
+   * Authority: `.planning/phases/21-adaptive-mastery-path/21-COACHED-ENGINE-DECISION.md`.
+   *
+   * The guard's real purpose survives: a THIRD shell, or either of these two
+   * being renamed or moved, still fails. Adding to this list is a deliberate,
+   * reviewed act — not a way to quiet a failure.
+   */
+  const ALLOWED_SESSION_SHELLS = [
+    "components/practice/PracticeSessionShell.tsx",
+    "components/study-plan/CoachedSessionShell.tsx",
+  ] as const;
+
+  const shells = walkFiles(abs("components"))
+    .filter((f) => /SessionShell\.tsx$/.test(f))
+    .map((f) => rel(f))
+    .sort();
+  const expectedShells = [...ALLOWED_SESSION_SHELLS].sort();
+  if (
+    shells.length !== expectedShells.length ||
+    shells.some((f, i) => f !== expectedShells[i])
+  ) {
     fail(
-      `expected exactly 1 *SessionShell.tsx under components/, found ${shells.length}:\n` +
-        shells.map((f) => `         ${rel(f)}`).join("\n")
+      `*SessionShell.tsx under components/ must be exactly the ${expectedShells.length} allowlisted shells.\n` +
+        `         expected: ${expectedShells.join(", ")}\n` +
+        `         found:    ${shells.join(", ") || "(none)"}`
     );
   }
-  ok("exactly 1 SessionShell under components/");
+  ok(
+    `exactly the ${expectedShells.length} allowlisted SessionShells under components/`
+  );
 
   assertExactlyOneFile(
     "report page",
@@ -278,7 +309,8 @@ console.log("\n6. CAMERA_BLOCK_COPY defined exactly once (REQ-70)");
           : "         (none)")
     );
   }
-  if (defs[0] !== "components/practice/steps/CameraConsentStep.tsx") {
+  // Moved to the shared session chrome (Phase 22 G4, 22-SHARED-SHELL-DECISION.md).
+  if (defs[0] !== "components/session/CameraConsentStep.tsx") {
     fail(
       `CAMERA_BLOCK_COPY must live in CameraConsentStep.tsx, found in ${defs[0]}`
     );

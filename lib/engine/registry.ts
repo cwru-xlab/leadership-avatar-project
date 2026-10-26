@@ -38,6 +38,10 @@ import {
 } from "../networking/prompts";
 import { PITCH_ELEVATOR_TYPE } from "../pitch/elevator-type";
 import { PITCH_DECK_TYPE } from "../pitch/deck-type";
+import { PITCH_FUNDING_TYPE } from "../pitch/funding-type";
+import { PITCH_PRODUCT_TYPE } from "../pitch/product-type";
+import { PITCH_TALK_TYPE } from "../pitch/talk-type";
+import { PITCH_GENERAL_TYPE } from "../pitch/general-deck-type";
 import { DIFFICULT_CONVERSATION_TYPE } from "../difficult-conversation/conversation-type";
 
 /**
@@ -75,6 +79,7 @@ function makeInterviewTypeConfig(base: InterviewType): InteractionTypeConfig {
 
         return buildInterviewSystemPrompt(resolvedBase, {
           resumeText: extra.resumeText ?? "",
+          jobDescriptionText: extra.jobDescriptionText ?? "",
           language: extra.language ?? resolveAttemptLanguage(undefined),
         });
       },
@@ -122,6 +127,19 @@ function makeInterviewTypeConfig(base: InterviewType): InteractionTypeConfig {
         label: "Resume",
         customComponent: "ResumeStep",
         optional: true,
+      },
+      // Issue #56. Declared inside makeInterviewTypeConfig, so it applies to
+      // all four interview presets and to no other type.
+      {
+        id: "job-description",
+        label: "Job posting",
+        customComponent: "JobDescriptionStep",
+        optional: true,
+      },
+      {
+        id: "background-reminder",
+        label: "Briefing",
+        customComponent: "InterviewBackgroundReminderStep",
       },
     ],
   };
@@ -355,6 +373,10 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   NETWORKING,
   PITCH_ELEVATOR_TYPE,
   PITCH_DECK_TYPE,
+  PITCH_FUNDING_TYPE,
+  PITCH_PRODUCT_TYPE,
+  PITCH_TALK_TYPE,
+  PITCH_GENERAL_TYPE,
   DIFFICULT_CONVERSATION_TYPE,
 ];
 

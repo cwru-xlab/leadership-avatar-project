@@ -2,14 +2,474 @@
 
 **Project:** Leadership Avatar — Interview Practice
 **Milestone:** v1.1 — Consequence & Deck Breadth
-**Updated:** 2026-10-05 (Phase 17 CLOSED — REQ-74 through REQ-77 Pass 1 complete; Phase 13's REQ-63 proof verified. Phase 18 is next; Phase 19 depends on it. Milestone v1.1; v1.0 shipped Phases 1–17.)
+**Updated:** 2026-10-25 (Phases 17–23 closed as agent-verified by user decision; walk-out and keyboard-UAT defects fixed and re-tested live; PR #65 into dev.)
 
 ## Current Position
 
-**Phase:** 18 — Avatar Disengagement & Walk-Out (Phase 17 closed; Phase 19 depends on Phase 18)
-**Plan:** 18-01 (next to execute)
-**Status:** Phase 18 implementation begins on `feature/phase-18-avatar-walkout`; no Prisma migration is required.
-**Last activity:** 2026-10-05 — Phase 17 closed with REQ-74–77 Pass 1 recorded; see `17-CLOSE-RECORD.md`.
+**Phase:** all roadmap phases through 23 complete (agent-verified UAT).
+**Plan:** none open.
+**Status:** Open items: the production migrations for Phases 21–23 are applied by a human at merge (`23-DEPLOY-NOTE.md`); PR #65 is under review.
+**Last activity:** 2026-10-21 — quick task 006 (study-plan picker-as-modal +
+saved-plan own-route) complete, two commits (`1eeb762` feat, `86ae306`
+test). The "Choose which interviews to use" picker built in quick-005 moved
+off the `/reports` page body into a `@heroui/modal` (already a project
+dependency — no new one added) opened by "Generate study plan"; generation
+still happens from inside it, closing the modal only on success so a
+failure's error stays visible. A saved study plan now has its own route,
+`app/study-plans/[planId]/page.tsx`, following the same auth/404/loading
+conventions as its `checks/[checkId]`/`coached/[stepId]` children; it owns
+the title/date/source-count/summary/`PlanContent`/`PathPanel`+generate-path
+block moved verbatim from the inline `viewedPlan` section this replaces.
+`PlanContent` was extracted to `components/study-plan/PlanContent.tsx` so
+the `/reports` draft-preview card and the new page share one
+implementation. "View plan" now navigates (`router.push`) instead of
+fetching into local state. `app/reports/page.tsx`: +112/-327 lines (viewedPlan
+state, the path-panel state block, `fetchPath`, `generatePathForViewedPlan`,
+the viewedPlan-keyed effect, the inline viewedPlan section, and the local
+`PlanContent` body all deleted). `scripts/verify-path-surface.ts`'s "PathPanel
+is wired into the reports page" assertion was deliberately repointed (not
+weakened — same bite-proof pattern, plus a new existence check) to assert
+PathPanel wiring on the new saved-plan page instead, since the panel moved
+with it; the four REQ-120 pre-existing markers on `app/reports/page.tsx`
+(generate POST, loadPlans fetch, draftToken field, priorityThemes render)
+are confirmed still present. Gates: `npx tsc --noEmit` clean, `npx next
+build` exits 0 (no route-slug collision), `verify-path-surface.ts` 36/36
+(up from 33/34 pre-repoint), `verify-study-plan-selection.ts` 27/27
+unmodified, `verify-moment-boundary.ts` 22/22 unmodified,
+`verify-check-taking-surface.ts`/`verify-coached-runtime-surface.ts` both
+ALL PASS unmodified. See
+`quick/006-study-plan-page-and-modal/006-SUMMARY.md`. This quick task left
+quick-005's own outstanding human-verify checkpoint (Task 4,
+alice.johnson@case.edu generating a plan through the live UI) OPEN and
+folded its own browser-verification steps into that same session rather
+than duplicating it — see the checkpoint return for this task's specific
+steps (picker-is-now-a-modal, View-plan-now-navigates, path still renders
+on the new page, check/coached links still resolve).
+**Previously:** 2026-10-21 — quick task 005 (per-plan interview selection
+for study plans) reached its blocking human-verify checkpoint. Tasks 1-3 are
+committed: `app/api/study-plans/generate/route.ts` now accepts an optional
+ownership-scoped `reportIds[]`, exports `MAX_REPORTS_PER_PLAN = 10`, defaults
+to the most recent 10 when none is supplied, and reports
+`consideredReportCount`/`eligibleReportCount` honestly; `MAX_SOURCE_REPORTS`'s
+413 guard is narrowed to apply only on the no-selection path, so a selection
+now lets `alice.johnson@case.edu` (56 eligible reports) generate a plan
+without raising or removing that guard. `app/reports/page.tsx` gained an
+additive-only (+145/-0, confirmed via `git diff --numstat`) picker enforcing
+the cap with a visible reason and defaulting to zero-interaction. A new
+`scripts/verify-study-plan-selection.ts` battery (27 checks) runs its DB
+section against the real local database (no SKIP) and proves ownership
+scoping, the cap, the ineligible-selection refusal, the recent-N default's
+counts, and that the 413 stays reachable on a direct no-selection call while
+a selection bypasses it — with a captured bite-proof (ownership clause
+temporarily removed, re-run, 1 FAIL, restored, 27/27 again). `npx tsc
+--noEmit` clean, `npx next build` exits 0, `verify-moment-boundary.ts` still
+exits 0 (frozen privacy path intact). Task 4 (human verifying that
+alice.johnson@case.edu can now generate a plan through the live UI) is
+OUTSTANDING and blocking. See
+`quick/005-study-plan-report-selection/005-SUMMARY.md`.
+**Previously:** 2026-10-20 — Phase 21 (Adaptive Mastery Path) plan
+**21-01 complete** — REQUIREMENTS.md gained a `### Phase 21` section defining
+REQ-103..REQ-124 as 22 verifiable, student-observable conditions (strict
+numeric order, REQ-121 between REQ-120 and REQ-122), 22 Traceability rows
+(Phase 21 / Pending), a recounted Coverage block (29→51 total/mapped, Unmapped
+0 ✓), and four Out-of-Scope rejection rows for `21-CONTEXT.md`'s Deferred
+items (streaks/unlocking, faculty-authored framework, authored question bank,
+coaching inside normal practice). ROADMAP.md's Phase 21 entry gained its
+missing `Requirements:` line, its five open questions replaced with their
+settled answers, and five concrete Success Criteria — a stale duplicate
+"Plans: TBD" block contradicting the already-populated 25-plan checklist was
+also removed. One disclosed non-defect git-staging race: Task 3's commit
+(`b5f5cf7`) swept in a concurrent sibling executor's staged
+`prisma/schema.prisma` changes (same shared-working-tree precedent as
+20-06's); content unaltered, no history rewrite. See `21-01-SUMMARY.md`.
+Three sibling plans (21-02, 21-03, 21-04) ran concurrently in this phase.
+**21-04 complete** — the mechanical half of 21-CONTEXT.md's first named
+guardrail ("never misquote the student"), per REQ-110. `lib/study-plan/
+verbatim.ts` ships `validateVerbatimQuote(quote, transcript, opts?)`, a pure
+function with no model call, no network, no S3 read, that collects every
+substring match across every turn before classifying the result as an exact
+match (returning the unique `role:"user"` turn index + char offsets) or one
+of seven closed reject reasons (`EMPTY_QUOTE`, `TOO_SHORT`,
+`NOT_FOUND_IN_ANY_TURN`, `FOUND_ONLY_IN_ASSISTANT_TURN`,
+`SPANS_MULTIPLE_TURNS`, `AMBIGUOUS_MULTIPLE_MATCHES`,
+`TURN_INDEX_MISMATCH`). The only permitted normalization is Unicode NFC;
+case folding, trimming, whitespace collapsing, and smart-quote folding are
+named and explicitly excluded in a block comment. The shared 12-char
+threshold is exported once as `MIN_QUOTABLE_LENGTH` and imported — never
+restated — by `lib/study-plan/moments.ts`'s `extractSessionMoments`, which
+pairs each long-enough `role:"user"` turn with the report growth area(s)
+whose timecode matches it exactly (no nearest-turn fallback) and leaves
+`competencyKeys` empty for its caller, deliberately not importing the
+mastery catalog. TDD discipline followed genuinely: `scripts/verify-
+verbatim-quote.ts`'s 22-check battery was run and confirmed to fail
+(`MODULE_NOT_FOUND`, exit 1) before either module existed (RED, commit
+`380a947`), then passed after `verbatim.ts` (GREEN, `9bdc6dd`) and again
+after `moments.ts` (GREEN, `32e6524`). One disclosed non-defect fix: a
+`moments.ts` doc comment originally spelled out the literal substring
+`competencies` (the plan's own verification grep forbids that substring
+appearing anywhere in the file); reworded before the GREEN commit landed.
+`npx tsc --noEmit` clean. See `21-04-SUMMARY.md`.
+**21-05 complete** — the single mastery contribution ledger plus the weight
+table it snapshots from. `lib/mastery/weights.ts` ships `CONTRIBUTION_SOURCES`/
+`ContributionSource`, `CONTRIBUTION_WEIGHTS` (`LIVE_SESSION 1.00`,
+`CHECK_DETERMINISTIC 0.45`, `COACHED_SESSION 0.40`, `CHECK_MODEL_GRADED 0.20`,
+all `PROVISIONAL UNTIL CALIBRATED`), `WEIGHT_ORDERING_CONSTRAINTS` as checkable
+data carrying the exact 21-CONTEXT.md sentence that locks each of the two
+orderings, `weightForSource()` (throws on unknown source), and the single
+`normalizeRubricScore()` every later plan importing rubric-to-mastery
+conversion must use (`(score-1)/4`, floor at 1, throws outside 1..5 or
+non-finite). `lib/mastery/ledger.ts` ships `recordContributions()` (validates
+the whole batch before any write, snapshots the weight per row, one
+`createMany`), `reverseContribution()` (marks `reversedAt`/`reversedReason`,
+never deletes, rejects a double reversal), and `readContributions()` (excludes
+reversed rows by default, windows on `occurredAt` never `createdAt`).
+`scripts/verify-mastery-weights.ts`'s 8-section battery proved the ordering
+guard non-vacuous via an inverted assertion, then was additionally proven
+against the real file: `CHECK_DETERMINISTIC`/`CHECK_MODEL_GRADED` temporarily
+swapped to 0.1/0.9, verifier failed (2 failures, exit 1), file restored
+byte-identical, re-ran ALL PASS/exit 0. A manual live-DB round-trip (DB now
+migrated) confirmed `recordContributions`/`readContributions`/
+`reverseContribution` against the real schema: weight snapshot, reversed-row
+exclusion, double-reversal rejection all behave as specified. REQ-107
+deliberately left unchecked — it is claimed by four plans in this phase
+(21-05, 21-16, 21-20, 21-21) and this plan ships the mechanism, not the
+session-completion wiring. See `21-05-SUMMARY.md`.
+**21-07 complete** — the named, scoped privacy-boundary exception REQ-109
+requires. `lib/study-plan/generate.ts`'s closed-vocabulary filter (only
+anonymous report ordinals, two score aggregates, closed-vocabulary rubric
+label/rating strings) is proven BYTE-FOR-BYTE UNCHANGED and proven to import
+nothing from the new module. A SECOND, narrower path,
+`lib/study-plan/moment-boundary.ts`'s `prepareMomentsForGeneration()`, is the
+only place in the codebase permitted to send a student's own transcript text
+to a model call, for knowledge-check/coached-practice generation only — never
+study-plan synthesis. It enforces ownership-first (throws before any text
+handling on a single cross-user `momentOwnerUserIds` entry, even with zero
+moments, without echoing either user id), then enumerated structural
+redaction (email/URL/phone/self-name pattern match only — explicitly no NER,
+no model-based PII detection) with drop-not-redact semantics (a moment
+altered by redaction is removed entirely, never sent redacted, since REQ-110
+requires an untouched verbatim quote), then two PROVISIONAL UNTIL CALIBRATED
+caps (12 moments / 8,000 characters, most-recent-first). `selfNames` is a
+REQUIRED parameter, not optional, so redaction cannot be silently skipped by
+a forgetful caller. `.planning/phases/21-adaptive-mastery-path/
+21-PRIVACY-BOUNDARY.md` records what widened, why no alternative (an
+authored question bank) avoided it, what explicitly did NOT widen (study-plan
+synthesis, reports, cross-user reads, deck/artifact text, third-party
+personas), and states the accepted residual risk plainly: the redactor is
+structural, not semantic, and will not catch an arbitrary third-party name
+the student says aloud. `scripts/verify-moment-boundary.ts`'s 22-check
+battery (zero env vars, no network) proves all of the above, including a
+self-proving inverted test that the frozen-file marker guard would itself
+catch a regression. `npx tsc --noEmit` clean; `git diff --name-only` confirms
+`generate.ts`/`types.ts`/the study-plan generate route are untouched. See
+`21-07-SUMMARY.md`.
+**21-06 complete** — the four knowledge-check formats modelled entirely
+inside `lib/study-plan/`, per REQ-108. `lib/study-plan/checks/types.ts` ships
+`CHECK_FORMATS`/`CheckFormat`, discriminated payload interfaces for
+`MULTIPLE_CHOICE` (exactly 4 distinct options), `FILL_IN_BLANK` (1-3 blanks,
+`segments.length === blankCount + 1`), `PICK_BETTER_RESPONSE` (exactly 2
+distinct candidates), and `REWRITE_WEAK_LINE` (weak line floored at the
+imported, never-restated `MIN_QUOTABLE_LENGTH` from `lib/study-plan/
+verbatim.ts`), plus `validateCheckPayload()` and `validateAnswerKey()` — the
+latter throws if a non-null key is given for `REWRITE_WEAK_LINE` and throws
+if `null` is given for any of the other three, making REQ-111's
+deterministic/model-graded split structural. `isDeterministicFormat()` and
+`CONTRIBUTION_SOURCE_FOR_FORMAT()` give 21-11/21-15 one non-duplicated source
+for a format's weight class. `scripts/verify-knowledge-check-surface.ts`'s
+43-check battery (above the 25-check floor) covers accept/reject for all
+four formats with field-naming throws, then proves the no-engine-registry
+guard: no `ENGINE_TYPES` slug/name matches a check format or mentions
+"knowledge"/"quiz"/"check", `ENGINE_TYPES.length` tripwired at its current
+count (13, no existing verifier exports one), and nothing under
+`lib/study-plan/` imports the engine except the single named,
+length-asserted `lib/study-plan/coached/` carve-out (that directory doesn't
+exist yet — handled as zero files, not a vacuous pass) — proven non-vacuous
+by planting an engine import under `checks/`, observing the walk catch it,
+then removing it and re-confirming clean. `npx tsc --noEmit` clean;
+`verify-engine-surface-count.ts` unchanged at ALL PASS; no `lib/engine/`
+files touched. See `21-06-SUMMARY.md`.
+**21-08 complete** — the study-plan path container, per REQ-117.
+`lib/study-plan/path.ts` ships `PATH_STEP_BOUNDS` (locked 5-10, the ONLY
+enforcement of the bound since the schema deliberately does not constrain
+step count), `createPath()` (ownership check, the bound, 1-based contiguous
+positions, per-kind reference consistency, one nested transaction so a path
+can never exist with zero steps, a second create for the same plan throwing
+a named `PathAlreadyExistsError` carrying the existing path's id rather than
+overwriting it), `readPathForStudyPlan()` (null for a pre-Phase-21 plan, the
+REQ-120 case), `markStepComplete()` (out-of-order completion explicitly
+permitted — 21-CONTEXT.md rules out unlocking — and re-running the
+state-dependent coached rule at the one moment a step leaves PENDING), and
+`listPathsForUser()` (every path ever owned, no is-latest/active flag, no
+delete). The `COACHED_SESSION` reference rule is state-dependent by design,
+settled in review: `coachedSessionId` may be null only while
+`status === "PENDING"` (21-12 is the sole creator, called at step-entry time,
+and cannot see a step still inside an uncommitted `createPath` transaction),
+and is required non-null once the step leaves PENDING — both halves asserted.
+`scripts/verify-path-model.ts` proves all four invariants: the bound
+(rejects 0/4/11 naming both 5 and 10, accepts 5/10), position contiguity
+(duplicate/gap/0-based rejected, shuffled-but-contiguous accepted),
+kind/reference consistency including BOTH halves of the coached amendment
+(PENDING-null accepted, COMPLETE/IN_PROGRESS-null rejected naming the
+status), and — against the local dev DB, which is migrated and ran (not
+SKIP) — that an older path's id/generatedAt/step ids/statuses survive a
+second and third plan's path creation untouched, a same-plan collision
+throws `PathAlreadyExistsError` without mutating the original, a cross-user
+`studyPlanId` throws, and `markStepComplete` throws at runtime for a
+still-null coached step then succeeds once the id is written back. `npx tsc
+--noEmit` clean; neither `generate.ts`, `plan-dto.ts` nor `types.ts` touched.
+See `21-08-SUMMARY.md`.
+**21-12 complete** — coached practice as its own instance, per REQ-113/
+REQ-114. `.planning/phases/21-adaptive-mastery-path/21-COACHED-ENGINE-
+DECISION.md` records the decision `scripts/verify-knowledge-check-surface.ts`'s
+pre-existing `ENGINE_IMPORT_CARVE_OUTS` already cited as its authority:
+coached mode reuses the engine's live session machinery (it IS a live avatar
+session) but is never registered in `ENGINE_TYPES` — registration is exactly
+what REQ-113 forbids being reachable through. 21-06's "no engine involvement"
+is explicitly scoped to knowledge checks only, so it is not contradicted, not
+generalized. Coached sessions enable NO disengagement threshold (a coach does
+not walk out), which is why REQ-85's amendment is a boundary clarification,
+not a behaviour change. `lib/study-plan/coached/instance.ts` ships
+`createCoachedSession()` (required non-nullable `pathStepId`, loaded by id
+joining path → studyPlan → userId, requiring `kind === "COACHED_SESSION"`;
+mandatory REPLAY — an owned report + in-range turn index — and mandatory
+FRESH — a non-empty, length-bounded prompt — both enforced before any row is
+written; a `P2002` collision on the step resumes the existing session rather
+than erroring), `readCoachedSession()` (phase derived from `completedAt`/
+`reportId`, never stored, no S3 read), and `finishCoachedSession()` (sets
+`reportId`/`completedAt`, calls `markStepComplete`, writes zero mastery-ledger
+rows — 21-16 owns that). `scripts/verify-coached-mode-isolation.ts` proves the
+required-`pathStepId` signature and locked `REPLAY`-first order, that
+`ENGINE_TYPES` stays at 13 with no coach-named entry, that a 40-file walk of
+`components/practice/` + `app/practice/` (count-asserted non-vacuous,
+`PracticeSessionShell.tsx` confirmed present) finds zero coached-mode
+references anywhere, and — against the local dev DB, which ran, not SKIP —
+every wrong entry route throws while a valid create/finish cycle writes back
+correctly and records no contribution. `npx tsc --noEmit` clean. See
+`21-12-SUMMARY.md`.
+**21-11 complete** — the four knowledge-check formats are now GRADED, per
+REQ-111. `lib/study-plan/checks/grade.ts` ships `gradeDeterministic()` (pure,
+no model call reachable; MULTIPLE_CHOICE/PICK_BETTER_RESPONSE binary,
+FILL_IN_BLANK partial credit `blanksCorrect/blankCount`; throws — never marks
+wrong — on an out-of-range/non-integer/missing index, and throws if called
+with `REWRITE_WEAK_LINE`), `gradeRewriteWithModel()` (injectable `callModel`,
+`REWRITE_GRADING_SCHEMA` `strict: true`, normalizes through 21-05's imported
+`normalizeRubricScore` — a floor score of 1 confirmed to contribute 0, not
+20% — rejects rather than clamps an out-of-range score or a `criteriaMet`
+length mismatch), and `submitAndGrade()` (ownership-scoped WHERE, P2002 →
+named `AlreadyAnsweredError`, routes on `isDeterministicFormat`, writes the
+attempt plus exactly ONE `MasteryContribution` at the format's own weight
+class in one transaction). FILL_IN_BLANK's normalization (NFC/trim/collapse/
+case-fold) is documented as deliberately different from `verbatim.ts`'s
+verbatim-only rule — proven by a negative case that a superstring of the
+right answer still grades incorrect. `scripts/verify-check-grading.ts`'s
+strongest assertion installs a `callModel` stub that THROWS if invoked at
+all, then submits a MULTIPLE_CHOICE answer through the real `submitAndGrade`
+— it succeeds and the stub never fires, mechanically proving a closed format
+cannot reach a model rather than merely asserting the happy path. TDD
+discipline genuinely followed: RED commit `acabd78` (confirmed
+`MODULE_NOT_FOUND`, exit 1, before `grade.ts` existed), GREEN commit
+`5149cc8`. The DB-gated section (24 checks) ran against the local
+`DATABASE_URL`, not SKIP, round-tripping all four formats plus the
+already-answered/ownership/failed-model-grade-writes-nothing cases. One
+disclosed design substitution: `recordContributions` (21-05) hardcodes its
+own `prisma` singleton with no injectable client, so it cannot share a
+transaction with the attempt write; `submitAndGrade` instead reuses its
+exported `validateContributionInputs`/`weightForSource` directly and writes
+both rows via a batch `prisma.$transaction([...])` with pre-generated UUIDs —
+every invariant `recordContributions` enforces is preserved, only the
+literal function call is not reused (`lib/mastery/ledger.ts` is outside this
+plan's `files_modified`). `npx tsc --noEmit` clean; `verify-mastery-weights.ts`
+unchanged at ALL PASS. See `21-11-SUMMARY.md`.
+**21-25 complete** — the single, named, ownership-scoped assembler REQ-123
+requires. `lib/study-plan/checks/sources.ts`'s `loadGenerationSources()`
+turns a requesting user + report ids into `generateChecksForCompetency`'s
+(21-10) four inputs plus the `momentsByCompetency` pre-check index 21-19's
+POST route needs, with ownership scoped in every WHERE clause
+(`userId: requestingUserId`, `status: "READY"`) plus a throwing
+belt-and-braces assertion rather than a post-filter. `momentOwnerUserIds` is
+built in the same per-report loop as `moments` so index alignment is
+structural; the standalone-exported `assertMomentOwnerAlignment()` is
+proven, by direct construction of a six-moments/five-ids mismatch, to
+throw. S3 transcript reads run at bounded concurrency 4 via an injectable
+`readTranscript`; a bad transcript or missing/invalid `StructuredReport`
+degrades exactly that report (reason recorded in `degradedReports`) without
+failing the whole assembly. A competency with zero growth-area-linked
+moments is absent from `momentsByCompetency` (`has(key) === false`), never
+present-and-empty. The pure `assembleSources()` core (DB/S3-free) made the
+full battery — `scripts/verify-generation-sources.ts`, 36 checks — runnable
+with zero credentials: a compile-time shape pin to
+`generateChecksForCompetency`'s input (demonstrated once to fail `tsc` on a
+renamed field, then restored), the inverted-alignment throw, one-report
+degradation, the absent-vs-empty distinction, a most-recent-first cap proven
+against real `createdAt` dates, `selfNames` edge cases, and a DB-backed
+section proving a foreign report's transcript text is absent from a full
+`JSON.stringify` sweep of the result (not just the obvious fields) plus a
+successful round-trip into 21-07's `prepareMomentsForGeneration` ownership
+gate. One disclosed judgment call: `ReportGrowthArea` carries no dimension
+key, so growth-area-to-competency attribution derives from the REPORT's
+scored dimensions (via 21-02's `competencyForDimension`) intersected with
+which moments link to a growth area, not a per-growth-area field the data
+model does not have. `npx tsc --noEmit` clean; sibling verifiers
+(`verify-moment-boundary.ts`, `verify-verbatim-quote.ts`,
+`verify-check-generation.ts`, `verify-knowledge-check-surface.ts`)
+unchanged at ALL PASS. See `21-25-SUMMARY.md`.
+**21-14 complete** — deterministic, explainable weakest-first step selection
+(REQ-118). `lib/study-plan/next-step.ts`'s `selectPathSteps()` ranks every
+competency through a five-rule ordered comparator: a NONE-tier (no evidence
+at all) competency always outranks any measured one, checked as its own
+branch BEFORE any numeric comparison so null is never coerced to zero; then
+`currentPercent` ascending (falling back to `lifetimePercent` only for a
+stale-but-measured competency, never for an unmeasured one); then
+`lifetimePercent` ascending; then evidence tier ascending; then the
+exported, catalog-derived `TIE_BREAK_ORDER` as the final tie-break — proven
+identical on shuffled input, including the tie-break itself. Step kind
+assignment gives the weakest AVAILABLE competency a `COACHED_SESSION`,
+cycles ranks 2..(n-1) through `KNOWLEDGE_CHECK` (repeating the weakest when
+the catalog is smaller than `PATH_STEP_BOUNDS.min`), and always closes with
+an `UNAIDED_SESSION` on the TRUE overall weakest competency regardless of
+availability (an unaided session needs no source moment); excluding
+unavailable competencies from the non-final pool prevents a duplicate step
+by construction, with no separate skip branch needed. Every reason string
+names the competency's label and, when a figure exists, the figure and
+evidence tier; `nextStepFor()` returns the lowest-position PENDING step's
+STORED reason, verbatim, never recomputed, with no gating on earlier steps.
+`scripts/verify-next-step.ts`'s 10-section battery (genuine RED —
+`MODULE_NOT_FOUND`, exit 1 — before GREEN) proves all of the above against
+the real `validatePathSteps` (21-08) and `evidenceTierFor` (21-13), not
+reimplementations of them. One disclosed self-referential-grep comment
+reword (the same class 21-09/21-13 hit), caught before the GREEN commit.
+`npx tsc --noEmit` clean; `verify-path-model.ts` unchanged at ALL PASS.
+REQ-118's checkbox and Traceability row both now read Complete — this
+plan's own selection/explanation contract is what the requirement's text
+describes, with no student-facing dependency (unlike REQ-105's "SHOWN"
+language), matching the REQ-117 precedent of a backend-only Complete. See
+`21-14-SUMMARY.md`.
+**21-24 complete** — `components/study-plan/CoachedSessionShell.tsx` and
+`app/study-plans/[planId]/coached/[stepId]/page.tsx` give 21-23's coached
+runtime an actual screen: REPLAY first (the verbatim moment in a
+`whitespace-pre-wrap` blockquote, a live text-turn session area, a
+`<aside>` technique-reminder rail rendering only server-gated tips), a
+single server-mediated "advance" control to FRESH (which does not repeat
+the moment), and a finish screen naming how many competencies moved and
+that coached counts for less. The leg is set ONLY from the server's own
+`CoachedLegView` — there is no code path assigning a local literal
+`"FRESH"`/`"COMPLETE"`, proven by `scripts/verify-coached-runtime-surface.ts`
+(22 checks, 4 sections, no DB needed) alongside re-proofs that
+`components/practice/`/`app/practice/` remain untouched and un-leaked in
+both directions. The live conversation area is a fresh, minimal text-turn
+implementation against the engine's already-generic session endpoints
+(`session/start` / `interaction/chat` / `session/finish`), not an import of
+`PracticeSessionShell.tsx`'s HeyGen video pipeline — a deliberate scope
+decision recorded in `21-24-SUMMARY.md`, which also discloses one known,
+unfixed limitation (an underlying type that requires an `instance`, e.g.
+case-study/difficult-conversation, may reject the generic session-start call
+this shell makes; surfaced as an error, not solved here). REQ-113, REQ-114
+and REQ-115's checkboxes and Traceability rows now both read Complete;
+REQ-116 stays Pending (its "see the figure change on the mastery surface"
+half needs 21-18, not yet shipped) and REQ-122 stays Pending (21-19's, wave
+7, not yet run). `npm run build` succeeds, `npx tsc --noEmit` is clean
+repo-wide, and `git diff --name-only -- components/practice/ app/practice/
+lib/engine/` is empty. See `21-24-SUMMARY.md`.
+**21-18 complete** — the student-facing mastery surface: `GET /api/mastery`
+(auth-gated, `no-store`, `toMasteryDTO` the only serialization path, clock
+read at the edge, per-competency level derived from the CURRENT figure not
+lifetime, `goalProgress` with a declared `America/New_York` default, never a
+silent UTC fallback), `components/mastery/MasteryPanel.tsx` (one overall
+figure labelled "Recent form (last N days)" / "All time", a per-competency
+`<ul>` breakdown with `<dl>`/`<dt>`/`<dd>`-paired "All time"/"Recent" figures,
+the current-figure level with a provisional marker and next-level target,
+tier disclosure rendered inline next to the figure it qualifies, a null
+figure reading "Not yet measured" rather than 0% or a dash, and an
+`unmappedRowCount` note — zero computation performed in the component), and
+`app/mastery/page.tsx` (loading/needs-login/error-with-retry states, the
+empty/new-student case handled inside the panel's own header so it reads as
+a starting point, not a wall of zeroes). A `Mastery` entry (`ChartColumnBig`,
+already in `auth-navbar.tsx`'s `iconMap`) was added additively to
+`siteConfig.studentNavItems` between `My Reports` and `Settings` —
+`git diff config/site.ts` shows exactly that one block added, nothing else
+touched. `scripts/verify-mastery-surface.ts` runs 33 checks with no
+`DATABASE_URL`/`OPENAI_API_KEY`: DTO completeness across all four tiers incl.
+one all-null competency with no NaN anywhere; the three required labels plus
+`<dt`/`<dl` proven present in the panel source; the panel proven to import no
+computation module (`lib/mastery/compute`/`thinness`/`weights`/`ledger`) and
+to contain no percent-threshold literal; the streak/unlock negative guard
+re-run over `components/mastery/`+`app/mastery/` (new directories 21-17's own
+walk could not have covered); REQ-106 reachability asserted (the `/mastery`
+entry's icon is a key of `auth-navbar.tsx`'s `iconMap`) with the guard proven
+to bite against a synthetic nav list with the entry removed; the route proven
+GET-only with no UTC fallback; and the empty-student payload proven all-null,
+never all-zero. `npx tsc --noEmit` clean, `npm run build` succeeds (`/mastery`
+and `/api/mastery` both in the manifest), and `scripts/verify-levels-goals.ts`
+/ `scripts/verify-mastery-thinness.ts` re-run unchanged at ALL PASS.
+REQ-105, REQ-106, REQ-116 and REQ-119 all flip to Complete in this plan —
+each was genuinely held Pending by an earlier plan specifically for this
+surface to close ("SHOWN"/"flagged", "REACHABLE", "see the figure change",
+"exist" all being student-observable conditions no earlier plan's
+`files_modified` touched `app/`/`components/`); checkbox and Traceability row
+verified in agreement for all four. See `21-18-SUMMARY.md`.
+**21-19 complete** — the improvement path is surfaced inside the study plan
+that owns it: `app/api/study-plans/[planId]/path/route.ts` (GET returns `{
+path: null }` with a 200, never a 404, for a pre-Phase-21 plan; resolves
+each step's display artifact — check format/prompt/attempt, coached
+session's DERIVED phase via `readCoachedSession`, no S3 read involved; and
+closes a gap 21-22's own attempt route disclosed, marking an answered
+`KNOWLEDGE_CHECK` step COMPLETE on read since nothing else was writing that
+transition. POST delegates ALL source assembly to `loadGenerationSources`
+(21-25) — no `s3Storage`, no `getInterviewTranscript`, no
+`prisma.user.find` in the route — pre-checks competency availability via
+`momentsByCompetency` before spending a model call, and closes the
+cross-wave `PLACEHOLDER_KNOWLEDGE_CHECK_ID` hazard three ways: every
+placeholder is replaced with a real `KnowledgeCheck.id` or the step
+degrades to `UNAIDED_SESSION` (reported in `degradedSteps`), a second
+assertion throws if one somehow survives before `createPath`, and
+`PathPanel.tsx` carries an independent third backstop rendering no action
+link for a step still carrying it. `PathPanel.tsx` shows the full stored
+`selectionReason` untruncated for the next step and every step in order,
+with no sequential-gating copy, and derives the `UNAIDED_SESSION`
+destination's practice-entry slug deterministically from `ENGINE_TYPES`
+(no stored competency-to-type mapping exists — `COMPETENCIES`' own
+`dimensionKeys` span several types by design). `app/reports/page.tsx` was
+widened ADDITIVELY (145 insertions, 0 deletions) — `PathPanel` renders
+inside the existing saved-plan view with its own isolated fetch/loading/
+error state, a "Generate a path" action shown only when no path exists
+(409 refetches rather than erroring), and every pre-existing study-plan
+flow (plan list, preview/generate, draft-token save, `priorityThemes`
+rendering) proven unchanged. `scripts/verify-path-surface.ts` runs 34
+checks, DB-gated sections ran for real (`DATABASE_URL` set, not SKIP):
+the REQ-120 regression guard proven to bite on a deliberately removed
+marker; no answer-key field reachable through `buildPathDTO` (a real
+MULTIPLE_CHOICE check with a sentinel correct-option text proves it);
+five sentinel `selectionReason`s returned verbatim; a path-less plan
+resolves to `{ path: null }`; 21-17's forbidden-identifier scan re-run
+clean over the new files; both `KNOWLEDGE_CHECK`/`COACHED_SESSION`
+destination pages proven to exist ON DISK (inverted assertion against a
+singular `/check/` variant proves the check reads the filesystem, not a
+substring); and the placeholder hazard's bite proof — PLANT one via a
+direct `createPath` call, OBSERVE the detector fire, REMOVE it, confirm
+clean again. `npx tsc --noEmit` clean repo-wide, `npm run build` succeeds
+(`/api/study-plans/[planId]/path`, `/study-plans/[planId]/checks/
+[checkId]`, `/study-plans/[planId]/coached/[stepId]` all in the manifest).
+REQ-120 and REQ-122 both flip to Complete — checkbox and Traceability row
+verified in agreement; REQ-120 jointly with 21-18 (level/goal progress
+lives on `/mastery`, step state/next-step reason lives on `/reports` via
+this plan — REQ-120's text does not require one page). See
+`21-19-SUMMARY.md`.
+**Previously:** 2026-10-16 — quick task 002 (issue #50, feedback source
+attribution) **COMPLETE**; human-verify reported "all pass" on PARTIAL evidence
+(no report IDs, no item-level notes).
+See `quick/002-feedback-source-attribution/002-SUMMARY.md`. Earlier the same
+day, Phase 20 plan **20-05 completed** — the difficult-conversation walk-out is
+now wired into live sessions at both server callers, closing two defects that
+had made it impossible to fire: a forced farewell citing `lost_interest`, a
+reason the type does not declare (rejected by `resolveTermination` gate 2), and
+a declared `disengagementWeights` profile that never reached either caller, so
+every Phase 20 cause computed at weight 0. Phase 20's only remaining plan is
+20-07, still gated on Phase 18's 18-05. Also: `pitch-elevator` dropped its
+two-turn `avatarEndFloor` (user decision) so a crossed threshold ends it on any
+turn — both pinning assertions INVERTED, not deleted, and this incidentally
+cleared the long-standing `verify-pitch-types` red. **18-05's UAT step 6
+("confirm elevator floor (2 turns)") is now obsolete and must be reworded before
+Phase 18's human UAT runs.** Previously: 20-06 complete; see `20-06-SUMMARY.md`.
 
 ### Carried into v1.1 from v1.0
 
@@ -319,6 +779,7 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 
 ## Decisions
 
+- [Phase 20-difficult-conversation-walk-outs / 20-01]: `detectHostility` separates HOSTILE from firm confrontation language entirely through clause-level TARGETING (an attack term only counts when a second-person reference appears in the same clause) plus two named veto patterns (`POSITION_OBJECT_PATTERN` for judgement-of-work/decision/process, `PROCESS_CONSEQUENCE_PATTERN` for HR/escalation/formal-process consequences) rather than any score threshold — proven against a 24-row corpus built from all seven seeded confrontation scenarios' own register (`"your performance has been unacceptable and this is your final warning"` never trips it). SEVERE is checked first and independent of targeting (a slur does not need a "you"), using masked placeholder tokens in the test fixture so no real slur text is committed to the repo. Stonewalling needs NO new signal: feeding `STONEWALLING_CANDIDATES` through Phase 18's real `computeDisengagementOverTranscript` produced 0.425 (materially non-zero against the 0.6 threshold), so `detectHostility` deliberately returns `tier: "none"` for pure refusal-to-engage text — it is a stall signal Phase 18 already measures, not an attack. Every constant introduced (shouting caps-ratio/length/word floors, the leet map, separator-evasion collapse) is labelled PROVISIONAL UNTIL CALIBRATED, quoting Phase 18's calibration policy verbatim, with the only evidence named as this plan's fixture corpus. REQ-97 marked complete; REQ-96 deliberately left open since its full text ("added to the engine's observable cause vocabulary") is only completed once 20-02 wires this detector into `DISENGAGEMENT_CAUSES`. No caller exists yet (`detectHostility` has zero callers outside its own module and verifier, confirmed by grep) — this plan ships the detector and its proof, nothing wired.
 - [Phase 12-embodied-visual-signals / 12-10]: `isVisible` means OBSERVED IN FRAME, not model-confident. MediaPipe's `visibility` is a predicted probability and was shown to be near-useless as a gate (98-99% "visible" on a session with the face detected 0% of the time), so a landmark must now clear the visibility floor AND have in-frame normalized coordinates. Extracted to `lib/metrics/landmark-visibility.ts` so the predicate is assertable from Node.
 - [Phase 12-embodied-visual-signals / 12-10]: `POSTURE_COVERAGE_MIN_RATIO` 0.25 -> 0.60, set from two real dumped sessions and documented as NOT well-characterised — any cutoff from ~0.44 to ~0.75 produces identical verdicts on the only two readings that exist, and there is no fully-in-frame reading to bound the band from above.
 - [Phase 12-embodied-visual-signals / 12-10]: `HANDS_COVERAGE_MIN_RATIO` deliberately RETAINED at 0.25 rather than raised to match posture. Hands legitimately leave frame all session (lap, below the laptop edge) while shoulders do not, so no positive reading bounds it from above; raising it blind risked silencing gesturing for most real sessions.
@@ -497,7 +958,9 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 14]: proposeDeckSeconds anchors ≤8→1200s ≥25→1800s linear round-60 between; ask+fair instance config, settled-only outcome; avatarMayEnd false
 - [Phase 14]: Chat revealedSlideIndex is ratchet input only; slide text in tail block (REQ-73); one ratchetHighWaterMark shared with checkpoint
 - [Phase 14]: Deck routes: opaque deckId only; PPTX unconfigured → 502 reason+fix; real PDF raster needs canvasFactory + disableFontFace fonts
-- [Phase 14]: Fair-value band is per-type constant ($800k-$1.2M / 8-12%), ask-independent, injected only in startSession
+- [Phase 14]: Fair-value band is per-type constant ($800k-## Decisions
+
+.2M / 8-12%), ask-independent, injected only in startSession
 - [Phase 14]: Deck wizard keys: deckUpload, negotiationAsk, sessionLength; slideTexts fetched at launch from manifest
 - [Phase 14]: 14-10: wizard keys pitchSubject + listenerKnowledge; shell sessionPanel + opening-turn timing; short discovery turns do not conclude soft window
 - [Phase 14]: 14-13: shell extraChatBody + mediaLayout deck-primary (slides stage, avatar PiP); start returns clamped timeBudgetSeconds
@@ -505,6 +968,30 @@ into ROADMAP.md on 2026-09-19 during a mid-project handoff.
 - [Phase 14]: Ask/settled/fair stay three distinct sources; overrun is noted fact with no score dimension
 - [Phase 14]: Phase SIGNED OFF 2026-10-04 — 15/15 plans; `14-VALIDATION.md` all PASS; no calibration changes; deferred-items.md remains parked (not new plans)
 - [Phase 13 / close]: **Phase 13 CLOSED 2026-10-04 by human decision**, standalone rather than waiting for Phase 17's plan 17-07. REQ-66 and REQ-67 ticked with a **recorded caveat, not a passing test** — the shared Lightsail DB was found EMPTY, so REQ-66's backfill acceptance test is unsatisfiable there by construction (the verifier hard-asserts a legacy `cameraMode IS NULL` row exists) and passed on LOCAL only (67 InterviewReport + 3 ScenarioReport → 70 InteractionReport, verifier exit 0, idempotent 70→70, commits `1eafa7b`/`981f835`, 13-14 human acceptance 9/9 PASS). REQ-67 closed on its **human-run clause alone** and explicitly NOT on "no agent applies it" — `vercel.json`'s `buildCommand` had been self-migrating every deploy for days. Chosen over the other two options in REQ-66's note (rewrite the requirements to match the real pipeline; keep them open until a populated DB exists) because the legacy tables are dropped, so no future pre-Phase-13 row can ever appear to re-open the test. **REQ-63 delegated, not granted** — it stays open under REQ-75 / plan 17-03. **REQ-74's governance contradiction is NOT closed by this** and remains Phase 17's. Full reasoning and the documents corrected: `13-CLOSE-RECORD.md`.
+- [Phase 19]: 19-01: DECK_MODES table imports DECK_ENVELOPE_SECONDS for pitch-deck's envelope rather than duplicating the literal, so the two can never drift
+- [Phase 19]: 19-08: Practice Pitches picker stays two top-level cards (Elevator pitch, With a deck); "With a deck" expands in place via an accessible `aria-expanded`/`aria-controls` disclosure into the five `listDeckModes()` cards — no new route, no second screen. Every card's listener/scored/envelope/negotiation-marker facts are read from the mode table, never hardcoded in the page. `scripts/verify-pitch-picker-cards.ts` (15 assertions) ALL PASS. See `19-08-SUMMARY.md`.
+- [Phase 19]: 19-03: removed deck's disengagement opt-in (avatarMayEnd:false, no threshold), consumed SHARED_DECK_DIMENSIONS, added interviewer setup step; inverted verify-disengagement-termination.ts deck assertions without deleting any check
+- [Phase 19]: 19-06: `FundingAskStep`, `BuyerProfileStep`, `TalkAudienceStep` built as peers of `NegotiationAskStep`/`NetworkingGoalStep` (same `SetupStepNav` props shape, same HeroUI styling, same `onChange(null)`-while-incomplete discipline) — all three REQUIRED to start, none contains an equity/valuation/negotiation concept (not even in source comments, so the plan's literal `grep -niE 'equity|valuation'` check passes). Not wired into the wizard yet — plan 19-07 owns that. See `19-06-SUMMARY.md`.
+- [Phase 19]: 19-04: `PITCH_FUNDING_TYPE`/`PITCH_PRODUCT_TYPE` registered as peers of `deck-type.ts`; both reuse `buildDeckEvaluationImages` verbatim and read their envelope from `getDeckMode(slug)` (fail-loud if missing). The plan's own quick-check grep (`equity|valuation|fairValue` returns nothing) is literally unsatisfiable against any file that also legitimately says `evaluation`/`EvaluationContext` — resolved by treating the formal per-mode verify script's literal-token + case-insensitive-`equity` check as authoritative, and by writing "ownership stake" instead of the literal word "equity" in prose. New `scripts/verify-deck-family-types.ts` iterates `listDeckModes()` and skips unregistered modes, so 19-05 extends its own coverage by registration alone. Two Rule-3 fixes to the pre-existing `scripts/verify-pitch-types.ts` (new instance fixtures for the two new required-instance slugs; extended the cursor/high-water-mark file exemption list to the two new prompts files) — both scoped to that verify script only. See `19-04-SUMMARY.md`.
+- [Phase 19]: 19-05: scoped the name/description-must-match-DECK_MODES assertion to exclude pitch-deck (its hand-written copy predates the table and 19-03 left it untouched); REQ-87 flipped to Complete after verifying all four new deck types in lib/engine/registry.ts's ENGINE_TYPES array.
+- [Phase 19]: 19-07: generalized `app/practice/[type]/page.tsx` off `getDeckMode()` — zero `pitch-deck` slug comparisons remain; collapsed per-mode wizard state into one `deckModeInput` slot; `askPriceUsd`/`askEquityPct`/`modeInputs` spread in conditionally (absent, not zeroed, for non-negotiating modes); avatar auto-pick retired generically via `declaresInterviewerStep` (not a slug) so `pitch-elevator`'s fallback stays reachable while all five deck modes are owned by the shared `InterviewerStep`. Added `lib/pitch/deck-modes.ts#tagModeInput` (outside the plan's stated files_modified, Rule 3 deviation) so the one `mode: "pitch-..."` discriminator literal a mode-input value needs lives in the one data table, never in the wizard page. New `scripts/verify-deck-wizard-generic.ts` (38 assertions) ALL PASS. See `19-07-SUMMARY.md`.
+- [Phase 19]: 19-10: surface-count guard distinguishes shared InstanceConfig kind discriminant from per-mode slug branch; absorbed 19-UNOWNED-RED-SCRIPT.md Rule 3 deviation fixing verify-report-structure.ts's resolve-loop
+- [Phase 20]: Reversed 20-01's stonewalling finding per user amendment: added a dedicated stonewalling disengagement cause so sustained pure refusal can cross a type's threshold alone, with hostility proven to cross at least as fast
+- [Phase 20]: 20-03: fixed 20-EPSILON-MARGIN.md (stonewalling crossing landed on a 1e-16 float hair) by rebalancing the test weight profile to a 0.05 margin; declared the DC type's own disengagementThreshold (0.6) and disengagementWeights with a real stonewalling weight (0.3, deviating from the plan's literal numbers which would have left the amendment unimplemented in production) alongside offensive_content/avatarEndReasonByCause; added verify-dc-surface-count.ts Section 11 proving one type-level threshold with no per-scenario surface, negative-tested
+- [Phase 21]: REQ-103..REQ-124 derived from 21-CONTEXT.md; traceability/coverage/roadmap updated
+- [Phase 21]: 21-02: competency catalog derived from live ENGINE_TYPES registry — 23 dimensions, 7 competencies, totality verifier proven to bite (REQ-103).
+- [Phase 21-adaptive-mastery-path]: 21-03 complete: seven Phase 21 Prisma models (MasteryContribution ledger, KnowledgeCheck/Attempt/GradingContest, StudyPlanPath/Step, CoachedSession) added additively to schema.prisma; migration prisma/migrations/20261116000000_add_adaptive_mastery_path/migration.sql hand-authored (no shadow DB available) with 7 CREATE TABLE statements, zero destructive statements, and left UNAPPLIED per REQ-74 — a human must run it before any wave-2 deploy. One disclosed git-staging race: Task 1's schema.prisma commit landed under sibling 21-01's commit b5f5cf7 (same shared-working-tree precedent as 20-06/21-01); content verified unaltered, no history rewrite. See 21-03-SUMMARY.md.
+- [Phase 21-adaptive-mastery-path]: 21-09 complete (TDD, genuine RED→GREEN, commits `f0afdf9`/`413c36b`): `lib/mastery/compute.ts`'s `computeMastery()` ships lifetime + current-window + overall mastery arithmetic through one shared `figureFor()` code path per window, seeded from `COMPETENCIES` so a zero-evidence competency reads `null` (never `0`), inclusive 30-day window boundary verified on both sides, overall figure proven volume-independent (10 rows at 0.3 vs 1 row at 0.9 → overall 60.0), a reversed row throws, and `unmappedRowCount` is present on `MasteryResult` as the plan required. `scripts/verify-mastery-compute.ts`'s 9-section battery runs with no `DATABASE_URL`/`OPENAI_API_KEY`, proving no I/O and no model call. One self-caught deviation: two doc-comment lines accidentally contained the literal substrings the plan's own grep checks (`new Date()`, `weightForSource`) test for zero occurrences of; reworded before the GREEN commit, no behavior change. REQ-104 marked complete (full text satisfied in one plan, no multi-plan split like REQ-107's). This plan ran concurrently with 21-10/21-11/21-12/21-21 in the same shared working tree; only `lib/mastery/compute.ts` and `scripts/verify-mastery-compute.ts` were touched. See 21-09-SUMMARY.md.
+- [Phase 21-adaptive-mastery-path]: 21-10 complete (commits `abe78ac`/`174e841`): `lib/study-plan/checks/generate.ts`'s `generateChecksForCompetency()` generates the four knowledge-check formats from a student's own session moments, routing every transcript turn through `prepareMomentsForGeneration` (21-07) and wiring `validateVerbatimQuote` (21-04) as a HARD POST-GATE — a candidate whose quote does not match the stored turn exactly is DISCARDED with a recorded reason, never repaired/re-prompted/fuzzy-matched; a fabricated `source_report_id` is caught before any transcript lookup; the two quote-defined formats (`REWRITE_WEAK_LINE`/`PICK_BETTER_RESPONSE`) additionally require the quote to BE the worked line, and an unquoted candidate in either format is discarded outright; a zero-survivor run returns `ok:false` rather than persisting an empty path step. `scripts/verify-check-generation.ts`'s 13-scenario adversarial battery (45 checks, zero `OPENAI_API_KEY`) proves the gate against a model stub that deliberately disobeys — paraphrase, tidied grammar, assistant-attributed quote, cross-turn splice, wrong-report fabrication, turn-index lie, the subtle "quote validates but `weakLine` lies" decoration case, unquoted rewrite, malformed payload, all-bad, throwing/invalid-JSON, and a boundary stub proving the sent model payload carries no email/URL/phone/self-name — with every "no row written" claim checked against a live local Postgres database (real, cleaned-up `User`/`StudyPlan` fixtures). REQ-109 and REQ-110 marked complete. No S3/report/`prisma.user` fetching added; `lib/study-plan/generate.ts` untouched. This plan ran concurrently with 21-09/21-11/21-12/21-21 in the same shared working tree; only `lib/study-plan/checks/generate.ts` and `scripts/verify-check-generation.ts` were touched. See 21-10-SUMMARY.md.
+- [Phase 21-adaptive-mastery-path]: 21-16 complete (commits `4f57fe2`/`da22a9a`/`cbcbee6`): `lib/study-plan/coached/tips.ts` ships `TECHNIQUE_LIBRARY` (25 second-person, unquoted technique reminders across all seven `COMPETENCIES`, 3-4 each) as the preferred, safe-by-construction tip source, plus `validateTip()`/`assertTipSafe()` — a mechanical five-rule rejector (`CONTAINS_QUOTED_SPEECH`, `CONTAINS_SCRIPT_CUE` against an exported 10-phrase list, `CONTAINS_FIRST_PERSON_LINE` catching an *unquoted* script, `TOO_LONG` at 240 chars, `ECHOES_STUDENT_LINE`) for any tip not drawn verbatim from the library — enforcing REQ-115's "technique reminders only, never script the words" mechanically rather than via prompt instruction. `lib/study-plan/coached/contribution.ts`'s `recordCoachedContribution()` is the single writer of `COACHED_SESSION` mastery rows: it requires `completedAt`/`reportId`, is idempotent on `sourceReportId`, and delegates the entire report-to-competency mapping to 21-21's `contributionsFromReport` (REQ-124 — zero restated mapping logic, confirmed by `competencyForDimension`/`asScoreMap`/`score - 1` all absent from the file). `scripts/verify-coach-tips.ts`'s 134-check, 4-section battery (DB-gated section 4 ran, not SKIP) proves library coverage/self-consistency, every rejection reason firing on a realistic case with a paired passing near-miss, every script-cue phrase actually firing, the weight ordering, and — the load-bearing DB proof — that a same-rawScore `LIVE_SESSION` row added on top of a non-degenerate baseline pulls the recomputed figure measurably closer to that raw score than the coached-only figure was (a weighted mean of two EQUAL-valued contributions can't discriminate weight at all, so a baseline at a different score was required to make the ordering provable in the arithmetic, not just the weight table — see `21-16-SUMMARY.md`'s deviations). **REQ-115 and REQ-116 intentionally left Pending**: REQ-115 needs the tip to actually reach the student (21-24, wave 6); REQ-116 needs the figure to be shown to the student (21-18, wave 7) — this plan proves the figure moves in `computeMastery`, not that a student sees it. No second coached-session guard was added; 21-21's existing unconditional, earlier guard in `recordLiveSessionContributions` remains the sole suppressor of a same-report unaided-session row. This plan ran concurrently with sibling executors on 21-13/21-15/21-25 in the same shared working tree; only `lib/study-plan/coached/tips.ts`, `lib/study-plan/coached/contribution.ts` and `scripts/verify-coach-tips.ts` were touched. See 21-16-SUMMARY.md.
+- [Phase 21-adaptive-mastery-path]: 21-13 complete (commits `d39b64a`/`55c0390`/`23371ea`): `lib/mastery/thinness.ts` declares the four evidence tiers (NONE/THIN/EMERGING/ESTABLISHED), a weight-sum (not raw-count) `THINNESS_THRESHOLDS` tagged `PROVISIONAL UNTIL CALIBRATED` (thin below 2.0 weighted-evidence, established at 6.0 — roughly two and six unaided live sessions respectively, per 21-CONTEXT.md's own two-session example), `evidenceTierFor()` (NONE decided on count first, negatives throw), and `TIER_DISCLOSURE` co-locating student-facing disclosure copy with each tier. `lib/mastery/mastery-dto.ts`'s `toMasteryDTO()` is the single server exit for mastery (20-06 precedent): every competency emits independently-tiered `lifetime` and `current` blocks (proven independent — a competency can be ESTABLISHED lifetime and THIN current simultaneously), labels/order sourced from `COMPETENCIES`, no tier-omitting variant exists, `unmappedRowCount` passed through unchanged. `scripts/verify-mastery-thinness.ts`'s 21-check, 5-section battery (no `DATABASE_URL`/`OPENAI_API_KEY`) proves both threshold edges, the labelled 21-CONTEXT two-session case (non-null percent, non-null disclosure), no competency dropped for being thin, every thin non-null figure has a disclosure, lifetime/current independence, and no `Date` survives serialization. One self-caught deviation, same class as 21-09's: two doc-comment lines in `mastery-dto.ts` accidentally contained the plan's own grep-checked substrings (`includeTiers`, `raw`); reworded before committing, no behavior change. **REQ-105 intentionally left Pending** — the server-side half (tier/disclosure attached, never omittable) is genuinely true, but REQ-105's text is a student-observable condition ("SHOWN", "flagged") and no page/component yet renders `MasteryDTO`; that lands in 21-18 (wave 7). Definition checkbox and Traceability row both already read Pending — left untouched, no drift. `EvidenceTier`/`evidenceTierFor`/`TIER_DISCLOSURE`/`toMasteryDTO` ready for 21-14, 21-17, 21-18. This plan ran concurrently with sibling executors on 21-15/21-16/21-25 in the same shared working tree; only `lib/mastery/thinness.ts`, `lib/mastery/mastery-dto.ts` and `scripts/verify-mastery-thinness.ts` were touched. See 21-13-SUMMARY.md.
+- [Phase 21-adaptive-mastery-path]: 21-15 complete (commits `4144cf2`/`a17b685`/`9b336e0`): `lib/study-plan/checks/contest.ts` ships `raiseContest()` (ownership-scoped, graded-only, 10..2000-character reason, idempotent on `GradingContest.attemptId`'s `@unique` constraint, reverses every unreversed `MasteryContribution` sourced from the attempt via 21-05's own `reverseContribution` — not a reimplemented mechanism — and flags the `KnowledgeCheck` via a race-safe `updateMany` guarded on `flaggedAt: null`), `resolveContest()` (UPHELD keeps the reversal and appends to the flag reason; REJECTED restores by writing a NEW contribution carrying the original `occurredAt`, never by un-reversing the original row — confirmed by direct code inspection, the plan's named non-grep-assertable review item — and is NOT exposed through any route in this plan, deliberately: there is no admin review UI yet), and `listFlaggedChecks()` (ranks by contest count). `app/api/study-plans/checks/[attemptId]/contest/route.ts` is the student-facing POST route, auth'd via the session cookie, 201/400/404/409/500 with no id oracle (same message for missing vs. not-owned) and no leaked Prisma error bodies — no GET/DELETE/resolution endpoint. `scripts/verify-grading-contest.ts`'s 30-assertion battery ran against the local migrated `DATABASE_URL` (DB-gated, ran not SKIP): the load-bearing assertion recomputes `computeMastery` over `readContributions` before/after the contest and proves the FIGURE CHANGES, not merely a column; the reversed row is proven to survive (`includeReversed: true`); a two-attempts-one-check case proves `listFlaggedChecks` reports `contestCount: 2` and ranks it above a single-contest check; idempotence, ownership (no id leaked), ungraded-attempt rejection (nothing written), reason-length validation, UPHELD, REJECTED and double-resolve are all proven. One disclosed deviation from the plan's literal "ONE transaction" instruction (reverseContribution structurally cannot join it — same constraint 21-11 disclosed for recordContributions — and this plan's instruction required reusing the real function rather than reimplementing it), with the idempotence-critical contest-creation/ownership check kept in one transaction and the reversal/flag steps as real calls immediately after; one self-caught bug (a P2002 recovery query mistakenly run inside the already-aborted transaction, fixed before commit). **REQ-112 intentionally left Pending** — the mechanism and endpoint are complete, but the calling affordance (a "Contest this grading" control in the post-submission result view) is 21-22's job. This plan ran concurrently with sibling executors on 21-13/21-16/21-25 in the same shared working tree; only `lib/study-plan/checks/contest.ts`, `app/api/study-plans/checks/[attemptId]/contest/route.ts` and `scripts/verify-grading-contest.ts` were touched. See 21-15-SUMMARY.md.
+
+- [Phase 21-adaptive-mastery-path]: 21-22 complete (commits `9c5ce18`/`306f673`/`84bedc5`/`15d48db`): made `submitAndGrade` (21-11) and `raiseContest` (21-15) reachable by an actual student for the first time. `app/api/study-plans/checks/[checkId]/attempt/route.ts` GETs a keyless check via the exported pure `toKeylessCheckDTO` (404s a missing/not-owned check, never 403; replays an existing mark) and POSTs an answer (shape-validates to 400 naming the field, calls `submitAndGrade` with no injected `callModel`, maps `AlreadyAnsweredError`→409+prior mark, `CheckNotFoundError`→404, `RewriteGradingFailedError`→502, any other thrown validation Error→400; never calls the path's step-completion helper). `components/study-plan/KnowledgeCheckCard.tsx` is one component, four format branches, with the student's quote rendered verbatim in a `pre-wrap` blockquote (zero client-side tidying), blanks submitted untrimmed, rewrite criteria shown before submission, neither pick-the-better-response candidate labelled "yours", and a contest control gated on a mark existing that POSTs the attempt id and confirms the reversal in plain language on 201/409 without re-grading. `app/study-plans/[planId]/checks/[checkId]/page.tsx` is the exact fixed URL 21-19's `PathPanel` is contracted to link to, following `app/reports/page.tsx`'s client-fetch auth pattern, with a "not available" message (not a crash) on a missing check and no path mutation. `scripts/verify-check-taking-surface.ts`'s 53-check, 4-section battery (DB-gated Section 4 ran, not SKIP) proves keylessness for all four formats WITH the inverted leak-detection assertion (the predicate proven to fire on the raw row), format coverage by iterating `CHECK_FORMATS`, contest wiring on the attempt id gated on a mark, the link contract (printing an explicit SKIP for `PathPanel.tsx`'s half since 21-19 hasn't landed), and a full per-format answer→grade→contest→restore database round trip proving the *computed* mastery figure changes, not merely a column. REQ-108/REQ-111/REQ-112 marked Complete (checkbox + Traceability row both flipped — `requirements mark-complete` updates only the table, not the inline checkbox, so the checkboxes were hand-edited to agree; REQ-111's checkbox had silently reverted to unchecked since 21-11, restored here). **REQ-122 intentionally left Pending** — `PathPanel.tsx` does not exist yet; this plan ships only the `KNOWLEDGE_CHECK` destination. Four self-caught deviations, all mechanical (two overly-literal verify-gate greps tripped by legitimate doc-comment/field-name text, one unsatisfiable literal-count gate resolved to its practical floor, one verifier bug finding a comment instead of the real URL) — none behavioral. This plan ran alongside concurrent siblings on 21-14/21-23/a report-structured-evaluator-prompts plan in the same shared working tree; `git diff --name-only` across all four task commits touches nothing under `lib/`. See `21-22-SUMMARY.md`.
+
+- [Phase 21-adaptive-mastery-path]: 21-23 complete (commits `97d102d`/`05195b8`/`25cc220`): built the coached session's server-side runtime and its single HTTP entry point. `lib/study-plan/coached/runtime.ts` ships `enterCoachedStep()` (creates-or-resumes per 21-12's `createCoachedSession`/`readCoachedSession`, selecting the replay target DETERMINISTICALLY — lowest normalized per-competency score among the owning study plan's `sourceReportIds`, computed via 21-21's own `contributionInputsFromScoreMap` with no reimplementation, tie-broken by recency — and reading the S3 transcript turn HERE, the read 21-12 deliberately pushed out of `instance.ts`, returning it `===`-verbatim or throwing `ReplayMomentUnavailableError`), `tipsForLeg()` (draws from 21-16's `techniquesForCompetency` and runs `assertTipSafe` over EVERY returned tip including library ones, dropping-and-logging any that fail — REQ-115's "every tip actually rendered," not just at authoring time), `advanceToFresh()`/`completeCoachedSession()` (both locked by an exported pure `nextLeg()` table: REPLAY+advance→FRESH, FRESH+complete→COMPLETE, everything else→REJECTED; completion calls `finishCoachedSession` THEN `recordCoachedContribution`, in that order exactly once each, because the latter requires `completedAt`/`reportId` and throws otherwise). `app/api/study-plans/path-steps/[stepId]/coached/route.ts` is the ONE route keyed by `stepId` (POST enters/resumes, GET reads with `createIfMissing: false` so a prefetch can never create a session, PATCH advances/completes on a body `action` with no `coachedSessionId` ever accepted from the client). `scripts/verify-coached-entry.ts`'s 4-section battery (DB-gated Section 4 ran, not SKIP) proves: a non-vacuous 103-route walk finds exactly one entry and re-runs 21-12's practice-tree negative guard; the full leg-transition table holds with an INVERTED assertion proving a deliberately-permissive variant is caught; the tip gate sits inside `tipsForLeg` and the finish order is correct by call-site index; and end-to-end, entry is idempotent/deterministic (a weak vs. strong scored report pair proves the weak one is selected), the replay text is byte-identical, out-of-order completion throws, and `recordLiveSessionContributions` (21-21) is confirmed, through the REAL coached flow, to skip the coached report (`skipped: "coached-session"`, zero `LIVE_SESSION` rows) with the single `COACHED_SESSION` row's weight (0.40) proven strictly below `LIVE_SESSION`'s (1.00). One self-caught Rule-1 bug: the real OpenAI call generating the fresh scenario text could produce quoted or overlong output that `assertTipSafe` correctly rejects, which with no retry left `enterCoachedStep` permanently unable to create a session — fixed with a bounded discard-and-retry loop (4 attempts) and a tightened one-sentence/220-char generation prompt, confirmed working against the real model. **REQ-113/REQ-114/REQ-122 intentionally left Pending** — all three need the student-facing shell (21-24, wave 6) that actually renders/starts a coached session in the UI; this plan ships only the server half (REQ-113's "a student can actually START" and REQ-114's "replay first, then fresh" are both true at the API layer, not yet student-observable). `lib/engine/` untouched (confirmed by `git diff --name-only`); `scripts/verify-knowledge-check-surface.ts`'s carve-out guard, `scripts/verify-engine-surface-count.ts`, `scripts/verify-coached-mode-isolation.ts`, `scripts/verify-coach-tips.ts` and `scripts/verify-path-model.ts` all still exit 0. This plan ran concurrently with sibling executors on 21-14/21-22/a `lib/report/structured.ts`-and-evaluator-prompts plan in the same shared working tree; only `lib/study-plan/coached/runtime.ts`, `app/api/study-plans/path-steps/[stepId]/coached/route.ts` and `scripts/verify-coached-entry.ts` were touched. See `21-23-SUMMARY.md`.
+
+- [Phase 21-adaptive-mastery-path]: 21-17 complete (commits `55b9f05`/`80a73be`/`5faa4c7`): the two Duolingo mechanics 21-CONTEXT.md selected — per-competency levels and daily/weekly goals — plus proof that the two it rejected (streaks, unlocking) exist nowhere in the `lib/`/`components/` surface. `lib/mastery/levels.ts` ships `LEVELS`/`Level` (1-5), `LEVEL_THRESHOLDS` (inclusive lower bounds 0/40/55/70/85, `PROVISIONAL UNTIL CALIBRATED` with the rubric-normalization derivation recorded, same convention as 21-05/21-13), and `levelFor({percent, tier})`: a null percent yields a null level (never level 1 — "never measured" is a different claim than "measured and starting out"), a THIN tier flags `provisional: true` without withholding the level (21-13's resolution applied one layer up), `nextLevelAtPercent` exposes the progression target, out-of-range throws. `lib/study-plan/goals.ts` ships `GOAL_DEFAULTS` (`dailyActivities: 1`, `weeklyActivities: 4`, PROVISIONAL, the weekly<7 asymmetry recorded as the deliberate non-punitive answer to "why no streaks") and `goalProgress({contributions, now, timeZone, targets?})`: required `now`/`timeZone`, local-day/ISO-Monday-week boundaries via `Intl.DateTimeFormat` offset-correction (no date library — a real bug in the first offset-correction draft, caught before writing the verifier, is disclosed in `21-17-SUMMARY.md`), activities grouped by `sourceReportId ?? sourceAttemptId` (never raw contribution rows) so one coached session's several per-competency rows count once. `scripts/verify-levels-goals.ts`'s 43-check, 5-section battery (no `DATABASE_URL`/`OPENAI_API_KEY`) proves both sides of all four level thresholds, the timezone-sensitive daily-vs-weekly window pair, one-session-is-one-activity grouping, and — the larger half — a no-streaks/no-unlocking negative guard walking `lib/mastery`, `lib/study-plan`, `components/mastery`, `components/study-plan` (29 files, non-vacuous) with comments AND string literals stripped before matching, paired with behavioural API-shape assertions (`markStepComplete`/`nextStepFor`'s real signatures take no level/precondition argument; `levelFor` takes no `unlockedLevels`/catalog; a crude `levelFor(`+`.filter(` proximity smell detector). The guard was proven to bite, not merely asserted: a planted `dailyStreak` export was confirmed to fail the battery (exit 1), then removed and the file restored byte-identical via `git checkout --`, re-confirmed `ALL PASS`. One narrow, documented exclusion (the literal substring `locked_by`, an unrelated pre-existing governance field name on `lib/mastery/weights.ts`) was needed because plain substring matching — required to catch a term embedded in a camelCase identifier like the planted `dailyStreak` — would otherwise false-positive on that unrelated field; word-boundary matching was rejected because it would have let the camelCase plant through undetected. **REQ-119 intentionally left Pending** — the mechanical half (levels/goals exist, streaks/unlocking proven absent) is true, but no student can see a level or goal anywhere yet (this plan ships no `app/`/`components/` files); that's 21-18's job (wave 7), the same deferral 21-13 made for REQ-105. `scripts/verify-mastery-thinness.ts` and `scripts/verify-next-step.ts` re-run and confirmed unchanged at `ALL PASS`. This plan ran concurrently with a sibling executor on 21-24 in the same shared working tree; only `lib/mastery/levels.ts`, `lib/study-plan/goals.ts` and `scripts/verify-levels-goals.ts` were touched. See `21-17-SUMMARY.md`.
 
 ## Progress
 
@@ -1965,14 +2452,158 @@ Open items carried into Phase 11+:
 
 ## Session
 
-**Last Date:** 2026-10-04T18:01:37.395Z
-**Stopped At:** Phase 17 planned (7 plans, 3 waves, verification passed)
-**Resume File:** .planning/phases/17-v1-0-close-out/17-01-PLAN.md
+**Last Date:** 2026-10-24T00:15:24.860Z
+**Stopped At:** Phase 22 context gathered
+**Resume File:** .planning/phases/22-coached-mode/22-CONTEXT.md
 
 
 ## Accumulated Context
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 001 | Hold-Space push-to-talk in all avatar sessions | 2026-10-09 | `2cdb1b3` | Verified (2 negative tests passed); live browser check residual | [001-hold-space-push-to-talk](./quick/001-hold-space-push-to-talk/) |
+| 002 | Label whether interview feedback comes from the resume or conversation (issue #50) | 2026-10-16 | `55fa287` | **Complete.** Human-verify PASS ("all pass") on PARTIAL evidence — no report IDs, no item-level notes. Frozen-snapshot guard proven to bite before/after; no-resume enforcement negative-tested (4 FAIL rows, exit 1). | [002-feedback-source-attribution](./quick/002-feedback-source-attribution/) |
+| 005 | Per-plan interview selection for study plans — let a student choose which completed interviews feed a plan, within a declared cap, making the 50-report refusal unreachable through the UI | 2026-10-21 | `9705bd8` | **NOT DONE — human-verify OUTSTANDING.** Tasks 1-3 complete: ownership-scoped `reportIds[]`, `MAX_REPORTS_PER_PLAN = 10`, recent-N default, additive-only picker UI, `verify-study-plan-selection.ts` (27 checks, DB section run, bite-proof captured). Task 4 (confirm `alice.johnson@case.edu` can now generate a plan live) is unexecuted and blocking. | [005-study-plan-report-selection](./quick/005-study-plan-report-selection/) |
+
 ### Roadmap Evolution
+
+### Phase 22 added (2026-10-23)
+
+- **Phase 22 added: Coached Mode** — carved out of Phase 21 by `3893c39`, which
+  reverted REQ-113/114/115 after browser UAT. Phase 21 shipped everything AROUND
+  the coach (path step, runtime, tip rail, contribution weight) and nothing that
+  makes a coached session coaching: `CoachedSessionShell` starts an ordinary
+  interview session with no coach system prompt, and no coach prompt exists
+  anywhere in `lib/`. Four defects, four causes — no prompt, no avatar (the
+  undisclosed cost of 21-24's isolation-preserving text-only shell), a
+  turn-index-0 replay target, no objective and no scrolling.
+
+- **This phase must re-open a binding decision.** `21-COACHED-ENGINE-DECISION.md`
+  locks "coached mode is NOT an `ENGINE_TYPES` entry," and both 21-12's
+  registry-length guard and 21-20's no-gate reasoning rest on it. The coach
+  prompt needs `lib/engine/` changes; whether that means a registry entry is the
+  decision to make in writing, not around.
+
+- **Deferred to a successor phase, captured so they are not lost:** four
+  generated options for `PICK_BETTER_RESPONSE` (today two, one verbatim);
+  conversational context in rewrite prompts; a plan-scoped practice entry in
+  place of the bare `/practice/{slug}` wizard; back-link destinations and scroll
+  restoration; backfilling `MasteryContribution` (0 rows against 72 READY
+  reports); sidebar tabs and breakout views for study plans and paths.
+
+### Phase 21 added (2026-10-16)
+
+- **Phase 21 added: Adaptive Mastery Path** — widen study plans from a static
+  post-session artifact into a tailored improvement path: measured mastery,
+  generated practice aimed at the specific gap, knowledge checks between live
+  sessions, and coaching delivered during practice rather than only in the
+  report. It EXTENDS the existing `lib/study-plan/` surface rather than
+  replacing it, and is not blocked by Phases 18-20.
+
+- **Competitor research done at add time** (`fizzylemonai.com/how-it-works`,
+  read 2026-10-16) and recorded in the roadmap entry, because two findings
+  change the brief:
+  - Their "coaching sessions" are a **pre-recorded video**, not live speaking.
+    This app's live avatar conversation is already ahead; the real gap is
+    coaching delivered *mid-session*.
+  - They have **no adaptive path** — journeys are assembled by hand, with no
+    skill tree, streaks, or levels, and no disclosed mechanism for generating a
+    session from prior performance. The Duolingo-adjacent path in this request
+    is a **differentiator, not parity work**.
+
+- **MILESTONE PLACEMENT IS UNRESOLVED.** `/gsd:add-phase` appends to the current
+  milestone, so this landed in **v1.1 — Consequence & Deck Breadth**, whose
+  theme it does not share and which is mid-sign-off with three human UAT gates
+  still open (18-05, 19-11, 20-07). Phase 21 is a large new capability and fits
+  a **v1.2** theme far better. Decide before `/gsd:plan-phase 21`; moving it
+  later costs a renumber.
+
+- One correction made while editing: `gsd-tools phase add` appended its stub to
+  the END of ROADMAP.md, inside the `## Progress` section, and did not add the
+  phase to the `## Phases` summary list. Both were fixed by hand — the entry now
+  sits in `## Phase Details` after Phase 20, and the summary list carries it.
+  Worth knowing the tool does this if another phase is added.
+
+### Phase 20 planned (2026-10-08)
+
+Phase 20 — Difficult Conversation Walk-Outs is PLANNED and VERIFIED: 7 plans in
+6 waves (`7f0726d`), REQ-95..REQ-102 all covered, nothing from the four Phase 20
+Out-of-Scope rejections planned. Plan dir:
+`.planning/phases/20-difficult-conversation-walk-outs/`.
+
+Three planning findings worth carrying:
+1. **Live defect found, fix planned in 20-05:** `buildWalkOutFragment`
+   (`lib/engine/prompts.ts:297`) hardcodes `reason="lost_interest"`, which is not
+   in `difficult-conversation`'s `avatarEndReasons` — a forced farewell would be
+   rejected by `resolveTermination`'s closed-reason gate and the session would
+   never end. Confirmed independently by the plan-checker. Affects any future
+   type whose reason vocabulary differs from the pitch types'.
+2. **No Phase 18 number is retuned.** The three new causes carry weight 0 in
+   `DEFAULT_DISENGAGEMENT_WEIGHTS`; a new optional type-level
+   `disengagementWeights` profile carries the DC arithmetic (hostility 0.5,
+   `budgetPressure` 0 since `timeBudget.totalSeconds` is null, active weights sum
+   to exactly 1). Threshold 0.6, the `/3` accumulation curve and the severe
+   lexicon are PROVISIONAL UNTIL CALIBRATED.
+3. **The REQ-102 sanitizer runs in `toReportDto`**, not in a component —
+   `ReportDTO.outcome` ships as a generic record narrowed in the browser, so
+   render-time sanitizing would still put the verbatim text in the payload.
+
+**Gate:** 20-07's live UAT is gated on 18-05 passing. **The user chose
+18-05-FIRST on 2026-10-08**, so execution stops before 20-07.
+**Phase 18 amendment declared:** SC5's `avatarEndFloor` clause gains the named
+severe-content carve-out (REQ-100); the floor stays at `minAssistantTurns: 4`
+for every other trigger.
+
+- **Phase 18 roadmap entry reconciled 2026-10-08.** It had read `**Plans:** 5
+  plans` with all five boxes unchecked and `0/TBD | Not started` in the Progress
+  table, while 18-01 through 18-04 had all shipped (`848c613`, `4a7c68f`,
+  `3d6f80a`, `32c2fa1`, repaired by `3479921`/`62bf512`) with SUMMARY files on
+  disk. Now 4/5 with per-plan commits recorded. 18-05 is `[~]`: the human UAT RAN
+  on 2026-10-06 and FAILED on two defects the all-green automated battery had
+  passed over — the ratchet's `priorValue` had no callers, and auto-finish waited
+  on a guessed speech duration. Both repaired without retuning any threshold.
+  SC1/REQ-78 and REQ-82 need live re-observation; all five SC verdicts remain
+  PENDING and REQ-78..REQ-86 stay open. Phase 18 is NOT closed.
+
+### Phase 20 plan 20-01 complete (2026-10-08)
+
+Executed ahead of Phase 19's own sequence (19-11 still pending) and ahead of the
+18-05-FIRST gate, since 20-01..20-06 are fixture-verified and explicitly NOT
+gated. Shipped `lib/engine/hostility.ts` (`detectHostility`, `HOSTILITY_TIERS`,
+`HostilityVerdict`) and `scripts/verify-hostility-detector.ts` (ALL PASS, 50
+corpus assertions across 7 sections). The false-positive corpus (`FIRM_NOT_HOSTILE`,
+24 rows) is derived from all seven seeded scenarios' own register and is the
+load-bearing proof for REQ-97. The stonewalling discretion question from
+`20-CONTEXT.md` is now settled with a real number: feeding
+`STONEWALLING_CANDIDATES` through Phase 18's own `computeDisengagementOverTranscript`
+produced 0.425 against a 0.6 threshold — materially non-zero, so no new
+stonewalling signal is needed; `detectHostility` deliberately returns `tier:
+"none"` for it. REQ-97 marked complete in `REQUIREMENTS.md`. REQ-96 deliberately
+left open — its full text requires the detector to be wired into the engine's
+observable cause vocabulary, which is 20-02's job. No caller of `detectHostility`
+exists outside its own module/verifier yet, confirmed by grep — exactly the
+"ships the detector and its proof, nothing wired" boundary 20-01 specifies.
+See `20-01-SUMMARY.md` for full detail, including two small auto-fixes (a
+too-narrow severe-harassment regex range, and a scoped `eslint --fix` on the
+one new module) and a caught-and-reverted premature `gsd-tools roadmap
+update-plan-progress` run that would have overwritten this phase's hand-written
+roadmap prose before any SUMMARY existed.
+
+- **Phase 20 added 2026-10-08: Difficult Conversation Walk-Outs.** The avatar
+  ends a difficult conversation when the student loses control of its hostility
+  (escalation, offensive content). Raised as a deferred idea during
+  `/gsd:discuss-phase 19` and added at the user's request in the same session.
+  Depends on Phase 18 (mechanism) and Phase 15 (the type that gains it).
+- **Phase 18/19 walk-out amendment 2026-10-08 (user decision).** No deck mode
+  walks out. The four new Phase 19 modes declare no `disengagementThreshold`,
+  and Phase 19 also switches the existing investor `pitch-deck`'s walk-out OFF,
+  reversing the deck half of REQ-84. Phase 18's mechanism is kept intact — only
+  the deck types stop opting in (permitted by Phase 18 SC5) — and
+  `scripts/verify-disengagement-termination.ts`'s two pitch-deck assertions must
+  be deliberately updated, not weakened. Both roadmap entries carry the
+  amendment inline.
 
 ### Phase 13 context (2026-10-02, `/gsd:discuss-phase 13`)
 

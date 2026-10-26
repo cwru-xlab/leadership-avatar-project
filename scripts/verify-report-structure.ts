@@ -14,6 +14,7 @@ import {
   composeReportMarkdown,
   parseStructuredReport,
   asStructuredReport,
+  STRUCTURED_REPORT_PROPERTIES,
   type StructuredReport,
 } from "../lib/report/structured";
 import {
@@ -42,13 +43,26 @@ import {
 import { applyEarlyEndCap } from "../lib/pitch/score-caps";
 import type { InteractionTypeConfig } from "../lib/engine/types";
 import type { ScoreMap } from "../lib/report/snapshot";
+import { INTERVIEW_EVALUATOR_PROMPT } from "../lib/interview/prompts";
+import { SCENARIO_EVALUATOR_PROMPT } from "../lib/scenario/prompts";
+import { CONVERSATION_EVALUATOR_PROMPT } from "../lib/difficult-conversation/conversation-prompts";
 
 /**
  * Pre-Phase-13 `EVALUATION_JSON_SCHEMA` from `lib/interview/evaluation.ts`,
- * frozen verbatim as a permanent regression guard (plan 13-13). The live
- * module was deleted when the engine's type-derived schema took over; this
- * snapshot is the only remaining proof that `buildRubricJsonSchema` still
- * produces today's interview bytes.
+ * frozen verbatim as a permanent regression guard (plan 13-13), PLUS TWO
+ * deliberate post-Phase-13 additions:
+ *   1. The nested `source` attribution field on `strengths`/`growth_areas`
+ *      items, added by quick task 002 so a feedback point can be labelled as
+ *      drawn from the resume, the conversation, or both.
+ *   2. The nested `dimension` field on `growth_areas` items, added by quick
+ *      task 004 so a growth area can self-declare the rubric dimension key
+ *      (`lib/mastery/competencies.ts`'s `allRubricDimensionKeys()`) it
+ *      critiques, making growth-area-to-competency attribution a recorded
+ *      fact instead of a derived inference (see
+ *      `lib/study-plan/checks/sources.ts`).
+ * The live module was deleted when the engine's type-derived schema took
+ * over; this snapshot is the only remaining proof that
+ * `buildRubricJsonSchema` still produces today's interview bytes.
  */
 const EVALUATION_JSON_SCHEMA = {
   name: "interview_evaluation",
@@ -79,11 +93,12 @@ const EVALUATION_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "detail", "evidence"],
+          required: ["title", "detail", "evidence", "source"],
           properties: {
             title: { type: "string" },
             detail: { type: "string" },
             evidence: { type: ["string", "null"] },
+            source: { type: ["string", "null"] },
           },
         },
       },
@@ -92,12 +107,14 @@ const EVALUATION_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "detail", "suggestion", "timecodes"],
+          required: ["title", "detail", "suggestion", "timecodes", "source", "dimension"],
           properties: {
             title: { type: "string" },
             detail: { type: "string" },
             suggestion: { type: "string" },
             timecodes: { type: "array", items: { type: "string" } },
+            source: { type: ["string", "null"] },
+            dimension: { type: ["string", "null"] },
           },
         },
       },
@@ -131,8 +148,11 @@ const EVALUATION_JSON_SCHEMA = {
 
 /**
  * Pre-Phase-13 `SCENARIO_EVALUATION_JSON_SCHEMA` from `lib/scenario/evaluation.ts`,
- * frozen verbatim as a permanent regression guard (plan 13-13). Same role as
- * `EVALUATION_JSON_SCHEMA` above for the case-study schema name.
+ * frozen verbatim as a permanent regression guard (plan 13-13), PLUS the same
+ * two deliberate post-Phase-13 additions as `EVALUATION_JSON_SCHEMA` above:
+ * the nested `source` attribution field from quick task 002, and the nested
+ * `dimension` field from quick task 004. Same role as `EVALUATION_JSON_SCHEMA`
+ * above for the case-study schema name.
  */
 const SCENARIO_EVALUATION_JSON_SCHEMA = {
   name: "scenario_evaluation",
@@ -163,11 +183,12 @@ const SCENARIO_EVALUATION_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "detail", "evidence"],
+          required: ["title", "detail", "evidence", "source"],
           properties: {
             title: { type: "string" },
             detail: { type: "string" },
             evidence: { type: ["string", "null"] },
+            source: { type: ["string", "null"] },
           },
         },
       },
@@ -176,12 +197,14 @@ const SCENARIO_EVALUATION_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "detail", "suggestion", "timecodes"],
+          required: ["title", "detail", "suggestion", "timecodes", "source", "dimension"],
           properties: {
             title: { type: "string" },
             detail: { type: "string" },
             suggestion: { type: "string" },
             timecodes: { type: "array", items: { type: "string" } },
+            source: { type: ["string", "null"] },
+            dimension: { type: ["string", "null"] },
           },
         },
       },
@@ -337,6 +360,8 @@ console.log("\n3. Markdown composition");
   }
   check("timecodes reach the prose", md.includes("1:59, 2:46"), true);
   check("category table carries the notes", md.includes("Centred 57% of the time."), true);
+  check("growth suggestions use collaborative display terminology", md.includes("Consider trying this:"), true);
+  check("legacy suggestion label is absent", md.includes("*Suggestion:*"), false);
 }
 {
   // Empty lists must not emit dangling headers.
@@ -597,14 +622,32 @@ console.log("\n5. Body-signal wording validator (12-08 Task 3 pre-sign-off, Defe
 }
 
 // ---------------------------------------------------------------------------
-// 6. Type-derived rubric schema (plan 13-05 / REQ-71 / REQ-72)
+// 6. Evaluator report voice and coaching boundaries
+// ---------------------------------------------------------------------------
+
+console.log("\n6. Evaluator report voice and coaching boundaries");
+{
+  for (const [name, prompt] of [
+    ["interview", INTERVIEW_EVALUATOR_PROMPT],
+    ["scenario", SCENARIO_EVALUATOR_PROMPT],
+  ] as const) {
+    check(`${name} evaluator requires first-person evaluator voice`, prompt.includes("first person as the\nevaluator"), true);
+    check(`${name} evaluator addresses the learner as you`, prompt.includes("as “you.”"), true);
+    check(`${name} evaluator requires optional collaborative suggestions`, prompt.includes("options to consider, not instructions to obey"), true);
+  }
+  check("scenario evaluator does not impersonate a scenario character", SCENARIO_EVALUATOR_PROMPT.includes("Do not speak as or claim to be one of the scenario characters."), true);
+  check("difficult-conversation reaction remains non-coaching", CONVERSATION_EVALUATOR_PROMPT.includes("It is not advice and not a critique"), true);
+}
+
+// ---------------------------------------------------------------------------
+// 7. Type-derived rubric schema (plan 13-05 / REQ-71 / REQ-72)
 // ---------------------------------------------------------------------------
 
 function deepEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-console.log("\n6. Type-derived rubric schema (13-05)");
+console.log("\n7. Type-derived rubric schema (13-05)");
 {
   // 6.1 — every built-in type always requires visual_score and vocal_score.
   for (const type of ENGINE_TYPES) {
@@ -656,7 +699,53 @@ console.log("\n6. Type-derived rubric schema (13-05)");
                   avatarId: "avatar-test",
                   voiceId: "voice-test",
                 }
-              : { kind: "none" as const };
+              : type.slug === "pitch-funding"
+                ? {
+                    kind: "pitch-deck" as const,
+                    deckId: "verify-funding-id",
+                    slideCount: 5,
+                    slideTexts: ["s1", "s2", "s3", "s4", "s5"],
+                    proposedSeconds: 900,
+                    modeInputs: {
+                      mode: "pitch-funding" as const,
+                      requestedAmountUsd: 50_000,
+                      useOfFunds: "Six months of runway for a pilot cohort.",
+                    },
+                  }
+                : type.slug === "pitch-product"
+                  ? {
+                      kind: "pitch-deck" as const,
+                      deckId: "verify-product-id",
+                      slideCount: 5,
+                      slideTexts: ["s1", "s2", "s3", "s4", "s5"],
+                      proposedSeconds: 600,
+                      modeInputs: {
+                        mode: "pitch-product" as const,
+                        buyerProfile: "VP of Ops at a mid-market SaaS co",
+                      },
+                    }
+                  : type.slug === "pitch-talk"
+                    ? {
+                        kind: "pitch-deck" as const,
+                        deckId: "verify-talk-id",
+                        slideCount: 5,
+                        slideTexts: ["s1", "s2", "s3", "s4", "s5"],
+                        proposedSeconds: 600,
+                        modeInputs: {
+                          mode: "pitch-talk" as const,
+                          talkAudience: "A campus sustainability conference",
+                          talkTakeaway: "Reuse beats recycling for carbon payback.",
+                        },
+                      }
+                    : type.slug === "pitch-general"
+                      ? {
+                          kind: "pitch-deck" as const,
+                          deckId: "verify-general-id",
+                          slideCount: 5,
+                          slideTexts: ["s1", "s2", "s3", "s4", "s5"],
+                          proposedSeconds: 600,
+                        }
+                      : { kind: "none" as const };
     const resolved = resolveSessionConfig(type.slug, { instance });
     if (!resolved.ok) {
       failures += 1;
@@ -791,10 +880,10 @@ console.log("\n6. Type-derived rubric schema (13-05)");
 }
 
 // ---------------------------------------------------------------------------
-// 7. Outcome composition, image sampling, early-end score cap (plan 14-04)
+// 8. Outcome composition, image sampling, early-end score cap (plan 14-04)
 // ---------------------------------------------------------------------------
 
-console.log("\n7. Outcome / images / early-end cap (14-04)");
+console.log("\n8. Outcome / images / early-end cap (14-04)");
 {
   // 7.1 — Phase 13 types remain deeply equal to the frozen snapshots.
   for (const slug of ["general", "technical", "consulting", "early-career"]) {
@@ -1045,6 +1134,62 @@ console.log("\n7. Outcome / images / early-end cap (14-04)");
       true,
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// 9. growth_areas[].dimension (quick-004)
+// ---------------------------------------------------------------------------
+
+console.log("\n9. growth_areas[].dimension (quick-004)");
+{
+  check(
+    "schema carries dimension in growth_areas required[]",
+    STRUCTURED_REPORT_PROPERTIES.growth_areas.items.required.includes("dimension"),
+    true,
+  );
+  check(
+    "schema types dimension as [string, null]",
+    STRUCTURED_REPORT_PROPERTIES.growth_areas.items.properties.dimension,
+    { type: ["string", "null"] },
+  );
+}
+{
+  // A valid key narrows through unchanged.
+  const withValidDimension = parseStructuredReport({
+    ...FULL,
+    growth_areas: [
+      { ...FULL.growth_areas[0], dimension: "content" },
+    ],
+  }) as StructuredReport;
+  check(
+    "a recognized dimension key narrows through",
+    withValidDimension.growth_areas[0]?.dimension,
+    "content",
+  );
+}
+{
+  // An unrecognized key degrades to null rather than being passed through.
+  const withBogusDimension = parseStructuredReport({
+    ...FULL,
+    growth_areas: [
+      { ...FULL.growth_areas[0], dimension: "not_a_real_dimension_key" },
+    ],
+  }) as StructuredReport;
+  check(
+    "an unrecognized dimension key degrades to null",
+    withBogusDimension.growth_areas[0]?.dimension,
+    null,
+  );
+}
+{
+  // A missing key (pre-existing report rows, written before this field
+  // existed) also degrades to null — never crashes, never leaves undefined.
+  const withMissingDimension = parseStructuredReport(FULL) as StructuredReport;
+  check(
+    "a missing dimension key degrades to null",
+    withMissingDimension.growth_areas[0]?.dimension,
+    null,
+  );
 }
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

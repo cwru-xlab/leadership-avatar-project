@@ -191,43 +191,84 @@ console.log("\n5. System prompt is session-constant; persona always present");
   );
 }
 
-console.log("\n6. Avatar-end floor");
+console.log("\n6. No avatar-end floor — the threshold alone governs");
 {
+  // INVERTED 2026-10-15 (user decision), deliberately and not by weakening.
+  // This section previously proved a two-turn floor: turn 1 REJECTED, turn 2
+  // ACCEPTED. `pitch-elevator` now declares `avatarEndFloor: null`, so the
+  // turn count no longer gates a walk-out at all and the derived
+  // disengagement value is the only thing standing between the avatar and
+  // the exit.
+  //
+  // The old turn-2 row had ALSO been failing since Phase 18 for an unrelated
+  // reason: it passed no `disengagementValue`, so gate 4 rejected it with
+  // `disengagement-below-threshold` while the row's name blamed the floor.
+  // Asserting the threshold explicitly below removes that ambiguity.
   const type = getEngineType("pitch-elevator");
   const policy = type!.terminationPolicy;
+  const threshold = policy.disengagementThreshold!;
 
-  const below = resolveTermination({
+  check(
+    "pitch-elevator declares NO floor",
+    policy.avatarEndFloor == null,
+    JSON.stringify(policy.avatarEndFloor),
+  );
+
+  // The point of the change: a crossed threshold ends it on turn 1.
+  const firstTurnAtThreshold = resolveTermination({
     policy,
     source: "avatar",
     reason: "lost_interest",
     assistantTurnCount: 1,
+    disengagementValue: threshold,
   });
   check(
-    "assistantTurnCount:1 + lost_interest REJECTED",
-    below.ok === false && below.recordedReason === null,
-    JSON.stringify(below),
+    "assistantTurnCount:1 + at threshold ACCEPTED (no floor to wait for)",
+    firstTurnAtThreshold.ok === true &&
+      firstTurnAtThreshold.recordedReason === "lost_interest",
+    JSON.stringify(firstTurnAtThreshold),
   );
 
-  const atFloor = resolveTermination({
+  // Removing the floor must not have opened a hole: gate 4 still bites, and
+  // the rejection now names the threshold rather than the floor.
+  const firstTurnBelowThreshold = resolveTermination({
     policy,
     source: "avatar",
     reason: "lost_interest",
-    assistantTurnCount: 2,
+    assistantTurnCount: 1,
+    disengagementValue: threshold - 0.01,
   });
   check(
-    "assistantTurnCount:2 + lost_interest ACCEPTED",
-    atFloor.ok === true && atFloor.recordedReason === "lost_interest",
-    JSON.stringify(atFloor),
+    "assistantTurnCount:1 + below threshold REJECTED as disengagement-below-threshold",
+    firstTurnBelowThreshold.ok === false &&
+      firstTurnBelowThreshold.recordedReason === null &&
+      firstTurnBelowThreshold.reason === "disengagement-below-threshold",
+    JSON.stringify(firstTurnBelowThreshold),
   );
 
+  // A missing value is still fail-closed, at any turn count.
+  const noEvidence = resolveTermination({
+    policy,
+    source: "avatar",
+    reason: "lost_interest",
+    assistantTurnCount: 9,
+  });
+  check(
+    "no disengagement evidence REJECTED even late in the session",
+    noEvidence.ok === false && noEvidence.recordedReason === null,
+    JSON.stringify(noEvidence),
+  );
+
+  // Gate 2 (closed reason vocabulary) is unaffected by the floor's removal.
   const badReason = resolveTermination({
     policy,
     source: "avatar",
     reason: "bored",
     assistantTurnCount: 2,
+    disengagementValue: threshold,
   });
   check(
-    'assistantTurnCount:2 + "bored" REJECTED',
+    '"bored" REJECTED — reason vocabulary still closed',
     badReason.ok === false && badReason.recordedReason === null,
     JSON.stringify(badReason),
   );
@@ -596,7 +637,17 @@ console.log("\n7. No parallel gating mechanism in lib/pitch/");
     // deck-prompts may name slideHighWaterMark / "high-water" for post-session
     // eval bounding only — not a live gate. elevator-type's 14-08 comment
     // ("no cursor to persist") is grandfathered.
-    if (file === "deck-prompts.ts") {
+    // funding-prompts.ts / product-prompts.ts (19-04), talk-prompts.ts /
+    // general-deck-prompts.ts (19-05): same legitimate
+    // slideHighWaterMark-for-post-session-eval-bounding pattern as
+    // deck-prompts.ts, modeled on buildDeckEvaluationContext.
+    if (
+      file === "deck-prompts.ts" ||
+      file === "funding-prompts.ts" ||
+      file === "product-prompts.ts" ||
+      file === "talk-prompts.ts" ||
+      file === "general-deck-prompts.ts"
+    ) {
       check(
         `${file}: no turn.cursors / highWaterMark live-gate API`,
         !/\bcursors?\s*:/.test(src) && !/\bhighWaterMark\b/.test(src),
@@ -757,6 +808,56 @@ void verifyDeckImages().then(() => {
         };
       }
       if (typeSlug === "pitch-deck") return deckInstance;
+      if (typeSlug === "pitch-funding") {
+        return {
+          kind: "pitch-deck",
+          deckId: "verify-funding-id",
+          slideCount: 5,
+          slideTexts: deckSlideTexts.slice(0, 5),
+          proposedSeconds: 900,
+          modeInputs: {
+            mode: "pitch-funding",
+            requestedAmountUsd: 50_000,
+            useOfFunds: "Six months of runway for a pilot cohort.",
+          },
+        };
+      }
+      if (typeSlug === "pitch-product") {
+        return {
+          kind: "pitch-deck",
+          deckId: "verify-product-id",
+          slideCount: 5,
+          slideTexts: deckSlideTexts.slice(0, 5),
+          proposedSeconds: 600,
+          modeInputs: {
+            mode: "pitch-product",
+            buyerProfile: "VP of Ops at a mid-market SaaS co",
+          },
+        };
+      }
+      if (typeSlug === "pitch-talk") {
+        return {
+          kind: "pitch-deck",
+          deckId: "verify-talk-id",
+          slideCount: 5,
+          slideTexts: deckSlideTexts.slice(0, 5),
+          proposedSeconds: 600,
+          modeInputs: {
+            mode: "pitch-talk",
+            talkAudience: "A campus sustainability conference",
+            talkTakeaway: "Reuse beats recycling for carbon payback.",
+          },
+        };
+      }
+      if (typeSlug === "pitch-general") {
+        return {
+          kind: "pitch-deck",
+          deckId: "verify-general-id",
+          slideCount: 5,
+          slideTexts: deckSlideTexts.slice(0, 5),
+          proposedSeconds: 600,
+        };
+      }
       if (typeSlug === "difficult-conversation") {
         return {
           kind: "difficult-conversation",

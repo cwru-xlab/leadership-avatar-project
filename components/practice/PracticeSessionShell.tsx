@@ -10,7 +10,6 @@ import {
   useState,
 } from "react";
 import { Button } from "@heroui/button";
-import { Chip } from "@heroui/chip";
 import { Input } from "@heroui/input";
 import {
   Modal,
@@ -26,16 +25,12 @@ import {
   ChevronLeft,
   CircleStop,
   FileText,
-  Mic,
-  MicOff,
   Pause,
   SendHorizontal,
   Sparkles,
   Volume2,
 } from "lucide-react";
-import InteractiveAvatarWrapper, {
-  type InteractiveAvatarRef,
-} from "@/components/HeyGenAvatar/InteractiveAvatar";
+import type { InteractiveAvatarRef } from "@/components/HeyGenAvatar/InteractiveAvatar";
 import { StreamingAvatarSessionState } from "@/components/HeyGenAvatar/logic";
 import {
   initialProgress,
@@ -43,17 +38,32 @@ import {
 } from "@/lib/interview/types";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import { getEngineType } from "@/lib/engine/registry";
+import { getInterviewType } from "@/lib/interview/types";
 import { parseEngineTurn } from "@/lib/engine/turn-control";
+import type {
+  DisengagementComputeResult,
+  DisengagementCue,
+} from "@/lib/engine/disengagement";
 import type { ResolvedSessionConfig } from "@/lib/engine/types";
-import {
-  createVisualCapture,
-  requestCameraStream,
-  type VisualCaptureHandle,
-} from "@/lib/metrics/visual-capture";
-import { createVocalCapture, type VocalCaptureHandle } from "@/lib/metrics/vocal-capture";
 import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
-import { SelfViewThumbnail } from "@/components/metrics/SelfViewThumbnail";
-import { FaceDetectionBanner } from "@/components/metrics/FaceDetectionBanner";
+import { SelfViewThumbnail } from "@/components/session/SelfViewThumbnail";
+import { FaceDetectionBanner } from "@/components/session/FaceDetectionBanner";
+import { SessionAvatar, useAvatarKeepAlive } from "@/components/session/SessionAvatar";
+import {
+  formatElapsed,
+  PushToTalkControl,
+  SessionLiveBadge,
+  SessionRoom,
+  SessionSidePane,
+  SessionStageHeader,
+  SessionStagePane,
+  SessionStatus,
+} from "@/components/session/SessionRoom";
+import { usePushToTalkRecorder } from "@/components/session/usePushToTalkRecorder";
+import {
+  useSyncVisualSpeaking,
+  useVisualCapture,
+} from "@/components/session/useVisualCapture";
 import type { CaseStudy, InteractionLog, StartAvatarRequest } from "@/types";
 import CaseStudySessionView from "@/components/practice/CaseStudySessionView";
 
@@ -61,6 +71,20 @@ type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+};
+
+type WalkOutMetadata = {
+  termination?: { reason: string } | null;
+  disengagement?: DisengagementComputeResult;
+  disengagementCue?: DisengagementCue | null;
+  walkOutFinal?: boolean;
+  walkOutProof?: string | null;
+  /** Server-derived end reason from the type's own vocabulary. */
+  walkOutReason?: string | null;
+  /** Server declined the one-shot forced farewell this turn asked for
+   * (proof missing/invalid, or an end-of-turn metadata computation failed).
+   * See debug: elevator-walkout-dead-end. */
+  walkOutFarewellDeclined?: boolean;
 };
 
 interface PracticeSessionShellProps {
@@ -123,6 +147,8 @@ interface PracticeSessionShellProps {
    * (14-13). Defaults preserve the compact top-right overlay from 14-10.
    */
   sessionPanelClassName?: string;
+  /** Optional type-composed guidance rendered below the answer controls. */
+  answerControlsSupplement?: ReactNode;
   /**
    * Left-pane media layout. `avatar-primary` (default) is the interview layout.
    * `deck-primary` fills the stage with the session panel (slides) and shrinks
@@ -180,20 +206,12 @@ export type SessionFinishFn = (opts: {
 }) => Promise<void>;
 
 const HISTORY_TURNS = 10;
-const MIN_RECORDING_MS = 400;
-const MIN_AUDIO_BYTES = 2048;
-const MIN_PEAK_RMS = 0.01;
-// Well inside any provider idle window, and cheap: one request a minute at most.
-const KEEP_ALIVE_INTERVAL_MS = 30_000;
+// MIN_RECORDING_MS / MIN_AUDIO_BYTES / MIN_PEAK_RMS, KEEP_ALIVE_INTERVAL_MS
+// and formatElapsed moved verbatim to the shared session chrome
+// (components/session/, 22-SHARED-SHELL-DECISION.md).
 // Answers, not turns. Below this the report will be thin, and the evaluator
 // prompt explicitly handles a too-short transcript — so warn, do not block.
 const SHORT_INTERVIEW_ANSWERS = 3;
-
-function formatElapsed(totalSeconds: number) {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
 
 /**
  * One generic live-session shell for every engine-backed interaction type
@@ -246,6 +264,7 @@ function PracticeInterviewRoom({
   onFinish,
   sessionPanel,
   sessionPanelClassName,
+  answerControlsSupplement,
   mediaLayout = "avatar-primary",
   extraChatBody,
   onOpeningTurnTimingChange,
@@ -264,6 +283,7 @@ function PracticeInterviewRoom({
   const extraChatBodyRef = useRef(extraChatBody);
   const checkpointing =
     getEngineType(sessionConfig.typeSlug)?.checkpointing ?? "none";
+  const isInterviewSession = Boolean(getInterviewType(sessionConfig.typeSlug));
   const targetQuestionCount =
     sessionConfig.limits.targetQuestionCount ??
     sessionConfig.customization?.targetQuestionCount ??
@@ -331,47 +351,40 @@ function PracticeInterviewRoom({
     [onOpeningTurnTimingChange, openingTurnPhase]
   );
   const openingSentRef = useRef(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const recordingStartRef = useRef(0);
-  const peakRmsRef = useRef(0);
-  const meterTimerRef = useRef<number | null>(null);
-  const meterSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const recordingStartInFlightRef = useRef(false);
-
-  // Phase 10 metrics capture refs (REQ-35/43/49). visualCaptureRef/
-  // cameraStreamRef stay null for the entire session when cameraMode is
-  // "OFF" — the self-view and banner both render nothing in that case.
-  const visualCaptureRef = useRef<VisualCaptureHandle | null>(null);
-  const vocalCaptureRef = useRef<VocalCaptureHandle | null>(null);
-  const cameraStreamRef = useRef<MediaStream | null>(null);
-  const [faceMissing, setFaceMissing] = useState(false);
-  // Mirrors cameraStreamRef for rendering only — SelfViewThumbnail needs a
-  // reactive value to attach its <video> element to; the ref remains the
-  // source of truth every cleanup/lifecycle path reads and stops tracks on.
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  // Phase 10 metrics capture (REQ-35/43/49), via the shared session chrome.
+  // The camera stream and visual engine stay null for the entire session when
+  // cameraMode is "OFF" — the self-view and banner both render nothing then.
+  const {
+    cameraStream,
+    faceMissing,
+    startVisualCapture,
+    stopVisualCapture,
+    releaseVisualCapture,
+    syncSpeaking,
+  } = useVisualCapture();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [progress, setProgress] = useState<InterviewProgress>(initialProgress);
   const [input, setInput] = useState("");
   const [streamingText, setStreamingText] = useState("");
-  const [partialTranscript, setPartialTranscript] = useState("");
+  const [isAwaitingResponse, setIsAwaitingResponse] = useState(false);
+  const [responseWaitSeconds, setResponseWaitSeconds] = useState(0);
   const [sending, setSending] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  /** Mirrors `isRecording` for readers that run outside React's render cycle
-   * — specifically the async camera-acquisition block, which creates the
-   * visual engine long after this state was last set and must adopt the
-   * current window rather than assume silence. */
-  const isRecordingRef = useRef(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [avatarReady, setAvatarReady] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [exitIntent, setExitIntent] = useState<null | "end" | "leave">(null);
   const [reportTitleDraft, setReportTitleDraft] = useState(defaultReportTitle);
   const [submitting, setSubmitting] = useState(false);
+  // Walk-outs are a terminal state: no typed, voice, pause, exit, or interrupt
+  // action may cut the single final avatar statement short.
+  const [walkOutLock, setWalkOutLock] = useState(false);
+  const walkOutLockRef = useRef(false);
+  const forcedFarewellRequestedRef = useRef(false);
+  /** Set on unmount so a resolved farewell wait cannot finish a dead session. */
+  const walkOutFinishCancelledRef = useRef(false);
+  const disengagementRef = useRef<DisengagementComputeResult | null>(null);
+  const walkOutProofRef = useRef<string | null>(null);
   /** Pending termination from an accepted avatar end marker (or panel request). */
   const pendingTerminationRef = useRef<{
     reason: string;
@@ -384,6 +397,36 @@ function PracticeInterviewRoom({
   // Stable ref so the chat turn handler can call the latest handleEnd without
   // re-binding sendMessage on every render (avatar auto-finish path).
   const handleEndRef = useRef<((title?: string) => Promise<void>) | null>(null);
+
+  /**
+   * Ends the session once the farewell has actually finished playing.
+   *
+   * REQ-82 requires the final statement to complete before auto-finish, but the
+   * avatar is the only thing that knows when it stopped talking. A word-count
+   * estimate (the previous `words * 500ms`, capped at 15s) overshot real speech
+   * badly enough to look hung, so this waits on the avatar speech-ended signal
+   * and keeps a bounded ceiling only for a dropped event.
+   */
+  const finishAfterFarewell = useCallback((farewellText: string) => {
+    const words = farewellText.trim().split(/\s+/).filter(Boolean).length;
+    const ceilingMs = Math.min(20_000, Math.max(3_000, words * 600 + 2_000));
+    const avatar = avatarRef.current;
+
+    if (!avatar) {
+      // The avatar never mounted, so there is no speech to wait on.
+      void handleEndRef.current?.();
+
+      return;
+    }
+
+    void avatar.waitForSpeechEnd(ceilingMs).then(() => {
+      if (walkOutFinishCancelledRef.current) return;
+      void handleEndRef.current?.();
+    });
+  }, []);
+  const sendMessageRef = useRef<
+    ((candidateMessage: string, forceWalkOutFarewell?: boolean) => Promise<void>) | null
+  >(null);
   const [avatarEndedNotice, setAvatarEndedNotice] = useState(false);
 
   const stageLabel = useMemo(
@@ -410,11 +453,8 @@ function PracticeInterviewRoom({
   // consent). Blocks any later capture start so the running session and the
   // stored report can never disagree about whether the camera was on.
   const serverForcedCameraOffRef = useRef(false);
-  // Set SYNCHRONOUSLY before requesting the camera. `visualCaptureRef` is only
-  // assigned after an await, so it cannot guard against a second CONNECTED
-  // event arriving mid-request — both would pass the check and acquire their
-  // own stream, and only the last one would be reachable for teardown.
-  const visualStartingRef = useRef(false);
+  // The synchronous double-CONNECTED guard (`visualStartingRef`) moved with
+  // the capture block into `useVisualCapture`.
 
   const ensureReport = useCallback(async (): Promise<string | null> => {
     if (reportIdRef.current) return reportIdRef.current;
@@ -509,80 +549,14 @@ function PracticeInterviewRoom({
     [checkpointing, ensureReport]
   );
 
-  const stopMetering = useCallback(() => {
-    if (meterTimerRef.current) {
-      clearInterval(meterTimerRef.current);
-      meterTimerRef.current = null;
-    }
-    meterSourceRef.current?.disconnect();
-    meterSourceRef.current = null;
-  }, []);
+  // Vocal capture, the microphone release and the visual-capture release now
+  // live in the shared session hooks (`usePushToTalkRecorder`,
+  // `useVisualCapture`). The unmount cleanup effect that calls them is
+  // declared right after the recorder hook below.
 
-  // Vocal capture is created once on mount, independent of cameraMode — audio
-  // is always available regardless of the camera decision.
-  useEffect(() => {
-    vocalCaptureRef.current = createVocalCapture();
-  }, []);
-
-  // Stops the visual engine and releases the camera track. Idempotent and
-  // safe to call from multiple exit paths (Leave, End, unmount) — the camera
-  // LED must go out on every one of them.
-  const releaseVisualCapture = useCallback(() => {
-    // Capture the handle and release the tracks FIRST, synchronously. The
-    // camera LED going out is the part a student actually sees, and it must
-    // not wait on `stop()`'s now-async (but bounded) engine teardown. The
-    // three callers of this function (unmount, handleLeave, the post-finish
-    // cleanup) discard the metrics entirely, so the engine stop below is
-    // deliberately fire-and-forget.
-    const handle = visualCaptureRef.current;
-    visualCaptureRef.current = null;
-    visualStartingRef.current = false;
-    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
-    cameraStreamRef.current = null;
-    setCameraStream(null);
-
-    void handle?.stop().catch(() => {});
-  }, []);
-
-  const releaseMicrophone = useCallback(() => {
-    const recorder = mediaRecorderRef.current;
-    mediaRecorderRef.current = null;
-    if (recorder?.state === "recording") {
-      // Leaving or ending an interview discards an unfinished answer rather than
-      // starting a transcription after the student has gone.
-      recorder.onstop = null;
-      recorder.stop();
-    }
-    recordingStartInFlightRef.current = false;
-    setIsRecording(false);
-    stopMetering();
-    micStreamRef.current?.getTracks().forEach((track) => track.stop());
-    micStreamRef.current = null;
-    void audioContextRef.current?.close().catch(() => {});
-    audioContextRef.current = null;
-  }, [stopMetering]);
-
-  useEffect(() => {
-    return () => {
-      releaseMicrophone();
-      releaseVisualCapture();
-      vocalCaptureRef.current?.detachStream();
-      avatarRef.current?.stopSession();
-    };
-  }, [releaseMicrophone, releaseVisualCapture]);
-
-  // The provider reaps idle sessions, and nothing else in the app pings it —
-  // `keepAlive` existed on the session hook but had no callers, so a session
-  // died well short of the 20-minute interview target. Ping while connected and
-  // unpaused; a paused session is deliberately being abandoned or resumed soon,
-  // and a failed ping is not worth interrupting the interview over.
-  useEffect(() => {
-    if (!avatarReady || isPaused) return;
-    const interval = window.setInterval(() => {
-      void avatarRef.current?.keepAlive().catch(() => {});
-    }, KEEP_ALIVE_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [avatarReady, isPaused]);
+  // The provider reaps idle sessions; ping while connected and unpaused (the
+  // shared `useAvatarKeepAlive`, moved verbatim from here).
+  useAvatarKeepAlive(avatarRef, avatarReady && !isPaused);
 
   // Depends on `avatarReady`, not just `isPaused`: `startedAtRef` is a ref, so
   // setting it in `startOpening` does not re-run this effect. `avatarReady` flips
@@ -597,45 +571,70 @@ function PracticeInterviewRoom({
     return () => window.clearInterval(interval);
   }, [isPaused, avatarReady]);
 
-  // Keeps the visual engine's conversational window locked to the recorder.
-  //
-  // Deliberately an effect on `isRecording` rather than a call beside each
-  // `setIsRecording`: there are several of those (manual stop, the toggle, the
-  // error paths), and hand-wiring each is precisely how the visual window
-  // would eventually drift away from the vocal pipeline's turn accounting.
-  // Driving it from the state itself makes them impossible to
-  // disagree. Safe before capture exists — the ref is simply null then, and
-  // the engine defaults to "not speaking".
+  // Begins immediately after a valid answer is submitted and clears when the
+  // completed response renders, as well as on every stream completion/error
+  // path. An elapsed time communicates that work is still in progress without
+  // implying a response-time estimate.
   useEffect(() => {
-    isRecordingRef.current = isRecording;
-    visualCaptureRef.current?.setSpeaking(isRecording);
-  }, [isRecording]);
+    if (!isAwaitingResponse) {
+      setResponseWaitSeconds(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    setResponseWaitSeconds(0);
+    const interval = window.setInterval(() => {
+      setResponseWaitSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1_000);
+
+    return () => window.clearInterval(interval);
+  }, [isAwaitingResponse]);
 
   const sendMessage = useCallback(
-    async (candidateMessage: string) => {
+    async (candidateMessage: string, forceWalkOutFarewell = false) => {
       const content = candidateMessage.trim();
-      if (!content || sending || isPaused) return;
+      // The forced farewell is scheduled from inside the crossing turn's own
+      // request, so the closure it runs through can still see `sending` (and
+      // `isPaused`) from that render — gating it on them dropped it silently
+      // and left the student locked in (UAT F18-1). It is one-shot by
+      // `forcedFarewellRequestedRef`, so it needs neither gate.
+      if (
+        (!content && !forceWalkOutFarewell) ||
+        (sending && !forceWalkOutFarewell) ||
+        (isPaused && !forceWalkOutFarewell) ||
+        (walkOutLockRef.current && !forceWalkOutFarewell)
+      ) {
+        return;
+      }
 
       const userMessage = { role: "user" as const, content };
-      const messageHistory = [
-        ...messagesRef.current,
-        { ...userMessage, timestamp: Date.now() },
-      ];
-      markOpeningTurnStarted();
+      const messageHistory = forceWalkOutFarewell
+        ? messagesRef.current
+        : [
+            ...messagesRef.current,
+            { ...userMessage, timestamp: Date.now() },
+          ];
+      if (!forceWalkOutFarewell) {
+        markOpeningTurnStarted();
+      }
       // Capture before deliver — short discovery clears the ref so the timer
       // can restart, but this chat turn still needs the start timestamp.
       const firstTurnStartedAtForPayload = openingTurnStartedAtRef.current;
-      appendMessage(userMessage);
+      if (!forceWalkOutFarewell) {
+        appendMessage(userMessage);
+      }
       // While still pitching, decide whether THIS turn was the pitch (voice
       // duration / substantial typed text) or just discovery — do not freeze
       // the 60s window on a 4-second intro.
-      const pitchWindowConcluded =
-        openingTurnPhase === "followups"
+      const pitchWindowConcluded = forceWalkOutFarewell
+        ? true
+        : openingTurnPhase === "followups"
           ? true
           : markOpeningTurnDelivered(content);
       setInput("");
       setSending(true);
       setStreamingText("");
+      setIsAwaitingResponse(true);
 
       try {
         const response = await fetch("/api/interaction/chat", {
@@ -666,9 +665,16 @@ function PracticeInterviewRoom({
                 startedAt: startedAtRef.current ?? Date.now(),
                 firstTurnStartedAt: firstTurnStartedAtForPayload,
                 firstTurnDelivered: pitchWindowConcluded,
+                forceWalkOutFarewell,
+                walkOutProof: walkOutProofRef.current,
               },
             },
             ...(extraChatBodyRef.current ?? {}),
+            // The row THIS shell will finish. Sent after the caller's extra
+            // body so a page-level reportId that drifted (a double launch
+            // made a second row) can never bind the walk-out proof to a row
+            // other than the one finishSession checks it against (UAT F20-2).
+            ...(reportIdRef.current ? { reportId: reportIdRef.current } : {}),
           }),
         });
 
@@ -680,6 +686,7 @@ function PracticeInterviewRoom({
         let buffer = "";
         let rawAnswer = "";
         let streamErrored = false;
+        let walkOutMetadata: WalkOutMetadata | null = null;
 
         for (;;) {
           const { done, value } = await reader.read();
@@ -694,9 +701,12 @@ function PracticeInterviewRoom({
               const event = JSON.parse(line.slice(6)) as {
                 type?: string;
                 delta?: string;
+                metadata?: WalkOutMetadata;
               };
               if (event.type === "content" && event.delta) {
                 rawAnswer += event.delta;
+              } else if (event.type === "end" && event.metadata) {
+                walkOutMetadata = event.metadata;
               } else if (event.type === "error") {
                 streamErrored = true;
               }
@@ -706,10 +716,14 @@ function PracticeInterviewRoom({
           }
         }
 
+        const assistantTurnCount =
+          messageHistory.filter((message) => message.role === "assistant").length + 1;
         const parsedTurn = parseEngineTurn(rawAnswer, sessionConfig, {
           previousProgress: progress,
           hasResume: Boolean(resumeText.trim()),
           targetQuestionCount,
+          assistantTurnCount,
+          disengagementValue: walkOutMetadata?.disengagement?.value,
         });
         if (parsedTurn.malformed) {
           // Progress is entirely model-driven: no marker means no advance,
@@ -729,31 +743,104 @@ function PracticeInterviewRoom({
         // Sending one complete, clean response to the provider avoids concurrent
         // sentence chunks being reordered or split around a comma. It also makes
         // it impossible for hidden controller metadata to reach the avatar.
-        setStreamingText(parsedTurn.cleanedText);
-        avatarRef.current?.speak(parsedTurn.cleanedText);
+        if (walkOutMetadata?.disengagement) {
+          disengagementRef.current = walkOutMetadata.disengagement;
+        }
+        if (typeof walkOutMetadata?.walkOutProof === "string") {
+          walkOutProofRef.current = walkOutMetadata.walkOutProof;
+        }
         appendMessage({ role: "assistant", content: parsedTurn.cleanedText });
+        // This shell buffers transport streaming until the clean, marker-free
+        // response can render. Clear the wait indicator at that visible handoff,
+        // rather than at the first byte the learner cannot yet see.
+        setIsAwaitingResponse(false);
         const nextProgress = parsedTurn.progress ?? progress;
         setProgress(nextProgress);
         checkpoint(nextProgress);
-        // parseEngineTurn already policy-gates termination. When accepted,
-        // record the reason for finish (REQ-62). Difficult-conversation
-        // auto-finishes with a neutral transition (15-08); other types keep
-        // the confirm modal.
-        if (parsedTurn.termination) {
+
+        const acceptedTermination =
+          walkOutMetadata?.termination ?? parsedTurn.termination;
+        const isWalkOut = walkOutMetadata?.walkOutFinal === true;
+
+        // This request IS the one-shot forced farewell whenever
+        // `forceWalkOutFarewell` is true — the only caller of this branch is
+        // the self-retry below. Enter the terminal block even if the server
+        // declined the directive (missing/invalid proof) or dropped its
+        // metadata outright: the crossing it would be honouring was already
+        // server-verified on the FIRST request, which is what set
+        // `walkOutLockRef.current` in the first place. Falling through to
+        // the ordinary reply path here is exactly how a locked session was
+        // left with no exit (debug: elevator-walkout-dead-end) — trapping
+        // the student is strictly worse than an imperfect ending.
+        if (isWalkOut || forceWalkOutFarewell) {
+          walkOutLockRef.current = true;
+          setWalkOutLock(true);
+          setAvatarEndedNotice(true);
+
+          if (
+            !acceptedTermination &&
+            !forceWalkOutFarewell &&
+            !forcedFarewellRequestedRef.current
+          ) {
+            // Do not speak a crossing reply that is not the final statement.
+            // The one-shot follow-up keeps the avatar's audible close singular.
+            forcedFarewellRequestedRef.current = true;
+            window.setTimeout(() => {
+              void sendMessageRef.current?.("", true);
+            }, 0);
+            return;
+          }
+
           pendingTerminationRef.current = {
-            reason: parsedTurn.termination.reason,
+            reason:
+              acceptedTermination?.reason ??
+              walkOutMetadata?.walkOutReason ??
+              "lost_interest",
+            source: "avatar",
+          };
+          // A declined or dropped forced farewell can still carry an
+          // unrelated reply (or none at all) — never speak dead air, and
+          // never let an empty string leave the avatar silent with the
+          // session still finishing.
+          const farewellText =
+            parsedTurn.cleanedText && parsedTurn.cleanedText.trim().length > 0
+              ? parsedTurn.cleanedText
+              : "Thanks for the conversation — I need to step away.";
+          setStreamingText(farewellText);
+          avatarRef.current?.speak(farewellText);
+          finishAfterFarewell(farewellText);
+          return;
+        }
+
+        setStreamingText(parsedTurn.cleanedText);
+        avatarRef.current?.speak(parsedTurn.cleanedText);
+        if (acceptedTermination) {
+          pendingTerminationRef.current = {
+            reason: acceptedTermination.reason,
             source: "avatar",
           };
           if (autoFinishOnAvatarEnd) {
+            walkOutLockRef.current = true;
+            setWalkOutLock(true);
             setAvatarEndedNotice(true);
-            void handleEndRef.current?.();
+            finishAfterFarewell(parsedTurn.cleanedText);
           } else {
             setExitIntent("end");
           }
         }
       } catch (error) {
         console.error("Practice chat failed:", error);
-        avatarRef.current?.interrupt();
+        if (forceWalkOutFarewell) {
+          // The forced request has one attempt only. Re-open the session rather
+          // than trapping the student behind a failed network request.
+          forcedFarewellRequestedRef.current = false;
+          walkOutLockRef.current = false;
+          setWalkOutLock(false);
+          setAvatarEndedNotice(false);
+        }
+        if (!walkOutLockRef.current) {
+          avatarRef.current?.interrupt();
+        }
         addToast({
           title: "The interviewer lost the connection",
           description: "Your answer is still visible. Try sending it again.",
@@ -761,6 +848,7 @@ function PracticeInterviewRoom({
         });
       } finally {
         setStreamingText("");
+        setIsAwaitingResponse(false);
         setSending(false);
       }
     },
@@ -781,6 +869,85 @@ function PracticeInterviewRoom({
       targetQuestionCount,
     ]
   );
+
+  sendMessageRef.current = sendMessage;
+
+  // The recorder hands its transcript to the chat turn. A wrapper, not
+  // `sendMessage` itself: the hook also passes the recording length, which
+  // must never land in `sendMessage`'s `forceWalkOutFarewell` slot.
+  const sendTranscript = useCallback(
+    (transcript: string) => sendMessage(transcript),
+    [sendMessage]
+  );
+
+  // Shared push-to-talk recorder (components/session/usePushToTalkRecorder),
+  // moved verbatim from this shell. The gates and toasts below are exactly
+  // the ones `startRecording` / `transcribeRecording` used inline.
+  const {
+    isRecording,
+    isTranscribing,
+    partialTranscript,
+    startRecording,
+    stopRecording,
+    toggleRecording,
+    releaseMicrophone,
+    vocalCaptureRef,
+  } = usePushToTalkRecorder({
+    language,
+    sending,
+    isPaused,
+    lockRef: walkOutLockRef,
+    onTranscript: sendTranscript,
+    onRecordingStarted: markOpeningTurnStarted,
+    // Do not cut off the interviewer until a valid recording start has been
+    // claimed. A rejected microphone permission should leave speech alone.
+    onRecordingClaimed: () => avatarRef.current?.interrupt(),
+    onRejected: (reason) => {
+      if (reason === "too-short") {
+        addToast({
+          title: "Nothing recorded",
+          description: "Tap the microphone, speak, then tap again to send.",
+          color: "warning",
+        });
+        return;
+      }
+      addToast({
+        title: "No speech detected",
+        description: "Check that the right microphone is selected and not muted.",
+        color: "warning",
+      });
+    },
+    onTranscriptionFailed: (error) => {
+      console.error("Interview transcription failed:", error);
+      addToast({ title: "Could not transcribe your answer", color: "danger" });
+    },
+    onMicrophoneUnavailable: (error) => {
+      console.error("Microphone unavailable:", error);
+      addToast({
+        title: "Could not access your microphone",
+        description: "You can type your answer instead.",
+        color: "danger",
+      });
+    },
+  });
+
+  useEffect(() => {
+    // Re-arm on (re)mount. React Strict Mode runs mount → cleanup → mount in
+    // development; without this the first cleanup leaves the flag true for the
+    // whole session and the walk-out never auto-finishes (UAT 2026-10-25).
+    walkOutFinishCancelledRef.current = false;
+    return () => {
+      walkOutFinishCancelledRef.current = true;
+      releaseMicrophone();
+      releaseVisualCapture();
+      vocalCaptureRef.current?.detachStream();
+      avatarRef.current?.stopSession();
+    };
+  }, [releaseMicrophone, releaseVisualCapture, vocalCaptureRef]);
+
+  // Keeps the visual engine's conversational window locked to the recorder —
+  // an effect on `isRecording` itself, so the two can never disagree.
+  useSyncVisualSpeaking(syncSpeaking, isRecording);
 
   const startOpening = useCallback(() => {
     if (openingSentRef.current) return;
@@ -806,275 +973,26 @@ function PracticeInterviewRoom({
         // camera-on session must not delay the avatar handshake (REQ-49),
         // and MediaPipe's several-MB dynamic import would otherwise compete
         // with the WebRTC setup.
-        if (
-          cameraMode === "ON" &&
-          !serverForcedCameraOffRef.current &&
-          !visualCaptureRef.current &&
-          !visualStartingRef.current
-        ) {
-          visualStartingRef.current = true;
-          void (async () => {
-            const result = await requestCameraStream();
-            if (!result.ok) {
-              // The wizard's own probe already succeeded — the camera was
-              // seized between steps. The student is already live; do NOT
-              // block. The finish payload's null visual block will resolve
-              // to INSUFFICIENT_DATA server-side (REQ-42).
-              addToast({
-                title: "Your camera stopped responding",
-                description: "Visual won't be measured for this session.",
-                color: "warning",
-              });
-              visualStartingRef.current = false;
-              return;
-            }
-            // Defence in depth: if anything did slip through and a stream is
-            // already held, stop it rather than orphaning it. An orphaned
-            // stream is invisible to releaseVisualCapture and leaves the
-            // camera light on after the session ends.
-            if (cameraStreamRef.current) {
-              cameraStreamRef.current.getTracks().forEach((t) => t.stop());
-            }
-            cameraStreamRef.current = result.stream;
-            setCameraStream(result.stream);
-            const capture = createVisualCapture({
-              stream: result.stream,
-              // Transcript turns are stamped against this same clock, so
-              // handing it to the engine is what lets an episode be matched
-              // to the sentence it happened during. Capture starts later than
-              // the session — it waits for the avatar to connect — and the
-              // engine records that distance as `coverage.capture_offset_s`.
-              sessionStartedAtMs: startedAtRef.current ?? Date.now(),
-              onFaceStateChange: (detected) => setFaceMissing(!detected),
-            });
-            visualCaptureRef.current = capture;
-            // The recorder may already be live by the time capture starts;
-            // adopt the current state rather than assuming silence.
-            capture.setSpeaking(isRecordingRef.current);
-            void capture.start();
-          })();
+        // The capture block itself (camera request, the double-CONNECTED
+        // guard, face detection, adopting the recorder's current window)
+        // moved verbatim into the shared `useVisualCapture`.
+        if (cameraMode === "ON" && !serverForcedCameraOffRef.current) {
+          startVisualCapture(() => startedAtRef.current ?? Date.now());
         }
       }
     },
-    [startOpening, cameraMode]
+    [startOpening, cameraMode, startVisualCapture]
   );
-
-  const getMicrophone = useCallback(async () => {
-    const existing = micStreamRef.current;
-    if (existing?.getAudioTracks().some((track) => track.readyState === "live")) {
-      return existing;
-    }
-    existing?.getTracks().forEach((track) => track.stop());
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    micStreamRef.current = stream;
-    // Reuses the SAME audio stream the push-to-talk path already owns — no
-    // second getUserMedia({ audio: true }) call. The vocal engine runs its
-    // own independent AnalyserNode; this does not touch startMetering/
-    // peakRmsRef below.
-    vocalCaptureRef.current?.attachStream(stream);
-    return stream;
-  }, []);
-
-  const startMetering = useCallback((stream: MediaStream) => {
-    try {
-      const AudioContextConstructor =
-        window.AudioContext ||
-        (window as typeof window & {
-          webkitAudioContext?: typeof AudioContext;
-        }).webkitAudioContext;
-      if (!AudioContextConstructor) return;
-      const context = audioContextRef.current ?? new AudioContextConstructor();
-      audioContextRef.current = context;
-      if (context.state === "suspended") void context.resume();
-
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 2048;
-      const source = context.createMediaStreamSource(stream);
-      source.connect(analyser);
-      meterSourceRef.current = source;
-      peakRmsRef.current = 0;
-      const samples = new Float32Array(analyser.fftSize);
-      meterTimerRef.current = window.setInterval(() => {
-        analyser.getFloatTimeDomainData(samples);
-        let sumSquares = 0;
-        samples.forEach((sample) => {
-          sumSquares += sample * sample;
-        });
-        peakRmsRef.current = Math.max(
-          peakRmsRef.current,
-          Math.sqrt(sumSquares / samples.length)
-        );
-      }, 50);
-    } catch {
-      // The byte/duration checks still protect transcription if Web Audio is absent.
-    }
-  }, []);
-
-  const transcribeRecording = useCallback(async () => {
-    const elapsed = Date.now() - recordingStartRef.current;
-    const audio = new Blob(chunksRef.current, { type: "audio/webm" });
-    const peakRms = peakRmsRef.current;
-    chunksRef.current = [];
-
-    if (elapsed < MIN_RECORDING_MS || audio.size < MIN_AUDIO_BYTES) {
-      addToast({
-        title: "Nothing recorded",
-        description: "Tap the microphone, speak, then tap again to send.",
-        color: "warning",
-      });
-      return;
-    }
-    if (peakRms > 0 && peakRms < MIN_PEAK_RMS) {
-      addToast({
-        title: "No speech detected",
-        description: "Check that the right microphone is selected and not muted.",
-        color: "warning",
-      });
-      return;
-    }
-
-    // Fire-and-forget, never awaited — the live transcription latency the
-    // student feels must be unchanged. A rejected blob (the two guards
-    // above) is not a spoken turn and must never reach here.
-    vocalCaptureRef.current?.submitSpokenTurn(audio, elapsed);
-
-    setIsTranscribing(true);
-    setPartialTranscript("");
-    try {
-      const formData = new FormData();
-      formData.append("audio", audio, "interview-answer.webm");
-      formData.append("language", language);
-      const response = await fetch("/api/audio/transcribe", {
-        method: "POST",
-        body: formData,
-      });
-      if (!response.ok) throw new Error("Transcription request failed.");
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No transcription stream was available.");
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let transcript = "";
-      let failed = false;
-
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const event = JSON.parse(line.slice(6)) as {
-              type?: string;
-              text?: string;
-            };
-            if (event.type === "delta" || event.type === "done") {
-              transcript = event.text ?? transcript;
-              setPartialTranscript(transcript);
-            }
-            if (event.type === "error") failed = true;
-          } catch {
-            // Keep processing subsequent server-sent events.
-          }
-        }
-      }
-      void reader.cancel().catch(() => {});
-      if (failed || !transcript.trim()) throw new Error("No transcription returned.");
-      await sendMessage(transcript);
-    } catch (error) {
-      console.error("Interview transcription failed:", error);
-      addToast({ title: "Could not transcribe your answer", color: "danger" });
-    } finally {
-      setPartialTranscript("");
-      setIsTranscribing(false);
-    }
-  }, [language, sendMessage]);
 
   // The only path that records a typed turn (REQ-44): the push-to-talk
   // path submits its own spoken turn inside transcribeRecording and must
   // never also count as typed.
   const sendTypedMessage = useCallback(() => {
-    if (!input.trim()) return;
+    if (walkOutLockRef.current || !input.trim()) return;
     vocalCaptureRef.current?.recordTypedTurn();
     void sendMessage(input);
   }, [input, sendMessage]);
 
-  const startRecording = useCallback(async () => {
-    if (
-      sending ||
-      isTranscribing ||
-      isPaused ||
-      recordingStartInFlightRef.current ||
-      mediaRecorderRef.current?.state === "recording"
-    ) {
-      return;
-    }
-    recordingStartInFlightRef.current = true;
-    try {
-      const stream = await getMicrophone();
-      if (sending || isTranscribing || isPaused) {
-        return;
-      }
-      const recorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : "audio/webm",
-      });
-      chunksRef.current = [];
-      recorder.ondataavailable = (event) => {
-        if (event.data.size) chunksRef.current.push(event.data);
-      };
-      recorder.onstop = () => {
-        if (mediaRecorderRef.current === recorder) {
-          mediaRecorderRef.current = null;
-        }
-        stopMetering();
-        void transcribeRecording();
-      };
-      mediaRecorderRef.current = recorder;
-      recordingStartRef.current = Date.now();
-      // Do not cut off the interviewer until a valid recording start has been
-      // claimed. A rejected microphone permission should leave speech alone.
-      avatarRef.current?.interrupt();
-      startMetering(stream);
-      recorder.start();
-      markOpeningTurnStarted();
-      // Deliberately uncapped. A 45-second ceiling used to force-submit the
-      // turn mid-sentence, with the toast arriving only AFTER the cut. None of
-      // the real limits bind anywhere near it — OpenAI's 25MB file cap is
-      // ~100 minutes of Opus, and the transcription call's own timeout is the
-      // practical wall. An answer that runs long is a conciseness finding the
-      // report can make from `VocalTurnMetrics.duration_s`; truncating it
-      // teaches the student nothing about why.
-      setIsRecording(true);
-    } catch (error) {
-      console.error("Microphone unavailable:", error);
-      addToast({
-        title: "Could not access your microphone",
-        description: "You can type your answer instead.",
-        color: "danger",
-      });
-    } finally {
-      recordingStartInFlightRef.current = false;
-    }
-  }, [getMicrophone, isPaused, isTranscribing, markOpeningTurnStarted, sending, startMetering, stopMetering, transcribeRecording]);
-
-  const stopRecording = useCallback(() => {
-    const recorder = mediaRecorderRef.current;
-    if (recorder?.state !== "recording") return;
-    recorder.stop();
-    setIsRecording(false);
-  }, []);
-
-  const toggleRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "recording") {
-      stopRecording();
-      return;
-    }
-    void startRecording();
-  }, [startRecording, stopRecording]);
 
   const answeredCount = Math.max(
     0,
@@ -1082,6 +1000,7 @@ function PracticeInterviewRoom({
   );
 
   const handleLeave = () => {
+    if (walkOutLockRef.current) return;
     releaseMicrophone();
     releaseVisualCapture();
     vocalCaptureRef.current?.detachStream();
@@ -1090,8 +1009,11 @@ function PracticeInterviewRoom({
   };
 
   const handleEnd = async (titleOverride?: string) => {
-    // Interrupt mid-avatar-turn so End-session / walk-out never waits on speech.
-    avatarRef.current?.interrupt();
+    // A normal student end interrupts immediately. The walk-out timer calls this
+    // only after the final line's bounded speaking window, so never cut it off.
+    if (!walkOutLockRef.current) {
+      avatarRef.current?.interrupt();
+    }
     // A null reportId has two very different causes, and conflating them
     // silently discards real interviews:
     //   1. Nothing was ever said — the student connected and pressed End
@@ -1134,19 +1056,11 @@ function PracticeInterviewRoom({
     // End does not look frozen. Neither throws by its own contract, but a
     // defensive catch keeps a truly unexpected failure from losing the
     // interview.
-    let visual: VisualMetrics | null = null;
+    // `stopVisualCapture` is the shared hook's verbatim copy of the old
+    // inline stop: never throws, and nulls the handle so the later
+    // releaseVisualCapture() call (post-finish cleanup) cannot double-stop.
+    const visual: VisualMetrics | null = await stopVisualCapture();
     let vocal: VocalMetrics | null = null;
-    try {
-      visual = (await visualCaptureRef.current?.stop()) ?? null;
-    } catch {
-      visual = null;
-    } finally {
-      // Null the ref immediately so the later releaseVisualCapture() call
-      // (post-finish cleanup) cannot double-stop. stop() is already
-      // idempotent via its own `stopped` flag, so this is belt and braces,
-      // not load-bearing.
-      visualCaptureRef.current = null;
-    }
     try {
       vocal = (await vocalCaptureRef.current?.drain()) ?? null;
     } catch {
@@ -1163,6 +1077,11 @@ function PracticeInterviewRoom({
           metrics: { cameraMode, visual, vocal },
           terminationReason: pendingTerminationRef.current?.reason ?? null,
           terminationSource: pendingTerminationRef.current?.source ?? "student",
+          terminationAtSeconds:
+            pendingTerminationRef.current?.source === "avatar"
+              ? elapsedSeconds
+              : null,
+          walkOutProof: walkOutProofRef.current,
           title:
             typeof titleOverride === "string"
               ? titleOverride
@@ -1180,6 +1099,13 @@ function PracticeInterviewRoom({
       avatarRef.current?.stopSession();
       onFinish(reportId);
     } catch {
+      // The automatic finish can fail independently of the completed final
+      // statement. Restore controls so the student can retry submission; the
+      // pending avatar termination and signed proof remain intact.
+      if (walkOutLockRef.current) {
+        walkOutLockRef.current = false;
+        setWalkOutLock(false);
+      }
       addToast({
         title: "We couldn't end the interview",
         description: "Your transcript is safe. Try ending again in a moment.",
@@ -1204,23 +1130,22 @@ function PracticeInterviewRoom({
   }, [sessionFinishRef]);
 
   return (
-    <main className="relative flex h-[100dvh] overflow-hidden bg-[#07131f] text-[#f4f8fb]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(83,169,222,0.20),transparent_28%),radial-gradient(circle_at_90%_95%,rgba(13,113,142,0.18),transparent_32%)]" />
-      <section className="relative flex h-full flex-1 flex-col lg:w-[64%]">
-        <header className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between gap-3 px-4 py-4 sm:px-7">
+    <SessionRoom>
+      <SessionStagePane>
+        <SessionStageHeader>
           <Button
             isIconOnly
             aria-label="Leave interview"
             variant="light"
             className="bg-[#07131f]/65 text-white backdrop-blur-md"
-            onPress={() => setExitIntent("leave")}
+            isDisabled={walkOutLock}
+            onPress={() => {
+              if (!walkOutLockRef.current) setExitIntent("leave");
+            }}
           >
             <ChevronLeft size={20} />
           </Button>
-          <div className="flex items-center gap-2 rounded-full border border-white/15 bg-[#07131f]/65 px-3 py-1.5 text-xs font-medium tracking-[0.12em] text-[#d3e7f5] backdrop-blur-md">
-            <span className="h-2 w-2 rounded-full bg-[#72d6b0]" />
-            LIVE INTERVIEW
-          </div>
+          <SessionLiveBadge label="LIVE INTERVIEW" />
           {sessionPanel && mediaLayout !== "deck-primary" ? (
             // Top-right of the avatar pane by default — keeps the face clear.
             // Pitch-deck deck-primary mounts the panel as the stage instead.
@@ -1240,7 +1165,9 @@ function PracticeInterviewRoom({
               aria-label="End interview"
               variant="light"
               className="bg-[#07131f]/65 text-white backdrop-blur-md"
+              isDisabled={walkOutLock}
               onPress={() => {
+                if (walkOutLockRef.current) return;
                 if (defaultStudentEndReason) {
                   pendingTerminationRef.current = {
                     reason: defaultStudentEndReason,
@@ -1256,7 +1183,7 @@ function PracticeInterviewRoom({
           ) : (
             <div className="h-10 w-10" aria-hidden />
           )}
-        </header>
+        </SessionStageHeader>
 
         {mediaLayout === "deck-primary" ? (
           <>
@@ -1280,12 +1207,9 @@ function PracticeInterviewRoom({
                   : "Live investor video"
               }
             >
-              <InteractiveAvatarWrapper
+              <SessionAvatar
                 ref={avatarRef}
                 config={avatarConfig}
-                showHistory={false}
-                autoStart
-                cleanMode
                 onSessionStateChange={handleAvatarStateChange}
               />
               <span className="pointer-events-none absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white">
@@ -1297,12 +1221,9 @@ function PracticeInterviewRoom({
         ) : (
           <>
             <div className="absolute inset-0">
-              <InteractiveAvatarWrapper
+              <SessionAvatar
                 ref={avatarRef}
                 config={avatarConfig}
-                showHistory={false}
-                autoStart
-                cleanMode
                 onSessionStateChange={handleAvatarStateChange}
               />
             </div>
@@ -1318,17 +1239,19 @@ function PracticeInterviewRoom({
         <div className="relative z-10 mt-auto px-5 pb-6 pt-36 sm:px-8 lg:hidden">
           <InterviewStatus
             interviewerName={interviewerName}
+            isInterviewSession={isInterviewSession}
             stageLabel={stageLabel}
             elapsedSeconds={elapsedSeconds}
             avatarReady={avatarReady}
           />
         </div>
-      </section>
+      </SessionStagePane>
 
-      <aside className="relative z-10 flex h-full w-full max-w-[570px] flex-col border-l border-white/10 bg-[#0b1c2a]/95 lg:w-[36%]">
+      <SessionSidePane>
         <div className="hidden px-8 pb-5 pt-7 lg:block">
           <InterviewStatus
             interviewerName={interviewerName}
+            isInterviewSession={isInterviewSession}
             stageLabel={stageLabel}
             elapsedSeconds={elapsedSeconds}
             avatarReady={avatarReady}
@@ -1336,10 +1259,23 @@ function PracticeInterviewRoom({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col px-5 sm:px-8">
-          <div className="flex items-center justify-between border-y border-white/10 py-3 text-xs text-[#a9c5d6]">
-            <span>{progress.questionsAsked} of ~{targetQuestionCount} questions</span>
-            <span>{resumeFileName ? "Resume in context" : "Behavioral focus"}</span>
+          {/* Interview agenda (dev #55): interview types only — pitches,
+              networking and difficult conversations have no question count
+              or resume (UAT 2026-10-25). */}
+          {isInterviewSession ? (
+          <div className="border-y border-white/10 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#73cee5]">
+              Practice flow
+            </p>
+            <p className="mt-1 text-xs leading-5 text-[#c4dbe7]">
+              Background, behavioral stories, and role-specific discussion. You&apos;ll have time to ask your questions at the end.
+            </p>
+            <div className="mt-2 flex items-center justify-between text-xs text-[#a9c5d6]">
+              <span>{progress.questionsAsked} of ~{targetQuestionCount} questions</span>
+              <span>{resumeFileName ? "Resume in context" : "Behavioral focus"}</span>
+            </div>
           </div>
+          ) : null}
 
           <div aria-live="polite" className="min-h-0 flex-1 space-y-5 overflow-y-auto py-6 pr-1">
             {!messages.length && !streamingText && (
@@ -1379,6 +1315,16 @@ function PracticeInterviewRoom({
               </article>
             )}
           </div>
+          {isAwaitingResponse && !isPaused ? (
+            <div
+              role="status"
+              className="flex items-center gap-2 pb-4 text-sm text-[#b9d5e4]"
+            >
+              <Spinner color="primary" size="sm" aria-hidden="true" />
+              <span>Waiting for a response</span>
+              <span aria-hidden="true">· {formatElapsed(responseWaitSeconds)}</span>
+            </div>
+          ) : null}
         </div>
 
         <div className="border-t border-white/10 bg-[#091925] px-5 py-5 sm:px-8">
@@ -1401,7 +1347,9 @@ function PracticeInterviewRoom({
                       sendTypedMessage();
                     }
                   }}
-                  disabled={sending || isTranscribing || !avatarReady}
+                  disabled={
+                    walkOutLock || sending || isTranscribing || !avatarReady
+                  }
                   rows={2}
                   placeholder={avatarReady ? "Type your answer, or tap the mic to record…" : "Connecting to your interviewer…"}
                   className="min-h-14 flex-1 resize-none rounded-xl border border-white/15 bg-[#102a3a] px-3 py-3 text-sm text-white outline-none placeholder:text-[#89aabd] focus:border-[#71c9e7] focus:ring-2 focus:ring-[#71c9e7]/30 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1411,7 +1359,13 @@ function PracticeInterviewRoom({
                   aria-label="Send answer"
                   color="primary"
                   isLoading={sending}
-                  isDisabled={!input.trim() || sending || isTranscribing || !avatarReady}
+                  isDisabled={
+                    walkOutLock ||
+                    !input.trim() ||
+                    sending ||
+                    isTranscribing ||
+                    !avatarReady
+                  }
                   className="h-14 w-14 self-end"
                   onPress={sendTypedMessage}
                 >
@@ -1419,35 +1373,35 @@ function PracticeInterviewRoom({
                 </Button>
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">
-                <Button
-                  size="sm"
-                  variant={isRecording ? "solid" : "flat"}
-                  color={isRecording ? "danger" : "default"}
-                  className="font-medium text-[#d7eaf3]"
-                  isDisabled={sending || isTranscribing || !avatarReady}
-                  onPress={toggleRecording}
-                  aria-label={isRecording ? "Stop recording and send answer" : "Start recording answer"}
-                  startContent={isRecording ? <MicOff size={15} /> : <Mic size={15} />}
-                >
-                  {isTranscribing ? "Transcribing…" : isRecording ? "Tap again to send" : "Tap to record"}
-                </Button>
+                <PushToTalkControl
+                  isRecording={isRecording}
+                  isTranscribing={isTranscribing}
+                  isDisabled={
+                    walkOutLock || sending || isTranscribing || !avatarReady
+                  }
+                  onToggle={toggleRecording}
+                />
                 <Button
                   size="sm"
                   variant="light"
                   className="text-[#afcad9]"
                   startContent={<Pause size={14} />}
-                  onPress={() => setIsPaused(true)}
+                  isDisabled={walkOutLock}
+                  onPress={() => {
+                    if (!walkOutLockRef.current) setIsPaused(true);
+                  }}
                 >
                   Pause
                 </Button>
               </div>
             </>
           )}
+          {answerControlsSupplement}
           <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-[#82a5b8]">
             <FileText size={13} /> Your resume is used only to personalize this practice interview.
           </p>
         </div>
-      </aside>
+      </SessionSidePane>
 
       {avatarEndedNotice ? (
         <div
@@ -1529,7 +1483,7 @@ function PracticeInterviewRoom({
       </Modal>
 
       <FaceDetectionBanner visible={cameraMode === "ON" && faceMissing} />
-    </main>
+    </SessionRoom>
   );
 }
 
@@ -1538,22 +1492,23 @@ function InterviewStatus({
   stageLabel,
   elapsedSeconds,
   avatarReady,
+  isInterviewSession,
 }: {
   interviewerName: string;
+  /** Interview types say "Interview with"; every other type "Conversation with" (UAT D17-1). */
+  isInterviewSession: boolean;
   stageLabel: string;
   elapsedSeconds: number;
   avatarReady: boolean;
 }) {
+  // The status header is the shared `SessionStatus`; these are the practice
+  // room's own strings, unchanged.
   return (
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.17em] text-[#75cce4]">Leadership Avatar practice</p>
-        <h1 className="mt-1 font-serif text-2xl tracking-[-0.02em] text-white">Interview with {interviewerName}</h1>
-        <p className="mt-1.5 text-sm text-[#a7c2d2]">{avatarReady ? `${stageLabel} stage` : "Connecting securely"}</p>
-      </div>
-      <Chip size="sm" variant="flat" className="border border-[#31596d] bg-[#102b3a] text-[#bfe5f2]">
-        {formatElapsed(elapsedSeconds)}
-      </Chip>
-    </div>
+    <SessionStatus
+      eyebrow="Leadership Avatar practice"
+      title={<>{isInterviewSession ? "Interview" : "Conversation"} with {interviewerName}</>}
+      subtitle={avatarReady ? `${stageLabel} stage` : "Connecting securely"}
+      elapsedSeconds={elapsedSeconds}
+    />
   );
 }

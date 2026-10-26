@@ -24,6 +24,8 @@ import SessionSafetyPanel from "@/components/practice/panels/SessionSafetyPanel"
 import ConversationBriefingStep from "@/components/practice/steps/ConversationBriefingStep";
 import ConversationDifficultyStep from "@/components/practice/steps/ConversationDifficultyStep";
 import InstanceIntroStep from "@/components/practice/steps/InstanceIntroStep";
+import ProveItBrief from "@/components/study-plan/prove-it/ProveItBrief";
+import { usePlanPrefill } from "@/components/study-plan/prove-it/usePlanPrefill";
 import { getEngineType } from "@/lib/engine/registry";
 import { resolveSessionConfig } from "@/lib/engine/resolve";
 import type { DifficultConversationInstance } from "@/lib/engine/types";
@@ -48,6 +50,9 @@ export default function PracticeInstancePage() {
 
   const typeSlug = params.type;
   const instanceId = params.instanceId;
+  // Phase 23 prove-it: INERT without ?fromPlan=&step=. The instance in the
+  // URL is already the setup; this only shows the brief and links the report.
+  const planPrefill = usePlanPrefill();
 
   const engineType = useMemo(() => getEngineType(typeSlug), [typeSlug]);
   const isDifficultConversation =
@@ -304,8 +309,8 @@ export default function PracticeInstancePage() {
           autoFinishOnAvatarEnd
           defaultReportTitle={
             dcTitle.trim()
-              ? `Difficult conversation · ${dcTitle.trim().slice(0, 60)}`
-              : "Difficult conversation"
+              ? `Courageous conversation · ${dcTitle.trim().slice(0, 60)}`
+              : "Courageous conversation"
           }
           sessionFinishRef={sessionFinishRef}
           sessionPanel={
@@ -351,6 +356,7 @@ export default function PracticeInstancePage() {
         </div>
 
         <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
+          {planPrefill.info ? <ProveItBrief info={planPrefill.info} /> : null}
           <SetupWizard
             typeSlug={engineType.slug}
             steps={engineType.setupSteps}
@@ -367,6 +373,7 @@ export default function PracticeInstancePage() {
             })}
             onLaunch={({ reportId: launchedId, cameraMode: locked }) => {
               setReportId(launchedId);
+              planPrefill.linkReport(launchedId);
               setCameraMode(locked);
               setPhase("session");
             }}
@@ -476,6 +483,7 @@ export default function PracticeInstancePage() {
       </div>
 
       <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
+        {planPrefill.info ? <ProveItBrief info={planPrefill.info} /> : null}
         <SetupWizard
           typeSlug={engineType.slug}
           steps={engineType.setupSteps}
@@ -501,6 +509,7 @@ export default function PracticeInstancePage() {
               return;
             }
             setReportId(launchedId);
+            planPrefill.linkReport(launchedId);
             setCameraMode(locked);
             setInteractionLog(log);
             setPhase("session");

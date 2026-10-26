@@ -19,11 +19,22 @@ import {
   isInterviewIntegrityRequest,
   parseEngineTurn,
 } from "@/lib/engine/turn-control";
+import {
+  computeDisengagementOverTranscript,
+  cueAcceleration,
+  parseDisengagementCue,
+} from "@/lib/engine/disengagement";
+import { resolveWalkOutReason } from "@/lib/engine/termination";
+import {
+  createWalkOutProof,
+  verifyWalkOutProof,
+} from "@/lib/engine/walk-out-proof";
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { prisma } from "@/lib/prisma";
 import { loadDeckManifest } from "@/lib/deck/store";
 import { resolveDeckFairValueBand } from "@/lib/pitch/fair-value-band";
+import { asInputSnapshot } from "@/lib/report/snapshot";
 import {
   ratchetHighWaterMark,
   resolveRevealedSlides,
@@ -70,10 +81,19 @@ interface EngineTurnStateInput {
   firstTurnStartedAt?: unknown;
   /** True once the opening turn has been delivered (follow-up phase). */
   firstTurnDelivered?: unknown;
+  /** One-shot client request after a server-confirmed crossing. */
+  forceWalkOutFarewell?: unknown;
+  /** Short-lived proof returned by the server for that crossing. */
+  walkOutProof?: unknown;
 }
 
 const MAX_MESSAGE_LENGTH = 20_000;
 const MAX_RESUME_TEXT_LENGTH = 60_000;
+/**
+ * Same ceiling as the resume text, declared as its own constant so a future
+ * change to one does not silently move the other (quick task 003).
+ */
+const MAX_JOB_DESCRIPTION_TEXT_LENGTH = 60_000;
 
 function isChatMessage(value: unknown): value is ChatMessageInput {
   if (!value || typeof value !== "object") return false;
@@ -200,6 +220,21 @@ function attachTerminationToStream(
     hasResume?: boolean;
     targetQuestionCount?: number;
     assistantTurnCount?: number;
+    transcript: ChatMessageInput[];
+    elapsedSeconds: number;
+    budgetSeconds: number | null;
+    walkOutProofContext?: { userId: string; reportId: string };
+    /**
+     * True when the client requested the one-shot forced walk-out farewell
+     * on THIS turn (`engineTurn.forceWalkOutFarewell === true`), regardless
+     * of whether its proof verified. Lets the stream wrapper say so in
+     * metadata when it did not verify, instead of silently degrading into
+     * what looks like an ordinary reply (debug: elevator-walkout-dead-end).
+     */
+    walkOutFarewellRequested?: boolean;
+    /** True once `forceWalkOutFarewell` verified and the directive was
+     * actually injected into this turn's prompt. */
+    walkOutFarewellVerified?: boolean;
   },
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
@@ -226,34 +261,138 @@ function attachTerminationToStream(
 
           for (const line of lines) {
             if (line.startsWith("data: ")) {
-              try {
-                const event = JSON.parse(line.slice(6)) as {
-                  type?: string;
-                  delta?: string;
-                  metadata?: Record<string, unknown>;
-                };
+              let event: {
+                type?: string;
+                delta?: string;
+                metadata?: Record<string, unknown>;
+              } | null = null;
 
+              try {
+                event = JSON.parse(line.slice(6));
+              } catch {
+                // Pass through a malformed frame unchanged.
+              }
+
+              if (event) {
                 if (event.type === "content" && event.delta) {
                   accumulated += event.delta;
                 }
                 if (event.type === "end") {
-                  const parsed = parseEngineTurn(
-                    accumulated,
-                    config,
-                    parseOpts,
-                  );
+                  try {
+                    // The provider output is not an authority. Its optional cue
+                    // can only accelerate pressure already derived from the
+                    // observed transcript, count, and server-side route state.
+                    const cue = parseDisengagementCue(accumulated).cue;
+                    const disengagement = computeDisengagementOverTranscript({
+                      transcript: parseOpts.transcript,
+                      elapsedSeconds: parseOpts.elapsedSeconds,
+                      budgetSeconds: parseOpts.budgetSeconds,
+                      assistantTurnCount: parseOpts.assistantTurnCount ?? 0,
+                      threshold:
+                        config.terminationPolicy.disengagementThreshold,
+                      cueAccel: cueAcceleration(cue),
+                      // Without the type's own profile this falls back to the
+                      // shared defaults, where every Phase 20 cause is weight
+                      // 0 — hostility would contribute nothing and the
+                      // difficult-conversation walk-out could never fire. The
+                      // pre-turn site below passes the same profile: a
+                      // mismatch between the directive and the decision is
+                      // exactly the defect class Phase 18's UAT surfaced.
+                      weights:
+                        config.terminationPolicy.disengagementWeights ??
+                        undefined,
+                    });
+                    const parsed = parseEngineTurn(accumulated, config, {
+                      ...parseOpts,
+                      disengagementValue: disengagement.value,
+                      severeContent: disengagement.severe === true,
+                    });
 
-                  event.metadata = {
-                    ...(event.metadata ?? {}),
-                    termination: parsed.termination,
-                  };
-                  controller.enqueue(
-                    encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
-                  );
-                  continue;
+                    // Server-decided, from the type's own closed vocabulary.
+                    const walkOutReason = resolveWalkOutReason({
+                      policy: config.terminationPolicy,
+                      dominantCauses: disengagement.dominantCauses,
+                      severe: disengagement.severe,
+                    });
+
+                    const minimumTurns =
+                      config.terminationPolicy.avatarEndFloor
+                        ?.minAssistantTurns ?? 0;
+                    // Severe content clears the floor (REQ-100). It reaches
+                    // the threshold through the derived value itself
+                    // (computeDisengagement's severe lift), never by
+                    // bypassing derived evidence here.
+                    const walkOutFinal =
+                      config.terminationPolicy.disengagementThreshold !=
+                        null &&
+                      disengagement.crossed &&
+                      (disengagement.severe ||
+                        (parseOpts.assistantTurnCount ?? 0) >= minimumTurns);
+                    const walkOutProof =
+                      walkOutFinal && parseOpts.walkOutProofContext
+                        ? await createWalkOutProof({
+                            ...parseOpts.walkOutProofContext,
+                            disengagement,
+                            cue: parsed.disengagementCue,
+                            assistantTurnCount:
+                              parseOpts.assistantTurnCount ?? 0,
+                            elapsedSeconds: parseOpts.elapsedSeconds,
+                            reason: walkOutReason,
+                          })
+                        : null;
+                    // A client that asked for the one-shot forced farewell
+                    // but whose proof did not verify must be told so in
+                    // metadata, not served a reply that LOOKS like an
+                    // ordinary turn (debug: elevator-walkout-dead-end).
+                    const walkOutFarewellDeclined =
+                      parseOpts.walkOutFarewellRequested === true &&
+                      parseOpts.walkOutFarewellVerified !== true;
+
+                    event.metadata = {
+                      ...(event.metadata ?? {}),
+                      termination: parsed.termination,
+                      disengagement,
+                      disengagementCue: parsed.disengagementCue,
+                      walkOutFinal,
+                      walkOutProof,
+                      // Surfaced so the client's existing coordination path
+                      // sees severity and the reason without any new client
+                      // logic — and without either becoming client-authored:
+                      // finish reads both from the signed proof, never here.
+                      walkOutSevere: disengagement.severe === true,
+                      walkOutReason,
+                      ...(walkOutFarewellDeclined
+                        ? { walkOutFarewellDeclined: true }
+                        : {}),
+                    };
+                    controller.enqueue(
+                      encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+                    );
+                    continue;
+                  } catch (err) {
+                    // Never silently drop a turn's end-of-stream metadata. A
+                    // dropped "end" frame is indistinguishable, on the
+                    // client, from an ordinary reply — and if that happens
+                    // after a server-verified walk-out crossing already
+                    // locked the controls, the student is trapped with no
+                    // error anywhere (debug: elevator-walkout-dead-end).
+                    console.error(
+                      "walk-out end-of-turn metadata computation failed",
+                      err,
+                    );
+                    event.metadata = {
+                      ...(event.metadata ?? {}),
+                      walkOutMetadataError: true,
+                      ...(parseOpts.walkOutFarewellRequested === true
+                        ? { walkOutFarewellDeclined: true }
+                        : {}),
+                    };
+                    controller.enqueue(
+                      encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+                    );
+                    continue;
+                  }
                 }
-              } catch {
-                // Pass through malformed frames unchanged.
               }
             }
             controller.enqueue(encoder.encode(`${line}\n`));
@@ -282,9 +421,11 @@ function assembleLegacyCaseStudyPrompt(
 ): string {
   const styleGuide = `## Reply Style
 - Speak naturally and conversationally, like a real person in a meeting or interview
+- Make the exchange feel relational: respond to one concrete detail before moving on (for example, "That sounds like a tough handoff. What happened next?") instead of using scripted acknowledgments
 - Keep responses short and to the point — 1 to 3 sentences unless more detail is truly needed
 - Avoid bullet points, formal headings, or structured lists in your replies
 - Never start with filler phrases like "Certainly!", "Great question!", or "Of course!"
+- Do not restate, summarize, or paraphrase what the participant just said; acknowledge it briefly, then add a new question or value
 - If you don't know something, say so simply and move on`;
 
   // ── CACHE PREFIX ──────────────────────────────────────────────────────
@@ -328,7 +469,13 @@ export async function POST(request: NextRequest) {
       engine,
       revealedSlideIndex,
       reportId: rawReportId,
+      // TOP-LEVEL, not nested under `interview`/`engine`: this is what
+      // PracticeSessionShell's existing `...extraChatBody` spread produces, so
+      // the shell needs no edit (quick task 003, decision 4).
+      jobDescriptionText: rawJobDescriptionText,
     } = body;
+    const token = request.cookies.get(siteConfig.auth.cookie.name)?.value;
+    const currentUser = await getCurrentUser(token || "");
     const attemptLanguage = resolveAttemptLanguage(language);
 
     if (
@@ -390,6 +537,26 @@ export async function POST(request: NextRequest) {
       sessionConfig = resolved.config;
     }
 
+    // A proof may bind only to an in-progress report the authenticated caller
+    // owns. Never sign a raw browser-supplied report id.
+    const walkOutReport =
+      sessionConfig?.terminationPolicy.disengagementThreshold != null &&
+      currentUser &&
+      typeof rawReportId === "string"
+        ? await prisma.interactionReport.findFirst({
+            where: {
+              id: rawReportId,
+              userId: currentUser.id,
+              status: "IN_PROGRESS",
+            },
+            select: {
+              id: true,
+              startedAt: true,
+              timeBudgetSeconds: true,
+            },
+          })
+        : null;
+
     let fullMessages: Array<{
       role: "system" | "user" | "assistant";
       content: string;
@@ -400,7 +567,13 @@ export async function POST(request: NextRequest) {
       hasResume?: boolean;
       targetQuestionCount?: number;
       assistantTurnCount?: number;
-    } = {};
+      transcript: ChatMessageInput[];
+      elapsedSeconds: number;
+      budgetSeconds: number | null;
+      walkOutProofContext?: { userId: string; reportId: string };
+      walkOutFarewellRequested?: boolean;
+      walkOutFarewellVerified?: boolean;
+    } | null = null;
 
     if (sessionConfig) {
       // Prefer engine-descriptor fields (13-10+ clients); fall back to the
@@ -417,11 +590,31 @@ export async function POST(request: NextRequest) {
             ? interviewInput.resumeText
             : "";
       const resumeText = rawResume.slice(0, MAX_RESUME_TEXT_LENGTH);
+      // Legacy fallback only. For a started, owned interview below, this is
+      // replaced with the session snapshot so the prompt cannot vary by turn.
+      let jobDescriptionText = (
+        typeof rawJobDescriptionText === "string" ? rawJobDescriptionText : ""
+      ).slice(0, MAX_JOB_DESCRIPTION_TEXT_LENGTH);
       const progress = normalizeProgress(
         engineTurn?.progress ?? interviewInput?.progress,
       );
       const startedAt = engineTurn?.startedAt ?? interviewInput?.startedAt;
       const isInterview = Boolean(getInterviewType(sessionConfig.typeSlug));
+
+      // An interview's job posting is captured at session start. Prefer that
+      // authenticated, persisted value over a browser-supplied turn payload so
+      // the interviewer context is genuinely session-constant. Keep the
+      // client value only for legacy turns that have no owned report.
+      if (isInterview && currentUser && typeof rawReportId === "string") {
+        const report = await prisma.interactionReport.findFirst({
+          where: { id: rawReportId, userId: currentUser.id },
+          select: { inputSnapshot: true },
+        });
+        const snapshot = report ? asInputSnapshot(report.inputSnapshot) : null;
+        if (snapshot?.kind === "interview") {
+          jobDescriptionText = snapshot.jobDescriptionText ?? "";
+        }
+      }
 
       interviewStyleTurnControl = isInterview;
 
@@ -445,6 +638,9 @@ export async function POST(request: NextRequest) {
         typeof startedAt === "number" && Number.isFinite(startedAt)
           ? new Date(startedAt)
           : undefined;
+      // Enforcement inputs use the report's persisted clock, never the client
+      // timing state that still exists solely to phrase the prompt tail.
+      const walkOutStartedAt = walkOutReport?.startedAt;
 
       const firstTurnStartedAtRaw = engineTurn?.firstTurnStartedAt;
       const firstTurnStartedAtDate =
@@ -453,6 +649,17 @@ export async function POST(request: NextRequest) {
           ? new Date(firstTurnStartedAtRaw)
           : undefined;
       const firstTurnDelivered = engineTurn?.firstTurnDelivered === true;
+      const forceWalkOutFarewell =
+        engineTurn?.forceWalkOutFarewell === true &&
+        currentUser !== null &&
+        typeof rawReportId === "string" &&
+        Boolean(
+          await verifyWalkOutProof({
+            token: engineTurn?.walkOutProof,
+            userId: currentUser.id,
+            reportId: rawReportId,
+          }),
+        );
 
       // Networking (16-07/16-08): characterId and brought-in persona text travel
       // in the wizard customization bag — not on InterviewCustomizationInput —
@@ -502,10 +709,6 @@ export async function POST(request: NextRequest) {
             : null;
 
         try {
-          const token = request.cookies.get(
-            siteConfig.auth.cookie.name,
-          )?.value;
-          const currentUser = await getCurrentUser(token || "");
           if (currentUser) {
             deckOwnerId = currentUser.id;
 
@@ -548,15 +751,16 @@ export async function POST(request: NextRequest) {
               const slideTexts = manifest.slides.map((slide) =>
                 typeof slide.text === "string" ? slide.text : "",
               );
+              const band = resolveDeckFairValueBand(sessionConfig.typeSlug, {
+                slideCount: manifest.slideCount,
+              });
               sessionConfig = {
                 ...sessionConfig,
                 instance: {
                   ...sessionConfig.instance,
                   slideCount: manifest.slideCount,
                   slideTexts,
-                  fairValueBand: resolveDeckFairValueBand({
-                    slideCount: manifest.slideCount,
-                  }),
+                  ...(band ? { fairValueBand: band } : {}),
                 },
               };
               deckSlideCount = manifest.slideCount;
@@ -621,6 +825,48 @@ export async function POST(request: NextRequest) {
         slideCountForTail = slideCount;
       }
 
+      // Include the assistant reply now being produced: the policy floor counts
+      // this reply, and the near-threshold directive must use server-derived
+      // transcript facts rather than a browser-provided score.
+      const assistantTurnCount =
+        messages.filter((m) => m.role === "assistant").length + 1;
+      const elapsedSeconds = walkOutStartedAt
+        ? Math.max(0, Math.round((Date.now() - walkOutStartedAt.getTime()) / 1000))
+        : 0;
+      const disengagementThreshold =
+        sessionConfig.terminationPolicy.disengagementThreshold;
+      // Same weight profile as the post-stream decision site. If these two
+      // diverge, the tail directive and the actual walk-out decision disagree
+      // — the defect class Phase 18's UAT surfaced at the integration seam.
+      const preTurnDisengagement =
+        disengagementThreshold != null
+          ? computeDisengagementOverTranscript({
+              transcript: messages,
+              elapsedSeconds,
+              budgetSeconds:
+                walkOutReport?.timeBudgetSeconds ??
+                sessionConfig.timeBudget.totalSeconds,
+              assistantTurnCount,
+              threshold: disengagementThreshold,
+              weights:
+                sessionConfig.terminationPolicy.disengagementWeights ??
+                undefined,
+            })
+          : null;
+      const nearWalkOutThreshold =
+        preTurnDisengagement != null &&
+        preTurnDisengagement.value >= Math.max(0, disengagementThreshold! - 0.1);
+      // Recomputed from THIS site's own derived result — never carried from
+      // the client — so the farewell cites a reason the type declares.
+      const preTurnWalkOutReason =
+        preTurnDisengagement != null
+          ? resolveWalkOutReason({
+              policy: sessionConfig.terminationPolicy,
+              dominantCauses: preTurnDisengagement.dominantCauses,
+              severe: preTurnDisengagement.severe,
+            })
+          : null;
+
       const built = buildTurnMessages({
         config: sessionConfig,
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -652,12 +898,22 @@ export async function POST(request: NextRequest) {
                   : undefined,
               }
             : undefined,
+          ...(nearWalkOutThreshold || forceWalkOutFarewell
+            ? {
+                walkOut: {
+                  nearThreshold: nearWalkOutThreshold,
+                  forceFarewell: forceWalkOutFarewell,
+                  reason: preTurnWalkOutReason,
+                },
+              }
+            : {}),
           ...(revealedSlides !== undefined
             ? { revealedSlides, slideCount: slideCountForTail }
             : {}),
         },
         language: attemptLanguage,
         resumeText,
+        jobDescriptionText,
         systemPrompt:
           typeof systemPrompt === "string" ? systemPrompt : undefined,
         roleContext: roleContext ?? null,
@@ -667,10 +923,6 @@ export async function POST(request: NextRequest) {
       });
 
       fullMessages = built.messages;
-      // Include the assistant turn currently being produced (floor counts this reply).
-      const assistantTurnCount =
-        messages.filter((m) => m.role === "assistant").length + 1;
-
       parseOpts = {
         previousProgress: progress,
         hasResume: Boolean(resumeText.trim()),
@@ -679,6 +931,21 @@ export async function POST(request: NextRequest) {
           getInterviewType(sessionConfig.typeSlug)?.targetQuestionCount ??
           9,
         assistantTurnCount,
+        transcript: messages,
+        elapsedSeconds,
+        budgetSeconds:
+          walkOutReport?.timeBudgetSeconds ??
+          sessionConfig.timeBudget.totalSeconds,
+        walkOutFarewellRequested: engineTurn?.forceWalkOutFarewell === true,
+        walkOutFarewellVerified: forceWalkOutFarewell,
+        ...(walkOutReport
+          ? {
+              walkOutProofContext: {
+                userId: currentUser!.id,
+                reportId: walkOutReport.id,
+              },
+            }
+          : {}),
       };
     } else {
       // Legacy admin/cohort case path — client-supplied strings, no engine type.
@@ -703,7 +970,7 @@ export async function POST(request: NextRequest) {
       maxTokens: interviewStyleTurnControl ? 520 : 1000,
     });
 
-    const responseStream = sessionConfig
+    const responseStream = sessionConfig && parseOpts
       ? attachTerminationToStream(stream, sessionConfig, parseOpts)
       : stream;
 

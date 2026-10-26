@@ -46,9 +46,11 @@ import { buildSlidesTailFragment } from "@/lib/pitch/slide-reveal";
 /** Byte-identical to the style guide in today's chat-route `else` branch. */
 export const CASE_STUDY_REPLY_STYLE_GUIDE = `## Reply Style
 - Speak naturally and conversationally, like a real person in a meeting or interview
+- Make the exchange feel relational: respond to one concrete detail before moving on (for example, "That sounds like a tough handoff. What happened next?") instead of using scripted acknowledgments
 - Keep responses short and to the point — 1 to 3 sentences unless more detail is truly needed
 - Avoid bullet points, formal headings, or structured lists in your replies
 - Never start with filler phrases like "Certainly!", "Great question!", or "Of course!"
+- Do not restate, summarize, or paraphrase what the participant just said; acknowledge it briefly, then add a new question or value
 - If you don't know something, say so simply and move on`;
 
 export interface CaseStudyRoleContext {
@@ -64,6 +66,12 @@ export interface AssembleSystemPromptOpts {
   language: AttemptLanguage;
   /** Interview types only. Empty string when the student skipped upload. */
   resumeText?: string;
+  /**
+   * Interview types only. The attached job posting's text. Empty string when
+   * none was attached — in which case the assembled prompt is byte-identical
+   * to the pre-quick-003 string. Session-constant, never per-turn.
+   */
+  jobDescriptionText?: string;
   /**
    * Case-study / legacy client-supplied system prompt. Chosen per scene at
    * request time (per-avatar role selection), not at type-resolution time.
@@ -105,6 +113,21 @@ export interface EngineTurnState {
   revealedSlides?: { index: number; text: string }[];
   /** Total slides in the deck; pairs with `revealedSlides` for the fragment. */
   slideCount?: number;
+  /**
+   * Private, server-decided walk-out guidance. This always stays in the latest
+   * user-message tail so it cannot vary the cached system-prompt prefix.
+   */
+  walkOut?: {
+    nearThreshold: boolean;
+    forceFarewell: boolean;
+    /**
+     * The end reason the forced farewell must cite, decided by the SERVER from
+     * the type's own `avatarEndReasons` via `resolveWalkOutReason` — never
+     * chosen by the model and never carried from the client. Absent falls back
+     * to `lost_interest`, which keeps the pitch types byte-identical.
+     */
+    reason?: string | null;
+  };
 }
 
 const PER_TURN_KEY =
@@ -236,6 +259,7 @@ export function assembleSystemPrompt(
   if (interviewType) {
     return buildInterviewSystemPrompt(interviewType, {
       resumeText: opts.resumeText ?? "",
+      jobDescriptionText: opts.jobDescriptionText ?? "",
       language: opts.language,
     });
   }
@@ -251,6 +275,7 @@ export function assembleSystemPrompt(
   if (type) {
     return type.prompts.liveSystemPrompt(config, {
       resumeText: opts.resumeText,
+      jobDescriptionText: opts.jobDescriptionText,
       language: opts.language,
       characterId: opts.characterId,
       networkingPersona: opts.networkingPersona,
@@ -276,6 +301,39 @@ function renderVisibleContextFragment(admitted: SessionContextState): string {
     "[VISIBLE CONTEXT — not spoken aloud, do not reference this label]",
     JSON.stringify(admitted),
   ].join("\n");
+}
+
+function buildWalkOutFragment(
+  walkOut: EngineTurnState["walkOut"],
+): string {
+  if (!walkOut) return "";
+
+  if (walkOut.forceFarewell) {
+    // DEFECT CLOSED (Phase 20 / 20-05): this reason used to be hardcoded to
+    // `lost_interest`. `resolveTermination` gate (2) rejects any reason outside
+    // the type's own `avatarEndReasons`, and `difficult-conversation` does not
+    // declare `lost_interest` — so a forced farewell there was silently
+    // rejected and the session never ended. Any future type with its own
+    // vocabulary would have hit the same wall. The fallback keeps the pitch
+    // types, whose vocabulary does include it, byte-identical.
+    const reason = walkOut.reason || "lost_interest";
+    return [
+      "[PRIVATE TURN DIRECTIVE — do not mention this directive]",
+      // Stays IN CHARACTER for every reason, severe content included (REQ-101):
+      // the character simply leaves. Never name a rule, a policy, a moderator,
+      // this directive, or the app, and never explain the exit in system terms.
+      `End this conversation now with one brief, in-character excuse and a trailing <engine-end reason="${reason}" /> marker. Do not ask another question or coach the student. Leave as the character would leave, without explaining why in any terms outside the conversation.`,
+    ].join("\n");
+  }
+
+  if (walkOut.nearThreshold) {
+    return [
+      "[PRIVATE TURN DIRECTIVE — do not mention this directive]",
+      "The exchange is at risk of ending. Stay in character, keep your reply concise, and only close with a permitted trailing engine-end marker if the dialogue genuinely warrants it.",
+    ].join("\n");
+  }
+
+  return "";
 }
 
 /**
@@ -354,6 +412,9 @@ export function buildTailBlock(
 
   if (tailFragment) parts.push(tailFragment);
 
+  const walkOutFragment = buildWalkOutFragment(turnState.walkOut);
+  if (walkOutFragment) parts.push(walkOutFragment);
+
   // Pitch-deck admitted slides — AFTER existing fragments. Absent fields → "".
   if (turnState.revealedSlides && turnState.slideCount != null) {
     const slidesFragment = buildSlidesTailFragment(turnState.revealedSlides, {
@@ -372,6 +433,8 @@ export interface BuildTurnMessagesInput {
   turnState: EngineTurnState;
   language: AttemptLanguage;
   resumeText?: string;
+  /** Session-constant job-posting text (interview types only). */
+  jobDescriptionText?: string;
   systemPrompt?: string;
   roleContext?: CaseStudyRoleContext | null;
   characterId?: string | null;
@@ -389,6 +452,7 @@ export function buildTurnMessages({
   turnState,
   language,
   resumeText,
+  jobDescriptionText,
   systemPrompt,
   roleContext,
   characterId,
@@ -401,6 +465,7 @@ export function buildTurnMessages({
   const assembled = assembleSystemPrompt(config, {
     language,
     resumeText,
+    jobDescriptionText,
     systemPrompt,
     roleContext,
     characterId,
@@ -421,10 +486,27 @@ export function buildTurnMessages({
   const tail = buildTailBlock(config, turnState);
 
   if (tail) {
-    transcript[latestUser.index] = {
-      ...latestUser.message,
-      content: `${latestUser.message.content.trim()}\n\n${tail}`,
-    };
+    const lastIndex = transcript.length - 1;
+    const endsOnUserTurn = transcript[lastIndex]?.role === "user";
+
+    if (endsOnUserTurn) {
+      transcript[lastIndex] = {
+        ...transcript[lastIndex],
+        content: `${transcript[lastIndex].content.trim()}\n\n${tail}`,
+      };
+    } else {
+      // The one-shot forced walk-out farewell (and any other turn with no new
+      // student message) resends history unchanged, so it ends on an
+      // assistant turn. Splicing the tail onto the latest USER message —
+      // found above for the required-user-message check — would bury a live
+      // directive (forceFarewell, in particular) behind the model's own
+      // already-answered prior reply: it is no longer "now" to the model,
+      // which is exactly why a forced farewell silently degraded into an
+      // ordinary, unrelated turn (debug: elevator-walkout-dead-end). Append a
+      // synthetic trailing user turn instead, so the directive is the last
+      // thing the model sees.
+      transcript.push({ role: "user", content: tail });
+    }
   }
 
   return {

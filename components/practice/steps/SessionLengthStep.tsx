@@ -6,15 +6,14 @@
  * There is no prior art in this codebase for deriving a session length from
  * an uploaded artifact. The formula lives in `lib/pitch/session-length.ts`
  * and is Phase-14-local. The value shown here is a PROPOSAL the student may
- * adjust inside the 20–30 minute envelope; the server clamps again via
- * `clampAdjustableBudget` at startSession.
+ * adjust inside the MODE'S OWN envelope (`DeckMode.envelopeSeconds`, passed
+ * in by the wizard — D19-1: never the investor's 20–30 min for every mode).
+ * The server clamps again via `clampAdjustableBudget` at startSession, against
+ * the type's `adjustableRangeSeconds`, which equals the same envelope.
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
-import {
-  DECK_ENVELOPE_SECONDS,
-  proposeDeckSeconds,
-} from "@/lib/pitch/session-length";
+import { proposeDeckSeconds } from "@/lib/pitch/session-length";
 import { Button } from "@heroui/button";
 import { Slider } from "@heroui/slider";
 import { ArrowRight } from "lucide-react";
@@ -28,33 +27,40 @@ export interface SessionLengthStepProps {
   nav: SetupStepNav;
   /** Slide count from the deck-upload wizard state (may be missing). */
   slideCount: number | null;
+  /**
+   * This deck mode's own [floor, ceiling] in seconds — `deckMode.envelopeSeconds`
+   * from lib/pitch/deck-modes.ts. Required so no mode silently inherits
+   * another mode's range (D19-1).
+   */
+  envelopeSeconds: readonly [number, number];
   /** Wizard-owned value — must survive back/forward (reversible). */
   sessionLength: SessionLengthValue | null;
   onChange: (next: SessionLengthValue) => void;
 }
 
-const [FLOOR_SECONDS, CEILING_SECONDS] = DECK_ENVELOPE_SECONDS;
-const FLOOR_MINUTES = FLOOR_SECONDS / 60;
-const CEILING_MINUTES = CEILING_SECONDS / 60;
-
-function clampMinutes(minutes: number): number {
-  return Math.min(CEILING_MINUTES, Math.max(FLOOR_MINUTES, Math.round(minutes)));
-}
-
 export default function SessionLengthStep({
   nav,
   slideCount,
+  envelopeSeconds,
   sessionLength,
   onChange,
 }: SessionLengthStepProps) {
+  const [FLOOR_SECONDS, CEILING_SECONDS] = envelopeSeconds;
+  const FLOOR_MINUTES = FLOOR_SECONDS / 60;
+  const CEILING_MINUTES = CEILING_SECONDS / 60;
+
+  const clampMinutes = (value: number): number =>
+    Math.min(CEILING_MINUTES, Math.max(FLOOR_MINUTES, Math.round(value)));
+
   const hasDeck =
     typeof slideCount === "number" &&
     Number.isFinite(slideCount) &&
     slideCount > 0;
 
   const proposedSeconds = useMemo(
-    () => (hasDeck ? proposeDeckSeconds(slideCount!) : FLOOR_SECONDS),
-    [hasDeck, slideCount],
+    () =>
+      hasDeck ? proposeDeckSeconds(slideCount!, envelopeSeconds) : FLOOR_SECONDS,
+    [hasDeck, slideCount, envelopeSeconds, FLOOR_SECONDS],
   );
 
   const initialMinutes = clampMinutes(

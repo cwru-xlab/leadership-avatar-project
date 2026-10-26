@@ -256,13 +256,29 @@ console.log("\n2. One of each engine surface, still");
     sessionRoutes.map(rel).join(", "),
   );
 
-  const shells = walkFiles(abs("components")).filter((f) =>
-    /SessionShell\.tsx$/.test(f),
-  );
+  // Session shells are an ALLOWLIST, not a count of one. Phase 21's 21-24 added
+  // a deliberate second shell for coached practice, which is reachable ONLY from
+  // a study-plan path step; reusing PracticeSessionShell would have meant editing
+  // components/practice/ for a mode 21-CONTEXT.md requires to stay separate from
+  // normal practice. Authority:
+  // .planning/phases/21-adaptive-mastery-path/21-COACHED-ENGINE-DECISION.md
+  // Stricter than the old count: a THIRD shell fails, and so does renaming or
+  // moving either allowlisted one.
+  const ALLOWED_SESSION_SHELLS = [
+    "components/practice/PracticeSessionShell.tsx",
+    "components/study-plan/CoachedSessionShell.tsx",
+  ] as const;
+
+  const shells = walkFiles(abs("components"))
+    .filter((f) => /SessionShell\.tsx$/.test(f))
+    .map(rel)
+    .sort();
+  const expectedShells = [...ALLOWED_SESSION_SHELLS].sort();
   check(
-    `exactly 1 SessionShell (found ${shells.length})`,
-    shells.length === 1,
-    shells.map(rel).join(", "),
+    `exactly the ${expectedShells.length} allowlisted SessionShells under components/ (found ${shells.length})`,
+    shells.length === expectedShells.length &&
+      shells.every((f, i) => f === expectedShells[i]),
+    shells.join(", ") || "(none)",
   );
 
   const reportPages = walkFiles(abs("app")).filter((f) =>

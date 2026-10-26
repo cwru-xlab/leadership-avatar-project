@@ -7,12 +7,15 @@
  */
 
 import type { InteractionTypeConfig } from "@/lib/engine/types";
-import { applyEarlyEndCap } from "@/lib/pitch/score-caps";
 import {
   ELEVATOR_EVALUATOR_PROMPT,
   buildElevatorEvaluationContext,
   buildElevatorSystemPrompt,
 } from "@/lib/pitch/elevator-prompts";
+import { applyEarlyEndCap } from "@/lib/pitch/score-caps";
+
+/** Tuned only through recorded Phase 18 calibration evidence. */
+export const ELEVATOR_DISENGAGEMENT_THRESHOLD = 0.5;
 
 export const PITCH_ELEVATOR_TYPE: InteractionTypeConfig = {
   slug: "pitch-elevator",
@@ -57,12 +60,30 @@ export const PITCH_ELEVATOR_TYPE: InteractionTypeConfig = {
       "unclear_ask",
       "lost_interest",
     ],
-    // minAssistantTurns: 2 is the floor's concrete shape (Claude's Discretion)
-    // — the avatar's reply to the pitch itself, plus one further exchange.
-    // That guarantees every session has the pitch and at least one real
-    // back-and-forth to grade (CONTEXT.md: "the pitch plus at least one
-    // exchange").
-    avatarEndFloor: { minAssistantTurns: 2 },
+    // NO FLOOR (user decision, 2026-10-15). This previously read
+    // `{ minAssistantTurns: 2 }` — the avatar's reply to the pitch plus one
+    // further exchange — to guarantee every session had gradeable material
+    // (CONTEXT.md: "the pitch plus at least one exchange").
+    //
+    // That guarantee is deliberately given up here: in an elevator pitch the
+    // listener walking away early IS the lesson, and holding them in the
+    // conversation for a turn they have already checked out of teaches the
+    // opposite. A session can now end as soon as derived disengagement
+    // crosses ELEVATOR_DISENGAGEMENT_THRESHOLD, including on the first
+    // assistant turn.
+    //
+    // This is NOT a weakening of the engine's authority. Gate 4 in
+    // `resolveTermination` is untouched: the walk-out still requires a
+    // derived, engine-owned disengagement value at or above the threshold,
+    // so the model cannot talk its way out early on its own say-so. Only the
+    // turn-count minimum is gone.
+    //
+    // Phase 18 Success Criterion 5 ("a walk-out can never fire before a
+    // type's avatarEndFloor minimum turns") is unaffected in its own terms —
+    // it governs types that DECLARE a floor, and this type no longer does.
+    // The deck family and difficult-conversation keep their four-turn floors.
+    avatarEndFloor: null,
+    disengagementThreshold: ELEVATOR_DISENGAGEMENT_THRESHOLD,
   },
   // Permissive default — there is no document to gate.
   visibleContext: { visibleChannels: "*" },

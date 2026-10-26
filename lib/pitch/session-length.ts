@@ -20,15 +20,24 @@ const ANCHOR_LOW_SLIDES = 8;
 const ANCHOR_HIGH_SLIDES = 25;
 
 /**
- * Propose a session budget in seconds from slide count.
+ * Propose a session budget in seconds from slide count, inside a given
+ * envelope (defaults to the investor `DECK_ENVELOPE_SECONDS` range so every
+ * existing call site keeps working unchanged).
  *
- * - 8 slides or fewer → 1200s (envelope floor)
- * - 25 slides or more → 1800s (envelope ceiling)
+ * - at or below the low slide anchor → envelope floor
+ * - at or above the high slide anchor → envelope ceiling
  * - in between → linear interpolation, rounded to the nearest 60 seconds
  * - `slideCount <= 0` → floor (do not throw)
+ *
+ * Deliberately does NOT import `lib/pitch/deck-modes.ts` — the envelope is
+ * passed in, which keeps this module free of mode knowledge and avoids an
+ * import cycle (deck-modes.ts imports DECK_ENVELOPE_SECONDS from here).
  */
-export function proposeDeckSeconds(slideCount: number): number {
-  const [floor, ceiling] = DECK_ENVELOPE_SECONDS;
+export function proposeDeckSeconds(
+  slideCount: number,
+  envelope: readonly [number, number] = DECK_ENVELOPE_SECONDS,
+): number {
+  const [floor, ceiling] = envelope;
 
   if (!Number.isFinite(slideCount) || slideCount <= ANCHOR_LOW_SLIDES) {
     return floor;

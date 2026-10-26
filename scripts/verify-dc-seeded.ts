@@ -241,9 +241,30 @@ async function main() {
     }
   }
 
-  // ---- 8. Deferred items absent ----
+  // ---- 8. Learner-led briefing language ----
+  console.log("\n8. Learner-led briefing language — no scripted tactics or mandatory outcomes");
+  {
+    const scriptedBriefingPhrases = [
+      "written improvement plan with dates",
+      "do not negotiate it",
+      "specific number and a date",
+      "explicit agreement about attribution",
+      "quietly accepting an impossible yes",
+    ];
+    for (const r of SEEDED_CONVERSATIONS) {
+      const studentBrief = `${r.situation}\n${r.studentObjective}`;
+      for (const phrase of scriptedBriefingPhrases) {
+        check(
+          `"${r.id}" student brief omits "${phrase}"`,
+          !studentBrief.toLowerCase().includes(phrase),
+        );
+      }
+    }
+  }
+
+  // ---- 9. Deferred items absent ----
   console.log(
-    "\n8. Deferred items absent — no mirrored role-swap variants"
+    "\n9. Deferred items absent — no mirrored role-swap variants"
   );
   {
     const deferredTerms = /\b(industry|reframe|both sides)\b/i;
@@ -293,7 +314,7 @@ async function main() {
     console.error(`verify-dc-seeded: ${failures} check(s) failed`);
     process.exit(1);
   }
-  console.log("verify-dc-seeded: all eight sections passed");
+  console.log("verify-dc-seeded: all nine sections passed");
 }
 
 main().catch((error) => {

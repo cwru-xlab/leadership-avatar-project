@@ -33,6 +33,21 @@ export const siteConfig = {
       icon: "History",
     },
     {
+      label: "Study Plans",
+      href: "/study-plans",
+      icon: "BookOpenCheck",
+    },
+    {
+      label: "Paths",
+      href: "/paths",
+      icon: "Route",
+    },
+    {
+      label: "Mastery",
+      href: "/mastery",
+      icon: "ChartColumnBig",
+    },
+    {
       label: "Settings",
       href: "/settings",
       icon: "Settings",

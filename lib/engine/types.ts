@@ -20,6 +20,8 @@
 
 import type { AttemptLanguage } from "@/lib/languages";
 import type { ScoreMap } from "@/lib/report/snapshot";
+import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
+import type { DisengagementCause, DisengagementWeights } from "./disengagement";
 
 /** A single scored dimension on the report. */
 export interface RubricDimension {
@@ -60,11 +62,11 @@ export type SharedRubricKey = (typeof SHARED_RUBRIC_DIMENSION_KEYS)[number];
 /**
  * Who may end a session, and why.
  *
- * Today nothing but the student can end an interview or scenario session —
- * `studentMayEnd: true, avatarMayEnd: false` on every built-in record
- * preserves that exactly. `avatarMayEnd` plus `avatarEndReasons` exists so a
- * future type (Phase 14's tedious pitch) can let the avatar end the session
- * with a recorded reason, without the engine needing a second shape later.
+ * `avatarMayEnd` plus `avatarEndReasons` lets an eligible type accept a
+ * marker-based avatar end with a recorded reason. Threshold-null types retain
+ * that Phase 13/14 behavior. A Phase 18 threshold-enabled type additionally
+ * requires derived disengagement before its avatar end is accepted; the
+ * engine still owns that gate rather than trusting the model's judgment alone.
  */
 export interface TerminationPolicyConfig {
   studentMayEnd: boolean;
@@ -72,12 +74,34 @@ export interface TerminationPolicyConfig {
   /** Closed list of reasons the avatar may cite when it ends a session. */
   avatarEndReasons: string[];
   /**
-   * An avatar-initiated end is the model's own judgment (CONTEXT.md 14), but
-   * it must never land before enough has happened to grade. `null` / omitted
-   * means no floor, which is correct for the five Phase 13 types because all
-   * of them have `avatarMayEnd: false` and can never terminate at all.
+   * An avatar-initiated end must never land before enough has happened to
+   * grade. `null` / omitted means no floor.
    */
   avatarEndFloor?: { minAssistantTurns: number } | null;
+  /**
+   * Opt-in derived walk-out threshold on [0, 1]. When null/omitted, behavior
+   * is identical to today — avatar ends only via the existing marker +
+   * avatarMayEnd / avatarEndReasons / avatarEndFloor path (REQ-80). When set,
+   * Phase 18's computeDisengagement value must reach this threshold
+   * (accelerated by a cue in later plans) before an avatar-initiated end is
+   * accepted.
+   */
+  disengagementThreshold?: number | null;
+  /**
+   * Optional per-type override of DEFAULT_DISENGAGEMENT_WEIGHTS. Omitted ->
+   * the shared defaults, byte-identical to Phase 18. A type whose timeBudget
+   * is null declares this so its dead budgetPressure weight is redistributed
+   * deliberately rather than silently inherited (Phase 20).
+   */
+  disengagementWeights?: Partial<DisengagementWeights> | null;
+  /**
+   * Optional map from a dominant observable cause to the reason this type's
+   * avatar cites when that cause ends the session. Every value MUST already
+   * be a member of avatarEndReasons — the engine never invents a reason.
+   * Omitted -> the existing behaviour, where the model's own marker reason
+   * is used.
+   */
+  avatarEndReasonByCause?: Partial<Record<DisengagementCause, string>> | null;
 }
 
 /**
@@ -164,6 +188,12 @@ export interface SetupStepDeclaration {
  */
 export interface LiveSystemPromptExtra {
   resumeText?: string;
+  /**
+   * Interview types only (quick task 003): the job posting the candidate is
+   * targeting. Session-constant and resent byte-identically every turn, the
+   * same discipline `resumeText` follows. Empty/absent when none was attached.
+   */
+  jobDescriptionText?: string;
   language?: AttemptLanguage;
   /**
    * Networking character path (16-07): wizard characterId is not on
@@ -394,29 +424,48 @@ export type InstanceConfig =
       listenerKnowledge: "blind" | "name-role" | "full-profile";
     }
   /**
-   * `askPriceUsd`/`askEquityPct` are captured as plain wizard form fields,
-   * not extracted by a model — they are session-constant and safe in the
-   * system prompt from turn one (14-RESEARCH.md Open Question 3).
-   * `fairValueBand` is instance config the avatar knows and the student
-   * does not; it is never model-produced and never part of the outcome
-   * record. `slideTexts` is the per-slide extracted text; the live
-   * visible-context cursor decides how much of it the avatar sees on a
-   * given turn, and that cursor is server-authoritative (plan 14-11).
+   * Shared by ALL FIVE deck modes (REQ-88, REQ-93): the existing investor
+   * `pitch-deck`, plus Phase 19's `pitch-funding` / `pitch-product` /
+   * `pitch-talk` / `pitch-general`. One `kind` for all five is deliberate —
+   * a new `kind` would force edits to the chat route's `isInstanceConfig`
+   * allow-list and slide-hydration branch, `session.ts`'s snapshot/ratchet
+   * path and the evaluation runner's reconstruction, exactly the surfaces
+   * REQ-93 forbids touching for a sixth mode.
+   *
+   * `askPriceUsd`/`askEquityPct`/`fairValueBand` are captured as plain
+   * wizard form fields, not extracted by a model — they are session-constant
+   * and safe in the system prompt from turn one (14-RESEARCH.md Open
+   * Question 3). They are PRESENT ONLY for the one negotiating mode
+   * (`pitch-deck`); every other mode carries NONE of the three fields at
+   * all — absent, not zero, not null. A reader must never assume they
+   * exist; check for presence before reading. `fairValueBand` is instance
+   * config the avatar knows and the student does not; it is never
+   * model-produced and never part of the outcome record.
+   *
+   * `slideTexts` is the per-slide extracted text; the live visible-context
+   * cursor decides how much of it the avatar sees on a given turn, and that
+   * cursor is server-authoritative (plan 14-11).
+   *
+   * `modeInputs` is the one extension point for per-mode wizard data (the
+   * funding amount/use-of-funds, the buyer profile, the talk audience and
+   * takeaway). A sixth deck mode adds a `DeckModeInputs` member under
+   * `lib/pitch/deck-modes.ts` and never needs a new field here.
    */
   | {
       kind: "pitch-deck";
       deckId: string;
       slideCount: number;
       slideTexts: string[];
-      askPriceUsd: number;
-      askEquityPct: number;
-      fairValueBand: {
+      askPriceUsd?: number;
+      askEquityPct?: number;
+      fairValueBand?: {
         priceUsdMin: number;
         priceUsdMax: number;
         equityPctMin: number;
         equityPctMax: number;
       };
       proposedSeconds: number;
+      modeInputs?: DeckModeInputs;
     }
   | DifficultConversationInstance
   /**

@@ -48,7 +48,7 @@ console.log("\n1. parseTerminationMarker");
   );
 }
 
-console.log("\n2. Every built-in type ships avatarMayEnd: false — a marker can never end a session today");
+console.log("\n2. Every built-in type rejects an undeclared avatar-end reason");
 for (const type of ENGINE_TYPES) {
   const result = resolveTermination({
     policy: type.terminationPolicy,

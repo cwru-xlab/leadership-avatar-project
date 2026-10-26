@@ -23,17 +23,17 @@ export default function ReportMarkdown({ markdown }: ReportMarkdownProps) {
         remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ children }) => (
-            <h1 className="font-serif text-3xl tracking-[-0.03em] text-[#102331] mt-8 first:mt-0">
+            <h1 className="font-serif text-3xl tracking-[-0.03em] text-[#082b4c] mt-8 first:mt-0">
               {children}
             </h1>
           ),
           h2: ({ children }) => (
-            <h2 className="font-serif text-2xl text-[#102331] mt-8 pb-2 border-b border-[#d4e2e9]">
+            <h2 className="font-serif text-2xl text-[#082b4c] mt-8 pb-2 border-b-2 border-[#d5c294]">
               {children}
             </h2>
           ),
           h3: ({ children }) => (
-            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#0a7391] mt-6">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#004b7a] mt-6">
               {children}
             </h3>
           ),
@@ -54,12 +54,12 @@ export default function ReportMarkdown({ markdown }: ReportMarkdownProps) {
             <strong className="font-semibold text-[#102331]">{children}</strong>
           ),
           table: ({ children }) => (
-            <div className="mt-4 overflow-x-auto rounded-xl border border-[#d4e2e9]">
+            <div className="mt-5 overflow-x-auto rounded-lg border border-[#cbd9e1] shadow-[0_6px_18px_rgba(8,43,76,0.05)]">
               <table className="w-full border-collapse text-sm">{children}</table>
             </div>
           ),
           th: ({ children }) => (
-            <th className="bg-[#f5f8fa] px-4 py-2.5 text-left font-semibold text-[#102331] border-b border-[#d4e2e9]">
+            <th className="bg-[#eaf1f5] px-4 py-3 text-left font-semibold text-[#082b4c] border-b border-[#cbd9e1]">
               {children}
             </th>
           ),
@@ -79,7 +79,7 @@ export default function ReportMarkdown({ markdown }: ReportMarkdownProps) {
             </a>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="mt-4 border-l-3 border-[#53a9ca] bg-[#f5f8fa] px-4 py-3 text-[#3a5462] italic">
+            <blockquote className="mt-5 border-l-4 border-[#a97928] bg-[#f4ecdc] px-4 py-3 text-[#3a5462] italic">
               {children}
             </blockquote>
           ),

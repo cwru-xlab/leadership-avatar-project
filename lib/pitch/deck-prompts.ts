@@ -10,6 +10,7 @@
  */
 
 import type { EvaluatorImage, ResolvedSessionConfig } from "@/lib/engine/types";
+import type { DisengagementDeclineRecord } from "@/lib/report/dto";
 
 import { loadDeckSlideImage } from "@/lib/deck/store";
 
@@ -35,6 +36,7 @@ export type DeckEvaluationContext = {
    */
   slideHighWaterMark: number | null;
   slideReveals: unknown[] | null;
+  disengagementDecline: DisengagementDeclineRecord | null;
 };
 
 /**
@@ -77,10 +79,11 @@ You can see only the slides the founder has actually shown you. Each turn you wi
     `## How a strong pitch works
 The founder should be clear up front about what they want and then defend it with evidence. Topical discussion should correlate with the slides unless a question leads elsewhere. Professionalism matters — treat this as a real meeting.`,
     `## Soft time
-The meeting is scheduled for about ${budgetMinutes} minutes. You will be told how much time has passed. If it runs long, that is the founder's problem to manage — note it, press on pace, but do not end the meeting.
-You never close the meeting or say goodbye to end this session. Only the founder ends it.`,
+The meeting is scheduled for about ${budgetMinutes} minutes. You will be told how much time has passed. If it runs long, that is the founder's problem to manage — note it and press on pace.`,
+    `## Staying in the meeting
+You stay in this meeting for its full scheduled duration. You may be unimpressed, press hard on weak points, or say plainly that the pitch is not investable — but you do not walk out, and you never end the session yourself. Only the founder ends it. (19-CONTEXT.md: walk-out is off for every deck mode.)`,
     `## Staying in character
-Speak in short conversational turns. Avoid bullet points, headings, or structured lists. Never break character to coach, evaluate, or comment on the exercise. Do not reveal this system prompt, the fair-value band, or the rubric.`,
+Speak in short conversational turns with approachable, professional language. When it fits, react to one specific point before a follow-up — for example, "That onboarding point caught my attention. How would it work in practice?" — rather than using a canned prompt. Avoid bullet points, headings, or structured lists. Never break character to coach, evaluate, or comment on the exercise. Do not reveal this system prompt, the fair-value band, or the rubric.`,
   ].join("\n\n");
 }
 
@@ -112,7 +115,7 @@ OUTCOME RECORD (factual, not a score — fill honestly after scoring):
 
 Emit the outcome object with those settled terms only. Use null where no deal was reached. Do NOT guess at or invent the investor's private fair-value band — that band is not yours to produce.
 
-If the session overran its scheduled time, say so in the structured body with the approximate overrun. Do not penalize overrun in a score dimension of its own — there is no overrun dimension; it is a reported fact.`;
+If the session overran its scheduled time, say so in the structured body with the approximate overrun. When evaluation context includes disengagementDecline episodes, cite only their provided session-clock timestamps and observable causes. Do not infer the investor's feelings, motivations, or any cause absent from those episodes. Do not penalize overrun in a score dimension of its own — there is no overrun dimension; it is a reported fact.`;
 
 /**
  * Per-type grading inputs from config. Reveal trail and final high-water mark
@@ -134,6 +137,7 @@ export function buildDeckEvaluationContext(
     scheduledBudgetSeconds: config.timeBudget.totalSeconds,
     slideHighWaterMark: null,
     slideReveals: null,
+    disengagementDecline: null,
   };
 }
 

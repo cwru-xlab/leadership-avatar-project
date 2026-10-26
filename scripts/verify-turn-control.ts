@@ -398,6 +398,57 @@ function syntheticInit(slug: string): Parameters<typeof resolveSessionConfig>[1]
       },
     };
   }
+  // Phase 19's four new deck modes. They share the ONE `pitch-deck` instance
+  // kind (plan 19-02's deliberate widening — a new kind per mode would force
+  // edits to the engine modules REQ-93 forbids), and they carry NO negotiation
+  // fields: `askPriceUsd`/`askEquityPct`/`fairValueBand` are ABSENT, not zeroed,
+  // which is how REQ-89 is enforced. `modeInputs` carries each mode's own
+  // required wizard input.
+  //
+  // Added 2026-10-08: this script's fixture switch was never extended when
+  // 19-04/19-05 registered these four slugs, so all four `resolve` checks
+  // failed. Same class of tooling gap that 19-10 fixed in
+  // `verify-report-structure.ts` (see `19-UNOWNED-RED-SCRIPT.md`) and that
+  // 19-04/19-05 fixed in `verify-pitch-types.ts`. No assertion was weakened to
+  // make this pass — only the missing fixtures were supplied.
+  if (
+    slug === "pitch-funding" ||
+    slug === "pitch-product" ||
+    slug === "pitch-talk" ||
+    slug === "pitch-general"
+  ) {
+    const modeInputs =
+      slug === "pitch-funding"
+        ? {
+            mode: "pitch-funding" as const,
+            requestedAmountUsd: 250000,
+            useOfFunds: "Two engineering hires and twelve months of runway.",
+          }
+        : slug === "pitch-product"
+          ? {
+              mode: "pitch-product" as const,
+              buyerProfile:
+                "A mid-market operations director who owns the budget and distrusts new vendors.",
+            }
+          : slug === "pitch-talk"
+            ? {
+                mode: "pitch-talk" as const,
+                talkAudience: "Forty graduate students at a careers evening.",
+                talkTakeaway:
+                  "Technical depth is worth less than being understood.",
+              }
+            : undefined; // pitch-general takes no mode input by design
+    return {
+      instance: {
+        kind: "pitch-deck",
+        deckId: "deck-test",
+        slideCount: 8,
+        slideTexts: Array.from({ length: 8 }, (_, i) => `Slide ${i + 1} text`),
+        proposedSeconds: 600,
+        ...(modeInputs ? { modeInputs } : {}),
+      },
+    };
+  }
   if (slug === "difficult-conversation") {
     return {
       instance: {

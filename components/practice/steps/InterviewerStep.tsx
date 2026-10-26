@@ -29,12 +29,18 @@ export interface InterviewerStepProps {
   nav: SetupStepNav;
   selectedInterviewerId: string | null;
   onSelect: (interviewer: InterviewerOption) => void;
+  /** Step heading; defaults to the interview wording (UAT K-6). */
+  heading?: string;
+  /** Role line under each avatar's name; defaults to the interview wording. */
+  roleLabel?: string;
 }
 
 export default function InterviewerStep({
   nav,
   selectedInterviewerId,
   onSelect,
+  heading = "Choose your interviewer.",
+  roleLabel = "Hiring manager",
 }: InterviewerStepProps) {
   const [interviewers, setInterviewers] = useState<InterviewerOption[]>([]);
   const [loadingInterviewers, setLoadingInterviewers] = useState(true);
@@ -93,7 +99,7 @@ export default function InterviewerStep({
             id="interviewer-heading"
             className="mt-1 font-serif text-3xl tracking-[-0.03em]"
           >
-            Choose your interviewer.
+            {heading}
           </h2>
         </div>
         <p className="max-w-md text-sm leading-6 text-[#58727f]">
@@ -152,14 +158,32 @@ export default function InterviewerStep({
                     </div>
                     <h3 className="font-serif text-2xl">{interviewer.name}</h3>
                     <p className="mt-1 text-sm text-white/78">
-                      Hiring manager · Live session
+                      {roleLabel} · Live session
                     </p>
                   </div>
                 </button>
               );
             })}
           </div>
-          <div className="mt-7 flex justify-end">
+          {/* Sticky, because the roster is ~54 cards deep: a Continue button
+              parked under the last row costs the student a long scroll back.
+              It stays in flow, so it never covers the final row at rest — it
+              only pins while there is still list below. Requires that no
+              ancestor create a scroll container; see the overflow-x-clip note
+              in app/practice/[type]/page.tsx. */}
+          <div className="sticky bottom-0 z-30 mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-[#d8e6ec] bg-[#f5f8fa] py-4 shadow-[0_-8px_16px_-8px_rgba(16,45,58,0.18)]">
+            <p className="text-sm text-[#58727f]">
+              {selectedInterviewer ? (
+                <>
+                  Selected{" "}
+                  <span className="font-semibold text-[#102331]">
+                    {selectedInterviewer.name}
+                  </span>
+                </>
+              ) : (
+                `${interviewers.length} interviewers — choose one to continue`
+              )}
+            </p>
             <Button
               color="primary"
               size="lg"

@@ -12,6 +12,7 @@ import {
 } from "@/lib/difficult-conversation/types";
 import { Button } from "@heroui/button";
 import { ArrowRight, Check } from "lucide-react";
+import { type KeyboardEvent, useRef } from "react";
 
 export interface ConversationDifficultyStepProps {
   nav: SetupStepNav;
@@ -47,6 +48,23 @@ export default function ConversationDifficultyStep({
   onSelect,
 }: ConversationDifficultyStepProps) {
   const selected = difficulty ?? defaultDifficulty;
+  const bandRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  // WAI-ARIA radio group: one tab stop (the checked band), arrow keys move
+  // focus AND selection, wrapping at the ends (UAT D15-4).
+  const handleBandKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const step =
+      event.key === "ArrowDown" || event.key === "ArrowRight"
+        ? 1
+        : event.key === "ArrowUp" || event.key === "ArrowLeft"
+          ? -1
+          : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    const next = (index + step + DIFFICULTY_BANDS.length) % DIFFICULTY_BANDS.length;
+    onSelect(DIFFICULTY_BANDS[next]);
+    bandRefs.current[next]?.focus();
+  };
 
   return (
     <section
@@ -71,16 +89,21 @@ export default function ConversationDifficultyStep({
       </div>
 
       <div className="grid gap-3" role="radiogroup" aria-label="Difficulty band">
-        {DIFFICULTY_BANDS.map((band) => {
+        {DIFFICULTY_BANDS.map((band, index) => {
           const copy = BAND_COPY[band];
           const isSelected = selected === band;
           return (
             <button
               key={band}
+              ref={(node) => {
+                bandRefs.current[index] = node;
+              }}
               type="button"
               role="radio"
               aria-checked={isSelected}
+              tabIndex={isSelected ? 0 : -1}
               onClick={() => onSelect(band)}
+              onKeyDown={(event) => handleBandKeyDown(event, index)}
               className={`relative rounded-2xl border p-5 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${
                 isSelected
                   ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]"

@@ -16,12 +16,24 @@ import { CircleAlert } from "lucide-react";
  * This component shows NO live scoring and NO coaching - only the fact of
  * detection and the honest consequence (the Visual score is affected),
  * matching REQ-41's real behavior in `lib/metrics/coverage.ts`.
+ *
+ * `detail` overrides the consequence line. Practice omits it and gets
+ * `PRACTICE_FACE_BANNER_DETAIL` (the Visual score is affected); coached mode
+ * scores nothing live, so it passes its own honest consequence instead.
  */
+export const PRACTICE_FACE_BANNER_DETAIL =
+  "Move back into frame — this affects your Visual score.";
+
 export interface FaceDetectionBannerProps {
   visible: boolean;
+  /** The consequence line under the headline. Defaults to the practice copy. */
+  detail?: string;
 }
 
-export function FaceDetectionBanner({ visible }: FaceDetectionBannerProps) {
+export function FaceDetectionBanner({
+  visible,
+  detail = PRACTICE_FACE_BANNER_DETAIL,
+}: FaceDetectionBannerProps) {
   return (
     <div
       role="status"
@@ -39,9 +51,7 @@ export function FaceDetectionBanner({ visible }: FaceDetectionBannerProps) {
           <span className="text-sm font-medium">
             We can&apos;t see your face right now
           </span>
-          <span className="text-xs text-amber-800">
-            Move back into frame — this affects your Visual score.
-          </span>
+          <span className="text-xs text-amber-800">{detail}</span>
         </div>
       </div>
     </div>

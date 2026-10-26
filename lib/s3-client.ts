@@ -86,6 +86,12 @@ const INTERACTIONS_PREFIX = "interactions/";
 // returns an S3 URL, and access is mediated by authenticated server routes.
 const INTERVIEW_RESUMES_PREFIX = "resumes/";
 
+// Interview job-description storage prefix. Same privacy contract as resumes
+// above: the posting PDF is a private object, this app never returns an S3 URL
+// or key to the browser, and access is mediated by authenticated server routes.
+// Structure: job-descriptions/{userId}/{jobDescriptionId}.pdf
+const INTERVIEW_JOB_DESCRIPTIONS_PREFIX = "job-descriptions/";
+
 // Interview transcript storage prefix. Canonical transcript objects; the
 // InterviewReport Postgres row only caches the server-derived key.
 // Structure: interviews/{userId}/{reportId}.json
@@ -1683,6 +1689,41 @@ export class S3AvatarStorage {
     const safeUserId = this.sanitizePathSegment(userId, "userId");
     const safeResumeId = this.sanitizePathSegment(resumeId, "resumeId");
     const key = `${INTERVIEW_RESUMES_PREFIX}${safeUserId}/${safeResumeId}.pdf`;
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: file,
+        ContentType: "application/pdf",
+        ContentDisposition: "attachment",
+      })
+    );
+
+    return key;
+  }
+
+  /**
+   * Store the original job-description PDF for an interview attempt.
+   *
+   * Copied deliberately from `saveInterviewResume` above rather than sharing a
+   * helper: that method carries a locked Phase 3 contract and is not edited
+   * (quick task 003, decision 3). Same guarantees — both key segments are
+   * sanitized, `userId` and `jobDescriptionId` are generated/verified
+   * server-side before reaching here, and the returned key is for server-side
+   * logging/derivation only. It is never returned to a browser.
+   */
+  async saveInterviewJobDescription(
+    userId: string,
+    jobDescriptionId: string,
+    file: Uint8Array
+  ): Promise<string> {
+    const safeUserId = this.sanitizePathSegment(userId, "userId");
+    const safeJobDescriptionId = this.sanitizePathSegment(
+      jobDescriptionId,
+      "jobDescriptionId"
+    );
+    const key = `${INTERVIEW_JOB_DESCRIPTIONS_PREFIX}${safeUserId}/${safeJobDescriptionId}.pdf`;
 
     await s3Client.send(
       new PutObjectCommand({

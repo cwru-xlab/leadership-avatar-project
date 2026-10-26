@@ -123,40 +123,40 @@ export default function NetworkingOutcomePanel({
 
   return (
     <section
-      className="mb-6 rounded-2xl border border-dashed border-[#9bb5ad] bg-transparent px-5 py-4"
+      className="mb-6 rounded-2xl border border-t-2 border-t-[#b79b4c] [border-top-style:solid] shadow-[0_10px_24px_rgba(0,48,135,0.08)] motion-safe:transition-[border-color,box-shadow] motion-safe:duration-200 border-dashed border-[#8295ad] bg-transparent px-5 py-4"
       data-ask-outcome={outcome.askOutcome}
       data-not-a-score="true"
       data-testid="networking-outcome-panel"
     >
-      <p className="text-xs font-medium uppercase tracking-[0.08em] text-[#6a8391]">
+      <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-[#003087]">
         Outcome record
-      </p>
+      </h2>
 
       {goal ? (
         <div className="mt-3" data-testid="networking-goal">
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#6a8391]">
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
             Your goal
           </p>
-          <p className="mt-1 font-serif text-lg text-[#102331]">{goal}</p>
-          <p className="mt-1 text-sm text-[#526c7b]">{GOAL_PRIVACY_LINE}</p>
+          <p className="mt-1 font-serif text-lg text-[#102a4c]">{goal}</p>
+          <p className="mt-1 text-sm text-[#52657a]">{GOAL_PRIVACY_LINE}</p>
         </div>
       ) : null}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#6a8391]">
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
             Did you make the ask?
           </p>
-          <p className="mt-1 font-serif text-xl text-[#102331]">
+          <p className="mt-1 font-serif text-xl text-[#102a4c]">
             {outcome.askMade ? "Yes" : "No"}
           </p>
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#6a8391]">
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
             How it landed
           </p>
           <p
-            className="mt-1 font-serif text-xl text-[#102331]"
+            className="mt-1 font-serif text-xl text-[#102a4c]"
             data-testid="networking-ask-landing"
           >
             {askLanding}
@@ -165,11 +165,11 @@ export default function NetworkingOutcomePanel({
       </div>
 
       <div className="mt-4">
-        <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#6a8391]">
+        <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
           Common ground
         </p>
         <p
-          className="mt-1 text-sm leading-relaxed text-[#3a5563]"
+          className="mt-1 text-sm leading-relaxed text-[#334155]"
           data-testid="networking-common-ground"
         >
           {commonGroundText}
@@ -178,23 +178,23 @@ export default function NetworkingOutcomePanel({
 
       {earlyEndPhrase ? (
         <aside
-          className="mt-4 rounded-xl border border-[#c5d5df] bg-[#f4f8fa] px-4 py-3 text-[#102331]"
+          className="mt-4 rounded-xl border border-[#b8c7d8] bg-[#f4f7fa] px-4 py-3 text-[#102a4c]"
           data-outcome={terminationReason}
           data-testid="networking-early-end"
         >
-          <p className="font-serif text-lg leading-snug">
+          <h3 className="font-serif text-lg leading-snug">
             The other person ended the conversation.
-          </p>
-          <p className="mt-1 text-sm leading-relaxed text-[#3a5563]">
+          </h3>
+          <p className="mt-1 text-sm leading-relaxed text-[#334155]">
             {earlyEndPhrase}
           </p>
-          <p className="mt-2 text-sm text-[#3a5563]">
+          <p className="mt-2 text-sm text-[#334155]">
             {EARLY_END_STILL_SCORED_LINE}
           </p>
         </aside>
       ) : null}
 
-      <p className="mt-3 text-sm leading-relaxed text-[#526c7b]">
+      <p className="mt-3 text-sm leading-relaxed text-[#52657a]">
         {OUTCOME_NOT_A_SCORE_CAPTION}
       </p>
     </section>

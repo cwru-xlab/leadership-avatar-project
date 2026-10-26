@@ -10,7 +10,7 @@
  * here — type-specific branching belongs in a step component, not this file.
  */
 
-import CameraConsentStep from "@/components/practice/steps/CameraConsentStep";
+import CameraConsentStep from "@/components/session/CameraConsentStep";
 import type { SetupStepDeclaration } from "@/lib/engine/types";
 import type { CameraMode } from "@/lib/metrics/types";
 import type { InteractionLog } from "@/types";
@@ -50,6 +50,8 @@ export interface SetupWizardProps {
    * step can advance, go back, or skip (optional steps).
    */
   renderStep: (stepId: string, nav: SetupStepNav) => ReactNode;
+  /** Optional type-composed guidance rendered below the active wizard step. */
+  supplementalContent?: ReactNode;
   /**
    * Builds the start-route body from the locked camera mode. Called only
    * when `createReportOnLaunch` is true (the default). May return a Promise
@@ -107,6 +109,7 @@ export default function SetupWizard({
   typeSlug,
   steps,
   renderStep,
+  supplementalContent,
   buildStartPayload,
   onLaunch,
   createReportOnLaunch = true,
@@ -253,6 +256,7 @@ export default function SetupWizard({
           optional: Boolean(current.optional),
         })
       )}
+      {supplementalContent}
     </div>
   );
 }

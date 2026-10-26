@@ -633,83 +633,286 @@ REQ-73.
 
 ### Phase 18 — Avatar Disengagement & Walk-Out
 
-- **REQ-78** — [ ] The engine carries a per-turn DISENGAGEMENT value computed from
+- **REQ-78** — [x] The engine carries a per-turn DISENGAGEMENT value computed from
   observable session signals — elapsed time against the budget, turn count,
   repetition, response length, whether the student established common ground. The
   computation is deterministic and tunable without a model call.
 
-- **REQ-79** — [ ] The live avatar can emit a disengagement cue in its per-turn
+- **REQ-79** — [x] The live avatar can emit a disengagement cue in its per-turn
   structured output, and that cue ACCELERATES the derived value rather than
   replacing it. A self-reported cue alone cannot end a session, so the
   role-playing model never has sole authority over its own patience.
 
-- **REQ-80** — [ ] A type declares a disengagement THRESHOLD in config. Crossing it
+- **REQ-80** — [x] A type declares a disengagement THRESHOLD in config. Crossing it
   is what triggers a walk-out; a type that declares no threshold behaves exactly as
   it does today. Adding the capability touches no type that does not opt in.
 
-- **REQ-81** — [ ] Crossing the threshold plays exactly one final avatar statement
+- **REQ-81** — [x] Crossing the threshold plays exactly one final avatar statement
   that the student can neither interrupt nor respond to — push-to-talk and the text
   input are closed for its duration.
 
-- **REQ-82** — [ ] After that final statement the session ends automatically and
+- **REQ-82** — [x] After that final statement the session ends automatically and
   generates a report, without the student pressing End-session.
 
-- **REQ-83** — [ ] The auto-ended session is recorded as a FAILURE instance with an
+- **REQ-83** — [x] The auto-ended session is recorded as a FAILURE instance with an
   avatar-initiated termination reason — not a neutral finish and not an error state.
   It reuses Phase 13's `terminationPolicy` outcome record rather than adding a
   parallel field.
 
-- **REQ-84** — [ ] A walk-out can never fire before the type's `avatarEndFloor`
+- **REQ-84** — [x] A walk-out can never fire before the type's `avatarEndFloor`
   minimum assistant turns, so no student is abandoned on the opening turn.
   `lib/pitch/deck-type.ts` gains a real floor in place of its current
   `avatarEndFloor: null`.
 
-- **REQ-85** — [ ] No disengagement indicator, meter or warning appears in the
+- **REQ-85** — [x] No disengagement indicator, meter or warning appears in the
   session shell at any point. The student learns they were losing the room from the
   report, never from a gauge.
 
-- **REQ-86** — [ ] The report explains the decline: when engagement fell and what
+- **REQ-86** — [x] The report explains the decline: when engagement fell and what
   the student was doing at those points, on the session clock, consistent with
   Phase 12's episode-timeline convention. Nothing the pipeline cannot observe is
   asserted as a cause.
 
 ### Phase 19 — Deck-Led Pitch Family
 
-- **REQ-87** — [ ] Four new deck-led TYPE records are playable alongside the
+- **REQ-87** — [x] Four new deck-led TYPE records are playable alongside the
   existing investor `pitch-deck`: a funding request (an ask amount, no equity and no
   valuation band), a product pitch (outcome is interest and objections, not terms),
   a deck-led talk (a presentation with Q&A, no ask), and a general deck pitch with
   no mode-specific constraints.
 
-- **REQ-88** — [ ] All five deck types share one deck capability — upload, per-slide
+- **REQ-88** — [x] All five deck types share one deck capability — upload, per-slide
   text and images, the server-authoritative slide cursor and high-water mark, the
   visible-context slice and the soft session timer. The shared behavior is reused
   from Phase 14, not duplicated per mode.
 
-- **REQ-89** — [ ] Negotiation inputs are ABSENT from the types that have no terms
+- **REQ-89** — [x] Negotiation inputs are ABSENT from the types that have no terms
   to negotiate — no ask price and no offered equity on a product pitch or a deck-led
   talk — rather than present-but-optional or hidden behind a disabled field.
 
-- **REQ-90** — [ ] Each mode declares its own rubric dimensions and its own outcome
+- **REQ-90** — [x] Each mode declares its own rubric dimensions and its own outcome
   shape, so a funding request is not scored against an equity split and a deck-led
   talk is not scored against a close.
 
-- **REQ-91** — [ ] A student reaching a deck mode goes through the one generic
+- **REQ-91** — [x] A student reaching a deck mode goes through the one generic
   pre-session wizard with mode-appropriate steps. No second wizard and no new
   camera-consent gate is introduced (REQ-70 unchanged).
 
-- **REQ-92** — [ ] The one report page renders every mode's outcome through the
+- **REQ-92** — [x] The one report page renders every mode's outcome through the
   existing `ReportChrome` extras slot. No per-mode report page and no edit to the
   shared report page is required to add a mode.
 
-- **REQ-93** — [ ] Adding these four modes touches no engine module, no route, no
+- **REQ-93** — [x] Adding these four modes touches no engine module, no route, no
   evaluator and no report page — REQ-60 holds under its first real test since the
   engine shipped. A mechanical guard proves it, in the spirit of Phase 16's
   surface-count script.
 
-- **REQ-94** — [ ] The Practice Pitches picker presents the deck modes alongside the
+- **REQ-94** — [x] The Practice Pitches picker presents the deck modes alongside the
   elevator pitch and the investor deck, with each mode's purpose distinguishable
   before a student commits to one.
+
+### Phase 20 — Difficult Conversation Walk-Outs
+
+- **REQ-95** — [x] The `difficult-conversation` TYPE record declares a
+  `disengagementThreshold`, so all seven seeded conversations and every
+  student-authored scenario inherit the walk-out from one type-level number. No
+  per-scenario field, no authoring surface, nothing for an author to
+  misconfigure.
+
+- **REQ-96** — [x] Hostility signals are added to the engine's observable cause
+  vocabulary — insults and profanity directed at the avatar, escalation and
+  aggression, stonewalling, and slurs/harassment as a separate severe category —
+  computed DETERMINISTICALLY. The avatar's structured cue may accelerate the
+  value but can never end a session on its own (REQ-79's invariant holds).
+
+- **REQ-97** — [x] Firm, uncomfortable, non-hostile language never trips the
+  walk-out. Only language targeting the PERSON counts, never language targeting
+  the position or performance. Proven against the register the seven seeded
+  confrontation scenarios actually require.
+
+- **REQ-98** — [x] A caller-supplied, observable signal records that the student
+  never acknowledged the avatar's position — the live twin of Phase 15's
+  `empathy` dimension — defaulting to false so no model prose counts as live
+  evidence merely by existing (REQ-80's posture).
+
+- **REQ-99** — [x] Ordinary hostility ACCUMULATES across turns and the value
+  ratchets one-way. There is no decay and no apology-driven recovery, preserving
+  Phase 18's `computeDisengagementOverTranscript` fix.
+
+- **REQ-100** — [x] Severe content — slurs, harassment, threats — ends the
+  session regardless of `avatarEndFloor`, as a NAMED, enumerated, tested
+  carve-out in `resolveTermination`. Phase 18 Success Criterion 5 and
+  `scripts/verify-disengagement-termination.ts` are amended deliberately to
+  record the exception, never weakened or deleted. The floor stays at
+  `minAssistantTurns: 4` for every other trigger.
+
+- **REQ-101** — [x] The avatar always leaves IN CHARACTER, for every trigger
+  including severe content — one ending path, no break-frame branch in the
+  session shell. Reason codes distinguish the cause: hostility → `escalated`,
+  stonewalling → `nothing_left_to_discuss`, plus one new reason for the severe
+  category. Phase 15's support note and always-visible End-session control
+  survive an avatar-initiated ending.
+
+- **REQ-102** — [x] The report explains what tipped the conversation on the
+  session clock through Phase 15's existing `reactionCauses`
+  `{ timecodeSeconds, quote, effect }[]` shape, with **explicit content
+  sanitized rather than recited verbatim** — a slur is never reproduced back to
+  the student. No rubric dimension is capped: `postProcessScores` stays absent,
+  preserving Phase 15's recorded decision.
+
+### Phase 21 — Adaptive Mastery Path
+
+- **REQ-103** — [x] A single cross-type competency catalog exists, derived
+  mechanically from the engine's rubric dimensions (the four shared keys plus
+  every type's `extraRubricDimensions`), with a TOTAL dimension-to-competency
+  mapping: every dimension key in the registry maps to exactly one competency,
+  and a type shipping an unmapped dimension fails a verifier. The catalog is
+  structured so a later faculty-authored framework replaces it without reworking
+  consumers.
+
+- **REQ-104** — [x] Mastery is computed by a pure deterministic function: per
+  competency, a LIFETIME figure over every scored contribution and a
+  CURRENT-WINDOW figure over a bounded recent window, plus one overall figure.
+  No model call participates in the arithmetic.
+
+- **REQ-105** — [x] Every mastery figure carries its evidence count and an
+  explicit `thin` flag at a declared threshold. A thin figure is SHOWN with its
+  thinness flagged — never withheld, and never presented as if well-evidenced.
+
+- **REQ-106** — [x] The student sees an overall mastery percentage plus a
+  per-competency breakdown, with the lifetime and current-window figures
+  labelled so the distinction is unmistakable, and thinness visible. The
+  surface is REACHABLE from the authenticated student navigation — a page a
+  student can only find by typing a URL does not satisfy this.
+
+- **REQ-107** — [x] Both live sessions and knowledge-check completions move
+  mastery through one shared contribution ledger, with a declared weight per
+  source. Stated as the student-observable condition it has to be: **a
+  completed practice session whose report reaches READY writes
+  `LIVE_SESSION` contributions for every competency that report scored**, so a
+  student who has done sessions and taken no checks still sees non-empty
+  mastery. "Mastery stays empty after normal practice" is a REQ-107 failure,
+  not a missing feature. The ORDERING is enforced mechanically:
+  deterministically-graded checks outrank model-graded rewrites, and unaided
+  practice outranks coached practice.
+
+- **REQ-108** — [x] All four knowledge-check formats (multiple choice, fill in
+  the blank, pick the better response, rewrite a weak line) are modelled,
+  persisted INSIDE the study-plan surface, **and ANSWERABLE BY THE STUDENT**:
+  an authenticated surface renders each of the four formats and submits an
+  answer through an authenticated, ownership-scoped route. A modelled format
+  with no way to answer it does not satisfy this. A knowledge check is NOT a
+  registered engine interaction type — a surface-count guard fails if a
+  knowledge-check slug reaches the engine registry.
+
+- **REQ-109** — [x] Check content is generated from the student's OWN session
+  moments — real transcript turns and the growth areas their report
+  identified — under a named, scoped widening of the study-plan privacy
+  boundary that is recorded with its rationale. The existing closed-vocabulary
+  generator path is unchanged.
+
+- **REQ-110** — [x] A generated question that quotes the student reproduces a
+  stored transcript turn EXACTLY, carrying its originating report id and turn
+  index. The match is validated mechanically against the stored transcript at
+  generation time; a non-matching quote is REJECTED, never repaired or
+  paraphrased.
+
+- **REQ-111** — [x] When a student submits an answer through REQ-108's
+  surface, the three closed formats are graded deterministically and the
+  student is shown their mark — with the answer key never reaching the
+  browser in any response. Model grading is used only for rewrites, and only
+  at the lower weight REQ-107 declares.
+
+- **REQ-112** — [x] A student can contest a grading **from the surface that
+  showed them the mark**, without leaving the app. A contest is recorded,
+  reverses that item's mastery contribution pending review, and flags the
+  generated question — so a bad generated question surfaces instead of
+  quietly damaging mastery. A contest endpoint with no affordance does not
+  satisfy this.
+
+- **REQ-113** — [x] Coached practice is its own instance that a student can
+  actually START, and START ONLY from a step in a study plan's path. Both
+  halves are conditions: a path-step entry point EXISTS and works, and no
+  normal practice entry point can launch it, proven by a negative guard. Its
+  relationship to the engine is decided and recorded explicitly rather than
+  left implicit.
+
+- **REQ-114** — [x] A student can COMPLETE a coached session, and in
+  completing it experiences REPLAY FIRST, THEN FRESH: the student is shown the
+  actual transcript moment to rework and works it, and only then is presented
+  a SECOND real moment of their own evidencing the same competency, which the
+  session cannot finish without — unless no second qualifying moment exists, in
+  which case the session tells the student so plainly and runs with one. A
+  runtime that stores the two legs but never presents them does not satisfy
+  this.
+  Amended 2026-10-23 by Phase 22 (22-CONTEXT.md 'Session shape': the fresh leg
+  is a second real moment of the student's own, not a new scenario).
+
+- **REQ-115** — [x] Coach tips are TECHNIQUE REMINDERS ONLY. A tip names the
+  skill and never scripts the student's words; the
+  coach may demonstrate ONE version only after the student has attempted the
+  rework in that leg, enforced by the same mechanical gate, and presented as a
+  separate labelled channel from the tips. Enforced by a mechanical check
+  on tip content, not by prompt instruction alone — and the check runs on
+  EVERY tip actually rendered to a student during a session, not only on tips
+  at authoring time. A validator with no delivery path to guard does not
+  satisfy this.
+  Amended 2026-10-23 by Phase 22 (22-CONTEXT.md 'Coach behavior': gated
+  carve-out, demonstration only after the student has tried).
+
+- **REQ-116** — [x] Completing a coached session produces a scored
+  contribution that moves the student's VISIBLE mastery figure at the coached
+  weight, below unaided practice — the student can complete a coached session
+  and then see the figure change on the mastery surface.
+  Mechanism revised by Phase 22 (2026-10-23): the contribution comes from the
+  coach's grade of the reworked lines at the model-graded weight class
+  (22-COACH-LAYER-DECISION.md), not from an evaluator-scored InteractionReport.
+  Re-verified at Phase 22 UAT.
+
+- **REQ-117** — [x] A path is a CHILD of a study plan, bounded at 5-10 steps. A
+  new study plan generates a NEW path; old paths are neither discarded nor
+  carried forward and stay reachable through the study plan that owns them.
+
+- **REQ-118** — [x] "What's next" is deterministic and explainable: step
+  selection targets the weakest competency first and returns the reason it
+  chose that step.
+
+- **REQ-119** — [x] Per-competency levels with declared thresholds and
+  daily/weekly goals with declared defaults exist. Streaks and unlocking exist
+  NOWHERE in the surface, proven by a negative guard.
+
+- **REQ-120** — [x] The path is surfaced with step state, next-step reason,
+  level and goal progress, and the existing study-plan surface on
+  `app/reports/page.tsx` keeps working unchanged, regression-guarded.
+
+- **REQ-121** — [x] REQ-103..REQ-120 and REQ-122..REQ-124 are recorded in
+  REQUIREMENTS.md and ROADMAP.md, and the REQ-85 amendment is recorded as a
+  Phase 18 revision handoff section in Phase 21's OWN validation record —
+  `18-VALIDATION.md` is not edited.
+
+- **REQ-122** — [x] Every path step renders an action that reaches the
+  exercise it names: a `KNOWLEDGE_CHECK` step leads to an answerable check, a
+  `COACHED_SESSION` step leads to a startable coached session, an
+  `UNAIDED_SESSION` step leads to normal practice. A step whose action link
+  goes nowhere is a REQ-122 failure.
+
+- **REQ-123** — [x] Check generation's inputs — session moments, the user id
+  owning each moment, the transcripts they came from, and the student's own
+  display names — are assembled by ONE named, exported, ownership-scoped
+  assembler that is testable without a route. The privacy contract REQ-109
+  states is satisfied by construction rather than by whatever a route
+  improvises.
+
+- **REQ-124** — [x] The mapping from a report's scored rubric dimensions UP
+  into competency contributions exists in exactly ONE module, used by BOTH
+  live-session and coached-session ingestion. Two copies of that mapping is a
+  REQ-124 failure, because they will diverge and the two sources will stop
+  being comparable.
+
+REQ-103..REQ-124 were derived 2026-10-16 from `21-CONTEXT.md` after the user
+settled its two open questions (milestone placement — stays Phase 21 in v1.1,
+no renumber; phase size — one phase with a high plan count, no split), and
+Phase 21's roadmap entry had carried NO `Requirements:` line at all.
 
 ## Out of Scope (v1.1)
 
@@ -721,9 +924,17 @@ REQ-73.
 | Google Slides deck import | Permanently cut in Phase 14 — students export to PDF |
 | A networking-setting selector (conference, coffee chat) | Deferred at Phase 16 and not pulled into v1.1 |
 | Re-opening Phase 12 fidgeting measurement | Retired as unmeasurable, not deferred |
+| Breaking character on a severe walk-out | Rejected 2026-10-08 — the avatar always leaves in character; a second ending path through the shell is not worth the clarity (REQ-101) |
+| Per-scenario or author-settable disengagement thresholds | Rejected 2026-10-08 — one type-level threshold; authors do not tune a safety-adjacent number (REQ-95) |
+| Capping rubric scores on an offense-triggered end | Rejected 2026-10-08 — `holding_the_line` and `empathy` already punish it on their own evidence; a cap double-counts and reverses Phase 15's deliberate `postProcessScores` omission (REQ-102) |
+| Apology-driven recovery of the disengagement value | Rejected 2026-10-08 — a decaying value reverses Phase 18's ratchet fix (REQ-99) |
 | Running the shared-DB migration or backfill | **Already applied** 2026-10-04 (`HANDOFF.md §3`, commit `9a53084`) — all 14 migrations on shared, nothing pending. Both Part 1 and Part 2 are done. Nothing to run. |
 | Re-running the `InteractionReport` backfill verifier on shared | Unsatisfiable by construction — shared was empty (0 reports), so the backfill was a no-op and the verifier hard-asserts a legacy `cameraMode IS NULL` row that does not exist |
 | Amending the docs to bless CI-applied migrations | Rejected 2026-10-04 — the opposite was chosen: `prisma migrate deploy` comes OUT of `buildCommand` so the pipeline matches the discipline (REQ-74) |
+| Streaks and unlocking | Considered and explicitly NOT selected 2026-10-16; levels and daily/weekly goals were the chosen Duolingo mechanics (REQ-119) |
+| A faculty-authored competency framework | The catalog ships DERIVED from existing rubric dimensions; REQ-103 requires the derived set be structured so a later authored framework replaces it without rework |
+| An authored question bank | Rejected 2026-10-16; checks are generated from the student's own sessions (REQ-109) |
+| Coaching inside normal practice sessions | Out by the user's own design (REQ-113). Adding it later would be a GENUINE REQ-85 conflict, not the narrow boundary clarification REQ-121 records, and requires its own decision |
 
 ## Traceability (v1.1)
 
@@ -733,25 +944,63 @@ REQ-73.
 | REQ-75 | Phase 17 | Complete |
 | REQ-76 | Phase 17 | Complete |
 | REQ-77 | Phase 17 | Complete |
-| REQ-78 | Phase 18 | Pending |
-| REQ-79 | Phase 18 | Pending |
-| REQ-80 | Phase 18 | Pending |
-| REQ-81 | Phase 18 | Pending |
-| REQ-82 | Phase 18 | Pending |
-| REQ-83 | Phase 18 | Pending |
-| REQ-84 | Phase 18 | Pending |
-| REQ-85 | Phase 18 | Pending |
-| REQ-86 | Phase 18 | Pending |
-| REQ-87 | Phase 19 | Pending |
-| REQ-88 | Phase 19 | Pending |
-| REQ-89 | Phase 19 | Pending |
-| REQ-90 | Phase 19 | Pending |
-| REQ-91 | Phase 19 | Pending |
-| REQ-92 | Phase 19 | Pending |
-| REQ-93 | Phase 19 | Pending |
-| REQ-94 | Phase 19 | Pending |
+| REQ-78 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-79 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-80 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-81 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-82 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-83 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-84 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-85 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-86 | Phase 18 | Complete (agent-verified 2026-10-25) |
+| REQ-87 | Phase 19 | Complete |
+| REQ-88 | Phase 19 | Complete |
+| REQ-89 | Phase 19 | Complete |
+| REQ-90 | Phase 19 | Complete |
+| REQ-91 | Phase 19 | Complete |
+| REQ-92 | Phase 19 | Complete |
+| REQ-93 | Phase 19 | Complete |
+| REQ-94 | Phase 19 | Complete |
+| REQ-95 | Phase 20 | Complete |
+| REQ-96 | Phase 20 | Complete |
+| REQ-97 | Phase 20 | Complete |
+| REQ-98 | Phase 20 | Complete |
+| REQ-99 | Phase 20 | Complete |
+| REQ-100 | Phase 20 | Complete |
+| REQ-101 | Phase 20 | Complete |
+| REQ-102 | Phase 20 | Complete |
+| REQ-103 | Phase 21 | Complete (agent-verified 2026-10-25) |
+| REQ-104 | Phase 21 | Complete |
+| REQ-105 | Phase 21 | Complete |
+| REQ-106 | Phase 21 | Complete |
+| REQ-107 | Phase 21 | Complete (agent-verified 2026-10-25) |
+| REQ-108 | Phase 21 | Complete |
+| REQ-109 | Phase 21 | Complete |
+| REQ-110 | Phase 21 | Complete |
+| REQ-111 | Phase 21 | Complete |
+| REQ-112 | Phase 21 | Complete |
+| REQ-113 | Phase 22 | Complete (agent-verified 2026-10-25) |
+| REQ-114 | Phase 22 | Complete (agent-verified 2026-10-25) |
+| REQ-115 | Phase 22 | Complete (agent-verified 2026-10-25) |
+| REQ-116 | Phase 21 | Complete |
+| REQ-117 | Phase 21 | Complete |
+| REQ-118 | Phase 21 | Complete |
+| REQ-119 | Phase 21 | Complete |
+| REQ-120 | Phase 21 | Complete |
+| REQ-121 | Phase 21 | Complete (agent-verified 2026-10-25) |
+| REQ-122 | Phase 21 | Complete |
+| REQ-123 | Phase 21 | Complete |
+| REQ-124 | Phase 21 | Complete (agent-verified 2026-10-25) |
 
 **Coverage:**
-- v1.1 requirements: 21 total
-- Mapped to phases: 21
+- v1.1 requirements: 51 total
+- Mapped to phases: 51
 - Unmapped: 0 ✓
+
+REQ-95..REQ-102 were derived 2026-10-08 from `20-CONTEXT.md` after the user
+settled its two open questions. Phase 20's roadmap entry had carried
+`Requirements: TBD`.
+
+REQ-103..REQ-124 were derived 2026-10-16 from `21-CONTEXT.md` after the user
+settled its two open questions. Phase 21's roadmap entry had carried NO
+`Requirements:` line at all.

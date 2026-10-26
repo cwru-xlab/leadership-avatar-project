@@ -8,7 +8,13 @@
     "start": "next start",
     "lint": "eslint --fix",
     "setup": "node scripts/setup.mjs",
-    "verify:sso-handoff": "tsx scripts/verify-cwru-sso-handoff.ts"
+    "verify:sso-handoff": "tsx scripts/verify-cwru-sso-handoff.ts",
+    "verify:feedback-source": "tsx scripts/verify-feedback-source-attribution.ts",
+    "verify:job-description": "tsx scripts/verify-job-description-intake.ts",
+    "verify:response-countdown": "tsx scripts/verify-response-countdown.ts",
+    "verify:study-plan-prompt": "tsx scripts/verify-study-plan-prompt.ts",
+    "verify:live-resume-attribution": "tsx scripts/verify-live-resume-attribution.ts",
+    "test:e2e": "playwright test"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -84,6 +90,7 @@
     "@eslint/eslintrc": "3.3.5",
     "@eslint/js": "9.39.4",
     "@next/eslint-plugin-next": "^16.2.1",
+    "@playwright/test": "^1.64.1",
     "@prisma/client": "^6.19.2",
     "@react-types/shared": "3.33.1",
     "@tailwindcss/postcss": "^4.2.2",

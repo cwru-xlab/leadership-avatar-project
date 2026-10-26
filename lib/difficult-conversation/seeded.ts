@@ -56,9 +56,9 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
     // Student-facing brief — nothing from the character's private stance.
     situation:
       "You manage Maya, a product analyst on your squad. Her delivery has " +
-      "slipped this quarter and you need a clear, time-bound improvement plan " +
-      "from her before the next release. You are meeting one-on-one to raise " +
-      "the performance gap and lock a written commitment with dates.",
+      "slipped this quarter, and the next release is approaching. You are " +
+      "meeting one-on-one to discuss the performance gap and what needs " +
+      "attention before the release.",
     sharedBackstory:
       "Maya missed two deadlines this quarter after strong work in the first " +
       "half of the year. You had one prior verbal conversation about delivery " +
@@ -72,7 +72,7 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "the handoff problem first. You are defensive and want credit for the " +
       "extra work before agreeing to any formal improvement document.",
     studentObjective:
-      "Get a commitment to a specific written improvement plan with dates.",
+      "Discuss the performance gap and explore a workable path forward before the next release.",
     stakes:
       "If it escalates she goes to HR about workload; if it goes nowhere the " +
       "team misses the next release.",
@@ -92,9 +92,9 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
     avatarRole: "Direct report being let go",
     studentRole: "People manager",
     situation:
-      "You are meeting Jordan to end his employment. HR has already signed off " +
-      "and his last day is in two weeks. Your job is to deliver the decision " +
-      "clearly, not reopen the case, and walk him through logistics with dignity.",
+      "You are meeting Jordan because HR has approved ending his employment, " +
+      "with his last day in two weeks. You need to discuss the decision and " +
+      "the transition with him in a conversation that carries significant stakes.",
     sharedBackstory:
       "Jordan was on a documented three-month performance plan with two missed " +
       "checkpoints. HR reviewed the file and approved the termination. His last " +
@@ -106,8 +106,7 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "anger about never being warned clearly enough, then ask what you are " +
       "supposed to tell your family. You want any sign the decision might reverse.",
     studentObjective:
-      "Deliver the decision clearly, do not negotiate it, and get him through " +
-      "the logistics with dignity.",
+      "Discuss the employment decision and the transition in a way that is clear and respectful.",
     stakes:
       "A muddled delivery leaves him believing it is reversible and creates a " +
       "legal exposure for the company.",
@@ -126,9 +125,9 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
     avatarRole: "Your manager",
     studentRole: "Individual contributor",
     situation:
-      "You are meeting your manager to ask for a raise. You have taken on more " +
-      "scope since your last adjustment and you want a specific number and a " +
-      "date, not another vague promise to revisit later.",
+      "You are meeting your manager to discuss your compensation. You have taken " +
+      "on more scope since your last adjustment, and the conversation may shape " +
+      "how you both view your role and future growth.",
     sharedBackstory:
       "You led the service migration last year and took on a departed " +
       "colleague's work. Your last raise was twenty-two months ago. The next " +
@@ -140,7 +139,7 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "boss. You will offer the low number first and only move if she makes a " +
       "specific, evidenced case. You prefer to stall toward the review cycle.",
     studentObjective:
-      'Leave with a specific number and a date — not "we\'ll revisit it".',
+      "Discuss how your expanded responsibilities should be reflected in your compensation.",
     stakes: "Another vague deferral and she starts interviewing elsewhere.",
     difficulty: "guarded",
     avatarId: UNRESOLVED,
@@ -158,8 +157,8 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
     studentRole: "Undergraduate student",
     situation:
       "You are meeting Professor Chen about a grade you believe was scored " +
-      "against an ambiguous rubric row. You want either a concrete regrade or a " +
-      "written explanation tied to the rubric, not a brush-off about effort.",
+      "against an ambiguous rubric row. You want to understand how the rubric " +
+      "was applied and address your concerns before grades lock.",
     sharedBackstory:
       "The assignment, the published rubric, and your grade are all on record. " +
       "You sent one prior email that went unanswered for a week. Office hours " +
@@ -171,7 +170,7 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "three other students complain this week. You will regrade only if the " +
       "student argues from the rubric rather than from effort or from their GPA.",
     studentObjective:
-      "Get a concrete regrade or a written explanation tied to the rubric.",
+      "Discuss the grade and seek clarity about how the rubric was applied.",
     stakes: "The grade decides whether you clear a scholarship threshold.",
     difficulty: "guarded",
     avatarId: UNRESOLVED,
@@ -189,9 +188,9 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
     studentRole: "Account lead",
     // Neighbour: outward-facing — no authority over the other person.
     situation:
-      "You are the account lead calling your client to say the project has " +
-      "slipped six weeks. You need to land a new date he can trust and keep the " +
-      "relationship intact after the late notice.",
+      "You are the account lead calling your client to explain that the project has " +
+      "slipped six weeks. The late notice puts the relationship under pressure, " +
+      "and you need to discuss what happens next with the client.",
     sharedBackstory:
       "The original launch date was committed in the SOW. Two dependency " +
       "vendors slipped last month and your team re-estimated last Friday. The " +
@@ -202,7 +201,8 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "less angry about the slip than about finding out late. You will accept a " +
       "new date only with a credible explanation of what changed and what " +
       "prevents it recurring. A soft apology without a plan will not move you.",
-    studentObjective: "Land the new date and keep the client relationship.",
+    studentObjective:
+      "Discuss the delay, its impact, and a path forward with the client.",
     stakes:
       "He has a competitor's proposal on his desk and will escalate if he " +
       "still cannot explain the delay upward.",
@@ -223,9 +223,8 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
     // Neighbour: no power differential — holding the line without authority.
     situation:
       "A peer on a neighbouring squad keeps presenting your team's work as his " +
-      "own in leadership forums. Neither of you manages the other. You need an " +
-      "explicit agreement about attribution going forward without blowing up " +
-      "the working relationship.",
+      "own in leadership forums. Neither of you manages the other, and the issue " +
+      "is straining a relationship you still need for the next shared deliverable.",
     sharedBackstory:
       "Your team built the analysis deck that landed in last month's ops " +
       "review. He presented the deck in the forum and answered questions as if " +
@@ -237,7 +236,7 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "You will become cold and procedural if accused outright, but you will " +
       "agree to a concrete attribution practice if given a way to keep face.",
     studentObjective:
-      "Reach an explicit agreement about attribution going forward.",
+      "Address the attribution concern while preserving the working relationship.",
     stakes:
       "Escalating to a shared manager damages both of you and freezes the " +
       "next shared deliverable.",
@@ -258,9 +257,8 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
     // Neighbour: upward refusal — the inverse of ask-for-raise's upward ask.
     situation:
       "A senior leader has asked your team to absorb a high-visibility request " +
-      "on a date you cannot meet without sinking two committed deliverables. " +
-      "You need to decline the scope or renegotiate it without damaging the " +
-      "relationship or quietly accepting an impossible yes.",
+      "on a date that conflicts with two committed deliverables. You need to " +
+      "discuss the request, the trade-offs, and your team's capacity with her.",
     sharedBackstory:
       "Your team already has two dated commitments on the roadmap this month. " +
       "The senior request landed yesterday with a hard date in ten days. She " +
@@ -272,8 +270,7 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "alternative far more than a reluctant yes — but you will push twice first " +
       "to test whether the refusal is real. Soft hedging reads as capacity to you.",
     studentObjective:
-      "Decline the scope or renegotiate it without damaging the relationship " +
-      "or quietly accepting it.",
+      "Discuss the request and its trade-offs while maintaining the relationship.",
     stakes:
       "Accepting sinks two committed deliverables and trains leadership that " +
       "your team will absorb impossible dates.",

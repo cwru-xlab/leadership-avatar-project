@@ -298,6 +298,7 @@ export default function CustomizePanel({
             ) : (
               <div className="mt-3 flex flex-col gap-2">
                 <Textarea
+                  aria-label="Description of who is interviewing you"
                   minRows={3}
                   maxRows={8}
                   placeholder="Paste or type a description of who is interviewing you…"
