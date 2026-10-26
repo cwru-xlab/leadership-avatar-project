@@ -232,7 +232,7 @@ console.log("\n2b. PHASE 23 — 3-4 options and an explanation tied to a named t
   check("4-option: index 0..3 accepted; the stored key decides", pickBuried.correct === false && gradeDeterministic("PICK_BETTER_RESPONSE", four, fourKey, { betterIndex: 2 }, sctx).correct === true);
   check(
     "4-option wrong pick: says what THAT option got wrong + why + the named technique",
-    pickBuried.detail.includes("What your pick missed: Strong content, but the conclusion arrives last.") &&
+    pickBuried.detail.includes("What my pick missed: Strong content, but the conclusion arrives last.") &&
       pickBuried.detail.includes("Why it works: Stating the conclusion first") &&
       pickBuried.detail.includes("Technique: Headline first"),
     pickBuried.detail

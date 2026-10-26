@@ -28,6 +28,7 @@ import { extractSessionMoments, type SessionMoment } from "../lib/study-plan/mom
 import { validateVerbatimQuote } from "../lib/study-plan/verbatim";
 import {
   generateChecksForCompetency,
+  CHECK_GENERATION_SYSTEM_PROMPT,
   CONCEPT_CHECK_SYSTEM_PROMPT,
   type GenerationOutcome,
 } from "../lib/study-plan/checks/generate";
@@ -793,7 +794,7 @@ async function main() {
       const wrong = gradeDeterministic("PICK_BETTER_RESPONSE", pbrPayload as unknown as CheckPayload, pbrKey, { betterIndex: buriedIdx }, { competencyKey: COMPETENCY_KEY, prompt: pbrRow.prompt });
       check(
         "a wrong pick explains what THAT distractor got wrong, why the answer works, and names the technique",
-        wrong.detail.includes("What your pick missed: The content is strong but the decision is buried") &&
+        wrong.detail.includes("What my pick missed: The content is strong but the decision is buried") &&
           wrong.detail.includes("Why it works: Leading with the decision") &&
           wrong.detail.includes("Technique: Headline first"),
         wrong.detail,
@@ -862,6 +863,22 @@ async function main() {
       const leadingWhy = await run(stub([mcCandidate({ prompt: "Why does documenting the compromise help most?" })]));
       check("a leading 'Why does…' MC stem is a real question and is KEPT", leadingWhy.ok === true, leadingWhy);
       check("copy fallback: a legacy explain prompt displays fixed PBR copy", displayPrompt("Explain which answer is more attuned and why.", { format: "PICK_BETTER_RESPONSE", candidates: ["aaaa", "bbbb"], rationalePrompt: null }) === FALLBACK_PROMPT.PICK_BETTER_RESPONSE);
+      check(
+        "FALLBACK_PROMPT is first-person I/my invitations",
+        FALLBACK_PROMPT.MULTIPLE_CHOICE === "Which option do I choose?" &&
+          FALLBACK_PROMPT.FILL_IN_BLANK === "I fill in the missing words." &&
+          FALLBACK_PROMPT.PICK_BETTER_RESPONSE === "Which response handles this moment best?" &&
+          FALLBACK_PROMPT.REWRITE_WEAK_LINE === "I rewrite this line so it applies the technique below.",
+      );
+      const firstPersonContract =
+        'Student-visible "prompt", "explanation", and "option_explanations" are written in first person from the learner\'s perspective (I/my); never refer to the learner as you, the learner, or the student.';
+      check(
+        "session and concept prompts require first-person student-visible fields",
+        CHECK_GENERATION_SYSTEM_PROMPT.includes(firstPersonContract) &&
+          CONCEPT_CHECK_SYSTEM_PROMPT.includes(firstPersonContract) &&
+          CHECK_GENERATION_SYSTEM_PROMPT.includes("I might try...") &&
+          CONCEPT_CHECK_SYSTEM_PROMPT.includes("I might try..."),
+      );
       await prisma.knowledgeCheck.deleteMany({ where: { studyPlanId } });
     }
 
