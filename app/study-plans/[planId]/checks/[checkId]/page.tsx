@@ -98,7 +98,7 @@ export default function KnowledgeCheckPage() {
           className="mt-5"
           color="primary"
         >
-          Back to your study plan
+          Back to my study plan
         </Button>
       </div>
     );
@@ -109,7 +109,7 @@ export default function KnowledgeCheckPage() {
       <div className="mx-auto max-w-xl py-16 text-center">
         <p className="text-[#9b2c2c]">{loadError}</p>
         <Button as={Link} href={`/study-plans/${planId}`} className="mt-5" variant="light">
-          Back to your study plan
+          Back to my study plan
         </Button>
       </div>
     );
@@ -133,7 +133,7 @@ export default function KnowledgeCheckPage() {
         startContent={<ArrowLeft className="h-4 w-4" />}
         className="-ml-2 self-start text-default-600 data-[hover=true]:bg-transparent"
       >
-        Back to your study plan
+        Back to my study plan
       </Button>
       <KnowledgeCheckCard
         planId={planId}
