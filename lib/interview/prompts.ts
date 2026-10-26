@@ -82,8 +82,7 @@ has not already stated in this conversation, attribute it naturally in your spok
 question — for example, "On your resume, I saw..." or "I noticed on your resume...".
 If the candidate has already supplied the detail in conversation, respond naturally
 to what they said; do not force a resume reference. Only attribute a detail to the
-resume when it actually appears in the resume provided above. Never invent a resume
-detail or imply that you saw one there.`
+resume when it actually appears in the resume provided above. Never invent a resume detail or imply that you saw one there.`
     : "";
 
   const caseSection = type.caseBackground?.trim()
