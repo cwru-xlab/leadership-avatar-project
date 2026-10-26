@@ -192,30 +192,30 @@ export default function VoiceDrillShell({
               }}
               launchLabel={`Start with ${coach.name}`}
               sessionNoun="drill"
-              cameraOnDescription="Your camera and voice are analysed to give you delivery feedback with your drill result."
-              cameraOffDescription="Your voice is still analysed for your drill result; your camera isn't used, so visual delivery won't be described."
+              cameraOnDescription="My camera and voice are analysed to give me delivery feedback with my drill result."
+              cameraOffDescription="My voice is still analysed for my drill result; my camera isn't used, so visual delivery won't be described."
             />
           ) : (
             <>
               <DrillBrief drill={drill} />
               <div className="space-y-2 rounded-xl border border-[#dce8ed] bg-white p-5 text-sm leading-6 text-[#385463]">
                 <p>
-                  {coach ? coach.name : "Your coach"} sets the scene out loud;
-                  then you answer out loud and apply the technique above. No
-                  score while you talk.
+                  {coach ? coach.name : "My coach"} sets the scene out loud;
+                  then I answer out loud and apply the technique above. No
+                  score while I talk.
                 </p>
                 <p>
                   Worth: {worthPct}% of an unaided practice session toward{" "}
                   {drill.competencyLabel}.
                 </p>
                 <p className="flex items-center gap-1.5">
-                  <Mic size={14} aria-hidden="true" /> You will need a
+                  <Mic size={14} aria-hidden="true" /> I will need a
                   microphone.
                 </p>
               </div>
               {coachError ? (
                 <p role="alert" className="text-sm text-[#9b2c2c]">
-                  We couldn&apos;t load your coach. Refresh the page to try
+                  We couldn&apos;t load my coach. Refresh the page to try
                   again.
                 </p>
               ) : null}
