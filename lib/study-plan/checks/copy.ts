@@ -65,9 +65,9 @@ export function promptMatchesInteraction(prompt: string, payload: CheckPayload):
 
 /** Fixed per-format copy used when a stored prompt does not match. */
 export const FALLBACK_PROMPT: Record<CheckFormat, string> = {
-  MULTIPLE_CHOICE: "Which option do I choose?",
+  MULTIPLE_CHOICE: "I pick the option that fits this moment.",
   FILL_IN_BLANK: "I fill in the missing words.",
-  PICK_BETTER_RESPONSE: "Which response handles this moment best?",
+  PICK_BETTER_RESPONSE: "I pick the response that handles this moment best.",
   REWRITE_WEAK_LINE: "I rewrite this line so it applies the technique below.",
 };
 

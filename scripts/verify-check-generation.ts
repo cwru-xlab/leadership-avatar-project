@@ -865,9 +865,9 @@ async function main() {
       check("copy fallback: a legacy explain prompt displays fixed PBR copy", displayPrompt("Explain which answer is more attuned and why.", { format: "PICK_BETTER_RESPONSE", candidates: ["aaaa", "bbbb"], rationalePrompt: null }) === FALLBACK_PROMPT.PICK_BETTER_RESPONSE);
       check(
         "FALLBACK_PROMPT is first-person I/my invitations",
-        FALLBACK_PROMPT.MULTIPLE_CHOICE === "Which option do I choose?" &&
+        FALLBACK_PROMPT.MULTIPLE_CHOICE === "I pick the option that fits this moment." &&
           FALLBACK_PROMPT.FILL_IN_BLANK === "I fill in the missing words." &&
-          FALLBACK_PROMPT.PICK_BETTER_RESPONSE === "Which response handles this moment best?" &&
+          FALLBACK_PROMPT.PICK_BETTER_RESPONSE === "I pick the response that handles this moment best." &&
           FALLBACK_PROMPT.REWRITE_WEAK_LINE === "I rewrite this line so it applies the technique below.",
       );
       const firstPersonContract =
