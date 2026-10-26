@@ -52,14 +52,14 @@ export const DRILL_GRADING_SYSTEM_PROMPT = `You grade one short spoken practice 
 
 Score ONLY the named competency, on this scale: 1 = not shown at all, 2 = attempted but weak, 3 = adequate, 4 = strong, 5 = excellent. "rubric_anchors" describes what a 1, a 3 and a 5 look like for THIS competency: match the transcript to the closest anchor (2 and 4 sit between them). Reserve 5 for an answer that fully meets the 5 anchor. Judge the transcript against the competency; use the delivery figures only as supporting evidence for delivery-related competencies. Do not score anything else.
 
-"feedback" is ONE sentence telling the student what to try next time: name a technique or move, in the second person. Never give them words to say, never quote them, never write a sample line.
+"feedback" is ONE sentence, written in first person from the learner's perspective (I/my), naming a technique or move I might try next time. Never refer to the learner as you. Never give them words to say, never quote them, never write a sample line.
 "rationale" is 1-2 sentences explaining the score, for the record.
 
 Point at the student's ACTUAL words:
 - "miss_quote": a short excerpt (3-25 words, one sentence at most) copied CHARACTER FOR CHARACTER from the transcript, at the spot where the competency was weakest or the technique was missing — the spot your "feedback" is about. REQUIRED whenever the score is below 5; "" only for a 5.
 - "miss_technique_id": exactly one id from "allowed_techniques" — the technique to try at that spot. "" when miss_quote is "".
 - "worked_quote": ONLY when the score is 4 or 5, a short excerpt (3-25 words, one sentence at most) copied character for character from the transcript where the competency was shown well; otherwise "".
-- "worked_note": ONLY when the score is 4 or 5, one short second-person sentence naming what worked there (do not quote); otherwise "".
+- "worked_note": ONLY when the score is 4 or 5, one short first-person (I/my) sentence naming what worked there (do not quote); otherwise "".
 Never invent or tidy up an excerpt: if you cannot copy it exactly, return "".`;
 
 /** The shared 1/3/5 anchors (lib/mastery/rubric-anchors.ts), sent with every drill grade. */
@@ -253,7 +253,7 @@ export function parseDrillGrade(
   const label = COMPETENCIES.find((c) => c.key === ctx.competencyKey)?.label ?? ctx.competencyKey;
   return {
     score,
-    feedback: replacement ? replacement.reminder : `Next time, keep ${label.toLowerCase()} in focus from your first sentence.`,
+    feedback: replacement ? replacement.reminder : `Next time, I keep ${label.toLowerCase()} in focus from my first sentence.`,
     feedbackReplaced: true,
     rationale,
     pointers,
@@ -343,7 +343,7 @@ export async function gradeDrillAttempt(args: {
   return reconcileNote(grade, regenerated, args.competencyKey, args.transcript);
 }
 
-export const DRILL_NOTE_SYSTEM_PROMPT = `Write ONE sentence, in the second person, telling a student what to try next time. It must be about the named technique and nothing else, applied at the named spot in their answer. Never give them words to say, never quote them, never write a sample line. Return {"feedback": "..."}.`;
+export const DRILL_NOTE_SYSTEM_PROMPT = `Write ONE sentence in first person from the learner's perspective (I/my), an autonomy-supportive invitation of what I might try next time (for example "I might try...", "I could..."). Never address the learner as you. It must be about the named technique and nothing else, applied at the named spot in my answer. Never give them words to say, never quote them, never write a sample line. Return {"feedback": "..."}.`;
 
 const DRILL_NOTE_SCHEMA = {
   name: "voice_drill_note",
