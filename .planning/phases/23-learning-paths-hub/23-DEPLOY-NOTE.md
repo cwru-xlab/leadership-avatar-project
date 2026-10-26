@@ -1,11 +1,13 @@
 # Deploy note — Phases 21–23 (study plans, paths, mastery)
 
-Applied by a human at merge time; nothing here has been run against production.
+These three migrations **are on `origin/dev`**. They are **not** on `origin/main`.
+Nothing here has been run against production. Local teammates: apply them with
+the commands in `.planning/HANDOFF.md` §0.1. Shared/prod: human only, this note.
 
 ## 1. Migrations (in order)
 
-These are the only migrations on `feat/study-plan-expansion` that are not on
-`origin/main` or `origin/dev`:
+These are the only migrations on `origin/dev` that are not on `origin/main`
+from this expansion:
 
 1. `20261116000000_add_adaptive_mastery_path`: mastery ledger, knowledge checks, paths and steps.
 2. `20261123000000_add_coached_mode`: coached sessions.
