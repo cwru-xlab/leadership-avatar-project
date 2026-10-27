@@ -4,10 +4,11 @@
  * scoring ONLY the drill's competency on the shared 1-5 rubric scale
  * (normalized for the ledger by `normalizeRubricScore`, never restated).
  *
- * The "what to try next time" note is held to the tip rules
- * (coached/tips.ts `validateTip`: no quoted speech, no script cue, no
- * first-person line, no echo of the student's own words, length cap). A note
- * that fails is REPLACED by a library technique reminder, never repaired.
+ * Live tips stay on `validateTip`. After-attempt notes use `validateResultNote`
+ * (quoted 4+ word lines and script cues still fail; first-person phrasing
+ * approaches are kept). A note that fails, or that names an ineligible
+ * Delivery move, is REPLACED by a library reminder (or the diagnosis pair),
+ * never repaired.
  * A score that fails validation fails the grade (the attempt stays
  * ungraded and the client can retry completion) — a fabricated score would
  * be worse than none.
@@ -15,9 +16,15 @@
 import { COMPETENCIES, type CompetencyKey } from "../../mastery/competencies";
 import type { ContributionInput } from "../../mastery/ledger";
 import { normalizeRubricScore } from "../../mastery/weights";
-import type { VisualMetrics, VocalMetrics } from "../../metrics/types";
-import { techniquesForCompetency, validateTip } from "../coached/tips";
-import type { DrillDeliverySummary, DrillPointers } from "./types";
+import type { CameraMode, VisualMetrics, VocalMetrics } from "../../metrics/types";
+import { techniquesForCompetency, validateResultNote } from "../coached/tips";
+import {
+  diagnoseDelivery,
+  joinFocusReminders,
+  type DeliveryDiagnosis,
+  type DiagnosisFocus,
+} from "../delivery-diagnosis";
+import type { DrillDeliverySummary, DrillFocusPointer, DrillPointers } from "./types";
 import { RUBRIC_ANCHORS } from "../../mastery/rubric-anchors";
 import { allowedDrillTechniques } from "./brief";
 import { gradingSampling } from "../grading-determinism";
@@ -50,16 +57,16 @@ export const DRILL_GRADING_SCHEMA = {
 
 export const DRILL_GRADING_SYSTEM_PROMPT = `You grade one short spoken practice rep ("voice drill") for a leadership-practice student.
 
-Score ONLY the named competency, on this scale: 1 = not shown at all, 2 = attempted but weak, 3 = adequate, 4 = strong, 5 = excellent. "rubric_anchors" describes what a 1, a 3 and a 5 look like for THIS competency: match the transcript to the closest anchor (2 and 4 sit between them). Reserve 5 for an answer that fully meets the 5 anchor. Judge the transcript against the competency; use the delivery figures only as supporting evidence for delivery-related competencies. Do not score anything else.
+Score ONLY the named competency, on this scale: 1 = not shown at all, 2 = attempted but weak, 3 = adequate, 4 = strong, 5 = excellent. "rubric_anchors" describes what a 1, a 3 and a 5 look like for THIS competency: match the transcript to the closest anchor (2 and 4 sit between them). Reserve 5 for an answer that fully meets the 5 anchor. Judge the transcript against the competency; use the delivery figures as evidence for delivery-related competencies. A well-paced delivery (under 160 words per minute) is not rushing — do not treat the 3-anchor as a pace miss when the figures say otherwise. Do not score anything else.
 
-"feedback" is ONE sentence, written in first person from the learner's perspective (I/my), naming a technique or move I might try next time. Never refer to the learner as you. Never give them words to say, never quote them, never write a sample line.
-"rationale" is 1-2 sentences explaining the score, for the record.
+"feedback" is ONE or TWO sentences of what I would focus on next, from the coach's seat ("I would focus on…", "I would keep…"). Name a technique from allowed_techniques when one fits, otherwise a phrasing approach (lead with X, then Y). Never "you should", never "try saying", never a recitable sample line, never a quote. Never pick a technique listed in ineligible_techniques.
+"rationale" is 2-3 sentences addressing the student as you. Sentence 1: which rubric anchor this score sits nearer (the 1, the 3, or the 5) and why a 2 is not a 3, or a 4 is not a 5. Sentence 2: what YOU did in the transcript at miss_quote — the actual words or close, not a restatement of the delivery figures. Sentence 3: the supporting figures only if they add something (pace, pauses, volume, eye contact). Do not give advice in the rationale; advice belongs in feedback.
 
 Point at the student's ACTUAL words:
 - "miss_quote": a short excerpt (3-25 words, one sentence at most) copied CHARACTER FOR CHARACTER from the transcript, at the spot where the competency was weakest or the technique was missing — the spot your "feedback" is about. REQUIRED whenever the score is below 5; "" only for a 5.
 - "miss_technique_id": exactly one id from "allowed_techniques" — the technique to try at that spot. "" when miss_quote is "".
 - "worked_quote": ONLY when the score is 4 or 5, a short excerpt (3-25 words, one sentence at most) copied character for character from the transcript where the competency was shown well; otherwise "".
-- "worked_note": ONLY when the score is 4 or 5, one short first-person (I/my) sentence naming what worked there (do not quote); otherwise "".
+- "worked_note": ONLY when the score is 4 or 5, one short sentence to the student as you, naming what worked there (do not quote, do not advise); otherwise "".
 Never invent or tidy up an excerpt: if you cannot copy it exactly, return "".`;
 
 /** The shared 1/3/5 anchors (lib/mastery/rubric-anchors.ts), sent with every drill grade. */
@@ -126,30 +133,132 @@ export function exactExcerpt(quote: string, transcript: string): string | null {
  */
 export function parseDrillPointers(
   p: Record<string, unknown>,
-  ctx: { competencyKey: CompetencyKey; transcript: string; score: number; drillTechniqueId?: string | null },
+  ctx: {
+    competencyKey: CompetencyKey;
+    transcript: string;
+    score: number;
+    drillTechniqueId?: string | null;
+    ineligibleIds?: ReadonlySet<string>;
+  },
 ): DrillPointers {
   // Q2: a content drill never points at a body/voice-only technique.
   const library = allowedDrillTechniques(ctx.competencyKey);
+  const blocked = ctx.ineligibleIds ?? new Set<string>();
   let miss: DrillPointers["miss"] = null;
   const missQuote = typeof p.miss_quote === "string" ? exactExcerpt(p.miss_quote, ctx.transcript) : null;
   if (missQuote) {
-    const technique =
-      library.find((t) => t.id === p.miss_technique_id) ??
-      library.find((t) => t.id === ctx.drillTechniqueId) ??
-      null;
+    const picked = library.find((t) => t.id === p.miss_technique_id && !blocked.has(t.id));
+    const fallback = library.find((t) => t.id === ctx.drillTechniqueId && !blocked.has(t.id));
+    const technique = picked ?? fallback ?? null;
     if (technique) {
-      miss = { quote: missQuote, techniqueId: technique.id, techniqueName: technique.name, reminder: technique.reminder };
+      miss = {
+        quote: missQuote,
+        techniqueId: technique.id,
+        techniqueName: technique.name,
+        reminder: technique.reminder,
+        reason: "",
+      };
     }
   }
   let worked: DrillPointers["worked"] = null;
   if (ctx.score >= 4) {
     const workedQuote = typeof p.worked_quote === "string" ? exactExcerpt(p.worked_quote, ctx.transcript) : null;
     const note = typeof p.worked_note === "string" ? p.worked_note.trim() : "";
-    if (workedQuote && note && note.length <= 200 && validateTip(note, { studentLine: ctx.transcript }).ok) {
+    if (workedQuote && note && note.length <= 200 && validateResultNote(note, { studentLine: ctx.transcript }).ok) {
       worked = { quote: workedQuote, note };
     }
   }
-  return { miss, worked };
+  return { miss, also: null, worked };
+}
+
+function asFocusPointer(
+  focus: DiagnosisFocus,
+  quote: string,
+): DrillFocusPointer {
+  return {
+    quote,
+    techniqueId: focus.technique.id,
+    techniqueName: focus.technique.name,
+    reminder: focus.technique.reminder,
+    reason: focus.reason,
+  };
+}
+
+/** Overlay metric-gated focuses onto the grader's quoted miss. */
+export function overlayDiagnosis(
+  pointers: DrillPointers,
+  diagnosis: DeliveryDiagnosis | null | undefined,
+  fallbackQuote?: string | null,
+): DrillPointers {
+  if (!diagnosis || diagnosis.focuses.length === 0) {
+    return { miss: pointers.miss, also: pointers.also ?? null, worked: pointers.worked };
+  }
+  const quote = pointers.miss?.quote || fallbackQuote || "";
+  if (!quote) {
+    return { miss: pointers.miss, also: pointers.also ?? null, worked: pointers.worked };
+  }
+  const graderId = pointers.miss?.techniqueId;
+  const primary = diagnosis.focuses.find((f) => f.technique.id === graderId) ?? diagnosis.focuses[0];
+  const secondary = diagnosis.focuses.find((f) => f.technique.id !== primary.technique.id) ?? null;
+  return {
+    miss: asFocusPointer(primary, quote),
+    also: secondary ? asFocusPointer(secondary, quote) : null,
+    worked: pointers.worked,
+  };
+}
+
+export type DrillRetryFocus = {
+  techniqueId: string;
+  techniqueName: string;
+  reminder: string;
+  reason: string;
+};
+
+export function retryFocusesFrom(
+  pointers: DrillPointers | null,
+  diagnosis: DeliveryDiagnosis | null | undefined,
+): DrillRetryFocus[] {
+  if (diagnosis && diagnosis.focuses.length > 0) {
+    return diagnosis.focuses.map((f) => ({
+      techniqueId: f.technique.id,
+      techniqueName: f.technique.name,
+      reminder: f.technique.reminder,
+      reason: f.reason,
+    }));
+  }
+  const out: DrillRetryFocus[] = [];
+  if (pointers?.miss) {
+    out.push({
+      techniqueId: pointers.miss.techniqueId,
+      techniqueName: pointers.miss.techniqueName,
+      reminder: pointers.miss.reminder,
+      reason: pointers.miss.reason,
+    });
+  }
+  if (pointers?.also) {
+    out.push({
+      techniqueId: pointers.also.techniqueId,
+      techniqueName: pointers.also.techniqueName,
+      reminder: pointers.also.reminder,
+      reason: pointers.also.reason,
+    });
+  }
+  return out;
+}
+
+function noteNamesIneligible(
+  note: string,
+  ineligibleIds: ReadonlySet<string>,
+  competencyKey: CompetencyKey,
+): boolean {
+  if (ineligibleIds.size === 0) return false;
+  for (const t of techniquesForCompetency(competencyKey)) {
+    if (!ineligibleIds.has(t.id)) continue;
+    if (note === t.reminder) return true;
+    if (note.toLowerCase().includes(t.name.toLowerCase())) return true;
+    if (noteMatchesTechnique(note, t.id, competencyKey)) return true;
+  }
+  return false;
 }
 
 /**
@@ -157,25 +266,89 @@ export function parseDrillPointers(
  * envelope (no schema change). PURE; a legacy plain-text rationale reads back
  * as `{ rationale: text, pointers: null }`.
  */
-export function encodeGraderRecord(rationale: string, pointers: DrillPointers): string {
-  return JSON.stringify({ v: 1, rationale, pointers });
+export function encodeGraderRecord(
+  rationale: string,
+  pointers: DrillPointers,
+  retryFocuses: readonly DrillRetryFocus[] = [],
+): string {
+  return JSON.stringify({ v: 1, rationale, pointers, retryFocuses });
 }
 
-export function decodeGraderRecord(stored: string | null): { rationale: string; pointers: DrillPointers | null } {
-  if (!stored) return { rationale: "", pointers: null };
+function hydrateFocus(raw: unknown): DrillFocusPointer | null {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as Record<string, unknown>;
+  if (
+    typeof p.quote !== "string" ||
+    typeof p.techniqueId !== "string" ||
+    typeof p.techniqueName !== "string" ||
+    typeof p.reminder !== "string"
+  ) {
+    return null;
+  }
+  return {
+    quote: p.quote,
+    techniqueId: p.techniqueId,
+    techniqueName: p.techniqueName,
+    reminder: p.reminder,
+    reason: typeof p.reason === "string" ? p.reason : "",
+  };
+}
+
+function hydrateRetryFocuses(raw: unknown): DrillRetryFocus[] {
+  if (!Array.isArray(raw)) return [];
+  const out: DrillRetryFocus[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const p = item as Record<string, unknown>;
+    if (
+      typeof p.techniqueId === "string" &&
+      typeof p.techniqueName === "string" &&
+      typeof p.reminder === "string"
+    ) {
+      out.push({
+        techniqueId: p.techniqueId,
+        techniqueName: p.techniqueName,
+        reminder: p.reminder,
+        reason: typeof p.reason === "string" ? p.reason : "",
+      });
+    }
+  }
+  return out;
+}
+
+export function decodeGraderRecord(stored: string | null): {
+  rationale: string;
+  pointers: DrillPointers | null;
+  retryFocuses: DrillRetryFocus[];
+} {
+  if (!stored) return { rationale: "", pointers: null, retryFocuses: [] };
   try {
-    const parsed = JSON.parse(stored) as { v?: unknown; rationale?: unknown; pointers?: unknown };
+    const parsed = JSON.parse(stored) as {
+      v?: unknown;
+      rationale?: unknown;
+      pointers?: unknown;
+      retryFocuses?: unknown;
+    };
     if (parsed && parsed.v === 1 && parsed.pointers && typeof parsed.pointers === "object") {
-      const ptr = parsed.pointers as DrillPointers;
+      const ptr = parsed.pointers as Record<string, unknown>;
+      const pointers: DrillPointers = {
+        miss: hydrateFocus(ptr.miss),
+        also: hydrateFocus(ptr.also),
+        worked:
+          ptr.worked && typeof ptr.worked === "object"
+            ? (ptr.worked as DrillPointers["worked"])
+            : null,
+        };
       return {
         rationale: typeof parsed.rationale === "string" ? parsed.rationale : "",
-        pointers: { miss: ptr.miss ?? null, worked: ptr.worked ?? null },
+        pointers,
+        retryFocuses: hydrateRetryFocuses(parsed.retryFocuses),
       };
     }
   } catch {
     // legacy plain text
   }
-  return { rationale: stored, pointers: null };
+  return { rationale: stored, pointers: null, retryFocuses: [] };
 }
 
 /** PURE: the delivery figures shown with a result. */
@@ -201,6 +374,7 @@ export interface DrillGrade {
   rationale: string;
   /** Exact-excerpt pointers into the student's own words (may be empty). */
   pointers: DrillPointers;
+  retryFocuses: DrillRetryFocus[];
   model: string;
 }
 
@@ -217,6 +391,8 @@ export function parseDrillGrade(
     model: string;
     excludeTechniqueReminder?: string;
     drillTechniqueId?: string | null;
+    ineligibleIds?: ReadonlySet<string>;
+    diagnosis?: DeliveryDiagnosis | null;
   },
 ): DrillGrade {
   let parsed: unknown;
@@ -236,27 +412,38 @@ export function parseDrillGrade(
   normalizeRubricScore(score);
 
   const rationale = typeof p.rationale === "string" ? p.rationale.trim().slice(0, 1000) : "";
-  const pointers = parseDrillPointers(p, {
+  const blocked = ctx.ineligibleIds ?? new Set<string>();
+  const parsedPointers = parseDrillPointers(p, {
     competencyKey: ctx.competencyKey,
     transcript: ctx.transcript,
     score,
     drillTechniqueId: ctx.drillTechniqueId,
+    ineligibleIds: blocked,
   });
+  const excerpt =
+    typeof p.miss_quote === "string" ? exactExcerpt(p.miss_quote, ctx.transcript) : null;
+  const pointers = overlayDiagnosis(parsedPointers, ctx.diagnosis, excerpt);
+  const retryFocuses = retryFocusesFrom(pointers, ctx.diagnosis);
   const proposed = typeof p.feedback === "string" ? p.feedback.trim() : "";
-  const verdict = proposed ? validateTip(proposed, { studentLine: ctx.transcript }) : null;
-  if (proposed && verdict?.ok) {
-    return { score, feedback: proposed, feedbackReplaced: false, rationale, pointers, model: ctx.model };
+  const verdict = proposed ? validateResultNote(proposed, { studentLine: ctx.transcript }) : null;
+  const ineligibleNote = proposed ? noteNamesIneligible(proposed, blocked, ctx.competencyKey) : false;
+  if (proposed && verdict?.ok && !ineligibleNote) {
+    return { score, feedback: proposed, feedbackReplaced: false, rationale, pointers, retryFocuses, model: ctx.model };
   }
-  const library = techniquesForCompetency(ctx.competencyKey);
+  const library = techniquesForCompetency(ctx.competencyKey).filter((t) => !blocked.has(t.id));
+  const fromDiagnosis = ctx.diagnosis && ctx.diagnosis.focuses.length > 0 ? joinFocusReminders(ctx.diagnosis.focuses) : null;
   const replacement =
-    library.find((t) => t.reminder !== ctx.excludeTechniqueReminder) ?? library[0];
+    fromDiagnosis ??
+    library.find((t) => t.reminder !== ctx.excludeTechniqueReminder)?.reminder ??
+    library[0]?.reminder;
   const label = COMPETENCIES.find((c) => c.key === ctx.competencyKey)?.label ?? ctx.competencyKey;
   return {
     score,
-    feedback: replacement ? replacement.reminder : `Next time, I keep ${label.toLowerCase()} in focus from my first sentence.`,
+    feedback: replacement ?? `Next time, I keep ${label.toLowerCase()} in focus from my first sentence.`,
     feedbackReplaced: true,
     rationale,
     pointers,
+    retryFocuses,
     model: ctx.model,
   };
 }
@@ -286,6 +473,11 @@ export async function gradeDrillAttempt(args: {
   techniqueId?: string | null;
   transcript: string;
   delivery: DrillDeliverySummary;
+  cameraMode?: CameraMode | string | null;
+  visual?: VisualMetrics | null;
+  vocal?: VocalMetrics | null;
+  usedTechniqueIds?: readonly string[];
+  previousAttempts?: ReadonlyArray<{ score: number | null; feedback: string | null; delivery: DrillDeliverySummary }>;
   callModel?: (payload: { model: string; system: string; user: string }) => Promise<unknown>;
   /** Q1's one note regeneration; defaults to a real model call. */
   callNoteModel?: (payload: { model: string; system: string; user: string }) => Promise<unknown>;
@@ -294,12 +486,35 @@ export async function gradeDrillAttempt(args: {
   const competency = COMPETENCIES.find((c) => c.key === args.competencyKey);
   if (!competency) throw new DrillGradingFailedError(`unknown competency ${args.competencyKey}`);
 
+  const diagnosis = diagnoseDelivery({
+    competencyKey: args.competencyKey,
+    cameraMode: args.cameraMode ?? (args.delivery.eyeContactPct != null ? "ON" : "OFF"),
+    visual: args.visual ?? null,
+    vocal: args.vocal ?? null,
+    spokenSeconds: args.delivery.spokenSeconds,
+    wordsPerMinute: args.delivery.wordsPerMinute,
+    fillerWordCount: args.delivery.fillerWordCount,
+    pauseCount: args.delivery.pauseCount,
+    eyeContactPct: args.delivery.eyeContactPct,
+    usedTechniqueIds: args.usedTechniqueIds,
+  });
+  const ineligibleIds = new Set(diagnosis.ineligibleIds);
+  const allowed = allowedDrillTechniques(args.competencyKey).filter((t) => !ineligibleIds.has(t.id));
+
   const user = JSON.stringify({
     competency: { label: competency.label, description: competency.description },
     scenario: args.scenarioPrompt,
     rubric_anchors: DRILL_RUBRIC_ANCHORS[args.competencyKey],
     live_technique_reminder: args.tipText,
-    allowed_techniques: allowedDrillTechniques(args.competencyKey).map((t) => ({ id: t.id, name: t.name, reminder: t.reminder })),
+    allowed_techniques: allowed.map((t) => ({ id: t.id, name: t.name, reminder: t.reminder })),
+    ineligible_techniques: diagnosis.ineligibleIds,
+    diagnosis_focuses: diagnosis.focuses.map((f) => ({
+      id: f.technique.id,
+      name: f.technique.name,
+      reminder: f.technique.reminder,
+      reason: f.reason,
+    })),
+    previous_attempts: args.previousAttempts ?? [],
     transcript: args.transcript,
     delivery: args.delivery,
   });
@@ -316,6 +531,8 @@ export async function gradeDrillAttempt(args: {
     model,
     excludeTechniqueReminder: args.tipText,
     drillTechniqueId: args.techniqueId ?? null,
+    ineligibleIds,
+    diagnosis,
   });
 
   // Q1: the note must be about the technique the quote points at. One
@@ -343,7 +560,7 @@ export async function gradeDrillAttempt(args: {
   return reconcileNote(grade, regenerated, args.competencyKey, args.transcript);
 }
 
-export const DRILL_NOTE_SYSTEM_PROMPT = `Write ONE sentence in first person from the learner's perspective (I/my), an autonomy-supportive invitation of what I might try next time (for example "I might try...", "I could..."). Never address the learner as you. It must be about the named technique and nothing else, applied at the named spot in my answer. Never give them words to say, never quote them, never write a sample line. Return {"feedback": "..."}.`;
+export const DRILL_NOTE_SYSTEM_PROMPT = `Write ONE sentence as the coach: what I would focus on next (for example "I would focus on…", "I would keep…"). It must be about the named technique and nothing else, applied at the named spot. Never "you should", never give them words to say, never quote them, never write a sample line. Return {"feedback": "..."}.`;
 
 const DRILL_NOTE_SCHEMA = {
   name: "voice_drill_note",
@@ -412,8 +629,18 @@ export function retryFocusFor(
   pointers: DrillPointers | null,
   feedback: string | null,
   competencyKey: CompetencyKey | undefined,
+  retryFocuses?: readonly DrillRetryFocus[] | null,
 ): { techniqueId: string; techniqueName: string } | null {
-  if (pointers?.miss) return { techniqueId: pointers.miss.techniqueId, techniqueName: pointers.miss.techniqueName };
+  if (retryFocuses && retryFocuses.length > 0) {
+    return {
+      techniqueId: retryFocuses[0].techniqueId,
+      techniqueName: retryFocuses.map((f) => f.techniqueName).join(", "),
+    };
+  }
+  if (pointers?.miss) {
+    const names = [pointers.miss.techniqueName, pointers.also?.techniqueName].filter(Boolean).join(", ");
+    return { techniqueId: pointers.miss.techniqueId, techniqueName: names };
+  }
   if (!feedback || !competencyKey) return null;
   const match = allowedDrillTechniques(competencyKey).find((t) => noteMatchesTechnique(feedback, t.id, competencyKey));
   return match ? { techniqueId: match.id, techniqueName: match.name } : null;
@@ -434,7 +661,7 @@ export function reconcileNote(
   if (!miss) return grade;
   if (
     regenerated &&
-    validateTip(regenerated, { studentLine: transcript }).ok &&
+    validateResultNote(regenerated, { studentLine: transcript }).ok &&
     noteMatchesTechnique(regenerated, miss.techniqueId, competencyKey)
   ) {
     return { ...grade, feedback: regenerated, feedbackReplaced: false };

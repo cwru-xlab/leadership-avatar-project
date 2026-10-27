@@ -68,8 +68,12 @@ export interface VoiceDrillAttemptDTO {
   delivery: DrillDeliverySummary | null;
   /** Exact-quote pointers (null while open, or for a legacy attempt). */
   pointers: DrillPointers | null;
+  /** Why this score, in the grader's words (null while open). */
+  rationale: string | null;
   /** The library technique "Try again" focuses on (null while open / no match). */
   retryFocus: { techniqueId: string; techniqueName: string } | null;
+  /** Up to two closely related focuses for this session (retry live tip). */
+  retryFocuses: Array<{ techniqueId: string; techniqueName: string; reminder: string; reason: string }> | null;
 }
 
 /**
@@ -77,9 +81,20 @@ export interface VoiceDrillAttemptDTO {
  * of the attempt transcript, validated server-side; anything that fails is
  * dropped, never repaired.
  */
+export interface DrillFocusPointer {
+  quote: string;
+  techniqueId: string;
+  techniqueName: string;
+  reminder: string;
+  /** Measured reason this move was picked (empty on legacy rows). */
+  reason: string;
+}
+
 export interface DrillPointers {
   /** Where the technique was missing, and the library technique to try there. */
-  miss: { quote: string; techniqueId: string; techniqueName: string; reminder: string } | null;
+  miss: DrillFocusPointer | null;
+  /** A second closely related focus in the same session (same cluster). */
+  also: DrillFocusPointer | null;
   /** For a strong attempt (4-5): where it worked, and a one-line note. */
   worked: { quote: string; note: string } | null;
 }

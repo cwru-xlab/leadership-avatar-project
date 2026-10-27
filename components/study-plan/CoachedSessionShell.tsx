@@ -27,6 +27,8 @@ import CoachedBriefCard from "@/components/study-plan/coached/CoachedBriefCard";
 import CoachedMomentPanel from "@/components/study-plan/coached/CoachedMomentPanel";
 import DeliveryBandsCard, { type DeliveryCapture } from "@/components/study-plan/DeliveryBandsCard";
 import { useNextStepHref } from "@/components/study-plan/useNextStepHref";
+import { diagnoseDelivery } from "@/lib/study-plan/delivery-diagnosis";
+import type { CompetencyKey } from "@/lib/mastery/competencies";
 import type { CameraMode, VocalMetrics } from "@/lib/metrics/types";
 import type { StartAvatarRequest } from "@/types";
 
@@ -632,8 +634,6 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        // `metrics` is the practice finish's SessionMetricsPayload shape. The
-        // route accepts it and, until the 23 migration adds columns, ignores it.
         body: JSON.stringify({ action: "complete", metrics }),
       });
       if (!response.ok) {
@@ -1067,6 +1067,15 @@ function CompleteLeg({
   const pct = Math.round((legView.worth.coachedWeight / legView.worth.unaidedWeight) * 100);
   const legs = legView.summary?.legs ?? [];
   const nextStepHref = useNextStepHref(planId);
+  const diagnosis =
+    delivery && legView.competencyKey === "delivery_presence"
+      ? diagnoseDelivery({
+          competencyKey: "delivery_presence" as CompetencyKey,
+          cameraMode: delivery.cameraMode,
+          visual: delivery.visual,
+          vocal: delivery.vocal,
+        })
+      : null;
 
   return (
     <section aria-labelledby="coached-complete-heading" className="space-y-6">
@@ -1166,17 +1175,38 @@ function CompleteLeg({
         );
       })}
 
+      {diagnosis && diagnosis.focuses.length > 0 ? (
+        <article className="space-y-3 rounded-xl border border-[#cfe6ee] bg-[#eaf7fa] p-5" aria-label="What I would focus on">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+            {diagnosis.focuses.length > 1 ? "What I would focus on (this session)" : "What I would focus on"}
+          </h2>
+          <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-[#385463]">
+            {Array.from(new Set(diagnosis.focuses.map((f) => f.reason).filter(Boolean))).map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+          {diagnosis.focuses.map((focus) => (
+            <div key={focus.technique.id} className="space-y-1">
+              <p className="text-sm leading-6 text-[#102331]">
+                I would focus on <span className="font-semibold">{focus.technique.name}</span>.
+              </p>
+              <p className="text-sm leading-6 text-[#385463]">{focus.technique.reminder}</p>
+            </div>
+          ))}
+        </article>
+      ) : null}
+
       <DeliveryBandsCard
         delivery={delivery}
-        emptyNote="Delivery measurements are shown right after a session ends and aren't saved with coached sessions yet."
+        emptyNote="Delivery is described right after a session ends."
       />
 
       <div className="flex flex-wrap justify-center gap-3">
         <Button as={Link} href={nextStepHref ?? `/study-plans/${planId}`} color="primary">
-          {nextStepHref ? "Go to my next step" : "Continue my learning path"}
+          {nextStepHref ? "Go to the next step" : "Continue the learning path"}
         </Button>
         <Button as={Link} href="/mastery" variant="light">
-          View my mastery
+          View mastery
         </Button>
       </div>
     </section>

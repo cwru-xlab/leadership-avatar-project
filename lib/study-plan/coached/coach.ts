@@ -70,9 +70,11 @@ import {
 import {
   OFF_TOPIC_MAX_SCORE,
   gradeCoachedAttempt,
+  wordsPerMinute,
   type CoachedAttemptGrade,
   type Grader,
 } from "./grade-attempt";
+import { WELL_PACED_MAX_WPM } from "../delivery-diagnosis";
 import { classifyReply, type ReplyClassifier } from "./reply-classifier";
 import type { CompetencyKey } from "../../mastery/competencies";
 
@@ -268,6 +270,24 @@ export function lastNamedTechnique(
     if (hit) return hit;
   }
   return null;
+}
+
+/**
+ * After a spoken attempt, drop Delivery moves the metrics already ruled out
+ * (well-paced cannot be told to cut pace). Empty after filtering falls back
+ * to `safe` so a leg never loses its invite line.
+ */
+export function eligibleSafeTechniques(
+  safe: readonly Technique[],
+  competencyKey: string,
+  lastAttempt: { text: string; spokenDurationMs: number | null } | null,
+): Technique[] {
+  if (competencyKey !== "delivery_presence") return [...safe];
+  if (!lastAttempt?.spokenDurationMs || lastAttempt.spokenDurationMs <= 0) return [...safe];
+  const wpm = wordsPerMinute(lastAttempt.text, lastAttempt.spokenDurationMs);
+  if (wpm >= WELL_PACED_MAX_WPM) return [...safe];
+  const gated = safe.filter((t) => t.id !== "delivery-slow-down" && t.id !== "delivery-dont-rush-the-list");
+  return gated.length > 0 ? gated : [...safe];
 }
 
 /**
@@ -618,7 +638,14 @@ export async function coachTurn(
       return { ok: false, reason: "INVITE_REACTION_TOO_LONG" };
     }
     const composing = awaiting === "ATTEMPT" && move !== "DEMONSTRATE";
-    const technique = composing ? chooseTechnique(safe, r.techniqueId, coachTextsInLeg) : null;
+    const eligible = eligibleSafeTechniques(
+      safe,
+      args.competency.key,
+      state.lastAttempt
+        ? { text: state.lastAttempt.text, spokenDurationMs: state.lastAttempt.spokenDurationMs }
+        : null,
+    );
+    const technique = composing ? chooseTechnique(eligible, r.techniqueId, coachTextsInLeg) : null;
     // Against EVERY technique, not only the chosen one: the model's own pick may
     // have been overridden by the no-repeat rule, leaving a mismatched hint.
     const reaction = r.speech as string;

@@ -63,11 +63,16 @@ import {
  * instructing a move — never a line of speech the student could repeat
  * verbatim.
  */
+/** Packs up to two closely related Delivery focuses into one session. */
+export type TechniqueCluster = "vocal_landing" | "visual_presence";
+
 export interface Technique {
   id: string;
   competencyKey: CompetencyKey;
   name: string;
   reminder: string;
+  /** Delivery-only. Two focuses in one drill must share a cluster. */
+  cluster?: TechniqueCluster;
 }
 
 /**
@@ -85,6 +90,7 @@ export const TECHNIQUE_LIBRARY: ReadonlyArray<Technique> = [
     name: "Eyes up, shoulders back",
     reminder:
       "Lift your eyes to the camera and square your shoulders before you start your next sentence.",
+    cluster: "visual_presence",
   },
   {
     id: "delivery-slow-down",
@@ -92,6 +98,7 @@ export const TECHNIQUE_LIBRARY: ReadonlyArray<Technique> = [
     name: "Cut your pace by a third",
     reminder:
       "Slow your pace by about a third and let your last word land before you move on.",
+    cluster: "vocal_landing",
   },
   {
     id: "delivery-pause-after-point",
@@ -99,6 +106,7 @@ export const TECHNIQUE_LIBRARY: ReadonlyArray<Technique> = [
     name: "Pause after the point",
     reminder:
       "After you make your main point, stop talking for a full two seconds before continuing.",
+    cluster: "vocal_landing",
   },
   {
     id: "delivery-own-the-room",
@@ -106,6 +114,70 @@ export const TECHNIQUE_LIBRARY: ReadonlyArray<Technique> = [
     name: "Address the whole room",
     reminder:
       "Widen your gaze to sweep the whole room instead of fixing on one listener.",
+    cluster: "visual_presence",
+  },
+  {
+    id: "delivery-hold-the-last-word",
+    competencyKey: "delivery_presence",
+    name: "Hold the last word",
+    reminder:
+      "Let your last word land in silence before you start the next sentence.",
+    cluster: "vocal_landing",
+  },
+  {
+    id: "delivery-one-breath-per-sentence",
+    competencyKey: "delivery_presence",
+    name: "One breath per sentence",
+    reminder:
+      "Speak each sentence on one breath so the thought has a clear beginning and end.",
+    cluster: "vocal_landing",
+  },
+  {
+    id: "delivery-filler-at-the-turn",
+    competencyKey: "delivery_presence",
+    name: "Drop the filler at the turn",
+    reminder:
+      "At the turn between points, skip the filler word and go straight to the next idea.",
+    cluster: "vocal_landing",
+  },
+  {
+    id: "delivery-level-the-close",
+    competencyKey: "delivery_presence",
+    name: "Level the volume at the close",
+    reminder:
+      "Keep your volume even through the last sentence instead of trailing off.",
+    cluster: "vocal_landing",
+  },
+  {
+    id: "delivery-dont-rush-the-list",
+    competencyKey: "delivery_presence",
+    name: "Don't rush the last item",
+    reminder:
+      "Give the last item in a list the same time as the first, instead of speeding through it.",
+    cluster: "vocal_landing",
+  },
+  {
+    id: "delivery-recenter-frame",
+    competencyKey: "delivery_presence",
+    name: "Re-center in the frame",
+    reminder:
+      "Move back to the center of the camera frame before you start your next point.",
+    cluster: "visual_presence",
+  },
+  {
+    id: "delivery-stay-in-frame",
+    competencyKey: "delivery_presence",
+    name: "Stay in frame",
+    reminder: "Keep your face fully in the camera frame for the whole answer.",
+    cluster: "visual_presence",
+  },
+  {
+    id: "delivery-start-after-a-beat",
+    competencyKey: "delivery_presence",
+    name: "Start after a beat",
+    reminder:
+      "Wait one beat after the question lands before you begin your answer.",
+    cluster: "vocal_landing",
   },
   // structure_and_clarity
   {
@@ -113,6 +185,12 @@ export const TECHNIQUE_LIBRARY: ReadonlyArray<Technique> = [
     competencyKey: "structure_and_clarity",
     name: "Headline first",
     reminder: "Lead with your conclusion, then give at most two supports.",
+  },
+  {
+    id: "structure-number-the-steps",
+    competencyKey: "structure_and_clarity",
+    name: "Number the steps",
+    reminder: "Count the steps out loud as first, second, third, so the listener can track them.",
   },
   {
     id: "structure-one-idea-per-sentence",
@@ -135,6 +213,12 @@ export const TECHNIQUE_LIBRARY: ReadonlyArray<Technique> = [
     reminder:
       "Return explicitly to the question you opened with before you finish.",
   },
+  {
+    id: "structure-time-order",
+    competencyKey: "structure_and_clarity",
+    name: "Tell it in time order",
+    reminder: "Walk through what happened in the order it actually happened, with no flashbacks.",
+  },
   // concision_and_focus
   {
     id: "concision-cut-the-preamble",
@@ -155,6 +239,18 @@ export const TECHNIQUE_LIBRARY: ReadonlyArray<Technique> = [
     name: "Trim your qualifiers",
     reminder:
       "Remove hedging qualifiers like 'kind of' or 'sort of' from your next sentence.",
+  },
+  {
+    id: "concision-end-when-the-point-lands",
+    competencyKey: "concision_and_focus",
+    name: "End when the point lands",
+    reminder: "Stop talking as soon as the point is clear; do not add a second lap.",
+  },
+  {
+    id: "concision-cut-the-second-example",
+    competencyKey: "concision_and_focus",
+    name: "Cut the second example",
+    reminder: "Keep one example and drop the extra one that restates the same proof.",
   },
   // audience_attunement
   {
@@ -185,6 +281,18 @@ export const TECHNIQUE_LIBRARY: ReadonlyArray<Technique> = [
     reminder:
       "Summarize what you heard in one sentence and pause for confirmation before continuing.",
   },
+  {
+    id: "audience-answer-the-question-asked",
+    competencyKey: "audience_attunement",
+    name: "Answer the question asked",
+    reminder: "Open by answering the question on the table before you add background.",
+  },
+  {
+    id: "audience-match-their-altitude",
+    competencyKey: "audience_attunement",
+    name: "Match their altitude",
+    reminder: "If they asked for the headline, give the headline; save the build for a follow-up.",
+  },
   // holding_position_under_pressure
   {
     id: "pressure-restate-the-ask",
@@ -214,6 +322,18 @@ export const TECHNIQUE_LIBRARY: ReadonlyArray<Technique> = [
     reminder:
       "Keep your voice warm while your position stays exactly where it was before the pushback.",
   },
+  {
+    id: "pressure-name-the-tradeoff",
+    competencyKey: "holding_position_under_pressure",
+    name: "Name the tradeoff",
+    reminder: "Name the tradeoff you are willing to make, then restate the part of the ask that does not move.",
+  },
+  {
+    id: "pressure-do-not-add-a-caveat",
+    competencyKey: "holding_position_under_pressure",
+    name: "Don't add a caveat",
+    reminder: "After you restate the ask, stop. Do not tack on a softening clause.",
+  },
   // credibility_of_the_case
   {
     id: "credibility-cite-the-source",
@@ -236,6 +356,18 @@ export const TECHNIQUE_LIBRARY: ReadonlyArray<Technique> = [
     reminder:
       "Name one limitation of your own case before the other side raises it.",
   },
+  {
+    id: "credibility-one-concrete-example",
+    competencyKey: "credibility_of_the_case",
+    name: "One concrete example",
+    reminder: "Swap the general claim for one specific episode with a who, a when, and a result.",
+  },
+  {
+    id: "credibility-put-the-number-first",
+    competencyKey: "credibility_of_the_case",
+    name: "Put the number first",
+    reminder: "Lead with the figure, then name what it measured, rather than building up to it.",
+  },
   // outcome_achievement
   {
     id: "outcome-state-the-goal",
@@ -257,6 +389,18 @@ export const TECHNIQUE_LIBRARY: ReadonlyArray<Technique> = [
     name: "Check your progress against the goal",
     reminder:
       "Compare what just happened against your stated goal before you decide what to say next.",
+  },
+  {
+    id: "outcome-name-the-owner",
+    competencyKey: "outcome_achievement",
+    name: "Name the owner",
+    reminder: "Say who will do the next step, not only that a next step should happen.",
+  },
+  {
+    id: "outcome-time-box-the-ask",
+    competencyKey: "outcome_achievement",
+    name: "Time-box the ask",
+    reminder: "Put a time on the next step so it is a commitment, not a wish.",
   },
 ];
 
@@ -320,6 +464,9 @@ export const SCRIPT_CUE_PHRASES: ReadonlyArray<string> = [
   "here's how to phrase",
   "instead say",
   "word it as",
+  "you should say",
+  "repeat after me",
+  "your line is",
 ];
 
 export const TIP_REJECT_REASONS = [
@@ -464,6 +611,55 @@ export function validateTip(
   }
 
   const echoed = findEchoedSpan(tip, context.studentLine);
+  if (echoed) {
+    return {
+      ok: false,
+      reason: "ECHOES_STUDENT_LINE",
+      detail: `echoes student line span: "${echoed}"`,
+    };
+  }
+
+  return { ok: true };
+}
+
+/** After-attempt notes may be first-person and may describe a phrasing
+ * approach. They still cannot hand the student a recitable sample line. */
+export const MAX_RESULT_NOTE_LENGTH = 400;
+
+export function validateResultNote(
+  note: string,
+  context: { studentLine: string },
+): TipValidation {
+  QUOTED_SPEECH_RE.lastIndex = 0;
+  let quotedMatch: RegExpExecArray | null;
+  while ((quotedMatch = QUOTED_SPEECH_RE.exec(note)) !== null) {
+    if (wordCount(quotedMatch[1]) >= 4) {
+      return {
+        ok: false,
+        reason: "CONTAINS_QUOTED_SPEECH",
+        detail: `quoted span: "${quotedMatch[1]}"`,
+      };
+    }
+  }
+
+  const scriptCue = containsScriptCue(note);
+  if (scriptCue) {
+    return {
+      ok: false,
+      reason: "CONTAINS_SCRIPT_CUE",
+      detail: `matched script-cue phrase: "${scriptCue}"`,
+    };
+  }
+
+  if (note.length > MAX_RESULT_NOTE_LENGTH) {
+    return {
+      ok: false,
+      reason: "TOO_LONG",
+      detail: `length ${note.length} exceeds MAX_RESULT_NOTE_LENGTH (${MAX_RESULT_NOTE_LENGTH})`,
+    };
+  }
+
+  const echoed = findEchoedSpan(note, context.studentLine);
   if (echoed) {
     return {
       ok: false,

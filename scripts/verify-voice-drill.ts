@@ -22,7 +22,9 @@ import {
   templateBrief,
   generateDrillBriefs,
   validateCandidate,
+  sceneForStudent,
   SCENARIO_TEMPLATES,
+  DRILL_GENERATION_SYSTEM_PROMPT,
 } from "../lib/study-plan/drill/brief";
 import {
   parseDrillGrade,
@@ -79,6 +81,7 @@ console.log("1. DETERMINISTIC BRIEF");
     const speech = validateCoachSpeech(b.scenarioPrompt, { studentLine: "", counterpartLine: null, studentAttempts: [] });
     check(`${key}: scenario passes validateCoachSpeech`, speech.ok, JSON.stringify(speech));
     check(`${key}: scenario names the 60-90 second rep`, b.scenarioPrompt.includes("60-90 seconds"));
+    check(`${key}: scenario addresses the student as you, not as I`, !/\bI'm\b|\bI take\b|\bI introduce\b/i.test(b.scenarioPrompt));
     check(`${key}: template quotes nobody`, b.quotedText === null && b.generationModel === "template");
   }
   const key: CompetencyKey = "structure_and_clarity";
@@ -95,6 +98,35 @@ console.log("1. DETERMINISTIC BRIEF");
   const withTheme = templateBrief({ position: 1, competencyKey: key, variant: 0, theme: "Organization of Responses" }, []);
   check("basis THEME quotes the plan theme", withTheme.promptBasis === "THEME" && withTheme.scenarioPrompt.includes('"Organization of Responses"'));
   check("basis COMPETENCY falls back to the hand-written scenario", v0.promptBasis === "COMPETENCY" && v0.scenarioPrompt.startsWith(SCENARIO_TEMPLATES[key]));
+  check(
+    "generation prompt addresses the student as you",
+    /addressing the student as you/.test(DRILL_GENERATION_SYSTEM_PROMPT) &&
+      /Never write as the learner/.test(DRILL_GENERATION_SYSTEM_PROMPT),
+  );
+}
+
+console.log("\n1b. EXISTING FIRST-PERSON BRIEFS READ AS YOU");
+{
+  const stored =
+    "In an interview for an early-career professional role, I'm asked to talk through a time I navigated a disagreement with a teammate on a software project and how I resolved it.";
+  const read = sceneForStudent(stored);
+  check(
+    "the stored learner-I brief reads as you on screen",
+    read ===
+      "In an interview for an early-career professional role, you're asked to talk through a time you navigated a disagreement with a teammate on a software project and how you resolved it.",
+    read,
+  );
+  check("already-you copy is left alone", sceneForStudent(read) === read);
+  check(
+    "quoted student words stay first person",
+    sceneForStudent('Last time you said "I think we should wait." Answer again.') ===
+      'Last time you said "I think we should wait." Answer again.',
+  );
+  check(
+    "the old template closer becomes an instruction",
+    sceneForStudent("I take 60-90 seconds and say it out loud, focusing on delivery & presence.") ===
+      "Take 60-90 seconds and say it out loud, focusing on delivery & presence.",
+  );
 }
 
 console.log("\n2. MODEL CANDIDATE GATES (generation proposes, validation disposes)");

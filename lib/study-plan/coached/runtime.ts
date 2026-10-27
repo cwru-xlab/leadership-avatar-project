@@ -22,6 +22,8 @@ import { s3Storage } from "@/lib/s3-client";
 import { COMPETENCIES, type CompetencyKey } from "@/lib/mastery/competencies";
 import { CONTRIBUTION_WEIGHTS } from "@/lib/mastery/weights";
 import { getEngineType } from "@/lib/engine/registry";
+import { parseMetricsPayload } from "@/lib/metrics/ingest";
+import type { CameraMode } from "@/lib/metrics/types";
 
 import {
   createCoachedSession,
@@ -733,6 +735,7 @@ export async function advanceToFresh(args: {
 export async function completeCoachedSession(args: {
   userId: string;
   coachedSessionId: string;
+  metrics?: unknown;
 }): Promise<{ contributionsWritten: number }> {
   const { userId, coachedSessionId } = args;
 
@@ -751,10 +754,36 @@ export async function completeCoachedSession(args: {
     );
   }
 
-  await finishCoachedSession(userId, coachedSessionId);
+  await finishCoachedSession(userId, coachedSessionId, await resolveCoachedMetrics(userId, args.metrics));
   const { written } = await recordCoachedContribution({ userId, coachedSessionId });
 
   return { contributionsWritten: written };
+}
+
+async function resolveCoachedMetrics(
+  userId: string,
+  raw: unknown,
+): Promise<{
+  cameraMode: CameraMode;
+  visual: ReturnType<typeof parseMetricsPayload>["visual"];
+  vocal: ReturnType<typeof parseMetricsPayload>["vocal"];
+} | null> {
+  if (raw === undefined) return null;
+  const parsed = parseMetricsPayload(raw);
+  const requested =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as { cameraMode?: unknown }).cameraMode
+      : "OFF";
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { videoAnalysisConsentAt: true },
+  });
+  const cameraMode: CameraMode = requested === "ON" && user?.videoAnalysisConsentAt ? "ON" : "OFF";
+  return {
+    cameraMode,
+    visual: cameraMode === "ON" ? parsed.visual : null,
+    vocal: parsed.vocal,
+  };
 }
 
 export type { CoachedPhase };

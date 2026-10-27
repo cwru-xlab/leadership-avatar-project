@@ -37,24 +37,24 @@ import { techniquesForCompetency, validateCoachSpeech, type Technique } from "..
 import { isWrittenTechnique } from "../checks/explain";
 import { DRILL_DURATION, type PromptBasis, type VoiceDrillBrief } from "./types";
 
-/** One generic, first-person situation per competency — the LAST-RESORT
- * template, used only when no moment, no source session and no theme can
- * tailor the prompt. Hand-written; no scripted words. */
+/** One generic situation per competency — the LAST-RESORT template, used
+ * only when no moment, no source session and no theme can tailor the prompt.
+ * Addressed to the student as you. Hand-written; no scripted words. */
 export const SCENARIO_TEMPLATES: Readonly<Record<CompetencyKey, string>> = {
   delivery_presence:
-    "I introduce myself and the piece of work I am proudest of, as if I were opening an interview.",
+    "Introduce yourself and the piece of work you are proudest of, as if you were opening an interview.",
   structure_and_clarity:
-    "I explain a decision I made recently: what I decided, why, and what happened as a result.",
+    "Explain a decision you made recently: what you decided, why, and what happened as a result.",
   concision_and_focus:
-    "I summarise a project I worked on so that someone outside my field understands its point.",
+    "Summarise a project you worked on so that someone outside your field understands its point.",
   audience_attunement:
-    "A colleague tells me they are frustrated that a shared deadline slipped. I respond to them.",
+    "A colleague tells you they are frustrated that a shared deadline slipped. Respond to them.",
   holding_position_under_pressure:
-    "I have proposed a plan and my manager says it costs too much. I respond, and keep my case.",
+    "You have proposed a plan and your manager says it costs too much. Respond, and keep your case.",
   credibility_of_the_case:
-    "I make the case for one change I would make where I work or study, and support it.",
+    "Make the case for one change you would make where you work or study, and support it.",
   outcome_achievement:
-    "I have a few minutes with a senior person who could help my career. I use them to come away with a concrete next step.",
+    "You have a few minutes with a senior person who could help your career. Use them to come away with a concrete next step.",
 };
 
 const MAX_SCENARIO_LENGTH = 600;
@@ -65,7 +65,59 @@ function labelFor(key: CompetencyKey): string {
 }
 
 function closingInstruction(key: CompetencyKey): string {
-  return `I take ${DRILL_DURATION.minSeconds}-${DRILL_DURATION.maxSeconds} seconds and say it out loud, focusing on ${labelFor(key).toLowerCase()}.`;
+  return `Take ${DRILL_DURATION.minSeconds}-${DRILL_DURATION.maxSeconds} seconds and say it out loud, focusing on ${labelFor(key).toLowerCase()}.`;
+}
+
+/**
+ * Existing briefs were written as the learner ("I'm asked…"). On screen and
+ * when the coach reads them, that sounds like the coach's interview. Address
+ * the student as you. Quoted spans (their own words, an interviewer question
+ * in quotation marks) are left untouched.
+ */
+export function sceneForStudent(scene: string): string {
+  return scene
+    .split(/("[^"]*")/)
+    .map((part, i) => (i % 2 === 1 ? part : addressYou(part)))
+    .join("");
+}
+
+function sentenceStart(src: string, offset: number): boolean {
+  const before = src.slice(0, offset).trimEnd();
+  return before.length === 0 || /[.!?]\s*$/.test(before);
+}
+
+function addressYou(text: string): string {
+  const swap = (you: string, You: string, offset: number, src: string) =>
+    sentenceStart(src, offset) ? You : you;
+  const apos = "['\u2019]";
+  return text
+    .replace(/\bI take (\d+-\d+ seconds)\b/g, (_m, rest: string, offset: number, src: string) =>
+      `${sentenceStart(src, offset) ? "Take" : "take"} ${rest}`,
+    )
+    .replace(/\bI answer it again now\b/g, "Answer it again now")
+    .replace(/\bI answer that same kind of question again\b/g, "Answer that same kind of question again")
+    .replace(/\bI picture\b/g, "Picture")
+    .replace(new RegExp(`\\bI${apos}m\\b`, "g"), (_m, offset: number, src: string) =>
+      swap("you're", "You're", offset, src),
+    )
+    .replace(new RegExp(`\\bI${apos}ve\\b`, "g"), (_m, offset: number, src: string) =>
+      swap("you've", "You've", offset, src),
+    )
+    .replace(new RegExp(`\\bI${apos}ll\\b`, "g"), (_m, offset: number, src: string) =>
+      swap("you'll", "You'll", offset, src),
+    )
+    .replace(new RegExp(`\\bI${apos}d\\b`, "g"), (_m, offset: number, src: string) =>
+      swap("you'd", "You'd", offset, src),
+    )
+    .replace(/\bI am\b/g, (_m, offset: number, src: string) => swap("you are", "You are", offset, src))
+    .replace(/\bI was\b/g, (_m, offset: number, src: string) => swap("you were", "You were", offset, src))
+    .replace(/\bI were\b/g, (_m, offset: number, src: string) => swap("you were", "You were", offset, src))
+    .replace(/\bI have\b/g, (_m, offset: number, src: string) => swap("you have", "You have", offset, src))
+    .replace(/\bI had\b/g, (_m, offset: number, src: string) => swap("you had", "You had", offset, src))
+    .replace(/\bI\b/g, (_m, offset: number, src: string) => swap("you", "You", offset, src))
+    .replace(/\bmyself\b/gi, (m) => (m[0] === "M" ? "Yourself" : "yourself"))
+    .replace(/\b[Mm]ine\b/g, (m) => (m[0] === "M" ? "Yours" : "yours"))
+    .replace(/\b[Mm]y\b/g, (m) => (m[0] === "M" ? "Your" : "your"));
 }
 
 /**
@@ -127,7 +179,7 @@ export function buildDrillSessionContexts(
 function practisedFor(ctx: DrillSessionContext): string {
   const role = ctx.roleTitle ? ` for a ${ctx.roleTitle} role` : "";
   const industry = ctx.industry ? ` in ${ctx.industry}` : "";
-  return `my ${ctx.typeName.toLowerCase()} practice${role}${industry}`;
+  return `your ${ctx.typeName.toLowerCase()} practice${role}${industry}`;
 }
 
 export interface DrillRequest {
@@ -169,17 +221,17 @@ export function templateBrief(
       ? questionFromInterviewerLine(moment.precedingAvatarText, selfNames)
       : null;
     scenarioPrompt = momentQuestion
-      ? `In one of the sessions this plan was built from, I was asked: ${momentQuestion} My answer was flagged for "${moment.linkedGrowthAreaTitles[0]}". I answer it again now. ${closingInstruction(request.competencyKey)}`
-      : `In one of the sessions this plan was built from, a moment was flagged for "${moment.linkedGrowthAreaTitles[0]}". I answer that same kind of question again. ${closingInstruction(request.competencyKey)}`;
+      ? `In one of the sessions this plan was built from, you were asked: ${momentQuestion} Your answer was flagged for "${moment.linkedGrowthAreaTitles[0]}". Answer it again now. ${closingInstruction(request.competencyKey)}`
+      : `In one of the sessions this plan was built from, a moment was flagged for "${moment.linkedGrowthAreaTitles[0]}". Answer that same kind of question again. ${closingInstruction(request.competencyKey)}`;
   } else if (pick) {
     promptBasis = "SESSION";
-    scenarioPrompt = `In ${practisedFor(pick.ctx)}, the interviewer asked: ${pick.question} I answer it again now. ${closingInstruction(request.competencyKey)}`;
+    scenarioPrompt = `In ${practisedFor(pick.ctx)}, the interviewer asked: ${pick.question} Answer it again now. ${closingInstruction(request.competencyKey)}`;
   } else if (sessionCtx && (sessionCtx.roleTitle || sessionCtx.industry)) {
     promptBasis = "SESSION";
-    scenarioPrompt = `I picture ${practisedFor(sessionCtx)}. ${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
+    scenarioPrompt = `Picture ${practisedFor(sessionCtx)}. ${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
   } else if (request.theme) {
     promptBasis = "THEME";
-    scenarioPrompt = `My plan's priority theme is "${request.theme}". ${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
+    scenarioPrompt = `Your plan's priority theme is "${request.theme}". ${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
   } else {
     promptBasis = "COMPETENCY";
     scenarioPrompt = `${SCENARIO_TEMPLATES[request.competencyKey]} ${closingInstruction(request.competencyKey)}`;
@@ -207,7 +259,7 @@ export function templateBrief(
 export const DRILL_GENERATION_SYSTEM_PROMPT = `You write short spoken-practice prompts ("voice drills") for a leadership-practice student. Each drill is a 60-90 second spoken rep on ONE competency.
 
 For each requested drill return:
-- "scenario_prompt": 1-3 sentences in first person from the learner's perspective (I/my) naming the situation to speak to; never refer to the learner as you, the learner, or the student. It MUST be specific to this student: tailor it to their own moments when supplied (the same kind of question they found hard); otherwise ground it in one of "student_sessions" — name the role or industry they practised for and build on a question they were actually asked, paraphrased in your own words (never in quotation marks). Only when no sessions are supplied may you fall back to the plan theme. Never give them words to say, never write a sample answer, never write lines of dialogue.
+- "scenario_prompt": 1-3 sentences addressing the student as you, naming the situation to speak to (for example "You're in an interview… you're asked to…"). Never write as the learner ("I'm asked", "I navigated"). It MUST be specific to this student: tailor it to their own moments when supplied (the same kind of question they found hard); otherwise ground it in one of "student_sessions" — name the role or industry they practised for and build on a question they were actually asked, paraphrased in your own words (never in quotation marks). Only when no sessions are supplied may you fall back to the plan theme. Never give them words to say, never write a sample answer, never write lines of dialogue.
 - "technique_id": exactly one id from that drill's "allowed_techniques".
 - "quoted_text": null, OR a line copied CHARACTER FOR CHARACTER from one of that drill's supplied moments' studentText (when the prompt reminds them what they said). If you quote, the quote must appear verbatim inside scenario_prompt, and "source_report_id"/"quoted_turn_index" must be that moment's. Otherwise all three are null.
 
@@ -461,6 +513,10 @@ export function validateCandidate(
     return { ok: false, position, reason: "prompt is not specific to the student's sessions (generic)" };
   }
 
+  if (scenarioNamesATechnique(scenario, request.competencyKey)) {
+    return { ok: false, position, reason: "scenario names a technique (the tip belongs in tipText, not the prompt)" };
+  }
+
   const speech = validateCoachSpeech(scenario, {
     studentLine: quotedText ?? "",
     counterpartLine: null,
@@ -512,6 +568,12 @@ function contentWords(text: string): Set<string> {
  * it names a role or industry they practised for, or shares at least two
  * content words with a question they were actually asked.
  */
+/** PURE: a scenario must not name a library technique — that belongs on the live tip. */
+export function scenarioNamesATechnique(scenario: string, competencyKey: CompetencyKey): boolean {
+  const lower = scenario.toLowerCase();
+  return techniquesForCompetency(competencyKey).some((t) => lower.includes(t.name.toLowerCase()));
+}
+
 export function groundedInSessions(scenario: string, sessions: ReadonlyArray<DrillSessionContext>): boolean {
   const lower = scenario.toLowerCase();
   const words = contentWords(scenario);

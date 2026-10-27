@@ -66,7 +66,7 @@ const SLOW_CONNECT_NOTICE_MS = 15_000;
 /** Upper bound on waiting for the scenario line before the tip. */
 const SPEECH_WAIT_MAX_MS = 45_000;
 /** The drill room's face banner line: delivery feedback, no score wording. */
-const DRILL_FACE_BANNER_DETAIL = "Move back into frame so my drill feedback can include visuals.";
+const DRILL_FACE_BANNER_DETAIL = "Move back into frame so your drill feedback can include visuals.";
 
 /** The one retry line. `focus` is a technique NAME from the closed library. */
 export function retryLine(focus: string | null): string {
@@ -419,7 +419,7 @@ export default function VoiceDrillRunner({
     } catch (e) {
       const err = e as DrillApiError;
       if (err.code === "GRADING_FAILED") {
-        setFinishError("Grading hit a snag. Press Finish again; my answer is kept.");
+        setFinishError("Grading hit a snag. Press Finish again; your answer is kept.");
       } else if (err.code === "TOO_SHORT") {
         bodyRef.current = null;
         setFinishError("That was too short to grade. Say a little more, then finish.");
@@ -476,7 +476,7 @@ export default function VoiceDrillRunner({
           <div className="absolute inset-0 grid place-items-center px-8 text-center" role="status">
             <p className="max-w-sm text-sm leading-6 text-[#d3e7f5]">
               The video coach couldn&apos;t connect. The scenario is on screen; answer out loud
-              whenever I am ready.
+              whenever you are ready.
             </p>
           </div>
         ) : null}
@@ -508,7 +508,7 @@ export default function VoiceDrillRunner({
               !connected
                 ? "Connecting securely"
                 : overTime
-                  ? "Time — wrap up when I am ready"
+                  ? "Time — wrap up when you are ready"
                   : `Aim for ${durationSeconds.minSeconds}-${maxSeconds} seconds`
             }
             elapsedSeconds={elapsed}
@@ -546,7 +546,7 @@ export default function VoiceDrillRunner({
             <p className="mt-2 text-sm leading-6 text-[#d3e7f5]">{liveTip}</p>
           </aside>
 
-          <div className="space-y-3" aria-label="My answer captions">
+          <div className="space-y-3" aria-label="Your answer captions">
             {segments.map((segment, index) => (
               <article
                 key={index}
@@ -588,7 +588,7 @@ export default function VoiceDrillRunner({
             ) : null}
           </div>
           {segments.length > 0 && !enoughToGrade && !isRecording && !isTranscribing ? (
-            <p className="mt-2 text-xs text-[#a9c5d6]">I say a bit more before I finish — a full answer is graded best.</p>
+            <p className="mt-2 text-xs text-[#a9c5d6]">Say a bit more before you finish — a full answer is graded best.</p>
           ) : null}
           {talkError ? (
             <p className="mt-2 text-sm text-[#ffb4a8]" role="alert">
@@ -601,7 +601,7 @@ export default function VoiceDrillRunner({
             </p>
           ) : null}
           <p className="mt-3 text-[11px] leading-4 text-[#82a5b8]">
-            I answer out loud, in one go or a few pieces. My grade appears when I finish.
+            Answer out loud, in one go or a few pieces. Your grade appears when you finish.
           </p>
         </div>
       </SessionSidePane>
