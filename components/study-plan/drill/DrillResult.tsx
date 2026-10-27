@@ -7,17 +7,18 @@ import { RotateCcw } from "lucide-react";
 import DeliveryBandsCard from "@/components/study-plan/DeliveryBandsCard";
 import type { DrillDelivery } from "@/components/study-plan/drill/contract";
 import { useNextStepHref } from "@/components/study-plan/useNextStepHref";
+import { RUBRIC_ANCHORS } from "@/lib/mastery/rubric-anchors";
+import type { CompetencyKey } from "@/lib/mastery/competencies";
 import type { VoiceDrillAttemptDTO } from "@/lib/study-plan/drill/types";
 
 /**
  * The graded VOICE_DRILL result — the ONLY place a drill score renders.
- * Score 1-5, the one "what to try next time" note, the delivery bands (same
- * card as the coached summary), and three ways on: try again (a new attempt,
- * which writes its own evidence), the next path step (PathPanel's
- * `hrefForStep` via the path DTO's `nextStep`), and mastery.
+ * Score 1-5, what the student did vs what I would focus on next, the
+ * delivery bands, and three ways on: try again, the next path step, mastery.
  */
 export default function DrillResult({
   planId,
+  competencyKey,
   competencyLabel,
   attempt,
   previousScore,
@@ -26,6 +27,7 @@ export default function DrillResult({
   onTryAgain,
 }: {
   planId: string;
+  competencyKey: CompetencyKey;
   competencyLabel: string;
   attempt: VoiceDrillAttemptDTO;
   /** The score of the attempt finished just before this one, if any. */
@@ -38,7 +40,22 @@ export default function DrillResult({
   const score = attempt.score;
   const change = score !== null && previousScore !== null ? score - previousScore : null;
   const miss = attempt.pointers?.miss ?? null;
+  const also = attempt.pointers?.also ?? null;
   const worked = attempt.pointers?.worked ?? null;
+  const rubric = RUBRIC_ANCHORS[competencyKey];
+  const focuses =
+    attempt.retryFocuses && attempt.retryFocuses.length > 0
+      ? attempt.retryFocuses
+      : [miss, also].filter((f): f is NonNullable<typeof miss> => Boolean(f));
+  const reasons = uniqueTexts(focuses.map((f) => f.reason).filter(Boolean));
+  const joinedReminders = focuses.map((f) => f.reminder).join(" ");
+  const extraNote =
+    attempt.feedback &&
+    attempt.feedback !== joinedReminders &&
+    !focuses.some((f) => f.reminder === attempt.feedback || overlapsReminder(attempt.feedback!, f.reminder))
+      ? attempt.feedback
+      : null;
+  const placement = score !== null ? scorePlacement(score) : null;
 
   return (
     <section aria-labelledby="drill-result-heading" className="space-y-6">
@@ -58,36 +75,115 @@ export default function DrillResult({
           {change === null
             ? `This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
             : change > 0
-              ? `Up ${change} from my last try. This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
+              ? `Up ${change} from your last try. This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
               : change === 0
-                ? `Level with my last try. This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
-                : `Below my last try (${previousScore}/5). It still counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`}
+                ? `Level with your last try. This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
+                : `Below your last try (${previousScore}/5). It still counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`}
         </p>
       </div>
 
-      {attempt.feedback || miss ? (
-        <article className="space-y-3 rounded-xl border border-[#cfe6ee] bg-[#eaf7fa] p-5" aria-label="What I might try next time">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">What I might try next time</h2>
-          {miss ? (
+      {miss?.quote || reasons.length > 0 ? (
+        <article className="space-y-3 rounded-xl border border-[#dce8ed] bg-white p-5" aria-label="What you did">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-[#58727f]">What you did</h2>
+          {miss?.quote ? (
             // The quote is an exact excerpt of this attempt's transcript
-            // (validated server-side); the technique is a library entry.
+            // (validated server-side).
             <p className="text-base leading-7 text-[#102331]" data-testid="drill-miss-pointer">
-              In my answer: <q className="italic">{miss.quote}</q> → I might try{" "}
-              <span className="font-semibold">{miss.techniqueName}</span>
+              You said: <q className="italic">{miss.quote}</q>
             </p>
           ) : null}
-          {miss ? <p className="text-sm leading-6 text-[#385463]">{miss.reminder}</p> : null}
-          {attempt.feedback && attempt.feedback !== miss?.reminder ? (
-            <p className="whitespace-pre-wrap text-sm leading-6 text-[#173847]">{attempt.feedback}</p>
+          {reasons.length > 0 ? (
+            <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-[#385463]">
+              {reasons.map((reason) => (
+                <li key={reason} data-testid="drill-focus-reason">
+                  {reason}
+                </li>
+              ))}
+            </ul>
           ) : null}
         </article>
       ) : null}
 
+      {score !== null && rubric && placement ? (
+        <article className="space-y-3 rounded-xl border border-[#dce8ed] bg-white p-5" aria-label="Why this score">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-[#58727f]">
+            Why {score}/5 on {competencyLabel}
+          </h2>
+          <p className="text-sm leading-6 text-[#102331]">{placement.blurb}</p>
+          <p className="text-sm leading-6 text-[#58727f]">
+            This {score} is only {competencyLabel} — how you showed that skill, not every other part of the answer.
+          </p>
+          {attempt.rationale ? (
+            <p className="text-sm leading-6 text-[#385463]" data-testid="drill-rationale">
+              {attempt.rationale}
+            </p>
+          ) : null}
+          <ul className="space-y-2 text-sm leading-6">
+            {([1, 3, 5] as const).map((n) => {
+              const active = placement.nearer === n;
+              return (
+                <li
+                  key={n}
+                  className={
+                    active
+                      ? "rounded-lg border border-[#b9dbe5] bg-[#eaf7fa] px-3 py-2 text-[#102331]"
+                      : "px-3 py-1 text-[#58727f]"
+                  }
+                >
+                  <span className="font-semibold">{n}</span> — {rubric[n]}
+                  {active ? (
+                    <span className="mt-1 block text-xs font-semibold uppercase tracking-wide text-[#0a7391]">
+                      This {score} sits nearer here
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </article>
+      ) : attempt.rationale ? (
+        <p className="text-sm leading-6 text-[#385463]" data-testid="drill-rationale">
+          <span className="font-semibold text-[#102331]">Why this score. </span>
+          {attempt.rationale}
+        </p>
+      ) : null}
+
+      {focuses.length > 0 || extraNote ? (
+        <article className="space-y-3 rounded-xl border border-[#cfe6ee] bg-[#eaf7fa] p-5" aria-label="What I would focus on">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+            {focuses.length > 1 ? "What I would focus on (this session)" : "What I would focus on"}
+          </h2>
+          {miss ? (
+            <p className="text-sm leading-6 text-[#102331]">
+              I would focus on <span className="font-semibold">{miss.techniqueName}</span>
+              {also ? (
+                <>
+                  {" "}
+                  and <span className="font-semibold">{also.techniqueName}</span>
+                </>
+              ) : null}
+              .
+            </p>
+          ) : null}
+          {focuses.map((focus) => (
+            <div key={focus.techniqueId} className="space-y-1">
+              <p className="text-sm font-semibold leading-6 text-[#102331]">{focus.techniqueName}</p>
+              <p className="text-sm leading-6 text-[#385463]">{focus.reminder}</p>
+            </div>
+          ))}
+          {extraNote ? (
+            <p className="whitespace-pre-wrap text-sm leading-6 text-[#173847]">{attempt.feedback}</p>
+          ) : null}
+        </article>
+      ) : attempt.feedback ? (
+        <p className="whitespace-pre-wrap text-sm leading-6 text-[#173847]">{attempt.feedback}</p>
+      ) : null}
+
       {worked ? (
         <article className="space-y-2 rounded-xl border border-[#cfe9df] bg-[#f0faf5] p-5" aria-label="What worked">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-[#327b68]">What worked</h2>
+          <h2 className="text-xs font-bold uppercase tracking-wide text-[#327b68]">What landed</h2>
           <p className="text-base leading-7 text-[#102331]" data-testid="drill-worked-pointer">
-            <q className="italic">{worked.quote}</q>
+            You also said: <q className="italic">{worked.quote}</q>
           </p>
           <p className="text-sm leading-6 text-[#385463]">{worked.note}</p>
         </article>
@@ -103,12 +199,68 @@ export default function DrillResult({
           Try again
         </Button>
         <Button as={Link} href={nextStepHref ?? `/study-plans/${planId}`} color="primary">
-          {nextStepHref ? "Go to my next step" : "Continue my learning path"}
+          {nextStepHref ? "Go to the next step" : "Continue the learning path"}
         </Button>
         <Button as={Link} href="/mastery" variant="light">
-          View my mastery
+          View mastery
         </Button>
       </div>
     </section>
   );
+}
+
+function overlapsReminder(note: string, reminder: string): boolean {
+  const words = (text: string) =>
+    new Set(
+      text
+        .toLowerCase()
+        .split(/[^a-z]+/)
+        .filter((w) => w.length > 3),
+    );
+  const inNote = words(note);
+  let hits = 0;
+  for (const w of words(reminder)) if (inNote.has(w)) hits += 1;
+  return hits >= 4;
+}
+
+function uniqueTexts(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
+
+function scorePlacement(score: number): { nearer: 1 | 3 | 5; blurb: string } {
+  if (score <= 1) {
+    return {
+      nearer: 1,
+      blurb: "A 1 means the competency barely showed. This attempt sits on that floor.",
+    };
+  }
+  if (score === 2) {
+    return {
+      nearer: 1,
+      blurb: "A 2 is between 1 and 3: you attempted it, but more than one gap kept it closer to the 1 than to a steady 3.",
+    };
+  }
+  if (score === 3) {
+    return {
+      nearer: 3,
+      blurb: "A 3 is the middle of the scale: the competency showed, with one noticeable gap.",
+    };
+  }
+  if (score === 4) {
+    return {
+      nearer: 5,
+      blurb: "A 4 sits between 3 and 5: strong, just short of the 5 anchor.",
+    };
+  }
+  return {
+    nearer: 5,
+    blurb: "A 5 means the competency fully showed against the top anchor.",
+  };
 }

@@ -50,6 +50,14 @@ const SPOKEN_ONLY_TECHNIQUE_IDS: ReadonlySet<string> = new Set([
   "delivery-slow-down",
   "delivery-pause-after-point",
   "delivery-own-the-room",
+  "delivery-hold-the-last-word",
+  "delivery-one-breath-per-sentence",
+  "delivery-filler-at-the-turn",
+  "delivery-level-the-close",
+  "delivery-dont-rush-the-list",
+  "delivery-recenter-frame",
+  "delivery-stay-in-frame",
+  "delivery-start-after-a-beat",
   "pressure-slow-your-response",
 ]);
 

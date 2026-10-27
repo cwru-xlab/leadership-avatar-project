@@ -10,7 +10,7 @@ import type { CompetencyKey } from "./competencies";
 export const RUBRIC_ANCHORS: Readonly<Record<CompetencyKey, { 1: string; 3: string; 5: string }>> = {
   delivery_presence: {
     1: "Halting or rushed throughout; heavy filler; the point is lost in how it is said.",
-    3: "Understandable and mostly steady, with noticeable filler, rushing or flat stretches.",
+    3: "Understandable and mostly steady, with one noticeable gap in pause, filler, presence or variation — not automatically a rushing problem.",
     5: "Measured, confident and varied; pauses land the key points; almost no filler.",
   },
   structure_and_clarity: {

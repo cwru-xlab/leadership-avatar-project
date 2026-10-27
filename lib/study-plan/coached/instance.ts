@@ -35,6 +35,8 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../../prisma";
+import { toMetricsJsonInput } from "../../metrics/ingest";
+import type { CameraMode, VisualMetrics, VocalMetrics } from "../../metrics/types";
 
 /**
  * LOCKED by 21-CONTEXT.md: "replay first, then fresh. The coach sets up the
@@ -380,6 +382,11 @@ export async function markReplayLegComplete(
 export async function finishCoachedSession(
   userId: string,
   coachedSessionId: string,
+  metrics?: {
+    cameraMode: CameraMode;
+    visual: VisualMetrics | null;
+    vocal: VocalMetrics | null;
+  } | null,
 ): Promise<void> {
   const session = await prisma.coachedSession.findFirst({
     where: { id: coachedSessionId, userId },
@@ -393,7 +400,16 @@ export async function finishCoachedSession(
 
   await prisma.coachedSession.update({
     where: { id: coachedSessionId },
-    data: { completedAt: new Date() },
+    data: {
+      completedAt: new Date(),
+      ...(metrics
+        ? {
+            cameraMode: metrics.cameraMode,
+            visualMetrics: toMetricsJsonInput(metrics.visual),
+            vocalMetrics: toMetricsJsonInput(metrics.vocal),
+          }
+        : {}),
+    },
   });
 
   const { markStepComplete } = await import("../path");

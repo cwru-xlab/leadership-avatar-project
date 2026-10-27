@@ -119,6 +119,24 @@ console.log("\n2. D1 — pointers");
   });
   check("a response without pointer fields still grades (pointers empty)", legacy.pointers.miss === null && legacy.pointers.worked === null);
 
+  const firstPerson = parseDrillGrade(
+    JSON.stringify({ score: 3, feedback: "I might lead with the outcome, then one number.", rationale: "ok" }),
+    { competencyKey: KEY, transcript: TRANSCRIPT, model: "test" },
+  );
+  check("a first-person phrasing approach is kept as a result note", !firstPerson.feedbackReplaced && firstPerson.feedback.startsWith("I might lead"));
+
+  const blockedPace = parseDrillPointers(
+    { miss_quote: "there were a lot of reasons", miss_technique_id: "delivery-slow-down", worked_quote: "", worked_note: "" },
+    {
+      competencyKey: "delivery_presence",
+      transcript: TRANSCRIPT,
+      score: 3,
+      drillTechniqueId: "delivery-slow-down",
+      ineligibleIds: new Set(["delivery-slow-down"]),
+    },
+  );
+  check("bite-proof: an ineligible frozen pace move is not used as the miss fallback", blockedPace.miss === null);
+
   const stored = encodeGraderRecord("why", strong);
   const back = decodeGraderRecord(stored);
   check("the grader record round-trips through the rationale column", back.rationale === "why" && back.pointers?.miss?.quote === strong.miss?.quote);
@@ -241,6 +259,15 @@ console.log("\n5. D4 — the model gate discards generic prompts");
     ctx,
   );
   check("a prompt grounded in the student's session is accepted as SESSION", grounded.ok && grounded.brief.promptBasis === "SESSION", JSON.stringify(grounded));
+  const namesTechnique = validateCandidate(
+    {
+      ...base,
+      scenario_prompt:
+        "In your product manager interview, you were asked how you influenced a team without formal authority. Answer again, putting your main point first. Headline first.",
+    },
+    ctx,
+  );
+  check("bite-proof: a prompt that names a library technique is discarded", !namesTechnique.ok && /technique/.test(namesTechnique.reason), JSON.stringify(namesTechnique));
   check("groundedInSessions matches on shared question words", groundedInSessions("Talk about how you influence a team without authority.", SESSIONS));
   check("bite-proof: groundedInSessions rejects an unrelated prompt", !groundedInSessions("Describe your favourite holiday destination.", SESSIONS));
   const noSessions = validateCandidate(
@@ -284,7 +311,12 @@ async function qSections() {
   );
   const graded = {
     score: 4, feedback: "Pause between steps.", feedbackReplaced: false, rationale: "", model: "t",
-    pointers: { miss: { quote: "there were a lot of reasons", techniqueId: oneIdea.id, techniqueName: oneIdea.name, reminder: oneIdea.reminder }, worked: null },
+    retryFocuses: [],
+    pointers: {
+      miss: { quote: "there were a lot of reasons", techniqueId: oneIdea.id, techniqueName: oneIdea.name, reminder: oneIdea.reminder, reason: "" },
+      also: null,
+      worked: null,
+    },
   };
   check("a matching regenerated note is kept", reconcileNote(graded, "Split your longest sentence so each carries one idea.", KEY, TRANSCRIPT).feedback.startsWith("Split your longest"));
   check("a mismatched regenerated note falls back to the technique's reminder", reconcileNote(graded, "Pause more.", KEY, TRANSCRIPT).feedback === oneIdea.reminder);
@@ -323,10 +355,10 @@ async function qSections() {
 function rSections() {
   console.log("\n8. Retry focus from the note when there is no quote");
   const closeLoop = LIB.find((t) => t.name === "Close the loop")!;
-  const fromNote = retryFocusFor({ miss: null, worked: null }, "Try closing the loop by restating the question at the end to reinforce clarity.", KEY);
+  const fromNote = retryFocusFor({ miss: null, also: null, worked: null }, "Try closing the loop by restating the question at the end to reinforce clarity.", KEY);
   check("a 5/5 note about closing the loop focuses the retry on 'Close the loop'", fromNote?.techniqueId === closeLoop.id, JSON.stringify(fromNote));
   const fromMiss = retryFocusFor(
-    { miss: { quote: "q q q", techniqueId: LIB[0].id, techniqueName: LIB[0].name, reminder: LIB[0].reminder }, worked: null },
+    { miss: { quote: "q q q", techniqueId: LIB[0].id, techniqueName: LIB[0].name, reminder: LIB[0].reminder, reason: "" }, also: null, worked: null },
     "Try closing the loop by restating the question.",
     KEY,
   );
