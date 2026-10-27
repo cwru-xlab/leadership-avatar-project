@@ -53,3 +53,5 @@ requirements/cookies.txt
 
 .env
 
+e2e/*
+
