@@ -16,7 +16,7 @@ import { asVisualMetrics, asVocalMetrics, parseMetricsPayload } from "../../metr
 import { markStepComplete } from "../path";
 import { priorityThemesFromContent, themeMatchesFromPlan } from "../plan-targets";
 import { techniquesForCompetency } from "../coached/tips";
-import { templateBrief } from "./brief";
+import { sceneForStudent, templateBrief } from "./brief";
 import {
   contributionInputFromDrillAttempt,
   decodeGraderRecord,
@@ -107,6 +107,12 @@ async function ensureDrill(userId: string, step: Awaited<ReturnType<typeof loadD
 
 export function attemptDTO(row: repo.VoiceDrillAttemptRow, competencyKey?: CompetencyKey): VoiceDrillAttemptDTO {
   const done = row.completedAt !== null;
+  const decoded = decodeGraderRecord(row.graderRationale);
+  const retryFocuses = done
+    ? decoded.retryFocuses.length > 0
+      ? decoded.retryFocuses
+      : retryFocusesFromPointers(decoded.pointers)
+    : null;
   return {
     id: row.id,
     startedAt: row.startedAt.toISOString(),
@@ -117,11 +123,37 @@ export function attemptDTO(row: repo.VoiceDrillAttemptRow, competencyKey?: Compe
     delivery: done
       ? deliverySummary(asVisualMetrics(row.visualMetrics), asVocalMetrics(row.vocalMetrics), row.spokenDurationMs)
       : null,
-    pointers: done ? decodeGraderRecord(row.graderRationale).pointers : null,
+    pointers: done ? decoded.pointers : null,
+    rationale: done ? decoded.rationale || null : null,
     retryFocus: done
-      ? retryFocusFor(decodeGraderRecord(row.graderRationale).pointers, competencyKey ? row.feedback : null, competencyKey)
+      ? retryFocusFor(decoded.pointers, competencyKey ? row.feedback : null, competencyKey, retryFocuses)
       : null,
+    retryFocuses,
   };
+}
+
+function retryFocusesFromPointers(
+  pointers: ReturnType<typeof decodeGraderRecord>["pointers"],
+): VoiceDrillAttemptDTO["retryFocuses"] {
+  if (!pointers) return null;
+  const out: NonNullable<VoiceDrillAttemptDTO["retryFocuses"]> = [];
+  if (pointers.miss) {
+    out.push({
+      techniqueId: pointers.miss.techniqueId,
+      techniqueName: pointers.miss.techniqueName,
+      reminder: pointers.miss.reminder,
+      reason: pointers.miss.reason,
+    });
+  }
+  if (pointers.also) {
+    out.push({
+      techniqueId: pointers.also.techniqueId,
+      techniqueName: pointers.also.techniqueName,
+      reminder: pointers.also.reminder,
+      reason: pointers.also.reason,
+    });
+  }
+  return out.length > 0 ? out : null;
 }
 
 export async function getDrill(userId: string, stepId: string): Promise<VoiceDrillDTO> {
@@ -134,7 +166,7 @@ export async function getDrill(userId: string, stepId: string): Promise<VoiceDri
     planId: step.path.studyPlanId,
     competencyKey,
     competencyLabel: labelFor(competencyKey),
-    scenarioPrompt: drill.scenarioPrompt,
+    scenarioPrompt: sceneForStudent(drill.scenarioPrompt),
     tipText: drill.tipText,
     techniqueName: techniqueNameFor(competencyKey, drill.techniqueId),
     quotedText: drill.quotedText,
@@ -203,6 +235,20 @@ export async function completeAttempt(
   const visual = body.cameraMode === "ON" ? body.metrics?.visual ?? null : null;
   const vocal = body.metrics?.vocal ?? null;
   const competencyKey = step.competencyKey as CompetencyKey;
+  const prior = await repo.listAttempts(userId, drill.id);
+  const usedTechniqueIds = prior.flatMap((a) => {
+    const pointers = decodeGraderRecord(a.graderRationale).pointers;
+    return [pointers?.miss?.techniqueId, pointers?.also?.techniqueId].filter(
+      (id): id is string => Boolean(id),
+    );
+  });
+  const previousAttempts = prior
+    .filter((a) => a.completedAt && a.id !== attempt.id)
+    .map((a) => ({
+      score: a.score,
+      feedback: a.feedback,
+      delivery: deliverySummary(asVisualMetrics(a.visualMetrics), asVocalMetrics(a.vocalMetrics), a.spokenDurationMs),
+    }));
 
   // GRADE FIRST: a grading failure leaves the attempt open and retryable,
   // with nothing written.
@@ -213,6 +259,11 @@ export async function completeAttempt(
     techniqueId: drill.techniqueId,
     transcript: body.transcript,
     delivery: deliverySummary(visual, vocal, body.spokenDurationMs),
+    cameraMode: body.cameraMode,
+    visual,
+    vocal,
+    usedTechniqueIds,
+    previousAttempts,
   });
 
   const completedAt = new Date();
@@ -223,7 +274,7 @@ export async function completeAttempt(
     vocalMetrics: vocal,
     score: grade.score,
     feedback: grade.feedback,
-    graderRationale: encodeGraderRecord(grade.rationale, grade.pointers),
+    graderRationale: encodeGraderRecord(grade.rationale, grade.pointers, grade.retryFocuses),
     graderModel: grade.model,
     completedAt,
   });

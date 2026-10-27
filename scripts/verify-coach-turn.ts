@@ -576,7 +576,7 @@ async function main() {
 
     // 15. L7 - support escalates across misses; never the same technique twice in a row
     {
-      const { chooseTechnique, safeTechniques } = await import("../lib/study-plan/coached/coach");
+      const { chooseTechnique, safeTechniques, eligibleSafeTechniques } = await import("../lib/study-plan/coached/coach");
       const s = await newSession();
       await turn(s, null, [OPEN]);
       const HEAD = "structure-headline-first";
@@ -604,6 +604,12 @@ async function main() {
       const prevText = `x ${techniqueLine(safe[0])} y`;
       check("15e. bite: chooseTechnique overrides a request to repeat the last technique", chooseTechnique(safe, safe[0].id, [prevText])?.id !== safe[0].id);
       check("15e. bite: with no previous technique the same request is honoured", chooseTechnique(safe, safe[0].id, [])?.id === safe[0].id);
+      const deliverySafe = safeTechniques("delivery_presence", STUDENT_LINE);
+      const wellPaced = eligibleSafeTechniques(deliverySafe, "delivery_presence", {
+        text: STUDENT_LINE,
+        spokenDurationMs: 80_000,
+      });
+      check("15f. a well-paced retry drops Cut your pace by a third", !wellPaced.some((t) => t.id === "delivery-slow-down") && wellPaced.length > 0);
     }
 
     // 16. Q6 - the reaction must not pre-paraphrase the technique the app speaks
