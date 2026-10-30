@@ -1,9 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Card, CardBody } from "@heroui/card";
+import NextLink from "next/link";
 import {
   Briefcase,
+  ChevronRight,
   GraduationCap,
   Presentation,
   MessageCircleWarning,
@@ -30,70 +30,58 @@ interface InteractionTileProps {
 }
 
 /**
- * One dashboard tile. Live and coming-soon are two mutually exclusive
- * branches — a coming-soon tile is a non-interactive `<div>`, never a
- * disabled button, modal, or tooltip promising a date. This mirrors the
- * "Not yet measured" idiom in `components/interview/ReportScoreCards.tsx`.
+ * One row of the dashboard's practice list. Live and coming-soon are two
+ * mutually exclusive branches — a coming-soon row is a non-interactive
+ * `<div>`, never a disabled button, modal, or tooltip promising a date. This
+ * mirrors the "Not yet measured" idiom in `components/interview/ReportScoreCards.tsx`.
  */
 export default function InteractionTile({ type }: InteractionTileProps) {
-  const router = useRouter();
   const Icon = iconMap[type.icon as keyof typeof iconMap];
-  const duration = `~${type.estimatedMinutes} min`;
+  const duration = `About ${type.estimatedMinutes} min`;
 
-  if (type.availability === "live") {
+  const body = (
+    <>
+      <span className="grid size-6 shrink-0 place-items-center pt-0.5 text-cwru-blue">
+        {Icon ? <Icon aria-hidden size={20} strokeWidth={1.5} /> : null}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-[15px] font-semibold leading-snug">{type.name}</span>
+        <span className="max-w-[65ch] text-sm leading-[1.5] text-muted">{type.description}</span>
+      </span>
+      <span className="hidden shrink-0 text-[13px] tabular-nums text-muted sm:block">
+        {duration}
+      </span>
+    </>
+  );
+
+  if (type.availability === "live" && type.route) {
     // `type.route` is guaranteed non-null for a live type by the registry's
-    // own contract; this branch never renders a coming-soon type's tile.
-    const route = type.route;
+    // own contract.
     return (
-      <Card
-        isPressable
-        onPress={() => {
-          if (route) router.push(route);
-        }}
-        className="border border-[#d4e2e9] bg-white transition-all hover:-translate-y-0.5 hover:border-[#0a7391] hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
+      <NextLink
+        className="group flex items-start gap-4 px-4 py-4 text-ink transition-colors duration-150 ease-out hover:bg-canvas sm:items-center md:px-6"
+        href={type.route}
       >
-        <CardBody className="flex flex-col gap-3 p-6">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-[#eaf5f8] text-[#0a7391]">
-            {Icon ? <Icon size={22} /> : null}
-          </div>
-          <div>
-            <h3 className="font-semibold text-[#102331]">{type.name}</h3>
-            <p className="mt-1 text-sm leading-6 text-[#526c7b]">
-              {type.description}
-            </p>
-          </div>
-          <p className="mt-auto text-xs font-medium text-[#0a7391]">
-            {duration}
-          </p>
-        </CardBody>
-      </Card>
+        {body}
+        <ChevronRight
+          aria-hidden
+          className="mt-0.5 shrink-0 text-muted transition-transform duration-150 ease-out group-hover:translate-x-0.5 group-hover:text-true-blue sm:mt-0"
+          size={18}
+          strokeWidth={1.5}
+        />
+      </NextLink>
     );
   }
 
   return (
     <div
-      className="cursor-default rounded-2xl border border-[#d4e2e9] bg-[#f5f8fa] p-6 opacity-80"
       aria-disabled="true"
+      className="flex cursor-default items-start gap-4 px-4 py-4 text-muted sm:items-center md:px-6"
     >
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-[#e3e9ec] text-[#78909b]">
-            {Icon ? <Icon size={22} /> : null}
-          </div>
-          <span className="rounded-full border border-[#b8cbd3] bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#78909b]">
-            Coming soon
-          </span>
-        </div>
-        <div>
-          <h3 className="font-semibold text-[#78909b]">{type.name}</h3>
-          <p className="mt-1 text-sm leading-6 text-[#b8cbd3]">
-            {type.description}
-          </p>
-        </div>
-        <p className="mt-auto text-xs font-medium text-[#78909b]">
-          {duration}
-        </p>
-      </div>
+      {body}
+      <span className="shrink-0 rounded-full bg-canvas px-2.5 py-1 text-xs font-semibold text-muted">
+        Coming soon
+      </span>
     </div>
   );
 }
