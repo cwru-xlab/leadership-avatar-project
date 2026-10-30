@@ -36,13 +36,13 @@ export function DisengagementDeclinePanel({
 
   return (
     <section
-      className="mb-6 rounded-2xl border border-t-2 border-t-[#b79b4c] shadow-[0_10px_24px_rgba(0,48,135,0.08)] motion-safe:transition-[border-color,box-shadow] motion-safe:duration-200 border-[#003087]/25 bg-[#f7fbfc] px-5 py-4 text-[#102a4c]"
+      className="rounded-xl border border-line bg-white px-5 py-4 text-ink"
       data-testid="disengagement-decline-panel"
     >
-      <h2 className="font-serif text-xl leading-snug">
+      <h2 className="font-display font-medium text-xl leading-snug">
         Observable signals before the conversation ended
       </h2>
-      <p className="mt-2 text-sm leading-relaxed text-[#334155]">
+      <p className="mt-2 text-sm leading-relaxed text-ink">
         These session-clock moments show the interaction signals that led to the
         early end. They describe what happened in the exchange, not the
         listener&apos;s private state.
@@ -51,9 +51,9 @@ export function DisengagementDeclinePanel({
         {decline.episodes.map((episode, index) => (
           <li
             key={`${episode.kind}-${episode.start_s}-${episode.end_s}-${index}`}
-            className="border-l-2 border-[#003087]/35 pl-3 text-sm leading-relaxed text-[#334155]"
+            className="font-display text-base italic leading-relaxed text-ink"
           >
-            <span className="font-mono tabular-nums text-[#102a4c]">
+            <span className="font-mono tabular-nums text-ink">
               {formatTimecode(episode.start_s)}–{formatTimecode(episode.end_s)}
             </span>{" "}
             — {episode.causes.map((cause) => CAUSE_LABELS[cause]).join("; ")}.

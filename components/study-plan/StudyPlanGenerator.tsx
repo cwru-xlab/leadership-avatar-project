@@ -11,7 +11,6 @@
  * prepend the new plan to whatever list it renders.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardBody } from "@heroui/card";
 import { Checkbox } from "@heroui/checkbox";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
@@ -23,7 +22,6 @@ import {
   ModalFooter,
   useDisclosure,
 } from "@heroui/modal";
-import { BookOpenCheck } from "lucide-react";
 
 import type { ReportDTO } from "@/lib/report/dto";
 import { typeLabelForReport } from "@/lib/report/title";
@@ -76,9 +74,12 @@ function formatDate(iso: string): string {
 export default function StudyPlanGenerator({
   reports,
   onSaved,
+  aside,
 }: {
   reports: ReportDTO[];
   onSaved: (plan: StudyPlanSummaryDTO) => void;
+  /** Rendered beside the primary button, e.g. a link to saved plans. */
+  aside?: React.ReactNode;
 }) {
   const [preview, setPreview] = useState<GeneratedPreview | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -248,30 +249,30 @@ export default function StudyPlanGenerator({
 
   return (
     <>
-      <Card className="overflow-hidden border border-[#aabbd1] border-l-4 border-l-[#c99600] bg-white shadow-[0_8px_22px_rgba(16,36,63,0.08)]">
-        <CardBody className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="flex gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#003087] text-white shadow-sm"><BookOpenCheck size={22} /></div>
-            <div>
-              <h2 className="font-serif text-2xl text-[#10243f]">Build a self-paced study plan</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-[#43546a]">
-                We&apos;ll identify recurring feedback themes from your completed interview reports and turn them into focused practice.
-              </p>
-              {eligibleReportCount < 1 && (
-                <p className="mt-2 text-sm font-medium text-[#43546a]">Finish an interview with feedback to build a study plan.</p>
-              )}
-            </div>
-          </div>
+      <section className="flex flex-col gap-4 rounded-xl border border-light-blue/70 bg-light-blue/32 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="flex max-w-2xl flex-col gap-1">
+          <h2 className="font-display text-[22px] font-medium leading-[1.15] text-cwru-blue">
+            Build a self-paced study plan
+          </h2>
+          <p className="text-sm leading-6 text-muted">
+            We&apos;ll identify recurring feedback themes from your completed interview reports and turn them into focused practice.
+          </p>
+          {eligibleReportCount < 1 && (
+            <p className="text-sm font-semibold text-ink">Finish an interview with feedback to build a study plan.</p>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2">
+          {aside}
           <Button
+            className="h-11 rounded-lg font-semibold"
             color="primary"
-            size="lg"
             isDisabled={eligibleReportCount < 1 || generating}
             onPress={openPicker}
           >
             {generating ? <><Spinner color="current" size="sm" /> Creating plan</> : "Generate study plan"}
           </Button>
-        </CardBody>
-      </Card>
+        </div>
+      </section>
 
       <Modal isOpen={isPickerOpen} onOpenChange={onPickerOpenChange} scrollBehavior="inside" size="2xl">
         <ModalContent>
@@ -281,11 +282,11 @@ export default function StudyPlanGenerator({
                 Choose which interviews to use
               </ModalHeader>
               <ModalBody>
-                <p className="text-xs font-medium text-[#43546a]">
+                <p className="text-xs font-medium text-muted">
                   {(selectedReportIds ?? []).length} of {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} selected
                   {" "}· cap {MAX_REPORTS_PER_PLAN}
                 </p>
-                <p className="mt-1 text-sm text-[#43546a]">
+                <p className="mt-1 text-sm text-muted">
                   The most recent {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} are preselected. Deselect any and pick others instead.
                 </p>
                 <div className="mt-4 max-h-96 space-y-2 overflow-y-auto pr-1">
@@ -296,14 +297,14 @@ export default function StudyPlanGenerator({
                     return (
                       <div
                         key={report.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-[#dce3eb] bg-[#f7f9fb] px-3 py-2"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-line bg-canvas px-3 py-2"
                       >
                         <Checkbox
                           isSelected={isSelected}
                           isDisabled={atCap}
                           onValueChange={() => toggleReportSelection(report.id)}
                         >
-                          <span className="text-sm text-[#10243f]">
+                          <span className="text-sm text-ink">
                             {typeLabelForReport(report.typeSlug)}
                             {" · "}
                             {report.completedAt ? formatDate(report.completedAt) : "Date unknown"}
@@ -316,7 +317,7 @@ export default function StudyPlanGenerator({
                           </span>
                         </Checkbox>
                         {atCap && (
-                          <span className="shrink-0 text-xs font-medium text-[#5d6d7d]">
+                          <span className="shrink-0 text-xs font-medium text-muted">
                             Cap reached — deselect one first
                           </span>
                         )}
@@ -325,7 +326,7 @@ export default function StudyPlanGenerator({
                   })}
                 </div>
                 {actionError && (
-                  <p role="alert" className="mt-2 rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700">
+                  <p role="alert" className="mt-2 rounded-lg border border-copper/40 bg-copper/[0.08] p-4 text-sm text-ink">
                     {actionError}
                   </p>
                 )}
@@ -341,20 +342,20 @@ export default function StudyPlanGenerator({
         </ModalContent>
       </Modal>
 
-      {actionError && <p role="alert" className="mt-4 rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700">{actionError}</p>}
-      {savedNotice && <p role="status" className="mt-4 rounded-xl border border-success-200 bg-success-50 p-4 text-sm text-success-700">{savedNotice}</p>}
+      {actionError && <p role="alert" className="mt-4 rounded-lg border border-copper/40 bg-copper/[0.08] p-4 text-sm text-ink">{actionError}</p>}
+      {savedNotice && <p role="status" className="mt-4 rounded-lg border border-level-4/40 bg-level-4/[0.08] p-4 text-sm text-ink">{savedNotice}</p>}
 
       {preview && (
-        <section className="mt-6 rounded-2xl border-2 border-[#003087] bg-white p-5 shadow-[0_16px_36px_rgba(0,48,135,0.14)] sm:p-7">
+        <section className="mt-6 rounded-xl border border-line bg-white p-5 shadow-raised sm:p-7">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#003087]">Preview — not saved yet</p>
-              <h2 className="mt-2 font-serif text-3xl text-[#10243f]">{preview.content.title}</h2>
-              <p className="mt-2 max-w-3xl leading-7 text-[#33465d]">{preview.content.summary}</p>
-              <p className="mt-2 text-xs text-[#43546a]">Based on {preview.sourceReportCount} completed {preview.sourceReportCount === 1 ? "report" : "reports"}.</p>
+              <p className="w-fit rounded-full bg-level-2/16 px-2.5 py-1 text-xs font-semibold text-ink">Preview, not saved yet</p>
+              <h2 className="mt-3 font-display text-[26px] font-medium leading-[1.15] text-cwru-blue">{preview.content.title}</h2>
+              <p className="mt-2 max-w-3xl leading-7 text-ink">{preview.content.summary}</p>
+              <p className="mt-2 text-xs text-muted">Based on {preview.sourceReportCount} completed {preview.sourceReportCount === 1 ? "report" : "reports"}.</p>
               {/* Honest accounting alongside the count above — how many of
                   ALL eligible interviews fed this plan. */}
-              <p className="mt-1 text-xs text-[#43546a]">
+              <p className="mt-1 text-xs text-muted">
                 Built from {preview.consideredReportCount} of your {preview.eligibleReportCount} completed {preview.eligibleReportCount === 1 ? "interview" : "interviews"}.
               </p>
             </div>

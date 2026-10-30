@@ -15,7 +15,7 @@ interface Slide {
 // shell is redone).
 const SLIDES: Slide[] = [
   { label: "Pick what to practice", src: "/login-showcase/practice.png" },
-  { label: "Read your scored report" },
+  { label: "Read your scored report", src: "/login-showcase/report.png" },
   { label: "Follow your study plan" },
   { label: "Watch your mastery move" },
 ];
