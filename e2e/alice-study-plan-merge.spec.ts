@@ -21,13 +21,11 @@ test.describe("Alice student merge smoke", () => {
     await signInAsAlice(page);
 
     await page.goto("/reports");
-    await expect(page.getByRole("heading", { name: "My Reports" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "My reports" })).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Build a self-paced study plan" }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Practice reports" }),
-    ).toBeVisible();
+    await expect(page.getByRole("region", { name: "Practice reports" })).toBeVisible();
 
     const viewPlan = page.getByRole("button", { name: "View plan" }).first();
     if (await viewPlan.isVisible().catch(() => false)) {
