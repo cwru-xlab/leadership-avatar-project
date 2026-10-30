@@ -1,12 +1,11 @@
 import "@/styles/globals.css";
 import { Metadata, Viewport } from "next";
-import { Link } from "@heroui/link";
 import clsx from "clsx";
 
 import { Providers } from "./providers";
 
 import { siteConfig } from "@/config/site";
-import { fontSans } from "@/config/fonts";
+import { fontDisplay, fontMono, fontSans } from "@/config/fonts";
 import { AuthNavbar } from "@/components/auth-navbar";
 import { MainContent } from "@/components/main-content";
 
@@ -22,10 +21,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "white" },
-    { media: "(prefers-color-scheme: dark)", color: "black" },
-  ],
+  themeColor: "#003071",
+  colorScheme: "light",
 };
 
 export default function RootLayout({
@@ -34,16 +31,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html suppressHydrationWarning lang="en">
+    <html suppressHydrationWarning className="light" lang="en">
       <head />
       <body
         className={clsx(
           "min-h-screen text-foreground bg-background font-sans antialiased",
-          fontSans.variable
+          fontSans.variable,
+          fontDisplay.variable,
+          fontMono.variable
         )}
       >
-        <Providers themeProps={{ attribute: "class", defaultTheme: "light" }}>
-          <div className="relative flex h-screen overflow-hidden">
+        <Providers>
+          <div className="relative flex h-dvh flex-col overflow-hidden md:flex-row">
             <AuthNavbar />
             <MainContent>{children}</MainContent>
           </div>

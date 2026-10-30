@@ -4,7 +4,8 @@ import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { University } from "lucide-react";
+import Image from "next/image";
+import { ChevronDown, University } from "lucide-react";
 import { toAppRole } from "@/lib/roles";
 
 // Mirrors the server-side gate in app/api/auth/login/route.ts. This is a client
@@ -12,6 +13,14 @@ import { toAppRole } from "@/lib/roles";
 // browser) rather than VERCEL_ENV, which is server-only. Undefined locally,
 // which correctly leaves the email/password form visible in dev.
 const isProduction = process.env.NEXT_PUBLIC_VERCEL_ENV === "production";
+
+// Seeded by prisma/seed.ts; selecting one fills the form. Never rendered in production.
+const TEST_ACCOUNTS = [
+  { role: "Student", email: "alice.johnson@case.edu", password: "student123" },
+  { role: "Student", email: "student@case.edu", password: "student123" },
+  { role: "Professor", email: "professor.smith@case.edu", password: "prof123" },
+  { role: "Admin", email: "admin@example.com", password: "admin123" },
+];
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -68,99 +77,150 @@ export default function LoginPage() {
     }
   }, []);
 
+  const fillTestAccount = (account: { email: string; password: string }) => {
+    setEmail(account.email);
+    setPassword(account.password);
+  };
+
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="w-full max-w-md p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold">Sign In</h1>
-          <p className="text-gray-600 mt-2">
-            {isProduction
-              ? "Sign in with your CWRU credentials"
-              : "Access your account with your credentials"}
+    <div className="grid h-full overflow-y-auto min-[900px]:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      {/* Brand panel: the dot grid is reserved for login and the kiosk. */}
+      <section
+        className="flex flex-col justify-between gap-8 bg-cwru-blue px-6 py-8 text-white min-[900px]:px-12 min-[900px]:py-12"
+        style={{
+          backgroundImage:
+            "radial-gradient(rgb(166 210 230 / .35) 1px, transparent 1.2px)",
+          backgroundSize: "12px 12px",
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-white font-display text-xl italic text-cwru-blue">
+            La
+          </span>
+          <span className="font-display text-xl font-medium">Leadership Avatar</span>
+        </div>
+        <div className="flex max-w-[30rem] flex-col gap-3">
+          <p className="font-display text-[28px] font-medium leading-[1.15] min-[900px]:text-[36px]">
+            Rehearse the conversation before it counts.
+          </p>
+          <p className="text-[15px] leading-[1.55] text-light-blue">
+            Practice interviews, pitches, and hard conversations with an AI avatar, then read
+            what went well and what to work on.
           </p>
         </div>
+        <div className="hidden w-fit rounded-lg bg-white px-3 py-2 min-[900px]:block">
+          <Image
+            alt="Case Western Reserve University, Weatherhead School of Management"
+            className="h-auto w-[200px]"
+            height={112}
+            src="/cwru_wsom_logo.png"
+            width={448}
+          />
+        </div>
+      </section>
 
-        {error && (
-          <div className="p-3 mb-4 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
-            {error}
+      <section className="flex items-center justify-center bg-canvas px-4 py-10 md:px-8">
+        <div className="flex w-full max-w-[400px] flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <h1 className="font-display text-[32px] font-medium leading-[1.1] text-cwru-blue">
+              Sign in
+            </h1>
+            <p className="text-[15px] text-muted">
+              {isProduction
+                ? "Use your CWRU network ID."
+                : "Use your CWRU network ID or a test account."}
+            </p>
           </div>
-        )}
 
-        {!isProduction && (
-          <>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input
-                label="Email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+          {error && (
+            <div
+              className="rounded-lg border border-copper/40 bg-copper/[0.08] px-3 py-2.5 text-sm text-ink"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
 
-              <Input
-                label="Password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+          <Button
+            className="h-11 w-full rounded-lg font-semibold"
+            color="primary"
+            startContent={<University aria-hidden size={18} strokeWidth={1.5} />}
+            type="button"
+            variant={isProduction ? "solid" : "bordered"}
+            onPress={handleCWRULogin}
+          >
+            Sign in with CWRU SSO
+          </Button>
 
-              <Button
-                type="submit"
-                className="w-full"
-                color="primary"
-                isLoading={isLoading}
-              >
-                {isLoading ? "Signing In..." : "Sign In"}
-              </Button>
-            </form>
-
-            <div className="mt-4">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white dark:bg-gray-800 px-2 text-gray-500">
-                    Or continue with
-                  </span>
-                </div>
+          {!isProduction && (
+            <>
+              <div className="flex items-center gap-3 text-[13px] text-muted">
+                <span className="h-px flex-1 bg-line" />
+                or with email
+                <span className="h-px flex-1 bg-line" />
               </div>
-            </div>
-          </>
-        )}
 
-        <Button
-          type="button"
-          variant={isProduction ? "solid" : "bordered"}
-          color={isProduction ? "primary" : "default"}
-          className="w-full mt-4"
-          size={isProduction ? "lg" : "md"}
-          onClick={handleCWRULogin}
-        >
-          <University />
-          Sign in with CWRU SSO
-        </Button>
+              <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+                <Input
+                  isRequired
+                  autoComplete="email"
+                  label="Email"
+                  labelPlacement="outside"
+                  placeholder="you@case.edu"
+                  type="email"
+                  value={email}
+                  variant="bordered"
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <Input
+                  isRequired
+                  autoComplete="current-password"
+                  label="Password"
+                  labelPlacement="outside"
+                  placeholder="Your password"
+                  type="password"
+                  value={password}
+                  variant="bordered"
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <Button
+                  className="h-11 w-full rounded-lg font-semibold"
+                  color="primary"
+                  isLoading={isLoading}
+                  type="submit"
+                >
+                  {isLoading ? "Signing in" : "Sign in"}
+                </Button>
+              </form>
 
-        {!isProduction && (
-          <div className="mt-6 text-center text-sm text-gray-600">
-            <p>Development mode — test credentials:</p>
-            <div className="mt-3 space-y-2 text-left bg-gray-100 dark:bg-gray-700 p-3 rounded">
-              <p className="ml-4">
-                <strong>Admin:</strong> admin@example.com / admin123
-              </p>
-              <p className="ml-4">
-                <strong>User:</strong> user@example.com / user123
-              </p>
-              <p className="ml-4">
-                <strong>Student:</strong> student@case.edu / student123
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+              <details className="group rounded-lg border border-line bg-white text-sm">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                  Test accounts (development only)
+                  <ChevronDown
+                    aria-hidden
+                    className="text-muted transition-transform duration-200 group-open:rotate-180"
+                    size={16}
+                  />
+                </summary>
+                <ul className="flex flex-col divide-y divide-line border-t border-line">
+                  {TEST_ACCOUNTS.map((account) => (
+                    <li key={account.email}>
+                      <button
+                        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-canvas"
+                        type="button"
+                        onClick={() => fillTestAccount(account)}
+                      >
+                        <span className="font-semibold text-ink">{account.role}</span>
+                        <span className="truncate text-muted">{account.email}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

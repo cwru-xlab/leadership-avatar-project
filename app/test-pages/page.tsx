@@ -96,14 +96,14 @@ export default function TestPagesIndex() {
         })}
       </div>
 
-      <div className="mt-8 p-4 bg-warning-50 dark:bg-warning-900/20 rounded-lg border border-warning-200 dark:border-warning-700">
+      <div className="mt-8 p-4 bg-warning-50 rounded-lg border border-warning-200">
         <div className="flex items-center gap-2 mb-2">
           <FlaskConical className="text-warning-600" size={20} />
-          <span className="font-semibold text-warning-800 dark:text-warning-200">
+          <span className="font-semibold text-warning-800">
             Development Only
           </span>
         </div>
-        <p className="text-warning-700 dark:text-warning-300 text-sm">
+        <p className="text-warning-700 text-sm">
           These test pages are only available in development mode and require
           admin privileges.
         </p>

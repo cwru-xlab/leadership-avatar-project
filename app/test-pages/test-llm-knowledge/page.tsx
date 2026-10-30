@@ -138,8 +138,8 @@ export default function TestLLMKnowledge() {
             </Button>
 
             {error && (
-              <div className="p-4 bg-danger-50 dark:bg-danger-900/20 rounded-lg border border-danger-200 dark:border-danger-700">
-                <p className="text-danger-700 dark:text-danger-300 text-sm">
+              <div className="p-4 bg-danger-50 rounded-lg border border-danger-200">
+                <p className="text-danger-700 text-sm">
                   <strong>Error:</strong> {error}
                 </p>
               </div>
@@ -166,7 +166,7 @@ export default function TestLLMKnowledge() {
                       </div>
                     </div>
                     {searchResult.context.chunks.map((chunk, index) => (
-                      <Card key={index} className="bg-default-50 dark:bg-default-900/50">
+                      <Card key={index} className="bg-default-50">
                         <CardBody className="p-4">
                           <div className="space-y-2">
                             <div className="flex flex-wrap gap-2 text-xs">
@@ -192,7 +192,7 @@ export default function TestLLMKnowledge() {
                                 </Chip>
                               )}
                             </div>
-                            <p className="text-sm text-default-700 dark:text-default-300">
+                            <p className="text-sm text-default-700">
                               {chunk.text}
                             </p>
                           </div>
@@ -201,8 +201,8 @@ export default function TestLLMKnowledge() {
                     ))}
                   </div>
                 ) : (
-                  <div className="p-4 bg-warning-50 dark:bg-warning-900/20 rounded-lg border border-warning-200 dark:border-warning-700">
-                    <p className="text-warning-700 dark:text-warning-300 text-sm">
+                  <div className="p-4 bg-warning-50 rounded-lg border border-warning-200">
+                    <p className="text-warning-700 text-sm">
                       No results found for your query.
                     </p>
                   </div>

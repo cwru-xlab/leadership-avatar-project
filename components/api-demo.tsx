@@ -165,7 +165,7 @@ export default function ApiDemo() {
   };
 
   return (
-    <div className="mt-8 p-6 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-900 dark:border-gray-700">
+    <div className="mt-8 p-6 border border-gray-200 rounded-lg bg-gray-50">
       <h3 className="text-lg font-semibold mb-4 text-center">
         Avatar System Demo - Preview Mode with Custom System Prompts
       </h3>
@@ -189,7 +189,7 @@ export default function ApiDemo() {
           disabled={streaming}
         />
         {currentAvatarId && (
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-sm text-gray-600">
             Current Avatar ID:{" "}
             <span className="font-mono">{currentAvatarId}</span>
           </div>
@@ -214,18 +214,18 @@ export default function ApiDemo() {
       </div>
 
       {error && (
-        <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded dark:bg-red-900 dark:border-red-600 dark:text-red-300">
+        <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
           Error: {error}
         </div>
       )}
 
       {/* Stream Info and Metadata */}
       {(streamInfo.startTime || streamInfo.metadata) && (
-        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded dark:bg-blue-900 dark:border-blue-700">
-          <h4 className="font-medium mb-2 text-blue-800 dark:text-blue-200">
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+          <h4 className="font-medium mb-2 text-blue-800">
             Stream Information:
           </h4>
-          <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+          <div className="text-sm text-blue-700 space-y-1">
             {streamInfo.metadata?.model && (
               <div>
                 <strong>Model:</strong> {streamInfo.metadata.model}
@@ -267,7 +267,7 @@ export default function ApiDemo() {
       {streamingResponse && (
         <div className="mt-4">
           <h4 className="font-medium mb-2">OpenAI Streaming Response:</h4>
-          <div className="p-4 bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-600">
+          <div className="p-4 bg-white border border-gray-300 rounded-lg">
             <div className="whitespace-pre-wrap text-sm">
               {streamingResponse}
               {streaming && <span className="animate-pulse">|</span>}

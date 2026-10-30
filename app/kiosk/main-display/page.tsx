@@ -36,7 +36,7 @@ const MarkdownMessage = ({ content }: { content: string }) => (
         const isInline = !className;
         return isInline ? (
           <code
-            className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded font-mono text-sm"
+            className="bg-gray-200 px-1 py-0.5 rounded font-mono text-sm"
             {...props}
           >
             {children}

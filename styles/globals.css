@@ -3,17 +3,90 @@
 @config "../tailwind.config.mjs";
 
 :root {
-  --report-navy: #082b4c;
-  --report-blue: #0066a6;
-  --report-blue-deep: #004b7a;
-  --report-gold: #a97928;
-  --report-gold-pale: #f4ecdc;
-  --report-surface: #ffffff;
-  --report-canvas: #f3f6f8;
-  --report-ink: #142c3f;
-  --report-muted: #526b7b;
-  --report-line: #cbd9e1;
-  --report-shadow: 0 14px 36px rgba(8, 43, 76, 0.09);
+  /* CWRU brand */
+  --la-cwru-blue: #003071;
+  --la-dark-blue: #09143A;
+  --la-true-blue: #007AB8;
+  --la-force-blue: #2359EF;
+  --la-light-blue: #A6D2E6;
+
+  /* neutrals */
+  --la-surface: #FFFFFF;
+  --la-canvas: #F5F8FB;
+  --la-line: rgb(9 20 58 / 0.14);
+  --la-muted: rgb(9 20 58 / 0.68);
+  --la-gray-light: #D3D3D3;
+  --la-disabled: #999999;
+
+  /* levels 1-5 (CWRU tertiary; level 3 uses Light Blue) */
+  --la-level-5: #61A530;
+  --la-level-4: #377E72;
+  --la-level-2: #FF9239;
+  --la-level-1: #D63D1F;
+  --la-ai: #692C95;
+
+  /* surfaces */
+  --la-shadow-raised: 0 12px 32px rgb(9 20 58 / 0.16);
+  --la-stage: #09143A;
+
+  /* report aliases, repointed at the brand tokens */
+  --report-navy: var(--la-dark-blue);
+  --report-blue: var(--la-true-blue);
+  --report-blue-deep: var(--la-cwru-blue);
+  --report-gold: var(--la-level-2);
+  --report-gold-pale: color-mix(in srgb, var(--la-level-2) 16%, white);
+  --report-surface: var(--la-surface);
+  --report-canvas: var(--la-canvas);
+  --report-ink: var(--la-dark-blue);
+  --report-muted: var(--la-muted);
+  --report-line: var(--la-line);
+  --report-shadow: none;
+
+  color-scheme: light;
+}
+
+/* The parts of the page the components don't draw. */
+@layer base {
+  html {
+    background: var(--la-canvas);
+  }
+
+  body {
+    background: var(--la-canvas);
+    color: var(--la-dark-blue);
+    font-feature-settings: "kern";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--la-light-blue) 70%, white);
+    color: var(--la-dark-blue);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--la-true-blue);
+    outline-offset: 2px;
+  }
+
+  input,
+  textarea {
+    caret-color: var(--la-true-blue);
+  }
+
+  a {
+    text-underline-offset: 3px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  * {
+    scrollbar-color: rgb(9 20 58 / 0.24) transparent;
+    scrollbar-width: thin;
+  }
 }
 
 @layer components {
@@ -37,8 +110,7 @@
   .report-back-link:hover { color: var(--report-blue-deep); }
 
   .report-kicker {
-    color: var(--report-blue-deep);
-    letter-spacing: 0.18em;
+    color: var(--report-muted);
   }
 
   .report-heading {
@@ -76,13 +148,13 @@
     content: "";
   }
 
-  .report-score-card-muted::before { background: #8aa0ae; }
+  .report-score-card-muted::before { background: var(--la-gray-light); }
 
   .report-section-label { color: var(--report-blue-deep); }
 
   .report-action-panel {
-    border-color: #d5c294;
-    background: var(--report-gold-pale);
+    border-color: color-mix(in srgb, var(--la-light-blue) 70%, white);
+    background: color-mix(in srgb, var(--la-light-blue) 32%, white);
   }
 
   .report-tabs [role="tab"] {
@@ -92,10 +164,10 @@
 
   .report-tabs [role="tab"][data-selected="true"] { color: var(--report-navy); }
 
-  .report-tabs [data-slot="cursor"] { background: var(--report-gold); }
+  .report-tabs [data-slot="cursor"] { background: var(--la-true-blue); }
 
   .report-page :is(button, a, [role="tab"]):focus-visible {
-    outline: 3px solid var(--report-gold);
+    outline: 3px solid var(--la-true-blue);
     outline-offset: 3px;
   }
 }
@@ -104,6 +176,18 @@
   .report-page *,
   .report-page *::before,
   .report-page *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Global reduced-motion floor: no transition or animation outlives the preference. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;

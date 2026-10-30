@@ -5,10 +5,10 @@ const PASSWORD = "student123";
 
 async function signInAsAlice(page: Page) {
   await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
   await page.locator('input[type="email"]').fill(EMAIL);
   await page.locator('input[type="password"]').fill(PASSWORD);
-  await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
     timeout: 20_000,
   });
