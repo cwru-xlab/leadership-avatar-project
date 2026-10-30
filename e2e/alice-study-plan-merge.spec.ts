@@ -36,7 +36,7 @@ test.describe("Alice student merge smoke", () => {
 
     await page.goto("/study-plans");
     await expect(
-      page.getByRole("heading", { name: "Study Plans", exact: true }),
+      page.getByRole("heading", { name: "Study plans", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Build a self-paced study plan" }),

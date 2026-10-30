@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { CircleCheck, Circle, TrendingUp, TrendingDown, Sparkle } from "lucide-react";
-import { Card, CardBody } from "@heroui/card";
-import { Chip } from "@heroui/chip";
+import clsx from "clsx";
+import { ArrowRight, ChevronDown, Sparkle, TrendingDown, TrendingUp } from "lucide-react";
 
 import type {
   CompetencyMasteryDTO,
@@ -11,6 +10,13 @@ import type {
   WindowDriverDTO,
 } from "@/lib/mastery/mastery-dto";
 import Sparkline from "@/components/mastery/Sparkline";
+import { levelDotClass } from "@/components/report/LevelChip";
+import {
+  GoalsStrip,
+  LevelProgressBar,
+  ProgressRing,
+  SkillShield,
+} from "@/components/study-plan/PathVisuals";
 import type { LevelResult } from "@/lib/mastery/levels";
 import type { GoalProgress } from "@/lib/study-plan/goals";
 
@@ -31,6 +37,11 @@ import type { GoalProgress } from "@/lib/study-plan/goals";
  * "Recent") inside a `<dt>`, so the pairing survives a screenshot, a
  * colourblind reader, or a narrow viewport where position and colour both
  * fail as cues.
+ *
+ * Layout: a CWRU Blue summary band (recent form ring, all time, goal rings),
+ * the recent-movement strip, then one badge card per competency with its
+ * level shield, progress to the next level and both figures up front, and
+ * the trend, evidence and disclosures one click away.
  */
 
 export interface MasteryPanelProps {
@@ -38,6 +49,8 @@ export interface MasteryPanelProps {
   levels: Record<string, { current: LevelResult; lifetime: LevelResult }>;
   goals: GoalProgress;
   timeZone: string;
+  /** One line under the title saying what the figures are built from. */
+  intro?: string;
 }
 
 function formatPercent(percent: number | null): string {
@@ -63,12 +76,12 @@ function CompetencyDisclosures({ competency }: { competency: CompetencyMasteryDT
 
   if (lifetimeDisclosure && currentDisclosure && lifetimeDisclosure !== currentDisclosure) {
     return (
-      <div className="mt-2 space-y-1 text-xs leading-5 text-[#58727f]">
+      <div className="flex flex-col gap-1 text-xs leading-5 text-muted">
         <p>
-          <span className="font-semibold text-[#385463]">All time —</span> {lifetimeDisclosure}
+          <span className="font-semibold text-ink">All time —</span> {lifetimeDisclosure}
         </p>
         <p>
-          <span className="font-semibold text-[#385463]">Recent —</span> {currentDisclosure}
+          <span className="font-semibold text-ink">Recent —</span> {currentDisclosure}
         </p>
       </div>
     );
@@ -77,44 +90,40 @@ function CompetencyDisclosures({ competency }: { competency: CompetencyMasteryDT
   const single = lifetimeDisclosure ?? currentDisclosure;
   if (!single) return null;
 
-  return <p className="mt-2 text-xs leading-5 text-[#58727f]">{single}</p>;
+  return <p className="text-xs leading-5 text-muted">{single}</p>;
 }
 
 /**
- * The level badge. Levels are computed by the route (`levelFor`) from the
- * RECENT figure; when there is no recent evidence, the all-time level is
- * shown instead and labelled as such, so a student whose practice is older
- * than the window still sees where they stand.
+ * The level line under a competency's name. Levels are computed by the route
+ * (`levelFor`) from the RECENT figure; when there is no recent evidence, the
+ * all-time level is shown instead and labelled as such, so a student whose
+ * practice is older than the window still sees where they stand.
  */
 function LevelBadge({ level }: { level: { current: LevelResult; lifetime: LevelResult } }) {
   const useCurrent = level.current.level !== null;
   const shown = useCurrent ? level.current : level.lifetime;
   if (shown.level === null) {
-    return (
-      <Chip size="sm" variant="bordered" className="border-[#d4e2e9] text-[#8298a3]">
-        Not yet measured
-      </Chip>
-    );
+    return <span className="text-[13px] font-semibold text-muted">Not yet measured</span>;
   }
   return (
-    <div className="flex flex-col items-end gap-1">
-      <Chip
-        size="sm"
-        variant="flat"
-        className="bg-[#e3f3f7] font-semibold text-[#0a5b72]"
-        aria-label={`${useCurrent ? "Recent" : "All-time"} level ${shown.level}, ${shown.name}${
-          shown.provisional ? ", provisional" : ""
-        }`}
-      >
-        {`Level ${shown.level} · ${shown.name}`}
-      </Chip>
-      <span className="text-[11px] text-[#8298a3]">
-        {useCurrent ? "Recent level" : "All-time level"}
+    <span
+      className="text-[13px] font-semibold text-cwru-blue"
+      aria-label={`${useCurrent ? "Recent" : "All-time"} level ${shown.level}, ${shown.name}${
+        shown.provisional ? ", provisional" : ""
+      }`}
+    >
+      {`Level ${shown.level} · ${shown.name}`}
+      <span className="font-normal text-muted">
+        {useCurrent ? "" : " · all-time level"}
         {shown.provisional ? " · provisional" : ""}
-        {shown.nextLevelAtPercent !== null ? ` · next at ${shown.nextLevelAtPercent}%` : ""}
       </span>
-    </div>
+    </span>
   );
+}
+
+function shownLevel(level: { current: LevelResult; lifetime: LevelResult } | undefined): LevelResult | undefined {
+  if (!level) return undefined;
+  return level.current.level !== null ? level.current : level.lifetime;
 }
 
 function formatDelta(delta: number): string {
@@ -131,13 +140,15 @@ function formatDay(iso: string, timeZone: string): string {
   }
 }
 
+/** An up or down move as a tinted pill with its arrow, so direction never rests on color alone. */
 function DeltaText({ delta }: { delta: number }) {
   const Icon = delta >= 0 ? TrendingUp : TrendingDown;
   return (
     <span
-      className={`inline-flex items-center gap-1 font-semibold ${
-        delta >= 0 ? "text-[#0a7a4f]" : "text-[#b4532a]"
-      }`}
+      className={clsx(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] font-bold",
+        delta >= 0 ? "bg-level-4/16 text-level-4" : "bg-copper/12 text-copper",
+      )}
     >
       <Icon size={14} aria-hidden="true" />
       {`${formatDelta(delta)} pts`}
@@ -152,22 +163,23 @@ function DeltaText({ delta }: { delta: number }) {
  */
 function EvidenceSources({ sources }: { sources: OriginFigureDTO[] }) {
   return (
-    <div className="mt-3">
-      <p className="text-[11px] font-bold uppercase tracking-wide text-[#58727f]">Evidence from</p>
-      <ul className="mt-1 flex flex-wrap gap-2">
+    <div className="flex flex-col gap-1.5">
+      <p className="text-xs font-semibold text-muted">Evidence from</p>
+      <ul className="flex flex-col gap-1">
         {sources.map((source) => (
           <li
             key={source.origin}
-            className={`rounded-lg border px-2.5 py-1.5 text-xs ${
+            className={clsx(
+              "flex items-baseline justify-between gap-3 rounded-md px-2.5 py-1.5 text-xs",
               source.lifetime.evidenceCount === 0
-                ? "border-dashed border-[#d4e2e9] text-[#8298a3]"
+                ? "border border-dashed border-line text-muted"
                 : source.group === "live"
-                  ? "border-[#badbe5] bg-[#f1fafc] text-[#385463]"
-                  : "border-[#d9d2ef] bg-[#f7f5fd] text-[#4a4068]"
-            }`}
+                  ? "bg-light-blue/32 text-ink"
+                  : "bg-ai/10 text-ink",
+            )}
           >
             <span className="font-semibold">{source.label}</span>
-            <span className="ml-1.5">
+            <span className="text-right">
               {source.lifetime.evidenceCount === 0
                 ? "none yet"
                 : `${source.lifetime.evidenceCount} all time · ${source.current.evidenceCount} recent · avg ${formatPercent(
@@ -184,12 +196,12 @@ function EvidenceSources({ sources }: { sources: OriginFigureDTO[] }) {
 function DriverList({ drivers, timeZone }: { drivers: WindowDriverDTO[]; timeZone: string }) {
   if (drivers.length === 0) return null;
   return (
-    <ul className="mt-2 space-y-1.5">
+    <ul className="flex flex-col gap-1.5">
       {drivers.map((driver) => {
         const body = (
           <>
-            <span className="font-medium">{driver.activityLabel}</span>
-            <span className="text-[#8298a3]">
+            <span className="font-semibold">{driver.activityLabel}</span>
+            <span className="text-muted">
               {` · ${driver.originLabel} · ${formatDay(driver.occurredAt, timeZone)} · scored ${driver.percent}%`}
             </span>
           </>
@@ -197,10 +209,10 @@ function DriverList({ drivers, timeZone }: { drivers: WindowDriverDTO[]; timeZon
         return (
           <li
             key={`${driver.activityLabel}-${driver.occurredAt}-${driver.href ?? ""}`}
-            className="text-xs text-[#385463]"
+            className="text-xs text-ink"
           >
             {driver.href ? (
-              <Link href={driver.href} className="underline decoration-[#badbe5] underline-offset-2 hover:text-[#0a7391]">
+              <Link href={driver.href} className="underline decoration-light-blue underline-offset-2 hover:text-true-blue">
                 {body}
               </Link>
             ) : (
@@ -215,68 +227,73 @@ function DriverList({ drivers, timeZone }: { drivers: WindowDriverDTO[]; timeZon
 
 function RecentMovement({
   entries,
+  levels,
   windowDays,
   windowStartsAt,
   timeZone,
 }: {
   entries: RecentGrowthDTO[];
+  levels: MasteryPanelProps["levels"];
   windowDays: number;
   windowStartsAt: string;
   timeZone: string;
 }) {
   return (
-    <section aria-label="Recent movement">
-      <h2 className="font-serif text-2xl text-[#102331]">Recent movement</h2>
-      <p className="mt-1 text-sm text-[#58727f]">
-        {`Competencies whose all-time figure moved most in the last ${windowDays} days (since ${formatDay(
-          windowStartsAt,
-          timeZone
-        )}), up or down, and the activities that moved them.`}
-      </p>
+    <section aria-label="Recent movement" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-display text-[22px] font-medium text-cwru-blue">Recent movement</h2>
+        <p className="text-[13px] text-muted">
+          {`Biggest moves in the last ${windowDays} days, since ${formatDay(windowStartsAt, timeZone)}`}
+        </p>
+      </div>
       {entries.length === 0 ? (
-        <p className="mt-3 rounded-xl border border-dashed border-[#d4e2e9] bg-white p-4 text-sm text-[#58727f]">
+        <p className="la-hatch rounded-xl border border-line p-4 text-sm text-muted">
           Nothing has moved in this period yet. A live practice session, a knowledge check or a
           coached session will show up here.
         </p>
       ) : (
-        <ul className="mt-4 grid gap-3 md:grid-cols-3">
+        <ul className="grid gap-3 md:grid-cols-3">
           {entries.map((entry) => (
-            <li key={entry.competencyKey}>
-              <Card className="h-full border border-[#d4e2e9] shadow-[0_8px_24px_rgba(20,58,75,0.06)]">
-                <CardBody className="p-4">
-                  <p className="font-semibold text-[#102331]">{entry.label}</p>
-                  <p className="mt-1 text-sm text-[#385463]">
-                    {entry.kind === "new" || entry.delta === null ? (
-                      <span className="inline-flex items-center gap-1 font-semibold text-[#0a7391]">
-                        <Sparkle size={14} aria-hidden="true" />
-                        First measured this period
-                      </span>
-                    ) : (
-                      <>
-                        <DeltaText delta={entry.delta} />
-                        <span className="text-[#58727f]">
-                          {` all time: ${formatPercent(entry.windowStartPercent)} → ${formatPercent(
-                            entry.lifetimePercent
-                          )}`}
-                        </span>
-                      </>
-                    )}
-                  </p>
-                  <p className="mt-3 text-[11px] font-bold uppercase tracking-wide text-[#58727f]">
-                    Moved by
-                  </p>
-                  <DriverList drivers={entry.drivers} timeZone={timeZone} />
-                  {entry.delta !== null && entry.delta < 0 ? (
-                    <Link
-                      href={`/paths?competency=${encodeURIComponent(entry.competencyKey)}`}
-                      className="mt-3 inline-flex w-fit items-center gap-1 rounded-lg bg-[#0a7391] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#085f78]"
-                      aria-label={`Practice ${entry.label}`}
-                    >
-                      Practice this
-                    </Link>
-                  ) : null}
-                </CardBody>
-              </Card>
+            <li key={entry.competencyKey} className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4">
+              <div className="flex items-center gap-3">
+                <SkillShield competencyKey={entry.competencyKey} level={shownLevel(levels[entry.competencyKey])} size={40} />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <p className="text-[15px] font-bold leading-snug text-ink">{entry.label}</p>
+                  {entry.kind === "new" || entry.delta === null ? (
+                    <span className="inline-flex w-fit items-center gap-1 rounded-full bg-light-blue/32 px-2 py-0.5 text-[12.5px] font-bold text-cwru-blue">
+                      <Sparkle size={13} aria-hidden="true" />
+                      First measured
+                    </span>
+                  ) : (
+                    <DeltaText delta={entry.delta} />
+                  )}
+                </div>
+              </div>
+              {entry.kind !== "new" && entry.delta !== null && (
+                <p className="text-xs text-muted">
+                  {`All time ${formatPercent(entry.windowStartPercent)} → ${formatPercent(entry.lifetimePercent)}`}
+                </p>
+              )}
+              {entry.drivers.length > 0 && (
+                <details className="group text-xs">
+                  <summary className="flex cursor-pointer list-none items-center gap-1 font-semibold text-true-blue [&::-webkit-details-marker]:hidden">
+                    Moved by {entry.drivers.length} {entry.drivers.length === 1 ? "activity" : "activities"}
+                    <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180" size={14} />
+                  </summary>
+                  <div className="mt-2">
+                    <DriverList drivers={entry.drivers} timeZone={timeZone} />
+                  </div>
+                </details>
+              )}
+              {entry.delta !== null && entry.delta < 0 ? (
+                <Link
+                  href={`/paths?competency=${encodeURIComponent(entry.competencyKey)}`}
+                  className="mt-auto inline-flex h-9 w-fit items-center gap-1.5 rounded-lg bg-cwru-blue px-3 text-[13px] font-semibold text-white hover:bg-ink"
+                  aria-label={`Practice ${entry.label}`}
+                >
+                  Practice this <ArrowRight size={14} aria-hidden="true" />
+                </Link>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -297,12 +314,12 @@ function TrendRow({
   const { delta } = competency.windowChange;
   const weeks = competency.trend.length;
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <Sparkline
         points={competency.trend}
         label={`All-time ${competency.label} figure over the last ${weeks} weeks`}
       />
-      <div className="text-xs leading-5 text-[#58727f]">
+      <div className="flex flex-col gap-1 text-xs leading-5 text-muted">
         <p>{`All-time trend, last ${weeks} weeks`}</p>
         <p>
           {delta === null ? (
@@ -323,32 +340,115 @@ function TrendRow({
   );
 }
 
-function GoalRow({
-  label,
-  completed,
-  target,
-  met,
-}: {
-  label: string;
-  completed: number;
-  target: number;
-  met: boolean;
-}) {
+/** The 1-5 ladder, so a level number always has its word nearby. */
+function LevelLadder({ levels }: { levels: MasteryPanelProps["levels"] }) {
+  const names = new Map<number, string>();
+  for (const entry of Object.values(levels)) {
+    for (const result of [entry.current, entry.lifetime]) {
+      if (result.level !== null) names.set(result.level, result.name);
+    }
+  }
+  const steps = ([1, 2, 3, 4, 5] as const).filter((n) => names.has(n));
+  if (steps.length < 2) return null;
   return (
-    <div className="flex items-center gap-2 text-sm text-[#385463]">
-      {met ? (
-        <CircleCheck size={16} className="shrink-0 text-[#0a7391]" aria-hidden="true" />
-      ) : (
-        <Circle size={16} className="shrink-0 text-[#b7c7cd]" aria-hidden="true" />
-      )}
-      <span>
-        {label}: {met ? `goal met · ${completed} done` : `${completed} of ${target}`}
-      </span>
-    </div>
+    <ol aria-label="Levels" className="flex flex-wrap items-center gap-x-1 gap-y-2">
+      {steps.map((n, i) => (
+        <li key={n} className="flex items-center gap-1">
+          <span className="flex items-center gap-1.5 text-xs text-muted">
+            <span
+              className={clsx(
+                "grid size-[22px] place-items-center rounded-full text-[11px] font-bold",
+                levelDotClass(n),
+                n === 2 || n === 3 ? "text-ink" : "text-white",
+              )}
+            >
+              {n}
+            </span>
+            {names.get(n)}
+          </span>
+          {i < steps.length - 1 && <span aria-hidden className="mx-1 h-px w-3 bg-line" />}
+        </li>
+      ))}
+    </ol>
   );
 }
 
-export default function MasteryPanel({ mastery, levels, goals, timeZone }: MasteryPanelProps) {
+function CompetencyCard({
+  competency,
+  level,
+  windowDays,
+}: {
+  competency: CompetencyMasteryDTO;
+  level: { current: LevelResult; lifetime: LevelResult } | undefined;
+  windowDays: number;
+}) {
+  const shown = shownLevel(level);
+  const { delta } = competency.windowChange;
+  return (
+    <li className="relative flex flex-col gap-4 rounded-2xl border border-line bg-white p-5">
+      <div className="absolute right-4 top-4">
+        {delta !== null ? (
+          <DeltaText delta={delta} />
+        ) : competency.windowChange.startPercent === null && competency.current.evidenceCount > 0 ? (
+          <span className="rounded-full bg-light-blue/32 px-2 py-0.5 text-xs font-bold text-cwru-blue">New</span>
+        ) : null}
+      </div>
+
+      <div className="flex items-center gap-3.5 pr-20">
+        <SkillShield competencyKey={competency.competencyKey} level={shown} size={56} />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <p className="text-base font-bold leading-snug text-ink">{competency.label}</p>
+          {level ? <LevelBadge level={level} /> : <span className="text-[13px] text-muted">Not yet measured</span>}
+        </div>
+      </div>
+
+      {shown && shown.level !== null ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-muted">Progress to the next level</span>
+          <LevelProgressBar level={shown} />
+        </div>
+      ) : (
+        <p className="text-sm text-muted">{competency.description}</p>
+      )}
+
+      <dl className="grid grid-cols-2 gap-3 border-t border-line pt-3">
+        <div>
+          <dt className="text-xs font-semibold text-muted">All time</dt>
+          <dd className="font-display text-2xl font-medium text-cwru-blue tabular-nums">
+            {formatPercent(competency.lifetime.percent)}
+          </dd>
+          <dd className="text-[11.5px] text-muted">
+            {`${competency.lifetime.tierLabel} · ${competency.lifetime.evidenceCount} scored`}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-semibold text-true-blue">{`Recent (last ${windowDays} days)`}</dt>
+          <dd className="font-display text-2xl font-medium text-cwru-blue tabular-nums">
+            {formatPercent(competency.current.percent)}
+          </dd>
+          <dd className="text-[11.5px] text-muted">
+            {`${competency.current.tierLabel} · ${competency.current.evidenceCount} scored`}
+          </dd>
+        </div>
+      </dl>
+
+      <details className="group mt-auto border-t border-line pt-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between text-[13px] font-semibold text-true-blue [&::-webkit-details-marker]:hidden">
+          Trend and evidence
+          <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180" size={16} />
+        </summary>
+        <div className="mt-3 flex flex-col gap-3">
+          <p className="text-[13px] text-muted">{competency.description}</p>
+          <TrendRow competency={competency} windowDays={windowDays} />
+          <EvidenceSources sources={competency.sources} />
+          <CompetencyDisclosures competency={competency} />
+        </div>
+      </details>
+    </li>
+  );
+}
+
+export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }: MasteryPanelProps) {
   const { overall, window: masteryWindow, unmappedRowCount } = mastery;
   const bothOverallNull = overall.currentPercent === null && overall.lifetimePercent === null;
 
@@ -359,118 +459,88 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone }: Maste
       )}. All time: ${formatPercent(overall.lifetimePercent)}.`;
 
   return (
-    <div className="space-y-6">
-      <Card
-        className="border border-[#badbe5] bg-[linear-gradient(135deg,#ecf9fc,#ffffff)] shadow-[0_8px_24px_rgba(20,58,75,0.06)]"
+    <div className="flex flex-col gap-7">
+      <section
         aria-label={overallAriaLabel}
+        className="relative flex flex-wrap items-center gap-x-7 gap-y-5 overflow-hidden rounded-2xl bg-cwru-blue px-6 py-6 text-white md:px-7"
       >
-        <CardBody className="p-5 sm:p-6">
-          {bothOverallNull ? (
-            <div>
-              <p className="font-serif text-2xl text-[#102331]">No mastery measured yet</p>
-              <p className="mt-2 text-sm leading-6 text-[#58727f]">
-                Complete a live practice session, a knowledge check or a coached session and this
-                page will start showing where you stand.
-              </p>
+        <span aria-hidden className="la-dot-grid absolute inset-0 opacity-60" />
+        {bothOverallNull ? (
+          <div className="relative flex max-w-xl flex-col gap-1">
+            <h1 className="font-display text-[32px] font-medium leading-[1.1]">Mastery</h1>
+            <p className="font-display text-xl">No mastery measured yet</p>
+            <p className="text-sm leading-6 text-light-blue">
+              Complete a live practice session, a knowledge check or a coached session and this
+              page will start showing where you stand.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="relative">
+              <ProgressRing
+                done={overall.currentPercent ?? 0}
+                label={`Recent form ${formatPercent(overall.currentPercent)}`}
+                size={120}
+                stroke={11}
+                tone="dark"
+                total={100}
+              >
+                <span className="flex flex-col items-center leading-none">
+                  <span className="font-display text-[30px] font-medium">
+                    {overall.currentPercent === null ? "—" : `${overall.currentPercent}%`}
+                  </span>
+                  <span className="mt-1 text-[11px] font-normal text-light-blue">Recent form</span>
+                </span>
+              </ProgressRing>
             </div>
-          ) : (
-            <div className="flex flex-wrap items-end gap-8">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
-                  {`Recent form (last ${masteryWindow.days} days)`}
-                </p>
-                <p className="mt-1 font-serif text-4xl text-[#102331]">
-                  {formatPercent(overall.currentPercent)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#58727f]">All time</p>
-                <p className="mt-1 font-serif text-2xl text-[#385463]">
-                  {formatPercent(overall.lifetimePercent)}
-                </p>
-              </div>
+            <div className="relative flex min-w-[220px] flex-1 flex-col gap-1">
+              <h1 className="font-display text-[32px] font-medium leading-[1.1]">Mastery</h1>
+              <dl className="flex flex-wrap gap-x-5 text-[15px] text-light-blue">
+                <div className="flex gap-1.5">
+                  <dt>{`Recent (last ${masteryWindow.days} days)`}</dt>
+                  <dd className="font-bold text-white">{formatPercent(overall.currentPercent)}</dd>
+                </div>
+                <div className="flex gap-1.5">
+                  <dt>All time</dt>
+                  <dd className="font-bold text-white">{formatPercent(overall.lifetimePercent)}</dd>
+                </div>
+              </dl>
+              {intro && <p className="max-w-[60ch] text-[13px] leading-5 text-light-blue/90">{intro}</p>}
             </div>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card className="border border-[#d4e2e9] shadow-[0_8px_24px_rgba(20,58,75,0.06)]">
-        <CardBody className="flex flex-col gap-2 p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6">
-          <GoalRow label="Today" completed={goals.daily.completed} target={goals.daily.target} met={goals.daily.met} />
-          <GoalRow
-            label="This week"
-            completed={goals.weekly.completed}
-            target={goals.weekly.target}
-            met={goals.weekly.met}
-          />
-          <span className="text-xs text-[#8298a3]">Times shown for {timeZone}</span>
-        </CardBody>
-      </Card>
+          </>
+        )}
+        <div className="relative">
+          <GoalsStrip goals={goals} timeZone={timeZone} tone="dark" />
+        </div>
+      </section>
 
       <RecentMovement
         entries={mastery.recentGrowth}
+        levels={levels}
         windowDays={masteryWindow.days}
         windowStartsAt={masteryWindow.startsAt}
         timeZone={timeZone}
       />
 
-      <section aria-label="Mastery by competency">
-        <h2 className="font-serif text-2xl text-[#102331]">By competency</h2>
-        <ul className="mt-4 space-y-3">
-          {mastery.competencies.map((competency) => {
-            const level = levels[competency.competencyKey];
-            return (
-              <li key={competency.competencyKey}>
-                <Card className="border border-[#d4e2e9] shadow-[0_8px_24px_rgba(20,58,75,0.06)]">
-                  <CardBody className="p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-[#102331]">{competency.label}</p>
-                        <p className="mt-1 text-sm leading-6 text-[#58727f]">{competency.description}</p>
-                      </div>
-                      {level ? <LevelBadge level={level} /> : null}
-                    </div>
-
-                    <dl className="mt-3 flex flex-wrap gap-8">
-                      <div>
-                        <dt className="text-[11px] font-bold uppercase tracking-wide text-[#58727f]">
-                          All time
-                        </dt>
-                        <dd className="mt-0.5 text-lg font-semibold text-[#385463]">
-                          {formatPercent(competency.lifetime.percent)}
-                        </dd>
-                        <dd className="text-[11px] text-[#8298a3]">
-                          {`${competency.lifetime.tierLabel} · ${competency.lifetime.evidenceCount} scored`}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-[11px] font-bold uppercase tracking-wide text-[#0a7391]">
-                          {`Recent (last ${masteryWindow.days} days)`}
-                        </dt>
-                        <dd className="mt-0.5 text-lg font-semibold text-[#102331]">
-                          {formatPercent(competency.current.percent)}
-                        </dd>
-                        <dd className="text-[11px] text-[#8298a3]">
-                          {`${competency.current.tierLabel} · ${competency.current.evidenceCount} scored`}
-                        </dd>
-                      </div>
-                    </dl>
-
-                    <TrendRow competency={competency} windowDays={masteryWindow.days} />
-
-                    <EvidenceSources sources={competency.sources} />
-
-                    <CompetencyDisclosures competency={competency} />
-                  </CardBody>
-                </Card>
-              </li>
-            );
-          })}
+      <section aria-label="Mastery by competency" className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="font-display text-[22px] font-medium text-cwru-blue">Your skill badges</h2>
+          <LevelLadder levels={levels} />
+        </div>
+        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {mastery.competencies.map((competency) => (
+            <CompetencyCard
+              key={competency.competencyKey}
+              competency={competency}
+              level={levels[competency.competencyKey]}
+              windowDays={masteryWindow.days}
+            />
+          ))}
         </ul>
       </section>
 
       {unmappedRowCount > 0 ? (
-        <p role="note" className="text-xs leading-5 text-[#8298a3]">
+        <p role="note" className="text-xs leading-5 text-muted">
           {unmappedRowCount} recorded {unmappedRowCount === 1 ? "result" : "results"} did not map to
           a current competency and are not reflected above. This means the competency catalog and
           the evidence ledger disagree — it is a data note, not a score.

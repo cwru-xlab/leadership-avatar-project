@@ -28,6 +28,8 @@
   /* surfaces */
   --la-shadow-raised: 0 12px 32px rgb(9 20 58 / 0.16);
   --la-stage: #09143A;
+  /* the darker edge under a finished path node */
+  --la-level-4-deep: #26594F;
 
   /* report aliases, repointed at the brand tokens */
   --report-navy: var(--la-dark-blue);
@@ -92,6 +94,12 @@
 /* "Not started" / "no data yet" texture. Never behind body-length text. */
 @utility la-hatch {
   background: repeating-linear-gradient(135deg, var(--la-surface) 0 6px, rgb(9 20 58 / 0.06) 6px 7px);
+}
+
+/* The path map's ground: a faint Light Blue dot field. */
+@utility la-map-dots {
+  background-image: radial-gradient(rgb(166 210 230 / 0.55) 1.2px, transparent 1.4px);
+  background-size: 22px 22px;
 }
 
 /* Login and kiosk only; never app chrome. */

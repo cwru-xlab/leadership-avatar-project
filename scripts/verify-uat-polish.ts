@@ -57,8 +57,8 @@ console.log("\n2. D19-1 — each deck mode's session length uses its own envelop
 console.log("\n3. K-1 — verdict and negotiation titles are headings");
 {
   const verdict = read("components/practice/report/DeckVerdictPanel.tsx");
-  rule("DeckVerdictPanel title is an <h2>", verdict, (s) => /<h2 className="mt-1 font-serif text-xl[^"]*">\{heading\}<\/h2>/.test(s),
-    (s) => s.replace(/<h2 (className="mt-1 font-serif text-xl[^"]*")>\{heading\}<\/h2>/, "<p $1>{heading}</p>"));
+  rule("DeckVerdictPanel title is an <h2>", verdict, (s) => /<h2 className="[^"]*">\{heading\}<\/h2>/.test(s),
+    (s) => s.replace(/<h2 (className="[^"]*")>\{heading\}<\/h2>/, "<p $1>{heading}</p>"));
   const triple = read("components/practice/report/NegotiationTriplePanel.tsx");
   rule("NegotiationTriplePanel title is an <h2>", triple, (s) => /<h2 [^>]*>\s*Ask · Settled · Fair range\s*<\/h2>/.test(s),
     (s) => s.replace(/<h2 ([^>]*)>(\s*Ask · Settled · Fair range\s*)<\/h2>/, "<p $1>$2</p>"));

@@ -359,7 +359,7 @@ console.log("\n5b. STUDY PLANS + PATHS NAV (Phase 23)");
     const hrefs = navItems.map((item) => item.href);
     const expectedOrder = ["/reports", "/study-plans", "/paths", "/mastery"];
     for (const [href, label, page] of [
-      ["/study-plans", "Study Plans", "app/study-plans/page.tsx"],
+      ["/study-plans", "Study plans", "app/study-plans/page.tsx"],
       ["/paths", "Paths", "app/paths/page.tsx"],
     ] as const) {
       const entry = navItems.find((item) => item.href === href);
