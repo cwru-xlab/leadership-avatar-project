@@ -400,8 +400,7 @@ export default function ReportBody({
                   <SectionHeading>Voice</SectionHeading>
                   {showInterviewPaceTarget && (
                     <p className="text-sm text-muted">
-                      Assessed pace: {Math.round(metrics.vocal.words_per_minute)} WPM. Interview
-                      target: 100–159 WPM.
+                      Assessed pace: {Math.round(metrics.vocal.words_per_minute)} WPM. {"Interview target: 100–159 WPM."}
                     </p>
                   )}
                   <BandList rows={vocalBands(metrics.vocal)} />

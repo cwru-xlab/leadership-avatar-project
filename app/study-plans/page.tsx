@@ -13,14 +13,20 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
-import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
-import { ChevronRight, Footprints, Sparkles } from "lucide-react";
+import { BadgeCheck, Footprints, Trophy } from "lucide-react";
 
 import type { ReportDTO } from "@/lib/report/dto";
 import StudyPlanGenerator from "@/components/study-plan/StudyPlanGenerator";
 import { ProgressRing } from "@/components/study-plan/PathVisuals";
-import { isStepDone, KIND_LABEL, continueTargetFor } from "@/components/study-plan/PathPanel";
+import {
+  continueTargetFor,
+  hrefForStep,
+  isStepDone,
+  KIND_ICON,
+  KIND_LABEL,
+} from "@/components/study-plan/PathPanel";
+import { competencyIcon } from "@/components/study-plan/competency-icons";
 import { usePlansWithPaths, type PlanWithPath } from "@/components/study-plan/usePlansWithPaths";
 
 function formatDate(iso: string): string {
@@ -31,37 +37,122 @@ function formatDate(iso: string): string {
   });
 }
 
-function PathStatus({ item }: { item: PlanWithPath }) {
-  if (item.path === undefined) {
-    return <div className="h-14 w-40 animate-pulse rounded-xl bg-[#eef3f5]" />;
+/** The skills a plan's path works on, in the order they first appear. */
+function pathSkills(item: PlanWithPath): Array<{ key: string; label: string }> {
+  const seen = new Map<string, string>();
+  for (const step of item.path?.steps ?? []) {
+    if (!seen.has(step.competencyKey)) seen.set(step.competencyKey, step.competencyLabel);
   }
-  if (item.pathError) {
-    return <p className="text-xs text-danger-700">{item.pathError}</p>;
-  }
-  if (item.path === null) {
-    return (
-      <Chip size="sm" variant="flat" className="bg-[#fff4e0] text-[#8a5a00]">
-        No path yet
-      </Chip>
-    );
-  }
-  const total = item.path.steps.length;
-  const done = item.path.steps.filter(isStepDone).length;
-  const target = continueTargetFor(item.path);
+  return [...seen].map(([key, label]) => ({ key, label }));
+}
+
+/** One plan as a card: a blue band with its progress ring, then its skills and the next step. */
+function PlanCard({ item }: { item: PlanWithPath }) {
+  const total = item.path ? item.path.steps.length : 0;
+  const done = item.path ? item.path.steps.filter(isStepDone).length : 0;
+  const finished = Boolean(item.path) && total > 0 && done >= total;
+  const target = item.path ? continueTargetFor(item.path) : null;
+  const targetHref = target ? hrefForStep(item.plan.id, target.step) : null;
+  const NextIcon = target ? KIND_ICON[target.step.kind] : Footprints;
+  const skills = pathSkills(item);
+
   return (
-    <div className="flex items-center gap-3">
-      <ProgressRing done={done} total={total} size={52} stroke={6} />
-      <div className="min-w-0 text-sm">
-        <p className="font-semibold text-[#102331]">
-          {done >= total ? "Path complete" : `${done} of ${total} steps done`}
-        </p>
-        {target && done < total ? (
-          <p className="text-xs text-[#58727f]">
-            Next: {KIND_LABEL[target.step.kind]} — {target.step.competencyLabel}
+    <li className="flex flex-col overflow-hidden rounded-2xl border border-line bg-white">
+      <Link
+        className={`relative flex items-center gap-4 px-5 py-[18px] text-white transition-colors duration-150 ease-out ${
+          finished ? "bg-level-4 hover:bg-level-4/90" : "bg-cwru-blue hover:bg-ink"
+        }`}
+        href={`/study-plans/${item.plan.id}`}
+      >
+        <span aria-hidden className="la-dot-grid absolute inset-0 bg-transparent opacity-40" />
+        {item.path === undefined ? (
+          <span className="relative size-16 shrink-0 animate-pulse rounded-full bg-white/15" />
+        ) : item.path ? (
+          <span className="relative">
+            <ProgressRing done={done} size={64} stroke={7} tone="dark" total={total}>
+              {finished ? <Trophy aria-hidden size={24} strokeWidth={2} /> : undefined}
+            </ProgressRing>
+          </span>
+        ) : (
+          <span className="relative grid size-16 shrink-0 place-items-center rounded-full border-2 border-dashed border-white/50">
+            <Footprints aria-hidden size={24} />
+          </span>
+        )}
+        <span className="relative flex min-w-0 flex-col gap-1">
+          <span className="line-clamp-2 font-display text-xl font-medium leading-tight">{item.plan.title}</span>
+          <span className="text-[13px] text-light-blue">
+            Saved {formatDate(item.plan.savedAt)} · {item.plan.sourceReportCount}{" "}
+            {item.plan.sourceReportCount === 1 ? "session" : "sessions"}
+          </span>
+        </span>
+      </Link>
+
+      <div className="flex flex-1 flex-col gap-3.5 px-5 py-4">
+        {skills.length > 0 ? (
+          <div className="flex items-center gap-2">
+            <span className="text-[12.5px] text-muted">Skills</span>
+            {skills.map((skill) => {
+              const Icon = competencyIcon(skill.key);
+              return (
+                <span
+                  key={skill.key}
+                  className="grid size-8 place-items-center rounded-full bg-light-blue/32 text-cwru-blue"
+                  title={skill.label}
+                >
+                  <Icon aria-label={skill.label} size={16} strokeWidth={2} />
+                </span>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="line-clamp-2 text-sm text-muted">
+            {item.plan.priorityThemes.map((t) => t.theme).join(" · ")}
           </p>
+        )}
+
+        {item.pathError ? (
+          <p className="text-xs text-copper">{item.pathError}</p>
+        ) : item.path === null ? (
+          <div className="mt-auto flex items-center justify-between gap-3">
+            <span className="text-sm text-muted">No path yet</span>
+            <Button
+              as={Link}
+              className="h-9 rounded-lg font-semibold"
+              color="primary"
+              href={`/paths?plan=${item.plan.id}`}
+              startContent={<Footprints size={14} />}
+            >
+              Generate path
+            </Button>
+          </div>
+        ) : finished ? (
+          <Link className="mt-auto flex items-center gap-2 text-sm font-bold text-level-4" href="/mastery">
+            <BadgeCheck aria-hidden size={20} strokeWidth={2} />
+            Path complete · see how your mastery moved
+          </Link>
+        ) : target ? (
+          <div className="mt-auto flex items-center gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-cwru-blue text-white">
+              <NextIcon aria-hidden size={18} strokeWidth={2} />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="text-xs text-muted">Up next · Step {target.step.position} of {total}</span>
+              <span className="truncate text-sm font-bold text-ink">
+                {KIND_LABEL[target.step.kind]} · {target.step.competencyLabel}
+              </span>
+            </span>
+            <Button
+              as={Link}
+              className="h-9 shrink-0 rounded-lg font-semibold"
+              color="primary"
+              href={targetHref ?? `/paths?plan=${item.plan.id}`}
+            >
+              Continue
+            </Button>
+          </div>
         ) : null}
       </div>
-    </div>
+    </li>
   );
 }
 
@@ -70,6 +161,7 @@ export default function StudyPlansPage() {
   const { state, addPlan } = usePlansWithPaths();
   const [reports, setReports] = useState<ReportDTO[] | null>(null);
   const [reportsError, setReportsError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"in-progress" | "completed">("in-progress");
 
   useEffect(() => {
     let cancelled = false;
@@ -93,116 +185,86 @@ export default function StudyPlansPage() {
     };
   }, []);
 
-  return (
-    <main className="min-h-[100dvh] bg-[#f5f8fa] text-[#102331]">
-      <div className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-10 lg:px-8">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0a7391]">
-          <Sparkles size={14} />
-          Leadership Avatar Practice
-        </div>
-        <h1 className="mt-3 font-serif text-3xl tracking-[-0.03em] text-[#102331] sm:text-4xl">
-          Study Plans
-        </h1>
-        <p className="mt-2 text-sm text-[#58727f]">
-          Plans built from your interview feedback. Each one can grow its own improvement path.
-        </p>
+  const items = state.status === "loaded" ? state.items : [];
+  const isFinished = (i: PlanWithPath) =>
+    Boolean(i.path) && i.path!.steps.length > 0 && i.path!.steps.every(isStepDone);
+  const inProgress = items.filter((i) => !isFinished(i));
+  const completed = items.filter(isFinished);
+  const shown = tab === "completed" ? completed : inProgress;
 
-        {state.status === "needs-login" ? (
-          <div className="mt-8 rounded-2xl border border-[#d4e2e9] bg-white p-8 text-center shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
-            <p className="font-serif text-2xl text-[#102331]">Please sign in to view your study plans.</p>
-            <Button className="mt-5" color="primary" onPress={() => router.push("/login")}>
-              Go to sign in
-            </Button>
-          </div>
-        ) : (
-          <>
-            <div className="mt-8">
-              {reportsError ? (
-                <p className="text-sm text-danger-700">{reportsError}</p>
-              ) : reports === null ? (
-                <div className="h-28 animate-pulse rounded-2xl border border-[#e3ebee] bg-white" />
-              ) : (
-                <StudyPlanGenerator reports={reports} onSaved={addPlan} />
-              )}
+  return (
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-2">
+        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+          Study plans
+        </h1>
+        <p className="text-[15px] text-muted">Each plan turns your feedback into a path of short steps.</p>
+      </header>
+
+      {state.status === "needs-login" ? (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-white p-8 text-center">
+          <p className="font-display text-2xl font-medium text-cwru-blue">Please sign in to view your study plans.</p>
+          <Button color="primary" onPress={() => router.push("/login")}>
+            Go to sign in
+          </Button>
+        </div>
+      ) : (
+        <>
+          {reportsError ? (
+            <p role="alert" className="text-sm text-copper">{reportsError}</p>
+          ) : reports === null ? (
+            <div className="h-24 animate-pulse rounded-xl border border-line bg-white" />
+          ) : (
+            <StudyPlanGenerator reports={reports} onSaved={addPlan} />
+          )}
+
+          <section aria-label="Saved study plans" className="flex flex-col gap-4">
+            <div aria-label="Plan status" className="flex gap-7 border-b border-line" role="tablist">
+              {(
+                [
+                  ["in-progress", "In progress", inProgress.length],
+                  ["completed", "Completed", completed.length],
+                ] as const
+              ).map(([id, label, count]) => (
+                <button
+                  key={id}
+                  aria-selected={tab === id}
+                  className={`-mb-px h-11 border-b-2 text-[15px] ${
+                    tab === id ? "border-true-blue font-semibold text-cwru-blue" : "border-transparent font-medium text-muted"
+                  }`}
+                  role="tab"
+                  type="button"
+                  onClick={() => setTab(id)}
+                >
+                  {label} <span className="font-normal text-muted">{count}</span>
+                </button>
+              ))}
             </div>
 
-            <section className="mt-10" aria-label="Saved study plans">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7391]">Saved history</p>
-              <h2 className="mt-1 font-serif text-2xl text-[#102331]">Your study plans</h2>
-
-              {state.status === "loading" ? (
-                <div className="mt-6 flex justify-center">
-                  <Spinner color="current" />
-                </div>
-              ) : state.status === "error" ? (
-                <p className="mt-3 text-sm text-danger-700">{state.message}</p>
-              ) : state.items.length === 0 ? (
-                <p className="mt-3 text-sm text-[#58727f]">
-                  Saved study plans will appear here after you review and save one.
-                </p>
-              ) : (
-                <ul className="mt-4 space-y-3">
-                  {state.items.map((item) => (
-                    <li
-                      key={item.plan.id}
-                      className="rounded-2xl border border-[#d4e2e9] bg-white p-5 shadow-[0_8px_24px_rgba(20,58,75,0.06)] sm:p-6"
-                    >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <Link
-                            href={`/study-plans/${item.plan.id}`}
-                            className="font-serif text-xl text-[#102331] hover:text-[#0a7391]"
-                          >
-                            {item.plan.title}
-                          </Link>
-                          <p className="mt-1 text-sm text-[#58727f]">
-                            Saved {formatDate(item.plan.savedAt)} · {item.plan.sourceReportCount}{" "}
-                            {item.plan.sourceReportCount === 1 ? "session" : "sessions"} analyzed
-                          </p>
-                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#385463]">
-                            {item.plan.summary}
-                          </p>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {item.plan.priorityThemes.map((theme) => (
-                              <Chip key={theme.priority} size="sm" variant="flat">
-                                {theme.priority}. {theme.theme}
-                              </Chip>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 flex-col gap-3 md:w-60 md:items-end">
-                          <PathStatus item={item} />
-                          <div className="flex flex-wrap gap-2 md:justify-end">
-                            <Button
-                              as={Link}
-                              href={`/paths?plan=${item.plan.id}`}
-                              size="sm"
-                              color="primary"
-                              variant={item.path === null ? "solid" : "flat"}
-                              startContent={<Footprints size={14} />}
-                            >
-                              {item.path === null ? "Generate path" : "Open path"}
-                            </Button>
-                            <Button
-                              as={Link}
-                              href={`/study-plans/${item.plan.id}`}
-                              size="sm"
-                              variant="light"
-                              endContent={<ChevronRight size={14} />}
-                            >
-                              View plan
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </>
-        )}
-      </div>
-    </main>
+            {state.status === "loading" ? (
+              <div className="flex justify-center py-8">
+                <Spinner color="current" />
+              </div>
+            ) : state.status === "error" ? (
+              <p role="alert" className="text-sm text-copper">{state.message}</p>
+            ) : shown.length === 0 ? (
+              <p className="la-hatch rounded-xl border border-line px-4 py-6 text-sm text-muted">
+                {items.length === 0
+                  ? "Saved study plans will appear here after you review and save one."
+                  : tab === "completed"
+                    ? "Finished paths will collect here."
+                    : "Every plan's path is finished. Build a new plan to keep going."}
+              </p>
+            ) : (
+              <ul className="grid gap-[18px] lg:grid-cols-2">
+                {shown.map((item) => (
+                  <PlanCard key={item.plan.id} item={item} />
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
+    </div>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * Renders a study plan's path as a vertical skill trail (Phase 23): a
- * header with a progress ring, ONE prominent "Continue" call-to-action for
- * the next step showing the FULL stored reason, the complete step list in
- * position order (kind icon, done/next/pending state, competency level
- * badge, stored reason, an action link for every pending step), and a
- * completion state linking to Mastery once every step is done.
+ * Renders a study plan's path as a winding map of steps (Phase 23): a
+ * progress ring, the steps in position order as icon nodes (done / next /
+ * pending), and selecting a node opens its card in place (competency level
+ * badge, stored reason, an action link for every pending step). The side
+ * rail holds ONE prominent "Continue" call-to-action for the next step
+ * showing the FULL stored reason, the skills the path works on with their
+ * levels, and a completion state linking to Mastery once every step is done.
  *
  * NO SELECTION AND NO REASON GENERATION HAPPEN HERE. Every `selectionReason`
  * rendered below is the STORED string the server sent — this component only
@@ -46,7 +47,8 @@
  * server-side generation route (app/api/study-plans/[planId]/path/route.ts)
  * is the first line — this is only a backstop.
  */
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import clsx from "clsx";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -55,13 +57,19 @@ import {
   ListChecks,
   MessagesSquare,
   Mic,
+  Play,
   RotateCcw,
   Sparkles,
   Trophy,
   type LucideIcon,
 } from "lucide-react";
 
-import { LevelBadge, ProgressRing, type LevelsByCompetency } from "@/components/study-plan/PathVisuals";
+import {
+  LevelBadge,
+  ProgressRing,
+  SkillLevelRow,
+  type LevelsByCompetency,
+} from "@/components/study-plan/PathVisuals";
 import RebuildPathNotice from "@/components/study-plan/RebuildPathNotice";
 
 const PLACEHOLDER_KNOWLEDGE_CHECK_ID = "__PENDING_GENERATION__";
@@ -205,58 +213,85 @@ export function repeatedReasonPurpose(
   return mine.slice(shared).join("").trim();
 }
 
-function TrailNode({ state, kind }: { state: NodeState; kind: PathStepKind }) {
-  const Icon = KIND_ICON[kind];
-  if (state === "done") {
-    return (
-      <span className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#1f8a5b] text-white shadow-[0_4px_0_#16683f]">
-        <Check size={22} strokeWidth={3} aria-hidden="true" />
-      </span>
-    );
-  }
-  if (state === "next") {
-    return (
-      <span className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center">
-        <span className="absolute inset-0 animate-ping rounded-full bg-[#0a7391]/25" aria-hidden="true" />
-        <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-[#0a7391] text-white shadow-[0_4px_0_#075569] ring-4 ring-[#cdeaf2]">
-          <Icon size={22} aria-hidden="true" />
-        </span>
-      </span>
-    );
-  }
+/** Horizontal offsets for the winding map, in steps of the wave unit. */
+const WAVE = [0, 1, 1.6, 1, 0, -1, -1.6, -1];
+
+function nodeIcon(step: PathStepViewDTO): LucideIcon {
+  return step.proveIt ? Trophy : KIND_ICON[step.kind];
+}
+
+function MapNode({
+  step,
+  state,
+  selected,
+  highlighted,
+  onSelect,
+}: {
+  step: PathStepViewDTO;
+  state: NodeState;
+  selected: boolean;
+  highlighted: boolean;
+  onSelect: () => void;
+}) {
+  const Icon = nodeIcon(step);
+  const big = state === "next" || Boolean(step.proveIt);
   return (
-    <span className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-[#c9dbe2] bg-white text-[#0a7391] shadow-[0_4px_0_#dce8ed]">
-      <Icon size={20} aria-hidden="true" />
-    </span>
+    <button
+      aria-expanded={selected}
+      aria-label={`Step ${step.position}: ${KIND_LABEL[step.kind]}, ${step.competencyLabel}${
+        state === "done" ? ", complete" : state === "next" ? ", up next" : ""
+      }`}
+      className={clsx(
+        "relative grid shrink-0 place-items-center rounded-full transition-transform duration-150 ease-out hover:-translate-y-0.5 focus-visible:outline-true-blue",
+        big ? "size-[84px]" : "size-[68px]",
+        state === "done" && "bg-level-4 text-white shadow-[0_6px_0_var(--la-level-4-deep)]",
+        state === "next" &&
+          "bg-cwru-blue text-white shadow-[0_0_0_8px_rgb(166_210_230/0.55),0_6px_0_var(--la-dark-blue)]",
+        state === "pending" &&
+          "border-2 border-light-blue bg-white text-cwru-blue shadow-[0_6px_0_rgb(166_210_230/0.8)]",
+        selected && state !== "next" && "ring-4 ring-true-blue/40 ring-offset-2",
+        highlighted && "outline-dashed outline-2 outline-offset-4 outline-level-2",
+      )}
+      type="button"
+      onClick={onSelect}
+    >
+      {state === "done" ? (
+        <>
+          <Check aria-hidden size={30} strokeWidth={3} />
+          <span className="absolute -right-1 -top-1 grid size-6 place-items-center rounded-full bg-white text-level-4 shadow-sm">
+            <Icon aria-hidden size={13} strokeWidth={2} />
+          </span>
+        </>
+      ) : (
+        <Icon aria-hidden size={big ? 36 : 28} strokeWidth={1.75} />
+      )}
+    </button>
   );
 }
 
 export function PathCompleteCard({ total }: { total: number }) {
   return (
-    <section className="mt-5 overflow-hidden rounded-2xl border-2 border-[#1f8a5b] bg-[linear-gradient(135deg,#eaf8f0,#ffffff)] p-5 text-center sm:p-7">
-      <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#1f8a5b] text-white shadow-[0_6px_0_#16683f]">
-        <Trophy size={30} aria-hidden="true" />
+    <section className="flex flex-col items-center gap-3 rounded-2xl bg-level-4 p-6 text-center text-white">
+      <span className="grid size-16 place-items-center rounded-full bg-white text-level-4 shadow-[0_6px_0_rgb(0_0_0/0.15)]">
+        <Trophy aria-hidden size={30} />
       </span>
-      <p className="mt-4 font-serif text-2xl text-[#102331]">Path complete!</p>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#385463]">
+      <p className="font-display text-2xl font-medium">Path complete</p>
+      <p className="max-w-md text-sm leading-6 text-white/90">
         You finished all {total} steps. Every check and session you completed has been added to
         your mastery record.
       </p>
-      <div className="mt-5 flex flex-col items-center justify-center gap-2 sm:flex-row">
+      <div className="flex flex-col items-center gap-2 sm:flex-row">
         <Link
           href="/mastery"
-          className="inline-flex items-center gap-2 rounded-xl bg-[#1f8a5b] px-5 py-2.5 text-sm font-bold text-white shadow-[0_4px_0_#16683f] transition-transform active:translate-y-0.5"
+          className="inline-flex h-11 items-center gap-2 rounded-lg bg-white px-5 text-sm font-bold text-level-4"
         >
           <Sparkles size={16} aria-hidden="true" /> See your mastery
         </Link>
-        <Link
-          href="/study-plans"
-          className="inline-flex items-center gap-2 rounded-xl border border-[#1f8a5b] px-5 py-2.5 text-sm font-semibold text-[#1f8a5b]"
-        >
+        <Link href="/study-plans" className="inline-flex h-11 items-center px-3 text-sm font-semibold text-white underline">
           Start a new study plan
         </Link>
       </div>
-      <p className="mt-3 text-xs text-[#58727f]">
+      <p className="text-xs text-white/80">
         A new study plan creates a new path — this one stays here as a record.
       </p>
     </section>
@@ -276,14 +311,13 @@ export default function PathPanel({
   /** Optional per-competency levels from /api/mastery, shown as badges. */
   levels?: LevelsByCompetency | null;
   /**
-   * GROWTH-SINCE-PLAN SLOT (reserved, Phase 23). A per-plan "growth since
-   * this plan was generated" strip (GET /api/mastery/since-plan?planId=…,
-   * owned by the mastery worktree) is rendered here, directly under the
-   * header, once wired. Callers pass null/undefined until then.
+   * GROWTH-SINCE-PLAN SLOT (Phase 23). The per-plan "growth since this plan
+   * was generated" strip (GET /api/mastery/since-plan?planId=…) renders in
+   * the side rail.
    */
   growthSlot?: ReactNode;
   /** When set (e.g. /paths?competency=<key>), steps targeting this
-   * competency are outlined and the first one is scrolled into view. */
+   * competency are outlined and the first one is selected and scrolled to. */
   highlightCompetency?: string | null;
   /** Receives the fresh path when the student rebuilds a legacy one. */
   onRebuilt?: (path: PathViewDTO, degradedStepCount: number) => void;
@@ -298,15 +332,24 @@ export default function PathPanel({
   const firstHighlighted = highlightCompetency
     ? orderedSteps.find((s) => s.competencyKey === highlightCompetency) ?? null
     : null;
-
   const firstHighlightedId = firstHighlighted?.id ?? null;
+
+  const [selectedId, setSelectedId] = useState<string | null>(
+    firstHighlightedId ?? target?.step.id ?? orderedSteps[0]?.id ?? null,
+  );
 
   useEffect(() => {
     if (!firstHighlightedId) return;
+    setSelectedId(firstHighlightedId);
     document
       .getElementById(`path-step-${firstHighlightedId}`)
       ?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [firstHighlightedId]);
+
+  // Skills this path works on, in the order they first appear.
+  const skills = orderedSteps.filter(
+    (step, index) => orderedSteps.findIndex((s) => s.competencyKey === step.competencyKey) === index,
+  );
 
   // `degradedSteps` conversion (a failed check generation becoming
   // UNAIDED_SESSION) already happened server-side at generation time,
@@ -318,176 +361,184 @@ export default function PathPanel({
   // that count, right after this panel.
 
   return (
-    <div className="rounded-2xl border border-[#d4e2e9] bg-white p-4 shadow-[0_8px_24px_rgba(20,58,75,0.06)] sm:p-7">
-      <header className="flex items-center gap-4">
-        <ProgressRing done={complete} total={total} />
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7391]">
-            Your improvement path
-          </p>
-          <h2 className="font-serif text-2xl text-[#102331]">
-            {complete} of {total} complete
-          </h2>
-          <p className="text-sm text-[#58727f]">
-            Generated {formatGeneratedAt(path.generatedAt)} — reflects your mastery at that moment,
-            not necessarily right now.
-          </p>
-        </div>
-      </header>
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <section
+        aria-label="Path map"
+        className="la-map-dots relative overflow-hidden rounded-2xl border border-line bg-white px-4 pb-10 pt-5 sm:px-6"
+      >
+        <header className="flex items-center gap-3">
+          <ProgressRing done={complete} size={48} stroke={5} total={total} />
+          <div className="flex min-w-0 flex-col">
+            <p className="text-[15px] font-bold text-ink">
+              {complete} of {total} steps complete
+            </p>
+            <p className="text-xs text-muted">
+              Generated {formatGeneratedAt(path.generatedAt)}, from your mastery at that moment.
+            </p>
+          </div>
+        </header>
 
-      {/* GROWTH-SINCE-PLAN SLOT — see the `growthSlot` prop. */}
-      {growthSlot ? <div className="mt-5">{growthSlot}</div> : null}
+        <ol className="mt-8 flex flex-col items-center gap-6">
+          {orderedSteps.map((step, index) => {
+            const href = hrefForStep(planId, step);
+            const isActionable = step.status === "PENDING" || step.status === "IN_PROGRESS";
+            const state: NodeState = isStepDone(step)
+              ? "done"
+              : target && target.step.id === step.id
+                ? "next"
+                : "pending";
+            const statusLabel = STATUS_LABEL[step.status] ?? step.status;
+            const highlighted = Boolean(highlightCompetency) && step.competencyKey === highlightCompetency;
+            const selected = selectedId === step.id;
+            const wave = WAVE[index % WAVE.length];
+            const purpose = repeatedReasonPurpose(step, orderedSteps[index - 1]);
+            return (
+              <li
+                key={step.id}
+                id={`path-step-${step.id}`}
+                className="flex w-full scroll-mt-24 flex-col items-center gap-3"
+              >
+                <div
+                  className={clsx(
+                    "flex items-center gap-4 [transform:translateX(calc(var(--wave)*18px))] md:[transform:translateX(calc(var(--wave)*88px))]",
+                    wave > 0 && "md:flex-row-reverse",
+                  )}
+                  style={{ "--wave": wave } as React.CSSProperties}
+                >
+                  <MapNode
+                    highlighted={highlighted}
+                    selected={selected}
+                    state={state}
+                    step={step}
+                    onSelect={() => setSelectedId(selected ? null : step.id)}
+                  />
+                  <span className={clsx("flex w-36 flex-col md:w-40", wave > 0 && "md:items-end md:text-right")}>
+                    <span className="text-xs text-muted">
+                      Step {step.position} · {step.proveIt ? "Prove it" : KIND_LABEL[step.kind]}
+                    </span>
+                    <span className={clsx("text-sm font-bold leading-snug", state === "pending" ? "text-ink" : "text-cwru-blue")}>
+                      {step.competencyLabel}
+                    </span>
+                    {state === "done" && (
+                      <span className="text-xs font-semibold text-level-4">
+                        Done{step.completedAt ? ` · ${formatGeneratedAt(step.completedAt)}` : ""}
+                      </span>
+                    )}
+                    {state === "next" && <span className="text-xs font-semibold text-true-blue">Up next</span>}
+                  </span>
+                </div>
 
-      {path.rebuildable && onRebuilt ? (
-        <div className="mt-5">
-          <RebuildPathNotice planId={planId} onRebuilt={onRebuilt} />
-        </div>
-      ) : null}
+                {selected && (
+                  <div className="w-full max-w-md rounded-xl border border-line bg-white p-4 shadow-raised">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-[15px] font-bold text-ink">{step.competencyLabel}</p>
+                      {levels ? <LevelBadge level={levels[step.competencyKey]?.current} /> : null}
+                    </div>
+                    {purpose === null ? (
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">{step.selectionReason}</p>
+                    ) : (
+                      <>
+                        <p className="mt-2 text-sm leading-6 text-ink">{purpose}</p>
+                        <details className="mt-1 text-xs text-muted">
+                          <summary className="cursor-pointer select-none font-semibold text-true-blue">Why this skill</summary>
+                          <p className="mt-1 whitespace-pre-wrap leading-5">{step.selectionReason}</p>
+                        </details>
+                      </>
+                    )}
+                    {step.proveIt ? <p className="mt-2 text-xs leading-5 text-muted">{step.proveIt.brief}</p> : null}
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      <span className={clsx("text-xs font-semibold", state === "done" ? "text-level-4" : "text-muted")}>
+                        {statusLabel}
+                        {step.completedAt ? ` · ${formatGeneratedAt(step.completedAt)}` : ""}
+                      </span>
+                      {isActionable ? (
+                        href ? (
+                          <Link
+                            href={href}
+                            className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-cwru-blue px-3.5 text-sm font-semibold text-cwru-blue hover:bg-canvas"
+                          >
+                            {actionLabelForStep(step)}
+                            <ArrowRight size={14} aria-hidden="true" />
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-muted">Preparing…</span>
+                        )
+                      ) : step.status === "COMPLETE" && href ? (
+                        // Review, Duolingo-style: always open, never gates anything.
+                        // Each destination keeps its own redo rules (a drill redo
+                        // writes new evidence; a check shows its stored result).
+                        <Link
+                          href={href}
+                          data-testid="practice-again"
+                          className="inline-flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-level-4 hover:bg-canvas"
+                        >
+                          <RotateCcw size={14} aria-hidden="true" />
+                          Practice again
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </section>
 
-      {allDone ? (
-        <PathCompleteCard total={total} />
-      ) : target ? (
-        <section
-          aria-current="step"
-          className="mt-5 rounded-2xl border-2 border-[#0a7391] bg-[#eaf7fa] p-4 sm:p-5"
-        >
-          <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
-            Up next · {KIND_LABEL[target.step.kind]} — {target.step.competencyLabel}
-          </p>
-          {/* The full stored reason, untruncated, not behind a disclosure
-              toggle — this IS the explainability deliverable. */}
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#173847]">
-            {target.reason}
-          </p>
-          {targetHref ? (
-            <div className="mt-4 flex flex-wrap items-center gap-3">
+      <aside className="flex flex-col gap-4 lg:sticky lg:top-0">
+        {path.rebuildable && onRebuilt ? <RebuildPathNotice planId={planId} onRebuilt={onRebuilt} /> : null}
+
+        {allDone ? (
+          <PathCompleteCard total={total} />
+        ) : target ? (
+          <section
+            aria-current="step"
+            className="relative flex flex-col gap-3 overflow-hidden rounded-2xl bg-cwru-blue p-5 text-white"
+          >
+            {(() => {
+              const Icon = nodeIcon(target.step);
+              return <Icon aria-hidden className="absolute -right-6 -top-6 text-white/10" size={140} strokeWidth={1.5} />;
+            })()}
+            <p className="relative text-[13px] text-light-blue">
+              Up next · Step {target.step.position} of {total}
+            </p>
+            <p className="relative font-display text-2xl font-medium leading-tight">
+              {target.step.proveIt ? "Prove it" : KIND_LABEL[target.step.kind]}: {target.step.competencyLabel}
+            </p>
+            {/* The full stored reason, untruncated, not behind a disclosure
+                toggle — this IS the explainability deliverable. */}
+            <p className="relative whitespace-pre-wrap text-sm leading-6 text-white/85">{target.reason}</p>
+            {targetHref ? (
               <Link
                 href={targetHref}
                 data-testid="path-continue"
-                className="inline-flex items-center gap-2 rounded-xl bg-[#0a7391] px-6 py-3 text-base font-bold text-white shadow-[0_4px_0_#075569] transition-transform active:translate-y-0.5"
+                className="relative mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white text-base font-bold text-cwru-blue shadow-[0_4px_0_rgb(166_210_230/0.8)] transition-transform active:translate-y-0.5"
               >
-                Continue <ArrowRight size={18} aria-hidden="true" />
+                Continue <Play size={16} strokeWidth={2.5} aria-hidden="true" />
               </Link>
-              <span className="text-xs text-[#58727f]">{actionLabelForStep(target.step)}</span>
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-[#8298a3]">
-              This step&apos;s exercise is still being prepared.
-            </p>
-          )}
-        </section>
-      ) : null}
+            ) : (
+              <p className="relative text-sm text-light-blue">This step&apos;s exercise is still being prepared.</p>
+            )}
+          </section>
+        ) : null}
 
-      <ol className="relative mt-7">
-        {orderedSteps.map((step, index) => {
-          const href = hrefForStep(planId, step);
-          const isActionable = step.status === "PENDING" || step.status === "IN_PROGRESS";
-          const state: NodeState = isStepDone(step)
-            ? "done"
-            : target && target.step.id === step.id
-              ? "next"
-              : "pending";
-          const isLast = index === orderedSteps.length - 1;
-          const statusLabel = STATUS_LABEL[step.status] ?? step.status;
-          const highlighted = Boolean(highlightCompetency) && step.competencyKey === highlightCompetency;
-          return (
-            <li key={step.id} id={`path-step-${step.id}`} className="relative flex gap-3 pb-6 last:pb-0 sm:gap-4">
-              {!isLast ? (
-                <span
-                  aria-hidden="true"
-                  className={`absolute left-6 top-12 -ml-[2px] h-[calc(100%-3rem)] w-1 rounded-full ${
-                    state === "done" ? "bg-[#1f8a5b]" : "bg-[#dce8ed]"
-                  }`}
-                />
-              ) : null}
-              <TrailNode state={state} kind={step.kind} />
-              <div
-                className={`min-w-0 flex-1 rounded-xl border p-3 sm:p-4 ${
-                  highlighted ? "ring-2 ring-[#e0b062] ring-offset-2 " : ""
-                }${
-                  state === "next"
-                    ? "border-[#0a7391] bg-[#f3fafc]"
-                    : state === "done"
-                      ? "border-[#cfe9db] bg-[#f6fbf8]"
-                      : "border-[#dce8ed] bg-white"
-                }`}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-[#58727f]">
-                    Step {step.position} · {KIND_LABEL[step.kind]}
-                  </span>
-                  {state === "next" ? (
-                    <span className="rounded-full bg-[#0a7391] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                      Up next
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-[#102331]">{step.competencyLabel}</p>
-                  {levels ? <LevelBadge level={levels[step.competencyKey]?.current} /> : null}
-                </div>
-                {(() => {
-                  const purpose = repeatedReasonPurpose(step, orderedSteps[index - 1]);
-                  if (purpose === null) {
-                    return (
-                      <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-[#385463]">
-                        {step.selectionReason}
-                      </p>
-                    );
-                  }
-                  return (
-                    <>
-                      <p className="mt-1.5 text-sm leading-6 text-[#385463]">{purpose}</p>
-                      <details className="mt-1 text-xs text-[#58727f]">
-                        <summary className="cursor-pointer select-none">Why this skill</summary>
-                        <p className="mt-1 whitespace-pre-wrap leading-5">{step.selectionReason}</p>
-                      </details>
-                    </>
-                  );
-                })()}
-                {step.proveIt ? (
-                  <p className="mt-1.5 text-xs leading-5 text-[#58727f]">{step.proveIt.brief}</p>
-                ) : null}
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <span
-                    className={`text-xs font-semibold uppercase tracking-wide ${
-                      state === "done" ? "text-[#1f8a5b]" : "text-[#58727f]"
-                    }`}
-                  >
-                    {statusLabel}
-                    {step.completedAt ? ` · ${formatGeneratedAt(step.completedAt)}` : ""}
-                  </span>
-                  {isActionable ? (
-                    href ? (
-                      <Link
-                        href={href}
-                        className="inline-flex items-center gap-1 rounded-lg border border-[#0a7391] px-3 py-1.5 text-sm font-semibold text-[#0a7391] hover:bg-[#eaf7fa]"
-                      >
-                        {actionLabelForStep(step)}
-                        <ArrowRight size={14} aria-hidden="true" />
-                      </Link>
-                    ) : (
-                      <span className="text-xs text-[#8298a3]">Preparing…</span>
-                    )
-                  ) : step.status === "COMPLETE" && href ? (
-                    // Review, Duolingo-style: always open, never gates anything.
-                    // Each destination keeps its own redo rules (a drill redo
-                    // writes new evidence; a check shows its stored result).
-                    <Link
-                      href={href}
-                      data-testid="practice-again"
-                      className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold text-[#1f8a5b] hover:bg-[#eaf8f0]"
-                    >
-                      <RotateCcw size={14} aria-hidden="true" />
-                      Practice again
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+        {/* GROWTH-SINCE-PLAN SLOT — see the `growthSlot` prop. */}
+        {growthSlot ? <div>{growthSlot}</div> : null}
+
+        {skills.length > 0 && (
+          <section className="flex flex-col gap-3.5 rounded-2xl border border-line bg-white p-4">
+            <h3 className="font-display text-xl font-medium text-cwru-blue">Skills on this path</h3>
+            {skills.map((step) => (
+              <SkillLevelRow
+                key={step.competencyKey}
+                competencyKey={step.competencyKey}
+                label={step.competencyLabel}
+                level={levels?.[step.competencyKey]?.current}
+              />
+            ))}
+          </section>
+        )}
+      </aside>
     </div>
   );
 }

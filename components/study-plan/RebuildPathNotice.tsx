@@ -60,9 +60,9 @@ export default function RebuildPathNotice({
   }
 
   return (
-    <div className="rounded-xl border border-[#e0b062] bg-[#fdf7ec] p-4" data-testid="rebuild-path">
-      <p className="text-sm font-semibold text-[#102331]">This path uses an older format.</p>
-      <p className="mt-1 text-sm text-[#58727f]">
+    <div className="rounded-xl border border-level-2 bg-level-2/10 p-4" data-testid="rebuild-path">
+      <p className="text-sm font-semibold text-ink">This path uses an older format.</p>
+      <p className="mt-1 text-sm text-muted">
         It was built before voice drills and coached practice were added, and you haven&apos;t started it yet.
         Rebuild it to get the learn, drill, rework and prove steps for this plan&apos;s weak skills.
       </p>
