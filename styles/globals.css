@@ -89,7 +89,20 @@
   }
 }
 
+/* "Not started" / "no data yet" texture. Never behind body-length text. */
+@utility la-hatch {
+  background: repeating-linear-gradient(135deg, var(--la-surface) 0 6px, rgb(9 20 58 / 0.06) 6px 7px);
+}
+
+/* Login and kiosk only; never app chrome. */
+@utility la-dot-grid {
+  background-color: var(--la-cwru-blue);
+  background-image: radial-gradient(rgb(166 210 230 / 0.35) 1px, transparent 1.2px);
+  background-size: 12px 12px;
+}
+
 @layer components {
+
   .report-page {
     min-height: 100dvh;
     background: var(--report-canvas);
