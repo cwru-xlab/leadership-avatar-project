@@ -1,4 +1,5 @@
 import "@/styles/globals.css";
+import "@/styles/brand.css";
 import { Metadata, Viewport } from "next";
 import clsx from "clsx";
 

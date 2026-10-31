@@ -64,7 +64,7 @@ function PlanCard({ item }: { item: PlanWithPath }) {
         }`}
         href={`/study-plans/${item.plan.id}`}
       >
-        <span aria-hidden className="la-dot-grid absolute inset-0 bg-transparent opacity-40" />
+        <span aria-hidden className="la-dots absolute inset-0 opacity-40" />
         {item.path === undefined ? (
           <span className="relative size-16 shrink-0 animate-pulse rounded-full bg-white/15" />
         ) : item.path ? (

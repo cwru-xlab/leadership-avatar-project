@@ -464,7 +464,7 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
         aria-label={overallAriaLabel}
         className="relative flex flex-wrap items-center gap-x-7 gap-y-5 overflow-hidden rounded-2xl bg-cwru-blue px-6 py-6 text-white md:px-7"
       >
-        <span aria-hidden className="la-dot-grid absolute inset-0 opacity-60" />
+        <span aria-hidden className="la-dots absolute inset-0 opacity-60" />
         {bothOverallNull ? (
           <div className="relative flex max-w-xl flex-col gap-1">
             <h1 className="font-display text-[32px] font-medium leading-[1.1]">Mastery</h1>

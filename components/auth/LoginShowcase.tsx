@@ -16,8 +16,8 @@ interface Slide {
 const SLIDES: Slide[] = [
   { label: "Pick what to practice", src: "/login-showcase/practice.png" },
   { label: "Read your scored report", src: "/login-showcase/report.png" },
-  { label: "Follow your study plan" },
-  { label: "Watch your mastery move" },
+  { label: "Follow your study plan", src: "/login-showcase/plan.png" },
+  { label: "Watch your mastery move", src: "/login-showcase/mastery.png" },
 ];
 
 const ADVANCE_MS = 6000;
@@ -36,7 +36,8 @@ export function LoginShowcase() {
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReducedMotion(query.matches);
-    const onChange = (event: MediaQueryListEvent) => setReducedMotion(event.matches);
+    const onChange = (event: MediaQueryListEvent) =>
+      setReducedMotion(event.matches);
     query.addEventListener("change", onChange);
     return () => query.removeEventListener("change", onChange);
   }, []);
@@ -86,32 +87,45 @@ export function LoginShowcase() {
         </p>
       </div>
 
-      <div className="relative aspect-[16/10] w-[880px] max-w-none overflow-hidden rounded-tl-xl bg-ink shadow-raised">
-        {SLIDES.map((slide, index) => (
-          <div
-            key={slide.label}
-            aria-hidden={index !== active}
-            className={clsx(
-              "absolute inset-0 transition-opacity duration-500 ease-out",
-              index === active ? "opacity-100" : "opacity-0",
-            )}
-          >
-            {slide.src ? (
-              <Image
-                fill
-                alt={slide.label}
-                className="object-cover object-left-top"
-                priority={index === 0}
-                sizes="880px"
-                src={slide.src}
-              />
-            ) : (
-              <div className="grid h-full place-items-center border border-dashed border-light-blue/60 text-sm text-light-blue">
-                Screenshot added once this page is redesigned
-              </div>
-            )}
-          </div>
-        ))}
+      {/* A browser-window frame: the screens carry their own CWRU Blue
+          sidebar, which would otherwise melt into this blue panel. */}
+      <div className="w-[880px] max-w-none overflow-hidden rounded-tl-xl bg-white shadow-[0_24px_64px_rgb(0_0_0/0.35)] ring-1 ring-white/40">
+        <div
+          aria-hidden
+          className="flex h-8 items-center gap-1.5 border-b border-line bg-canvas px-3"
+        >
+          <span className="size-2.5 rounded-full bg-light-blue" />
+          <span className="size-2.5 rounded-full bg-light-blue" />
+          <span className="size-2.5 rounded-full bg-light-blue" />
+          <span className="ml-3 h-4 w-56 rounded-sm bg-white" />
+        </div>
+        <div className="relative aspect-[1440/900] w-full bg-ink">
+          {SLIDES.map((slide, index) => (
+            <div
+              key={slide.label}
+              aria-hidden={index !== active}
+              className={clsx(
+                "absolute inset-0 transition-opacity duration-500 ease-out",
+                index === active ? "opacity-100" : "opacity-0",
+              )}
+            >
+              {slide.src ? (
+                <Image
+                  fill
+                  alt={slide.label}
+                  className="object-cover object-left-top"
+                  priority={index === 0}
+                  sizes="880px"
+                  src={slide.src}
+                />
+              ) : (
+                <div className="grid h-full place-items-center border border-dashed border-light-blue/60 text-sm text-light-blue">
+                  Screenshot added once this page is redesigned
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
