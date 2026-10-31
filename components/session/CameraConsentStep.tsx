@@ -183,7 +183,7 @@ export default function CameraConsentStep({
   const busy = probing || launching;
 
   const choiceClass = (selected: boolean) =>
-    `flex w-full items-center gap-3.5 rounded-2xl border p-4 text-left transition-colors duration-150 ease-out focus-visible:outline-true-blue disabled:cursor-not-allowed disabled:opacity-70 ${
+    `flex w-full items-center gap-3.5 rounded-xl border p-4 text-left transition-colors duration-150 ease-out focus-visible:outline-true-blue disabled:cursor-not-allowed disabled:opacity-70 ${
       selected ? "border-2 border-true-blue bg-light-blue/22" : "border-line bg-white hover:border-true-blue/50"
     }`;
 
@@ -214,7 +214,7 @@ export default function CameraConsentStep({
         <div className="grid items-stretch gap-6 lg:grid-cols-[1.1fr_1fr]">
           {/* The stage. No camera opens here: consent comes first, and the
               session asks for its own stream once the avatar connects. */}
-          <div className="relative grid min-h-[300px] place-items-center overflow-hidden rounded-2xl bg-ink lg:min-h-[420px]">
+          <div className="relative grid min-h-[300px] place-items-center overflow-hidden rounded-xl bg-ink lg:min-h-[420px]">
             <svg aria-hidden className="w-1/2 max-w-[260px] opacity-60" viewBox="0 0 200 160">
               <circle className="fill-light-blue/35" cx="100" cy="62" r="34" />
               <path className="fill-light-blue/25" d="M30 160c4-40 34-58 70-58s66 18 70 58z" />
@@ -248,7 +248,7 @@ export default function CameraConsentStep({
             </div>
 
             {cameraBlock ? (
-              <div role="alert" className="flex flex-col gap-4 rounded-2xl border border-copper/40 bg-copper/[0.08] p-5 text-ink">
+              <div role="alert" className="flex flex-col gap-4 rounded-xl border border-copper/40 bg-copper/[0.08] p-5 text-ink">
                 <div className="flex items-start gap-3">
                   <CircleAlert size={22} className="mt-0.5 shrink-0 text-copper" />
                   <div>

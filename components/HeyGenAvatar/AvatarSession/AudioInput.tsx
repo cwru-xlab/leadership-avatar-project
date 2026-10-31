@@ -28,7 +28,7 @@ export const AudioInput: React.FC = () => {
         onClick={handleMuteClick}
       >
         <div
-          className={`absolute left-0 top-0 rounded-lg border-2 border-[#7559FF] w-full h-full ${isUserTalking ? "animate-ping" : ""}`}
+          className={`absolute left-0 top-0 rounded-lg border-2 border-force-blue w-full h-full ${isUserTalking ? "animate-ping" : ""}`}
         />
         {isVoiceChatLoading ? (
           <LoaderCircle className="animate-spin" size={20} />

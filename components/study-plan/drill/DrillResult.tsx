@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { Button } from "@heroui/button";
-import { RotateCcw } from "lucide-react";
+import { AudioLines, RotateCcw, TrendingDown, TrendingUp } from "lucide-react";
 
 import DeliveryBandsCard from "@/components/study-plan/DeliveryBandsCard";
+import { ProgressRing } from "@/components/study-plan/PathVisuals";
 import type { DrillDelivery } from "@/components/study-plan/drill/contract";
 import { useNextStepHref } from "@/components/study-plan/useNextStepHref";
 import { RUBRIC_ANCHORS } from "@/lib/mastery/rubric-anchors";
@@ -59,19 +60,39 @@ export default function DrillResult({
 
   return (
     <section aria-labelledby="drill-result-heading" className="space-y-6">
-      <div className="space-y-2 text-center">
-        <p className="text-xs font-bold text-true-blue">Voice drill · {competencyLabel}</p>
-        <h1 id="drill-result-heading" className="font-display font-medium text-2xl text-ink">
-          Drill complete.
+      <div className="flex flex-col items-center gap-3 text-center">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-light-blue/32 px-3 py-1 text-[12.5px] font-semibold text-cwru-blue">
+          <AudioLines aria-hidden size={14} strokeWidth={2} />
+          Voice drill · {competencyLabel}
+        </span>
+        <h1 id="drill-result-heading" className="font-display text-[28px] font-medium text-cwru-blue">
+          Drill complete
         </h1>
-        <p
-          className="mx-auto inline-flex items-baseline gap-1 rounded-full border border-light-blue bg-white px-4 py-1 text-true-blue"
-          data-testid="drill-score"
-        >
-          <span className="text-3xl font-semibold">{score ?? "–"}</span>
-          <span className="text-sm font-semibold">/ 5</span>
-        </p>
-        <p className="text-sm leading-6 text-ink">
+        <div className="relative" data-testid="drill-score">
+          <ProgressRing
+            done={score ?? 0}
+            label={score === null ? "Not scored" : `${score} out of 5`}
+            size={128}
+            stroke={12}
+            total={5}
+          >
+            <span className="flex items-baseline gap-1 text-cwru-blue">
+              <span className="font-display text-[44px] font-medium leading-none">{score ?? "–"}</span>
+              <span className="text-sm font-semibold text-muted">/ 5</span>
+            </span>
+          </ProgressRing>
+          {change !== null && change !== 0 ? (
+            <span
+              className={`absolute -right-6 top-1 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-bold ${
+                change > 0 ? "bg-level-4/16 text-level-4" : "bg-copper/12 text-copper"
+              }`}
+            >
+              {change > 0 ? <TrendingUp aria-hidden size={13} /> : <TrendingDown aria-hidden size={13} />}
+              {change > 0 ? `+${change}` : change}
+            </span>
+          ) : null}
+        </div>
+        <p className="max-w-[56ch] text-sm leading-6 text-muted">
           {change === null
             ? `This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
             : change > 0
@@ -83,8 +104,8 @@ export default function DrillResult({
       </div>
 
       {miss?.quote || reasons.length > 0 ? (
-        <article className="space-y-3 rounded-xl border border-line bg-white p-5" aria-label="What you did">
-          <h2 className="text-xs font-bold text-muted">What you did</h2>
+        <article className="space-y-3 rounded-2xl border border-line bg-white p-5" aria-label="What you did">
+          <h2 className="font-display text-xl font-medium text-cwru-blue">What you did</h2>
           {miss?.quote ? (
             // The quote is an exact excerpt of this attempt's transcript
             // (validated server-side).
@@ -105,8 +126,8 @@ export default function DrillResult({
       ) : null}
 
       {score !== null && rubric && placement ? (
-        <article className="space-y-3 rounded-xl border border-line bg-white p-5" aria-label="Why this score">
-          <h2 className="text-xs font-bold text-muted">
+        <article className="space-y-3 rounded-2xl border border-line bg-white p-5" aria-label="Why this score">
+          <h2 className="font-display text-xl font-medium text-cwru-blue">
             Why {score}/5 on {competencyLabel}
           </h2>
           <p className="text-sm leading-6 text-ink">{placement.blurb}</p>
@@ -149,8 +170,8 @@ export default function DrillResult({
       ) : null}
 
       {focuses.length > 0 || extraNote ? (
-        <article className="space-y-3 rounded-xl border border-light-blue/32 bg-canvas p-5" aria-label="What I would focus on">
-          <h2 className="text-xs font-bold text-true-blue">
+        <article className="space-y-3 rounded-2xl border border-level-2/45 bg-level-2/10 p-5" aria-label="What I would focus on">
+          <h2 className="font-display text-xl font-medium text-cwru-blue">
             {focuses.length > 1 ? "What I would focus on (this session)" : "What I would focus on"}
           </h2>
           {miss ? (
@@ -180,8 +201,8 @@ export default function DrillResult({
       ) : null}
 
       {worked ? (
-        <article className="space-y-2 rounded-xl border border-level-4/30 bg-level-4/8 p-5" aria-label="What worked">
-          <h2 className="text-xs font-bold text-level-4">What landed</h2>
+        <article className="space-y-2 rounded-2xl border border-level-4/30 bg-level-4/8 p-5" aria-label="What worked">
+          <h2 className="font-display text-xl font-medium text-level-4">What landed</h2>
           <p className="text-base leading-7 text-ink" data-testid="drill-worked-pointer">
             You also said: <q className="italic">{worked.quote}</q>
           </p>

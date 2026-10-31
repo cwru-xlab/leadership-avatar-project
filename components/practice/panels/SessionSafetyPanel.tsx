@@ -52,7 +52,7 @@ export default function SessionSafetyPanel({
 
   return (
     <aside
-      className="pointer-events-auto flex w-full flex-col gap-1.5 rounded-xl border border-white/20 bg-[#0b1c2a]/92 px-2.5 py-2 text-left shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md"
+      className="pointer-events-auto flex w-full flex-col gap-1.5 rounded-xl border border-white/20 bg-ink/92 px-2.5 py-2 text-left backdrop-blur-md"
       aria-label="Session safety controls"
     >
       {/*
@@ -76,7 +76,7 @@ export default function SessionSafetyPanel({
         rendered in the transcript. Always visible (not a tooltip) — kept
         compact so it can sit in the avatar chrome without covering the face.
       */}
-      <p className="text-[10px] leading-[1.35] text-[#9eb6c6]">
+      <p className="text-[10px] leading-[1.35] text-light-blue">
         Practice only — the character stays in role. End anytime with the
         control above. {SUPPORT_RESOURCE_NOTE}
       </p>

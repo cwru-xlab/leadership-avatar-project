@@ -29,7 +29,7 @@ export function formatElapsed(totalSeconds: number) {
 /** The full-viewport room: dark background and the two radial glows. */
 export function SessionRoom({
   children,
-  className = "relative flex h-[100dvh] overflow-hidden bg-[#07131f] text-[#f4f8fb]",
+  className = "relative flex h-[100dvh] overflow-hidden bg-ink text-canvas",
 }: {
   children: ReactNode;
   className?: string;
@@ -56,7 +56,7 @@ export function SessionStagePane({
 /** Right pane: status, conversation and the answer controls. */
 export function SessionSidePane({
   children,
-  className = "relative z-10 flex h-full w-full max-w-[570px] flex-col border-l border-white/10 bg-[#0b1c2a]/95 lg:w-[36%]",
+  className = "relative z-10 flex h-full w-full max-w-[570px] flex-col border-l border-white/10 bg-ink/95 lg:w-[36%]",
 }: {
   children: ReactNode;
   className?: string;
@@ -76,8 +76,8 @@ export function SessionStageHeader({ children }: { children: ReactNode }) {
 /** The green-dot pill in the stage header ("LIVE INTERVIEW"). */
 export function SessionLiveBadge({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-full border border-white/15 bg-[#07131f]/65 px-3 py-1.5 text-xs font-medium tracking-[0.12em] text-[#d3e7f5] backdrop-blur-md">
-      <span className="h-2 w-2 rounded-full bg-[#72d6b0]" />
+    <div className="flex items-center gap-2 rounded-full border border-white/15 bg-ink/65 px-3 py-1.5 text-xs font-medium text-light-blue/32 backdrop-blur-md">
+      <span className="h-2 w-2 rounded-full bg-level-4" />
       {label}
     </div>
   );
@@ -106,14 +106,14 @@ export function SessionStatus({
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.17em] text-[#75cce4]">{eyebrow}</p>
-        <h1 className="mt-1 font-serif text-2xl tracking-[-0.02em] text-white">{title}</h1>
-        <p className="mt-1.5 text-sm text-[#a7c2d2]">{subtitle}</p>
+        <p className="text-[11px] font-semibold text-light-blue">{eyebrow}</p>
+        <h1 className="mt-1 font-display font-medium text-2xl tracking-[-0.02em] text-white">{title}</h1>
+        <p className="mt-1.5 text-sm text-light-blue">{subtitle}</p>
       </div>
       <Chip
         size="sm"
         variant="flat"
-        className="border border-[#31596d] bg-[#102b3a] text-[#bfe5f2]"
+        className="border border-light-blue/40 bg-ink text-light-blue"
         aria-label={clockAriaLabel}
       >
         {clockLabel ?? formatElapsed(elapsedSeconds)}
@@ -155,7 +155,7 @@ export function PushToTalkControl({
         size="sm"
         variant={isRecording || isTranscribing ? "solid" : "flat"}
         color={isRecording ? "danger" : isTranscribing ? "primary" : "default"}
-        className="font-medium text-[#d7eaf3]"
+        className="font-medium text-light-blue/32"
         isDisabled={isDisabled}
         isLoading={isTranscribing}
         onPress={onToggle}

@@ -76,10 +76,10 @@ export default function EditScenarioPage() {
   if (notFound || !scenario) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 text-center">
-        <Card className="max-w-lg border border-[#d4e2e9] shadow-none">
+        <Card className="max-w-lg border border-line shadow-none">
           <CardBody className="items-start gap-4 p-8">
-            <CircleAlert className="text-[#0a7391]" size={28} />
-            <h1 className="font-serif text-2xl">
+            <CircleAlert className="text-true-blue" size={28} />
+            <h1 className="font-display font-medium text-2xl">
               This scenario doesn&apos;t exist, or isn&apos;t yours to edit.
             </h1>
             <Button color="primary" onPress={() => router.push("/case-play")}>

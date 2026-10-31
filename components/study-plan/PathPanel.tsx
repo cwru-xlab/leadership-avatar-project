@@ -546,7 +546,7 @@ export default function PathPanel({
 export function DegradedStepsNote({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <p className="mt-3 text-xs text-[#8298a3]">
+    <p className="mt-3 text-xs text-muted">
       {count} {count === 1 ? "step" : "steps"} became a plain practice session because no
       suitable moment was found for a knowledge check.
     </p>
