@@ -804,7 +804,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
         ) : null}
         {videoUnavailable ? (
           <div className="absolute inset-0 grid place-items-center px-8 text-center" role="status">
-            <p className="max-w-sm text-sm leading-6 text-light-blue/32">
+            <p className="max-w-sm text-sm leading-6 text-white">
               The video coach couldn&apos;t connect, so your coach will continue in text. If the
               video connects later, you&apos;ll hear your coach.
             </p>
@@ -813,9 +813,9 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
         {!connected ? (
           <div className="absolute inset-x-0 bottom-24 z-10 flex flex-col items-center gap-3 px-6 text-center">
             <Spinner color="primary" size="sm" />
-            <p className="text-sm text-light-blue/32">Connecting to {coachLabel}…</p>
+            <p className="text-sm text-white">Connecting to {coachLabel}…</p>
             {slowConnect ? (
-              <Button size="sm" variant="flat" className="text-light-blue/32" onPress={handleContinueWithoutVideo}>
+              <Button size="sm" variant="flat" className="text-white" onPress={handleContinueWithoutVideo}>
                 Taking a while — continue without video
               </Button>
             ) : null}
@@ -897,7 +897,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
               </p>
             ) : null}
             {partialTranscript ? (
-              <article className="ml-auto max-w-[88%] rounded-xl rounded-br-sm border border-light-blue bg-cwru-blue px-4 py-3 text-sm leading-6 text-light-blue/32">
+              <article className="ml-auto max-w-[88%] rounded-xl rounded-br-sm border border-light-blue bg-cwru-blue px-4 py-3 text-sm leading-6 text-white">
                 {partialTranscript}
               </article>
             ) : null}
@@ -1032,7 +1032,7 @@ function TipRail({ tips }: { tips: CoachedTipDTO[] }) {
         {tips.map((tip) => (
           <li key={tip.id} className="rounded-lg bg-ink p-3">
             <p className="text-sm font-semibold text-white">{tip.name}</p>
-            <p className="mt-1 text-sm leading-5 text-light-blue/32">{tip.reminder}</p>
+            <p className="mt-1 text-sm leading-5 text-white">{tip.reminder}</p>
           </li>
         ))}
       </ul>
