@@ -13,9 +13,8 @@
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
-import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
-import { ArrowRight, Check, CircleAlert } from "lucide-react";
+import { ArrowRight, Check, CircleAlert, Mic } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export interface InterviewerOption {
@@ -39,7 +38,7 @@ export default function InterviewerStep({
   nav,
   selectedInterviewerId,
   onSelect,
-  heading = "Choose your interviewer.",
+  heading = "Choose your interviewer",
   roleLabel = "Hiring manager",
 }: InterviewerStepProps) {
   const [interviewers, setInterviewers] = useState<InterviewerOption[]>([]);
@@ -92,9 +91,6 @@ export default function InterviewerStep({
     <section aria-labelledby="interviewer-heading">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-true-blue">
-            Step {nav.stepNumber} of {nav.totalSteps}
-          </p>
           <h2
             id="interviewer-heading"
             className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
@@ -147,12 +143,17 @@ export default function InterviewerStep({
                   <div className="absolute inset-0 z-10 bg-gradient-to-t from-ink via-ink/20 to-transparent" />
                   <div className="absolute inset-x-0 bottom-0 z-20 p-5 text-white">
                     <div className="mb-3 flex justify-between gap-2">
-                      <Chip size="sm" className="bg-white/18 text-white">
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-white/18 px-2.5 py-0.5 text-xs text-white"
+                        title="Voice profile"
+                      >
+                        <Mic aria-hidden size={12} />
+                        <span className="sr-only">Voice: </span>
                         {interviewer.voice.name}
-                      </Chip>
+                      </span>
                       {selected && (
-                        <span className="grid h-6 w-6 place-items-center rounded-full bg-level-4 text-ink">
-                          <Check size={15} />
+                        <span className="grid h-6 w-6 place-items-center rounded-full bg-true-blue text-white">
+                          <Check size={15} strokeWidth={3} />
                         </span>
                       )}
                     </div>
@@ -170,8 +171,10 @@ export default function InterviewerStep({
               It stays in flow, so it never covers the final row at rest — it
               only pins while there is still list below. Requires that no
               ancestor create a scroll container; see the overflow-x-clip note
-              in app/practice/[type]/page.tsx. */}
-          <div className="sticky bottom-0 z-30 mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas py-4">
+              in app/practice/[type]/page.tsx. It pins at -4rem with matching
+              bottom padding because the content column's own 4rem bottom
+              padding would otherwise leave a strip of cards showing under it. */}
+          <div className="sticky -bottom-16 z-30 mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas pb-20 pt-4 shadow-[0_-12px_20px_-16px_rgb(9_20_58/0.35)]">
             <p className="text-sm text-muted">
               {selectedInterviewer ? (
                 <>

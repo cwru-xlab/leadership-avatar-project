@@ -188,7 +188,7 @@ export default function CustomizePanel({
       {open && (
         <div className="mt-4 grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Select
+            <Select variant="bordered"
               label="Industry"
               placeholder="Use preset default"
               selectedKeys={industrySlug ? [industrySlug] : []}
@@ -202,7 +202,7 @@ export default function CustomizePanel({
               ))}
             </Select>
 
-            <Select
+            <Select variant="bordered"
               label="Role"
               placeholder="Use preset default"
               selectedKeys={roleSlug ? [roleSlug] : []}
@@ -216,7 +216,7 @@ export default function CustomizePanel({
               ))}
             </Select>
 
-            <Select
+            <Select variant="bordered"
               label="Difficulty"
               description="Changes follow-up depth and how hard the interviewer presses — not the number of questions."
               placeholder="Use preset default"
@@ -231,7 +231,7 @@ export default function CustomizePanel({
               ))}
             </Select>
 
-            <Select
+            <Select variant="bordered"
               label="Session length"
               placeholder="Use preset default"
               selectedKeys={lengthSlug ? [lengthSlug] : []}
@@ -248,7 +248,7 @@ export default function CustomizePanel({
             </Select>
           </div>
 
-          <Select
+          <Select variant="bordered"
             label="Interviewer personality"
             placeholder="Use preset default"
             isDisabled={!!distilledPersona}
@@ -297,7 +297,7 @@ export default function CustomizePanel({
               </div>
             ) : (
               <div className="mt-3 flex flex-col gap-2">
-                <Textarea
+                <Textarea variant="bordered"
                   aria-label="Description of who is interviewing you"
                   minRows={3}
                   maxRows={8}

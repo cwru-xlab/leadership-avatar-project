@@ -263,9 +263,6 @@ export default function DeckUploadStep({
             <Layers size={21} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-true-blue">
-              Step {nav.stepNumber} of {nav.totalSteps}
-            </p>
             <h2
               id="deck-upload-heading"
               className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"

@@ -88,14 +88,11 @@ export default function ResumeStep({
             <FileUp size={21} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-true-blue">
-              Step {nav.stepNumber} of {nav.totalSteps}
-            </p>
             <h2
               id="resume-heading"
               className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             >
-              Bring your resume into the room.
+              Bring your resume into the room
             </h2>
             <p className="mt-3 max-w-xl text-[15px] leading-7 text-muted">
               Your interviewer will ask grounded follow-ups about your

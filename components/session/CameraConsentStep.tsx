@@ -16,6 +16,7 @@
  */
 
 import MetricsConsentDialog from "@/components/session/MetricsConsentDialog";
+import StepTracker from "@/components/shell/StepTracker";
 import type { CameraMode } from "@/lib/metrics/types";
 import { requestCameraStream } from "@/lib/metrics/visual-capture";
 import { Button } from "@heroui/button";
@@ -84,6 +85,8 @@ export interface CameraConsentStepProps {
   cameraOnDescription?: ReactNode;
   /** Line under "Camera off". Defaults to the practice copy, byte-identical. */
   cameraOffDescription?: ReactNode;
+  /** False when the host (the setup wizard) already shows step progress. */
+  showProgress?: boolean;
 }
 
 export default function CameraConsentStep({
@@ -95,6 +98,7 @@ export default function CameraConsentStep({
   launchLabel = "Start interview",
   sessionNoun = "interview",
   cameraOnDescription = "Visual and Vocal will be scored.",
+  showProgress = true,
   cameraOffDescription = (
     <>
       I&apos;ll practice without being measured. Visual and Vocal
@@ -190,26 +194,19 @@ export default function CameraConsentStep({
   return (
     <>
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-5" aria-labelledby="camera-heading">
-        {/* Progress through the setup steps; every earlier step is done. */}
-        <ol aria-label={`Step ${stepNumber} of ${totalSteps}`} className="flex items-center gap-2 self-end text-[13px] text-muted">
-          {Array.from({ length: totalSteps }, (_, i) => i + 1).map((n) => (
-            <li key={n} className="flex items-center gap-2">
-              <span
-                className={`grid size-[26px] place-items-center rounded-full text-xs font-bold ${
-                  n < stepNumber
-                    ? "bg-level-4 text-white"
-                    : n === stepNumber
-                      ? "bg-cwru-blue text-white"
-                      : "border-2 border-line text-muted"
-                }`}
-              >
-                {n < stepNumber ? <Check aria-hidden size={14} strokeWidth={3} /> : n}
-              </span>
-              {n === stepNumber && <span className="font-semibold text-ink">Camera</span>}
-              {n < totalSteps && <span aria-hidden className={`h-0.5 w-8 ${n < stepNumber ? "bg-level-4" : "bg-line"}`} />}
-            </li>
-          ))}
-        </ol>
+        {/* Progress through the setup steps; a wizard that draws its own
+            tracker turns this one off. */}
+        {showProgress ? (
+          <div className="w-full max-w-md self-end">
+            <StepTracker
+              ariaLabel={`Step ${stepNumber} of ${totalSteps}`}
+              current={stepNumber - 1}
+              labels={Array.from({ length: totalSteps }, (_, i) =>
+                i === stepNumber - 1 ? "Camera" : i < stepNumber - 1 ? (i === 0 ? "Brief" : `Step ${i + 1}`) : "Practice",
+              )}
+            />
+          </div>
+        ) : null}
 
         <div className="grid items-stretch gap-6 lg:grid-cols-[1.1fr_1fr]">
           {/* The stage. No camera opens here: consent comes first, and the

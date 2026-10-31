@@ -16,6 +16,7 @@
  * `/case-play/[caseId]`), where the new scenario is immediately startable.
  */
 
+import StepTracker from "@/components/shell/StepTracker";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
@@ -202,41 +203,14 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
 
   return (
     <div>
-      <div className="mb-8 flex items-center gap-2" aria-label="Scenario builder progress">
-        {STEPS.map((s, index) => (
-          <div key={s.id} className="flex flex-1 items-center gap-2">
-            <div
-              className={`flex items-center gap-2 text-xs font-semibold ${
-                s.id === step
-                  ? "text-true-blue"
-                  : index < stepIndex
-                    ? "text-level-4"
-                    : "text-muted"
-              }`}
-            >
-              <span
-                className={`grid h-6 w-6 place-items-center rounded-full border text-[10px] ${
-                  s.id === step
-                    ? "border-true-blue bg-true-blue text-white"
-                    : index < stepIndex
-                      ? "border-level-4 bg-level-4/10"
-                      : "border-line"
-                }`}
-              >
-                {index < stepIndex ? <Check size={13} /> : s.number}
-              </span>
-              <span className="hidden sm:inline">{s.label}</span>
-            </div>
-            {index < STEPS.length - 1 && <div className="h-px flex-1 bg-line" />}
-          </div>
-        ))}
+      <div className="mb-8">
+        <StepTracker ariaLabel="Scenario builder progress" current={stepIndex} labels={STEPS.map((s) => s.label)} />
       </div>
 
       {step === "situation" && (
         <section aria-labelledby="situation-heading">
-          <p className="text-sm font-semibold text-true-blue">Step 1 of 4</p>
           <h2 id="situation-heading" className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]">
-            Set the situation.
+            Set the situation
           </h2>
           <p className="mt-3 max-w-2xl text-[15px] leading-7 text-muted">
             This is the background every character in the roleplay already knows —
@@ -244,7 +218,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
           </p>
 
           <div className="mt-7 grid max-w-2xl gap-6">
-            <Input
+            <Input variant="bordered"
               label="Scenario name"
               placeholder="e.g. Turning around a missed deadline"
               value={name}
@@ -253,7 +227,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
               errorMessage={fieldErrors.name}
             />
             <div>
-              <Textarea
+              <Textarea variant="bordered"
                 label="Situation"
                 placeholder="Describe what's happening and what each character already knows..."
                 minRows={8}
@@ -285,9 +259,8 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
 
       {step === "characters" && (
         <section aria-labelledby="characters-heading">
-          <p className="text-sm font-semibold text-true-blue">Step 2 of 4</p>
           <h2 id="characters-heading" className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]">
-            Add your characters.
+            Add your characters
           </h2>
           <p className="mt-3 max-w-2xl text-[15px] leading-7 text-muted">
             Each character needs an avatar, a name, and a role. What you write in
@@ -321,14 +294,14 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
                   />
 
                   <div className="grid gap-5 sm:grid-cols-2">
-                    <Input
+                    <Input variant="bordered"
                       label="Character name"
                       value={avatar.name}
                       onValueChange={(value) => updateCharacter(avatar.id, { name: value })}
                       isInvalid={!!fieldErrors[`avatars[${index}].name`]}
                       errorMessage={fieldErrors[`avatars[${index}].name`]}
                     />
-                    <Input
+                    <Input variant="bordered"
                       label="Role"
                       placeholder="e.g. Direct report"
                       value={avatar.role}
@@ -338,7 +311,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
                     />
                   </div>
 
-                  <Textarea
+                  <Textarea variant="bordered"
                     label="Private briefing (only this character knows this)"
                     placeholder="What this character believes, wants, or is hiding..."
                     minRows={3}
@@ -377,9 +350,8 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
 
       {step === "criteria" && (
         <section aria-labelledby="criteria-heading">
-          <p className="text-sm font-semibold text-true-blue">Step 3 of 4</p>
           <h2 id="criteria-heading" className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]">
-            Set your criteria.
+            Set your criteria
           </h2>
           <p className="mt-3 max-w-2xl text-[15px] leading-7 text-muted">
             Every run of this scenario is already graded on conversational
@@ -390,7 +362,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
           </p>
 
           <div className="mt-7 max-w-2xl">
-            <Textarea
+            <Textarea variant="bordered"
               label="Additional criteria"
               placeholder="What should a strong response to this scenario look like?"
               minRows={8}
@@ -424,9 +396,8 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
 
       {step === "review" && (
         <section aria-labelledby="review-heading">
-          <p className="text-sm font-semibold text-true-blue">Step 4 of 4</p>
           <h2 id="review-heading" className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]">
-            Review &amp; save.
+            Review &amp; save
           </h2>
           <p className="mt-3 max-w-2xl text-[15px] leading-7 text-muted">
             Check everything below, then save. Saving does not start a
@@ -497,7 +468,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
           className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-true-blue focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue"
           onClick={handleCancel}
         >
-          <ArrowLeft size={16} /> Cancel and return to scenarios
+          <ArrowLeft size={16} /> Cancel
         </button>
       </div>
     </div>

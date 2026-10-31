@@ -39,7 +39,7 @@ console.log("1. D15-2 — no server component passes a component function as a p
   walk(resolve(ROOT, "app"));
   check("no server component under app/ renders as={Link}", offenders.length === 0, offenders.join(", "));
   const page = code(read("app/conversations/[id]/page.tsx"));
-  check("bite-proof: the detector flags as={Link} in a server component", !/^\s*["']use client["']/.test(page) && /\bas=\{Link\}/.test(page.replace("<Link", "<Button as={Link}")));
+  check("bite-proof: the detector flags as={Link} in a server component", !/^\s*["']use client["']/.test(page) && /\bas=\{Link\}/.test(`${page}\n<Button as={Link} />`));
 }
 
 console.log("\n2. D19-1 — each deck mode's session length uses its own envelope");

@@ -10,7 +10,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@heroui/button";
 import {
   ArrowRight,
   FileChartColumn,
@@ -143,14 +142,14 @@ export default function PracticePitchesPickerPage() {
               </p>
             </div>
             <div className="mt-auto flex justify-end pt-2">
-              <Button
-                color="primary"
-                endContent={<ArrowRight size={16} />}
-                onPress={() => router.push(`/practice/${ELEVATOR_OPTION.slug}`)}
+              <button
                 aria-label={`Start ${ELEVATOR_OPTION.title}`}
+                className="inline-flex items-center gap-1 rounded-md text-sm font-bold text-true-blue hover:underline focus-visible:outline-true-blue"
+                type="button"
+                onClick={() => router.push(`/practice/${ELEVATOR_OPTION.slug}`)}
               >
-                Start
-              </Button>
+                Start <ArrowRight aria-hidden size={15} strokeWidth={2.5} />
+              </button>
             </div>
           </div>
 
@@ -177,11 +176,11 @@ export default function PracticePitchesPickerPage() {
                 ref={deckToggleRef}
                 aria-controls={DECK_PANEL_ID}
                 aria-expanded={deckExpanded}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-cwru-blue px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue"
+                className="inline-flex items-center gap-1 rounded-md text-sm font-bold text-true-blue hover:underline focus-visible:outline-true-blue"
                 type="button"
                 onClick={toggleDeckExpanded}
               >
-                {deckExpanded ? "Hide deck settings" : "Choose a deck setting"}
+                {deckExpanded ? "Hide settings" : "Choose a setting"}
                 <ArrowRight
                   aria-hidden
                   className={`transition-transform ${
@@ -243,15 +242,15 @@ export default function PracticePitchesPickerPage() {
                 </div>
 
                 <div className="mt-auto flex justify-end pt-2">
-                  <Button
+                  <button
                     ref={index === 0 ? firstDeckCardRef : undefined}
-                    color="primary"
-                    endContent={<ArrowRight size={16} />}
-                    onPress={() => router.push(`/practice/${mode.slug}`)}
                     aria-label={`Start ${mode.cardTitle}`}
+                    className="inline-flex items-center gap-1 rounded-md text-sm font-bold text-true-blue hover:underline focus-visible:outline-true-blue"
+                    type="button"
+                    onClick={() => router.push(`/practice/${mode.slug}`)}
                   >
-                    Start
-                  </Button>
+                    Start <ArrowRight aria-hidden size={15} strokeWidth={2.5} />
+                  </button>
                 </div>
               </div>
             ))}

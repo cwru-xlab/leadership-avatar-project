@@ -36,14 +36,11 @@ export default function InterviewBackgroundReminderStep({
             <BriefcaseBusiness size={21} aria-hidden="true" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-true-blue">
-              Step {nav.stepNumber} of {nav.totalSteps}
-            </p>
             <h2
               id="interview-background-heading"
               className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             >
-              A quick reminder before you begin.
+              A quick reminder before you begin
             </h2>
             <p className="mt-3 max-w-xl text-[15px] leading-7 text-muted">
               Keep this context in mind as you answer. Your interviewer will

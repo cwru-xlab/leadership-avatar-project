@@ -1,5 +1,6 @@
 "use client";
 
+import BackLink from "@/components/shell/BackLink";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -166,16 +167,7 @@ export default function VoiceDrillShell({
           className="mx-auto flex min-h-dvh max-w-3xl flex-col justify-center gap-6 px-4 py-8"
           aria-live="polite"
         >
-          <Button
-            as={Link}
-            href={leaveHref}
-            variant="light"
-            size="sm"
-            startContent={<ArrowLeft className="h-4 w-4" />}
-            className="-ml-2 self-start font-semibold text-true-blue data-[hover=true]:bg-transparent"
-          >
-            Back to the path
-          </Button>
+          <BackLink href={leaveHref} label="Path" />
 
           {phase === "RESULT" && graded ? (
             <DrillResult
