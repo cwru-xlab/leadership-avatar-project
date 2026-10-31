@@ -80,27 +80,27 @@ export default function TalkAudienceStep({
     >
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#0a7391]">
+          <p className="text-sm font-semibold text-true-blue">
             Step {nav.stepNumber} of {nav.totalSteps}
           </p>
           <h2
-            className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+            className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             id="talk-audience-heading"
           >
             Who&apos;s in the room, and what&apos;s your one point?
           </h2>
         </div>
-        <p className="max-w-md text-sm leading-6 text-[#58727f]">
+        <p className="max-w-md text-sm leading-6 text-muted">
           Describe the audience, then name the single thing you want them to
           leave with.{" "}
-          <span className="font-medium text-[#183947]">
+          <span className="font-medium text-ink">
             The audience will not be told your takeaway.
           </span>{" "}
           The report compares it to what they actually left with.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
+      <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <div className="grid gap-6">
           <div>
             <Textarea
@@ -111,7 +111,7 @@ export default function TalkAudienceStep({
               aria-label="Audience"
               classNames={{
                 inputWrapper:
-                  "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none data-[hover=true]:bg-[#f7fbfc]",
+                  "border border-line bg-canvas shadow-none data-[hover=true]:bg-canvas",
               }}
               label="Who is in the room"
               labelPlacement="outside"
@@ -122,10 +122,10 @@ export default function TalkAudienceStep({
               value={audience}
               onValueChange={handleAudienceChange}
             />
-            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[#6a8491]">
+            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
               {attempted && !audienceOk ? (
                 <p
-                  className="text-[#b4540f]"
+                  className="text-copper"
                   id="talk-audience-error"
                   role="alert"
                 >
@@ -149,7 +149,7 @@ export default function TalkAudienceStep({
               aria-label="Takeaway — one sentence"
               classNames={{
                 inputWrapper:
-                  "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none data-[hover=true]:bg-[#f7fbfc]",
+                  "border border-line bg-canvas shadow-none data-[hover=true]:bg-canvas",
               }}
               label="The one thing they should leave with"
               labelPlacement="outside"
@@ -160,10 +160,10 @@ export default function TalkAudienceStep({
               value={takeaway}
               onValueChange={handleTakeawayChange}
             />
-            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[#6a8491]">
+            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
               {attempted && !takeawayOk ? (
                 <p
-                  className="text-[#b4540f]"
+                  className="text-copper"
                   id="talk-takeaway-error"
                   role="alert"
                 >
@@ -179,7 +179,7 @@ export default function TalkAudienceStep({
           </div>
         </div>
 
-        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6">
+        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-line pt-6">
           <Button
             variant="light"
             onPress={() => {

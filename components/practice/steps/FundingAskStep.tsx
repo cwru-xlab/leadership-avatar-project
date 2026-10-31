@@ -106,23 +106,23 @@ export default function FundingAskStep({
     >
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#0a7391]">
+          <p className="text-sm font-semibold text-true-blue">
             Step {nav.stepNumber} of {nav.totalSteps}
           </p>
           <h2
-            className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+            className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             id="funding-ask-heading"
           >
             What are you requesting?
           </h2>
         </div>
-        <p className="max-w-md text-sm leading-6 text-[#58727f]">
+        <p className="max-w-md text-sm leading-6 text-muted">
           State the amount and what it is for. The reviewer will probe
           feasibility and spend, not negotiate terms.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
+      <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <div className="grid gap-6">
           <div>
             <Input
@@ -132,14 +132,14 @@ export default function FundingAskStep({
               aria-invalid={attempted && !amountOk}
               classNames={{
                 inputWrapper:
-                  "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none data-[hover=true]:bg-[#f7fbfc]",
+                  "border border-line bg-canvas shadow-none data-[hover=true]:bg-canvas",
               }}
               inputMode="numeric"
               label="Amount requested"
               labelPlacement="outside"
               placeholder="50,000"
               startContent={
-                <span aria-hidden className="text-sm text-[#6a8491]">
+                <span aria-hidden className="text-sm text-muted">
                   $
                 </span>
               }
@@ -153,14 +153,14 @@ export default function FundingAskStep({
             />
             {attempted && !amountOk ? (
               <p
-                className="mt-2 text-xs text-[#b4540f]"
+                className="mt-2 text-xs text-copper"
                 id="funding-amount-error"
                 role="alert"
               >
                 Enter a positive dollar amount — for example 50000.
               </p>
             ) : (
-              <p className="mt-2 text-xs text-[#6a8491]">USD, whole dollars.</p>
+              <p className="mt-2 text-xs text-muted">USD, whole dollars.</p>
             )}
           </div>
 
@@ -173,7 +173,7 @@ export default function FundingAskStep({
               aria-label="Use of funds"
               classNames={{
                 inputWrapper:
-                  "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none data-[hover=true]:bg-[#f7fbfc]",
+                  "border border-line bg-canvas shadow-none data-[hover=true]:bg-canvas",
               }}
               label="What it's for"
               labelPlacement="outside"
@@ -184,10 +184,10 @@ export default function FundingAskStep({
               value={useOfFunds}
               onValueChange={handleUseOfFundsChange}
             />
-            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[#6a8491]">
+            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
               {attempted && !useOfFundsOk ? (
                 <p
-                  className="text-[#b4540f]"
+                  className="text-copper"
                   id="funding-use-error"
                   role="alert"
                 >
@@ -203,7 +203,7 @@ export default function FundingAskStep({
           </div>
         </div>
 
-        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6">
+        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-line pt-6">
           <Button
             variant="light"
             onPress={() => {

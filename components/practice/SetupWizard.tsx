@@ -226,7 +226,7 @@ export default function SetupWizard({
           const number = String(index + 1).padStart(2, "0");
           return (
             <Fragment key={step.id}>
-              {index > 0 && <div className="h-px flex-1 bg-[#ccdce3]" />}
+              {index > 0 && <div className="h-px flex-1 bg-line" />}
               <ProgressItem
                 active={active}
                 complete={complete}
@@ -274,10 +274,10 @@ function ProgressItem({
 }) {
   return (
     <div
-      className={`flex items-center gap-2 text-xs font-semibold ${active ? "text-[#08718d]" : complete ? "text-[#327b68]" : "text-[#78909b]"}`}
+      className={`flex items-center gap-2 text-xs font-semibold ${active ? "text-true-blue" : complete ? "text-level-4" : "text-muted"}`}
     >
       <span
-        className={`grid h-6 w-6 place-items-center rounded-full border text-[10px] ${active ? "border-[#08718d] bg-[#08718d] text-white" : complete ? "border-[#74bba8] bg-[#e5f5ee]" : "border-[#b8cbd3]"}`}
+        className={`grid h-6 w-6 place-items-center rounded-full border text-[10px] ${active ? "border-true-blue bg-true-blue text-white" : complete ? "border-level-4 bg-level-4/10" : "border-line"}`}
       >
         {complete ? <Check size={13} /> : number}
       </span>

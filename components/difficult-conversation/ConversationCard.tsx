@@ -13,8 +13,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, CardBody } from "@heroui/card";
-import { Chip } from "@heroui/chip";
 import { Button } from "@heroui/button";
 import {
   Modal,
@@ -25,7 +23,7 @@ import {
   useDisclosure,
 } from "@heroui/modal";
 import { addToast } from "@heroui/toast";
-import { MessageCircleWarning, Pencil, Trash2 } from "lucide-react";
+import { ArrowRight, MessageCircleWarning, Pencil, Trash2, UserRound } from "lucide-react";
 
 export type ConversationDiscoveryCard = {
   id: string;
@@ -176,106 +174,99 @@ export default function ConversationCard({
 
   return (
     <>
-      <Card className="h-full hover:shadow-lg transition-all duration-200 overflow-hidden">
-        <div className="relative h-44 bg-gradient-to-br from-primary-500 to-primary-700">
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-
-          {owned && (
-            <div className="absolute top-0 left-0 right-0 p-4 flex flex-wrap gap-1.5">
-              {conversation.published ? (
-                <Chip size="sm" color="success" variant="solid">
-                  Published
-                </Chip>
-              ) : (
-                <Chip size="sm" color="default" variant="solid">
-                  Private
-                </Chip>
-              )}
-            </div>
-          )}
-
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center flex-shrink-0">
-                <MessageCircleWarning className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-white font-semibold text-lg truncate drop-shadow-md">
-                {conversation.title}
-              </h3>
-            </div>
-          </div>
-        </div>
-
-        <CardBody className="px-4 py-3.5 gap-2">
-          <p className="text-sm text-default-700">
-            <span className="font-medium">{conversation.avatarRole}</span>
+      <article className="flex h-full flex-col gap-3 rounded-2xl border border-line bg-white p-[18px] transition-colors duration-150 ease-out hover:border-true-blue/50">
+        <div className="flex items-start gap-3">
+          <span className="relative shrink-0">
+            <span className="grid size-[52px] place-items-center rounded-full bg-cwru-blue text-white">
+              <UserRound aria-hidden size={24} strokeWidth={1.75} />
+            </span>
+            <span className="absolute -bottom-1 -right-1 grid size-6 place-items-center rounded-full bg-white text-cwru-blue shadow-[0_0_0_2px_white]">
+              <MessageCircleWarning aria-hidden size={14} strokeWidth={2} />
+            </span>
+          </span>
+          <p className="flex min-w-0 flex-1 flex-col text-[12.5px] leading-snug text-muted">
+            <span>
+              <span className="font-semibold text-ink">They:</span> {conversation.avatarRole}
+            </span>
             {conversation.studentRole ? (
-              <span className="text-default-500">
-                {" "}
-                · You: {conversation.studentRole}
+              <span>
+                <span className="font-semibold text-ink">You:</span> {conversation.studentRole}
               </span>
             ) : null}
           </p>
-
-          {conversation.situation ? (
-            <p className="text-sm text-default-600 line-clamp-2 leading-relaxed">
-              {conversation.situation}
-            </p>
-          ) : null}
-
-          <p className="text-xs text-default-400">
-            Starting difficulty: {difficultyLabel}
-          </p>
-
-          {needsChange && (
-            <Link
-              href={editHref}
-              className="text-xs text-warning-600 hover:underline"
-              onClick={(e) => e.stopPropagation()}
+          {owned && (
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${
+                conversation.published ? "bg-level-4/16 text-ink" : "bg-canvas text-muted"
+              }`}
             >
-              Not published — needs a change
-            </Link>
+              {conversation.published ? "Published" : "Private"}
+            </span>
           )}
+        </div>
 
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Button size="sm" color="primary" onPress={handlePractice}>
-              Practice
+        <h3 className="font-display text-[19px] font-medium leading-tight text-cwru-blue">
+          {conversation.title}
+        </h3>
+
+        {conversation.situation ? (
+          <p className="line-clamp-2 text-[13.5px] leading-5 text-muted">{conversation.situation}</p>
+        ) : null}
+
+        {needsChange && (
+          <Link
+            href={editHref}
+            className="text-xs font-semibold text-copper hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Not published — needs a change
+          </Link>
+        )}
+
+        <div className="mt-auto flex items-center justify-between gap-3 pt-1">
+          <DifficultyMeter difficulty={conversation.difficulty} label={difficultyLabel} />
+          <button
+            className="inline-flex items-center gap-1 text-sm font-bold text-true-blue hover:underline"
+            type="button"
+            onClick={handlePractice}
+          >
+            Practice <ArrowRight aria-hidden size={15} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        {owned && (
+          <div className="flex flex-wrap gap-1 border-t border-line pt-2.5">
+            <Button
+              size="sm"
+              variant="light"
+              className="text-ink"
+              startContent={<Pencil className="h-3.5 w-3.5" />}
+              onPress={() => router.push(editHref)}
+            >
+              Edit
             </Button>
-
-            {owned && (
-              <>
-                <Button
-                  size="sm"
-                  variant="flat"
-                  startContent={<Pencil className="w-3.5 h-3.5" />}
-                  onPress={() => router.push(editHref)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="flat"
-                  color={conversation.published ? "warning" : "primary"}
-                  isDisabled={isPublishing}
-                  onClick={handleTogglePublish}
-                >
-                  {conversation.published ? "Unpublish" : "Publish"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="flat"
-                  color="danger"
-                  startContent={<Trash2 className="w-3.5 h-3.5" />}
-                  isDisabled={isDeleting}
-                  onClick={handleDeleteClick}
-                >
-                  Delete
-                </Button>
-              </>
-            )}
+            <Button
+              size="sm"
+              variant="light"
+              className="text-true-blue"
+              isDisabled={isPublishing}
+              onClick={handleTogglePublish}
+            >
+              {conversation.published ? "Unpublish" : "Publish"}
+            </Button>
+            <Button
+              size="sm"
+              variant="light"
+              className="ml-auto text-copper"
+              startContent={<Trash2 className="h-3.5 w-3.5" />}
+              isDisabled={isDeleting}
+              onClick={handleDeleteClick}
+            >
+              Delete
+            </Button>
           </div>
-        </CardBody>
-      </Card>
+        )}
+      </article>
 
       <Modal
         isDismissable={!isDeleting}
@@ -317,5 +308,31 @@ export default function ConversationCard({
         </ModalContent>
       </Modal>
     </>
+  );
+}
+
+const DIFFICULTY_STEPS: Record<string, { filled: number; color: string }> = {
+  receptive: { filled: 1, color: "bg-level-4" },
+  guarded: { filled: 2, color: "bg-level-2" },
+  hostile: { filled: 3, color: "bg-copper" },
+};
+
+/** Starting difficulty as three bars and its word; color is never the only signal. */
+function DifficultyMeter({ difficulty, label }: { difficulty: string; label: string }) {
+  const step = DIFFICULTY_STEPS[difficulty];
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[12.5px] text-muted" title="Starting difficulty">
+      {step ? (
+        <span aria-hidden className="flex gap-1">
+          {[1, 2, 3].map((n) => (
+            <span key={n} className={`h-1.5 w-4 rounded-full ${n <= step.filled ? step.color : "bg-line"}`} />
+          ))}
+        </span>
+      ) : null}
+      <span>
+        <span className="sr-only">Starting difficulty: </span>
+        {label}
+      </span>
+    </span>
   );
 }

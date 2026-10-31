@@ -257,22 +257,22 @@ export default function DeckUploadStep({
 
   return (
     <section className="mx-auto max-w-3xl" aria-labelledby="deck-upload-heading">
-      <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
+      <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <div className="flex items-start gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#e0f3f9] text-[#08718d]">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-light-blue/32 text-true-blue">
             <Layers size={21} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-[#0a7391]">
+            <p className="text-sm font-semibold text-true-blue">
               Step {nav.stepNumber} of {nav.totalSteps}
             </p>
             <h2
               id="deck-upload-heading"
-              className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+              className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             >
               Upload your pitch deck
             </h2>
-            <p className="mt-3 max-w-xl text-[15px] leading-7 text-[#58727f]">
+            <p className="mt-3 max-w-xl text-[15px] leading-7 text-muted">
               PDF or PowerPoint (.pptx), up to 25MB. Using Google Slides? File →
               Download → PDF.
             </p>
@@ -282,16 +282,16 @@ export default function DeckUploadStep({
         <div className="mt-7" aria-live="polite" aria-atomic="true">
           {(phase === "idle" || phase === "uploading" || phase === "processing") && (
             <label
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-10 text-center transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-[#0a7391] ${
+              className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 text-center transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-true-blue ${
                 busy
-                  ? "pointer-events-none border-[#a8c9d5] bg-[#f6fafb]"
-                  : "border-[#bad1db] hover:border-[#0a7391] hover:bg-[#f4fbfd]"
+                  ? "pointer-events-none border-light-blue bg-canvas"
+                  : "border-line hover:border-true-blue hover:bg-canvas"
               }`}
             >
               {busy ? (
                 <Spinner color="primary" />
               ) : (
-                <FileUp className="text-[#0a7391]" size={28} />
+                <FileUp className="text-true-blue" size={28} />
               )}
               <span className="mt-3 font-semibold">
                 {phase === "uploading"
@@ -300,7 +300,7 @@ export default function DeckUploadStep({
                     ? "Rendering your slides…"
                     : "Choose a PDF or PowerPoint file"}
               </span>
-              <span className="mt-1 text-sm text-[#617b88]">
+              <span className="mt-1 text-sm text-muted">
                 PDF or PowerPoint (.pptx) · up to 25 MB
               </span>
               {phase === "uploading" && (
@@ -309,15 +309,15 @@ export default function DeckUploadStep({
                     aria-label="Upload progress"
                     value={uploadPct}
                     classNames={{
-                      indicator: "bg-[#0a7391]",
-                      track: "bg-[#d4e2e9]",
+                      indicator: "bg-true-blue",
+                      track: "bg-line",
                     }}
                   />
-                  <p className="mt-2 text-xs text-[#617b88]">{uploadPct}%</p>
+                  <p className="mt-2 text-xs text-muted">{uploadPct}%</p>
                 </div>
               )}
               {phase === "processing" && (
-                <p className="mt-4 max-w-sm text-sm leading-6 text-[#58727f]">
+                <p className="mt-4 max-w-sm text-sm leading-6 text-muted">
                   Rendering your slides… this takes a few seconds for a large
                   deck.
                 </p>
@@ -338,11 +338,11 @@ export default function DeckUploadStep({
           )}
 
           {(phase === "rejected" || phase === "failed") && errorParts && (
-            <div className="rounded-xl border border-[#f0c7b0] bg-[#fff7f2] p-5">
-              <h3 className="font-semibold text-[#8a3b12]">
+            <div className="rounded-xl border border-level-2/40 bg-level-2/8 p-5">
+              <h3 className="font-semibold text-copper">
                 {errorParts.error}
               </h3>
-              <p className="mt-2 text-sm leading-6 text-[#6b4a38]">
+              <p className="mt-2 text-sm leading-6 text-ink">
                 {errorParts.fix}
               </p>
               <Button
@@ -358,7 +358,7 @@ export default function DeckUploadStep({
 
           {phase === "ready" && deck && (
             <div>
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#b7e3d4] bg-[#effaf5] px-4 py-3 text-[#185b49]">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-level-4/40 bg-level-4/10 px-4 py-3 text-level-4">
                 <p className="font-semibold">
                   {deck.slideCount} slide{deck.slideCount === 1 ? "" : "s"}
                 </p>
@@ -389,7 +389,7 @@ export default function DeckUploadStep({
                       width={width}
                       height={height}
                       loading="lazy"
-                      className="shrink-0 rounded-md border border-[#d4e2e9] bg-[#f0f5f7] object-contain"
+                      className="shrink-0 rounded-md border border-line bg-canvas object-contain"
                       style={{ width, height }}
                     />
                   );
@@ -403,7 +403,7 @@ export default function DeckUploadStep({
           )}
         </div>
 
-        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6">
+        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-line pt-6">
           <Button variant="light" onPress={nav.goBack} isDisabled={busy}>
             Back
           </Button>

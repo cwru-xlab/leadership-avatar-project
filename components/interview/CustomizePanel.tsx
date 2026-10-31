@@ -167,20 +167,20 @@ export default function CustomizePanel({
   };
 
   return (
-    <div className="rounded-xl border border-[#d4e2e9] bg-white/70 p-4">
+    <div className="rounded-xl border border-line bg-white/70 p-4">
       <button
         type="button"
         onClick={() => {
           setOpen((v) => !v);
           setOpenedOnce(true);
         }}
-        className="flex w-full items-center justify-between gap-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
+        className="flex w-full items-center justify-between gap-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue"
         aria-expanded={open}
       >
-        <span className="text-sm text-[#4e6977]">
+        <span className="text-sm text-muted">
           {summaryParts.join(" · ")}
         </span>
-        <span className="flex items-center gap-1 text-xs font-semibold text-[#0a7391]">
+        <span className="flex items-center gap-1 text-xs font-semibold text-true-blue">
           Customize {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>
       </button>
@@ -268,18 +268,18 @@ export default function CustomizePanel({
             ))}
           </Select>
 
-          <div className="rounded-lg border border-[#d4e2e9] bg-[#f5f8fa] p-4">
-            <p className="text-sm font-semibold text-[#183947]">
+          <div className="rounded-lg border border-line bg-canvas p-4">
+            <p className="text-sm font-semibold text-ink">
               Who is interviewing you? (optional)
             </p>
-            <p className="mt-1 text-xs leading-5 text-[#58727f]">
+            <p className="mt-1 text-xs leading-5 text-muted">
               This is a rehearsal simulation, not a portrait of the real person — the AI will
               invent details it was not given. Paste a description; do not paste a URL, since
               nothing is fetched from a link.
             </p>
 
             {distilledPersona ? (
-              <div className="mt-3 rounded-lg border border-[#b7e3d4] bg-[#effaf5] p-3 text-sm text-[#185b49]">
+              <div className="mt-3 rounded-lg border border-level-4/40 bg-level-4/10 p-3 text-sm text-level-4">
                 <p className="font-semibold">Distilled persona</p>
                 <p className="mt-1 leading-6">{distilledPersona}</p>
                 <Button
@@ -306,7 +306,7 @@ export default function CustomizePanel({
                   onValueChange={(value) => setProfileText(value.slice(0, MAX_PROFILE_TEXT_LENGTH))}
                 />
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-[#78909b]">
+                  <span className="text-xs text-muted">
                     {profileText.length}/{MAX_PROFILE_TEXT_LENGTH}
                   </span>
                   <Button

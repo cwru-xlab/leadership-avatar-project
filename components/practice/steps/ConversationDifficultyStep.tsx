@@ -73,17 +73,17 @@ export default function ConversationDifficultyStep({
     >
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#0a7391]">
+          <p className="text-sm font-semibold text-true-blue">
             Step {nav.stepNumber} of {nav.totalSteps}
           </p>
           <h2
             id="conversation-difficulty-heading"
-            className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+            className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
           >
             How hard should this be?
           </h2>
         </div>
-        <p className="max-w-md text-sm leading-6 text-[#58727f]">
+        <p className="max-w-md text-sm leading-6 text-muted">
           One setting. Nothing else about this conversation is adjustable.
         </p>
       </div>
@@ -104,23 +104,23 @@ export default function ConversationDifficultyStep({
               tabIndex={isSelected ? 0 : -1}
               onClick={() => onSelect(band)}
               onKeyDown={(event) => handleBandKeyDown(event, index)}
-              className={`relative rounded-2xl border p-5 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${
+              className={`relative rounded-xl border p-5 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue ${
                 isSelected
-                  ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]"
-                  : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"
+                  ? "border-true-blue bg-light-blue/22"
+                  : "border-line bg-white hover:border-true-blue/50 hover:shadow-md"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-serif text-xl tracking-[-0.02em] text-[#102331]">
+                  <h3 className="font-display font-medium text-xl tracking-[-0.02em] text-ink">
                     {copy.title}
                   </h3>
-                  <p className="mt-2 text-sm leading-6 text-[#58727f]">
+                  <p className="mt-2 text-sm leading-6 text-muted">
                     {copy.description}
                   </p>
                 </div>
                 {isSelected && (
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#79d4b1] text-[#0b3029]">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-level-4 text-ink">
                     <Check size={15} />
                   </span>
                 )}
@@ -130,7 +130,7 @@ export default function ConversationDifficultyStep({
         })}
       </div>
 
-      <p className="mt-5 text-sm leading-6 text-[#58727f]">
+      <p className="mt-5 text-sm leading-6 text-muted">
         You won&apos;t see this setting again once you start — you&apos;ll have
         to read them.
       </p>

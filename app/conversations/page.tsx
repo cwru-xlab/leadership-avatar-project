@@ -7,11 +7,11 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { ArrowLeft, MessageCircleWarning, PenLine, Plus } from "lucide-react";
-import { title } from "@/components/primitives";
 import ConversationCard, {
   type ConversationDiscoveryCard,
 } from "@/components/difficult-conversation/ConversationCard";
@@ -19,6 +19,7 @@ import ConversationCard, {
 export default function ConversationsIndexPage() {
   const router = useRouter();
 
+  const [tab, setTab] = useState<"featured" | "mine" | "others">("featured");
   const [seeded, setSeeded] = useState<ConversationDiscoveryCard[]>([]);
   const [mine, setMine] = useState<ConversationDiscoveryCard[]>([]);
   const [fromOthers, setFromOthers] = useState<ConversationDiscoveryCard[]>([]);
@@ -86,178 +87,121 @@ export default function ConversationsIndexPage() {
     void loadList();
   }, [loadList]);
 
+  const tabs = [
+    { id: "featured", label: "Featured", count: seeded.length },
+    { id: "mine", label: "Yours", count: mine.length },
+    { id: "others", label: "From classmates", count: fromOthers.length },
+  ] as const;
+
+  const grid = (items: ConversationDiscoveryCard[]) => (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {items.map((conversation) => (
+        <ConversationCard key={conversation.id} conversation={conversation} onChanged={loadList} />
+      ))}
+    </div>
+  );
+
+  const empty = (icon: React.ReactNode, heading: string, body?: string, action?: React.ReactNode) => (
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-line bg-white px-6 py-12 text-center">
+      <span className="grid size-14 place-items-center rounded-full bg-light-blue/32 text-cwru-blue">{icon}</span>
+      <p className="font-display text-xl font-medium text-cwru-blue">{heading}</p>
+      {body ? <p className="max-w-md text-sm text-muted">{body}</p> : null}
+      {action}
+    </div>
+  );
+
+  const writeButton = (
+    <Button
+      className="h-11 rounded-lg font-semibold"
+      color="primary"
+      startContent={<Plus className="h-4 w-4" />}
+      onPress={() => router.push("/conversations/new")}
+    >
+      Write your own
+    </Button>
+  );
+
   return (
-    <div className="space-y-10 py-2 md:py-4">
-      <div className="flex flex-col gap-3">
-        <Button
-          variant="light"
-          size="sm"
-          startContent={<ArrowLeft className="w-4 h-4" />}
-          onPress={() => router.push("/")}
-          className="self-start -ml-2 text-default-600 data-[hover=true]:bg-transparent"
-        >
-          Back to Dashboard
-        </Button>
-        <h1 className={title({ fullWidth: true })}>Courageous Conversations</h1>
-        <p className="max-w-2xl text-default-500">
-          Practice a tense conversation before you have to have it for real —
-          pick a featured situation, write your own, or try one a classmate has
-          shared.
-        </p>
+    <div className="flex flex-col gap-6">
+      <Link className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-true-blue hover:text-cwru-blue" href="/">
+        <ArrowLeft aria-hidden className="h-4 w-4" />
+        Practice
+      </Link>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+            Courageous conversations
+          </h1>
+          <p className="max-w-2xl text-[15px] text-muted">
+            Rehearse a hard conversation before you have it for real.
+          </p>
+        </div>
+        {writeButton}
+      </header>
+
+      <div aria-label="Conversation sources" className="flex gap-7 border-b border-line" role="tablist">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            aria-selected={tab === t.id}
+            className={`-mb-px h-11 border-b-2 text-[15px] ${
+              tab === t.id ? "border-true-blue font-semibold text-cwru-blue" : "border-transparent font-medium text-muted hover:text-ink"
+            }`}
+            role="tab"
+            type="button"
+            onClick={() => setTab(t.id)}
+          >
+            {t.label} {!loading && <span className="font-normal text-muted">{t.count}</span>}
+          </button>
+        ))}
       </div>
 
-      {loading && (
+      {loading ? (
         <div className="flex flex-col items-center justify-center gap-4 py-12">
           <Spinner size="lg" />
-          <p className="text-default-500">Loading conversations...</p>
+          <p className="text-muted">Loading conversations...</p>
         </div>
-      )}
-
-      {!loading && error && (
-        <div className="p-4 bg-danger-50 border border-danger-200 rounded-lg text-danger-700">
+      ) : error ? (
+        <div role="alert" className="rounded-lg border border-copper/40 bg-copper/[0.08] p-4 text-ink">
           {error}
         </div>
-      )}
-
-      {!loading && !error && (
-        <>
-          {/* Section 1: Featured (seeded) — locked first */}
-          <section aria-labelledby="featured-heading" className="space-y-4">
-            <div>
-              <h2
-                id="featured-heading"
-                className="text-xl font-semibold text-default-900"
-              >
-                Featured conversations
-              </h2>
-              <p className="text-sm text-default-500">
-                Built-in situations. Pick one and go.
-              </p>
-            </div>
-
-            {seeded.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {seeded.map((conversation) => (
-                  <ConversationCard
-                    key={conversation.id}
-                    conversation={conversation}
-                    onChanged={loadList}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-default-100 flex items-center justify-center">
-                  <MessageCircleWarning className="w-8 h-8 text-default-400" />
-                </div>
-                <p className="text-default-600 font-medium">
-                  Featured conversations are not available yet.
-                </p>
-              </div>
-            )}
-          </section>
-
-          {/* Section 2: student's own */}
-          <section aria-labelledby="mine-heading" className="space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2
-                  id="mine-heading"
-                  className="text-xl font-semibold text-default-900"
-                >
-                  Your conversations
-                </h2>
-                <p className="text-sm text-default-500">
-                  Private until you publish. Practice any of them right away.
-                </p>
-              </div>
-              <Button
-                color="primary"
-                startContent={<Plus className="w-4 h-4" />}
-                onPress={() => router.push("/conversations/new")}
-              >
-                Write your own
+      ) : tab === "featured" ? (
+        // Featured (seeded) situations are the default view.
+        seeded.length > 0 ? (
+          grid(seeded)
+        ) : (
+          empty(<MessageCircleWarning className="h-7 w-7" />, "Featured conversations are not available yet.")
+        )
+      ) : tab === "mine" ? (
+        mine.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted">Private until you publish. Practice any of them right away.</p>
+            {grid(mine)}
+          </div>
+        ) : (
+          empty(
+            <PenLine className="h-7 w-7" />,
+            "You haven't written a conversation yet.",
+            "Build a situation with the same fields the featured ones use, then practice it privately.",
+            writeButton,
+          )
+        )
+      ) : fromOthers.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted">
+            Published by classmates. You can practice them — only the author can edit or unpublish.
+          </p>
+          {grid(fromOthers)}
+          {nextCursor && (
+            <div className="flex justify-center pt-2">
+              <Button variant="bordered" isLoading={loadingMore} onPress={() => void loadMoreOthers()}>
+                Load more
               </Button>
             </div>
-
-            {mine.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {mine.map((conversation) => (
-                  <ConversationCard
-                    key={conversation.id}
-                    conversation={conversation}
-                    onChanged={loadList}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 border border-dashed border-default-200 rounded-xl">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-default-100 flex items-center justify-center">
-                  <PenLine className="w-8 h-8 text-default-400" />
-                </div>
-                <p className="text-default-600 font-medium mb-1">
-                  You haven&apos;t written a conversation yet.
-                </p>
-                <p className="text-default-500 text-sm mb-4">
-                  Build a situation with the same fields the featured ones use,
-                  then practice it privately.
-                </p>
-                <Button
-                  color="primary"
-                  startContent={<Plus className="w-4 h-4" />}
-                  onPress={() => router.push("/conversations/new")}
-                >
-                  Write your own
-                </Button>
-              </div>
-            )}
-          </section>
-
-          {/* Section 3: from other students */}
-          <section aria-labelledby="others-heading" className="space-y-4">
-            <div>
-              <h2
-                id="others-heading"
-                className="text-xl font-semibold text-default-900"
-              >
-                From other students
-              </h2>
-              <p className="text-sm text-default-500">
-                Published by classmates. You can practice them — only the author
-                can edit or unpublish.
-              </p>
-            </div>
-
-            {fromOthers.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {fromOthers.map((conversation) => (
-                    <ConversationCard
-                      key={conversation.id}
-                      conversation={conversation}
-                      onChanged={loadList}
-                    />
-                  ))}
-                </div>
-                {nextCursor && (
-                  <div className="flex justify-center pt-2">
-                    <Button
-                      variant="flat"
-                      isLoading={loadingMore}
-                      onPress={() => void loadMoreOthers()}
-                    >
-                      Load more
-                    </Button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-default-500 py-6">
-                Nobody has published one yet.
-              </p>
-            )}
-          </section>
-        </>
+          )}
+        </div>
+      ) : (
+        empty(<MessageCircleWarning className="h-7 w-7" />, "Nobody has published one yet.")
       )}
     </div>
   );

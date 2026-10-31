@@ -37,23 +37,23 @@ export default function PitchSubjectStep({
     <section className="mx-auto max-w-3xl" aria-labelledby="pitch-subject-heading">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#0a7391]">
+          <p className="text-sm font-semibold text-true-blue">
             Step {nav.stepNumber} of {nav.totalSteps}
           </p>
           <h2
             id="pitch-subject-heading"
-            className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+            className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
           >
             What are you pitching?
           </h2>
         </div>
-        <p className="max-w-md text-sm leading-6 text-[#58727f]">
+        <p className="max-w-md text-sm leading-6 text-muted">
           It can be a product, a company, an idea, or yourself — write it in
           your own words so your listener knows what they are about to hear.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
+      <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <Textarea
           aria-label="What you are pitching"
           aria-invalid={showError}
@@ -68,12 +68,12 @@ export default function PitchSubjectStep({
           }
           classNames={{
             inputWrapper:
-              "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none data-[hover=true]:bg-[#f7fbfc]",
+              "border border-line bg-canvas shadow-none data-[hover=true]:bg-canvas",
           }}
         />
-        <div className="mt-2 flex items-start justify-between gap-3 text-xs text-[#6a8491]">
+        <div className="mt-2 flex items-start justify-between gap-3 text-xs text-muted">
           {showError ? (
-            <p id="pitch-subject-error" className="text-[#b4540f]" role="alert">
+            <p id="pitch-subject-error" className="text-copper" role="alert">
               Describe it in a few words so your listener knows what they are
               hearing about.
             </p>
@@ -85,7 +85,7 @@ export default function PitchSubjectStep({
           </p>
         </div>
 
-        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6">
+        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-line pt-6">
           <Button variant="light" onPress={nav.goBack}>
             Back
           </Button>
