@@ -13,9 +13,8 @@
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
-import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
-import { ArrowRight, Check, CircleAlert } from "lucide-react";
+import { ArrowRight, Check, CircleAlert, Mic } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export interface InterviewerOption {
@@ -39,7 +38,7 @@ export default function InterviewerStep({
   nav,
   selectedInterviewerId,
   onSelect,
-  heading = "Choose your interviewer.",
+  heading = "Choose your interviewer",
   roleLabel = "Hiring manager",
 }: InterviewerStepProps) {
   const [interviewers, setInterviewers] = useState<InterviewerOption[]>([]);
@@ -92,24 +91,21 @@ export default function InterviewerStep({
     <section aria-labelledby="interviewer-heading">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#0a7391]">
-            Step {nav.stepNumber} of {nav.totalSteps}
-          </p>
           <h2
             id="interviewer-heading"
-            className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+            className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
           >
             {heading}
           </h2>
         </div>
-        <p className="max-w-md text-sm leading-6 text-[#58727f]">
+        <p className="max-w-md text-sm leading-6 text-muted">
           Each interviewer uses a compatible voice profile, so the session
           starts without a configuration step.
         </p>
       </div>
 
       {loadingInterviewers ? (
-        <div className="grid min-h-64 place-items-center rounded-2xl border border-[#d4e2e9] bg-white">
+        <div className="grid min-h-64 place-items-center rounded-xl border border-line bg-white">
           <Spinner color="primary" />
         </div>
       ) : catalogError ? (
@@ -133,7 +129,7 @@ export default function InterviewerStep({
                   type="button"
                   aria-pressed={selected}
                   onClick={() => onSelect(interviewer)}
-                  className={`group relative min-h-60 overflow-hidden rounded-2xl border text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${selected ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]" : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"}`}
+                  className={`group relative min-h-60 overflow-hidden rounded-xl border text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue ${selected ? "border-true-blue bg-light-blue/22" : "border-line bg-white hover:border-true-blue/50 hover:shadow-md"}`}
                 >
                   {interviewer.previewUrl ? (
                     <img
@@ -142,21 +138,26 @@ export default function InterviewerStep({
                       className="absolute inset-0 z-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                     />
                   ) : (
-                    <div className="absolute inset-0 z-0 bg-[#1d586e]" />
+                    <div className="absolute inset-0 z-0 bg-cwru-blue" />
                   )}
-                  <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#112c39] via-[#112c39]/20 to-transparent" />
+                  <div className="absolute inset-0 z-10 bg-gradient-to-t from-ink via-ink/20 to-transparent" />
                   <div className="absolute inset-x-0 bottom-0 z-20 p-5 text-white">
                     <div className="mb-3 flex justify-between gap-2">
-                      <Chip size="sm" className="bg-white/18 text-white">
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-white/18 px-2.5 py-0.5 text-xs text-white"
+                        title="Voice profile"
+                      >
+                        <Mic aria-hidden size={12} />
+                        <span className="sr-only">Voice: </span>
                         {interviewer.voice.name}
-                      </Chip>
+                      </span>
                       {selected && (
-                        <span className="grid h-6 w-6 place-items-center rounded-full bg-[#79d4b1] text-[#0b3029]">
-                          <Check size={15} />
+                        <span className="grid h-6 w-6 place-items-center rounded-full bg-true-blue text-white">
+                          <Check size={15} strokeWidth={3} />
                         </span>
                       )}
                     </div>
-                    <h3 className="font-serif text-2xl">{interviewer.name}</h3>
+                    <h3 className="font-display font-medium text-2xl">{interviewer.name}</h3>
                     <p className="mt-1 text-sm text-white/78">
                       {roleLabel} · Live session
                     </p>
@@ -170,13 +171,15 @@ export default function InterviewerStep({
               It stays in flow, so it never covers the final row at rest — it
               only pins while there is still list below. Requires that no
               ancestor create a scroll container; see the overflow-x-clip note
-              in app/practice/[type]/page.tsx. */}
-          <div className="sticky bottom-0 z-30 mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-[#d8e6ec] bg-[#f5f8fa] py-4 shadow-[0_-8px_16px_-8px_rgba(16,45,58,0.18)]">
-            <p className="text-sm text-[#58727f]">
+              in app/practice/[type]/page.tsx. It pins at -4rem with matching
+              bottom padding because the content column's own 4rem bottom
+              padding would otherwise leave a strip of cards showing under it. */}
+          <div className="sticky -bottom-16 z-30 mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas pb-20 pt-4 shadow-[0_-12px_20px_-16px_rgb(9_20_58/0.35)]">
+            <p className="text-sm text-muted">
               {selectedInterviewer ? (
                 <>
                   Selected{" "}
-                  <span className="font-semibold text-[#102331]">
+                  <span className="font-semibold text-ink">
                     {selectedInterviewer.name}
                   </span>
                 </>

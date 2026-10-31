@@ -11,6 +11,7 @@
  * owner in this builder — never on catalog cards or in briefing.
  */
 
+import BackLink from "@/components/shell/BackLink";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { ArrowLeft } from "lucide-react";
@@ -23,17 +24,9 @@ export default function NewConversationPage() {
   return (
     <div className="space-y-8 py-2 md:py-4">
       <div className="flex flex-col gap-3">
-        <Button
-          variant="light"
-          size="sm"
-          startContent={<ArrowLeft className="w-4 h-4" />}
-          onPress={() => router.push("/conversations")}
-          className="self-start -ml-2 text-default-600 data-[hover=true]:bg-transparent"
-        >
-          Back to conversations
-        </Button>
+        <BackLink href="/conversations" label="Courageous conversations" />
         <h1 className={title({ fullWidth: true })}>Write your own</h1>
-        <p className="max-w-2xl text-default-500">
+        <p className="max-w-2xl text-[15px] text-muted">
           Same fields as the featured conversations — situation, shared facts,
           the character&apos;s private stance, your goal, and the stakes. Save
           privately, then practise or publish when you are ready.

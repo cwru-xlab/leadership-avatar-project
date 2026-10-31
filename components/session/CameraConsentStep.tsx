@@ -16,10 +16,20 @@
  */
 
 import MetricsConsentDialog from "@/components/session/MetricsConsentDialog";
+import StepTracker from "@/components/shell/StepTracker";
 import type { CameraMode } from "@/lib/metrics/types";
 import { requestCameraStream } from "@/lib/metrics/visual-capture";
 import { Button } from "@heroui/button";
-import { ArrowRight, Camera, CameraOff, CircleAlert } from "lucide-react";
+import {
+  ArrowRight,
+  Camera,
+  CameraOff,
+  Check,
+  CircleAlert,
+  Headphones,
+  ScanFace,
+  Sun,
+} from "lucide-react";
 import { type ReactNode, useState } from "react";
 
 export type CameraBlockReason = "DENIED" | "NOT_FOUND" | "UNAVAILABLE";
@@ -75,6 +85,8 @@ export interface CameraConsentStepProps {
   cameraOnDescription?: ReactNode;
   /** Line under "Camera off". Defaults to the practice copy, byte-identical. */
   cameraOffDescription?: ReactNode;
+  /** False when the host (the setup wizard) already shows step progress. */
+  showProgress?: boolean;
 }
 
 export default function CameraConsentStep({
@@ -86,6 +98,7 @@ export default function CameraConsentStep({
   launchLabel = "Start interview",
   sessionNoun = "interview",
   cameraOnDescription = "Visual and Vocal will be scored.",
+  showProgress = true,
   cameraOffDescription = (
     <>
       I&apos;ll practice without being measured. Visual and Vocal
@@ -173,113 +186,138 @@ export default function CameraConsentStep({
 
   const busy = probing || launching;
 
+  const choiceClass = (selected: boolean) =>
+    `flex w-full items-center gap-3.5 rounded-xl border p-4 text-left transition-colors duration-150 ease-out focus-visible:outline-true-blue disabled:cursor-not-allowed disabled:opacity-70 ${
+      selected ? "border-2 border-true-blue bg-light-blue/22" : "border-line bg-white hover:border-true-blue/50"
+    }`;
+
   return (
     <>
-      <section className="mx-auto max-w-3xl" aria-labelledby="camera-heading">
-        <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
-          <div className="flex items-start gap-4">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#e0f3f9] text-[#08718d]">
-              <Camera size={21} />
+      <section className="mx-auto flex w-full max-w-5xl flex-col gap-5" aria-labelledby="camera-heading">
+        {/* Progress through the setup steps; a wizard that draws its own
+            tracker turns this one off. */}
+        {showProgress ? (
+          <div className="w-full max-w-md self-end">
+            <StepTracker
+              ariaLabel={`Step ${stepNumber} of ${totalSteps}`}
+              current={stepNumber - 1}
+              labels={Array.from({ length: totalSteps }, (_, i) =>
+                i === stepNumber - 1 ? "Camera" : i < stepNumber - 1 ? (i === 0 ? "Brief" : `Step ${i + 1}`) : "Practice",
+              )}
+            />
+          </div>
+        ) : null}
+
+        <div className="grid items-stretch gap-6 lg:grid-cols-[1.1fr_1fr]">
+          {/* The stage. No camera opens here: consent comes first, and the
+              session asks for its own stream once the avatar connects. */}
+          <div className="relative grid min-h-[300px] place-items-center overflow-hidden rounded-xl bg-ink lg:min-h-[420px]">
+            <svg aria-hidden className="w-1/2 max-w-[260px] opacity-60" viewBox="0 0 200 160">
+              <circle className="fill-light-blue/35" cx="100" cy="62" r="34" />
+              <path className="fill-light-blue/25" d="M30 160c4-40 34-58 70-58s66 18 70 58z" />
+            </svg>
+            <div className="absolute inset-x-4 bottom-4 flex flex-col gap-2 rounded-xl bg-white/[0.08] p-4 text-[13.5px] text-white">
+              {[
+                { icon: Sun, text: "Face a light source" },
+                { icon: ScanFace, text: "Center yourself in the frame" },
+                { icon: Headphones, text: "Headphones help the avatar hear you" },
+              ].map(({ icon: Icon, text }) => (
+                <span key={text} className="flex items-center gap-2.5">
+                  <Icon aria-hidden className="text-light-blue" size={16} />
+                  {text}
+                </span>
+              ))}
             </div>
-            <div>
-              <p className="text-sm font-semibold text-[#0a7391]">
-                Step {stepNumber} of {totalSteps}
-              </p>
-              <h2
-                id="camera-heading"
-                className="mt-1 font-serif text-3xl tracking-[-0.03em]"
-              >
+            <span className="absolute left-4 top-4 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+              Your camera turns on only when the {sessionNoun} starts
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <h2 id="camera-heading" className="font-display text-[28px] font-medium leading-[1.15] text-cwru-blue md:text-[30px]">
                 Practice with your camera on?
               </h2>
-              <p className="mt-3 max-w-xl text-[15px] leading-7 text-[#58727f]">
+              <p className="text-[15px] leading-6 text-muted">
                 This choice is locked once the {sessionNoun} starts — you
                 can&apos;t switch it part-way, in either direction.
               </p>
             </div>
-          </div>
 
-          {cameraBlock ? (
-            <div className="mt-7 rounded-2xl border border-danger-200 bg-danger-50 p-6 text-danger-900">
-              <div className="flex items-start gap-3">
-                <CircleAlert size={22} className="mt-0.5 shrink-0" />
-                <div>
-                  <h3 className="font-semibold">
-                    {CAMERA_BLOCK_COPY[cameraBlock].heading}
-                  </h3>
-                  <p className="mt-1 text-sm leading-6">
-                    {CAMERA_BLOCK_COPY[cameraBlock].body}
-                  </p>
+            {cameraBlock ? (
+              <div role="alert" className="flex flex-col gap-4 rounded-xl border border-copper/40 bg-copper/[0.08] p-5 text-ink">
+                <div className="flex items-start gap-3">
+                  <CircleAlert size={22} className="mt-0.5 shrink-0 text-copper" />
+                  <div>
+                    <h3 className="font-semibold">{CAMERA_BLOCK_COPY[cameraBlock].heading}</h3>
+                    <p className="mt-1 text-sm leading-6">{CAMERA_BLOCK_COPY[cameraBlock].body}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="bordered" isLoading={busy} onPress={() => void probeCamera()}>
+                    Try again
+                  </Button>
+                  <Button color="primary" onPress={chooseCameraOff}>
+                    Continue with my camera off
+                  </Button>
                 </div>
               </div>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Button
-                  variant="flat"
-                  isLoading={busy}
-                  onPress={() => void probeCamera()}
-                >
-                  Try again
-                </Button>
-                <Button color="primary" onPress={chooseCameraOff}>
-                  Continue with my camera off
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="mt-7 grid gap-4 sm:grid-cols-2">
+            ) : (
+              <>
                 <button
                   type="button"
                   aria-pressed={cameraMode === "ON"}
                   onClick={() => void beginCameraOnFlow()}
                   disabled={busy}
-                  className={`flex flex-col items-start gap-3 rounded-2xl border p-5 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${cameraMode === "ON" ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]" : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"} disabled:cursor-not-allowed disabled:opacity-70`}
+                  className={choiceClass(cameraMode === "ON")}
                 >
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e0f3f9] text-[#08718d]">
-                    <Camera size={19} />
+                  <span className={`grid size-12 shrink-0 place-items-center rounded-xl ${cameraMode === "ON" ? "bg-cwru-blue text-white" : "bg-canvas text-cwru-blue"}`}>
+                    <Camera size={22} />
                   </span>
-                  <span className="font-serif text-xl">
-                    Practice with my camera on
+                  <span className="flex flex-1 flex-col">
+                    <span className="text-[15.5px] font-bold text-ink">Practice with my camera on</span>
+                    <span className="text-[13.5px] leading-5 text-muted">{cameraOnDescription}</span>
                   </span>
-                  <span className="text-sm leading-6 text-[#58727f]">
-                    {cameraOnDescription}
-                  </span>
+                  <SelectedMark selected={cameraMode === "ON"} />
                 </button>
                 <button
                   type="button"
                   aria-pressed={cameraMode === "OFF"}
                   onClick={chooseCameraOff}
                   disabled={busy}
-                  className={`flex flex-col items-start gap-3 rounded-2xl border p-5 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${cameraMode === "OFF" ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]" : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"} disabled:cursor-not-allowed disabled:opacity-70`}
+                  className={choiceClass(cameraMode === "OFF")}
                 >
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#eef2f4] text-[#526c7b]">
-                    <CameraOff size={19} />
+                  <span className={`grid size-12 shrink-0 place-items-center rounded-xl ${cameraMode === "OFF" ? "bg-cwru-blue text-white" : "bg-canvas text-cwru-blue"}`}>
+                    <CameraOff size={22} />
                   </span>
-                  <span className="font-serif text-xl">Camera off</span>
-                  <span className="text-sm leading-6 text-[#58727f]">
-                    {cameraOffDescription}
+                  <span className="flex flex-1 flex-col">
+                    <span className="text-[15.5px] font-bold text-ink">Camera off</span>
+                    <span className="text-[13.5px] leading-5 text-muted">{cameraOffDescription}</span>
                   </span>
+                  <SelectedMark selected={cameraMode === "OFF"} />
                 </button>
-              </div>
 
-              <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6">
-                <Button variant="light" onPress={onBack}>
-                  Back
-                </Button>
-                <Button
-                  color="primary"
-                  isLoading={busy}
-                  endContent={<ArrowRight size={17} />}
-                  onPress={() =>
-                    cameraMode === "ON"
-                      ? void beginCameraOnFlow()
-                      : chooseCameraOff()
-                  }
-                >
-                  {launchLabel}
-                </Button>
-              </div>
-            </>
-          )}
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-2">
+                  <Button className="font-semibold text-true-blue" variant="light" onPress={onBack}>
+                    Back
+                  </Button>
+                  <Button
+                    className="h-11 rounded-lg px-5 font-bold"
+                    color="primary"
+                    isLoading={busy}
+                    endContent={<ArrowRight size={17} />}
+                    onPress={() =>
+                      cameraMode === "ON"
+                        ? void beginCameraOnFlow()
+                        : chooseCameraOff()
+                    }
+                  >
+                    {launchLabel}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </section>
 
@@ -289,5 +327,15 @@ export default function CameraConsentStep({
         onDecline={handleConsentDecline}
       />
     </>
+  );
+}
+
+function SelectedMark({ selected }: { selected: boolean }) {
+  return selected ? (
+    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-true-blue text-white">
+      <Check aria-hidden size={14} strokeWidth={3} />
+    </span>
+  ) : (
+    <span aria-hidden className="size-6 shrink-0 rounded-full border-2 border-line" />
   );
 }

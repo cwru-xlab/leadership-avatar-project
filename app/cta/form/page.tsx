@@ -240,10 +240,10 @@ function CTAFormContent() {
         <Card className="w-full max-w-lg">
           <CardBody className="text-center items-center p-8">
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900 mb-4 dark:text-white">
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">
               Thank You!
             </h1>
-            <p className="text-gray-600 mb-6 leading-relaxed dark:text-white">
+            <p className="text-gray-600 mb-6 leading-relaxed">
               We have received your information and will be in touch soon. Check
               your email for confirmation and next steps.
             </p>
@@ -252,7 +252,7 @@ function CTAFormContent() {
                 Chat with {qrData.avatarName} saved
               </Chip>
             )}
-            <p className="text-sm text-gray-500 dark:text-white">
+            <p className="text-sm text-gray-500">
               You can safely close this page.
             </p>
           </CardBody>
@@ -298,10 +298,10 @@ function CTAFormContent() {
           <CardHeader className="text-center pb-4">
             <div className="w-full">
               <MessageSquare className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-2 dark:text-white">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
                 Connect with Weatherhead School of Management
               </h2>
-              <p className="text-gray-600 leading-relaxed dark:text-white">
+              <p className="text-gray-600 leading-relaxed">
                 Thank you for chatting with our AI avatar! Please share your
                 contact information to continue the conversation and connect
                 with our team.

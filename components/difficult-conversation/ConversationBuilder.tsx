@@ -326,7 +326,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
   return (
     <div className="space-y-8 max-w-3xl">
       <div className="space-y-2">
-        <Input
+        <Input variant="bordered"
           label="Title"
           description="What do you call this situation?"
           value={title}
@@ -338,7 +338,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Input
+        <Input variant="bordered"
           label="Who you are"
           description="Your role in this conversation."
           value={studentRole}
@@ -346,7 +346,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
           isInvalid={Boolean(err("studentRole"))}
           errorMessage={err("studentRole")}
         />
-        <Input
+        <Input variant="bordered"
           label="Who they are"
           description="The avatar's role — who you are talking to."
           value={avatarRole}
@@ -356,7 +356,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
         />
       </div>
 
-      <Textarea
+      <Textarea variant="bordered"
         label="The situation"
         description="Shown to whoever plays it — the setup both sides walk into."
         value={situation}
@@ -366,7 +366,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
         errorMessage={err("situation")}
       />
 
-      <Textarea
+      <Textarea variant="bordered"
         label="What you both already know"
         description="Facts both sides have. The player sees this before they start."
         value={sharedBackstory}
@@ -383,7 +383,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
             Hidden from the player
           </Chip>
         </div>
-        <Textarea
+        <Textarea variant="bordered"
           label="What they privately think"
           description="The player never sees this. It is what the character believes, wants and will not volunteer: their excuse, their counter-argument, their bottom line. This is what makes the conversation hard."
           value={hiddenPosition}
@@ -398,7 +398,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Textarea
+        <Textarea variant="bordered"
           label="The player's goal"
           description="What the student is trying to achieve in this conversation."
           value={studentObjective}
@@ -407,7 +407,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
           isInvalid={Boolean(err("studentObjective"))}
           errorMessage={err("studentObjective")}
         />
-        <Textarea
+        <Textarea variant="bordered"
           label="What is at stake"
           description="What happens if the conversation goes badly."
           value={stakes}
@@ -481,7 +481,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
           {recordId ? "Save changes" : "Save"}
         </Button>
         <Button variant="light" onPress={() => router.push("/conversations")}>
-          Back to conversations
+          Cancel
         </Button>
       </div>
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
-import { ArrowLeft, Briefcase, PenLine, Plus } from "lucide-react";
-import { title } from "@/components/primitives";
+import { ArrowLeft, Briefcase, PenLine, Plus, Users } from "lucide-react";
 import CaseCard from "@/components/case-card";
 import ScenarioCard from "@/components/scenario/ScenarioCard";
 import type { CaseStudy } from "@/types";
@@ -13,6 +13,7 @@ import type { CaseStudy } from "@/types";
 export default function CasePlayIndexPage() {
   const router = useRouter();
 
+  const [tab, setTab] = useState<"cases" | "mine" | "shared">("cases");
   const [cases, setCases] = useState<CaseStudy[]>([]);
   const [casesLoading, setCasesLoading] = useState(true);
   const [casesError, setCasesError] = useState<string | null>(null);
@@ -99,62 +100,109 @@ export default function CasePlayIndexPage() {
     // no-op — ScenarioCard owns the launch route
   };
 
-  const hasAnyScenario = mine.length > 0 || shared.length > 0;
+  const tabs = [
+    { id: "cases", label: "Case studies", count: cases.length, loading: casesLoading },
+    { id: "mine", label: "Yours", count: mine.length, loading: scenariosLoading },
+    { id: "shared", label: "From classmates", count: shared.length, loading: scenariosLoading },
+  ] as const;
+
+  const createButton = (
+    <Button
+      className="h-11 rounded-lg font-semibold"
+      color="primary"
+      startContent={<Plus className="h-4 w-4" />}
+      onPress={() => router.push("/case-play/new")}
+    >
+      Create a scenario
+    </Button>
+  );
+
+  const empty = (icon: React.ReactNode, heading: string, body?: string, action?: React.ReactNode) => (
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-line bg-white px-6 py-12 text-center">
+      <span className="grid size-14 place-items-center rounded-full bg-light-blue/32 text-cwru-blue">{icon}</span>
+      <p className="font-display text-xl font-medium text-cwru-blue">{heading}</p>
+      {body ? <p className="max-w-md text-sm text-muted">{body}</p> : null}
+      {action}
+    </div>
+  );
+
+  const loadingState = (text: string) => (
+    <div className="flex flex-col items-center justify-center gap-4 py-12">
+      <Spinner size="lg" />
+      <p className="text-muted">{text}</p>
+    </div>
+  );
+
+  const errorState = (text: string) => (
+    <div role="alert" className="rounded-lg border border-copper/40 bg-copper/[0.08] p-4 text-ink">
+      {text}
+    </div>
+  );
+
+  const gridClass = "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3";
 
   return (
-    <div className="space-y-10 py-2 md:py-4">
-      <div className="flex flex-col gap-3">
-        <Button
-          variant="light"
-          size="sm"
-          startContent={<ArrowLeft className="w-4 h-4" />}
-          onPress={() => router.push("/")}
-          className="self-start -ml-2 text-default-600 data-[hover=true]:bg-transparent"
-        >
-          Back to Dashboard
-        </Button>
-        <h1 className={title({ fullWidth: true })}>Practice</h1>
+    <div className="flex flex-col gap-6">
+      <Link className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-true-blue hover:text-cwru-blue" href="/">
+        <ArrowLeft aria-hidden className="h-4 w-4" />
+        Practice
+      </Link>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+            Case studies
+          </h1>
+          <p className="max-w-2xl text-[15px] text-muted">
+            Work through a real leadership scenario, or build your own roleplay and practice it.
+          </p>
+        </div>
+        {createButton}
+      </header>
+
+      <div aria-label="Case sources" className="flex gap-7 border-b border-line" role="tablist">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            aria-selected={tab === t.id}
+            className={`-mb-px h-11 border-b-2 text-[15px] ${
+              tab === t.id ? "border-true-blue font-semibold text-cwru-blue" : "border-transparent font-medium text-muted hover:text-ink"
+            }`}
+            role="tab"
+            type="button"
+            onClick={() => setTab(t.id)}
+          >
+            {t.label} {!t.loading && <span className="font-normal text-muted">{t.count}</span>}
+          </button>
+        ))}
       </div>
 
-      {/* Section 1: student-authored scenarios */}
-      <section aria-labelledby="scenarios-heading" className="space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2
-              id="scenarios-heading"
-              className="text-xl font-semibold text-default-900"
-            >
-              Practice scenarios
-            </h2>
-            <p className="text-sm text-default-500">
-              Written by students — build your own roleplay, or practice one a
-              classmate has shared.
-            </p>
+      {tab === "cases" ? (
+        // Staff-written case studies.
+        casesLoading ? (
+          loadingState("Loading case studies...")
+        ) : casesError ? (
+          errorState(casesError)
+        ) : cases.length > 0 ? (
+          <div className={gridClass}>
+            {cases.map((caseStudy) => (
+              <CaseCard key={caseStudy.id} caseStudy={caseStudy} onClick={handlePlayAdminCase} />
+            ))}
           </div>
-          <Button
-            color="primary"
-            startContent={<Plus className="w-4 h-4" />}
-            onPress={() => router.push("/case-play/new")}
-          >
-            Create a scenario
-          </Button>
-        </div>
-
-        {scenariosLoading && (
-          <div className="flex flex-col items-center justify-center gap-4 py-12">
-            <Spinner size="lg" />
-            <p className="text-default-500">Loading your scenarios...</p>
-          </div>
-        )}
-
-        {!scenariosLoading && scenariosError && (
-          <div className="p-4 bg-danger-50 border border-danger-200 rounded-lg text-danger-700">
-            {scenariosError}
-          </div>
-        )}
-
-        {!scenariosLoading && !scenariosError && hasAnyScenario && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        ) : (
+          empty(
+            <Briefcase className="h-7 w-7" />,
+            "No case studies are available yet.",
+            "Check back soon — new case studies are added regularly.",
+          )
+        )
+      ) : scenariosLoading ? (
+        loadingState("Loading scenarios...")
+      ) : scenariosError ? (
+        errorState(scenariosError)
+      ) : tab === "mine" ? (
+        // Student-authored scenarios: your own first, then classmates' tab.
+        mine.length > 0 ? (
+          <div className={gridClass}>
             {mine.map((scenario) => (
               <ScenarioCard
                 key={scenario.id}
@@ -164,93 +212,30 @@ export default function CasePlayIndexPage() {
                 onChanged={loadScenarios}
               />
             ))}
-            {shared.map((scenario) => (
-              <ScenarioCard
-                key={scenario.id}
-                scenario={scenario}
-                owned={false}
-                onPlay={handlePlayScenario}
-                onChanged={loadScenarios}
-              />
-            ))}
           </div>
-        )}
-
-        {!scenariosLoading && !scenariosError && !hasAnyScenario && (
-          <div className="text-center py-12 border border-dashed border-default-200 rounded-xl">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-default-100 flex items-center justify-center">
-              <PenLine className="w-8 h-8 text-default-400" />
-            </div>
-            <p className="text-default-600 font-medium mb-1">
-              You haven&apos;t created a scenario yet.
-            </p>
-            <p className="text-default-500 text-sm mb-4">
-              Build a situation, cast your characters, and practice against it.
-            </p>
-            <Button
-              color="primary"
-              startContent={<Plus className="w-4 h-4" />}
-              onPress={() => router.push("/case-play/new")}
-            >
-              Create a scenario
-            </Button>
-          </div>
-        )}
-      </section>
-
-      {/* Section 2: admin-authored case studies */}
-      <section aria-labelledby="case-studies-heading" className="space-y-4">
-        <div>
-          <h2
-            id="case-studies-heading"
-            className="text-xl font-semibold text-default-900"
-          >
-            Case studies
-          </h2>
-          <p className="text-sm text-default-500">
-            Written and published by staff.
-          </p>
+        ) : (
+          empty(
+            <PenLine className="h-7 w-7" />,
+            "You haven't created a scenario yet.",
+            "Build a situation, cast your characters, and practice against it.",
+            createButton,
+          )
+        )
+      ) : shared.length > 0 ? (
+        <div className={gridClass}>
+          {shared.map((scenario) => (
+            <ScenarioCard
+              key={scenario.id}
+              scenario={scenario}
+              owned={false}
+              onPlay={handlePlayScenario}
+              onChanged={loadScenarios}
+            />
+          ))}
         </div>
-
-        {casesLoading && (
-          <div className="flex flex-col items-center justify-center gap-4 py-12">
-            <Spinner size="lg" />
-            <p className="text-default-500">Loading case studies...</p>
-          </div>
-        )}
-
-        {!casesLoading && casesError && (
-          <div className="p-4 bg-danger-50 border border-danger-200 rounded-lg text-danger-700">
-            {casesError}
-          </div>
-        )}
-
-        {!casesLoading && !casesError && cases.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {cases.map((caseStudy) => (
-              <CaseCard
-                key={caseStudy.id}
-                caseStudy={caseStudy}
-                onClick={handlePlayAdminCase}
-              />
-            ))}
-          </div>
-        )}
-
-        {!casesLoading && !casesError && cases.length === 0 && (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-default-100 flex items-center justify-center">
-              <Briefcase className="w-8 h-8 text-default-400" />
-            </div>
-            <p className="text-default-600 font-medium mb-1">
-              No case studies are available yet.
-            </p>
-            <p className="text-default-500 text-sm">
-              Check back soon — new case studies are added regularly.
-            </p>
-          </div>
-        )}
-      </section>
+      ) : (
+        empty(<Users className="h-7 w-7" />, "Nobody has shared a scenario yet.")
+      )}
     </div>
   );
 }

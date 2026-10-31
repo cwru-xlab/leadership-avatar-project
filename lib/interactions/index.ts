@@ -23,7 +23,7 @@ export type { InteractionAvailability, InteractionType } from "./types";
 export const INTERACTION_TYPES: InteractionType[] = [
   {
     slug: "interviews",
-    name: "Practice Interviews",
+    name: "Practice interviews",
     description:
       "A structured behavioral interview with an AI interviewer, grounded in your resume.",
     icon: "Briefcase",
@@ -33,7 +33,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   },
   {
     slug: "case-studies",
-    name: "Case Studies",
+    name: "Case studies",
     description:
       "Work through a real leadership scenario and make the calls a manager would have to make.",
     icon: "GraduationCap",
@@ -43,7 +43,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   },
   {
     slug: "pitches",
-    name: "Practice Pitches",
+    name: "Practice pitches",
     description:
       "Deliver a pitch to an AI audience and get feedback on clarity, structure, and persuasion.",
     icon: "Presentation",
@@ -54,7 +54,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   },
   {
     slug: "difficult-conversations",
-    name: "Courageous Conversations",
+    name: "Courageous conversations",
     description:
       "Practice navigating a tense, high-stakes conversation before you have to have it for real.",
     icon: "MessageCircleWarning",
@@ -64,7 +64,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   },
   {
     slug: "networking",
-    name: "Networking Practice",
+    name: "Networking practice",
     description:
       "Rehearse introducing yourself and building rapport with a stranger in a professional setting.",
     icon: "Users",

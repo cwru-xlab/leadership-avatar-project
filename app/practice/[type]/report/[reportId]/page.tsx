@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { addToast } from "@heroui/toast";
-import { ArrowLeft, CircleAlert, Landmark } from "lucide-react";
+import { ArrowLeft, CircleAlert, RotateCcw } from "lucide-react";
 
 import ReportCustomizationStrip from "@/components/interview/ReportCustomizationStrip";
 import ReportScoreCards, {
@@ -18,6 +18,7 @@ import {
 } from "@/components/practice/ReportChrome";
 import { listRubricDimensionsForSlug } from "@/lib/engine/resolve";
 import type { ReportDTO } from "@/lib/report/dto";
+import { formatReportWhen, typeLabelForReport } from "@/lib/report/title";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { RubricDimension } from "@/lib/engine/types";
 
@@ -204,26 +205,21 @@ export default function PracticeReportPage() {
       ? report.input.interviewerName
       : null;
 
+  const typeLabel = typeLabelForReport(report?.typeSlug ?? params.type);
+
   if (unknownType) {
     return (
       <ReportShell
         title="Your practice report"
         onBackToReports={() => router.push("/reports")}
       >
-        <div className="report-status-card flex flex-col items-start gap-3 rounded-xl border p-8">
-          <CircleAlert className="text-[#0a7391]" size={26} />
-          <p className="font-serif text-2xl text-[#102331]">
-            This report type isn&apos;t set up to display yet
-          </p>
-          <p className="text-sm text-[#47616f]">
-            The session may have saved, but the report page has no chrome or
-            rubric for &ldquo;{params.type}&rdquo;. That is a configuration gap,
-            not a missing report row.
-          </p>
-          <Button color="primary" onPress={() => router.push("/")}>
-            Back to practice
-          </Button>
-        </div>
+        <StatusPanel
+          action={<Button color="primary" onPress={() => router.push("/")}>Back to practice</Button>}
+          title="This report type isn't set up to display yet"
+        >
+          The session may have saved, but the report page has no chrome or rubric for
+          &ldquo;{params.type}&rdquo;. That is a configuration gap, not a missing report row.
+        </StatusPanel>
       </ReportShell>
     );
   }
@@ -234,14 +230,10 @@ export default function PracticeReportPage() {
         title="Your interview report"
         onBackToReports={() => router.push("/reports")}
       >
-        <div className="report-status-card rounded-xl border p-8 text-center">
-          <p className="font-serif text-2xl text-[#102331]">
-            Please sign in to view this report.
-          </p>
-          <Button className="mt-5" color="primary" onPress={() => router.push("/login")}>
-            Go to sign in
-          </Button>
-        </div>
+        <StatusPanel
+          action={<Button color="primary" onPress={() => router.push("/login")}>Go to sign in</Button>}
+          title="Please sign in to view this report."
+        />
       </ReportShell>
     );
   }
@@ -254,13 +246,10 @@ export default function PracticeReportPage() {
         backLabel="Back to practice"
         showBackAlways
       >
-        <div className="report-status-card flex flex-col items-start gap-3 rounded-xl border p-8">
-          <CircleAlert className="text-[#0a7391]" size={26} />
-          <p className="font-serif text-2xl text-[#102331]">Report not found</p>
-          <Button color="primary" onPress={() => router.push("/case-play")}>
-            Back to practice
-          </Button>
-        </div>
+        <StatusPanel
+          action={<Button color="primary" onPress={() => router.push("/case-play")}>Back to practice</Button>}
+          title="Report not found"
+        />
       </ReportShell>
     );
   }
@@ -278,16 +267,17 @@ export default function PracticeReportPage() {
         backLabel={isInterviewChrome ? "Back to my reports" : "Back to practice"}
         showBackAlways={!isInterviewChrome}
       >
-        <div className="report-status-card flex flex-col items-start gap-3 rounded-xl border p-8">
-          <CircleAlert className="text-[#0a7391]" size={26} />
-          <p className="font-serif text-2xl text-[#102331]">{error}</p>
-          <Button
-            color="primary"
-            onPress={() => router.push(isInterviewChrome ? "/" : "/case-play")}
-          >
-            Back to practice
-          </Button>
-        </div>
+        <StatusPanel
+          action={
+            <Button
+              color="primary"
+              onPress={() => router.push(isInterviewChrome ? "/" : "/case-play")}
+            >
+              Back to practice
+            </Button>
+          }
+          title={error}
+        />
       </ReportShell>
     );
   }
@@ -295,36 +285,31 @@ export default function PracticeReportPage() {
   return (
     <ReportShell
       title={isInterviewChrome ? "Your interview report" : "Your practice report"}
-      interviewerName={isInterviewChrome ? interviewerName : null}
-      completedAt={report?.completedAt ?? null}
-      onBackToReports={
-        isInterviewChrome ? () => router.push("/reports") : undefined
-      }
-      onBack={
-        isInterviewChrome
-          ? () => router.push("/")
-          : () => router.push("/case-play")
-      }
+      subtitle={[
+        interviewerName ? `${typeLabel} with ${interviewerName}` : typeLabel,
+        report?.completedAt ? formatReportWhen(report.completedAt) : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+      aiLabel={report?.status === "READY"}
+      onBackToReports={() => router.push("/reports")}
       onPracticeAgain={
         isInterviewChrome
           ? () => router.push(`/practice/${params.type}`)
           : undefined
       }
-      backLabel={isInterviewChrome ? "Back to my reports" : "Back to practice"}
-      showBackAlways={!isInterviewChrome}
-    >
-      {chrome.showsCustomizationStrip &&
+      setup={
+        chrome.showsCustomizationStrip &&
         report &&
         (report.status === "READY" || report.status === "FAILED") &&
-        interviewCustomization && (
-          <div className="mb-6">
-            <ReportCustomizationStrip
-              typeSlug={report.typeSlug}
-              customization={interviewCustomization}
-            />
-          </div>
-        )}
-
+        interviewCustomization ? (
+          <ReportCustomizationStrip
+            typeSlug={report.typeSlug}
+            customization={interviewCustomization}
+          />
+        ) : null
+      }
+    >
       {showSnapshotStrip && report?.input?.kind === "scenario" && (
         <ScenarioSnapshotStrip
           scenario={{
@@ -338,7 +323,7 @@ export default function PracticeReportPage() {
       {/* Per-type extras (14-14 / 15-09). Generic — never branch on a slug. */}
       {renderReportExtras(chrome, "above", report)}
 
-      {/* Score cards live inside Overview once READY; until then they render
+      {/* Once READY the body owns the score panel; until then it renders
           alone so a pending session still shows placeholders above the skeleton. */}
       {report?.status !== "READY" && (
         <ReportScoreCards
@@ -348,30 +333,20 @@ export default function PracticeReportPage() {
         />
       )}
 
-      <div className="report-content-card mt-6 rounded-xl border p-6 sm:p-8">
-        {report?.status === "READY" ? (
-          <ReportBody
-            structured={report.reportStructured}
-            markdown={report.reportMarkdown}
-            scores={scores}
-            metrics={report.metrics ?? null}
-            showInterviewPaceTarget={report.input?.kind === "interview"}
-          />
-        ) : report?.status === "FAILED" ? (
-          <div className="flex flex-col items-start gap-3">
-            <CircleAlert className="text-[#c2410c]" size={26} />
-            <p className="font-serif text-2xl text-[#102331]">
-              We couldn&apos;t generate your report.
-            </p>
-            {report.failureReason && (
-              <p className="text-sm text-[#8298a3]">{report.failureReason}</p>
-            )}
-            <p className="text-sm text-[#526c7b]">
-              {isInterviewChrome
-                ? "Your interview transcript is saved — nothing was lost."
-                : "Your practice transcript is saved — nothing was lost."}
-            </p>
-            {chrome.stalledAffordance === "retry" ? (
+      {report?.status === "READY" ? (
+        <ReportBody
+          structured={report.reportStructured}
+          markdown={report.reportMarkdown}
+          scores={scores}
+          metrics={report.metrics ?? null}
+          showInterviewPaceTarget={report.input?.kind === "interview"}
+        />
+      ) : report?.status === "FAILED" ? (
+        <StatusPanel
+          tone="error"
+          title="We couldn't generate your report."
+          action={
+            chrome.stalledAffordance === "retry" ? (
               <Button
                 color="primary"
                 isLoading={retrying}
@@ -383,41 +358,45 @@ export default function PracticeReportPage() {
               <Button color="primary" onPress={() => router.push("/case-play")}>
                 Back to practice
               </Button>
-            )}
-          </div>
-        ) : timedOut ? (
-          <div className="flex flex-col items-start gap-3">
-            <p className="font-serif text-2xl text-[#102331]">
-              This is taking longer than expected.
-            </p>
-            <p className="text-sm text-[#526c7b]">
-              {isInterviewChrome
-                ? "Your interview is still being reviewed. You can check again in a moment."
-                : "Your practice run is still being reviewed. You can check again in a moment."}
-            </p>
+            )
+          }
+        >
+          {report.failureReason && <span className="block">{report.failureReason}</span>}
+          {isInterviewChrome
+            ? "Your interview transcript is saved — nothing was lost."
+            : "Your practice transcript is saved — nothing was lost."}
+        </StatusPanel>
+      ) : timedOut ? (
+        <StatusPanel
+          title="This is taking longer than expected."
+          action={
             <Button color="primary" onPress={handleCheckAgain}>
               Check again
             </Button>
+          }
+        >
+          {isInterviewChrome
+            ? "Your interview is still being reviewed. You can check again in a moment."
+            : "Your practice run is still being reviewed. You can check again in a moment."}
+        </StatusPanel>
+      ) : (
+        <div className="rounded-xl border border-line bg-white p-6 sm:p-8">
+          <div className="flex items-center gap-2 text-sm font-semibold text-cwru-blue">
+            <Spinner size="sm" color="primary" />
+            {isInterviewChrome
+              ? "Reviewing your interview…"
+              : "Reviewing your practice run…"}
           </div>
-        ) : (
-          <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-[#0a7391]">
-              <Spinner size="sm" color="primary" />
-              {isInterviewChrome
-                ? "Reviewing your interview…"
-                : "Reviewing your practice run…"}
-            </div>
-            <div className="mt-6 space-y-4">
-              <div className="h-6 w-2/3 animate-pulse rounded-md bg-[#e6edf1]" />
-              <div className="h-4 w-full animate-pulse rounded-md bg-[#e6edf1]" />
-              <div className="h-4 w-5/6 animate-pulse rounded-md bg-[#e6edf1]" />
-              <div className="h-6 w-1/2 animate-pulse rounded-md bg-[#e6edf1]" />
-              <div className="h-4 w-full animate-pulse rounded-md bg-[#e6edf1]" />
-              <div className="h-4 w-3/4 animate-pulse rounded-md bg-[#e6edf1]" />
-            </div>
+          <div aria-hidden className="mt-6 flex flex-col gap-4">
+            <div className="h-6 w-2/3 animate-pulse rounded-md bg-canvas" />
+            <div className="h-4 w-full animate-pulse rounded-md bg-canvas" />
+            <div className="h-4 w-5/6 animate-pulse rounded-md bg-canvas" />
+            <div className="h-6 w-1/2 animate-pulse rounded-md bg-canvas" />
+            <div className="h-4 w-full animate-pulse rounded-md bg-canvas" />
+            <div className="h-4 w-3/4 animate-pulse rounded-md bg-canvas" />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {renderReportExtras(chrome, "below", report)}
     </ReportShell>
@@ -439,10 +418,40 @@ function scenarioCharacters(avatars: unknown[]): { name: string; role: string }[
   return characters;
 }
 
+/** A report state that replaces the body: error, timeout, failure, not found. */
+function StatusPanel({
+  title,
+  tone = "info",
+  action,
+  children,
+}: {
+  title: string;
+  tone?: "info" | "error";
+  action?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      className="flex flex-col items-start gap-3 rounded-xl border border-line bg-white p-6 sm:p-8"
+      role={tone === "error" ? "alert" : undefined}
+    >
+      <CircleAlert
+        aria-hidden
+        className={tone === "error" ? "text-copper" : "text-cwru-blue"}
+        size={24}
+        strokeWidth={1.5}
+      />
+      <p className="font-display text-2xl font-medium text-cwru-blue">{title}</p>
+      {children && <p className="max-w-[65ch] text-sm text-muted">{children}</p>}
+      {action}
+    </div>
+  );
+}
+
 /**
  * Compact strip rendering the scenario from the typed `input` snapshot —
  * never a live re-fetch. Mirrors the legacy case-play ScenarioSnapshotStrip
- * so a scenario report stays visually identical (REQ-69 / REQ-33 / REQ-34).
+ * so a scenario report keeps the same content (REQ-69 / REQ-33 / REQ-34).
  */
 function ScenarioSnapshotStrip({
   scenario,
@@ -454,17 +463,17 @@ function ScenarioSnapshotStrip({
   };
 }) {
   return (
-    <div className="mb-6 rounded-2xl border border-[#d4e2e9] bg-white p-5 shadow-[0_10px_30px_rgba(20,58,75,0.06)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#526c7b]">
+    <div className="flex flex-col gap-2 rounded-xl border border-line bg-white px-5 py-4">
+      <p className="text-[13px] font-semibold text-muted">
         This scenario as it was when you practiced
       </p>
-      <p className="mt-2 font-serif text-xl text-[#102331]">{scenario.name}</p>
+      <p className="font-display text-xl font-medium text-cwru-blue">{scenario.name}</p>
       {scenario.characters.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           {scenario.characters.map((character, index) => (
             <span
               key={`${character.name}-${index}`}
-              className="rounded-full border border-[#d4e2e9] bg-[#f5f8fa] px-3 py-1 text-xs font-medium text-[#3a5462]"
+              className="rounded-sm bg-canvas px-2 py-1 text-[12.5px] text-ink"
             >
               {character.name}
               {character.role ? ` · ${character.role}` : ""}
@@ -472,33 +481,35 @@ function ScenarioSnapshotStrip({
           ))}
         </div>
       )}
-      <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-[#8298a3]">
+      <p className="flex items-center gap-1.5 text-xs text-muted">
         <span
-          className={`h-1.5 w-1.5 rounded-full ${
-            scenario.criteria ? "bg-[#0a7391]" : "bg-[#c7d5db]"
-          }`}
+          aria-hidden
+          className={`size-1.5 rounded-full ${scenario.criteria ? "bg-true-blue" : "bg-light-blue"}`}
         />
         {scenario.criteria ? "Criteria applied" : "No author criteria"}
-      </div>
+      </p>
     </div>
   );
 }
 
+/** Report frame header: back link, title, one line of context, and "Practice again" as the one primary. */
 function ReportShell({
   children,
   title,
-  interviewerName,
-  completedAt,
+  subtitle,
+  aiLabel = false,
+  setup,
   onBackToReports,
   onBack,
   onPracticeAgain,
-  backLabel = "Back to my reports",
+  backLabel = "My reports",
   showBackAlways = false,
 }: {
   children: React.ReactNode;
   title: string;
-  interviewerName?: string | null;
-  completedAt?: string | null;
+  subtitle?: string;
+  aiLabel?: boolean;
+  setup?: React.ReactNode;
   onBackToReports?: () => void;
   onBack?: () => void;
   onPracticeAgain?: () => void;
@@ -509,49 +520,47 @@ function ReportShell({
   const topBackHandler = onBackToReports ?? onBack;
 
   return (
-    <main className="report-page">
-      <div className="report-container">
-        {showTopBack && topBackHandler && (
-          <button
-            type="button"
-            onClick={topBackHandler}
-            className="report-back-link mb-7 inline-flex items-center gap-1.5 text-sm font-semibold underline decoration-transparent underline-offset-4"
-          >
-            <ArrowLeft size={16} />
-            {backLabel}
-          </button>
-        )}
-        <div className="report-kicker flex items-center gap-2 text-xs font-bold uppercase">
-          <Landmark aria-hidden="true" size={15} strokeWidth={2.25} />
-          Leadership Avatar Practice
+    <div className="flex flex-col gap-7">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-2.5">
+          {showTopBack && topBackHandler && (
+            <button
+              type="button"
+              onClick={topBackHandler}
+              className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-true-blue hover:text-cwru-blue"
+            >
+              <ArrowLeft aria-hidden size={16} />
+              {backLabel}
+            </button>
+          )}
+          <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+            {title}
+          </h1>
+          {(subtitle || aiLabel || setup) && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14.5px] text-muted">
+              {subtitle && <span>{subtitle}</span>}
+              {aiLabel && (
+                <span className="rounded-sm bg-ai/10 px-2 py-0.5 text-xs font-semibold text-ai">
+                  AI feedback
+                </span>
+              )}
+              {setup}
+            </div>
+          )}
         </div>
-        <h1 className="report-heading mt-3 max-w-3xl font-serif text-4xl tracking-[-0.035em] sm:text-5xl">
-          {title}
-        </h1>
-        {(interviewerName || completedAt) && (
-          <p className="mt-2 text-sm text-[#58727f]">
-            {interviewerName ? `With ${interviewerName}` : null}
-            {interviewerName && completedAt ? " · " : null}
-            {completedAt ? new Date(completedAt).toLocaleString() : null}
-          </p>
-        )}
-
-        <div className="mt-9">{children}</div>
-
-        {/* Interview shell only — scenario has no bottom footer (REQ-69). */}
         {onPracticeAgain && (
-          <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6">
-            {onBack && (
-              <Button variant="flat" onPress={onBack}>
-                Back to practice
-              </Button>
-            )}
-            <Button color="primary" onPress={onPracticeAgain}>
-              Practice again
-            </Button>
-          </div>
+          <Button
+            className="h-11 rounded-lg px-[18px] font-semibold"
+            color="primary"
+            startContent={<RotateCcw aria-hidden size={18} />}
+            onPress={onPracticeAgain}
+          >
+            Practice again
+          </Button>
         )}
-      </div>
-    </main>
+      </header>
+
+      {children}
+    </div>
   );
 }

@@ -3,55 +3,19 @@ export type SiteConfig = typeof siteConfig;
 export const siteConfig = {
   name: "Leadership Avatar",
   description: "AI Case Study",
+  // `group` becomes the sentence-case label above each block in the sidebar.
   navItems: [
-    {
-      label: "Home",
-      href: "/",
-      icon: "Home",
-    },
-    {
-      label: "Case Management",
-      href: "/case-management",
-      icon: "Briefcase",
-    },
-
-    {
-      label: "Avatar Management",
-      href: "/avatar-profiles",
-      icon: "Video",
-    },
+    { label: "Home", href: "/", icon: "Home", group: "Manage" },
+    { label: "Cases", href: "/case-management", icon: "Briefcase", group: "Manage" },
+    { label: "Avatars", href: "/avatar-profiles", icon: "Video", group: "Manage" },
   ],
+  // Settings lives on the sidebar's profile row, not in this list.
   studentNavItems: [
-    {
-      label: "Practice",
-      href: "/",
-      icon: "Briefcase",
-    },
-    {
-      label: "My Reports",
-      href: "/reports",
-      icon: "History",
-    },
-    {
-      label: "Study Plans",
-      href: "/study-plans",
-      icon: "BookOpenCheck",
-    },
-    {
-      label: "Paths",
-      href: "/paths",
-      icon: "Route",
-    },
-    {
-      label: "Mastery",
-      href: "/mastery",
-      icon: "ChartColumnBig",
-    },
-    {
-      label: "Settings",
-      href: "/settings",
-      icon: "Settings",
-    },
+    { label: "Practice", href: "/", icon: "Mic", group: "Practice" },
+    { label: "My reports", href: "/reports", icon: "FileText", group: "Practice" },
+    { label: "Study plans", href: "/study-plans", icon: "BookOpenCheck", group: "Progress" },
+    { label: "Paths", href: "/paths", icon: "Route", group: "Progress" },
+    { label: "Mastery", href: "/mastery", icon: "ChartColumnBig", group: "Progress" },
   ],
   // JWT and Authentication Configuration
   auth: {

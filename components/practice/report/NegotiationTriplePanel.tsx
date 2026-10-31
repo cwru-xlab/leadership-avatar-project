@@ -106,28 +106,25 @@ export default function NegotiationTriplePanel({
 
   return (
     <section
-      className="mb-6 rounded-2xl border border-t-2 border-t-[#b79b4c] shadow-[0_10px_24px_rgba(0,48,135,0.08)] motion-safe:transition-[border-color,box-shadow] motion-safe:duration-200 border-[#c7d2df] bg-[#ffffff] px-5 py-5"
+      className="rounded-xl border border-line bg-white px-5 py-5"
       data-testid="negotiation-triple-panel"
     >
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#003087]">
-        Negotiation
-      </p>
-      <h2 className="mt-1 font-serif text-xl text-[#003087]">
+      <h2 className="font-display text-[22px] font-medium leading-[1.15] text-cwru-blue">
         Ask · Settled · Fair range
       </h2>
 
       <div className="mt-4 grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-[#d8e1eb] bg-[#f6f8fb] px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
+        <div className="rounded-xl border border-line bg-canvas px-4 py-3">
+          <p className="text-[13px] font-semibold text-muted">
             Your ask
           </p>
-          <p className="mt-2 text-sm text-[#102a4c]">
+          <p className="mt-2 text-sm text-ink">
             Price:{" "}
             <span className="font-mono tabular-nums">
               {askPriceUsd != null ? formatUsd(askPriceUsd) : "—"}
             </span>
           </p>
-          <p className="mt-1 text-sm text-[#102a4c]">
+          <p className="mt-1 text-sm text-ink">
             Equity:{" "}
             <span className="font-mono tabular-nums">
               {askEquityPct != null ? formatEquity(askEquityPct) : "—"}
@@ -135,26 +132,26 @@ export default function NegotiationTriplePanel({
           </p>
         </div>
 
-        <div className="rounded-xl border border-[#d8e1eb] bg-[#f6f8fb] px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
+        <div className="rounded-xl border border-line bg-canvas px-4 py-3">
+          <p className="text-[13px] font-semibold text-muted">
             Settled
           </p>
           {showNoDeal ? (
             <p
-              className="mt-2 text-sm font-medium text-[#102a4c]"
+              className="mt-2 text-sm font-medium text-ink"
               data-testid="no-deal-reached"
             >
               No deal reached
             </p>
           ) : (
             <>
-              <p className="mt-2 text-sm text-[#102a4c]">
+              <p className="mt-2 text-sm text-ink">
                 Price:{" "}
                 <span className="font-mono tabular-nums">
                   {settledPriceUsd != null ? formatUsd(settledPriceUsd) : "—"}
                 </span>
               </p>
-              <p className="mt-1 text-sm text-[#102a4c]">
+              <p className="mt-1 text-sm text-ink">
                 Equity:{" "}
                 <span className="font-mono tabular-nums">
                   {settledEquityPct != null
@@ -166,19 +163,19 @@ export default function NegotiationTriplePanel({
           )}
         </div>
 
-        <div className="rounded-xl border border-[#d8e1eb] bg-[#f6f8fb] px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
+        <div className="rounded-xl border border-line bg-canvas px-4 py-3">
+          <p className="text-[13px] font-semibold text-muted">
             Investor&apos;s fair range
           </p>
           {band ? (
             <>
-              <p className="mt-2 text-sm text-[#102a4c]">
+              <p className="mt-2 text-sm text-ink">
                 Price:{" "}
                 <span className="font-mono tabular-nums">
                   {formatUsdRange(band.priceUsdMin, band.priceUsdMax)}
                 </span>
               </p>
-              <p className="mt-1 text-sm text-[#102a4c]">
+              <p className="mt-1 text-sm text-ink">
                 Equity:{" "}
                 <span className="font-mono tabular-nums">
                   {formatEquityRange(band.equityPctMin, band.equityPctMax)}
@@ -186,26 +183,26 @@ export default function NegotiationTriplePanel({
               </p>
             </>
           ) : (
-            <p className="mt-2 text-sm text-[#52657a]">Not recorded</p>
+            <p className="mt-2 text-sm text-muted">Not recorded</p>
           )}
-          <p className="mt-2 text-xs leading-relaxed text-[#52657a]">
+          <p className="mt-2 text-xs leading-relaxed text-muted">
             Hidden from you during the meeting — shown now so you can compare.
           </p>
         </div>
       </div>
 
       {!showNoDeal && (priceRelation || equityRelation) ? (
-        <div className="mt-3 space-y-1 text-sm text-[#334155]">
+        <div className="mt-3 space-y-1 text-sm text-ink">
           {priceRelation ? (
             <p>
               Settled price:{" "}
-              <span className="font-medium text-[#102a4c]">{priceRelation}</span>
+              <span className="font-medium text-ink">{priceRelation}</span>
             </p>
           ) : null}
           {equityRelation ? (
             <p>
               Settled equity:{" "}
-              <span className="font-medium text-[#102a4c]">
+              <span className="font-medium text-ink">
                 {equityRelation}
               </span>
             </p>
@@ -214,7 +211,7 @@ export default function NegotiationTriplePanel({
       ) : null}
 
       {negotiationNotes ? (
-        <p className="mt-4 text-sm leading-relaxed text-[#334155]">
+        <p className="mt-4 text-sm leading-relaxed text-ink">
           {negotiationNotes}
         </p>
       ) : null}

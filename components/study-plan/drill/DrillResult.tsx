@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { Button } from "@heroui/button";
-import { RotateCcw } from "lucide-react";
+import { AudioLines, RotateCcw, TrendingDown, TrendingUp } from "lucide-react";
 
 import DeliveryBandsCard from "@/components/study-plan/DeliveryBandsCard";
+import { ProgressRing } from "@/components/study-plan/PathVisuals";
 import type { DrillDelivery } from "@/components/study-plan/drill/contract";
 import { useNextStepHref } from "@/components/study-plan/useNextStepHref";
 import { RUBRIC_ANCHORS } from "@/lib/mastery/rubric-anchors";
@@ -59,19 +60,39 @@ export default function DrillResult({
 
   return (
     <section aria-labelledby="drill-result-heading" className="space-y-6">
-      <div className="space-y-2 text-center">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7391]">Voice drill · {competencyLabel}</p>
-        <h1 id="drill-result-heading" className="font-serif text-2xl text-[#102331]">
-          Drill complete.
+      <div className="flex flex-col items-center gap-3 text-center">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-light-blue/32 px-3 py-1 text-[12.5px] font-semibold text-cwru-blue">
+          <AudioLines aria-hidden size={14} strokeWidth={2} />
+          Voice drill · {competencyLabel}
+        </span>
+        <h1 id="drill-result-heading" className="font-display text-[28px] font-medium text-cwru-blue">
+          Drill complete
         </h1>
-        <p
-          className="mx-auto inline-flex items-baseline gap-1 rounded-full border border-[#b9dbe5] bg-white px-4 py-1 text-[#0a7391]"
-          data-testid="drill-score"
-        >
-          <span className="text-3xl font-semibold">{score ?? "–"}</span>
-          <span className="text-sm font-semibold">/ 5</span>
-        </p>
-        <p className="text-sm leading-6 text-[#385463]">
+        <div className="relative" data-testid="drill-score">
+          <ProgressRing
+            done={score ?? 0}
+            label={score === null ? "Not scored" : `${score} out of 5`}
+            size={128}
+            stroke={12}
+            total={5}
+          >
+            <span className="flex items-baseline gap-1 text-cwru-blue">
+              <span className="font-display text-[44px] font-medium leading-none">{score ?? "–"}</span>
+              <span className="text-sm font-semibold text-muted">/ 5</span>
+            </span>
+          </ProgressRing>
+          {change !== null && change !== 0 ? (
+            <span
+              className={`absolute -right-6 top-1 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-bold ${
+                change > 0 ? "bg-level-4/16 text-level-4" : "bg-copper/12 text-copper"
+              }`}
+            >
+              {change > 0 ? <TrendingUp aria-hidden size={13} /> : <TrendingDown aria-hidden size={13} />}
+              {change > 0 ? `+${change}` : change}
+            </span>
+          ) : null}
+        </div>
+        <p className="max-w-[56ch] text-sm leading-6 text-muted">
           {change === null
             ? `This counted toward ${competencyLabel} at the coached weight (${worthPct}% of an unaided session).`
             : change > 0
@@ -83,17 +104,17 @@ export default function DrillResult({
       </div>
 
       {miss?.quote || reasons.length > 0 ? (
-        <article className="space-y-3 rounded-xl border border-[#dce8ed] bg-white p-5" aria-label="What you did">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-[#58727f]">What you did</h2>
+        <article className="space-y-3 rounded-2xl border border-line bg-white p-5" aria-label="What you did">
+          <h2 className="font-display text-xl font-medium text-cwru-blue">What you did</h2>
           {miss?.quote ? (
             // The quote is an exact excerpt of this attempt's transcript
             // (validated server-side).
-            <p className="text-base leading-7 text-[#102331]" data-testid="drill-miss-pointer">
+            <p className="text-base leading-7 text-ink" data-testid="drill-miss-pointer">
               You said: <q className="italic">{miss.quote}</q>
             </p>
           ) : null}
           {reasons.length > 0 ? (
-            <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-[#385463]">
+            <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-ink">
               {reasons.map((reason) => (
                 <li key={reason} data-testid="drill-focus-reason">
                   {reason}
@@ -105,16 +126,16 @@ export default function DrillResult({
       ) : null}
 
       {score !== null && rubric && placement ? (
-        <article className="space-y-3 rounded-xl border border-[#dce8ed] bg-white p-5" aria-label="Why this score">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-[#58727f]">
+        <article className="space-y-3 rounded-2xl border border-line bg-white p-5" aria-label="Why this score">
+          <h2 className="font-display text-xl font-medium text-cwru-blue">
             Why {score}/5 on {competencyLabel}
           </h2>
-          <p className="text-sm leading-6 text-[#102331]">{placement.blurb}</p>
-          <p className="text-sm leading-6 text-[#58727f]">
+          <p className="text-sm leading-6 text-ink">{placement.blurb}</p>
+          <p className="text-sm leading-6 text-muted">
             This {score} is only {competencyLabel} — how you showed that skill, not every other part of the answer.
           </p>
           {attempt.rationale ? (
-            <p className="text-sm leading-6 text-[#385463]" data-testid="drill-rationale">
+            <p className="text-sm leading-6 text-ink" data-testid="drill-rationale">
               {attempt.rationale}
             </p>
           ) : null}
@@ -126,13 +147,13 @@ export default function DrillResult({
                   key={n}
                   className={
                     active
-                      ? "rounded-lg border border-[#b9dbe5] bg-[#eaf7fa] px-3 py-2 text-[#102331]"
-                      : "px-3 py-1 text-[#58727f]"
+                      ? "rounded-lg border border-light-blue bg-canvas px-3 py-2 text-ink"
+                      : "px-3 py-1 text-muted"
                   }
                 >
                   <span className="font-semibold">{n}</span> — {rubric[n]}
                   {active ? (
-                    <span className="mt-1 block text-xs font-semibold uppercase tracking-wide text-[#0a7391]">
+                    <span className="mt-1 block text-xs font-semibold text-true-blue">
                       This {score} sits nearer here
                     </span>
                   ) : null}
@@ -142,19 +163,19 @@ export default function DrillResult({
           </ul>
         </article>
       ) : attempt.rationale ? (
-        <p className="text-sm leading-6 text-[#385463]" data-testid="drill-rationale">
-          <span className="font-semibold text-[#102331]">Why this score. </span>
+        <p className="text-sm leading-6 text-ink" data-testid="drill-rationale">
+          <span className="font-semibold text-ink">Why this score. </span>
           {attempt.rationale}
         </p>
       ) : null}
 
       {focuses.length > 0 || extraNote ? (
-        <article className="space-y-3 rounded-xl border border-[#cfe6ee] bg-[#eaf7fa] p-5" aria-label="What I would focus on">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+        <article className="space-y-3 rounded-2xl border border-level-2/45 bg-level-2/10 p-5" aria-label="What I would focus on">
+          <h2 className="font-display text-xl font-medium text-cwru-blue">
             {focuses.length > 1 ? "What I would focus on (this session)" : "What I would focus on"}
           </h2>
           {miss ? (
-            <p className="text-sm leading-6 text-[#102331]">
+            <p className="text-sm leading-6 text-ink">
               I would focus on <span className="font-semibold">{miss.techniqueName}</span>
               {also ? (
                 <>
@@ -167,25 +188,25 @@ export default function DrillResult({
           ) : null}
           {focuses.map((focus) => (
             <div key={focus.techniqueId} className="space-y-1">
-              <p className="text-sm font-semibold leading-6 text-[#102331]">{focus.techniqueName}</p>
-              <p className="text-sm leading-6 text-[#385463]">{focus.reminder}</p>
+              <p className="text-sm font-semibold leading-6 text-ink">{focus.techniqueName}</p>
+              <p className="text-sm leading-6 text-ink">{focus.reminder}</p>
             </div>
           ))}
           {extraNote ? (
-            <p className="whitespace-pre-wrap text-sm leading-6 text-[#173847]">{attempt.feedback}</p>
+            <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{attempt.feedback}</p>
           ) : null}
         </article>
       ) : attempt.feedback ? (
-        <p className="whitespace-pre-wrap text-sm leading-6 text-[#173847]">{attempt.feedback}</p>
+        <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{attempt.feedback}</p>
       ) : null}
 
       {worked ? (
-        <article className="space-y-2 rounded-xl border border-[#cfe9df] bg-[#f0faf5] p-5" aria-label="What worked">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-[#327b68]">What landed</h2>
-          <p className="text-base leading-7 text-[#102331]" data-testid="drill-worked-pointer">
+        <article className="space-y-2 rounded-2xl border border-level-4/30 bg-level-4/8 p-5" aria-label="What worked">
+          <h2 className="font-display text-xl font-medium text-level-4">What landed</h2>
+          <p className="text-base leading-7 text-ink" data-testid="drill-worked-pointer">
             You also said: <q className="italic">{worked.quote}</q>
           </p>
-          <p className="text-sm leading-6 text-[#385463]">{worked.note}</p>
+          <p className="text-sm leading-6 text-ink">{worked.note}</p>
         </article>
       ) : null}
 

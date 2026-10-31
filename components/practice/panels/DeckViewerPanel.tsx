@@ -113,7 +113,7 @@ export default function DeckViewerPanel({
 
   if (slides.length === 0) {
     return (
-      <div className="rounded-xl border border-white/15 bg-[#07131f]/85 px-4 py-3 text-sm text-[#d3e7f5]">
+      <div className="rounded-xl border border-white/15 bg-ink/85 px-4 py-3 text-sm text-light-blue/32">
         No slides available for this deck.
       </div>
     );
@@ -132,15 +132,15 @@ export default function DeckViewerPanel({
       className={
         isStage
           ? "pointer-events-auto relative flex h-full min-h-0 w-full flex-col gap-3"
-          : "pointer-events-auto relative flex w-full flex-col gap-2 rounded-xl border border-white/15 bg-[#07131f]/90 p-2 shadow-lg backdrop-blur-md"
+          : "pointer-events-auto relative flex w-full flex-col gap-2 rounded-xl border border-white/15 bg-ink/90 p-2 shadow-lg backdrop-blur-md"
       }
       role="region"
     >
       <div className="flex items-center justify-between gap-2 px-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9eb6c6]">
+        <p className="text-[10px] font-semibold text-light-blue">
           Your deck
         </p>
-        <p className="text-xs font-medium tabular-nums text-[#d3e7f5]">
+        <p className="text-xs font-medium tabular-nums text-light-blue/32">
           {current + 1} / {slides.length}
         </p>
       </div>
@@ -161,8 +161,8 @@ export default function DeckViewerPanel({
         <div
           className={
             isStage
-              ? "relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-xl bg-[#02080d] ring-1 ring-white/10"
-              : "relative flex min-h-[10rem] min-w-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-[#041018]"
+              ? "relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-xl bg-ink ring-1 ring-white/10"
+              : "relative flex min-h-[10rem] min-w-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-ink"
           }
         >
           {/* object-fit: contain — portrait and landscape both upright, uncropped */}
@@ -236,7 +236,7 @@ export default function DeckViewerPanel({
               className={[
                 "relative shrink-0 overflow-hidden rounded-md border-2 transition",
                 isCurrent
-                  ? "border-[#53a9de] ring-1 ring-[#53a9de]/50"
+                  ? "border-true-blue ring-1 ring-true-blue/50"
                   : isSeen
                     ? "border-white/35"
                     : "border-white/10 opacity-80",
@@ -253,7 +253,7 @@ export default function DeckViewerPanel({
               {/* eslint-disable-next-line @next/next/no-img-element -- authenticated thumb byte route */}
               <img
                 alt={`Slide ${slide.index + 1}`}
-                className="h-full w-full bg-[#041018] object-contain"
+                className="h-full w-full bg-ink object-contain"
                 draggable={false}
                 loading="lazy"
                 src={slideUrl(deckId, slide.index, true)}
@@ -261,7 +261,7 @@ export default function DeckViewerPanel({
               {isSeen ? (
                 <span
                   aria-hidden
-                  className="absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-[#72d6b0]"
+                  className="absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-level-4"
                 />
               ) : null}
             </button>
