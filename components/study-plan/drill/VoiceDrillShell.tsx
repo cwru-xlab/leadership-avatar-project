@@ -1,5 +1,6 @@
 "use client";
 
+import BackLink from "@/components/shell/BackLink";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -163,19 +164,10 @@ export default function VoiceDrillShell({
       {runner}
       {phase === "ROOM" ? null : (
         <div
-          className="mx-auto max-w-3xl space-y-6 px-4 py-8"
+          className="mx-auto flex min-h-dvh max-w-3xl flex-col justify-center gap-6 px-4 py-8"
           aria-live="polite"
         >
-          <Button
-            as={Link}
-            href={leaveHref}
-            variant="light"
-            size="sm"
-            startContent={<ArrowLeft className="h-4 w-4" />}
-            className="-ml-2 self-start text-default-600 data-[hover=true]:bg-transparent"
-          >
-            Back to the path
-          </Button>
+          <BackLink href={leaveHref} label="Path" />
 
           {phase === "RESULT" && graded ? (
             <DrillResult
@@ -204,38 +196,25 @@ export default function VoiceDrillShell({
             />
           ) : (
             <>
-              <DrillBrief drill={drill} />
-              <div className="space-y-2 rounded-xl border border-[#dce8ed] bg-white p-5 text-sm leading-6 text-[#385463]">
-                <p>
-                  {coach ? coach.name : "Your coach"} sets the scene out loud;
-                  then you answer out loud and apply the technique above. No
-                  score while you talk.
-                </p>
-                <p>
-                  Worth: {worthPct}% of an unaided practice session toward{" "}
-                  {drill.competencyLabel}.
-                </p>
-                <p className="flex items-center gap-1.5">
-                  <Mic size={14} aria-hidden="true" /> You will need a
-                  microphone.
-                </p>
-              </div>
+              <DrillBrief
+                canStart={Boolean(coach)}
+                coachAvatarId={coach?.avatarId ?? null}
+                coachName={coach?.name ?? null}
+                drill={drill}
+                startLabel={
+                  drill.attempts.some((a) => a.completedAt !== null)
+                    ? "Drill it again"
+                    : "Start the drill"
+                }
+                worthPct={worthPct}
+                onStart={() => setPhase("CONSENT")}
+              />
               {coachError ? (
-                <p role="alert" className="text-sm text-[#9b2c2c]">
+                <p role="alert" className="text-center text-sm text-copper">
                   We couldn&apos;t load your coach. Refresh the page to try
                   again.
                 </p>
               ) : null}
-              <Button
-                color="primary"
-                size="lg"
-                isDisabled={!coach}
-                onPress={() => setPhase("CONSENT")}
-              >
-                {drill.attempts.some((a) => a.completedAt !== null)
-                  ? "Drill it again"
-                  : "Start the drill"}
-              </Button>
             </>
           )}
         </div>

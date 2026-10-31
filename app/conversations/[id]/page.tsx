@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import BackLink from "@/components/shell/BackLink";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -43,15 +44,9 @@ export default async function EditConversationPage({
         {/* Plain styled next/link, not HeroUI Button as={Link}: this is a
             server component, and passing the Link function as a prop to a
             client component throws at render (D15-2). */}
-        <Link
-          href="/conversations"
-          className="self-start -ml-2 inline-flex items-center gap-2 rounded-small px-3 h-8 text-small text-default-600 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to conversations
-        </Link>
+        <BackLink href="/conversations" label="Courageous conversations" />
         <h1 className={title({ fullWidth: true })}>Edit conversation</h1>
-        <p className="max-w-2xl text-default-500">
+        <p className="max-w-2xl text-[15px] text-muted">
           Edits to a published scenario go live after the safety check. A
           failing check keeps your new text saved and privately playable, but
           unpublishes it until you fix the problem.

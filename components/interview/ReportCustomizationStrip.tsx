@@ -1,6 +1,6 @@
 "use client";
 
-import { Chip } from "@heroui/chip";
+import { ChevronDown } from "lucide-react";
 import { getInterviewType } from "@/lib/interview/types";
 
 /** Customization fields the strip displays — matches InterviewInputSnapshot. */
@@ -14,7 +14,7 @@ export interface ReportCustomizationFields {
 }
 
 /**
- * Compact strip shown between the report header and the score cards,
+ * Disclosure in the report header ("Session setup"),
  * stating the preset, industry, role, difficulty and length that produced
  * this session (REQ-24 display half — 08-02 already recorded these columns).
  *
@@ -52,9 +52,7 @@ export default function ReportCustomizationStrip({
 
   if (allNull) {
     return (
-      <div className="rounded-2xl border border-[#d4e2e9] bg-white px-5 py-4 text-sm text-[#8298a3] shadow-[0_24px_60px_rgba(20,58,75,0.06)]">
-        Customization wasn&apos;t recorded for this session.
-      </div>
+      <p className="text-sm text-muted">Customization wasn&apos;t recorded for this session.</p>
     );
   }
 
@@ -73,28 +71,27 @@ export default function ReportCustomizationStrip({
     { label: "Length", value: lengthValue },
   ];
 
+  // Level 2 detail: the setup that produced the session, behind one click.
   return (
-    <div className="rounded-2xl border border-[#d4e2e9] bg-white p-5 shadow-[0_24px_60px_rgba(20,58,75,0.06)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#526c7b]">
-        Session customization
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+    <details className="group w-fit max-w-full text-sm">
+      <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 font-semibold text-ink [&::-webkit-details-marker]:hidden">
+        Session setup
+        <ChevronDown aria-hidden className="text-muted transition-transform duration-200 group-open:rotate-180" size={14} />
+      </summary>
+      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 rounded-lg border border-line bg-white px-4 py-3">
         {fields.map(({ label, value }) => (
-          <Chip
-            key={label}
-            size="sm"
-            variant="flat"
-            className="bg-[#e0f3f9] text-[#08718d]"
-          >
-            {`${label}: ${value ?? "Not recorded"}`}
-          </Chip>
+          <div key={label} className="contents">
+            <dt className="text-muted">{label}</dt>
+            <dd className={value ? "text-ink" : "text-muted"}>{value ?? "Not recorded"}</dd>
+          </div>
         ))}
         {interviewerPersona !== null && (
-          <Chip size="sm" variant="flat" className="bg-[#f0e8fb] text-[#5b3a91]">
-            Custom interviewer persona
-          </Chip>
+          <div className="contents">
+            <dt className="text-muted">Interviewer</dt>
+            <dd className="text-ink">Custom interviewer persona</dd>
+          </div>
         )}
-      </div>
-    </div>
+      </dl>
+    </details>
   );
 }

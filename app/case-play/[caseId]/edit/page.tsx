@@ -10,6 +10,7 @@
  * comes from the owner-scoped `mine` array rather than a raw case fetch.
  */
 
+import BackLink from "@/components/shell/BackLink";
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
@@ -76,10 +77,10 @@ export default function EditScenarioPage() {
   if (notFound || !scenario) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 text-center">
-        <Card className="max-w-lg border border-[#d4e2e9] shadow-none">
+        <Card className="max-w-lg border border-line shadow-none">
           <CardBody className="items-start gap-4 p-8">
-            <CircleAlert className="text-[#0a7391]" size={28} />
-            <h1 className="font-serif text-2xl">
+            <CircleAlert className="text-true-blue" size={28} />
+            <h1 className="font-display font-medium text-2xl">
               This scenario doesn&apos;t exist, or isn&apos;t yours to edit.
             </h1>
             <Button color="primary" onPress={() => router.push("/case-play")}>
@@ -94,15 +95,7 @@ export default function EditScenarioPage() {
   return (
     <div className="space-y-8 py-2 md:py-4">
       <div className="flex flex-col gap-3">
-        <Button
-          variant="light"
-          size="sm"
-          startContent={<ArrowLeft className="w-4 h-4" />}
-          onPress={() => router.push("/case-play")}
-          className="self-start -ml-2 text-default-600 data-[hover=true]:bg-transparent"
-        >
-          Back to scenarios
-        </Button>
+        <BackLink href="/case-play" label="Case studies" />
         <h1 className={title({ fullWidth: true })}>Edit scenario</h1>
       </div>
 

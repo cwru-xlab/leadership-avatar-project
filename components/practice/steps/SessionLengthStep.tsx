@@ -84,32 +84,29 @@ export default function SessionLengthStep({
     >
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#0a7391]">
-            Step {nav.stepNumber} of {nav.totalSteps}
-          </p>
           <h2
             id="session-length-heading"
-            className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+            className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
           >
             How long is this meeting?
           </h2>
         </div>
-        <p className="max-w-md text-sm leading-6 text-[#58727f]">
+        <p className="max-w-md text-sm leading-6 text-muted">
           {hasDeck
             ? `Based on your ${slideCount} slides we suggest ${proposedMinutes} minutes. Adjust it if you want.`
             : `Choose a length between ${FLOOR_MINUTES} and ${CEILING_MINUTES} minutes.`}
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
+      <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="font-serif text-4xl tracking-[-0.03em] text-[#102331]">
+          <p className="font-display font-medium text-4xl tracking-[-0.03em] text-ink">
             {minutes}{" "}
-            <span className="text-xl font-sans font-medium text-[#58727f]">
+            <span className="text-xl font-sans font-medium text-muted">
               minutes
             </span>
           </p>
-          <p className="text-xs text-[#6a8491]">
+          <p className="text-xs text-muted">
             {FLOOR_MINUTES}–{CEILING_MINUTES} min
           </p>
         </div>
@@ -126,18 +123,18 @@ export default function SessionLengthStep({
             if (typeof next === "number") setMinutes(clampMinutes(next));
           }}
           classNames={{
-            filler: "bg-[#0a7391]",
-            thumb: "bg-[#0a7391]",
-            track: "bg-[#d4e2e9]",
+            filler: "bg-true-blue",
+            thumb: "bg-true-blue",
+            track: "bg-line",
           }}
         />
 
-        <p className="mt-5 text-sm leading-6 text-[#58727f]">
+        <p className="mt-5 text-sm leading-6 text-muted">
           This is a guide — you can keep going past it, and the overrun will be
           noted in your report.
         </p>
 
-        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6">
+        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-line pt-6">
           <Button
             variant="light"
             onPress={() => {

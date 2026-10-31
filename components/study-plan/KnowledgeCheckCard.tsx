@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, ListChecks } from "lucide-react";
 import { Card, CardBody } from "@heroui/card";
 import { Button } from "@heroui/button";
 import { Textarea } from "@heroui/input";
@@ -173,14 +173,15 @@ export default function KnowledgeCheckCard({
   }
 
   return (
-    <Card className="border border-[#dce8ed]">
+    <Card shadow="none" className="rounded-2xl border border-line">
       <CardBody className="space-y-6 p-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-light-blue/32 px-3 py-1 text-[12.5px] font-semibold text-cwru-blue">
+            <ListChecks aria-hidden size={14} strokeWidth={2} />
             {FORMAT_LABEL[check.payload.format]}
-          </p>
+          </span>
           {/* K3: the question always matches the interaction below it. */}
-          <h1 className="mt-1 font-serif text-xl leading-snug text-[#102331]">
+          <h1 className="mt-3 font-display text-2xl font-medium leading-snug text-cwru-blue">
             {displayPrompt(check.prompt, check.payload)}
           </h1>
         </div>
@@ -213,7 +214,7 @@ export default function KnowledgeCheckCard({
         />
 
         {submitError && (
-          <p className="text-sm text-[#9b2c2c]" role="alert">
+          <p className="text-sm text-copper" role="alert">
             {submitError}
           </p>
         )}
@@ -346,12 +347,12 @@ function ContextBlock({
   sourceReportId: string | null;
 }) {
   return (
-    <div className="rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4">
-      <p className="text-xs font-bold uppercase tracking-wide text-[#58727f]">
+    <div className="rounded-xl border border-line bg-canvas p-4">
+      <p className="text-xs font-bold text-muted">
         In my session, they said
       </p>
       <blockquote
-        className="mt-2 text-sm leading-6 text-[#173847]"
+        className="mt-2 text-sm leading-6 text-ink"
         style={{ whiteSpace: "pre-wrap" }}
       >
         {contextLine}
@@ -359,7 +360,7 @@ function ContextBlock({
       {sourceReportId && (
         <Link
           href={`/practice/reports/${sourceReportId}`}
-          className="mt-2 inline-block text-xs font-semibold text-[#006b87] underline underline-offset-2"
+          className="mt-2 inline-block text-xs font-semibold text-cwru-blue underline underline-offset-2"
         >
           View the session this came from
         </Link>
@@ -371,8 +372,8 @@ function ContextBlock({
 function QuoteBlock({ quotedText }: { quotedText: QuotedTextDTO | null }) {
   if (!quotedText) return null;
   return (
-    <div className="rounded-xl border border-[#b9dbe5] bg-[#eaf7fa] p-4">
-      <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+    <div className="rounded-xl border border-light-blue bg-canvas p-4">
+      <p className="text-xs font-bold text-true-blue">
         My own words
       </p>
       {/*
@@ -386,14 +387,14 @@ function QuoteBlock({ quotedText }: { quotedText: QuotedTextDTO | null }) {
         whitespace handling.
       */}
       <blockquote
-        className="mt-2 text-sm leading-6 text-[#173847]"
+        className="mt-2 text-sm leading-6 text-ink"
         style={{ whiteSpace: "pre-wrap" }}
       >
         {quotedText.text}
       </blockquote>
       <Link
         href={`/practice/reports/${quotedText.sourceReportId}`}
-        className="mt-2 inline-block text-xs font-semibold text-[#006b87] underline underline-offset-2"
+        className="mt-2 inline-block text-xs font-semibold text-cwru-blue underline underline-offset-2"
       >
         View the session this came from
       </Link>
@@ -430,7 +431,7 @@ function FormatBody(props: FormatBodyProps) {
         {payload.options.map((option, index) => (
           <label
             key={index}
-            className="flex items-center gap-3 rounded-lg border border-[#dce8ed] p-3 text-sm text-[#385463]"
+            className="flex items-center gap-3 rounded-lg border border-line p-3 text-sm text-ink"
           >
             <input
               type="radio"
@@ -462,7 +463,7 @@ function FormatBody(props: FormatBodyProps) {
         {payload.candidates.map((candidate, index) => (
           <label
             key={index}
-            className="flex items-center gap-3 rounded-lg border border-[#dce8ed] p-3 text-sm text-[#385463]"
+            className="flex items-center gap-3 rounded-lg border border-line p-3 text-sm text-ink"
           >
             <input
               type="radio"
@@ -483,7 +484,7 @@ function FormatBody(props: FormatBodyProps) {
     return (
       <fieldset disabled={props.disabled} className="space-y-1">
         <legend className="sr-only">Fill in the blank</legend>
-        <p className="flex flex-wrap items-center gap-x-1 gap-y-2 text-sm leading-7 text-[#385463]">
+        <p className="flex flex-wrap items-center gap-x-1 gap-y-2 text-sm leading-7 text-ink">
           {payload.segments.map((segment, segmentIndex) => {
             const isLastSegment = segmentIndex === payload.segments.length - 1;
             const blankIndex = blankCursor;
@@ -495,7 +496,7 @@ function FormatBody(props: FormatBodyProps) {
                   <input
                     type="text"
                     aria-label={`blank ${blankIndex + 1}`}
-                    className="w-32 rounded border border-[#dce8ed] px-2 py-1"
+                    className="w-32 rounded border border-line px-2 py-1"
                     value={props.blanks[blankIndex] ?? ""}
                     onChange={(e) => {
                       // NOT trimmed here — 21-11 owns normalization and does
@@ -520,15 +521,15 @@ function FormatBody(props: FormatBodyProps) {
     <fieldset disabled={props.disabled} className="space-y-3">
       <legend className="sr-only">Rewrite the weak line</legend>
       {!props.weakLineShownAbove && (
-        <div className="rounded-lg border border-[#dce8ed] p-3 text-sm text-[#385463]">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+        <div className="rounded-lg border border-line p-3 text-sm text-ink">
+          <p className="text-xs font-bold text-true-blue">
             My line
           </p>
           <p className="mt-1" style={{ whiteSpace: "pre-wrap" }}>{payload.weakLine}</p>
         </div>
       )}
-      <div className="rounded-lg border border-[#dce8ed] p-3 text-sm text-[#385463]">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+      <div className="rounded-lg border border-line p-3 text-sm text-ink">
+        <p className="text-xs font-bold text-true-blue">
           Technique to apply
         </p>
         <p className="mt-1">{payload.techniqueHint}</p>
@@ -537,8 +538,8 @@ function FormatBody(props: FormatBodyProps) {
         Criteria shown BEFORE submission, not after: a student graded
         against hidden criteria cannot learn from the grade.
       */}
-      <div className="rounded-lg border border-[#dce8ed] p-3 text-sm text-[#385463]">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+      <div className="rounded-lg border border-line p-3 text-sm text-ink">
+        <p className="text-xs font-bold text-true-blue">
           This rewrite will be judged on
         </p>
         <ul className="mt-1 list-disc space-y-1 pl-5">
@@ -547,7 +548,7 @@ function FormatBody(props: FormatBodyProps) {
           ))}
         </ul>
       </div>
-      <Textarea
+      <Textarea variant="bordered"
         aria-label="My rewrite"
         placeholder="Rewrite the line here…"
         value={props.rewrittenLine}
@@ -646,20 +647,20 @@ function MarkPanel({
       aria-live="polite"
       className={
         isCorrect
-          ? "rounded-xl border border-[#9fd5b8] bg-[#eef9f2] p-4"
-          : "rounded-xl border border-[#dce8ed] bg-[#f8fbfc] p-4"
+          ? "rounded-xl border border-level-4/40 bg-level-4/10 p-4"
+          : "rounded-xl border border-line bg-canvas p-4"
       }
     >
-      <p className="flex items-center font-semibold text-[#102331]">
+      <p className="flex items-center font-semibold text-ink">
         {isCorrect && (
-          <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#1f8a5b] text-white">
+          <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-level-4 text-white">
             <Check size={14} strokeWidth={3} aria-hidden="true" />
           </span>
         )}
         {/* Correctness conveyed in TEXT, not only colour. */}
         {correctnessLabel}
         {!isRewrite && (
-          <span className="ml-2 font-normal text-[#58727f]">
+          <span className="ml-2 font-normal text-muted">
             Score: {Math.round(attempt.score * 100)}%
           </span>
         )}
@@ -675,7 +676,7 @@ function MarkPanel({
 
       {contestState === "composing" && (
         <div className="mt-3 space-y-2">
-          <Textarea
+          <Textarea variant="bordered"
             aria-label="Why does this grading look wrong?"
             placeholder="Tell us what seems off about this mark…"
             value={contestReason}
@@ -683,7 +684,7 @@ function MarkPanel({
             minRows={2}
           />
           {contestError && (
-            <p className="text-sm text-[#9b2c2c]" role="alert">
+            <p className="text-sm text-copper" role="alert">
               {contestError}
             </p>
           )}
@@ -705,7 +706,7 @@ function MarkPanel({
       )}
 
       {contestState === "confirmed" && (
-        <p className="mt-3 text-sm text-[#0a7391]">
+        <p className="mt-3 text-sm text-true-blue">
           {/*
             The mark stands; the contest is a flag — 21-15 reverses the
             contribution immediately, it does not re-grade or re-submit, and
@@ -730,14 +731,14 @@ const DETAIL_LABELS = ["What my pick missed", "What your pick missed", "Why it w
 function DetailLines({ detail }: { detail: string }) {
   const lines = detail.split("\n").filter((line) => line.trim().length > 0);
   return (
-    <div className="mt-2 space-y-1.5 text-sm leading-6 text-[#385463]">
+    <div className="mt-2 space-y-1.5 text-sm leading-6 text-ink">
       {lines.map((line, i) => {
         const matched = DETAIL_LABELS.find((l) => line.startsWith(`${l}: `));
         if (!matched) return <p key={i}>{line}</p>;
         const label = matched === "What your pick missed" ? "What my pick missed" : matched;
         return (
           <p key={i}>
-            <span className="font-semibold text-[#102331]">{label}:</span>{" "}
+            <span className="font-semibold text-ink">{label}:</span>{" "}
             {line.slice(matched.length + 2)}
           </p>
         );

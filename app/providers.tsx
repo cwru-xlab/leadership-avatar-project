@@ -1,18 +1,14 @@
 "use client";
 
-import type { ThemeProviderProps } from "next-themes";
-
 import * as React from "react";
 import { HeroUIProvider } from "@heroui/system";
 import { ToastProvider, addToast } from "@heroui/toast";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { AuthProvider } from "@/lib/auth-context";
 import { LayoutProvider } from "@/lib/layout-context";
 
 export interface ProvidersProps {
   children: React.ReactNode;
-  themeProps?: ThemeProviderProps;
 }
 
 declare module "@react-types/shared" {
@@ -83,22 +79,20 @@ function ErrorToastHandler() {
   return null;
 }
 
-export function Providers({ children, themeProps }: ProvidersProps) {
+export function Providers({ children }: ProvidersProps) {
   const router = useRouter();
 
   return (
     <HeroUIProvider navigate={router.push}>
       <ToastProvider />
-      <NextThemesProvider {...themeProps}>
-        <AuthProvider>
-          <LayoutProvider>
-            <React.Suspense fallback={null}>
-              <ErrorToastHandler />
-            </React.Suspense>
-            {children}
-          </LayoutProvider>
-        </AuthProvider>
-      </NextThemesProvider>
+      <AuthProvider>
+        <LayoutProvider>
+          <React.Suspense fallback={null}>
+            <ErrorToastHandler />
+          </React.Suspense>
+          {children}
+        </LayoutProvider>
+      </AuthProvider>
     </HeroUIProvider>
   );
 }

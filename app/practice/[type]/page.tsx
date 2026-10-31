@@ -29,15 +29,17 @@ import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
 import {
-  ArrowLeft,
+  Briefcase,
   CircleAlert,
   Clock3,
   LockKeyhole,
+  Presentation,
   UsersRound,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
+import PracticeHero from "@/components/practice/PracticeHero";
 import PracticeSessionShell from "@/components/practice/PracticeSessionShell";
 import ProveItBrief from "@/components/study-plan/prove-it/ProveItBrief";
 import { usePlanPrefill } from "@/components/study-plan/prove-it/usePlanPrefill";
@@ -493,7 +495,7 @@ export default function PracticeTypePage() {
 
   if (!handoffResolved || !planPrefill.resolved) {
     return (
-      <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa]">
+      <main className="grid min-h-[100dvh] place-items-center bg-canvas">
         <Spinner color="primary" />
       </main>
     );
@@ -511,14 +513,14 @@ export default function PracticeTypePage() {
   // the wizard to render before both fields are filled.
   if (!typeAvailable || !engineType) {
     return (
-      <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa] p-6 text-[#102331]">
-        <Card className="max-w-lg border border-[#d4e2e9] shadow-none">
+      <main className="grid min-h-[100dvh] place-items-center bg-canvas p-6 text-ink">
+        <Card className="max-w-lg border border-line shadow-none">
           <CardBody className="items-start gap-4 p-8">
-            <CircleAlert className="text-[#0a7391]" size={28} />
-            <h1 className="font-serif text-3xl">
+            <CircleAlert className="text-true-blue" size={28} />
+            <h1 className="font-display font-medium text-3xl">
               That practice type is not available.
             </h1>
-            <p className="text-[#526c7b]">
+            <p className="text-muted">
               Choose a practice session from your Leadership Avatar workspace.
             </p>
             <Button color="primary" onPress={() => router.push("/")}>
@@ -696,87 +698,57 @@ export default function PracticeTypePage() {
     // container, which silently breaks `position: sticky` for descendants —
     // the interviewer step's action bar depends on it. `clip` still contains
     // the hero's decorative bleed without that side effect.
-    <main className="min-h-[100dvh] overflow-x-clip bg-[#f5f8fa] text-[#102331]">
-      <div className="relative isolate overflow-hidden border-b border-[#d8e6ec] bg-[#eaf5f8]">
-        <div className="absolute -right-24 top-[-150px] h-96 w-96 rounded-full bg-[#a9ddeb]/60 blur-3xl" />
-        <div className="relative mx-auto max-w-6xl px-5 pb-12 pt-7 sm:px-8 sm:pb-16">
-          <button
-            className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[#47616f] transition-colors hover:text-[#0a7391] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
-            type="button"
-            onClick={() => router.push("/")}
-          >
-            <ArrowLeft size={16} /> Back to practice
-          </button>
-          <div className="mt-12 grid gap-8 lg:grid-cols-[1fr_290px] lg:items-end">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0a7391]">
-                {isPitch
-                  ? "Pitch studio"
+    <div className="flex flex-col gap-6 overflow-x-clip">
+      <PracticeHero
+        backHref={isDeckMode ? "/practice/pitches/deck" : isPitch ? "/practice/pitches" : isInterview ? "/interview" : "/"}
+        backLabel={isDeckMode ? "Pitch with a deck" : isPitch ? "Pitch practice" : isInterview ? "Interview practice" : "Practice"}
+        description={pageDescription}
+        facts={[
+          {
+            icon: Clock3,
+            label: isPitchElevator
+              ? "30–60 s"
+              : isDeckMode && deckMode
+                ? formatEnvelopeRange(deckMode.envelopeSeconds)
+                : `${pageMinutes ?? "—"} min`,
+          },
+          {
+            icon: UsersRound,
+            label:
+              isDeckMode && deckMode
+                ? `${deckMode.listenerDisplayName} · ${deckMode.wizardStudioStat}`
+                : isPitchElevator
+                  ? "Live listener"
                   : isNetworking
-                    ? "Networking studio"
-                    : "Interview studio"}
-              </p>
-              <h1 className="mt-3 max-w-3xl font-serif text-4xl leading-[0.98] tracking-[-0.045em] text-[#102331] sm:text-6xl">
-                {isPitchElevator
-                  ? "Sixty seconds to find common ground."
-                  : isDeckMode && deckMode
-                    ? deckMode.wizardHeadline
-                    : isNetworking
-                      ? "Practice the conversation before it counts."
-                      : "A focused space to practice how you lead."}
-              </h1>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-[#4e6977]">
-                {pageDescription}
-              </p>
-            </div>
-            <div className="grid gap-3 rounded-2xl border border-[#c8dde5] bg-white/80 p-5 shadow-sm backdrop-blur-sm sm:grid-cols-3 lg:grid-cols-1">
-              <Stat
-                icon={<Clock3 size={18} />}
-                label="Practice"
-                value={
-                  isPitchElevator
-                    ? "30–60 s"
-                    : isDeckMode && deckMode
-                      ? formatEnvelopeRange(deckMode.envelopeSeconds)
-                      : `${pageMinutes ?? "—"} min`
-                }
-              />
-              <Stat
-                icon={<UsersRound size={18} />}
-                label={
-                  isPitchElevator
-                    ? "Listener"
-                    : isDeckMode && deckMode
-                      ? deckMode.listenerDisplayName
-                      : isNetworking
-                        ? "Contact"
-                        : "Interviewer"
-                }
-                value={
-                  isDeckMode && deckMode
-                    ? deckMode.wizardStudioStat
-                    : "Live avatar"
-                }
-              />
-              <Stat
-                icon={<LockKeyhole size={18} />}
-                label={
-                  isPitchElevator
-                    ? "Subject"
-                    : isDeckMode
-                      ? "Deck"
-                      : isNetworking
-                        ? "Goal"
-                        : "Resume"
-                }
-                value="Private"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+                    ? "Live contact"
+                    : "Live interviewer",
+          },
+          {
+            icon: LockKeyhole,
+            label: isPitchElevator
+              ? "Private subject"
+              : isDeckMode
+                ? "Private deck"
+                : isNetworking
+                  ? "Private goal"
+                  : "Private resume",
+          },
+        ]}
+        icon={isPitch ? Presentation : isNetworking ? UsersRound : Briefcase}
+        title={
+          isPitchElevator
+            ? "Elevator pitch"
+            : isDeckMode && deckMode
+              ? deckMode.wizardHeadline
+              : isNetworking
+                ? "Networking practice"
+                : interviewType
+                  ? `${interviewType.label}`
+                  : "Interview practice"
+        }
+      />
 
-      <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
+      <div className="flex flex-col gap-6">
         {planPrefill.info ? <ProveItBrief info={planPrefill.info} /> : null}
         <SetupWizard
           createReportOnLaunch
@@ -1082,7 +1054,7 @@ export default function PracticeTypePage() {
           }}
         />
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -1092,24 +1064,4 @@ function formatEnvelopeRange([minSeconds, maxSeconds]: readonly [
   number,
 ]): string {
   return `${Math.round(minSeconds / 60)}–${Math.round(maxSeconds / 60)} min`;
-}
-
-function Stat({
-  icon,
-  value,
-  label,
-}: {
-  icon: ReactNode;
-  value: string;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 text-[#52707d]">
-      <span className="text-[#0a7391]">{icon}</span>
-      <div>
-        <p className="text-sm font-semibold text-[#183947]">{value}</p>
-        <p className="text-xs">{label}</p>
-      </div>
-    </div>
-  );
 }

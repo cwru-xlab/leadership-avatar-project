@@ -10,6 +10,7 @@ import type {
   VisualMetrics,
   VisualPostureSignal,
   VocalMetrics,
+  VocalTurnMetrics,
 } from "./types";
 
 /**
@@ -621,4 +622,57 @@ export function vocalBands(m: VocalMetrics): MetricBandRow[] {
     { label: "Pauses", value: bandPauseRate(m.pause_count, m.coverage.spoken_seconds) },
     { label: "Volume", value: bandVolume(m.volume_consistency) },
   ];
+}
+
+/**
+ * One answer's delivery as a level word for the report's Moments timeline and
+ * its "Answers to revisit" list. DISPLAY ONLY: it never feeds a score, a
+ * mastery figure or the evaluator. Approved rule (2026-10-30): run the answer's
+ * own pace, filler words, pauses and volume through the same bands the session
+ * uses, count the ones off target, and name the count:
+ *
+ *   0 off target -> Strong, 1 -> Steady, 2 -> Uneven, 3 or more -> Off.
+ *
+ * Off target means Slow or Fast pace (not Slightly fast), Frequent or Very
+ * frequent filler words, Frequent or Very frequent pauses, and Variable or
+ * Uneven volume. `notes` carries the four band words so the timeline explains
+ * the level instead of asserting it.
+ */
+export type AnswerLevel = 4 | 3 | 2 | 1;
+
+export const ANSWER_LEVEL_WORDS: Record<AnswerLevel, string> = {
+  4: "Strong",
+  3: "Steady",
+  2: "Uneven",
+  1: "Off",
+};
+
+const OFF_TARGET = {
+  pace: new Set(["Slow", "Fast"]),
+  fillers: new Set(["Frequent", "Very frequent"]),
+  pauses: new Set(["Frequent", "Very frequent"]),
+  volume: new Set(["Variable", "Uneven"]),
+};
+
+export function answerDeliveryLevel(turn: VocalTurnMetrics): {
+  level: AnswerLevel;
+  word: string;
+  notes: MetricBandRow[];
+} {
+  const notes: MetricBandRow[] = [
+    { label: "Pace", value: bandPace(turn.words_per_minute) },
+    {
+      label: "Filler words",
+      value: bandFillerDensity(turn.filler_count, turn.words_per_minute, turn.duration_s),
+    },
+    { label: "Pauses", value: bandPauseRate(turn.pause_count, turn.duration_s) },
+    { label: "Volume", value: bandVolume(turn.volume_consistency) },
+  ];
+  const offCount =
+    Number(OFF_TARGET.pace.has(notes[0].value)) +
+    Number(OFF_TARGET.fillers.has(notes[1].value)) +
+    Number(OFF_TARGET.pauses.has(notes[2].value)) +
+    Number(OFF_TARGET.volume.has(notes[3].value));
+  const level = (offCount === 0 ? 4 : offCount === 1 ? 3 : offCount === 2 ? 2 : 1) as AnswerLevel;
+  return { level, word: ANSWER_LEVEL_WORDS[level], notes };
 }

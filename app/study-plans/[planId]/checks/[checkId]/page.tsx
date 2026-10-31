@@ -1,5 +1,6 @@
 "use client";
 
+import BackLink from "@/components/shell/BackLink";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -80,7 +81,7 @@ export default function KnowledgeCheckPage() {
   if (needsLogin) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="text-[#385463]">Sign in to take this knowledge check.</p>
+        <p className="text-ink">Sign in to take this knowledge check.</p>
         <Button className="mt-5" color="primary" onPress={() => router.push("/login")}>
           Go to sign in
         </Button>
@@ -91,7 +92,7 @@ export default function KnowledgeCheckPage() {
   if (notFound) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="text-[#385463]">This check is not available.</p>
+        <p className="text-ink">This check is not available.</p>
         <Button
           as={Link}
           href={`/study-plans/${planId}`}
@@ -107,7 +108,7 @@ export default function KnowledgeCheckPage() {
   if (loadError) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="text-[#9b2c2c]">{loadError}</p>
+        <p className="text-copper">{loadError}</p>
         <Button as={Link} href={`/study-plans/${planId}`} className="mt-5" variant="light">
           Back to my study plan
         </Button>
@@ -125,16 +126,7 @@ export default function KnowledgeCheckPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-8">
-      <Button
-        as={Link}
-        href={`/study-plans/${planId}`}
-        variant="light"
-        size="sm"
-        startContent={<ArrowLeft className="h-4 w-4" />}
-        className="-ml-2 self-start text-default-600 data-[hover=true]:bg-transparent"
-      >
-        Back to my study plan
-      </Button>
+      <BackLink href={`/study-plans/${planId}`} label="Study plan" />
       <KnowledgeCheckCard
         planId={planId}
         checkId={checkId}

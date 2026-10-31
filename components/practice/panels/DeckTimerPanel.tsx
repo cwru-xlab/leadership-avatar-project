@@ -90,7 +90,7 @@ export default function DeckTimerPanel({
       ? "border-amber-400/50 bg-amber-500/15 text-amber-50"
       : band === "warn"
         ? "border-amber-300/40 bg-amber-500/10 text-amber-50"
-        : "border-white/15 bg-[#07131f]/75 text-[#d3e7f5]";
+        : "border-white/15 bg-ink/75 text-light-blue/32";
 
   const toggleCollapsed = () => {
     toggledRef.current = true;
@@ -130,7 +130,7 @@ export default function DeckTimerPanel({
     >
       <Clock3 aria-hidden className="mt-0.5 shrink-0 opacity-90" size={16} />
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-80">
+        <p className="text-[10px] font-semibold opacity-80">
           Session time
         </p>
         {/* aria-live=off: do not interrupt a screen reader every second. */}

@@ -1,131 +1,139 @@
 /**
- * Renders a study plan's generated content: strengths, prioritized practice
- * themes (exercises + readiness checks), resources, and the next-practice
- * focus callout.
+ * Renders a study plan's generated content: prioritized practice themes
+ * (exercises + readiness checks), strengths, resources, and the
+ * next-practice focus.
  *
  * Extracted in quick-006 from `app/reports/page.tsx` (where it was a local,
  * unexported function) so both the draft-preview card on `/reports` and the
  * saved-plan's own route at `/study-plans/[planId]` can render the same
- * content without duplicating markup. Colors match origin/dev's Weatherhead
- * reports restyle so the extracted surface does not drift from /reports.
+ * content without duplicating markup.
+ *
+ * Each priority is a tile: an icon, its title, why it matters, and the
+ * exercise names up front; instructions, "ready when" criteria and
+ * readiness checks open from the tile.
  */
+import { BadgeCheck, BookOpen, ChevronDown, CircleCheckBig, ExternalLink, Target } from "lucide-react";
+
+import { themeIcon } from "@/components/study-plan/competency-icons";
 import type { StudyPlanContent } from "@/lib/study-plan/types";
 
 export default function PlanContent({ content }: { content: StudyPlanContent }) {
   return (
-    <div className="space-y-7 text-sm text-[#33465d]">
-      <section>
-        <h3 className="font-serif text-xl text-[#10243f]">
-          Strengths to leverage
+    <div className="flex flex-col gap-7 text-sm text-ink">
+      <section className="flex flex-col gap-3">
+        <h3 className="font-display text-[22px] font-medium text-cwru-blue">
+          Practice priorities{" "}
+          <span className="font-sans text-sm font-normal text-muted">{content.priorityThemes.length}</span>
         </h3>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {content.priorityThemes.map((theme) => {
+            const Icon = themeIcon(theme.theme);
+            return (
+              <article key={theme.priority} className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-5">
+                <div className="flex items-start justify-between">
+                  <span className="grid size-[52px] place-items-center rounded-[14px] bg-light-blue/32 text-cwru-blue">
+                    <Icon aria-hidden size={26} strokeWidth={1.75} />
+                  </span>
+                  <span aria-label={`Priority ${theme.priority}`} className="font-display text-[28px] font-medium text-light-blue">
+                    {String(theme.priority).padStart(2, "0")}
+                  </span>
+                </div>
+                <h4 className="text-base font-bold leading-snug text-ink">{theme.theme}</h4>
+                <p className="line-clamp-3 leading-6 text-muted">{theme.whyItMatters}</p>
+                <ul className="flex flex-col gap-1.5">
+                  {theme.practiceExercises.map((exercise) => (
+                    <li key={exercise.title} className="flex items-start gap-2">
+                      <CircleCheckBig aria-hidden className="mt-0.5 shrink-0 text-true-blue" size={15} strokeWidth={2} />
+                      <span>
+                        {exercise.title} <span className="text-muted">· {exercise.estimatedMinutes} min</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <details className="group mt-auto border-t border-line pt-3">
+                  <summary className="flex cursor-pointer list-none items-center gap-1 text-[13.5px] font-semibold text-true-blue [&::-webkit-details-marker]:hidden">
+                    How to practice and readiness checks
+                    <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180" size={14} />
+                  </summary>
+                  <div className="mt-3 flex flex-col gap-3">
+                    {theme.practiceExercises.map((exercise) => (
+                      <div key={exercise.title} className="flex flex-col gap-1">
+                        <p className="font-semibold">{exercise.title}</p>
+                        <p className="leading-6">{exercise.instructions}</p>
+                        <p className="text-xs leading-5 text-muted">Ready when: {exercise.successCriteria}</p>
+                      </div>
+                    ))}
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs font-semibold text-muted">Readiness checks</p>
+                      <ul className="list-disc space-y-1 pl-5 leading-6">
+                        {theme.readinessChecks.map((check) => (
+                          <li key={check}>{check}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </details>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="flex items-start gap-4 rounded-2xl bg-light-blue/32 p-5">
+        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-white text-cwru-blue">
+          <Target aria-hidden size={22} strokeWidth={1.75} />
+        </span>
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-semibold text-cwru-blue">Next practice focus</p>
+          <p className="max-w-[60ch] font-display text-lg italic leading-[1.4] text-ink">{content.nextPracticeFocus}</p>
+        </div>
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="flex flex-col gap-3">
+          <h3 className="font-display text-[22px] font-medium text-cwru-blue">Strengths to leverage</h3>
           {content.strengthsToLeverage.map((strength) => (
-            <div
-              key={strength.theme}
-              className="rounded-xl border border-[#d7dfe8] bg-[#f7f9fb] p-4"
-            >
-              <p className="font-semibold text-[#10243f]">{strength.theme}</p>
-              <p className="mt-1 leading-6">{strength.explanation}</p>
+            <div key={strength.theme} className="flex gap-3 rounded-2xl border border-line bg-white p-4">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-level-4/16 text-level-4">
+                <BadgeCheck aria-hidden size={20} strokeWidth={2} />
+              </span>
+              <div className="flex flex-col gap-0.5">
+                <p className="font-bold">{strength.theme}</p>
+                <p className="leading-6 text-muted">{strength.explanation}</p>
+              </div>
             </div>
           ))}
-        </div>
-      </section>
+        </section>
 
-      <section>
-        <h3 className="font-serif text-xl text-[#10243f]">
-          Practice priorities
-        </h3>
-        <div className="mt-3 space-y-4">
-          {content.priorityThemes.map((theme) => (
-            <article
-              key={theme.priority}
-              className="rounded-xl border border-[#d7dfe8] p-4 sm:p-5"
-            >
-              <div className="flex items-start gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#003087] text-xs font-bold text-white">
-                  {theme.priority}
+        <section className="flex flex-col gap-3">
+          <h3 className="font-display text-[22px] font-medium text-cwru-blue">Useful resources</h3>
+          <ul className="flex flex-col gap-3">
+            {content.resources.map((resource) => (
+              <li key={resource.title} className="flex gap-3 rounded-2xl border border-line bg-white p-4">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-light-blue/32 text-cwru-blue">
+                  <BookOpen aria-hidden size={20} strokeWidth={1.75} />
                 </span>
-                <div>
-                  <h4 className="font-semibold text-[#10243f]">
-                    {theme.theme}
-                  </h4>
-                  <p className="mt-1 leading-6">{theme.whyItMatters}</p>
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  {resource.url ? (
+                    <a
+                      className="inline-flex items-center gap-1 font-bold text-true-blue hover:underline"
+                      href={resource.url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {resource.title}
+                      <ExternalLink aria-hidden size={13} />
+                    </a>
+                  ) : (
+                    <p className="font-bold">{resource.title}</p>
+                  )}
+                  <p className="leading-6 text-muted">{resource.description}</p>
                 </div>
-              </div>
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-[#003087]">
-                    Targeted exercises
-                  </p>
-                  <ul className="mt-2 space-y-3">
-                    {theme.practiceExercises.map((exercise) => (
-                      <li key={exercise.title}>
-                        <p className="font-medium text-[#10243f]">
-                          {exercise.title}{" "}
-                          <span className="font-normal text-[#43546a]">
-                            · {exercise.estimatedMinutes} min
-                          </span>
-                        </p>
-                        <p className="mt-1 leading-6">
-                          {exercise.instructions}
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-[#43546a]">
-                          Ready when: {exercise.successCriteria}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-[#003087]">
-                    Readiness checks
-                  </p>
-                  <ul className="mt-2 list-disc space-y-2 pl-5 leading-6">
-                    {theme.readinessChecks.map((check) => (
-                      <li key={check}>{check}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h3 className="font-serif text-xl text-[#10243f]">Useful resources</h3>
-        <ul className="mt-3 grid gap-3 md:grid-cols-2">
-          {content.resources.map((resource) => (
-            <li
-              key={resource.title}
-              className="rounded-xl border border-[#d7dfe8] p-4"
-            >
-              {resource.url ? (
-                <a
-                  href={resource.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-semibold text-[#003087] underline underline-offset-2"
-                >
-                  {resource.title}
-                </a>
-              ) : (
-                <p className="font-semibold text-[#10243f]">{resource.title}</p>
-              )}
-              <p className="mt-1 leading-6">{resource.description}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="rounded-xl border border-[#b7c9de] bg-[#edf2f8] p-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#003087]">
-          Next practice focus
-        </p>
-        <p className="mt-2 font-medium leading-6 text-[#1d3655]">
-          {content.nextPracticeFocus}
-        </p>
-      </section>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
     </div>
   );
 }

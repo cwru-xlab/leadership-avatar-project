@@ -1137,7 +1137,7 @@ function PracticeInterviewRoom({
             isIconOnly
             aria-label="Leave interview"
             variant="light"
-            className="bg-[#07131f]/65 text-white backdrop-blur-md"
+            className="bg-ink/65 text-white backdrop-blur-md"
             isDisabled={walkOutLock}
             onPress={() => {
               if (!walkOutLockRef.current) setExitIntent("leave");
@@ -1164,7 +1164,7 @@ function PracticeInterviewRoom({
               isIconOnly
               aria-label="End interview"
               variant="light"
-              className="bg-[#07131f]/65 text-white backdrop-blur-md"
+              className="bg-ink/65 text-white backdrop-blur-md"
               isDisabled={walkOutLock}
               onPress={() => {
                 if (walkOutLockRef.current) return;
@@ -1188,7 +1188,7 @@ function PracticeInterviewRoom({
         {mediaLayout === "deck-primary" ? (
           <>
             {/* Slides own the stage; avatar is a corner PiP like self-view. */}
-            <div className="absolute inset-0 bg-[#041018]" aria-hidden />
+            <div className="absolute inset-0 bg-ink" aria-hidden />
             {sessionPanel ? (
               <div
                 className={
@@ -1200,7 +1200,7 @@ function PracticeInterviewRoom({
               </div>
             ) : null}
             <div
-              className="absolute bottom-4 left-4 z-20 h-[132px] w-44 overflow-hidden rounded-2xl border border-white/20 bg-black/80 shadow-xl sm:h-[150px] sm:w-52"
+              className="absolute bottom-4 left-4 z-20 h-[132px] w-44 overflow-hidden rounded-xl border border-white/20 bg-black/80 shadow-xl sm:h-[150px] sm:w-52"
               aria-label={
                 interviewerName
                   ? `Live video of ${interviewerName}`
@@ -1228,7 +1228,7 @@ function PracticeInterviewRoom({
               />
             </div>
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[#07131f] via-[#07131f]/45 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-ink via-ink/45 to-transparent" />
 
             {/* Self-view sits in the bottom-right of the AVATAR panel, the usual
                 video-call convention, rather than against the viewport edge where
@@ -1264,13 +1264,13 @@ function PracticeInterviewRoom({
               or resume (UAT 2026-10-25). */}
           {isInterviewSession ? (
           <div className="border-y border-white/10 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#73cee5]">
+            <p className="text-[11px] font-semibold text-light-blue">
               Practice flow
             </p>
-            <p className="mt-1 text-xs leading-5 text-[#c4dbe7]">
+            <p className="mt-1 text-xs leading-5 text-light-blue">
               Background, behavioral stories, and role-specific discussion. You&apos;ll have time to ask your questions at the end.
             </p>
-            <div className="mt-2 flex items-center justify-between text-xs text-[#a9c5d6]">
+            <div className="mt-2 flex items-center justify-between text-xs text-light-blue">
               <span>{progress.questionsAsked} of ~{targetQuestionCount} questions</span>
               <span>{resumeFileName ? "Resume in context" : "Behavioral focus"}</span>
             </div>
@@ -1279,7 +1279,7 @@ function PracticeInterviewRoom({
 
           <div aria-live="polite" className="min-h-0 flex-1 space-y-5 overflow-y-auto py-6 pr-1">
             {!messages.length && !streamingText && (
-              <div className="flex h-full min-h-44 flex-col items-center justify-center text-center text-[#abc5d5]">
+              <div className="flex h-full min-h-44 flex-col items-center justify-center text-center text-light-blue">
                 <Spinner color="primary" size="sm" />
                 <p className="mt-4 text-sm">{avatarReady ? "Your interviewer is preparing the first question." : "Establishing a secure live connection."}</p>
               </div>
@@ -1290,27 +1290,27 @@ function PracticeInterviewRoom({
                 className={
                   message.role === "assistant"
                     ? "max-w-[94%]"
-                    : "ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-[#1d4f69] px-4 py-3 text-sm leading-6 text-white"
+                    : "ml-auto max-w-[88%] rounded-xl rounded-br-sm bg-cwru-blue px-4 py-3 text-sm leading-6 text-white"
                 }
               >
                 {message.role === "assistant" && (
-                  <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#73cee5]">
+                  <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold text-light-blue">
                     <Sparkles size={13} /> {interviewerName}
                   </div>
                 )}
-                <p className={message.role === "assistant" ? "text-[15px] leading-7 text-[#edf6fb]" : ""}>{message.content}</p>
+                <p className={message.role === "assistant" ? "text-[15px] leading-7 text-canvas" : ""}>{message.content}</p>
               </article>
             ))}
             {streamingText && (
               <article className="max-w-[94%]">
-                <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#73cee5]">
+                <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold text-light-blue">
                   <Volume2 size={13} className="animate-pulse" /> {interviewerName}
                 </div>
-                <p className="text-[15px] leading-7 text-[#edf6fb]">{streamingText}</p>
+                <p className="text-[15px] leading-7 text-canvas">{streamingText}</p>
               </article>
             )}
             {partialTranscript && (
-              <article className="ml-auto max-w-[88%] rounded-2xl rounded-br-sm border border-[#4782a0] bg-[#153e54] px-4 py-3 text-sm leading-6 text-[#dcedf5]">
+              <article className="ml-auto max-w-[88%] rounded-xl rounded-br-sm border border-light-blue bg-cwru-blue px-4 py-3 text-sm leading-6 text-light-blue/32">
                 {partialTranscript}
               </article>
             )}
@@ -1318,7 +1318,7 @@ function PracticeInterviewRoom({
           {isAwaitingResponse && !isPaused ? (
             <div
               role="status"
-              className="flex items-center gap-2 pb-4 text-sm text-[#b9d5e4]"
+              className="flex items-center gap-2 pb-4 text-sm text-light-blue"
             >
               <Spinner color="primary" size="sm" aria-hidden="true" />
               <span>Waiting for a response</span>
@@ -1327,10 +1327,10 @@ function PracticeInterviewRoom({
           ) : null}
         </div>
 
-        <div className="border-t border-white/10 bg-[#091925] px-5 py-5 sm:px-8">
+        <div className="border-t border-white/10 bg-ink px-5 py-5 sm:px-8">
           {isPaused ? (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-[#37647a] bg-[#102a3a] p-3">
-              <div className="text-sm text-[#d8edf6]">Your session is paused. The interviewer cannot hear you.</div>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-light-blue/40 bg-ink p-3">
+              <div className="text-sm text-light-blue">Your session is paused. The interviewer cannot hear you.</div>
               <Button size="sm" color="primary" onPress={() => setIsPaused(false)}>Resume</Button>
             </div>
           ) : (
@@ -1352,7 +1352,7 @@ function PracticeInterviewRoom({
                   }
                   rows={2}
                   placeholder={avatarReady ? "Type your answer, or tap the mic to record…" : "Connecting to your interviewer…"}
-                  className="min-h-14 flex-1 resize-none rounded-xl border border-white/15 bg-[#102a3a] px-3 py-3 text-sm text-white outline-none placeholder:text-[#89aabd] focus:border-[#71c9e7] focus:ring-2 focus:ring-[#71c9e7]/30 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="min-h-14 flex-1 resize-none rounded-xl border border-white/15 bg-ink px-3 py-3 text-sm text-white outline-none placeholder:text-light-blue focus:border-light-blue focus:ring-2 focus:ring-light-blue/30 disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <Button
                   isIconOnly
@@ -1384,7 +1384,7 @@ function PracticeInterviewRoom({
                 <Button
                   size="sm"
                   variant="light"
-                  className="text-[#afcad9]"
+                  className="text-light-blue"
                   startContent={<Pause size={14} />}
                   isDisabled={walkOutLock}
                   onPress={() => {
@@ -1397,7 +1397,7 @@ function PracticeInterviewRoom({
             </>
           )}
           {answerControlsSupplement}
-          <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-[#82a5b8]">
+          <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-light-blue">
             <FileText size={13} /> Your resume is used only to personalize this practice interview.
           </p>
         </div>
@@ -1408,7 +1408,7 @@ function PracticeInterviewRoom({
           className="pointer-events-none absolute inset-x-0 top-20 z-40 flex justify-center px-4"
           role="status"
         >
-          <p className="rounded-full border border-white/15 bg-[#07131f]/80 px-4 py-2 text-sm text-[#d3e7f5] backdrop-blur-md">
+          <p className="rounded-full border border-white/15 bg-ink/80 px-4 py-2 text-sm text-light-blue/32 backdrop-blur-md">
             The conversation ended.
           </p>
         </div>
@@ -1436,7 +1436,7 @@ function PracticeInterviewRoom({
                   classNames={{ inputWrapper: "bg-default-100" }}
                 />
                 {answeredCount < SHORT_INTERVIEW_ANSWERS && (
-                  <p className="text-[#b4540f]">
+                  <p className="text-copper">
                     You&apos;ve only answered {answeredCount} question
                     {answeredCount === 1 ? "" : "s"} — your report will be
                     limited.

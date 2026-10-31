@@ -68,16 +68,13 @@ export default function ConversationBriefingStep({
       aria-labelledby="conversation-briefing-heading"
     >
       <div>
-        <p className="text-sm font-semibold text-[#0a7391]">
-          Step {nav.stepNumber} of {nav.totalSteps}
-        </p>
         <h2
           id="conversation-briefing-heading"
-          className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+          className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
         >
           {title?.trim() || "Before you start"}
         </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#58727f]">
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
           Read the situation carefully. You will not see what they privately
           think — finding that out is part of the conversation.
         </p>
@@ -95,15 +92,15 @@ export default function ConversationBriefingStep({
           return (
             <div
               key={block.key}
-              className={`rounded-2xl border p-5 sm:p-6 ${
+              className={`rounded-xl border p-5 sm:p-6 ${
                 block.emphasize
-                  ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.12)]"
-                  : "border-[#d4e2e9] bg-white"
+                  ? "border-true-blue bg-light-blue/22"
+                  : "border-line bg-white"
               }`}
             >
               <p
-                className={`text-xs font-semibold uppercase tracking-[0.14em] ${
-                  block.emphasize ? "text-[#0a7391]" : "text-[#6a8491]"
+                className={`text-xs font-semibold ${
+                  block.emphasize ? "text-true-blue" : "text-muted"
                 }`}
               >
                 {block.label}
@@ -111,8 +108,8 @@ export default function ConversationBriefingStep({
               <p
                 className={`mt-2 whitespace-pre-wrap leading-relaxed ${
                   block.emphasize
-                    ? "font-serif text-xl tracking-[-0.02em] text-[#102331]"
-                    : "text-sm text-[#3d5764]"
+                    ? "font-display font-medium text-xl tracking-[-0.02em] text-ink"
+                    : "text-sm text-ink"
                 }`}
               >
                 {body}
@@ -122,7 +119,7 @@ export default function ConversationBriefingStep({
         })}
       </div>
 
-      <p className="rounded-2xl border border-dashed border-[#c5d8e1] bg-[#f7fbfc] px-5 py-4 text-sm leading-6 text-[#58727f]">
+      <p className="rounded-xl border border-dashed border-line bg-canvas px-5 py-4 text-sm leading-6 text-muted">
         What they actually think about all this is theirs. You&apos;ll have to
         find out.
       </p>

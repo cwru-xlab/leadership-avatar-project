@@ -39,7 +39,7 @@ export function FaceDetectionBanner({
       role="status"
       aria-live="polite"
       className={
-        "fixed left-1/2 top-4 z-40 -translate-x-1/2 pointer-events-none overflow-hidden rounded-2xl border border-amber-300 bg-amber-50 px-4 py-2 text-amber-900 shadow-md transition-all duration-300 " +
+        "fixed left-1/2 top-4 z-40 -translate-x-1/2 pointer-events-none overflow-hidden rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-amber-900 shadow-md transition-all duration-300 " +
         (visible
           ? "max-h-16 opacity-100 translate-y-0"
           : "max-h-0 opacity-0 -translate-y-2 border-0 px-0 py-0")

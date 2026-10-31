@@ -1235,7 +1235,7 @@ export default function CaseStudySessionView({
           </p>
         )}
         {heygenAvatarConfigured === false && (
-          <p className="text-xs text-warning-700 dark:text-warning-600">
+          <p className="text-xs text-warning-700">
             Avatar mode is unavailable (HeyGen API key missing or invalid on the server). Text chat still works.
           </p>
         )}

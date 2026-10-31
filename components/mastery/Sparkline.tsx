@@ -45,14 +45,14 @@ export default function Sparkline({
         x2={width - pad}
         y1={height / 2}
         y2={height / 2}
-        stroke="#d4e2e9"
+        className="stroke-line"
         strokeDasharray="2 3"
         strokeWidth={1}
       />
       {coords.length > 1 ? (
         <polyline
           fill="none"
-          stroke="#0a7391"
+          className="stroke-true-blue"
           strokeWidth={2}
           strokeLinejoin="round"
           strokeLinecap="round"
@@ -65,7 +65,7 @@ export default function Sparkline({
           cx={c.x}
           cy={c.y}
           r={c.hasNew ? 2.5 : 1.5}
-          fill={c.hasNew ? "#0a7391" : "#8fb9c6"}
+          className={c.hasNew ? "fill-true-blue" : "fill-light-blue"}
         />
       ))}
     </svg>

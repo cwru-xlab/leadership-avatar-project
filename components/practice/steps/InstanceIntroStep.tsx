@@ -43,12 +43,9 @@ export default function InstanceIntroStep({
   return (
     <section className="mx-auto max-w-4xl space-y-6" aria-labelledby="instance-intro-heading">
       <div>
-        <p className="text-sm font-semibold text-[#0a7391]">
-          Step {nav.stepNumber} of {nav.totalSteps}
-        </p>
         <h2
           id="instance-intro-heading"
-          className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+          className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
         >
           {name}
         </h2>

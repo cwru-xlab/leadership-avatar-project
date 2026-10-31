@@ -92,17 +92,14 @@ export default function ListenerKnowledgeStep({
     >
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#0a7391]">
-            Step {nav.stepNumber} of {nav.totalSteps}
-          </p>
           <h2
             id="listener-knowledge-heading"
-            className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+            className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
           >
             How much do you know about your listener?
           </h2>
         </div>
-        <p className="max-w-md text-sm leading-6 text-[#58727f]">
+        <p className="max-w-md text-sm leading-6 text-muted">
           Choose how much of their profile you see before you start. What
           they care about is yours to discover unless you pick the full
           profile.
@@ -118,23 +115,23 @@ export default function ListenerKnowledgeStep({
               type="button"
               aria-pressed={selected}
               onClick={() => onSelect(level.id)}
-              className={`relative rounded-2xl border p-5 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${
+              className={`relative rounded-xl border p-5 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue ${
                 selected
-                  ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]"
-                  : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"
+                  ? "border-true-blue bg-light-blue/22"
+                  : "border-line bg-white hover:border-true-blue/50 hover:shadow-md"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-serif text-xl tracking-[-0.02em] text-[#102331]">
+                  <h3 className="font-display font-medium text-xl tracking-[-0.02em] text-ink">
                     {level.title}
                   </h3>
-                  <p className="mt-2 text-sm leading-6 text-[#58727f]">
+                  <p className="mt-2 text-sm leading-6 text-muted">
                     {level.description}
                   </p>
                 </div>
                 {selected && (
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#79d4b1] text-[#0b3029]">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-level-4 text-ink">
                     <Check size={15} />
                   </span>
                 )}
@@ -146,14 +143,14 @@ export default function ListenerKnowledgeStep({
 
       <div className="mt-6 min-h-[7.5rem]">
         {listenerKnowledge === "blind" && (
-          <div className="flex items-center gap-4 rounded-2xl border border-dashed border-[#c5d8e1] bg-[#f7fbfc] p-5">
+          <div className="flex items-center gap-4 rounded-xl border border-dashed border-line bg-canvas p-5">
             <div
-              className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-[#d7e6ed] text-[#3d5c6b]"
+              className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-line text-ink"
               aria-hidden
             >
               <UserRound size={26} />
             </div>
-            <p className="text-sm leading-6 text-[#58727f]">
+            <p className="text-sm leading-6 text-muted">
               You will meet them cold. Nothing about who they are is shown
               here — that is the exercise.
             </p>
@@ -161,31 +158,31 @@ export default function ListenerKnowledgeStep({
         )}
 
         {disclosure && (
-          <div className="rounded-2xl border border-[#d4e2e9] bg-white p-5 shadow-[0_8px_24px_rgba(30,68,85,0.06)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0a7391]">
+          <div className="rounded-xl border border-line bg-white p-5">
+            <p className="text-xs font-semibold text-true-blue">
               Your listener
             </p>
-            <p className="mt-2 font-serif text-2xl tracking-[-0.02em] text-[#102331]">
+            <p className="mt-2 font-display font-medium text-2xl tracking-[-0.02em] text-ink">
               {disclosure.name}
             </p>
-            <p className="mt-1 text-sm text-[#526c7b]">{disclosure.role}</p>
+            <p className="mt-1 text-sm text-muted">{disclosure.role}</p>
             {disclosure.interests && disclosure.priorities && (
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6a8491]">
+                  <p className="text-xs font-semibold text-muted">
                     Interests
                   </p>
-                  <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-6 text-[#3d5764]">
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-6 text-ink">
                     {disclosure.interests.map((item) => (
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6a8491]">
+                  <p className="text-xs font-semibold text-muted">
                     Priorities
                   </p>
-                  <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-6 text-[#3d5764]">
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-6 text-ink">
                     {disclosure.priorities.map((item) => (
                       <li key={item}>{item}</li>
                     ))}

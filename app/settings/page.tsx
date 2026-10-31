@@ -104,13 +104,13 @@ function CoachCard() {
   };
 
   return (
-    <Card>
+    <Card shadow="none" className="border border-line">
       <CardHeader className="flex gap-3">
         <GraduationCap className="text-primary" size={20} />
-        <p className="font-semibold">Your coach</p>
+        <h2 className="font-display text-xl font-medium text-cwru-blue">Your coach</h2>
       </CardHeader>
       <CardBody className="gap-4">
-        <p className="text-xs text-default-400">
+        <p className="text-xs text-muted">
           Your coach appears only in coached sessions on your study-plan path.
         </p>
         {coach && (
@@ -133,6 +133,7 @@ function CoachCard() {
         )}
         <Divider />
         <Input
+variant="bordered"
           label="Search coaches"
           size="sm"
           value={query}
@@ -231,21 +232,22 @@ export default function StudentSettingsPage() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
         <h1 className={title()}>Settings</h1>
-        <p className="text-default-500">
+        <p className="text-muted">
           Manage your profile and preferences.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 flex flex-col gap-6">
-          <Card>
+          <Card shadow="none" className="border border-line">
             <CardHeader className="flex gap-3">
               <User className="text-primary" size={20} />
-              <p className="font-semibold">Profile Information</p>
+              <h2 className="font-display text-xl font-medium text-cwru-blue">Profile information</h2>
             </CardHeader>
             <CardBody className="gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
+variant="bordered"
                   label="First Name"
                   value={profile.firstName}
                   onChange={(e) =>
@@ -253,6 +255,7 @@ export default function StudentSettingsPage() {
                   }
                 />
                 <Input
+variant="bordered"
                   label="Last Name"
                   value={profile.lastName}
                   onChange={(e) =>
@@ -261,8 +264,9 @@ export default function StudentSettingsPage() {
                 />
               </div>
               <Input
+variant="bordered"
                 label="Email"
-                startContent={<Mail className="text-default-400" size={16} />}
+                startContent={<Mail className="text-muted" size={16} />}
                 type="email"
                 value={profile.email}
                 onChange={(e) =>
@@ -270,6 +274,7 @@ export default function StudentSettingsPage() {
                 }
               />
               <Input
+variant="bordered"
                 isReadOnly
                 description="Student ID cannot be changed"
                 label="Student ID"
@@ -287,16 +292,16 @@ export default function StudentSettingsPage() {
             </CardBody>
           </Card>
 
-          <Card>
+          <Card shadow="none" className="border border-line">
             <CardHeader className="flex gap-3">
               <Bell className="text-primary" size={20} />
-              <p className="font-semibold">Notifications</p>
+              <h2 className="font-display text-xl font-medium text-cwru-blue">Notifications</h2>
             </CardHeader>
             <CardBody className="gap-4">
               <div className="flex justify-between items-center">
                 <div>
                   <p className="text-sm font-medium">Email Notifications</p>
-                  <p className="text-xs text-default-400">
+                  <p className="text-xs text-muted">
                     Receive updates via email
                   </p>
                 </div>
@@ -311,7 +316,7 @@ export default function StudentSettingsPage() {
               <div className="flex justify-between items-center">
                 <div>
                   <p className="text-sm font-medium">Case Reminders</p>
-                  <p className="text-xs text-default-400">
+                  <p className="text-xs text-muted">
                     Get reminded about assigned cases
                   </p>
                 </div>
@@ -326,7 +331,7 @@ export default function StudentSettingsPage() {
               <div className="flex justify-between items-center">
                 <div>
                   <p className="text-sm font-medium">Due Date Alerts</p>
-                  <p className="text-xs text-default-400">
+                  <p className="text-xs text-muted">
                     Notify before case deadlines
                   </p>
                 </div>
@@ -344,10 +349,10 @@ export default function StudentSettingsPage() {
         </div>
 
         <div className="flex flex-col gap-6">
-          <Card>
+          <Card shadow="none" className="border border-line">
             <CardBody className="items-center text-center py-6">
               <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                <span className="text-2xl font-bold text-primary">
+                <span className="font-display text-2xl font-medium text-cwru-blue">
                   {profile.firstName[0]}
                   {profile.lastName[0]}
                 </span>
@@ -355,23 +360,23 @@ export default function StudentSettingsPage() {
               <p className="font-semibold">
                 {profile.firstName} {profile.lastName}
               </p>
-              <p className="text-sm text-default-500">{profile.email}</p>
-              <p className="text-xs text-default-400 font-mono mt-1">
+              <p className="text-sm text-muted">{profile.email}</p>
+              <p className="mt-1 text-xs text-muted tabular-nums">
                 {profile.studentId}
               </p>
             </CardBody>
           </Card>
 
-          <Card className="border-danger/20">
+          <Card shadow="none" className="border border-line">
             <CardBody>
               <Button
                 fullWidth
-                color="danger"
+                className="h-11 rounded-lg border-copper/50 font-semibold text-copper"
                 startContent={<LogOut size={18} />}
-                variant="flat"
+                variant="bordered"
                 onPress={handleLogout}
               >
-                Log Out
+                Sign out
               </Button>
             </CardBody>
           </Card>

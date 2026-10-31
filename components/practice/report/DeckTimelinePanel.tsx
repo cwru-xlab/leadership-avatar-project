@@ -89,18 +89,18 @@ export default function DeckTimelinePanel({ report }: DeckTimelinePanelProps) {
 
   return (
     <section
-      className="mb-6 rounded-2xl border border-t-2 border-t-[#b79b4c] shadow-[0_10px_24px_rgba(0,48,135,0.08)] motion-safe:transition-[border-color,box-shadow] motion-safe:duration-200 border-[#c7d2df] bg-[#ffffff] px-5 py-5"
+      className="rounded-xl border border-line bg-white px-5 py-5"
       data-testid="deck-timeline-panel"
     >
-      <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-[#003087]">
+      <h2 className="font-display text-[22px] font-medium leading-[1.15] text-cwru-blue">
         Deck session
       </h2>
 
-      <div className="mt-3 space-y-3 text-sm text-[#334155]">
+      <div className="mt-3 space-y-3 text-sm text-ink">
         {slideCount != null ? (
           <p data-testid="slide-coverage">
             You showed{" "}
-            <span className="font-medium text-[#102a4c]">
+            <span className="font-medium text-ink">
               {shownCount} of {slideCount}
             </span>{" "}
             slides
@@ -115,7 +115,7 @@ export default function DeckTimelinePanel({ report }: DeckTimelinePanelProps) {
         ) : highWater != null ? (
           <p data-testid="slide-coverage">
             Furthest slide shown:{" "}
-            <span className="font-medium text-[#102a4c]">
+            <span className="font-medium text-ink">
               slide {highWater + 1}
             </span>
             .
@@ -126,10 +126,10 @@ export default function DeckTimelinePanel({ report }: DeckTimelinePanelProps) {
 
         {visibleReveals && visibleReveals.length > 0 ? (
           <div data-testid="reveal-timeline">
-            <p className="text-xs font-medium uppercase tracking-[0.06em] text-[#53677d]">
+            <p className="text-[13px] font-semibold text-muted">
               Reveal timeline
             </p>
-            <ul className="mt-2 space-y-1 font-mono text-xs tabular-nums text-[#52657a]">
+            <ul className="mt-2 space-y-1 font-mono text-xs tabular-nums text-muted">
               {visibleReveals.map((r, i) => (
                 <li key={`${r.index}-${r.atTurnIndex}-${i}`}>
                   Slide {r.index + 1} at {formatDuration(r.atElapsedSeconds)}
@@ -139,7 +139,7 @@ export default function DeckTimelinePanel({ report }: DeckTimelinePanelProps) {
             {hiddenRevealCount > 0 ? (
               <button
                 type="button"
-                className="mt-3 rounded-md text-xs font-medium text-[#003087] underline-offset-4 outline-none motion-safe:transition-colors motion-safe:duration-200 hover:text-[#00245f] hover:underline focus-visible:ring-2 focus-visible:ring-[#b79b4c] focus-visible:ring-offset-2"
+                className="mt-3 rounded-md text-xs font-medium text-cwru-blue underline-offset-4 motion-safe:transition-colors motion-safe:duration-200 hover:text-cwru-blue hover:underline"
                 onClick={() => setShowAll(true)}
               >
                 Show all ({reveals!.length} reveals)
@@ -148,7 +148,7 @@ export default function DeckTimelinePanel({ report }: DeckTimelinePanelProps) {
             {showAll && reveals && reveals.length > REVEAL_PREVIEW_CAP ? (
               <button
                 type="button"
-                className="mt-3 ml-3 rounded-md font-medium text-[#003087] underline-offset-4 outline-none motion-safe:transition-colors motion-safe:duration-200 hover:text-[#00245f] hover:underline focus-visible:ring-2 focus-visible:ring-[#b79b4c] focus-visible:ring-offset-2"
+                className="mt-3 ml-3 rounded-md font-medium text-cwru-blue underline-offset-4 motion-safe:transition-colors motion-safe:duration-200 hover:text-cwru-blue hover:underline"
                 onClick={() => setShowAll(false)}
               >
                 Show fewer
@@ -163,7 +163,7 @@ export default function DeckTimelinePanel({ report }: DeckTimelinePanelProps) {
             {overrun != null ? (
               <>
                 ,{" "}
-                <span className="font-medium text-[#102a4c]">
+                <span className="font-medium text-ink">
                   {formatDuration(overrun)} over
                 </span>
               </>

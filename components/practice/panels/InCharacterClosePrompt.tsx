@@ -44,7 +44,7 @@ export default function InCharacterClosePrompt({
       <Button
         size="sm"
         variant="bordered"
-        className="h-8 min-h-8 w-full border-white/25 bg-[#102a3a]/80 text-[#d7ebf5] backdrop-blur-md"
+        className="h-8 min-h-8 w-full border-white/25 bg-ink/80 text-light-blue/32 backdrop-blur-md"
         isLoading={isClosing}
         onPress={() => setConfirmOpen(true)}
       >

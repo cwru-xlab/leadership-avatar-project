@@ -97,20 +97,20 @@ export default function GeneratePathCard({
   const stageIndex = STAGES.reduce((acc, stage, i) => (elapsed >= stage.afterSeconds ? i : acc), 0);
 
   return (
-    <div className="rounded-2xl border border-dashed border-[#9fcbd8] bg-[linear-gradient(135deg,#f3fbfd,#ffffff)] p-5 sm:p-7">
+    <div className="la-map-dots rounded-2xl border-2 border-dashed border-light-blue bg-white p-5 sm:p-7">
       {generating ? (
         <div aria-live="polite">
           <div className="flex items-center gap-3">
-            <LoaderCircle className="h-6 w-6 shrink-0 animate-spin text-[#0a7391]" aria-hidden="true" />
+            <LoaderCircle className="h-6 w-6 shrink-0 animate-spin text-true-blue" aria-hidden="true" />
             <div>
-              <p className="font-serif text-xl text-[#102331]">Building your path…</p>
-              <p className="text-xs text-[#58727f]">
+              <p className="font-display font-medium text-xl text-ink">Building your path…</p>
+              <p className="text-xs text-muted">
                 This usually takes 10–60 seconds. {elapsed}s elapsed — you can keep this page open.
               </p>
             </div>
           </div>
-          <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#e3ecf0]">
-            <div className="h-full w-1/3 animate-[pathbar_1.6s_ease-in-out_infinite] rounded-full bg-[#0a7391]" />
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-line">
+            <div className="h-full w-1/3 animate-[pathbar_1.6s_ease-in-out_infinite] rounded-full bg-true-blue" />
           </div>
           <ol className="mt-4 space-y-1.5">
             {STAGES.map((stage, i) => (
@@ -118,15 +118,15 @@ export default function GeneratePathCard({
                 key={stage.text}
                 className={`flex items-center gap-2 text-sm ${
                   i < stageIndex
-                    ? "text-[#1f8a5b]"
+                    ? "text-level-4"
                     : i === stageIndex
-                      ? "font-semibold text-[#102331]"
-                      : "text-[#a3b5bd]"
+                      ? "font-semibold text-ink"
+                      : "text-muted"
                 }`}
               >
                 <span
                   className={`h-2 w-2 shrink-0 rounded-full ${
-                    i < stageIndex ? "bg-[#1f8a5b]" : i === stageIndex ? "bg-[#0a7391]" : "bg-[#d4e2e9]"
+                    i < stageIndex ? "bg-level-4" : i === stageIndex ? "bg-true-blue" : "bg-line"
                   }`}
                 />
                 {stage.text}
@@ -138,14 +138,14 @@ export default function GeneratePathCard({
       ) : (
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0a7391] text-white">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-true-blue text-white">
               <Footprints size={22} aria-hidden="true" />
             </div>
             <div>
-              <p className="font-serif text-xl text-[#102331]">
+              <p className="font-display font-medium text-xl text-ink">
                 {planTitle ? `No path yet for “${planTitle}”` : "This plan doesn't have a path yet"}
               </p>
-              <p className="mt-1 max-w-xl text-sm leading-6 text-[#58727f]">
+              <p className="mt-1 max-w-xl text-sm leading-6 text-muted">
                 We&apos;ll turn this plan into 5–10 focused steps — knowledge checks, coached practice
                 and live sessions — aimed at your weakest competencies first.
               </p>

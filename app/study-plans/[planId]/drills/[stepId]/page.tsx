@@ -54,24 +54,24 @@ export default function VoiceDrillPage() {
   }, [params.stepId, router]);
 
   return (
-    <div className="h-dvh overflow-y-auto bg-[#f8fbfc]">
+    <div className="h-dvh overflow-y-auto bg-canvas">
       {drill ? (
         <VoiceDrillShell planId={params.planId} stepId={params.stepId} initialDrill={drill} />
       ) : (
         <div className="mx-auto max-w-3xl px-4 py-8">
           <Link
             href={`/study-plans/${params.planId}`}
-            className="inline-flex items-center gap-1 text-sm text-[#58727f] hover:text-[#0a7391]"
+            className="inline-flex items-center gap-1 text-sm text-muted hover:text-true-blue"
           >
             <ArrowLeft size={14} aria-hidden="true" /> Back to the path
           </Link>
           <div className="mt-6">
             {error ? (
-              <p role="alert" className="rounded-xl border border-[#f0c9c9] bg-[#fdf3f3] p-4 text-sm text-[#8a2b2b]">
+              <p role="alert" className="rounded-xl border border-copper/30 bg-copper/8 p-4 text-sm text-copper">
                 {error}
               </p>
             ) : (
-              <div className="flex items-center gap-3 text-sm text-[#58727f]">
+              <div className="flex items-center gap-3 text-sm text-muted">
                 <Spinner size="sm" /> Loading your drill…
               </div>
             )}

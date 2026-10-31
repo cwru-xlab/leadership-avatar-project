@@ -16,6 +16,7 @@
  * `/case-play/[caseId]`), where the new scenario is immediately startable.
  */
 
+import StepTracker from "@/components/shell/StepTracker";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
@@ -202,49 +203,22 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
 
   return (
     <div>
-      <div className="mb-8 flex items-center gap-2" aria-label="Scenario builder progress">
-        {STEPS.map((s, index) => (
-          <div key={s.id} className="flex flex-1 items-center gap-2">
-            <div
-              className={`flex items-center gap-2 text-xs font-semibold ${
-                s.id === step
-                  ? "text-[#08718d]"
-                  : index < stepIndex
-                    ? "text-[#327b68]"
-                    : "text-[#78909b]"
-              }`}
-            >
-              <span
-                className={`grid h-6 w-6 place-items-center rounded-full border text-[10px] ${
-                  s.id === step
-                    ? "border-[#08718d] bg-[#08718d] text-white"
-                    : index < stepIndex
-                      ? "border-[#74bba8] bg-[#e5f5ee]"
-                      : "border-[#b8cbd3]"
-                }`}
-              >
-                {index < stepIndex ? <Check size={13} /> : s.number}
-              </span>
-              <span className="hidden sm:inline">{s.label}</span>
-            </div>
-            {index < STEPS.length - 1 && <div className="h-px flex-1 bg-[#ccdce3]" />}
-          </div>
-        ))}
+      <div className="mb-8">
+        <StepTracker ariaLabel="Scenario builder progress" current={stepIndex} labels={STEPS.map((s) => s.label)} />
       </div>
 
       {step === "situation" && (
         <section aria-labelledby="situation-heading">
-          <p className="text-sm font-semibold text-[#0a7391]">Step 1 of 4</p>
-          <h2 id="situation-heading" className="mt-1 font-serif text-3xl tracking-[-0.03em]">
-            Set the situation.
+          <h2 id="situation-heading" className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]">
+            Set the situation
           </h2>
-          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#58727f]">
+          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-muted">
             This is the background every character in the roleplay already knows —
             what has happened, what is at stake, and where the conversation begins.
           </p>
 
           <div className="mt-7 grid max-w-2xl gap-6">
-            <Input
+            <Input variant="bordered"
               label="Scenario name"
               placeholder="e.g. Turning around a missed deadline"
               value={name}
@@ -253,7 +227,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
               errorMessage={fieldErrors.name}
             />
             <div>
-              <Textarea
+              <Textarea variant="bordered"
                 label="Situation"
                 placeholder="Describe what's happening and what each character already knows..."
                 minRows={8}
@@ -262,7 +236,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
                 isInvalid={!!fieldErrors.backgroundInfo}
                 errorMessage={fieldErrors.backgroundInfo}
               />
-              <p className="mt-2 text-xs text-[#78909b]">
+              <p className="mt-2 text-xs text-muted">
                 {backgroundInfo.trim().length} / {SCENARIO_LIMITS.BACKGROUND_MIN} characters
                 minimum
               </p>
@@ -285,11 +259,10 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
 
       {step === "characters" && (
         <section aria-labelledby="characters-heading">
-          <p className="text-sm font-semibold text-[#0a7391]">Step 2 of 4</p>
-          <h2 id="characters-heading" className="mt-1 font-serif text-3xl tracking-[-0.03em]">
-            Add your characters.
+          <h2 id="characters-heading" className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]">
+            Add your characters
           </h2>
-          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#58727f]">
+          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-muted">
             Each character needs an avatar, a name, and a role. What you write in
             &quot;private briefing&quot; is known only to that character — the student
             practicing this scenario will never see it.
@@ -297,10 +270,10 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
 
           <div className="mt-7 grid gap-6">
             {avatars.map((avatar, index) => (
-              <Card key={avatar.id} className="border border-[#d4e2e9] shadow-none">
+              <Card key={avatar.id} className="border border-line shadow-none">
                 <CardBody className="gap-5 p-6">
                   <div className="flex items-center justify-between">
-                    <p className="font-serif text-xl">Character {index + 1}</p>
+                    <p className="font-display font-medium text-xl">Character {index + 1}</p>
                     <Button
                       size="sm"
                       variant="light"
@@ -321,14 +294,14 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
                   />
 
                   <div className="grid gap-5 sm:grid-cols-2">
-                    <Input
+                    <Input variant="bordered"
                       label="Character name"
                       value={avatar.name}
                       onValueChange={(value) => updateCharacter(avatar.id, { name: value })}
                       isInvalid={!!fieldErrors[`avatars[${index}].name`]}
                       errorMessage={fieldErrors[`avatars[${index}].name`]}
                     />
-                    <Input
+                    <Input variant="bordered"
                       label="Role"
                       placeholder="e.g. Direct report"
                       value={avatar.role}
@@ -338,7 +311,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
                     />
                   </div>
 
-                  <Textarea
+                  <Textarea variant="bordered"
                     label="Private briefing (only this character knows this)"
                     placeholder="What this character believes, wants, or is hiding..."
                     minRows={3}
@@ -377,11 +350,10 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
 
       {step === "criteria" && (
         <section aria-labelledby="criteria-heading">
-          <p className="text-sm font-semibold text-[#0a7391]">Step 3 of 4</p>
-          <h2 id="criteria-heading" className="mt-1 font-serif text-3xl tracking-[-0.03em]">
-            Set your criteria.
+          <h2 id="criteria-heading" className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]">
+            Set your criteria
           </h2>
-          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#58727f]">
+          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-muted">
             Every run of this scenario is already graded on conversational
             adequacy and emotional intelligence by a standard rubric. What you
             write here is applied IN ADDITION to that rubric — it does not
@@ -390,7 +362,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
           </p>
 
           <div className="mt-7 max-w-2xl">
-            <Textarea
+            <Textarea variant="bordered"
               label="Additional criteria"
               placeholder="What should a strong response to this scenario look like?"
               minRows={8}
@@ -399,7 +371,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
               isInvalid={!!fieldErrors.evaluationPrompt}
               errorMessage={fieldErrors.evaluationPrompt}
             />
-            <p className="mt-2 text-xs text-[#78909b]">
+            <p className="mt-2 text-xs text-muted">
               {evaluationPrompt.trim().length} / {SCENARIO_LIMITS.EVALUATION_MIN} characters
               minimum
             </p>
@@ -424,50 +396,49 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
 
       {step === "review" && (
         <section aria-labelledby="review-heading">
-          <p className="text-sm font-semibold text-[#0a7391]">Step 4 of 4</p>
-          <h2 id="review-heading" className="mt-1 font-serif text-3xl tracking-[-0.03em]">
-            Review &amp; save.
+          <h2 id="review-heading" className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]">
+            Review &amp; save
           </h2>
-          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#58727f]">
+          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-muted">
             Check everything below, then save. Saving does not start a
             practice run — you&apos;ll launch it from your scenario list.
           </p>
 
           <div className="mt-7 grid max-w-2xl gap-5">
-            <Card className="border border-[#d4e2e9] shadow-none">
+            <Card className="border border-line shadow-none">
               <CardBody className="gap-2 p-6">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0a7391]">
+                <p className="text-xs font-bold text-true-blue">
                   Situation
                 </p>
-                <p className="font-serif text-xl">{name || "Untitled scenario"}</p>
-                <p className="whitespace-pre-wrap text-sm leading-6 text-[#526c7b]">
+                <p className="font-display font-medium text-xl">{name || "Untitled scenario"}</p>
+                <p className="whitespace-pre-wrap text-sm leading-6 text-muted">
                   {backgroundInfo}
                 </p>
               </CardBody>
             </Card>
 
-            <Card className="border border-[#d4e2e9] shadow-none">
+            <Card className="border border-line shadow-none">
               <CardBody className="gap-3 p-6">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0a7391]">
+                <p className="text-xs font-bold text-true-blue">
                   Characters ({avatars.length})
                 </p>
                 {avatars.map((avatar) => (
-                  <div key={avatar.id} className="border-t border-[#e0eaee] pt-3 first:border-0 first:pt-0">
-                    <p className="font-semibold text-[#183947]">
+                  <div key={avatar.id} className="border-t border-line pt-3 first:border-0 first:pt-0">
+                    <p className="font-semibold text-ink">
                       {avatar.name || "Unnamed character"}{" "}
-                      <span className="font-normal text-[#78909b]">· {avatar.role}</span>
+                      <span className="font-normal text-muted">· {avatar.role}</span>
                     </p>
                   </div>
                 ))}
               </CardBody>
             </Card>
 
-            <Card className="border border-[#d4e2e9] shadow-none">
+            <Card className="border border-line shadow-none">
               <CardBody className="gap-2 p-6">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0a7391]">
+                <p className="text-xs font-bold text-true-blue">
                   Criteria
                 </p>
-                <p className="whitespace-pre-wrap text-sm leading-6 text-[#526c7b]">
+                <p className="whitespace-pre-wrap text-sm leading-6 text-muted">
                   {evaluationPrompt}
                 </p>
               </CardBody>
@@ -491,13 +462,13 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
         </section>
       )}
 
-      <div className="mt-10 border-t border-[#e0eaee] pt-6">
+      <div className="mt-10 border-t border-line pt-6">
         <button
           type="button"
-          className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[#78909b] transition-colors hover:text-[#0a7391] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
+          className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-true-blue focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue"
           onClick={handleCancel}
         >
-          <ArrowLeft size={16} /> Cancel and return to scenarios
+          <ArrowLeft size={16} /> Cancel
         </button>
       </div>
     </div>

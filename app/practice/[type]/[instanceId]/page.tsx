@@ -37,7 +37,16 @@ import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
 import { addToast } from "@heroui/toast";
-import { ArrowLeft, CircleAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  Briefcase,
+  CircleAlert,
+  FileChartColumn,
+  MessageCircleWarning,
+  UserRound,
+  Users,
+} from "lucide-react";
+import PracticeHero from "@/components/practice/PracticeHero";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -223,14 +232,14 @@ export default function PracticeInstancePage() {
   // /practice/[type]). Handled, never crashed.
   if (!engineType || !engineType.instance.required) {
     return (
-      <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa] p-6 text-[#102331]">
-        <Card className="max-w-lg border border-[#d4e2e9] shadow-none">
+      <main className="grid min-h-[100dvh] place-items-center bg-canvas p-6 text-ink">
+        <Card className="max-w-lg border border-line shadow-none">
           <CardBody className="items-start gap-4 p-8">
-            <CircleAlert className="text-[#0a7391]" size={28} />
-            <h1 className="font-serif text-3xl">
+            <CircleAlert className="text-true-blue" size={28} />
+            <h1 className="font-display font-medium text-3xl">
               That practice type is not available.
             </h1>
-            <p className="text-[#526c7b]">
+            <p className="text-muted">
               Choose a practice session from your Leadership Avatar workspace.
             </p>
             <Button color="primary" onPress={() => router.push("/")}>
@@ -244,7 +253,7 @@ export default function PracticeInstancePage() {
 
   if (loading) {
     return (
-      <main className="grid min-h-[100dvh] place-items-center bg-[#f5f8fa]">
+      <main className="grid min-h-[100dvh] place-items-center bg-canvas">
         <Spinner
           color="primary"
           label={
@@ -260,7 +269,7 @@ export default function PracticeInstancePage() {
   if (isDifficultConversation) {
     if (!dcInstance || loadError || !sessionConfig || !dcAvatarConfig) {
       return (
-        <main className="mx-auto max-w-4xl px-5 py-12 text-center text-[#102331]">
+        <main className="mx-auto max-w-4xl px-5 py-12 text-center text-ink">
           <p className="mb-4 text-lg text-danger">
             {loadError ?? "Conversation not found"}
           </p>
@@ -341,21 +350,20 @@ export default function PracticeInstancePage() {
     }
 
     return (
-      <main className="min-h-[100dvh] overflow-hidden bg-[#f5f8fa] text-[#102331]">
-        <div className="relative isolate overflow-hidden border-b border-[#d8e6ec] bg-[#eaf5f8]">
-          <div className="absolute -right-24 top-[-150px] h-96 w-96 rounded-full bg-[#a9ddeb]/60 blur-3xl" />
-          <div className="relative mx-auto max-w-6xl px-5 pb-10 pt-7 sm:px-8">
-            <button
-              type="button"
-              className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[#47616f] transition-colors hover:text-[#0a7391] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
-              onClick={() => router.push("/conversations")}
-            >
-              <ArrowLeft size={16} /> Back to Conversations
-            </button>
-          </div>
-        </div>
-
-        <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
+      <div className="flex flex-col gap-6">
+        <PracticeHero
+          backHref="/conversations"
+          backLabel="Courageous conversations"
+          description="A live conversation: they answer in character and push back, then you get a scored report."
+          facts={[
+            { icon: UserRound, label: `They: ${dcInstance.role}` },
+            ...(dcInstance.studentRole ? [{ icon: Users, label: `You: ${dcInstance.studentRole}` }] : []),
+            { icon: FileChartColumn, label: "Scored report" },
+          ]}
+          icon={MessageCircleWarning}
+          title="Courageous conversation"
+        />
+        <div className="flex flex-col gap-6">
           {planPrefill.info ? <ProveItBrief info={planPrefill.info} /> : null}
           <SetupWizard
             typeSlug={engineType.slug}
@@ -401,14 +409,14 @@ export default function PracticeInstancePage() {
             }}
           />
         </div>
-      </main>
+      </div>
     );
   }
 
   // ---- case-study path (unchanged shape) ----
   if (!caseData || loadError || !sessionConfig) {
     return (
-      <main className="mx-auto max-w-4xl px-5 py-12 text-center text-[#102331]">
+      <main className="mx-auto max-w-4xl px-5 py-12 text-center text-ink">
         <p className="mb-4 text-lg text-danger">
           {loadError ?? "Case not found"}
         </p>
@@ -425,7 +433,7 @@ export default function PracticeInstancePage() {
   // Playability: student-authored only (ownerId). Admin cases stay on /case-play.
   if (!caseData.ownerId) {
     return (
-      <main className="mx-auto max-w-4xl px-5 py-12 text-center text-[#102331]">
+      <main className="mx-auto max-w-4xl px-5 py-12 text-center text-ink">
         <p className="mb-4 text-lg text-danger">
           This scenario is not available.
         </p>
@@ -468,21 +476,19 @@ export default function PracticeInstancePage() {
   }
 
   return (
-    <main className="min-h-[100dvh] overflow-hidden bg-[#f5f8fa] text-[#102331]">
-      <div className="relative isolate overflow-hidden border-b border-[#d8e6ec] bg-[#eaf5f8]">
-        <div className="absolute -right-24 top-[-150px] h-96 w-96 rounded-full bg-[#a9ddeb]/60 blur-3xl" />
-        <div className="relative mx-auto max-w-6xl px-5 pb-10 pt-7 sm:px-8">
-          <button
-            type="button"
-            className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[#47616f] transition-colors hover:text-[#0a7391] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
-            onClick={() => router.push("/case-play")}
-          >
-            <ArrowLeft size={16} /> Back to Cases
-          </button>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
+    <div className="flex flex-col gap-6">
+      <PracticeHero
+        backHref="/case-play"
+        backLabel="Case studies"
+        description={<span className="line-clamp-3">{caseData.backgroundInfo}</span>}
+        facts={[
+          { icon: Users, label: `${caseData.avatars.length} character${caseData.avatars.length === 1 ? "" : "s"}` },
+          { icon: FileChartColumn, label: "Scored report" },
+        ]}
+        icon={Briefcase}
+        title={caseData.name}
+      />
+      <div className="flex flex-col gap-6">
         {planPrefill.info ? <ProveItBrief info={planPrefill.info} /> : null}
         <SetupWizard
           typeSlug={engineType.slug}
@@ -531,6 +537,6 @@ export default function PracticeInstancePage() {
           }}
         />
       </div>
-    </main>
+    </div>
   );
 }
