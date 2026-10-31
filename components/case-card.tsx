@@ -1,7 +1,6 @@
 "use client";
 
-import { Card, CardBody } from "@heroui/card";
-import { Briefcase } from "lucide-react";
+import LibraryCard from "@/components/practice/LibraryCard";
 import type { CaseStudy } from "@/types";
 
 interface CaseCardProps {
@@ -9,53 +8,22 @@ interface CaseCardProps {
   onClick: (caseId: string) => void;
 }
 
+/** A staff-written case study in the /case-play library. */
 export default function CaseCard({ caseStudy, onClick }: CaseCardProps) {
-  const handleCardClick = () => {
-    onClick(caseStudy.id);
-  };
-
+  const count = caseStudy.avatars.length;
   return (
-    <Card
-      className="h-full cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden group"
-      isPressable
-      onPress={handleCardClick}
+    <button
+      className="group h-full w-full rounded-2xl text-left outline-none focus-visible:ring-2 focus-visible:ring-true-blue"
+      type="button"
+      onClick={() => onClick(caseStudy.id)}
     >
-      {/* Background Cover Image */}
-      <div 
-        className="relative h-52 bg-gradient-to-br from-primary-500 to-primary-700"
-        style={caseStudy.coverImage ? {
-          backgroundImage: `url(${caseStudy.coverImage})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        } : undefined}
-      >
-        {/* Overlay for better text readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-        
-        {/* Case name on the image */}
-        <div className="absolute bottom-0 left-0 right-0 p-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center flex-shrink-0">
-              <Briefcase className="w-4 h-4 text-white" />
-            </div>
-            <h3 className="text-white font-semibold text-lg truncate drop-shadow-md">
-              {caseStudy.name}
-            </h3>
-          </div>
-        </div>
-      </div>
-      
-      <CardBody className="px-4 py-3.5 gap-2">
-        <p className="text-xs text-default-400 font-mono truncate">
-          {caseStudy.id}
-        </p>
-        <p className="text-sm text-default-600 line-clamp-2 leading-relaxed">
-          {caseStudy.backgroundInfo}
-        </p>
-        <p className="text-xs text-default-400">
-          {caseStudy.avatars.length} avatar{caseStudy.avatars.length !== 1 ? "s" : ""}
-        </p>
-      </CardBody>
-    </Card>
+      <LibraryCard
+        characters={caseStudy.avatars.map((a) => ({ name: a.name, role: a.role }))}
+        coverImage={caseStudy.coverImage}
+        footer={`${count} character${count !== 1 ? "s" : ""}`}
+        summary={caseStudy.backgroundInfo}
+        title={caseStudy.name}
+      />
+    </button>
   );
 }

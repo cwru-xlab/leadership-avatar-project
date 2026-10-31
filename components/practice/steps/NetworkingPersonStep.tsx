@@ -350,17 +350,17 @@ export default function NetworkingPersonStep({
     <section aria-labelledby="networking-person-heading">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#0a7391]">
+          <p className="text-sm font-semibold text-true-blue">
             Step {nav.stepNumber} of {nav.totalSteps}
           </p>
           <h2
-            className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+            className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             id="networking-person-heading"
           >
             Who are you meeting?
           </h2>
         </div>
-        <p className="max-w-md text-sm leading-6 text-[#58727f]">
+        <p className="max-w-md text-sm leading-6 text-muted">
           Pick a built-in character, or bring in someone real. You choose the
           face and voice on the next steps.
         </p>
@@ -369,34 +369,34 @@ export default function NetworkingPersonStep({
       <div className="grid gap-4 sm:grid-cols-2">
         <button
           aria-pressed={branch === "character"}
-          className={`rounded-2xl border p-6 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${
+          className={`rounded-xl border p-6 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue ${
             branch === "character"
-              ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]"
-              : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"
+              ? "border-true-blue bg-light-blue/22"
+              : "border-line bg-white hover:border-true-blue/50 hover:shadow-md"
           }`}
           type="button"
           onClick={() => selectBranch("character")}
         >
-          <Users className="mb-3 text-[#0a7391]" size={22} />
-          <h3 className="font-serif text-2xl">Pick someone to practice with</h3>
-          <p className="mt-2 text-sm leading-6 text-[#58727f]">
+          <Users className="mb-3 text-true-blue" size={22} />
+          <h3 className="font-display font-medium text-2xl">Pick someone to practice with</h3>
+          <p className="mt-2 text-sm leading-6 text-muted">
             Five fictional professionals — no pasting, no authoring.
           </p>
         </button>
 
         <button
           aria-pressed={branch === "bring-in"}
-          className={`rounded-2xl border p-6 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${
+          className={`rounded-xl border p-6 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue ${
             branch === "bring-in"
-              ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]"
-              : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"
+              ? "border-true-blue bg-light-blue/22"
+              : "border-line bg-white hover:border-true-blue/50 hover:shadow-md"
           }`}
           type="button"
           onClick={() => selectBranch("bring-in")}
         >
-          <UserPlus className="mb-3 text-[#0a7391]" size={22} />
-          <h3 className="font-serif text-2xl">Bring in someone real</h3>
-          <p className="mt-2 text-sm leading-6 text-[#58727f]">
+          <UserPlus className="mb-3 text-true-blue" size={22} />
+          <h3 className="font-display font-medium text-2xl">Bring in someone real</h3>
+          <p className="mt-2 text-sm leading-6 text-muted">
             Paste, write, or generate a description — then confirm the
             agreement.
           </p>
@@ -418,10 +418,10 @@ export default function NetworkingPersonStep({
                 <button
                   key={character.id}
                   aria-pressed={selected}
-                  className={`relative min-h-48 rounded-2xl border p-5 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${
+                  className={`relative min-h-48 rounded-xl border p-5 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue ${
                     selected
-                      ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]"
-                      : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"
+                      ? "border-true-blue bg-light-blue/22"
+                      : "border-line bg-white hover:border-true-blue/50 hover:shadow-md"
                   }`}
                   type="button"
                   onClick={() => selectCharacter(character.id)}
@@ -436,18 +436,18 @@ export default function NetworkingPersonStep({
                       </Chip>
                     </div>
                     {selected && (
-                      <span className="grid h-6 w-6 place-items-center rounded-full bg-[#79d4b1] text-[#0b3029]">
+                      <span className="grid h-6 w-6 place-items-center rounded-full bg-level-4 text-ink">
                         <Check size={15} />
                       </span>
                     )}
                   </div>
-                  <h3 className="font-serif text-2xl">
+                  <h3 className="font-display font-medium text-2xl">
                     {character.displayName}
                   </h3>
-                  <p className="mt-1 text-sm font-medium text-[#0a7391]">
+                  <p className="mt-1 text-sm font-medium text-true-blue">
                     {character.headline}
                   </p>
-                  <p className="mt-3 text-sm leading-6 text-[#58727f]">
+                  <p className="mt-3 text-sm leading-6 text-muted">
                     {character.blurb}
                   </p>
                 </button>
@@ -459,9 +459,9 @@ export default function NetworkingPersonStep({
 
       {branch === "bring-in" && (
         <div className="mt-8 space-y-6">
-          <div className="rounded-2xl border border-[#d4e2e9] bg-white p-5 sm:p-6">
-            <h3 className="font-serif text-xl">Saved people</h3>
-            <p className="mt-1 text-sm text-[#58727f]">
+          <div className="rounded-xl border border-line bg-white p-5 sm:p-6">
+            <h3 className="font-display font-medium text-xl">Saved people</h3>
+            <p className="mt-1 text-sm text-muted">
               Relaunch without re-pasting. No share or publish options — these
               stay yours.
             </p>
@@ -483,7 +483,7 @@ export default function NetworkingPersonStep({
                 </CardBody>
               </Card>
             ) : savedPersonas.length === 0 ? (
-              <p className="mt-4 text-sm text-[#6a8491]">
+              <p className="mt-4 text-sm text-muted">
                 No saved people yet. Bring someone in below.
               </p>
             ) : (
@@ -495,26 +495,26 @@ export default function NetworkingPersonStep({
                     <li key={persona.personaId}>
                       <button
                         aria-pressed={selected}
-                        className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${
+                        className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue ${
                           selected
-                            ? "border-[#0a7391] bg-[#edf9fc]"
-                            : "border-[#d4e2e9] bg-[#f7fbfc] hover:border-[#82bdcf]"
+                            ? "border-true-blue bg-light-blue/22"
+                            : "border-line bg-canvas hover:border-true-blue/50"
                         }`}
                         type="button"
                         onClick={() => selectSavedPersona(persona.personaId)}
                       >
                         <div>
-                          <p className="font-medium text-[#183947]">
+                          <p className="font-medium text-ink">
                             {persona.displayName}
                           </p>
-                          <p className="text-xs text-[#6a8491]">
+                          <p className="text-xs text-muted">
                             {persona.source} ·{" "}
                             {new Date(persona.createdAt).toLocaleDateString()}
                           </p>
                         </div>
                         {selected && (
                           <Check
-                            className="shrink-0 text-[#0a7391]"
+                            className="shrink-0 text-true-blue"
                             size={18}
                           />
                         )}
@@ -526,10 +526,10 @@ export default function NetworkingPersonStep({
             )}
           </div>
 
-          <div className="rounded-2xl border border-[#d4e2e9] bg-white p-5 sm:p-6">
+          <div className="rounded-xl border border-line bg-white p-5 sm:p-6">
             <div
               aria-label="How to describe this person"
-              className="inline-flex rounded-xl border border-[#d4e2e9] bg-[#f7fbfc] p-1"
+              className="inline-flex rounded-xl border border-line bg-canvas p-1"
               role="tablist"
             >
               {(
@@ -542,10 +542,10 @@ export default function NetworkingPersonStep({
                 <button
                   key={mode}
                   aria-selected={inputMode === mode}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a7391] ${
+                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue ${
                     inputMode === mode
-                      ? "bg-white text-[#0a7391] shadow-sm"
-                      : "text-[#526c7b] hover:text-[#183947]"
+                      ? "bg-white text-true-blue shadow-sm"
+                      : "text-muted hover:text-ink"
                   }`}
                   role="tab"
                   type="button"
@@ -565,7 +565,7 @@ export default function NetworkingPersonStep({
                   className="flex-1"
                   classNames={{
                     inputWrapper:
-                      "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none",
+                      "border border-line bg-canvas shadow-none",
                   }}
                   label="Hint"
                   labelPlacement="outside"
@@ -594,7 +594,7 @@ export default function NetworkingPersonStep({
                 aria-label="Person description"
                 classNames={{
                   inputWrapper:
-                    "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none data-[hover=true]:bg-[#f7fbfc]",
+                    "border border-line bg-canvas shadow-none data-[hover=true]:bg-canvas",
                 }}
                 maxRows={12}
                 minRows={5}
@@ -608,7 +608,7 @@ export default function NetworkingPersonStep({
               <Input
                 classNames={{
                   inputWrapper:
-                    "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none",
+                    "border border-line bg-canvas shadow-none",
                 }}
                 label="Display name"
                 labelPlacement="outside"
@@ -619,7 +619,7 @@ export default function NetworkingPersonStep({
               />
             </div>
 
-            <div className="mt-5 rounded-xl border border-[#d4e2e9] bg-[#f7fbfc] p-4">
+            <div className="mt-5 rounded-xl border border-line bg-canvas p-4">
               {wordingLoading ? (
                 <div className="grid min-h-16 place-items-center">
                   <Spinner color="primary" size="sm" />
@@ -640,7 +640,7 @@ export default function NetworkingPersonStep({
                 </div>
               ) : (
                 <Checkbox
-                  classNames={{ label: "text-sm leading-6 text-[#183947]" }}
+                  classNames={{ label: "text-sm leading-6 text-ink" }}
                   isSelected={attested}
                   onValueChange={setAttested}
                 >
@@ -656,11 +656,11 @@ export default function NetworkingPersonStep({
             )}
 
             {distilledPreview && (
-              <div className="mt-4 rounded-xl border border-[#b7ddd0] bg-[#f0faf5] p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#0b6b4f]">
+              <div className="mt-4 rounded-xl border border-level-4/40 bg-level-4/8 p-4">
+                <p className="text-xs font-semibold text-level-4">
                   What the avatar will be given
                 </p>
-                <p className="mt-2 text-sm leading-6 text-[#183947]">
+                <p className="mt-2 text-sm leading-6 text-ink">
                   {distilledPreview}
                 </p>
               </div>

@@ -1,10 +1,16 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Card, CardBody } from "@heroui/card";
-import { Chip } from "@heroui/chip";
-import { Check, Clock3 } from "lucide-react";
+import { Briefcase, Check, Clock3, Cpu, GraduationCap, Lightbulb, type LucideIcon } from "lucide-react";
 import type { InterviewType } from "@/lib/interview/types";
+
+/** One picture per preset; an unknown slug falls back to the briefcase. */
+const PRESET_ICONS: Record<string, LucideIcon> = {
+  general: Briefcase,
+  technical: Cpu,
+  consulting: Lightbulb,
+  "early-career": GraduationCap,
+};
 
 /**
  * A single preset card in the picker index (`app/interview/page.tsx`).
@@ -26,59 +32,56 @@ export default function PresetCard({
   onSelect: () => void;
   children?: ReactNode;
 }) {
+  const Icon = PRESET_ICONS[interviewType.slug] ?? Briefcase;
   return (
-    <Card
-      className={`border shadow-none transition-colors ${
-        active ? "border-[#0a7391] bg-[#edf9fc]" : "border-[#d4e2e9] bg-white"
+    <div
+      className={`flex flex-col gap-4 rounded-2xl p-5 transition-colors duration-150 ease-out ${
+        active ? "border-2 border-true-blue bg-light-blue/22" : "border border-line bg-white hover:border-true-blue/50"
       }`}
     >
-      <CardBody className="gap-4 p-6">
-        <button
-          type="button"
-          aria-pressed={active}
-          onClick={onSelect}
-          className="flex w-full flex-col gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-serif text-2xl tracking-[-0.02em] text-[#102331]">
-              {interviewType.label}
-            </h3>
-            {active && (
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#0a7391] text-white">
-                <Check size={14} />
-              </span>
-            )}
-          </div>
-          <p className="text-[15px] leading-6 text-[#526c7b]">{interviewType.description}</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Chip size="sm" variant="flat" className="bg-[#e0f3f9] text-[#08718d]">
-              {interviewType.difficulty}
-            </Chip>
-            <Chip
-              size="sm"
-              variant="flat"
-              className="gap-1 bg-[#e0f3f9] text-[#08718d]"
-              startContent={<Clock3 size={13} />}
-            >
-              {`~${interviewType.targetMinutes} min`}
-            </Chip>
-          </div>
-          {interviewType.questionAreas && interviewType.questionAreas.length > 0 && (
-            <ul className="flex flex-wrap gap-2 text-xs text-[#58727f]">
-              {interviewType.questionAreas.map((area) => (
-                <li
-                  key={area}
-                  className="rounded-full border border-[#d4e2e9] bg-[#f5f8fa] px-2.5 py-1"
-                >
-                  {area}
-                </li>
-              ))}
-            </ul>
+      <button
+        type="button"
+        aria-pressed={active}
+        onClick={onSelect}
+        className="flex w-full flex-col gap-3 rounded-lg text-left focus-visible:outline-true-blue"
+      >
+        <div className="flex items-center gap-3.5">
+          <span
+            className={`grid size-12 shrink-0 place-items-center rounded-[14px] ${
+              active ? "bg-cwru-blue text-white" : "bg-light-blue/35 text-cwru-blue"
+            }`}
+          >
+            <Icon aria-hidden size={24} strokeWidth={1.75} />
+          </span>
+          <h3 className="flex-1 font-display text-[22px] font-medium leading-tight text-cwru-blue">
+            {interviewType.label}
+          </h3>
+          {active ? (
+            <span className="grid size-[26px] shrink-0 place-items-center rounded-full bg-true-blue text-white">
+              <Check aria-hidden size={15} strokeWidth={3} />
+            </span>
+          ) : (
+            <span aria-hidden className="size-[26px] shrink-0 rounded-full border-2 border-line" />
           )}
-        </button>
+        </div>
+        <p className="text-[14.5px] leading-6 text-muted">{interviewType.description}</p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full bg-light-blue/32 px-2.5 py-1 text-xs font-semibold capitalize text-cwru-blue">
+            {interviewType.difficulty}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-light-blue/32 px-2.5 py-1 text-xs font-semibold text-cwru-blue">
+            <Clock3 aria-hidden size={13} />
+            {`~${interviewType.targetMinutes} min`}
+          </span>
+          {interviewType.questionAreas?.map((area) => (
+            <span key={area} className="rounded-full bg-canvas px-2.5 py-1 text-xs text-ink">
+              {area}
+            </span>
+          ))}
+        </div>
+      </button>
 
-        {active && children}
-      </CardBody>
-    </Card>
+      {active && children}
+    </div>
   );
 }

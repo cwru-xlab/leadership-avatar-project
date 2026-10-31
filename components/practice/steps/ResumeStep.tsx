@@ -82,22 +82,22 @@ export default function ResumeStep({
 
   return (
     <section className="mx-auto max-w-3xl" aria-labelledby="resume-heading">
-      <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
+      <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <div className="flex items-start gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#e0f3f9] text-[#08718d]">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-light-blue/32 text-true-blue">
             <FileUp size={21} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-[#0a7391]">
+            <p className="text-sm font-semibold text-true-blue">
               Step {nav.stepNumber} of {nav.totalSteps}
             </p>
             <h2
               id="resume-heading"
-              className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+              className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             >
               Bring your resume into the room.
             </h2>
-            <p className="mt-3 max-w-xl text-[15px] leading-7 text-[#58727f]">
+            <p className="mt-3 max-w-xl text-[15px] leading-7 text-muted">
               Your interviewer will ask grounded follow-ups about your
               experience. PDFs stay private and are never shown to other
               students.
@@ -106,7 +106,7 @@ export default function ResumeStep({
         </div>
 
         {resumeId ? (
-          <div className="mt-7 flex items-center gap-3 rounded-xl border border-[#b7e3d4] bg-[#effaf5] p-4 text-[#185b49]">
+          <div className="mt-7 flex items-center gap-3 rounded-xl border border-level-4/40 bg-level-4/10 p-4 text-level-4">
             <FileCheck2 size={20} />
             <div>
               <p className="font-semibold">{resumeFileName}</p>
@@ -115,17 +115,17 @@ export default function ResumeStep({
           </div>
         ) : (
           <label
-            className={`mt-7 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${uploadingResume ? "border-[#a8c9d5] bg-[#f6fafb]" : "border-[#bad1db] hover:border-[#0a7391] hover:bg-[#f4fbfd]"}`}
+            className={`mt-7 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 text-center transition-colors ${uploadingResume ? "border-light-blue bg-canvas" : "border-line hover:border-true-blue hover:bg-canvas"}`}
           >
             {uploadingResume ? (
               <Spinner color="primary" />
             ) : (
-              <FileUp className="text-[#0a7391]" size={28} />
+              <FileUp className="text-true-blue" size={28} />
             )}
             <span className="mt-3 font-semibold">
               {uploadingResume ? "Reading your PDF…" : "Upload a PDF resume"}
             </span>
-            <span className="mt-1 text-sm text-[#617b88]">PDF only · up to 10 MB</span>
+            <span className="mt-1 text-sm text-muted">PDF only · up to 10 MB</span>
             <input
               className="sr-only"
               type="file"
@@ -136,7 +136,7 @@ export default function ResumeStep({
           </label>
         )}
 
-        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6">
+        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-line pt-6">
           <Button variant="light" onPress={nav.goBack}>
             Back
           </Button>

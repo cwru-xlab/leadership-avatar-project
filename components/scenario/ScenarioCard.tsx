@@ -12,8 +12,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardBody } from "@heroui/card";
-import { Chip } from "@heroui/chip";
 import { Button } from "@heroui/button";
 import {
   Modal,
@@ -24,8 +22,9 @@ import {
   useDisclosure,
 } from "@heroui/modal";
 import { addToast } from "@heroui/toast";
-import { Briefcase, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { CaseStudy } from "@/types";
+import LibraryCard, { LibraryBadge } from "@/components/practice/LibraryCard";
 
 interface ScenarioCardProps {
   scenario: CaseStudy;
@@ -171,82 +170,25 @@ export default function ScenarioCard({
         tabIndex={0}
         onClick={handleCardClick}
         onKeyDown={handleCardKeyDown}
-        className="h-full cursor-pointer active:scale-[0.97] tap-highlight-transparent transition-transform outline-none focus-visible:ring-2 focus-visible:ring-focus rounded-large"
+        className="group h-full cursor-pointer rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-true-blue"
       >
-        <Card className="h-full hover:shadow-lg transition-all duration-200 overflow-hidden group">
-          <div
-            className="relative h-52 bg-gradient-to-br from-primary-500 to-primary-700"
-            style={
-              scenario.coverImage
-                ? {
-                    backgroundImage: `url(${scenario.coverImage})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }
-                : undefined
-            }
-          >
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-
-            <div className="absolute top-0 left-0 right-0 p-4 flex flex-wrap gap-1.5">
-              {owned ? (
-                <>
-                  <Chip size="sm" color="primary" variant="solid">
-                    Yours
-                  </Chip>
-                  {scenario.published ? (
-                    <Chip size="sm" color="success" variant="solid">
-                      Published
-                    </Chip>
-                  ) : (
-                    <Chip size="sm" color="default" variant="solid">
-                      Private
-                    </Chip>
-                  )}
-                </>
-              ) : (
-                <Chip size="sm" color="secondary" variant="solid">
-                  {scenario.createdBy
-                    ? `Shared by ${scenario.createdBy}`
-                    : "Shared by a classmate"}
-                </Chip>
-              )}
-            </div>
-
-            <div className="absolute bottom-0 left-0 right-0 p-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center flex-shrink-0">
-                  <Briefcase className="w-4 h-4 text-white" />
-                </div>
-                <h3 className="text-white font-semibold text-lg truncate drop-shadow-md">
-                  {scenario.name}
-                </h3>
-              </div>
-            </div>
-          </div>
-
-          <CardBody className="px-4 py-3.5 gap-2">
-            <p className="text-sm text-default-600 line-clamp-2 leading-relaxed">
-              {scenario.backgroundInfo}
-            </p>
-            <p className="text-xs text-default-400">
-              {characterCount} character{characterCount !== 1 ? "s" : ""}
-            </p>
-
-            {owned && (
-              <div className="flex flex-wrap gap-2 pt-1">
+        <LibraryCard
+          actions={
+            owned ? (
+              <>
                 <Button
                   size="sm"
-                  variant="flat"
-                  startContent={<Pencil className="w-3.5 h-3.5" />}
+                  variant="light"
+                  className="text-ink"
+                  startContent={<Pencil className="h-3.5 w-3.5" />}
                   onClick={handleEdit}
                 >
                   Edit
                 </Button>
                 <Button
                   size="sm"
-                  variant="flat"
-                  color={scenario.published ? "warning" : "primary"}
+                  variant="light"
+                  className="text-true-blue"
                   isDisabled={isPublishing}
                   onClick={handleTogglePublish}
                 >
@@ -254,18 +196,37 @@ export default function ScenarioCard({
                 </Button>
                 <Button
                   size="sm"
-                  variant="flat"
-                  color="danger"
-                  startContent={<Trash2 className="w-3.5 h-3.5" />}
+                  variant="light"
+                  className="ml-auto text-copper"
+                  startContent={<Trash2 className="h-3.5 w-3.5" />}
                   isDisabled={isDeleting}
                   onClick={handleDeleteClick}
                 >
                   Delete
                 </Button>
-              </div>
-            )}
-          </CardBody>
-        </Card>
+              </>
+            ) : undefined
+          }
+          badges={
+            owned ? (
+              <>
+                <LibraryBadge tone="brand">Yours</LibraryBadge>
+                <LibraryBadge tone={scenario.published ? "good" : "neutral"}>
+                  {scenario.published ? "Published" : "Private"}
+                </LibraryBadge>
+              </>
+            ) : (
+              <LibraryBadge>
+                {scenario.createdBy ? `Shared by ${scenario.createdBy}` : "Shared by a classmate"}
+              </LibraryBadge>
+            )
+          }
+          characters={scenario.avatars.map((a) => ({ name: a.name, role: a.role }))}
+          coverImage={scenario.coverImage}
+          footer={`${characterCount} character${characterCount !== 1 ? "s" : ""}`}
+          summary={scenario.backgroundInfo}
+          title={scenario.name}
+        />
       </div>
 
       <Modal

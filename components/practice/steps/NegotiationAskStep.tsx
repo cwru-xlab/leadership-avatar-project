@@ -87,30 +87,30 @@ export default function NegotiationAskStep({
     >
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#0a7391]">
+          <p className="text-sm font-semibold text-true-blue">
             Step {nav.stepNumber} of {nav.totalSteps}
           </p>
           <h2
             id="negotiation-ask-heading"
-            className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+            className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
           >
             What are you asking for?
           </h2>
         </div>
-        <p className="max-w-md text-sm leading-6 text-[#58727f]">
+        <p className="max-w-md text-sm leading-6 text-muted">
           Be clear up front about what you want from the investor, then defend
           it. Your ask stays fixed for the meeting.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
+      <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <div className="grid gap-6 sm:grid-cols-2">
           <div>
             <Input
               label="Investment amount"
               labelPlacement="outside"
               startContent={
-                <span className="text-sm text-[#6a8491]" aria-hidden>
+                <span className="text-sm text-muted" aria-hidden>
                   $
                 </span>
               }
@@ -128,19 +128,19 @@ export default function NegotiationAskStep({
               }
               classNames={{
                 inputWrapper:
-                  "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none data-[hover=true]:bg-[#f7fbfc]",
+                  "border border-line bg-canvas shadow-none data-[hover=true]:bg-canvas",
               }}
             />
             {attempted && !priceOk ? (
               <p
                 id="ask-price-error"
-                className="mt-2 text-xs text-[#b4540f]"
+                className="mt-2 text-xs text-copper"
                 role="alert"
               >
                 Enter a positive dollar amount — for example 500000.
               </p>
             ) : (
-              <p className="mt-2 text-xs text-[#6a8491]">USD, whole dollars.</p>
+              <p className="mt-2 text-xs text-muted">USD, whole dollars.</p>
             )}
           </div>
 
@@ -149,7 +149,7 @@ export default function NegotiationAskStep({
               label="Equity offered"
               labelPlacement="outside"
               endContent={
-                <span className="text-sm text-[#6a8491]" aria-hidden>
+                <span className="text-sm text-muted" aria-hidden>
                   %
                 </span>
               }
@@ -163,26 +163,26 @@ export default function NegotiationAskStep({
               }
               classNames={{
                 inputWrapper:
-                  "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none data-[hover=true]:bg-[#f7fbfc]",
+                  "border border-line bg-canvas shadow-none data-[hover=true]:bg-canvas",
               }}
             />
             {attempted && !equityOk ? (
               <p
                 id="ask-equity-error"
-                className="mt-2 text-xs text-[#b4540f]"
+                className="mt-2 text-xs text-copper"
                 role="alert"
               >
                 Enter a percent greater than 0 and less than 100.
               </p>
             ) : (
-              <p className="mt-2 text-xs text-[#6a8491]">
+              <p className="mt-2 text-xs text-muted">
                 Between 0 and 100 — exclusive.
               </p>
             )}
           </div>
         </div>
 
-        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-[#e0eaee] pt-6">
+        <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-line pt-6">
           <Button
             variant="light"
             onPress={() => {

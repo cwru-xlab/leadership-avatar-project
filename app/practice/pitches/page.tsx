@@ -12,8 +12,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import {
-  ArrowLeft,
   ArrowRight,
+  FileChartColumn,
+  Presentation,
+  UserRound,
   Clock3,
   Handshake,
   Layers,
@@ -21,6 +23,7 @@ import {
   MinusCircle,
 } from "lucide-react";
 
+import PracticeHero from "@/components/practice/PracticeHero";
 import { listDeckModes } from "@/lib/pitch/deck-modes";
 
 const ELEVATOR_OPTION = {
@@ -109,45 +112,32 @@ export default function PracticePitchesPickerPage() {
   };
 
   return (
-    <main className="min-h-[100dvh] bg-[#f5f8fa] text-[#102331]">
-      <div className="relative isolate overflow-hidden border-b border-[#d8e6ec] bg-[#eaf5f8]">
-        <div className="absolute -right-24 top-[-150px] h-96 w-96 rounded-full bg-[#a9ddeb]/60 blur-3xl" />
-        <div className="relative mx-auto max-w-6xl px-5 pb-10 pt-7 sm:px-8 sm:pb-14">
-          <button
-            className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[#47616f] transition-colors hover:text-[#0a7391] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391]"
-            type="button"
-            onClick={() => router.push("/")}
-          >
-            <ArrowLeft size={16} /> Back to practice
-          </button>
-          <p className="mt-8 text-xs font-bold uppercase tracking-[0.18em] text-[#0a7391]">
-            Pitch studio
-          </p>
-          <h1 className="mt-3 max-w-2xl font-serif text-4xl leading-[0.98] tracking-[-0.045em] text-[#102331] sm:text-5xl">
-            Choose the pitch you want to practice.
-          </h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-[#4e6977]">
-            Elevator pitches are short and conversation-first. With a deck, you
-            present slides to a live listener — five settings, each with a
-            different audience and a different judgment.
-          </p>
-        </div>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PracticeHero
+        description="Elevator pitches are short and conversation-first. With a deck, you present slides to a live listener — five settings, each with a different audience and a different judgment."
+        facts={[
+          { icon: Clock3, label: "1–30 min" },
+          { icon: UserRound, label: "Live listener" },
+          { icon: FileChartColumn, label: "Scored report" },
+        ]}
+        icon={Presentation}
+        title="Pitch practice"
+      />
 
-      <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div className="flex flex-col gap-5 rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-none">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#e0f3f9] text-[#08718d]">
-              <ELEVATOR_OPTION.icon aria-hidden size={22} />
+      <div className="flex flex-col">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-5 rounded-2xl border border-line bg-white p-6">
+            <div className="flex size-14 items-center justify-center rounded-[16px] bg-cwru-blue text-white">
+              <ELEVATOR_OPTION.icon aria-hidden size={26} strokeWidth={1.75} />
             </div>
             <div className="flex flex-col gap-3">
-              <h2 className="font-serif text-2xl tracking-[-0.02em] text-[#102331]">
+              <h2 className="font-display text-2xl font-medium text-cwru-blue">
                 {ELEVATOR_OPTION.title}
               </h2>
-              <p className="text-[15px] leading-6 text-[#526c7b]">
+              <p className="text-[15px] leading-6 text-muted">
                 {ELEVATOR_OPTION.description}
               </p>
-              <p className="inline-flex items-center gap-1.5 text-sm text-[#08718d]">
+              <p className="inline-flex items-center gap-1.5 text-sm text-true-blue">
                 <Clock3 aria-hidden size={14} />
                 {ELEVATOR_OPTION.minutes}
               </p>
@@ -164,20 +154,20 @@ export default function PracticePitchesPickerPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-5 rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-none">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#e0f3f9] text-[#08718d]">
-              <Layers aria-hidden size={22} />
+          <div className="flex flex-col gap-5 rounded-2xl border border-line bg-white p-6">
+            <div className="flex size-14 items-center justify-center rounded-[16px] bg-cwru-blue text-white">
+              <Layers aria-hidden size={26} strokeWidth={1.75} />
             </div>
             <div className="flex flex-col gap-3">
-              <h2 className="font-serif text-2xl tracking-[-0.02em] text-[#102331]">
+              <h2 className="font-display text-2xl font-medium text-cwru-blue">
                 With a deck
               </h2>
-              <p className="text-[15px] leading-6 text-[#526c7b]">
+              <p className="text-[15px] leading-6 text-muted">
                 Present slides to a live listener. Five settings to choose from,
                 each with its own audience, its own judgment, and its own time
                 envelope.
               </p>
-              <p className="inline-flex items-center gap-1.5 text-sm text-[#08718d]">
+              <p className="inline-flex items-center gap-1.5 text-sm text-true-blue">
                 <Clock3 aria-hidden size={14} />
                 {DECK_FAMILY_MINUTES}
               </p>
@@ -187,7 +177,7 @@ export default function PracticePitchesPickerPage() {
                 ref={deckToggleRef}
                 aria-controls={DECK_PANEL_ID}
                 aria-expanded={deckExpanded}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#0a7391] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#08647c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a7391]"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-cwru-blue px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue"
                 type="button"
                 onClick={toggleDeckExpanded}
               >
@@ -214,37 +204,37 @@ export default function PracticePitchesPickerPage() {
             {DECK_MODES.map((mode, index) => (
               <div
                 key={mode.slug}
-                className="flex flex-col gap-4 rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-none"
+                className="flex flex-col gap-4 rounded-2xl border border-line bg-white p-6"
               >
                 <div className="flex flex-col gap-2">
-                  <h3 className="font-serif text-xl tracking-[-0.02em] text-[#102331]">
+                  <h3 className="font-display text-xl font-medium text-cwru-blue">
                     {mode.cardTitle}
                   </h3>
-                  <p className="text-sm font-semibold text-[#08718d]">
+                  <p className="text-sm font-semibold text-true-blue">
                     {mode.listenerLine}
                   </p>
-                  <p className="text-[15px] leading-6 text-[#526c7b]">
+                  <p className="text-[15px] leading-6 text-muted">
                     {mode.cardBlurb}
                   </p>
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <p className="text-sm text-[#4e6977]">
-                    <span className="font-medium text-[#102331]">Scored:</span>{" "}
+                  <p className="text-sm text-muted">
+                    <span className="font-medium text-ink">Scored:</span>{" "}
                     {mode.scoredLine}
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="inline-flex items-center gap-1.5 text-sm text-[#08718d]">
+                    <p className="inline-flex items-center gap-1.5 text-sm text-true-blue">
                       <Clock3 aria-hidden size={14} />
                       {minutesRange(mode.envelopeSeconds)}
                     </p>
                     {mode.negotiates ? (
-                      <p className="inline-flex items-center gap-1.5 rounded-full bg-[#fdeedb] px-2.5 py-1 text-xs font-semibold text-[#9a5b10]">
+                      <p className="inline-flex items-center gap-1.5 rounded-full bg-level-2/16 px-2.5 py-1 text-xs font-semibold text-ink">
                         <Handshake aria-hidden size={12} />
                         {mode.negotiationMarker}
                       </p>
                     ) : (
-                      <p className="inline-flex items-center gap-1.5 rounded-full bg-[#eef2f4] px-2.5 py-1 text-xs font-medium text-[#56707e]">
+                      <p className="inline-flex items-center gap-1.5 rounded-full bg-canvas px-2.5 py-1 text-xs font-medium text-muted">
                         <MinusCircle aria-hidden size={12} />
                         {mode.negotiationMarker}
                       </p>
@@ -268,6 +258,6 @@ export default function PracticePitchesPickerPage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }
