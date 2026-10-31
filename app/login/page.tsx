@@ -196,7 +196,7 @@ export default function LoginPage() {
         </div>
       </section>
       {/* Brand panel: the dot grid is reserved for login and the kiosk. */}
-      <section className="la-dot-grid relative order-1 flex flex-col gap-6 px-6 min-[900px]:overflow-hidden py-8 text-white min-[900px]:order-2 min-[900px]:gap-8 min-[900px]:pl-14 min-[900px]:pt-14">
+      <section className="la-dot-grid relative order-1 flex flex-col gap-6 px-6 min-[900px]:overflow-hidden py-8 text-white min-[900px]:order-2 min-[900px]:gap-8 min-[900px]:px-14 min-[900px]:py-14">
         <div className="flex items-center gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-white font-display text-xl italic text-cwru-blue">
             La
@@ -212,7 +212,7 @@ export default function LoginPage() {
             what went well and what to work on.
           </p>
         </div>
-        <div className="hidden min-[900px]:block">
+        <div className="hidden min-h-0 flex-1 min-[900px]:flex">
           <LoginShowcase />
         </div>
       </section>
