@@ -23,8 +23,8 @@ const SLIDES: Slide[] = [
 const ADVANCE_MS = 6000;
 
 /**
- * The login brand panel's product showcase: one screen at a time, bleeding off
- * the panel's bottom-right edge. It advances slowly on its own, pauses while
+ * The login brand panel's product showcase: one screen at a time, framed as a
+ * browser window that always fits inside the panel (by width and by height). It advances slowly on its own, pauses while
  * hovered or focused, and never moves for reduced-motion users; the dots are
  * always available.
  */
@@ -55,7 +55,7 @@ export function LoginShowcase() {
     <div
       aria-label="Screens from Leadership Avatar"
       aria-roledescription="carousel"
-      className="flex flex-col gap-4"
+      className="flex min-h-0 flex-1 flex-col gap-4"
       role="region"
       onBlur={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -88,43 +88,51 @@ export function LoginShowcase() {
       </div>
 
       {/* A browser-window frame: the screens carry their own CWRU Blue
-          sidebar, which would otherwise melt into this blue panel. */}
-      <div className="w-[880px] max-w-none overflow-hidden rounded-tl-xl bg-white shadow-[0_24px_64px_rgb(0_0_0/0.35)] ring-1 ring-white/40">
+          sidebar, which would otherwise melt into this blue panel. The stage
+          is a size container so the frame takes the largest 1440x900 box
+          (plus its 2rem toolbar) that fits both the panel's width and the
+          height left under the copy. */}
+      <div className="min-h-0 flex-1 [container-type:size]">
         <div
-          aria-hidden
-          className="flex h-8 items-center gap-1.5 border-b border-line bg-canvas px-3"
+          className="max-w-[880px] overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgb(0_0_0/0.35)] ring-1 ring-white/40"
+          style={{ width: "min(100cqw, calc((100cqh - 2rem) * 1.6))" }}
         >
-          <span className="size-2.5 rounded-full bg-light-blue" />
-          <span className="size-2.5 rounded-full bg-light-blue" />
-          <span className="size-2.5 rounded-full bg-light-blue" />
-          <span className="ml-3 h-4 w-56 rounded-sm bg-white" />
-        </div>
-        <div className="relative aspect-[1440/900] w-full bg-ink">
-          {SLIDES.map((slide, index) => (
-            <div
-              key={slide.label}
-              aria-hidden={index !== active}
-              className={clsx(
-                "absolute inset-0 transition-opacity duration-500 ease-out",
-                index === active ? "opacity-100" : "opacity-0",
-              )}
-            >
-              {slide.src ? (
-                <Image
-                  fill
-                  alt={slide.label}
-                  className="object-cover object-left-top"
-                  priority={index === 0}
-                  sizes="880px"
-                  src={slide.src}
-                />
-              ) : (
-                <div className="grid h-full place-items-center border border-dashed border-light-blue/60 text-sm text-light-blue">
-                  Screenshot added once this page is redesigned
-                </div>
-              )}
-            </div>
-          ))}
+          <div
+            aria-hidden
+            className="flex h-8 items-center gap-1.5 border-b border-line bg-canvas px-3"
+          >
+            <span className="size-2.5 rounded-full bg-light-blue" />
+            <span className="size-2.5 rounded-full bg-light-blue" />
+            <span className="size-2.5 rounded-full bg-light-blue" />
+            <span className="ml-3 h-4 w-56 rounded-sm bg-white" />
+          </div>
+          <div className="relative aspect-[1440/900] w-full bg-ink">
+            {SLIDES.map((slide, index) => (
+              <div
+                key={slide.label}
+                aria-hidden={index !== active}
+                className={clsx(
+                  "absolute inset-0 transition-opacity duration-500 ease-out",
+                  index === active ? "opacity-100" : "opacity-0",
+                )}
+              >
+                {slide.src ? (
+                  <Image
+                    fill
+                    alt={slide.label}
+                    className="object-cover object-left-top"
+                    priority={index === 0}
+                    sizes="880px"
+                    src={slide.src}
+                  />
+                ) : (
+                  <div className="grid h-full place-items-center border border-dashed border-light-blue/60 text-sm text-light-blue">
+                    Screenshot added once this page is redesigned
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
