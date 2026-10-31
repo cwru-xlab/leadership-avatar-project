@@ -85,7 +85,7 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
 
   if (loading) {
     return (
-      <div className="grid min-h-60 place-items-center rounded-2xl border border-[#d4e2e9] bg-white">
+      <div className="grid min-h-60 place-items-center rounded-xl border border-line bg-white">
         <Spinner color="primary" />
       </div>
     );
@@ -107,7 +107,7 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
 
   if (interviewers.length === 0) {
     return (
-      <div className="grid min-h-40 place-items-center rounded-2xl border border-dashed border-[#d4e2e9] bg-white p-6 text-center text-sm text-[#58727f]">
+      <div className="grid min-h-40 place-items-center rounded-xl border border-dashed border-line bg-white p-6 text-center text-sm text-muted">
         No characters are available yet.
       </div>
     );
@@ -125,10 +125,10 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
             onClick={() =>
               onChange({ avatarId: interviewer.avatarId, voiceId: interviewer.voice.id })
             }
-            className={`group relative min-h-60 overflow-hidden rounded-2xl border text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0a7391] ${
+            className={`group relative min-h-60 overflow-hidden rounded-xl border text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue ${
               selected
-                ? "border-[#0a7391] bg-[#edf9fc] shadow-[0_12px_28px_rgba(16,104,133,0.14)]"
-                : "border-[#d4e2e9] bg-white hover:border-[#82bdcf] hover:shadow-md"
+                ? "border-true-blue bg-light-blue/22"
+                : "border-line bg-white hover:border-true-blue/50 hover:shadow-md"
             }`}
           >
             {interviewer.previewUrl ? (
@@ -138,21 +138,21 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
                 className="absolute inset-0 z-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
               />
             ) : (
-              <div className="absolute inset-0 z-0 bg-[#1d586e]" />
+              <div className="absolute inset-0 z-0 bg-cwru-blue" />
             )}
-            <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#112c39] via-[#112c39]/20 to-transparent" />
+            <div className="absolute inset-0 z-10 bg-gradient-to-t from-ink via-ink/20 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 z-20 p-5 text-white">
               <div className="mb-3 flex justify-between gap-2">
                 <Chip size="sm" className="bg-white/18 text-white">
                   {interviewer.voice.name}
                 </Chip>
                 {selected && (
-                  <span className="grid h-6 w-6 place-items-center rounded-full bg-[#79d4b1] text-[#0b3029]">
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-level-4 text-ink">
                     <Check size={15} />
                   </span>
                 )}
               </div>
-              <h3 className="font-serif text-2xl">{interviewer.name}</h3>
+              <h3 className="font-display font-medium text-2xl">{interviewer.name}</h3>
               <p className="mt-1 text-sm text-white/78">Live character</p>
             </div>
           </button>

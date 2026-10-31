@@ -90,8 +90,8 @@ export default function PitchTimerPanel({
     band === "past"
       ? "border-amber-400/50 bg-amber-500/15 text-amber-50"
       : band === "target"
-        ? "border-white/25 bg-[#0f3a4f]/90 text-[#e7f5fb]"
-        : "border-white/15 bg-[#07131f]/75 text-[#d3e7f5]";
+        ? "border-white/25 bg-ink/90 text-light-blue/32"
+        : "border-white/15 bg-ink/75 text-light-blue/32";
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -129,7 +129,7 @@ export default function PitchTimerPanel({
     >
       <Clock3 size={16} className="mt-0.5 shrink-0 opacity-90" aria-hidden />
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-80">
+        <p className="text-[10px] font-semibold opacity-80">
           Pitch window
         </p>
         {/* aria-live=off: do not interrupt a screen reader every second.
