@@ -242,10 +242,11 @@ check(
     "app/practice/[type]/page.tsx",
     "app/practice/[type]/report/[reportId]/page.tsx",
     "app/practice/pitches/page.tsx",
+    "app/practice/pitches/deck/page.tsx",
   ].sort();
 
   check(
-    "exactly one app/practice/[type]/page.tsx and no new page route under app/practice",
+    "exactly one app/practice/[type]/page.tsx and no page route under app/practice beyond the pitches picker and its deck page",
     JSON.stringify(allPageFiles) === JSON.stringify(expected),
     `found: ${allPageFiles.join(", ")}`,
   );

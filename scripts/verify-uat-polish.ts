@@ -66,9 +66,9 @@ console.log("\n3. K-1 — verdict and negotiation titles are headings");
 
 console.log("\n4. K-2 — deck-mode Start buttons name their mode");
 {
-  const pitches = read("app/practice/pitches/page.tsx");
-  rule("both Start buttons carry a mode-specific aria-label", pitches,
-    (s) => (s.match(/aria-label=\{`Start \$\{/g) ?? []).length === 2,
+  const pitches = `${read("app/practice/pitches/page.tsx")}\n${read("app/practice/pitches/deck/page.tsx")}`;
+  rule("both Start links (elevator, deck mode) carry a mode-specific aria-label", pitches,
+    (s) => (s.match(/(?:aria-label|ariaLabel)=\{`Start \$\{/g) ?? []).length === 2,
     (s) => s.replace("aria-label={`Start ${mode.cardTitle}`}", ""));
 }
 

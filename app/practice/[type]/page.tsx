@@ -700,8 +700,8 @@ export default function PracticeTypePage() {
     // the hero's decorative bleed without that side effect.
     <div className="flex flex-col gap-6 overflow-x-clip">
       <PracticeHero
-        backHref={isPitch ? "/practice/pitches" : isInterview ? "/interview" : "/"}
-        backLabel={isPitch ? "Pitch practice" : isInterview ? "Interview practice" : "Practice"}
+        backHref={isDeckMode ? "/practice/pitches/deck" : isPitch ? "/practice/pitches" : isInterview ? "/interview" : "/"}
+        backLabel={isDeckMode ? "Pitch with a deck" : isPitch ? "Pitch practice" : isInterview ? "Interview practice" : "Practice"}
         description={pageDescription}
         facts={[
           {
