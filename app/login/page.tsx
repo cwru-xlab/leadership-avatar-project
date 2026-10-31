@@ -63,14 +63,18 @@ export default function LoginPage() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const messages: Record<string, string> = {
-      sso_unavailable: "CWRU SSO is unavailable right now. Please try again shortly.",
+      sso_unavailable:
+        "CWRU SSO is unavailable right now. Please try again shortly.",
       sso_session_expired: "Your sign-in session expired. Please start again.",
-      sso_sign_in_failed: "CWRU could not complete your sign-in. Please try again.",
-      sso_handoff_invalid: "Your preview sign-in link expired. Please start again.",
+      sso_sign_in_failed:
+        "CWRU could not complete your sign-in. Please try again.",
+      sso_handoff_invalid:
+        "Your preview sign-in link expired. Please start again.",
       sso_error: "We could not complete your CWRU sign-in. Please try again.",
       missing_ticket: "A kiosk sign-in ticket is required.",
       invalid_ticket: "That kiosk sign-in ticket is invalid or expired.",
-      kiosk_auto_login_error: "We could not complete kiosk sign-in. Please try again.",
+      kiosk_auto_login_error:
+        "We could not complete kiosk sign-in. Please try again.",
     };
     const urlError = urlParams.get("error");
     if (urlError && messages[urlError]) {
@@ -110,7 +114,9 @@ export default function LoginPage() {
           <Button
             className="h-11 w-full rounded-lg font-semibold"
             color="primary"
-            startContent={<University aria-hidden size={18} strokeWidth={1.5} />}
+            startContent={
+              <University aria-hidden size={18} strokeWidth={1.5} />
+            }
             type="button"
             variant={isProduction ? "solid" : "bordered"}
             onPress={handleCWRULogin}
@@ -176,8 +182,12 @@ export default function LoginPage() {
                         type="button"
                         onClick={() => fillTestAccount(account)}
                       >
-                        <span className="font-semibold text-ink">{account.role}</span>
-                        <span className="truncate text-muted">{account.email}</span>
+                        <span className="font-semibold text-ink">
+                          {account.role}
+                        </span>
+                        <span className="truncate text-muted">
+                          {account.email}
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -196,24 +206,31 @@ export default function LoginPage() {
         </div>
       </section>
       {/* Brand panel: the dot grid is reserved for login and the kiosk. */}
-      <section className="la-dot-grid relative order-1 flex flex-col gap-6 px-6 min-[900px]:overflow-hidden py-8 text-white min-[900px]:order-2 min-[900px]:gap-8 min-[900px]:px-14 min-[900px]:py-14">
-        <div className="flex items-center gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-white font-display text-xl italic text-cwru-blue">
-            La
-          </span>
-          <span className="font-display text-xl font-medium">Leadership Avatar</span>
-        </div>
-        <div className="flex max-w-[32rem] flex-col gap-3">
-          <p className="font-display text-[28px] font-medium leading-[1.15] min-[900px]:text-[32px]">
-            Rehearse the conversation before it counts.
-          </p>
-          <p className="text-[15px] leading-[1.55] text-light-blue">
-            Practice interviews, pitches, and hard conversations with an AI avatar, then read
-            what went well and what to work on.
-          </p>
-        </div>
-        <div className="hidden min-h-0 flex-1 min-[900px]:flex">
-          <LoginShowcase />
+      {/* The column is centred both ways and capped at the showcase's widest
+          frame, so copy and screenshot share one left edge and the spare
+          blue splits evenly around them. */}
+      <section className="la-dot-grid relative order-1 flex flex-col px-6 py-8 text-white min-[900px]:order-2 min-[900px]:justify-center min-[900px]:overflow-hidden min-[900px]:px-14 min-[900px]:py-14">
+        <div className="mx-auto flex min-h-0 w-full max-w-[880px] flex-col gap-6 [container-type:inline-size] min-[900px]:gap-8">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-white font-display text-xl italic text-cwru-blue">
+              La
+            </span>
+            <span className="font-display text-xl font-medium">
+              Leadership Avatar
+            </span>
+          </div>
+          <div className="flex max-w-[32rem] flex-col gap-3">
+            <p className="font-display text-[28px] font-medium leading-[1.15] min-[900px]:text-[32px]">
+              Rehearse the conversation before it counts.
+            </p>
+            <p className="text-[15px] leading-[1.55] text-light-blue">
+              Practice interviews, pitches, and hard conversations with an AI
+              avatar, then read what went well and what to work on.
+            </p>
+          </div>
+          <div className="hidden min-h-0 min-[900px]:flex">
+            <LoginShowcase />
+          </div>
         </div>
       </section>
     </div>

@@ -17,7 +17,7 @@ const SLIDES: Slide[] = [
   { label: "Pick what to practice", src: "/login-showcase/practice.png" },
   { label: "Read your scored report", src: "/login-showcase/report.png" },
   { label: "Follow your study plan", src: "/login-showcase/plan.png" },
-  { label: "Watch your mastery move", src: "/login-showcase/mastery.png" },
+  { label: "Watch your mastery move", src: "/login-showcase/mastery-first-measured.png" },
 ];
 
 const ADVANCE_MS = 6000;
@@ -55,7 +55,7 @@ export function LoginShowcase() {
     <div
       aria-label="Screens from Leadership Avatar"
       aria-roledescription="carousel"
-      className="flex min-h-0 flex-1 flex-col gap-4"
+      className="flex min-h-0 w-full flex-col gap-4"
       role="region"
       onBlur={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -92,7 +92,12 @@ export function LoginShowcase() {
           is a size container so the frame takes the largest 1440x900 box
           (plus its 2rem toolbar) that fits both the panel's width and the
           height left under the copy. */}
-      <div className="min-h-0 flex-1 [container-type:size]">
+      <div
+        className="min-h-0 [container-type:size]"
+        // The frame's full height at the column's width (16:10 plus the 2rem
+        // toolbar); it shrinks from there when the panel is short.
+        style={{ height: "calc(min(100cqw, 880px) / 1.6 + 2rem)" }}
+      >
         <div
           className="max-w-[880px] overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgb(0_0_0/0.35)] ring-1 ring-white/40"
           style={{ width: "min(100cqw, calc((100cqh - 2rem) * 1.6))" }}
