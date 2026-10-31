@@ -50,10 +50,10 @@ export default function CoachedBriefCard({
   return (
     <section aria-labelledby="coached-brief-heading" className="space-y-5">
       <div>
-        <h1 id="coached-brief-heading" className="font-serif text-2xl text-[#102331]">
+        <h1 id="coached-brief-heading" className="font-display font-medium text-2xl text-ink">
           {competencyLabel}
         </h1>
-        <p className="mt-1 text-sm text-[#58727f]">{competencyDescription}</p>
+        <p className="mt-1 text-sm text-muted">{competencyDescription}</p>
       </div>
 
       {progress ? (
@@ -69,7 +69,7 @@ export default function CoachedBriefCard({
       ) : null}
 
       <div className="space-y-2">
-        <p className="text-sm font-semibold text-[#385463]">
+        <p className="text-sm font-semibold text-ink">
           {progress ? "The moment you just reworked" : "The moment you will rework"}
           {momentDate ? `, from your session on ${momentDate}` : ""}
         </p>
@@ -78,15 +78,15 @@ export default function CoachedBriefCard({
           studentLine={moment.studentLine}
         />
         {momentFraming === "REFINEMENT" ? (
-          <p className="text-sm text-[#385463]">
+          <p className="text-sm text-ink">
             This was one of your stronger moments on this skill, so the work here is sharpening
             it, not fixing it.
           </p>
         ) : null}
       </div>
 
-      <Card className="border border-[#dce8ed]">
-        <CardBody className="space-y-2 p-5 text-sm leading-6 text-[#385463]">
+      <Card className="border border-line">
+        <CardBody className="space-y-2 p-5 text-sm leading-6 text-ink">
           <p>
             You will talk it through with {coachName}, then say a better version out loud.
           </p>

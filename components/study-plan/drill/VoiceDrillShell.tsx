@@ -205,7 +205,7 @@ export default function VoiceDrillShell({
           ) : (
             <>
               <DrillBrief drill={drill} />
-              <div className="space-y-2 rounded-xl border border-[#dce8ed] bg-white p-5 text-sm leading-6 text-[#385463]">
+              <div className="space-y-2 rounded-xl border border-line bg-white p-5 text-sm leading-6 text-ink">
                 <p>
                   {coach ? coach.name : "Your coach"} sets the scene out loud;
                   then you answer out loud and apply the technique above. No
@@ -221,7 +221,7 @@ export default function VoiceDrillShell({
                 </p>
               </div>
               {coachError ? (
-                <p role="alert" className="text-sm text-[#9b2c2c]">
+                <p role="alert" className="text-sm text-copper">
                   We couldn&apos;t load your coach. Refresh the page to try
                   again.
                 </p>
