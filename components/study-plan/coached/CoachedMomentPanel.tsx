@@ -33,24 +33,24 @@ export default function CoachedMomentPanel({
   sessionLink,
 }: CoachedMomentPanelProps) {
   return (
-    <div className="space-y-4 rounded-xl border border-[#b9dbe5] bg-[#eaf7fa] p-4">
+    <div className="space-y-4 rounded-xl border border-light-blue bg-canvas p-4">
       {counterpartLine ? (
         <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">They said:</p>
+          <p className="text-xs font-bold text-true-blue">They said:</p>
           {/*
             VERBATIM, UNTOUCHED. No trim, no ellipsizing, no re-casing, no
             whitespace collapsing between the server response and the screen.
             `pre-wrap` renders the stored line breaks and spacing exactly.
           */}
-          <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#173847]">
+          <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
             {counterpartLine}
           </blockquote>
         </div>
       ) : null}
 
       <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">You said:</p>
-        <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#173847]">
+        <p className="text-xs font-bold text-true-blue">You said:</p>
+        <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
           {studentLine}
         </blockquote>
       </div>
@@ -58,20 +58,20 @@ export default function CoachedMomentPanel({
       {sessionLink ? (
         <Link
           href={sessionLink}
-          className="inline-block text-xs font-semibold text-[#006b87] underline underline-offset-2"
+          className="inline-block text-xs font-semibold text-cwru-blue underline underline-offset-2"
         >
           View the session this came from
         </Link>
       ) : null}
 
       {attempts.length > 0 ? (
-        <div className="border-t border-[#b9dbe5] pt-3">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#58727f]">Your tries</p>
+        <div className="border-t border-light-blue pt-3">
+          <p className="text-xs font-bold text-muted">Your tries</p>
           <ol className="mt-2 space-y-2">
             {attempts.map((attempt, index) => (
-              <li key={index} className="rounded-lg bg-white p-3 text-sm text-[#385463]">
+              <li key={index} className="rounded-lg bg-white p-3 text-sm text-ink">
                 <blockquote className="whitespace-pre-wrap">{attempt.text}</blockquote>
-                <p className="mt-1 text-xs text-[#58727f]">{attemptMarker(attempt)}</p>
+                <p className="mt-1 text-xs text-muted">{attemptMarker(attempt)}</p>
               </li>
             ))}
           </ol>

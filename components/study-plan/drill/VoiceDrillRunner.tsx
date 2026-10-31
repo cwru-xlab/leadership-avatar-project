@@ -447,14 +447,14 @@ export default function VoiceDrillRunner({
   const progressPct = Math.min(100, Math.round((elapsed / maxSeconds) * 100));
 
   return (
-    <SessionRoom className="relative flex min-h-[100dvh] flex-col bg-[#07131f] text-[#f4f8fb] lg:h-[100dvh] lg:flex-row">
+    <SessionRoom className="relative flex min-h-[100dvh] flex-col bg-ink text-canvas lg:h-[100dvh] lg:flex-row">
       <SessionStagePane className="relative flex h-[56vh] min-h-[320px] flex-col lg:h-full lg:flex-1 lg:w-[64%]">
         <SessionStageHeader>
           <Button
             isIconOnly
             aria-label="Leave the drill"
             variant="light"
-            className="bg-[#07131f]/65 text-white backdrop-blur-md"
+            className="bg-ink/65 text-white backdrop-blur-md"
             onPress={onExit}
           >
             <ChevronLeft size={20} />
@@ -474,7 +474,7 @@ export default function VoiceDrillRunner({
         </div>
         {videoUnavailable ? (
           <div className="absolute inset-0 grid place-items-center px-8 text-center" role="status">
-            <p className="max-w-sm text-sm leading-6 text-[#d3e7f5]">
+            <p className="max-w-sm text-sm leading-6 text-light-blue/32">
               The video coach couldn&apos;t connect. The scenario is on screen; answer out loud
               whenever you are ready.
             </p>
@@ -483,23 +483,23 @@ export default function VoiceDrillRunner({
         {!connected ? (
           <div className="absolute inset-x-0 bottom-24 z-10 flex flex-col items-center gap-3 px-6 text-center">
             <Spinner color="primary" size="sm" />
-            <p className="text-sm text-[#d3e7f5]">Connecting to {coachLabel}…</p>
+            <p className="text-sm text-light-blue/32">Connecting to {coachLabel}…</p>
             {slowConnect ? (
-              <Button size="sm" variant="flat" className="text-[#d7eaf3]" onPress={handleContinueWithoutVideo}>
+              <Button size="sm" variant="flat" className="text-light-blue/32" onPress={handleContinueWithoutVideo}>
                 Taking a while — continue without video
               </Button>
             ) : null}
           </div>
         ) : null}
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[#07131f] via-[#07131f]/45 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-ink via-ink/45 to-transparent" />
         <span className="pointer-events-none absolute bottom-4 left-4 z-20 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white">
           {coachLabel}
         </span>
         <SelfViewThumbnail stream={cameraStream} />
       </SessionStagePane>
 
-      <SessionSidePane className="relative z-10 flex w-full flex-col border-white/10 bg-[#0b1c2a]/95 lg:h-full lg:w-[36%] lg:max-w-[570px] lg:border-l">
+      <SessionSidePane className="relative z-10 flex w-full flex-col border-white/10 bg-ink/95 lg:h-full lg:w-[36%] lg:max-w-[570px] lg:border-l">
         <div className="px-5 pb-4 pt-6 sm:px-8 lg:pt-7">
           <SessionStatus
             eyebrow="Voice drill"
@@ -524,7 +524,7 @@ export default function VoiceDrillRunner({
             aria-valuenow={Math.min(elapsed, maxSeconds)}
           >
             <div
-              className={`h-full rounded-full transition-[width] duration-500 ${overTime ? "bg-[#f0b45b]" : "bg-[#73cee5]"}`}
+              className={`h-full rounded-full transition-[width] duration-500 ${overTime ? "bg-level-2" : "bg-light-blue"}`}
               style={{ width: `${progressPct}%` }}
             />
           </div>
@@ -532,31 +532,31 @@ export default function VoiceDrillRunner({
 
         <div aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-5 px-5 py-4 sm:px-8 lg:overflow-y-auto">
           <article className="max-w-[94%]" aria-label="Scenario">
-            <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#73cee5]">
+            <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold text-light-blue">
               {coachSpeaking ? <Volume2 size={13} className="animate-pulse" /> : <Sparkles size={13} />} {coachLabel}
             </div>
-            <p className="whitespace-pre-wrap text-[15px] leading-7 text-[#edf6fb]">{drill.scenarioPrompt}</p>
+            <p className="whitespace-pre-wrap text-[15px] leading-7 text-canvas">{drill.scenarioPrompt}</p>
           </article>
 
-          <aside aria-label="Technique to apply" className="rounded-xl border border-white/10 bg-[#102a3a] p-4">
-            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#73cee5]">
+          <aside aria-label="Technique to apply" className="rounded-xl border border-white/10 bg-ink p-4">
+            <p className="flex items-center gap-2 text-xs font-bold text-light-blue">
               <Lightbulb size={14} aria-hidden="true" /> Technique to apply
             </p>
             {/* Rendered verbatim from the server (closed technique library); never composed here. */}
-            <p className="mt-2 text-sm leading-6 text-[#d3e7f5]">{liveTip}</p>
+            <p className="mt-2 text-sm leading-6 text-light-blue/32">{liveTip}</p>
           </aside>
 
           <div className="space-y-3" aria-label="Your answer captions">
             {segments.map((segment, index) => (
               <article
                 key={index}
-                className="ml-auto max-w-[88%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-[#1d4f69] px-4 py-3 text-sm leading-6 text-white"
+                className="ml-auto max-w-[88%] whitespace-pre-wrap rounded-xl rounded-br-sm bg-cwru-blue px-4 py-3 text-sm leading-6 text-white"
               >
                 {segment.text}
               </article>
             ))}
             {partialTranscript ? (
-              <article className="ml-auto max-w-[88%] rounded-2xl rounded-br-sm border border-[#4782a0] bg-[#153e54] px-4 py-3 text-sm leading-6 text-[#dcedf5]">
+              <article className="ml-auto max-w-[88%] rounded-xl rounded-br-sm border border-light-blue bg-cwru-blue px-4 py-3 text-sm leading-6 text-light-blue/32">
                 {partialTranscript}
               </article>
             ) : null}
@@ -564,9 +564,9 @@ export default function VoiceDrillRunner({
           </div>
         </div>
 
-        <div className="border-t border-white/10 bg-[#091925] px-5 py-5 sm:px-8">
+        <div className="border-t border-white/10 bg-ink px-5 py-5 sm:px-8">
           {startError ? (
-            <p className="mb-2 text-sm text-[#ffb4a8]" role="alert">
+            <p className="mb-2 text-sm text-copper/60" role="alert">
               {startError}
             </p>
           ) : null}
@@ -588,19 +588,19 @@ export default function VoiceDrillRunner({
             ) : null}
           </div>
           {segments.length > 0 && !enoughToGrade && !isRecording && !isTranscribing ? (
-            <p className="mt-2 text-xs text-[#a9c5d6]">Say a bit more before you finish — a full answer is graded best.</p>
+            <p className="mt-2 text-xs text-light-blue">Say a bit more before you finish — a full answer is graded best.</p>
           ) : null}
           {talkError ? (
-            <p className="mt-2 text-sm text-[#ffb4a8]" role="alert">
+            <p className="mt-2 text-sm text-copper/60" role="alert">
               {talkError}
             </p>
           ) : null}
           {finishError ? (
-            <p className="mt-2 text-sm text-[#ffb4a8]" role="alert">
+            <p className="mt-2 text-sm text-copper/60" role="alert">
               {finishError}
             </p>
           ) : null}
-          <p className="mt-3 text-[11px] leading-4 text-[#82a5b8]">
+          <p className="mt-3 text-[11px] leading-4 text-light-blue">
             Answer out loud, in one go or a few pieces. Your grade appears when you finish.
           </p>
         </div>

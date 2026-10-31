@@ -48,7 +48,7 @@ export default function CoachedSessionPage() {
     // serves every full-screen surface, so the scroll container lives here.
     // h-dvh rather than h-full: the percentage-height chain through the flex
     // ancestors is not guaranteed (not verified in a browser).
-    <div className="h-dvh overflow-y-auto bg-[#f8fbfc]">
+    <div className="h-dvh overflow-y-auto bg-canvas">
       {/* The labelled "Leave coached session" link lives in the shell: above
           the brief and camera step, and in the live room's header (Phase 22
           G4 — the live room is the shared dark session room, and a light bar

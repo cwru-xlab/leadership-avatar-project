@@ -80,7 +80,7 @@ export default function KnowledgeCheckPage() {
   if (needsLogin) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="text-[#385463]">Sign in to take this knowledge check.</p>
+        <p className="text-ink">Sign in to take this knowledge check.</p>
         <Button className="mt-5" color="primary" onPress={() => router.push("/login")}>
           Go to sign in
         </Button>
@@ -91,7 +91,7 @@ export default function KnowledgeCheckPage() {
   if (notFound) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="text-[#385463]">This check is not available.</p>
+        <p className="text-ink">This check is not available.</p>
         <Button
           as={Link}
           href={`/study-plans/${planId}`}
@@ -107,7 +107,7 @@ export default function KnowledgeCheckPage() {
   if (loadError) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="text-[#9b2c2c]">{loadError}</p>
+        <p className="text-copper">{loadError}</p>
         <Button as={Link} href={`/study-plans/${planId}`} className="mt-5" variant="light">
           Back to my study plan
         </Button>
