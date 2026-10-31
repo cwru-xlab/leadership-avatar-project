@@ -206,7 +206,7 @@ export default function StudyPlanPage() {
           finished ? "bg-level-4" : "bg-cwru-blue"
         }`}
       >
-        <span aria-hidden className="la-dot-grid absolute inset-0 bg-transparent opacity-50" />
+        <span aria-hidden className="la-dots absolute inset-0 opacity-50" />
         <span className="relative">
           {path ? (
             <ProgressRing done={done} size={108} stroke={11} tone="dark" total={total}>
