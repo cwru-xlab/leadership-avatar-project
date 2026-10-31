@@ -32,7 +32,7 @@ export default function LibraryCard({
   characters,
   badges,
   footer,
-  actionLabel = "Practice",
+  actionLabel = "Start",
   actions,
 }: {
   title: string;

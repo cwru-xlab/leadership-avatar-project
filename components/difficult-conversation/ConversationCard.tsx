@@ -230,7 +230,7 @@ export default function ConversationCard({
             type="button"
             onClick={handlePractice}
           >
-            Practice <ArrowRight aria-hidden size={15} strokeWidth={2.5} />
+            Start <ArrowRight aria-hidden size={15} strokeWidth={2.5} />
           </button>
         </div>
 

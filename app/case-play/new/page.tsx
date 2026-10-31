@@ -12,6 +12,7 @@
  * rationale recorded for `/case-play` in STATE.md).
  */
 
+import BackLink from "@/components/shell/BackLink";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { ArrowLeft } from "lucide-react";
@@ -24,17 +25,9 @@ export default function NewScenarioPage() {
   return (
     <div className="space-y-8 py-2 md:py-4">
       <div className="flex flex-col gap-3">
-        <Button
-          variant="light"
-          size="sm"
-          startContent={<ArrowLeft className="w-4 h-4" />}
-          onPress={() => router.push("/case-play")}
-          className="self-start -ml-2 text-default-600 data-[hover=true]:bg-transparent"
-        >
-          Back to scenarios
-        </Button>
+        <BackLink href="/case-play" label="Case studies" />
         <h1 className={title({ fullWidth: true })}>Create a scenario</h1>
-        <p className="max-w-2xl text-default-500">
+        <p className="max-w-2xl text-[15px] text-muted">
           Build a practice scenario step by step — your own situation,
           characters, and criteria.
         </p>

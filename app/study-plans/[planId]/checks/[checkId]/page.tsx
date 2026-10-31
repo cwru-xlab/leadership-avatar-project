@@ -1,5 +1,6 @@
 "use client";
 
+import BackLink from "@/components/shell/BackLink";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -125,16 +126,7 @@ export default function KnowledgeCheckPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-8">
-      <Button
-        as={Link}
-        href={`/study-plans/${planId}`}
-        variant="light"
-        size="sm"
-        startContent={<ArrowLeft className="h-4 w-4" />}
-        className="-ml-2 self-start text-default-600 data-[hover=true]:bg-transparent"
-      >
-        Back to my study plan
-      </Button>
+      <BackLink href={`/study-plans/${planId}`} label="Study plan" />
       <KnowledgeCheckCard
         planId={planId}
         checkId={checkId}

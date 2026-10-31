@@ -68,9 +68,6 @@ export default function ConversationBriefingStep({
       aria-labelledby="conversation-briefing-heading"
     >
       <div>
-        <p className="text-sm font-semibold text-true-blue">
-          Step {nav.stepNumber} of {nav.totalSteps}
-        </p>
         <h2
           id="conversation-briefing-heading"
           className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"

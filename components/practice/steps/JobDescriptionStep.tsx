@@ -156,14 +156,11 @@ export default function JobDescriptionStep({
             <BriefcaseBusiness size={21} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-true-blue">
-              Step {nav.stepNumber} of {nav.totalSteps}
-            </p>
             <h2
               id="job-description-heading"
               className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             >
-              Practise for the actual posting.
+              Practise for the actual posting
             </h2>
             <p className="mt-3 max-w-xl text-[15px] leading-7 text-muted">
               Paste the job posting you are targeting, or upload it as a PDF.

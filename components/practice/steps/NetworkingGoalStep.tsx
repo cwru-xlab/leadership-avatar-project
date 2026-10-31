@@ -39,9 +39,6 @@ export default function NetworkingGoalStep({
     >
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-true-blue">
-            Step {nav.stepNumber} of {nav.totalSteps}
-          </p>
           <h2
             className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             id="networking-goal-heading"

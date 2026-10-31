@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, ListChecks } from "lucide-react";
 import { Card, CardBody } from "@heroui/card";
 import { Button } from "@heroui/button";
 import { Textarea } from "@heroui/input";
@@ -173,14 +173,15 @@ export default function KnowledgeCheckCard({
   }
 
   return (
-    <Card className="border border-line">
+    <Card shadow="none" className="rounded-2xl border border-line">
       <CardBody className="space-y-6 p-6">
         <div>
-          <p className="text-xs font-bold text-true-blue">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-light-blue/32 px-3 py-1 text-[12.5px] font-semibold text-cwru-blue">
+            <ListChecks aria-hidden size={14} strokeWidth={2} />
             {FORMAT_LABEL[check.payload.format]}
-          </p>
+          </span>
           {/* K3: the question always matches the interaction below it. */}
-          <h1 className="mt-1 font-display font-medium text-xl leading-snug text-ink">
+          <h1 className="mt-3 font-display text-2xl font-medium leading-snug text-cwru-blue">
             {displayPrompt(check.prompt, check.payload)}
           </h1>
         </div>
@@ -547,7 +548,7 @@ function FormatBody(props: FormatBodyProps) {
           ))}
         </ul>
       </div>
-      <Textarea
+      <Textarea variant="bordered"
         aria-label="My rewrite"
         placeholder="Rewrite the line here…"
         value={props.rewrittenLine}
@@ -675,7 +676,7 @@ function MarkPanel({
 
       {contestState === "composing" && (
         <div className="mt-3 space-y-2">
-          <Textarea
+          <Textarea variant="bordered"
             aria-label="Why does this grading look wrong?"
             placeholder="Tell us what seems off about this mark…"
             value={contestReason}

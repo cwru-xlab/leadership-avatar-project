@@ -350,9 +350,6 @@ export default function NetworkingPersonStep({
     <section aria-labelledby="networking-person-heading">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-true-blue">
-            Step {nav.stepNumber} of {nav.totalSteps}
-          </p>
           <h2
             className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             id="networking-person-heading"
@@ -377,7 +374,7 @@ export default function NetworkingPersonStep({
           type="button"
           onClick={() => selectBranch("character")}
         >
-          <Users className="mb-3 text-true-blue" size={22} />
+          <span className="mb-3 grid size-12 place-items-center rounded-[14px] bg-light-blue/35 text-cwru-blue"><Users aria-hidden size={24} strokeWidth={1.75} /></span>
           <h3 className="font-display font-medium text-2xl">Pick someone to practice with</h3>
           <p className="mt-2 text-sm leading-6 text-muted">
             Five fictional professionals — no pasting, no authoring.
@@ -394,7 +391,7 @@ export default function NetworkingPersonStep({
           type="button"
           onClick={() => selectBranch("bring-in")}
         >
-          <UserPlus className="mb-3 text-true-blue" size={22} />
+          <span className="mb-3 grid size-12 place-items-center rounded-[14px] bg-light-blue/35 text-cwru-blue"><UserPlus aria-hidden size={24} strokeWidth={1.75} /></span>
           <h3 className="font-display font-medium text-2xl">Bring in someone real</h3>
           <p className="mt-2 text-sm leading-6 text-muted">
             Paste, write, or generate a description — then confirm the

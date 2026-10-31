@@ -1,5 +1,6 @@
 "use client";
 
+import BackLink from "@/components/shell/BackLink";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@heroui/button";
@@ -713,7 +714,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   if (!consented) {
     const moment = legView.moment;
     return (
-      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8" aria-live="polite">
+      <div className="mx-auto flex min-h-dvh max-w-3xl flex-col justify-center gap-6 px-4 py-8" aria-live="polite">
         <LeaveBar planId={planId} />
         {cameraStepOpen ? (
           // The SAME camera consent gate every practice type uses (shared
@@ -730,6 +731,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
           />
         ) : moment ? (
           <CoachedBriefCard
+            coachAvatarId={legView.coach.avatarId}
             coachName={legView.coach.name}
             competencyLabel={legView.competencyLabel}
             competencyDescription={legView.competencyDescription}
@@ -980,16 +982,11 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
 function LeaveBar({ planId }: { planId: string }) {
   return (
     <div>
-      <Button
-        as={Link}
+      <BackLink
+        ariaLabel="Leave coached session — it resumes where you left it"
         href={leaveHref(planId)}
-        variant="light"
-        size="sm"
-        startContent={<ArrowLeft className="h-4 w-4" />}
-        className="-ml-2 self-start text-default-600 data-[hover=true]:bg-transparent"
-      >
-        Leave coached session
-      </Button>
+        label="Study plan"
+      />
       <p className="mt-1 text-xs text-muted">
         You can leave at any point — your coached session resumes right where you left it when
         you come back.
