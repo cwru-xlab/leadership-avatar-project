@@ -17,15 +17,18 @@ const SLIDES: Slide[] = [
   { label: "Pick what to practice", src: "/login-showcase/practice.png" },
   { label: "Read your scored report", src: "/login-showcase/report.png" },
   { label: "Follow your study plan", src: "/login-showcase/plan.png" },
-  { label: "Watch your mastery move", src: "/login-showcase/mastery-first-measured.png" },
+  {
+    label: "Watch your mastery move",
+    src: "/login-showcase/mastery-first-measured.png",
+  },
 ];
 
 const ADVANCE_MS = 6000;
 
 /**
  * The login brand panel's product showcase: one screen at a time, framed as a
- * browser window that always fits inside the panel (by width and by height). It advances slowly on its own, pauses while
- * hovered or focused, and never moves for reduced-motion users; the dots are
+ * browser window that always fits inside the panel. It advances slowly on its
+ * own, pauses while hovered or focused, and never moves for reduced-motion users; the dots are
  * always available.
  */
 export function LoginShowcase() {
@@ -88,20 +91,17 @@ export function LoginShowcase() {
       </div>
 
       {/* A browser-window frame: the screens carry their own CWRU Blue
-          sidebar, which would otherwise melt into this blue panel. The stage
-          is a size container so the frame takes the largest 1440x900 box
-          (plus its 2rem toolbar) that fits both the panel's width and the
-          height left under the copy. */}
+          sidebar, which would otherwise melt into this blue panel. The frame
+          always spans the column's width; on a short panel it gets shorter
+          and the screenshot is cropped from the bottom instead of shrinking,
+          so it keeps its size and its left edge lines up with the copy. */}
       <div
-        className="min-h-0 [container-type:size]"
+        className="min-h-[240px] shrink"
         // The frame's full height at the column's width (16:10 plus the 2rem
         // toolbar); it shrinks from there when the panel is short.
         style={{ height: "calc(min(100cqw, 880px) / 1.6 + 2rem)" }}
       >
-        <div
-          className="max-w-[880px] overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgb(0_0_0/0.35)] ring-1 ring-white/40"
-          style={{ width: "min(100cqw, calc((100cqh - 2rem) * 1.6))" }}
-        >
+        <div className="flex h-full w-full flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_64px_rgb(0_0_0/0.35)] ring-1 ring-white/40">
           <div
             aria-hidden
             className="flex h-8 items-center gap-1.5 border-b border-line bg-canvas px-3"
@@ -111,7 +111,7 @@ export function LoginShowcase() {
             <span className="size-2.5 rounded-full bg-light-blue" />
             <span className="ml-3 h-4 w-56 rounded-sm bg-white" />
           </div>
-          <div className="relative aspect-[1440/900] w-full bg-ink">
+          <div className="relative min-h-0 w-full flex-1 bg-ink">
             {SLIDES.map((slide, index) => (
               <div
                 key={slide.label}
