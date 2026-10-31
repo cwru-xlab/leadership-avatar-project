@@ -47,28 +47,25 @@ export default function BuyerProfileStep({
     >
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#0a7391]">
-            Step {nav.stepNumber} of {nav.totalSteps}
-          </p>
           <h2
-            className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+            className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             id="buyer-profile-heading"
           >
             Who are you pitching to?
           </h2>
         </div>
-        <p className="max-w-md text-sm leading-6 text-[#58727f]">
+        <p className="max-w-md text-sm leading-6 text-muted">
           Describe the buyer&apos;s role, company type and what they care about
           — specific enough that they can object from a real position.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
+      <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <Textarea
           aria-label="Buyer profile"
           classNames={{
             inputWrapper:
-              "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none data-[hover=true]:bg-[#f7fbfc]",
+              "border border-line bg-canvas shadow-none data-[hover=true]:bg-canvas",
           }}
           maxLength={BUYER_PROFILE_MAX_LENGTH}
           maxRows={5}
@@ -77,7 +74,7 @@ export default function BuyerProfileStep({
           value={text}
           onValueChange={handleChange}
         />
-        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[#6a8491]">
+        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
           <p>
             {canAdvance
               ? "Required — you can continue when this is filled in."

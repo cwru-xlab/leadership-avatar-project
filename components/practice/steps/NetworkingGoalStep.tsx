@@ -39,32 +39,29 @@ export default function NetworkingGoalStep({
     >
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-[#0a7391]">
-            Step {nav.stepNumber} of {nav.totalSteps}
-          </p>
           <h2
-            className="mt-1 font-serif text-3xl tracking-[-0.03em]"
+            className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             id="networking-goal-heading"
           >
             What do you want from this conversation?
           </h2>
         </div>
-        <p className="max-w-md text-sm leading-6 text-[#58727f]">
+        <p className="max-w-md text-sm leading-6 text-muted">
           One short goal — for example, a referral into their team, or advice on
           breaking into consulting.{" "}
-          <span className="font-medium text-[#183947]">
+          <span className="font-medium text-ink">
             The person you are practicing with will not be told this.
           </span>{" "}
           That is the exercise: you have to steer there yourself.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[#d4e2e9] bg-white p-6 shadow-[0_12px_32px_rgba(30,68,85,0.07)] sm:p-9">
+      <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <Textarea
           aria-label="Your networking goal"
           classNames={{
             inputWrapper:
-              "border border-[#d4e2e9] bg-[#f7fbfc] shadow-none data-[hover=true]:bg-[#f7fbfc]",
+              "border border-line bg-canvas shadow-none data-[hover=true]:bg-canvas",
           }}
           maxLength={NETWORKING_GOAL_MAX_LENGTH}
           maxRows={4}
@@ -73,7 +70,7 @@ export default function NetworkingGoalStep({
           value={goal}
           onValueChange={onChange}
         />
-        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[#6a8491]">
+        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
           <p>
             {canAdvance
               ? "Required — you can continue when this is filled in."

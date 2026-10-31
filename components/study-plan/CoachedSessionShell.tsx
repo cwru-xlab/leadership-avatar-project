@@ -1,5 +1,6 @@
 "use client";
 
+import BackLink from "@/components/shell/BackLink";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@heroui/button";
@@ -662,7 +663,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
     return (
       <div className="flex flex-col items-center gap-3 py-16" aria-live="polite">
         <Spinner size="lg" />
-        <p className="text-sm text-[#58727f]">Your coach is choosing the moment to work on…</p>
+        <p className="text-sm text-muted">Your coach is choosing the moment to work on…</p>
       </div>
     );
   }
@@ -670,7 +671,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   if (uiPhase === "NEEDS_LOGIN") {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="text-[#385463]">Sign in to start this coached session.</p>
+        <p className="text-ink">Sign in to start this coached session.</p>
         <Button as={Link} href="/login" className="mt-5" color="primary">
           Go to sign in
         </Button>
@@ -681,7 +682,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   if (uiPhase === "NOT_FOUND") {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="text-[#385463]">This coached step is not available.</p>
+        <p className="text-ink">This coached step is not available.</p>
         <Button as={Link} href="/reports" className="mt-5" color="primary">
           Back to my study plan
         </Button>
@@ -692,7 +693,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   if (uiPhase === "ENTRY_ERROR" || !legView) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="text-[#9b2c2c]" role="alert">
+        <p className="text-copper" role="alert">
           {entryError ?? "Unable to load this coached step."}
         </p>
         <Button as={Link} href="/reports" className="mt-5" variant="light">
@@ -713,7 +714,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   if (!consented) {
     const moment = legView.moment;
     return (
-      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8" aria-live="polite">
+      <div className="mx-auto flex min-h-dvh max-w-3xl flex-col justify-center gap-6 px-4 py-8" aria-live="polite">
         <LeaveBar planId={planId} />
         {cameraStepOpen ? (
           // The SAME camera consent gate every practice type uses (shared
@@ -730,6 +731,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
           />
         ) : moment ? (
           <CoachedBriefCard
+            coachAvatarId={legView.coach.avatarId}
             coachName={legView.coach.name}
             competencyLabel={legView.competencyLabel}
             competencyDescription={legView.competencyDescription}
@@ -771,7 +773,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
     legView.awaiting === "ATTEMPT" ? "Tap to say your better version" : "Tap to answer";
 
   return (
-    <SessionRoom className="relative flex min-h-[100dvh] flex-col bg-[#07131f] text-[#f4f8fb] lg:h-[100dvh] lg:flex-row">
+    <SessionRoom className="relative flex min-h-[100dvh] flex-col bg-ink text-canvas lg:h-[100dvh] lg:flex-row">
       <SessionStagePane className="relative flex h-[56vh] min-h-[320px] flex-col lg:h-full lg:flex-1 lg:w-[64%]">
         <SessionStageHeader>
           <Button
@@ -780,7 +782,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
             isIconOnly
             aria-label="Leave coached session — it resumes where you left it"
             variant="light"
-            className="bg-[#07131f]/65 text-white backdrop-blur-md"
+            className="bg-ink/65 text-white backdrop-blur-md"
           >
             <ChevronLeft size={20} />
           </Button>
@@ -802,7 +804,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
         ) : null}
         {videoUnavailable ? (
           <div className="absolute inset-0 grid place-items-center px-8 text-center" role="status">
-            <p className="max-w-sm text-sm leading-6 text-[#d3e7f5]">
+            <p className="max-w-sm text-sm leading-6 text-light-blue/32">
               The video coach couldn&apos;t connect, so your coach will continue in text. If the
               video connects later, you&apos;ll hear your coach.
             </p>
@@ -811,23 +813,23 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
         {!connected ? (
           <div className="absolute inset-x-0 bottom-24 z-10 flex flex-col items-center gap-3 px-6 text-center">
             <Spinner color="primary" size="sm" />
-            <p className="text-sm text-[#d3e7f5]">Connecting to {coachLabel}…</p>
+            <p className="text-sm text-light-blue/32">Connecting to {coachLabel}…</p>
             {slowConnect ? (
-              <Button size="sm" variant="flat" className="text-[#d7eaf3]" onPress={handleContinueWithoutVideo}>
+              <Button size="sm" variant="flat" className="text-light-blue/32" onPress={handleContinueWithoutVideo}>
                 Taking a while — continue without video
               </Button>
             ) : null}
           </div>
         ) : null}
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[#07131f] via-[#07131f]/45 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-ink via-ink/45 to-transparent" />
         <span className="pointer-events-none absolute bottom-4 left-4 z-20 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white">
           {coachLabel}
         </span>
         <SelfViewThumbnail stream={cameraStream} />
       </SessionStagePane>
 
-      <SessionSidePane className="relative z-10 flex w-full flex-col border-white/10 bg-[#0b1c2a]/95 lg:h-full lg:w-[36%] lg:max-w-[570px] lg:border-l">
+      <SessionSidePane className="relative z-10 flex w-full flex-col border-white/10 bg-ink/95 lg:h-full lg:w-[36%] lg:max-w-[570px] lg:border-l">
         <div className="px-5 pb-5 pt-6 sm:px-8 lg:pt-7">
           <SessionStatus
             eyebrow="Coached practice"
@@ -840,7 +842,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
             elapsedSeconds={elapsedSeconds}
           />
           {legView.thinEvidence ? (
-            <p className="mt-3 text-xs leading-5 text-[#a9c5d6]">
+            <p className="mt-3 text-xs leading-5 text-light-blue">
               This session has one part: there was not a second moment clear enough to use.
             </p>
           ) : null}
@@ -860,7 +862,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
 
           <div className="space-y-5" aria-label="Conversation captions">
             {legView.conversation.length === 0 ? (
-              <div className="flex min-h-24 flex-col items-center justify-center text-center text-[#abc5d5]">
+              <div className="flex min-h-24 flex-col items-center justify-center text-center text-light-blue">
                 <Spinner color="primary" size="sm" />
                 <p className="mt-3 text-sm">
                   {connected
@@ -872,17 +874,17 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
               legView.conversation.map((turn) =>
                 turn.speaker === "COACH" ? (
                   <article key={turn.seq} className="max-w-[94%]">
-                    <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#73cee5]">
+                    <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold text-light-blue">
                       <Sparkles size={13} /> {coachLabel}
                     </div>
-                    <p className="whitespace-pre-wrap text-[15px] leading-7 text-[#edf6fb]">
+                    <p className="whitespace-pre-wrap text-[15px] leading-7 text-canvas">
                       {turn.text}
                     </p>
                   </article>
                 ) : (
                   <article
                     key={turn.seq}
-                    className="ml-auto max-w-[88%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-[#1d4f69] px-4 py-3 text-sm leading-6 text-white"
+                    className="ml-auto max-w-[88%] whitespace-pre-wrap rounded-xl rounded-br-sm bg-cwru-blue px-4 py-3 text-sm leading-6 text-white"
                   >
                     {turn.text}
                   </article>
@@ -890,12 +892,12 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
               )
             )}
             {coachBusy && legView.conversation.length > 0 ? (
-              <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#73cee5]">
+              <p className="flex items-center gap-2 text-[11px] font-semibold text-light-blue">
                 <Volume2 size={13} className="animate-pulse" /> {coachLabel} is thinking…
               </p>
             ) : null}
             {partialTranscript ? (
-              <article className="ml-auto max-w-[88%] rounded-2xl rounded-br-sm border border-[#4782a0] bg-[#153e54] px-4 py-3 text-sm leading-6 text-[#dcedf5]">
+              <article className="ml-auto max-w-[88%] rounded-xl rounded-br-sm border border-light-blue bg-cwru-blue px-4 py-3 text-sm leading-6 text-light-blue/32">
                 {partialTranscript}
               </article>
             ) : null}
@@ -905,15 +907,15 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
           {latestDemonstration ? (
             <aside
               aria-label="Coach example"
-              className="space-y-2 rounded-xl border border-[#f0d9a8] bg-[#fffaf0] p-4"
+              className="space-y-2 rounded-xl border border-level-2/40 bg-level-2/10 p-4"
             >
-              <p className="text-xs font-bold uppercase tracking-wide text-[#8a5a00]">
+              <p className="text-xs font-bold text-ink">
                 {legView.coach.name}&apos;s example
               </p>
-              <p className="whitespace-pre-wrap text-sm leading-6 text-[#173847]">
+              <p className="whitespace-pre-wrap text-sm leading-6 text-ink">
                 {latestDemonstration}
               </p>
-              <p className="text-xs leading-5 text-[#58727f]">
+              <p className="text-xs leading-5 text-muted">
                 {DEMONSTRATION_DISCLOSURE}
               </p>
             </aside>
@@ -922,7 +924,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
           <TipRail tips={legView.tips} />
         </div>
 
-        <div className="border-t border-white/10 bg-[#091925] px-5 py-5 sm:px-8">
+        <div className="border-t border-white/10 bg-ink px-5 py-5 sm:px-8">
           {!legView.legReady ? (
             <div className="space-y-2">
               <PushToTalkControl
@@ -936,7 +938,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
                 stopAriaLabel="Stop recording and send your answer"
               />
               {talkError ? (
-                <p className="text-sm text-[#ffb4a8]" role="alert">
+                <p className="text-sm text-copper/60" role="alert">
                   {talkError}
                 </p>
               ) : null}
@@ -957,11 +959,11 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
             </Button>
           )}
           {liveError ? (
-            <p className="mt-2 text-sm text-[#ffb4a8]" role="alert">
+            <p className="mt-2 text-sm text-copper/60" role="alert">
               {liveError}
             </p>
           ) : null}
-          <p className="mt-3 text-[11px] leading-4 text-[#82a5b8]">
+          <p className="mt-3 text-[11px] leading-4 text-light-blue">
             You answer out loud. Your coach grades your reworked lines; the grades appear when the
             session ends.
           </p>
@@ -980,17 +982,12 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
 function LeaveBar({ planId }: { planId: string }) {
   return (
     <div>
-      <Button
-        as={Link}
+      <BackLink
+        ariaLabel="Leave coached session — it resumes where you left it"
         href={leaveHref(planId)}
-        variant="light"
-        size="sm"
-        startContent={<ArrowLeft className="h-4 w-4" />}
-        className="-ml-2 self-start text-default-600 data-[hover=true]:bg-transparent"
-      >
-        Leave coached session
-      </Button>
-      <p className="mt-1 text-xs text-[#58727f]">
+        label="Study plan"
+      />
+      <p className="mt-1 text-xs text-muted">
         You can leave at any point — your coached session resumes right where you left it when
         you come back.
       </p>
@@ -1008,9 +1005,9 @@ function TipRail({ tips }: { tips: CoachedTipDTO[] }) {
   return (
     <aside
       aria-label="Technique reminders"
-      className="space-y-3 rounded-xl border border-white/10 bg-[#102a3a] p-4"
+      className="space-y-3 rounded-xl border border-white/10 bg-ink p-4"
     >
-      <p className="text-xs font-bold uppercase tracking-wide text-[#73cee5]">
+      <p className="text-xs font-bold text-light-blue">
         Technique reminders
       </p>
       {/*
@@ -1018,11 +1015,11 @@ function TipRail({ tips }: { tips: CoachedTipDTO[] }) {
         this names the skill, never scripts the words. There is exactly
         one sentence like this in this file, and it is not a tip.
       */}
-      <p className="text-xs leading-5 text-[#a9c5d6]">
+      <p className="text-xs leading-5 text-light-blue">
         These name a technique to apply — they are not words to say.
       </p>
       {tips.length === 0 && (
-        <p className="text-xs text-[#a9c5d6]">No reminders for this leg.</p>
+        <p className="text-xs text-light-blue">No reminders for this leg.</p>
       )}
       {/*
         Render ONLY what the server sent. Every `tip.reminder` below is read
@@ -1033,9 +1030,9 @@ function TipRail({ tips }: { tips: CoachedTipDTO[] }) {
       */}
       <ul className="space-y-3">
         {tips.map((tip) => (
-          <li key={tip.id} className="rounded-lg bg-[#0b1c2a] p-3">
+          <li key={tip.id} className="rounded-lg bg-ink p-3">
             <p className="text-sm font-semibold text-white">{tip.name}</p>
-            <p className="mt-1 text-sm leading-5 text-[#d3e7f5]">{tip.reminder}</p>
+            <p className="mt-1 text-sm leading-5 text-light-blue/32">{tip.reminder}</p>
           </li>
         ))}
       </ul>
@@ -1049,7 +1046,7 @@ function TipRail({ tips }: { tips: CoachedTipDTO[] }) {
 
 function ScoreBadge({ label, score }: { label: string; score: number | null }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-[#b9dbe5] bg-white px-2.5 py-0.5 text-xs font-semibold text-[#0a7391]">
+    <span className="inline-flex items-center gap-1 rounded-full border border-light-blue bg-white px-2.5 py-0.5 text-xs font-semibold text-true-blue">
       {label}: {score === null ? "not scored" : `${score}/5`}
     </span>
   );
@@ -1080,10 +1077,10 @@ function CompleteLeg({
   return (
     <section aria-labelledby="coached-complete-heading" className="space-y-6">
       <div className="space-y-2 text-center">
-        <h1 id="coached-complete-heading" className="font-serif text-2xl text-[#102331]">
+        <h1 id="coached-complete-heading" className="font-display font-medium text-2xl text-ink">
           Session complete.
         </h1>
-        <p className="text-sm leading-6 text-[#385463]">
+        <p className="text-sm leading-6 text-ink">
           Your coach graded your reworked lines, and {legView.competencyLabel} moved at the coached
           weight ({pct}% of an unaided session).
         </p>
@@ -1097,11 +1094,11 @@ function CompleteLeg({
         return (
           <article
             key={leg.leg}
-            className="space-y-4 rounded-xl border border-[#dce8ed] bg-white p-5"
+            className="space-y-4 rounded-xl border border-line bg-white p-5"
             aria-label={`Moment ${index + 1} results`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-serif text-lg text-[#102331]">Moment {index + 1}</h2>
+              <h2 className="font-display font-medium text-lg text-ink">Moment {index + 1}</h2>
               <div className="flex flex-wrap gap-2">
                 <ScoreBadge label="Original" score={leg.originalScore} />
                 <ScoreBadge label="Your rework" score={leg.gradedScore} />
@@ -1110,32 +1107,32 @@ function CompleteLeg({
 
             {leg.moment.counterpartLine ? (
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">They said:</p>
-                <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#173847]">
+                <p className="text-xs font-bold text-true-blue">They said:</p>
+                <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
                   {leg.moment.counterpartLine}
                 </blockquote>
               </div>
             ) : null}
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+              <p className="text-xs font-bold text-true-blue">
                 You said originally:
               </p>
-              <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#173847]">
+              <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
                 {leg.moment.studentLine}
               </blockquote>
             </div>
             {leg.gradedAttemptText ? (
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#327b68]">
+                <p className="text-xs font-bold text-level-4">
                   Your graded rework:
                 </p>
-                <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#173847]">
+                <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
                   {leg.gradedAttemptText}
                 </blockquote>
               </div>
             ) : null}
 
-            <p className="text-sm leading-6 text-[#385463]">
+            <p className="text-sm leading-6 text-ink">
               {leg.gradedScore === null
                 ? "This moment closed without a gradable attempt, so it did not move your mastery."
                 : improvement === null
@@ -1149,15 +1146,15 @@ function CompleteLeg({
             </p>
 
             {leg.attempts.length > 1 ? (
-              <details className="text-sm text-[#385463]">
-                <summary className="cursor-pointer text-xs font-semibold text-[#006b87]">
+              <details className="text-sm text-ink">
+                <summary className="cursor-pointer text-xs font-semibold text-cwru-blue">
                   All {leg.attempts.length} tries
                 </summary>
                 <ol className="mt-2 space-y-2">
                   {leg.attempts.map((attempt, i) => (
-                    <li key={i} className="rounded-lg bg-[#f8fbfc] p-3">
+                    <li key={i} className="rounded-lg bg-canvas p-3">
                       <blockquote className="whitespace-pre-wrap">{attempt.text}</blockquote>
-                      <p className="mt-1 text-xs text-[#58727f]">
+                      <p className="mt-1 text-xs text-muted">
                         {attempt.offTopic
                           ? `Off-topic — didn't answer this moment's question${attempt.score === null ? "" : ` (${attempt.score}/5)`}`
                           : attempt.parroted
@@ -1176,21 +1173,21 @@ function CompleteLeg({
       })}
 
       {diagnosis && diagnosis.focuses.length > 0 ? (
-        <article className="space-y-3 rounded-xl border border-[#cfe6ee] bg-[#eaf7fa] p-5" aria-label="What I would focus on">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-[#0a7391]">
+        <article className="space-y-3 rounded-xl border border-light-blue/32 bg-canvas p-5" aria-label="What I would focus on">
+          <h2 className="text-xs font-bold text-true-blue">
             {diagnosis.focuses.length > 1 ? "What I would focus on (this session)" : "What I would focus on"}
           </h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-[#385463]">
+          <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-ink">
             {Array.from(new Set(diagnosis.focuses.map((f) => f.reason).filter(Boolean))).map((reason) => (
               <li key={reason}>{reason}</li>
             ))}
           </ul>
           {diagnosis.focuses.map((focus) => (
             <div key={focus.technique.id} className="space-y-1">
-              <p className="text-sm leading-6 text-[#102331]">
+              <p className="text-sm leading-6 text-ink">
                 I would focus on <span className="font-semibold">{focus.technique.name}</span>.
               </p>
-              <p className="text-sm leading-6 text-[#385463]">{focus.technique.reminder}</p>
+              <p className="text-sm leading-6 text-ink">{focus.technique.reminder}</p>
             </div>
           ))}
         </article>

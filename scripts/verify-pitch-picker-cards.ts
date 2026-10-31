@@ -1,8 +1,9 @@
 /**
- * Plan 19-08: prove `app/practice/pitches/page.tsx` renders all five deck
- * modes' four required facts from `lib/pitch/deck-modes.ts`, that the
- * "With a deck" expansion is an accessible disclosure (not a bare div with
- * an onClick), and that no second screen or route was added.
+ * Plan 19-08: prove the deck-settings page renders all five deck modes' four
+ * required facts from `lib/pitch/deck-modes.ts`. The UI overhaul moved the
+ * modes off the picker's in-place disclosure onto their own page,
+ * `app/practice/pitches/deck/page.tsx`, so this checks the picker links there
+ * and that no other screen or route was added.
  *
  * Style mirrors scripts/verify-deck-mode-table.ts.
  *
@@ -33,7 +34,7 @@ function check(name: string, pass: boolean, detail?: string): void {
 }
 
 console.log(
-  "verify-pitch-picker-cards: checking app/practice/pitches/page.tsx\n",
+  "verify-pitch-picker-cards: checking app/practice/pitches/page.tsx and deck/page.tsx\n",
 );
 
 const PAGE_PATH = path.join(
@@ -44,11 +45,27 @@ const PAGE_PATH = path.join(
   "pitches",
   "page.tsx",
 );
-const rawSource = fs.readFileSync(PAGE_PATH, "utf8");
+const DECK_PAGE_PATH = path.join(
+  __dirname,
+  "..",
+  "app",
+  "practice",
+  "pitches",
+  "deck",
+  "page.tsx",
+);
+const pickerSource = fs.readFileSync(PAGE_PATH, "utf8");
+const deckSource = fs.existsSync(DECK_PAGE_PATH)
+  ? fs.readFileSync(DECK_PAGE_PATH, "utf8")
+  : "";
+// The four facts and the mode launch live on the deck page; slug hygiene
+// applies to both pages.
+const rawSource = deckSource;
+const bothSources = `${pickerSource}\n${deckSource}`;
 
 // Strip comments (block and line) before literal/slug scans, so a slug
 // mentioned only in a code comment doesn't trip the hardcoding check.
-const sourceNoComments = rawSource
+const sourceNoComments = bothSources
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .replace(/\/\/.*$/gm, "");
 
@@ -66,7 +83,7 @@ const missingFieldRefs = REQUIRED_FIELD_NAMES.filter(
   (field) => !rawSource.includes(field),
 );
 check(
-  "page source references listenerLine, scoredLine, envelopeSeconds and negotiationMarker",
+  "deck page source references listenerLine, scoredLine, envelopeSeconds and negotiationMarker",
   missingFieldRefs.length === 0,
   `missing: ${missingFieldRefs.join(", ")}`,
 );
@@ -80,39 +97,39 @@ check(
 // "pitch-elevator" is explicitly allowed (it is not a deck mode).
 const DECK_SLUG_LITERAL = /"pitch-(deck|funding|product|talk|general)"/;
 check(
-  "page contains no deck-mode slug literal (pitch-elevator excluded)",
+  "neither page contains a deck-mode slug literal (pitch-elevator excluded)",
   !DECK_SLUG_LITERAL.test(sourceNoComments),
   sourceNoComments.match(DECK_SLUG_LITERAL)?.[0] ?? "",
 );
 check(
-  'page still references "pitch-elevator" as a literal (the elevator is not a deck mode)',
-  /"pitch-elevator"/.test(sourceNoComments),
+  'picker still references "pitch-elevator" as a literal (the elevator is not a deck mode)',
+  /"pitch-elevator"/.test(pickerSource),
 );
 
-// 3. The expansion is an accessible disclosure: aria-expanded + aria-controls.
+// 3. "With a deck" is a link to its own page, not an in-place disclosure.
 check(
-  "page contains aria-expanded",
-  rawSource.includes("aria-expanded"),
+  'picker links "With a deck" to /practice/pitches/deck',
+  pickerSource.includes('href="/practice/pitches/deck"'),
 );
 check(
-  "page contains aria-controls",
-  rawSource.includes("aria-controls"),
+  "deck page links back to the picker",
+  deckSource.includes('backHref="/practice/pitches"'),
 );
 
-// 4. Exactly one picker page; no deck sub-route or decks directory exists.
+// 4. The picker plus exactly one deck sub-route; no decks directory exists.
 const PITCHES_DIR = path.join(__dirname, "..", "app", "practice", "pitches");
 const pitchesDirEntries = fs.readdirSync(PITCHES_DIR, {
   withFileTypes: true,
 });
 const subRoutes = pitchesDirEntries.filter((entry) => entry.isDirectory());
 check(
-  "app/practice/pitches has no subdirectory (no second screen)",
-  subRoutes.length === 0,
+  "app/practice/pitches has only the deck subdirectory",
+  subRoutes.length === 1 && subRoutes[0].name === "deck",
   subRoutes.map((e) => e.name).join(", "),
 );
 check(
-  "exactly one page.tsx exists under app/practice/pitches",
-  fs.existsSync(PAGE_PATH),
+  "app/practice/pitches/page.tsx and deck/page.tsx both exist",
+  fs.existsSync(PAGE_PATH) && fs.existsSync(DECK_PAGE_PATH),
 );
 const DECKS_DIR = path.join(__dirname, "..", "app", "practice", "decks");
 check(
@@ -120,22 +137,24 @@ check(
   !fs.existsSync(DECKS_DIR),
 );
 
-// 5. router.push("/practice/" + ...) is the only navigation target shape;
-// no direct API or report fetch lives on the picker.
-const ROUTER_PUSH_PRACTICE = /router\.push\(`\/practice\/\$\{/g;
-const routerPushMatches = rawSource.match(ROUTER_PUSH_PRACTICE) ?? [];
+// 5. href={`/practice/${...}`} is the only launch target shape; no direct
+// API or report fetch lives on either page.
+const LINK_PRACTICE = /href=\{`\/practice\/\$\{/g;
 check(
-  "page navigates via router.push(`/practice/${...}`) at least twice (elevator + deck modes)",
-  routerPushMatches.length >= 2,
-  `found ${routerPushMatches.length}`,
+  "picker launches the elevator via href={`/practice/${...}`}",
+  (pickerSource.match(LINK_PRACTICE) ?? []).length >= 1,
 );
 check(
-  "page contains no /api/ fetch",
-  !rawSource.includes("/api/"),
+  "deck page launches each mode via href={`/practice/${...}`}",
+  (deckSource.match(LINK_PRACTICE) ?? []).length >= 1,
 );
 check(
-  "page contains no /report/ path",
-  !rawSource.includes("/report/"),
+  "neither page contains an /api/ fetch",
+  !bothSources.includes("/api/"),
+);
+check(
+  "neither page contains a /report/ path",
+  !bothSources.includes("/report/"),
 );
 
 // 6. Mode-table consistency the picker depends on: every negotiationMarker

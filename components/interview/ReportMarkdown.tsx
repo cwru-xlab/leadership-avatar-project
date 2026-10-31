@@ -23,55 +23,55 @@ export default function ReportMarkdown({ markdown }: ReportMarkdownProps) {
         remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ children }) => (
-            <h1 className="font-serif text-3xl tracking-[-0.03em] text-[#082b4c] mt-8 first:mt-0">
+            <h1 className="font-display font-medium text-3xl tracking-[-0.03em] text-ink mt-8 first:mt-0">
               {children}
             </h1>
           ),
           h2: ({ children }) => (
-            <h2 className="font-serif text-2xl text-[#082b4c] mt-8 pb-2 border-b-2 border-[#d5c294]">
+            <h2 className="font-display font-medium text-2xl text-ink mt-8 pb-2 border-b-2 border-light-blue">
               {children}
             </h2>
           ),
           h3: ({ children }) => (
-            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#004b7a] mt-6">
+            <h3 className="text-sm font-semibold text-cwru-blue mt-6">
               {children}
             </h3>
           ),
           p: ({ children }) => (
-            <p className="mt-3 text-[15px] leading-7 text-[#3a5462]">{children}</p>
+            <p className="mt-3 text-[15px] leading-7 text-ink">{children}</p>
           ),
           ul: ({ children }) => (
-            <ul className="mt-3 list-disc pl-5 space-y-1.5 text-[15px] leading-7 text-[#3a5462]">
+            <ul className="mt-3 list-disc pl-5 space-y-1.5 text-[15px] leading-7 text-ink">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="mt-3 list-decimal pl-5 space-y-1.5 text-[15px] leading-7 text-[#3a5462]">
+            <ol className="mt-3 list-decimal pl-5 space-y-1.5 text-[15px] leading-7 text-ink">
               {children}
             </ol>
           ),
           strong: ({ children }) => (
-            <strong className="font-semibold text-[#102331]">{children}</strong>
+            <strong className="font-semibold text-ink">{children}</strong>
           ),
           table: ({ children }) => (
-            <div className="mt-5 overflow-x-auto rounded-lg border border-[#cbd9e1] shadow-[0_6px_18px_rgba(8,43,76,0.05)]">
+            <div className="mt-5 overflow-x-auto rounded-lg border border-line">
               <table className="w-full border-collapse text-sm">{children}</table>
             </div>
           ),
           th: ({ children }) => (
-            <th className="bg-[#eaf1f5] px-4 py-3 text-left font-semibold text-[#082b4c] border-b border-[#cbd9e1]">
+            <th className="bg-canvas px-4 py-3 text-left font-semibold text-ink border-b border-line">
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className="px-4 py-2.5 align-top text-[#3a5462] border-b border-[#eef3f5]">
+            <td className="px-4 py-2.5 align-top text-ink border-b border-canvas">
               {children}
             </td>
           ),
           a: ({ children, href }) => (
             <a
               href={href}
-              className="text-[#0a7391] underline underline-offset-2"
+              className="text-true-blue underline underline-offset-2"
               target="_blank"
               rel="noreferrer"
             >
@@ -79,7 +79,7 @@ export default function ReportMarkdown({ markdown }: ReportMarkdownProps) {
             </a>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="mt-5 border-l-4 border-[#a97928] bg-[#f4ecdc] px-4 py-3 text-[#3a5462] italic">
+            <blockquote className="mt-5 border-l-4 border-level-2 bg-light-blue/32 px-4 py-3 text-ink italic">
               {children}
             </blockquote>
           ),

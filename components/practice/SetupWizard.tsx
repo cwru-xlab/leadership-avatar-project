@@ -10,6 +10,7 @@
  * here — type-specific branching belongs in a step component, not this file.
  */
 
+import StepTracker from "@/components/shell/StepTracker";
 import CameraConsentStep from "@/components/session/CameraConsentStep";
 import type { SetupStepDeclaration } from "@/lib/engine/types";
 import type { CameraMode } from "@/lib/metrics/types";
@@ -219,23 +220,8 @@ export default function SetupWizard({
 
   return (
     <div>
-      <div className="mb-8 flex items-center gap-2" aria-label={progressAriaLabel}>
-        {allSteps.map((step, index) => {
-          const active = index === stepIndex;
-          const complete = index < stepIndex;
-          const number = String(index + 1).padStart(2, "0");
-          return (
-            <Fragment key={step.id}>
-              {index > 0 && <div className="h-px flex-1 bg-[#ccdce3]" />}
-              <ProgressItem
-                active={active}
-                complete={complete}
-                number={number}
-                label={step.label}
-              />
-            </Fragment>
-          );
-        })}
+      <div className="mb-8">
+        <StepTracker ariaLabel={progressAriaLabel} current={stepIndex} labels={allSteps.map((step) => step.label)} />
       </div>
 
       {isCamera ? (
@@ -246,6 +232,7 @@ export default function SetupWizard({
           onLaunch={(mode) => void handleCameraLaunch(mode)}
           launching={launching}
           launchLabel={launchLabel}
+          showProgress={false}
         />
       ) : (
         renderStep(current.id, {
@@ -257,31 +244,6 @@ export default function SetupWizard({
         })
       )}
       {supplementalContent}
-    </div>
-  );
-}
-
-function ProgressItem({
-  active,
-  complete,
-  number,
-  label,
-}: {
-  active: boolean;
-  complete: boolean;
-  number: string;
-  label: string;
-}) {
-  return (
-    <div
-      className={`flex items-center gap-2 text-xs font-semibold ${active ? "text-[#08718d]" : complete ? "text-[#327b68]" : "text-[#78909b]"}`}
-    >
-      <span
-        className={`grid h-6 w-6 place-items-center rounded-full border text-[10px] ${active ? "border-[#08718d] bg-[#08718d] text-white" : complete ? "border-[#74bba8] bg-[#e5f5ee]" : "border-[#b8cbd3]"}`}
-      >
-        {complete ? <Check size={13} /> : number}
-      </span>
-      <span className="hidden sm:inline">{label}</span>
     </div>
   );
 }

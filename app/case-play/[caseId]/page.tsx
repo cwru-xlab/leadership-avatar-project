@@ -1291,7 +1291,7 @@ export default function CasePlayPage() {
                 {unfinishedSessions.map((session) => (
                   <div
                     key={session.id}
-                    className="flex items-center justify-between p-4 bg-warning-50 dark:bg-warning-50/10 rounded-lg"
+                    className="flex items-center justify-between p-4 bg-warning-50 rounded-lg"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -1402,7 +1402,7 @@ export default function CasePlayPage() {
           </p>
         )}
         {heygenAvatarConfigured === false && (
-          <p className="text-xs text-warning-700 dark:text-warning-600">
+          <p className="text-xs text-warning-700">
             Avatar mode is unavailable (HeyGen API key missing or invalid on the server). Text chat still works.
           </p>
         )}

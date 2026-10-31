@@ -1,5 +1,6 @@
 "use client";
 
+import LevelChip from "@/components/report/LevelChip";
 import { visualBands, vocalBands, type MetricBandRow } from "@/lib/metrics/bands";
 import { isPoorVisualCoverage } from "@/lib/metrics/coverage";
 import type {
@@ -88,7 +89,10 @@ export default function ReportScoreCards({
       : null;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <section
+      aria-label="Scores"
+      className="grid grid-cols-1 overflow-hidden rounded-xl border border-line bg-white sm:grid-cols-2 lg:grid-cols-4"
+    >
       <DeliveryCard
         title="Visual & Environment"
         score={scores.visual}
@@ -106,7 +110,7 @@ export default function ReportScoreCards({
       />
       <ScoredCard title="Content & Structure" score={scores.content} pending={pending} />
       <ScoredCard title="Behavioral & Mindset" score={scores.behavioral} pending={pending} />
-    </div>
+    </section>
   );
 }
 
@@ -234,17 +238,16 @@ function CardShell({
   muted?: boolean;
   children: React.ReactNode;
 }) {
+  // One cell of the divided score panel. Shadows outside each cell draw the
+  // dividers and the panel clips the outer ones, so cells can wrap to
+  // two rows on narrow screens without doubled lines.
   return (
     <div
-      className={`report-score-card flex h-full min-h-[132px] flex-col border p-5 ${
-        muted ? "report-score-card-muted bg-[#f5f8fa]" : "bg-white"
+      className={`flex h-full min-h-[148px] flex-col gap-2.5 px-5 py-[18px] shadow-[-1px_0_0_var(--la-line),0_-1px_0_var(--la-line)] ${
+        muted ? "la-hatch" : ""
       }`}
     >
-      <p
-        className={`flex min-h-8 items-start text-xs font-semibold uppercase leading-[1.35] tracking-[0.1em] ${
-          muted ? "text-[#8298a3]" : "text-[#526c7b]"
-        }`}
-      >
+      <p className="flex min-h-[34px] items-start text-[13px] font-semibold leading-[1.3] text-muted">
         {title}
       </p>
       {children}
@@ -254,9 +257,33 @@ function CardShell({
 
 function PlaceholderBar() {
   return (
-    <div className="mt-4 space-y-2">
-      <div className="h-7 w-16 animate-pulse rounded-md bg-[#e6edf1]" />
-      <div className="h-3 w-32 animate-pulse rounded-md bg-[#e6edf1]" />
+    <div aria-hidden className="flex flex-col gap-2">
+      <div className="h-10 w-16 animate-pulse rounded-md bg-canvas" />
+      <div className="h-5 w-24 animate-pulse rounded-full bg-canvas" />
+    </div>
+  );
+}
+
+function ScoreFigure({ score }: { score: number }) {
+  const level = Math.min(5, Math.max(1, Math.round(score))) as 1 | 2 | 3 | 4 | 5;
+  return (
+    <>
+      <p className="flex items-baseline gap-1.5">
+        <span className="font-display text-[40px] font-medium leading-none text-cwru-blue [font-variant-numeric:lining-nums]">
+          {score}
+        </span>
+        <span className="text-[15px] text-muted">/ 5</span>
+      </p>
+      <LevelChip label={SCORE_LABELS[score] ?? ""} level={level} />
+    </>
+  );
+}
+
+function UnscoredCopy({ headline, subLine }: { headline: string; subLine: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="font-display text-[22px] font-medium leading-tight text-muted">{headline}</p>
+      <p className="text-[13px] leading-[1.45] text-muted">{subLine}</p>
     </div>
   );
 }
@@ -295,38 +322,23 @@ function DeliveryCard({
     const copy = UNSCORED_COPY[state];
     return (
       <CardShell title={title} muted>
-        <div className="mt-4">
-          <p className="text-lg font-semibold leading-snug text-[#8298a3]">{copy.headline}</p>
-          <p className="mt-1 text-xs text-[#8298a3]">{copy.subLine}</p>
-        </div>
+        <UnscoredCopy headline={copy.headline} subLine={copy.subLine} />
       </CardShell>
     );
   }
 
-  const label = SCORE_LABELS[score ?? 0] ?? "";
+  // The band words (eye contact, pace, ...) moved to the Delivery tab, which
+  // lists the same rows; the panel cell stays a figure and a level word.
+  void bands;
 
   return (
     <CardShell title={title}>
-      <div className="mt-4">
-        <p className="text-3xl font-semibold text-[#102331]">
-          {score} <span className="text-base font-normal text-[#8298a3]">/ 5</span>
-        </p>
-        <p className="mt-1 text-xs font-medium text-[#526c7b]">{label}</p>
-        {bands.length > 0 && (
-          <ul className="mt-3 space-y-1">
-            {bands.map((row) => (
-              <li key={row.label} className="text-xs text-[#526c7b]">
-                {row.label}: {row.value}
-              </li>
-            ))}
-          </ul>
-        )}
-        {/* Disclosure and scoring are deliberately two separate concerns — a
-            coverage figure must never become a hidden second score. This
-            note only ever explains an already-rendered score; it never
-            changes it. */}
-        {coverageNote && <p className="mt-2 text-xs text-[#8298a3]">{coverageNote}</p>}
-      </div>
+      <ScoreFigure score={score ?? 0} />
+      {/* Disclosure and scoring are deliberately two separate concerns — a
+          coverage figure must never become a hidden second score. This
+          note only ever explains an already-rendered score; it never
+          changes it. */}
+      {coverageNote && <p className="text-[13px] leading-[1.45] text-muted">{coverageNote}</p>}
     </CardShell>
   );
 }
@@ -351,24 +363,14 @@ function ScoredCard({
   if (score === null) {
     return (
       <CardShell title={title} muted>
-        <div className="mt-4">
-          <p className="text-lg font-semibold leading-snug text-[#8298a3]">Not scored</p>
-          <p className="mt-1 text-xs text-[#8298a3]">The transcript didn&apos;t support a score.</p>
-        </div>
+        <UnscoredCopy headline="Not scored" subLine="The transcript didn't support a score." />
       </CardShell>
     );
   }
 
-  const label = SCORE_LABELS[score] ?? "";
-
   return (
     <CardShell title={title}>
-      <div className="mt-4">
-        <p className="text-3xl font-semibold text-[#102331]">
-          {score} <span className="text-base font-normal text-[#8298a3]">/ 5</span>
-        </p>
-        <p className="mt-1 text-xs font-medium text-[#526c7b]">{label}</p>
-      </div>
+      <ScoreFigure score={score} />
     </CardShell>
   );
 }

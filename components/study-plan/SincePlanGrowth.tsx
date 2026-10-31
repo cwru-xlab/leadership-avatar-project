@@ -1,14 +1,16 @@
 "use client";
 
 /**
- * Per-plan "growth since this plan was generated" strip, rendered in
- * PathPanel's growthSlot. Figures come from GET /api/mastery/since-plan —
+ * Per-plan "growth since this plan was generated" card, rendered in
+ * PathPanel's growthSlot (the path rail). Figures come from GET /api/mastery/since-plan —
  * this component only displays them (baseline, now, delta and tier are all
  * computed server-side by growthSincePlan / toSincePlanDTO).
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
+
+import { competencyIcon } from "@/components/study-plan/competency-icons";
 
 import type { SincePlanDTO } from "@/lib/mastery/mastery-dto";
 
@@ -46,7 +48,7 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
   }, [planId]);
 
   if (state.status === "loading") {
-    return <div className="h-20 animate-pulse rounded-xl border border-[#e3ebee] bg-[#f5f8fa]" />;
+    return <div className="h-24 animate-pulse rounded-2xl border border-line bg-white" />;
   }
   if (state.status === "error" || state.data.competencies.length === 0) return null;
 
@@ -54,80 +56,87 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
   const anyMovement = data.competencies.some((c) => c.delta !== null);
 
   return (
-    <section className="rounded-xl border border-[#d4e2e9] bg-[#f5f8fa] p-4" aria-label="Growth since this plan">
+    <section className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4" aria-label="Growth since this plan">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0a7391]">
-          Growth since this plan
-        </h3>
-        <span className="text-xs text-[#58727f]">
+        <h3 className="font-display text-xl font-medium text-cwru-blue">Growth since this plan</h3>
+        <span className="text-xs text-muted">
           since {new Date(data.since).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
         </span>
       </div>
       {!anyMovement ? (
-        <p className="mt-2 text-sm text-[#58727f]">
-          No new evidence yet. Each step you finish below will show its effect on these skills here.
+        <p className="text-sm text-muted">
+          No new evidence yet. Each step you finish will show its effect on these skills here.
         </p>
       ) : (
-        <p className="mt-2 text-xs text-[#58727f]">
-          All-time figures blend every session you have done, so they move slowly. &quot;Path work&quot; is
-          how you scored on this path&apos;s own steps; &quot;Live practice since&quot; is your unaided sessions
-          since the plan was generated.
-        </p>
+        <details className="text-xs text-muted">
+          <summary className="cursor-pointer font-semibold text-true-blue">How to read these</summary>
+          <p className="mt-1 leading-5">
+            All-time figures blend every session you have done, so they move slowly. &quot;Path work&quot; is
+            how you scored on this path&apos;s own steps; &quot;Live practice since&quot; is your unaided sessions
+            since the plan was generated.
+          </p>
+        </details>
       )}
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+      <ul className="flex flex-col divide-y divide-line">
         {data.competencies.map((c) => {
           const Icon =
             c.direction === "up" ? ArrowUpRight : c.direction === "down" ? ArrowDownRight : ArrowRight;
+          const SkillIcon = competencyIcon(c.competencyKey);
           const tone =
             c.direction === "up"
-              ? "text-[#1a7f4b]"
+              ? "bg-level-4/16 text-level-4"
               : c.direction === "down"
-                ? "text-[#b4471f]"
-                : "text-[#58727f]";
+                ? "bg-copper/12 text-copper"
+                : "bg-canvas text-muted";
           return (
-            <li key={c.competencyKey} className="rounded-lg border border-[#e3ebee] bg-white p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-[#102331]">{c.label}</span>
-                {c.delta !== null ? (
-                  <span className={`flex items-center gap-1 text-sm font-bold ${tone}`}>
-                    <Icon size={14} aria-hidden />
-                    {c.delta > 0 ? "+" : ""}
-                    {c.delta} pts
-                  </span>
+            <li key={c.competencyKey} className="flex gap-3 py-2.5 first:pt-0 last:pb-0">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-light-blue/32 text-cwru-blue">
+                <SkillIcon aria-hidden size={16} strokeWidth={1.75} />
+              </span>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-ink">{c.label}</span>
+                  {c.delta !== null ? (
+                    <span className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-bold ${tone}`}>
+                      <Icon size={13} aria-hidden />
+                      {c.delta > 0 ? "+" : ""}
+                      {c.delta} pts
+                    </span>
+                  ) : null}
+                </div>
+                <p className="text-xs text-muted">
+                  All time {formatPercent(c.baseline.percent)} → {formatPercent(c.now.percent)}
+                  {c.now.disclosure ? ` · ${c.now.tierLabel}` : ""}
+                </p>
+                {c.sinceBySource.path.percent !== null ? (
+                  <p className="text-xs font-semibold text-level-4">
+                    Path work: {c.sinceBySource.path.percent}% across {c.sinceBySource.path.count}{" "}
+                    {c.sinceBySource.path.count === 1 ? "step result" : "step results"}
+                  </p>
+                ) : null}
+                {c.sinceBySource.live.percent !== null ? (
+                  <p className="text-xs text-ink">
+                    Live practice since: {c.sinceBySource.live.percent}% across {c.sinceBySource.live.count}{" "}
+                    {c.sinceBySource.live.count === 1 ? "scored moment" : "scored moments"}
+                  </p>
+                ) : null}
+                {c.drivers.length > 0 ? (
+                  <ul className="flex flex-col gap-0.5">
+                    {c.drivers.map((driver, index) => (
+                      <li key={`${driver.occurredAt}-${index}`} className="text-xs text-muted">
+                        {driver.href ? (
+                          <Link href={driver.href} className="text-true-blue underline-offset-2 hover:underline">
+                            {driver.activityLabel}
+                          </Link>
+                        ) : (
+                          driver.activityLabel
+                        )}{" "}
+                        · {driver.percent}%
+                      </li>
+                    ))}
+                  </ul>
                 ) : null}
               </div>
-              <p className="mt-1 text-xs text-[#58727f]">
-                All time {formatPercent(c.baseline.percent)} → {formatPercent(c.now.percent)}
-                {c.now.disclosure ? ` · ${c.now.tierLabel}` : ""}
-              </p>
-              {c.sinceBySource.path.percent !== null ? (
-                <p className="mt-1 text-xs font-semibold text-[#1a7f4b]">
-                  Path work: {c.sinceBySource.path.percent}% across {c.sinceBySource.path.count}{" "}
-                  {c.sinceBySource.path.count === 1 ? "step result" : "step results"}
-                </p>
-              ) : null}
-              {c.sinceBySource.live.percent !== null ? (
-                <p className="mt-0.5 text-xs text-[#385463]">
-                  Live practice since: {c.sinceBySource.live.percent}% across {c.sinceBySource.live.count}{" "}
-                  {c.sinceBySource.live.count === 1 ? "scored moment" : "scored moments"}
-                </p>
-              ) : null}
-              {c.drivers.length > 0 ? (
-                <ul className="mt-1 space-y-0.5">
-                  {c.drivers.map((driver, index) => (
-                    <li key={`${driver.occurredAt}-${index}`} className="text-xs text-[#58727f]">
-                      {driver.href ? (
-                        <Link href={driver.href} className="text-[#0a7391] underline-offset-2 hover:underline">
-                          {driver.activityLabel}
-                        </Link>
-                      ) : (
-                        driver.activityLabel
-                      )}{" "}
-                      · {driver.percent}%
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
             </li>
           );
         })}

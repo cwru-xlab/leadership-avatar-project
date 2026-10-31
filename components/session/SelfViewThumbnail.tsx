@@ -43,7 +43,7 @@ export function SelfViewThumbnail({
   return (
     <div
       className={
-        "absolute bottom-4 right-4 z-20 w-40 h-[120px] overflow-hidden rounded-2xl border border-white/20 bg-black/80 pointer-events-none shadow-xl " +
+        "absolute bottom-4 right-4 z-20 w-40 h-[120px] overflow-hidden rounded-xl border border-white/20 bg-black/80 pointer-events-none shadow-xl " +
         (className ?? "")
       }
     >

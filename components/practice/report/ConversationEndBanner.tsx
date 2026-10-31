@@ -54,22 +54,22 @@ export default function ConversationEndBanner({
 
     return (
       <aside
-        className="mb-6 rounded-2xl border border-t-2 border-t-[#b79b4c] shadow-[0_10px_24px_rgba(0,48,135,0.08)] motion-safe:transition-[border-color,box-shadow] motion-safe:duration-200 border-[#b8c7d8] bg-[#f4f7fa] px-5 py-4 text-[#102a4c]"
+        className="rounded-xl border border-line bg-canvas px-5 py-4 text-ink"
         data-outcome={reason}
         data-testid="conversation-end-banner"
       >
-        <h2 className="font-serif text-xl leading-snug text-[#003087]">{headline}</h2>
+        <h2 className="font-display font-medium text-xl leading-snug text-cwru-blue">{headline}</h2>
         {specificReasons ? (
-          <p className="mt-2 text-sm leading-relaxed text-[#334155]">
+          <p className="mt-2 text-sm leading-relaxed text-ink">
             {specificReasons}
           </p>
         ) : null}
         {typeof timecodeSeconds === "number" ? (
-          <p className="mt-2 font-mono text-sm tabular-nums text-[#52657a]">
+          <p className="mt-2 font-mono text-sm tabular-nums text-muted">
             It turned around {formatTimecode(timecodeSeconds)}.
           </p>
         ) : null}
-        <p className="mt-3 text-sm text-[#334155]">{STILL_SCORED_LINE}</p>
+        <p className="mt-3 text-sm text-ink">{STILL_SCORED_LINE}</p>
       </aside>
     );
   }
@@ -77,7 +77,7 @@ export default function ConversationEndBanner({
   if (reason === "student_closed_in_character") {
     return (
       <aside
-        className="mb-6 rounded-2xl border border-[#c7d2df] bg-[#f6f8fb] px-5 py-3 text-[#334155]"
+        className="rounded-xl border border-line bg-canvas px-5 py-3 text-ink"
         data-outcome={reason}
         data-testid="conversation-end-banner"
       >
@@ -89,7 +89,7 @@ export default function ConversationEndBanner({
   if (reason === "student_left_session") {
     return (
       <aside
-        className="mb-6 rounded-2xl border border-[#c7d2df] bg-[#f6f8fb] px-5 py-3 text-[#334155]"
+        className="rounded-xl border border-line bg-canvas px-5 py-3 text-ink"
         data-outcome={reason}
         data-testid="conversation-end-banner"
       >

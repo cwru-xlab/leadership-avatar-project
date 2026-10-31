@@ -5,10 +5,10 @@
  * enter the paths page and then just pick a study plan to generate a path
  * from, if it hasn't already been done for that study plan."
  *
- * Left: every saved plan with its progress ring (or "No path yet"). Right:
- * the selected plan's skill trail (`PathPanel`) with its single Continue
- * button, or — for a plan without a path — `GeneratePathCard`, which calls
- * the existing POST route inline. Levels and daily/weekly goals come from
+ * Header: a plan switcher (every saved plan with its progress ring, or "no
+ * path yet") and the goal rings. Below: the selected plan's path map
+ * (`PathPanel`) with its single Continue button, or — for a plan without a
+ * path — `GeneratePathCard`, which calls the existing POST route inline. Levels and daily/weekly goals come from
  * the existing `/api/mastery` route. `?plan={id}` preselects a plan.
  *
  * Progression mechanics are limited to levels and daily/weekly goals
@@ -19,7 +19,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
-import { ChevronRight, Route, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Route } from "lucide-react";
 
 import PathPanel, {
   DegradedStepsNote,
@@ -45,64 +45,92 @@ function pathTargets(item: PlanWithPath, key: string | null): boolean {
   return Boolean(key && item.path && item.path.steps.some((s) => s.competencyKey === key));
 }
 
-function PlanPickerRow({
-  item,
-  selected,
+/** One plan in the switcher: its title and how far its path has come. */
+function planProgressLabel(item: PlanWithPath): string {
+  if (item.path === undefined) return "Loading path…";
+  if (item.pathError) return item.pathError;
+  if (item.path === null) return `Saved ${formatDate(item.plan.savedAt)} · no path yet`;
+  const total = item.path.steps.length;
+  const done = item.path.steps.filter(isStepDone).length;
+  if (done >= total) return "Path complete";
+  const target = continueTargetFor(item.path);
+  return target ? `Next: ${KIND_LABEL[target.step.kind]} — ${target.step.competencyLabel}` : `${done} of ${total} steps done`;
+}
+
+function PlanSwitcher({
+  items,
+  selectedId,
+  focusCompetency,
   onSelect,
-  focusLabel,
 }: {
-  item: PlanWithPath;
-  selected: boolean;
-  onSelect: () => void;
-  /** Set when this plan's path targets the ?competency= focus. */
-  focusLabel?: string | null;
+  items: PlanWithPath[];
+  selectedId: string | null;
+  focusCompetency: string | null;
+  onSelect: (planId: string) => void;
 }) {
-  const total = item.path ? item.path.steps.length : 0;
-  const done = item.path ? item.path.steps.filter(isStepDone).length : 0;
-  const target = item.path ? continueTargetFor(item.path) : null;
+  const [open, setOpen] = useState(false);
+  const selected = items.find((i) => i.plan.id === selectedId) ?? null;
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={`flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left transition-colors ${
-        selected
-          ? "border-[#0a7391] bg-[#eaf7fa]"
-          : "border-transparent bg-white hover:border-[#c9dbe2]"
-      } shadow-[0_4px_14px_rgba(20,58,75,0.06)]`}
-    >
-      {item.path === undefined ? (
-        <span className="h-12 w-12 shrink-0 animate-pulse rounded-full bg-[#eef3f5]" />
-      ) : item.path ? (
-        <ProgressRing done={done} total={total} size={48} stroke={5} />
-      ) : (
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[#e0b062] text-lg font-bold text-[#b07a1a]">
-          +
-        </span>
+    <div className="relative">
+      <button
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        className="flex max-w-full items-center gap-2 rounded-lg py-1 text-left text-[15px] text-muted hover:text-ink"
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="truncate font-semibold text-ink">{selected?.plan.title ?? "Choose a study plan"}</span>
+        <ChevronDown aria-hidden className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} size={16} />
+        <span className="shrink-0">· {items.length} {items.length === 1 ? "plan" : "plans"}</span>
+      </button>
+      {open && (
+        <ul
+          aria-label="Choose a study plan"
+          className="absolute left-0 top-full z-30 mt-2 flex max-h-[60vh] w-[min(92vw,440px)] flex-col gap-0.5 overflow-y-auto rounded-xl border border-line bg-white p-1.5 shadow-raised"
+          role="listbox"
+        >
+          {items.map((item) => {
+            const total = item.path ? item.path.steps.length : 0;
+            const done = item.path ? item.path.steps.filter(isStepDone).length : 0;
+            const on = item.plan.id === selectedId;
+            return (
+              <li key={item.plan.id} aria-selected={on} role="option">
+                <button
+                  className={`flex w-full items-center gap-3 rounded-lg p-2.5 text-left hover:bg-canvas ${on ? "bg-light-blue/32" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    onSelect(item.plan.id);
+                    setOpen(false);
+                  }}
+                >
+                  {item.path ? (
+                    <ProgressRing done={done} size={40} stroke={4} total={total} />
+                  ) : (
+                    <span className="grid size-10 shrink-0 place-items-center rounded-full border-2 border-dashed border-light-blue text-cwru-blue">
+                      <Plus aria-hidden size={16} />
+                    </span>
+                  )}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-semibold text-ink">{item.plan.title}</span>
+                    <span className="truncate text-xs text-muted">{planProgressLabel(item)}</span>
+                    {pathTargets(item, focusCompetency) ? (
+                      <span className="mt-1 w-fit rounded-full bg-level-2/16 px-2 py-0.5 text-[11px] font-semibold text-ink">
+                        Works on the skill you picked
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+          <li>
+            <Link className="flex items-center gap-1 rounded-lg p-2.5 text-sm font-semibold text-true-blue hover:bg-canvas" href="/study-plans">
+              Manage study plans <ChevronRight size={14} aria-hidden="true" />
+            </Link>
+          </li>
+        </ul>
       )}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-[#102331]">{item.plan.title}</span>
-        <span className="block text-xs text-[#58727f]">
-          {item.path === undefined
-            ? "Loading path…"
-            : item.pathError
-              ? item.pathError
-              : item.path === null
-                ? `Saved ${formatDate(item.plan.savedAt)} · no path yet`
-                : done >= total
-                  ? "Path complete"
-                  : target
-                    ? `Next: ${KIND_LABEL[target.step.kind]} — ${target.step.competencyLabel}`
-                    : `${done} of ${total} steps done`}
-        </span>
-        {focusLabel ? (
-          <span className="mt-1 inline-block rounded-full bg-[#fff4e0] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#8a5a00]">
-            Targets {focusLabel}
-          </span>
-        ) : null}
-      </span>
-      <ChevronRight size={16} className="shrink-0 text-[#8298a3]" aria-hidden="true" />
-    </button>
+    </div>
   );
 }
 
@@ -165,9 +193,9 @@ function PathsHub() {
 
   if (state.status === "needs-login") {
     return (
-      <div className="mt-8 rounded-2xl border border-[#d4e2e9] bg-white p-8 text-center shadow-[0_24px_60px_rgba(20,58,75,0.12)]">
-        <p className="font-serif text-2xl text-[#102331]">Please sign in to view your paths.</p>
-        <Button className="mt-5" color="primary" onPress={() => router.push("/login")}>
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-white p-8 text-center">
+        <p className="font-display text-2xl font-medium text-cwru-blue">Please sign in to view your paths.</p>
+        <Button color="primary" onPress={() => router.push("/login")}>
           Go to sign in
         </Button>
       </div>
@@ -175,23 +203,33 @@ function PathsHub() {
   }
 
   return (
-    <>
-      {mastery ? (
-        <div className="mt-6">
-          <GoalsStrip goals={mastery.goals} timeZone={mastery.timeZone} />
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+            Paths
+          </h1>
+          {items.length > 0 ? (
+            <PlanSwitcher
+              focusCompetency={focusCompetency}
+              items={items}
+              selectedId={selectedId}
+              onSelect={select}
+            />
+          ) : (
+            <p className="text-[15px] text-muted">Pick a study plan to follow its path.</p>
+          )}
         </div>
-      ) : null}
+        {mastery ? <GoalsStrip goals={mastery.goals} timeZone={mastery.timeZone} /> : null}
+      </header>
 
       {focusCompetency && focusLabel && pathsLoaded ? (
-        <div
-          role="status"
-          className="mt-6 rounded-2xl border border-[#f0d3a0] bg-[#fffaf0] p-4 text-sm text-[#5c4410]"
-        >
+        <div role="status" className="flex flex-col gap-2 rounded-xl border border-level-2/50 bg-level-2/10 p-4 text-sm text-ink">
           {focusTargeted.length > 0 ? (
             <p>
               <span className="font-semibold">Focusing on {focusLabel}.</span>{" "}
               {focusTargeted.length === 1 ? "One path targets" : `${focusTargeted.length} paths target`} it —
-              matching steps are outlined below.
+              matching steps are outlined on the map.
             </p>
           ) : (
             <>
@@ -200,7 +238,7 @@ function PathsHub() {
                 A path aims at your weakest competencies at the moment it is generated, so a new path
                 is the way to work on it.
               </p>
-              <div className="mt-3">
+              <div>
                 {firstPlanWithoutPath ? (
                   <Button size="sm" color="primary" onPress={() => select(firstPlanWithoutPath.plan.id)}>
                     Generate a path for “{firstPlanWithoutPath.plan.title}”
@@ -217,128 +255,80 @@ function PathsHub() {
       ) : null}
 
       {state.status === "loading" ? (
-        <div className="mt-8 flex justify-center rounded-2xl border border-[#d4e2e9] bg-white p-12">
+        <div className="flex justify-center rounded-2xl border border-line bg-white p-12">
           <Spinner color="current" />
         </div>
       ) : state.status === "error" ? (
-        <div className="mt-8 rounded-2xl border border-[#d4e2e9] bg-white p-8 text-center">
-          <p className="font-serif text-2xl text-[#102331]">{state.message}</p>
+        <div className="rounded-2xl border border-line bg-white p-8 text-center">
+          <p className="font-display text-2xl font-medium text-cwru-blue">{state.message}</p>
         </div>
       ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-[#d4e2e9] bg-white p-8 text-center shadow-[0_8px_24px_rgba(20,58,75,0.06)]">
-          <Route className="mx-auto h-10 w-10 text-[#0a7391]" aria-hidden="true" />
-          <p className="mt-3 font-serif text-2xl text-[#102331]">No study plans yet</p>
-          <p className="mx-auto mt-2 max-w-md text-sm text-[#58727f]">
+        <div className="la-map-dots flex flex-col items-center gap-3 rounded-2xl border border-line bg-white px-6 py-12 text-center">
+          <span className="grid size-16 place-items-center rounded-full bg-cwru-blue text-white">
+            <Route aria-hidden size={30} strokeWidth={1.75} />
+          </span>
+          <p className="font-display text-2xl font-medium text-cwru-blue">No study plans yet</p>
+          <p className="max-w-md text-sm text-muted">
             A path is built from a study plan. Create one from your interview feedback, then come
             back here to generate its path.
           </p>
-          <Button as={Link} href="/study-plans" className="mt-5" color="primary">
+          <Button as={Link} href="/study-plans" color="primary">
             Create a study plan
           </Button>
         </div>
       ) : (
-        <div className="mt-8 grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside aria-label="Choose a study plan" className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7391]">
-              Your study plans
-            </p>
-            <div className="mt-3 space-y-2">
-              {items.map((item) => (
-                <PlanPickerRow
-                  key={item.plan.id}
-                  item={item}
-                  selected={item.plan.id === selectedId}
-                  onSelect={() => select(item.plan.id)}
-                  focusLabel={pathTargets(item, focusCompetency) ? focusLabel : null}
-                />
-              ))}
-            </div>
-            <Link
-              href="/study-plans"
-              className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#0a7391]"
-            >
-              Manage study plans <ChevronRight size={14} aria-hidden="true" />
-            </Link>
-          </aside>
-
-          <div ref={detailRef} className="min-w-0 scroll-mt-6">
-            {selected ? (
+        <div ref={detailRef} className="min-w-0 scroll-mt-6">
+          {selected ? (
+            selected.path === undefined ? (
+              <div className="h-96 animate-pulse rounded-2xl border border-line bg-white" />
+            ) : selected.pathError ? (
+              <p role="alert" className="rounded-lg border border-copper/40 bg-copper/[0.08] p-4 text-sm text-ink">
+                {selected.pathError}
+              </p>
+            ) : selected.path ? (
               <>
-                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="font-serif text-2xl text-[#102331]">{selected.plan.title}</h2>
-                  <Link
-                    href={`/study-plans/${selected.plan.id}`}
-                    className="text-sm font-semibold text-[#0a7391]"
-                  >
-                    View full plan
-                  </Link>
-                </div>
-                {selected.path === undefined ? (
-                  <div className="h-64 animate-pulse rounded-2xl border border-[#e3ebee] bg-white" />
-                ) : selected.pathError ? (
-                  <p className="rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700">
-                    {selected.pathError}
-                  </p>
-                ) : selected.path ? (
-                  <>
-                    <PathPanel
-                      planId={selected.plan.id}
-                      path={selected.path}
-                      levels={mastery?.levels}
-                      highlightCompetency={focusCompetency}
-                      onRebuilt={(path, degradedCount) => {
-                        setPathFor(selected.plan.id, path);
-                        setDegraded((d) => ({ ...d, [selected.plan.id]: degradedCount }));
-                      }}
-                      // GROWTH-SINCE-PLAN SLOT
-                      growthSlot={<SincePlanGrowth key={selected.path.id} planId={selected.plan.id} />}
-                    />
-                    <DegradedStepsNote count={degraded[selected.plan.id] ?? 0} />
-                  </>
-                ) : (
-                  <GeneratePathCard
-                    key={selected.plan.id}
-                    planId={selected.plan.id}
-                    planTitle={selected.plan.title}
-                    onGenerated={(path, degradedCount) => {
-                      setPathFor(selected.plan.id, path);
-                      setDegraded((d) => ({ ...d, [selected.plan.id]: degradedCount }));
-                    }}
-                  />
-                )}
+                <PathPanel
+                  planId={selected.plan.id}
+                  path={selected.path}
+                  levels={mastery?.levels}
+                  highlightCompetency={focusCompetency}
+                  onRebuilt={(path, degradedCount) => {
+                    setPathFor(selected.plan.id, path);
+                    setDegraded((d) => ({ ...d, [selected.plan.id]: degradedCount }));
+                  }}
+                  // GROWTH-SINCE-PLAN SLOT
+                  growthSlot={<SincePlanGrowth key={selected.path.id} planId={selected.plan.id} />}
+                />
+                <DegradedStepsNote count={degraded[selected.plan.id] ?? 0} />
               </>
-            ) : null}
-          </div>
+            ) : (
+              <GeneratePathCard
+                key={selected.plan.id}
+                planId={selected.plan.id}
+                planTitle={selected.plan.title}
+                onGenerated={(path, degradedCount) => {
+                  setPathFor(selected.plan.id, path);
+                  setDegraded((d) => ({ ...d, [selected.plan.id]: degradedCount }));
+                }}
+              />
+            )
+          ) : null}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
 export default function PathsPage() {
   return (
-    <main className="min-h-[100dvh] bg-[#f5f8fa] text-[#102331]">
-      <div className="mx-auto max-w-6xl px-4 py-8 md:px-6 md:py-10 lg:px-8">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0a7391]">
-          <Sparkles size={14} />
-          Leadership Avatar Practice
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-16">
+          <Spinner color="current" />
         </div>
-        <h1 className="mt-3 font-serif text-3xl tracking-[-0.03em] text-[#102331] sm:text-4xl">
-          Paths
-        </h1>
-        <p className="mt-2 text-sm text-[#58727f]">
-          Pick a study plan to follow its path — or generate one if it doesn&apos;t have a path yet.
-        </p>
-        <Suspense
-          fallback={
-            <div className="mt-8 flex justify-center">
-              <Spinner color="current" />
-            </div>
-          }
-        >
-          <PathsHub />
-        </Suspense>
-      </div>
-    </main>
+      }
+    >
+      <PathsHub />
+    </Suspense>
   );
 }

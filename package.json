@@ -13,8 +13,10 @@
     "verify:job-description": "tsx scripts/verify-job-description-intake.ts",
     "verify:response-countdown": "tsx scripts/verify-response-countdown.ts",
     "verify:study-plan-prompt": "tsx scripts/verify-study-plan-prompt.ts",
+    "verify:study-plan-first-person": "tsx scripts/verify-study-plan-first-person.ts",
     "verify:live-resume-attribution": "tsx scripts/verify-live-resume-attribution.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "verify:answer-level": "tsx scripts/verify-answer-level.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
