@@ -247,7 +247,7 @@ export default function CameraConsentStep({
             {cameraBlock ? (
               <div role="alert" className="flex flex-col gap-4 rounded-xl border border-copper/40 bg-copper/[0.08] p-5 text-ink">
                 <div className="flex items-start gap-3">
-                  <CircleAlert size={22} className="mt-0.5 shrink-0 text-copper" />
+                  <CircleAlert size={22} className="mt-0.5 shrink-0 text-copper-deep" />
                   <div>
                     <h3 className="font-semibold">{CAMERA_BLOCK_COPY[cameraBlock].heading}</h3>
                     <p className="mt-1 text-sm leading-6">{CAMERA_BLOCK_COPY[cameraBlock].body}</p>
@@ -298,7 +298,7 @@ export default function CameraConsentStep({
                 </button>
 
                 <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-2">
-                  <Button className="font-semibold text-true-blue" variant="light" onPress={onBack}>
+                  <Button className="font-semibold text-link" variant="light" onPress={onBack}>
                     Back
                   </Button>
                   <Button

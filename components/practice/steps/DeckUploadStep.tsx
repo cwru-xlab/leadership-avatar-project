@@ -259,7 +259,7 @@ export default function DeckUploadStep({
     <section className="mx-auto max-w-3xl" aria-labelledby="deck-upload-heading">
       <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <div className="flex items-start gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-light-blue/32 text-true-blue">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-light-blue/32 text-link">
             <Layers size={21} />
           </div>
           <div>
@@ -288,7 +288,7 @@ export default function DeckUploadStep({
               {busy ? (
                 <Spinner color="primary" />
               ) : (
-                <FileUp className="text-true-blue" size={28} />
+                <FileUp className="text-link" size={28} />
               )}
               <span className="mt-3 font-semibold">
                 {phase === "uploading"
@@ -336,7 +336,7 @@ export default function DeckUploadStep({
 
           {(phase === "rejected" || phase === "failed") && errorParts && (
             <div className="rounded-xl border border-level-2/40 bg-level-2/8 p-5">
-              <h3 className="font-semibold text-copper">
+              <h3 className="font-semibold text-copper-deep">
                 {errorParts.error}
               </h3>
               <p className="mt-2 text-sm leading-6 text-ink">

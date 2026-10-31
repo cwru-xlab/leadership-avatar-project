@@ -70,7 +70,7 @@ export default function PitchSubjectStep({
         />
         <div className="mt-2 flex items-start justify-between gap-3 text-xs text-muted">
           {showError ? (
-            <p id="pitch-subject-error" className="text-copper" role="alert">
+            <p id="pitch-subject-error" className="text-copper-deep" role="alert">
               Describe it in a few words so your listener knows what they are
               hearing about.
             </p>

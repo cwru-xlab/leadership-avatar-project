@@ -168,7 +168,7 @@ export default function StudyPlanPage() {
   if (loadError) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p role="alert" className="text-copper">{loadError}</p>
+        <p role="alert" className="text-copper-deep">{loadError}</p>
         <Button as={Link} href="/study-plans" className="mt-5" variant="light">
           Back to study plans
         </Button>
@@ -194,7 +194,7 @@ export default function StudyPlanPage() {
   return (
     <div className="flex flex-col gap-6">
       <Link
-        className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-true-blue hover:text-cwru-blue"
+        className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-link hover:text-cwru-blue"
         href="/study-plans"
       >
         <ArrowLeft aria-hidden className="size-4" />
@@ -260,7 +260,7 @@ export default function StudyPlanPage() {
       {pathLoading ? (
         <div className="h-12 animate-pulse rounded-full bg-white" />
       ) : pathError ? (
-        <p role="alert" className="text-sm text-copper">{pathError}</p>
+        <p role="alert" className="text-sm text-copper-deep">{pathError}</p>
       ) : path ? (
         <div className="flex flex-col gap-2">
           {path.rebuildable ? (
@@ -334,7 +334,7 @@ function PlanSummary({ text }: { text: string }) {
       <p className="max-w-[64ch] text-[17px] leading-[1.55] text-ink">{expanded ? text : lead}</p>
       {sentences.length > 2 && (
         <button
-          className="w-fit text-sm font-semibold text-true-blue hover:underline"
+          className="w-fit text-sm font-semibold text-link hover:underline"
           type="button"
           onClick={() => setExpanded((v) => !v)}
         >

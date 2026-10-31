@@ -62,7 +62,9 @@ function CoachCard() {
     };
   }, []);
 
-  const preview = roster.find((o) => o.avatarId === coach?.avatarId)?.previewUrl;
+  const preview = roster.find(
+    (o) => o.avatarId === coach?.avatarId,
+  )?.previewUrl;
   const visible = roster.filter((o) =>
     o.name.toLowerCase().includes(query.trim().toLowerCase()),
   );
@@ -107,7 +109,9 @@ function CoachCard() {
     <Card shadow="none" className="border border-line">
       <CardHeader className="flex gap-3">
         <GraduationCap className="text-primary" size={20} />
-        <h2 className="font-display text-xl font-medium text-cwru-blue">Your coach</h2>
+        <h2 className="font-display text-xl font-medium text-cwru-blue">
+          Your coach
+        </h2>
       </CardHeader>
       <CardBody className="gap-4">
         <p className="text-xs text-muted">
@@ -133,7 +137,7 @@ function CoachCard() {
         )}
         <Divider />
         <Input
-variant="bordered"
+          variant="bordered"
           label="Search coaches"
           size="sm"
           value={query}
@@ -145,8 +149,8 @@ variant="bordered"
               key={o.avatarId}
               className={`flex flex-col items-center gap-1 rounded-lg p-2 border text-xs ${
                 selected?.avatarId === o.avatarId
-                  ? "border-primary bg-primary/10"
-                  : "border-default-200"
+                  ? "border-primary bg-light-blue/40"
+                  : "border-line"
               }`}
               type="button"
               onClick={() => setSelected(o)}
@@ -159,7 +163,7 @@ variant="bordered"
                   src={o.previewUrl}
                 />
               ) : (
-                <div className="w-16 h-16 rounded-full bg-default-100" />
+                <div className="w-16 h-16 rounded-full bg-canvas" />
               )}
               <span className="text-center">{o.name}</span>
             </button>
@@ -232,155 +236,149 @@ export default function StudentSettingsPage() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
         <h1 className={title()}>Settings</h1>
-        <p className="text-muted">
-          Manage your profile and preferences.
-        </p>
+        <p className="text-muted">Manage your profile and preferences.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          <Card shadow="none" className="border border-line">
-            <CardHeader className="flex gap-3">
-              <User className="text-primary" size={20} />
-              <h2 className="font-display text-xl font-medium text-cwru-blue">Profile information</h2>
-            </CardHeader>
-            <CardBody className="gap-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-variant="bordered"
-                  label="First Name"
-                  value={profile.firstName}
-                  onChange={(e) =>
-                    setProfile({ ...profile, firstName: e.target.value })
-                  }
-                />
-                <Input
-variant="bordered"
-                  label="Last Name"
-                  value={profile.lastName}
-                  onChange={(e) =>
-                    setProfile({ ...profile, lastName: e.target.value })
-                  }
-                />
-              </div>
+      {/* One column: settings is a form, read top to bottom. The account row
+          carries identity and sign-out so no side column trails off short. */}
+      <div className="flex max-w-3xl flex-col gap-6">
+        <section
+          aria-label="Your account"
+          className="flex flex-wrap items-center gap-4 rounded-2xl border border-line bg-white p-5"
+        >
+          <span className="grid size-14 shrink-0 place-items-center rounded-full bg-light-blue/40 font-display text-xl font-medium text-cwru-blue">
+            {profile.firstName[0]}
+            {profile.lastName[0]}
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <p className="font-semibold text-ink">
+              {profile.firstName} {profile.lastName}
+            </p>
+            <p className="truncate text-sm text-muted">
+              {profile.email}
+              {profile.studentId ? (
+                <span className="tabular-nums"> · {profile.studentId}</span>
+              ) : null}
+            </p>
+          </div>
+          <Button
+            className="h-10 rounded-lg border-copper/50 font-semibold text-copper-deep"
+            startContent={<LogOut size={16} />}
+            variant="bordered"
+            onPress={handleLogout}
+          >
+            Sign out
+          </Button>
+        </section>
+
+        <Card shadow="none" className="border border-line">
+          <CardHeader className="flex gap-3">
+            <User className="text-primary" size={20} />
+            <h2 className="font-display text-xl font-medium text-cwru-blue">
+              Profile information
+            </h2>
+          </CardHeader>
+          <CardBody className="gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
-variant="bordered"
-                label="Email"
-                startContent={<Mail className="text-muted" size={16} />}
-                type="email"
-                value={profile.email}
+                variant="bordered"
+                label="First name"
+                value={profile.firstName}
                 onChange={(e) =>
-                  setProfile({ ...profile, email: e.target.value })
+                  setProfile({ ...profile, firstName: e.target.value })
                 }
               />
               <Input
-variant="bordered"
-                isReadOnly
-                description="Student ID cannot be changed"
-                label="Student ID"
-                value={profile.studentId}
-              />
-              <div className="flex justify-end">
-                <Button
-                  color="primary"
-                  isLoading={isSaving}
-                  onPress={handleSave}
-                >
-                  Save Changes
-                </Button>
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card shadow="none" className="border border-line">
-            <CardHeader className="flex gap-3">
-              <Bell className="text-primary" size={20} />
-              <h2 className="font-display text-xl font-medium text-cwru-blue">Notifications</h2>
-            </CardHeader>
-            <CardBody className="gap-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium">Email Notifications</p>
-                  <p className="text-xs text-muted">
-                    Receive updates via email
-                  </p>
-                </div>
-                <Switch
-                  isSelected={notifications.emailNotifications}
-                  onValueChange={(value) =>
-                    setNotifications({ ...notifications, emailNotifications: value })
-                  }
-                />
-              </div>
-              <Divider />
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium">Case Reminders</p>
-                  <p className="text-xs text-muted">
-                    Get reminded about assigned cases
-                  </p>
-                </div>
-                <Switch
-                  isSelected={notifications.caseReminders}
-                  onValueChange={(value) =>
-                    setNotifications({ ...notifications, caseReminders: value })
-                  }
-                />
-              </div>
-              <Divider />
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium">Due Date Alerts</p>
-                  <p className="text-xs text-muted">
-                    Notify before case deadlines
-                  </p>
-                </div>
-                <Switch
-                  isSelected={notifications.dueDateAlerts}
-                  onValueChange={(value) =>
-                    setNotifications({ ...notifications, dueDateAlerts: value })
-                  }
-                />
-              </div>
-            </CardBody>
-          </Card>
-
-          <CoachCard />
-        </div>
-
-        <div className="flex flex-col gap-6">
-          <Card shadow="none" className="border border-line">
-            <CardBody className="items-center text-center py-6">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                <span className="font-display text-2xl font-medium text-cwru-blue">
-                  {profile.firstName[0]}
-                  {profile.lastName[0]}
-                </span>
-              </div>
-              <p className="font-semibold">
-                {profile.firstName} {profile.lastName}
-              </p>
-              <p className="text-sm text-muted">{profile.email}</p>
-              <p className="mt-1 text-xs text-muted tabular-nums">
-                {profile.studentId}
-              </p>
-            </CardBody>
-          </Card>
-
-          <Card shadow="none" className="border border-line">
-            <CardBody>
-              <Button
-                fullWidth
-                className="h-11 rounded-lg border-copper/50 font-semibold text-copper"
-                startContent={<LogOut size={18} />}
                 variant="bordered"
-                onPress={handleLogout}
-              >
-                Sign out
+                label="Last name"
+                value={profile.lastName}
+                onChange={(e) =>
+                  setProfile({ ...profile, lastName: e.target.value })
+                }
+              />
+            </div>
+            <Input
+              variant="bordered"
+              label="Email"
+              startContent={<Mail className="text-muted" size={16} />}
+              type="email"
+              value={profile.email}
+              onChange={(e) =>
+                setProfile({ ...profile, email: e.target.value })
+              }
+            />
+            <Input
+              variant="bordered"
+              isReadOnly
+              description="Student ID cannot be changed"
+              label="Student ID"
+              value={profile.studentId}
+            />
+            <div className="flex justify-end">
+              <Button color="primary" isLoading={isSaving} onPress={handleSave}>
+                Save changes
               </Button>
-            </CardBody>
-          </Card>
-        </div>
+            </div>
+          </CardBody>
+        </Card>
+
+        <Card shadow="none" className="border border-line">
+          <CardHeader className="flex gap-3">
+            <Bell className="text-primary" size={20} />
+            <h2 className="font-display text-xl font-medium text-cwru-blue">
+              Notifications
+            </h2>
+          </CardHeader>
+          <CardBody className="gap-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium">Email notifications</p>
+                <p className="text-xs text-muted">Receive updates via email</p>
+              </div>
+              <Switch
+                isSelected={notifications.emailNotifications}
+                onValueChange={(value) =>
+                  setNotifications({
+                    ...notifications,
+                    emailNotifications: value,
+                  })
+                }
+              />
+            </div>
+            <Divider />
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium">Case reminders</p>
+                <p className="text-xs text-muted">
+                  Get reminded about assigned cases
+                </p>
+              </div>
+              <Switch
+                isSelected={notifications.caseReminders}
+                onValueChange={(value) =>
+                  setNotifications({ ...notifications, caseReminders: value })
+                }
+              />
+            </div>
+            <Divider />
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium">Due date alerts</p>
+                <p className="text-xs text-muted">
+                  Notify before case deadlines
+                </p>
+              </div>
+              <Switch
+                isSelected={notifications.dueDateAlerts}
+                onValueChange={(value) =>
+                  setNotifications({ ...notifications, dueDateAlerts: value })
+                }
+              />
+            </div>
+          </CardBody>
+        </Card>
+
+        <CoachCard />
       </div>
     </div>
   );

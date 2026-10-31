@@ -1424,10 +1424,10 @@ function PracticeInterviewRoom({
                   value={reportTitleDraft}
                   onValueChange={setReportTitleDraft}
                   maxLength={120}
-                  classNames={{ inputWrapper: "bg-default-100" }}
+                  classNames={{ inputWrapper: "bg-canvas" }}
                 />
                 {answeredCount < SHORT_INTERVIEW_ANSWERS && (
-                  <p className="text-copper">
+                  <p className="text-copper-deep">
                     You&apos;ve only answered {answeredCount} question
                     {answeredCount === 1 ? "" : "s"} — your report will be
                     limited.

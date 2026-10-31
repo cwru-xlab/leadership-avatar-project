@@ -159,7 +159,7 @@ export default function ListenerKnowledgeStep({
 
         {disclosure && (
           <div className="rounded-xl border border-line bg-white p-5">
-            <p className="text-xs font-semibold text-true-blue">
+            <p className="text-xs font-semibold text-link">
               Your listener
             </p>
             <p className="mt-2 font-display font-medium text-2xl tracking-[-0.02em] text-ink">

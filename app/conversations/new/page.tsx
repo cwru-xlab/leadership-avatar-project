@@ -15,7 +15,6 @@ import BackLink from "@/components/shell/BackLink";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { ArrowLeft } from "lucide-react";
-import { title } from "@/components/primitives";
 import ConversationBuilder from "@/components/difficult-conversation/ConversationBuilder";
 
 export default function NewConversationPage() {
@@ -25,13 +24,13 @@ export default function NewConversationPage() {
     <div className="space-y-8 py-2 md:py-4">
       <div className="flex flex-col gap-3">
         <BackLink href="/conversations" label="Courageous conversations" />
-        <h1 className={title({ fullWidth: true })}>Write your own</h1>
-        <p className="max-w-2xl text-[15px] text-muted">
+        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">Write your own</h1>
+        <p className="max-w-[65ch] text-[15px] text-muted">
           Same fields as the featured conversations — situation, shared facts,
           the character&apos;s private stance, your goal, and the stakes. Save
           privately, then practise or publish when you are ready.
         </p>
-        <ul className="max-w-2xl text-sm text-default-500 list-disc pl-5 space-y-1">
+        <ul className="max-w-[65ch] text-sm text-muted list-disc pl-5 space-y-1">
           <li>Saving keeps it private so you can practise immediately.</li>
           <li>Publishing is a separate step and runs an automated safety check.</li>
           <li>You stay the owner — you can edit or unpublish at any time.</li>
@@ -44,7 +43,7 @@ export default function NewConversationPage() {
 
       <ConversationBuilder mode="create" />
 
-      <p className="max-w-2xl text-xs text-default-400">
+      <p className="max-w-[65ch] text-xs text-muted">
         Tip: write the character&apos;s private stance as their real excuse or
         bottom line — that is what makes the practice hard, and players never
         see it before or during the session.

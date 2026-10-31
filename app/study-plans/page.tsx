@@ -111,7 +111,7 @@ function PlanCard({ item }: { item: PlanWithPath }) {
         )}
 
         {item.pathError ? (
-          <p className="text-xs text-copper">{item.pathError}</p>
+          <p className="text-xs text-copper-deep">{item.pathError}</p>
         ) : item.path === null ? (
           <div className="mt-auto flex items-center justify-between gap-3">
             <span className="text-sm text-muted">No path yet</span>
@@ -211,7 +211,7 @@ export default function StudyPlansPage() {
       ) : (
         <>
           {reportsError ? (
-            <p role="alert" className="text-sm text-copper">{reportsError}</p>
+            <p role="alert" className="text-sm text-copper-deep">{reportsError}</p>
           ) : reports === null ? (
             <div className="h-24 animate-pulse rounded-xl border border-line bg-white" />
           ) : (
@@ -246,7 +246,7 @@ export default function StudyPlansPage() {
                 <Spinner color="current" />
               </div>
             ) : state.status === "error" ? (
-              <p role="alert" className="text-sm text-copper">{state.message}</p>
+              <p role="alert" className="text-sm text-copper-deep">{state.message}</p>
             ) : shown.length === 0 ? (
               <p className="la-hatch rounded-xl border border-line px-4 py-6 text-sm text-muted">
                 {items.length === 0

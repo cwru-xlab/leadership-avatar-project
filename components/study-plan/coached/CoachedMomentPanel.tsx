@@ -36,7 +36,7 @@ export default function CoachedMomentPanel({
     <div className="space-y-4 rounded-xl border border-light-blue bg-canvas p-4">
       {counterpartLine ? (
         <div>
-          <p className="text-xs font-bold text-true-blue">They said:</p>
+          <p className="text-xs font-bold text-link">They said:</p>
           {/*
             VERBATIM, UNTOUCHED. No trim, no ellipsizing, no re-casing, no
             whitespace collapsing between the server response and the screen.
@@ -49,7 +49,7 @@ export default function CoachedMomentPanel({
       ) : null}
 
       <div>
-        <p className="text-xs font-bold text-true-blue">You said:</p>
+        <p className="text-xs font-bold text-link">You said:</p>
         <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
           {studentLine}
         </blockquote>

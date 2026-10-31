@@ -131,7 +131,7 @@ export default function NegotiationAskStep({
             {attempted && !priceOk ? (
               <p
                 id="ask-price-error"
-                className="mt-2 text-xs text-copper"
+                className="mt-2 text-xs text-copper-deep"
                 role="alert"
               >
                 Enter a positive dollar amount — for example 500000.
@@ -166,7 +166,7 @@ export default function NegotiationAskStep({
             {attempted && !equityOk ? (
               <p
                 id="ask-equity-error"
-                className="mt-2 text-xs text-copper"
+                className="mt-2 text-xs text-copper-deep"
                 role="alert"
               >
                 Enter a percent greater than 0 and less than 100.

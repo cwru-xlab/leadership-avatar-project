@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, ListChecks } from "lucide-react";
-import { Card, CardBody } from "@heroui/card";
 import { Button } from "@heroui/button";
 import { Textarea } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
@@ -173,8 +172,9 @@ export default function KnowledgeCheckCard({
   }
 
   return (
-    <Card shadow="none" className="rounded-2xl border border-line">
-      <CardBody className="space-y-6 p-6">
+    // Flat on the page: the question, its quote panels and the answer rows
+    // are each one surface, never a card inside a card.
+    <section className="space-y-6">
         <div>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-light-blue/32 px-3 py-1 text-[12.5px] font-semibold text-cwru-blue">
             <ListChecks aria-hidden size={14} strokeWidth={2} />
@@ -214,7 +214,7 @@ export default function KnowledgeCheckCard({
         />
 
         {submitError && (
-          <p className="text-sm text-copper" role="alert">
+          <p className="text-sm text-copper-deep" role="alert">
             {submitError}
           </p>
         )}
@@ -281,8 +281,7 @@ export default function KnowledgeCheckCard({
             </Button>
           </div>
         )}
-      </CardBody>
-    </Card>
+    </section>
   );
 }
 
@@ -347,7 +346,7 @@ function ContextBlock({
   sourceReportId: string | null;
 }) {
   return (
-    <div className="rounded-xl border border-line bg-canvas p-4">
+    <div className="rounded-xl border border-line bg-white p-4">
       <p className="text-xs font-bold text-muted">
         In my session, they said
       </p>
@@ -372,8 +371,8 @@ function ContextBlock({
 function QuoteBlock({ quotedText }: { quotedText: QuotedTextDTO | null }) {
   if (!quotedText) return null;
   return (
-    <div className="rounded-xl border border-light-blue bg-canvas p-4">
-      <p className="text-xs font-bold text-true-blue">
+    <div className="rounded-xl border border-light-blue bg-white p-4">
+      <p className="text-xs font-bold text-link">
         My own words
       </p>
       {/*
@@ -431,7 +430,7 @@ function FormatBody(props: FormatBodyProps) {
         {payload.options.map((option, index) => (
           <label
             key={index}
-            className="flex items-center gap-3 rounded-lg border border-line p-3 text-sm text-ink"
+            className="flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-white p-3.5 text-sm text-ink transition-colors hover:border-link has-[:checked]:border-cwru-blue has-[:checked]:bg-light-blue/20"
           >
             <input
               type="radio"
@@ -463,7 +462,7 @@ function FormatBody(props: FormatBodyProps) {
         {payload.candidates.map((candidate, index) => (
           <label
             key={index}
-            className="flex items-center gap-3 rounded-lg border border-line p-3 text-sm text-ink"
+            className="flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-white p-3.5 text-sm text-ink transition-colors hover:border-link has-[:checked]:border-cwru-blue has-[:checked]:bg-light-blue/20"
           >
             <input
               type="radio"
@@ -496,7 +495,7 @@ function FormatBody(props: FormatBodyProps) {
                   <input
                     type="text"
                     aria-label={`blank ${blankIndex + 1}`}
-                    className="w-32 rounded border border-line px-2 py-1"
+                    className="w-32 rounded-md border border-line bg-white px-2 py-1"
                     value={props.blanks[blankIndex] ?? ""}
                     onChange={(e) => {
                       // NOT trimmed here — 21-11 owns normalization and does
@@ -521,15 +520,15 @@ function FormatBody(props: FormatBodyProps) {
     <fieldset disabled={props.disabled} className="space-y-3">
       <legend className="sr-only">Rewrite the weak line</legend>
       {!props.weakLineShownAbove && (
-        <div className="rounded-lg border border-line p-3 text-sm text-ink">
-          <p className="text-xs font-bold text-true-blue">
+        <div className="rounded-xl border border-line bg-white p-3.5 text-sm text-ink">
+          <p className="text-xs font-bold text-link">
             My line
           </p>
           <p className="mt-1" style={{ whiteSpace: "pre-wrap" }}>{payload.weakLine}</p>
         </div>
       )}
-      <div className="rounded-lg border border-line p-3 text-sm text-ink">
-        <p className="text-xs font-bold text-true-blue">
+      <div className="rounded-xl border border-line bg-white p-3.5 text-sm text-ink">
+        <p className="text-xs font-bold text-link">
           Technique to apply
         </p>
         <p className="mt-1">{payload.techniqueHint}</p>
@@ -538,8 +537,8 @@ function FormatBody(props: FormatBodyProps) {
         Criteria shown BEFORE submission, not after: a student graded
         against hidden criteria cannot learn from the grade.
       */}
-      <div className="rounded-lg border border-line p-3 text-sm text-ink">
-        <p className="text-xs font-bold text-true-blue">
+      <div className="rounded-xl border border-line bg-white p-3.5 text-sm text-ink">
+        <p className="text-xs font-bold text-link">
           This rewrite will be judged on
         </p>
         <ul className="mt-1 list-disc space-y-1 pl-5">
@@ -684,7 +683,7 @@ function MarkPanel({
             minRows={2}
           />
           {contestError && (
-            <p className="text-sm text-copper" role="alert">
+            <p className="text-sm text-copper-deep" role="alert">
               {contestError}
             </p>
           )}
@@ -706,7 +705,7 @@ function MarkPanel({
       )}
 
       {contestState === "confirmed" && (
-        <p className="mt-3 text-sm text-true-blue">
+        <p className="mt-3 text-sm text-link">
           {/*
             The mark stands; the contest is a flag — 21-15 reverses the
             contribution immediately, it does not re-grade or re-submit, and

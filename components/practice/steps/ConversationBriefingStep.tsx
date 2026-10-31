@@ -100,7 +100,7 @@ export default function ConversationBriefingStep({
             >
               <p
                 className={`text-xs font-semibold ${
-                  block.emphasize ? "text-true-blue" : "text-muted"
+                  block.emphasize ? "text-link" : "text-muted"
                 }`}
               >
                 {block.label}

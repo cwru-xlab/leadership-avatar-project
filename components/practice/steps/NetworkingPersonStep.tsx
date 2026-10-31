@@ -374,8 +374,10 @@ export default function NetworkingPersonStep({
           type="button"
           onClick={() => selectBranch("character")}
         >
-          <span className="mb-3 grid size-12 place-items-center rounded-[14px] bg-light-blue/35 text-cwru-blue"><Users aria-hidden size={24} strokeWidth={1.75} /></span>
-          <h3 className="font-display font-medium text-2xl">Pick someone to practice with</h3>
+          <h3 className="flex items-center gap-3 font-display text-2xl font-medium text-cwru-blue">
+            <Users aria-hidden className="shrink-0" size={24} strokeWidth={1.75} />
+            Pick someone to practice with
+          </h3>
           <p className="mt-2 text-sm leading-6 text-muted">
             Five fictional professionals — no pasting, no authoring.
           </p>
@@ -391,8 +393,10 @@ export default function NetworkingPersonStep({
           type="button"
           onClick={() => selectBranch("bring-in")}
         >
-          <span className="mb-3 grid size-12 place-items-center rounded-[14px] bg-light-blue/35 text-cwru-blue"><UserPlus aria-hidden size={24} strokeWidth={1.75} /></span>
-          <h3 className="font-display font-medium text-2xl">Bring in someone real</h3>
+          <h3 className="flex items-center gap-3 font-display text-2xl font-medium text-cwru-blue">
+            <UserPlus aria-hidden className="shrink-0" size={24} strokeWidth={1.75} />
+            Bring in someone real
+          </h3>
           <p className="mt-2 text-sm leading-6 text-muted">
             Paste, write, or generate a description — then confirm the
             agreement.
@@ -441,7 +445,7 @@ export default function NetworkingPersonStep({
                   <h3 className="font-display font-medium text-2xl">
                     {character.displayName}
                   </h3>
-                  <p className="mt-1 text-sm font-medium text-true-blue">
+                  <p className="mt-1 text-sm font-medium text-link">
                     {character.headline}
                   </p>
                   <p className="mt-3 text-sm leading-6 text-muted">
@@ -467,8 +471,8 @@ export default function NetworkingPersonStep({
                 <Spinner color="primary" size="sm" />
               </div>
             ) : savedError ? (
-              <Card className="mt-4 border border-danger-200 bg-danger-50 shadow-none">
-                <CardBody className="gap-2 p-4 text-danger-800">
+              <Card className="mt-4 border border-copper/40 bg-copper/[0.06] shadow-none">
+                <CardBody className="gap-2 p-4 text-copper-deep">
                   <p className="text-sm">{savedError}</p>
                   <Button
                     size="sm"
@@ -511,7 +515,7 @@ export default function NetworkingPersonStep({
                         </div>
                         {selected && (
                           <Check
-                            className="shrink-0 text-true-blue"
+                            className="shrink-0 text-link"
                             size={18}
                           />
                         )}
@@ -541,7 +545,7 @@ export default function NetworkingPersonStep({
                   aria-selected={inputMode === mode}
                   className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue ${
                     inputMode === mode
-                      ? "bg-white text-true-blue shadow-sm"
+                      ? "bg-white text-link shadow-sm"
                       : "text-muted hover:text-ink"
                   }`}
                   role="tab"
@@ -622,7 +626,7 @@ export default function NetworkingPersonStep({
                   <Spinner color="primary" size="sm" />
                 </div>
               ) : wordingError || !attestationWording ? (
-                <div className="space-y-2 text-sm text-danger-700">
+                <div className="space-y-2 text-sm text-copper-deep">
                   <p className="flex items-start gap-2">
                     <CircleAlert className="mt-0.5 shrink-0" size={18} />
                     {wordingError || "Unable to load the agreement."}
@@ -647,7 +651,7 @@ export default function NetworkingPersonStep({
             </div>
 
             {actionError && (
-              <p className="mt-3 text-sm text-danger-700" role="alert">
+              <p className="mt-3 text-sm text-copper-deep" role="alert">
                 {actionError}
               </p>
             )}
