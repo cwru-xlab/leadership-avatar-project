@@ -3,12 +3,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@heroui/button";
-import { Card, CardBody, CardHeader } from "@heroui/card";
+import { Card, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import { Input } from "@heroui/input";
 import {
   ArrowLeft,
+  ArrowRight,
+  Briefcase,
+  FileChartColumn,
+  Languages,
   Play,
   Eye,
   Users,
@@ -33,10 +37,10 @@ import {
   ModalFooter,
 } from "@heroui/modal";
 import { addToast } from "@heroui/toast";
-import { title } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";
 import { useLayout } from "@/lib/layout-context";
 import AvatarImage from "@/components/AvatarImage";
+import PracticeHero from "@/components/practice/PracticeHero";
 import type { CaseStudy, CaseAvatar, InteractionLog, RoleMessage, RoleInteraction, InteractionEvent, StartAvatarRequest, VideoAudioProfile } from "@/types";
 import InteractiveAvatarWrapper, { InteractiveAvatarRef } from "@/components/HeyGenAvatar/InteractiveAvatar";
 import { HeygenSessionError } from "@/lib/heygen-client";
@@ -1223,154 +1227,167 @@ export default function CasePlayPage() {
 
   // INTRO PAGE
   if (pageState === "intro") {
+    const characterCount = caseData.avatars?.length ?? 0;
+
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
-          <Button isIconOnly variant="light" onPress={() => router.push("/case-play")}>
-            <ArrowLeft />
-          </Button>
-          <h1 className={title({ size: "sm" })}>{caseData.name}</h1>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <h2 className="text-xl font-semibold">Background Information</h2>
-          </CardHeader>
-          <CardBody>
-            <p className="text-default-700 whitespace-pre-wrap leading-relaxed">
-              {caseData.backgroundInfo}
-            </p>
-          </CardBody>
-        </Card>
-
-        {caseData.avatars && caseData.avatars.length > 0 && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                <h2 className="text-xl font-semibold">People You Can Talk To</h2>
-              </div>
-            </CardHeader>
-            <CardBody>
-              <div className="grid gap-3">
-                {caseData.avatars.map((avatar) => (
-                  <div key={avatar.id} className="flex items-center gap-4 p-4 bg-default-50 rounded-lg">
-                    <AvatarImage
-                      portrait={avatarPortraits[avatar.id]}
-                      name={avatar.name}
-                      size={48}
-                      className="shrink-0"
-                    />
-                    <div>
-                      <p className="font-semibold">{avatar.name}</p>
-                      <p className="text-sm text-default-500">{avatar.role}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardBody>
-          </Card>
-        )}
+      <div className="flex flex-col gap-6">
+        <PracticeHero
+          backHref="/case-play"
+          backLabel="Case studies"
+          description="A live case: talk to each character, decide what to recommend, then get a scored report."
+          facts={[
+            { icon: Users, label: `${characterCount} character${characterCount === 1 ? "" : "s"}` },
+            { icon: FileChartColumn, label: "Scored report" },
+          ]}
+          icon={Briefcase}
+          title={caseData.name}
+        />
 
         {unfinishedSessions.length > 0 && (
-          <Card className="border-2 border-warning/40">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <RotateCcw className="w-5 h-5 text-warning" />
-                <h2 className="text-xl font-semibold">Unfinished Sessions</h2>
+          <section
+            aria-labelledby="case-unfinished-heading"
+            className="flex flex-col gap-3 rounded-2xl border border-level-2/45 bg-level-2/10 p-5"
+          >
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-level-2">
+                <RotateCcw aria-hidden size={19} strokeWidth={1.75} />
+              </span>
+              <div className="flex flex-col">
+                <h2 className="text-base font-semibold text-ink" id="case-unfinished-heading">
+                  Pick up where you left off
+                </h2>
+                <p className="text-[13px] text-muted">
+                  Sessions you closed before finishing wait here.
+                </p>
               </div>
-            </CardHeader>
-            <CardBody>
-              <p className="text-sm text-default-500 mb-4">
-                You have sessions in progress. You can continue where you left off.
-              </p>
-              <p className="text-xs text-default-400 mb-4">
-                Sessions appear here automatically when you close the page before finishing.
-              </p>
-              <div className="grid gap-3">
-                {unfinishedSessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className="flex items-center justify-between p-4 bg-warning-50 rounded-lg"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Chip
-                          size="sm"
-                          variant="flat"
-                          color={session.mode === "assessed" ? "primary" : "default"}
-                        >
-                          {session.mode === "assessed" ? `Attempt #${session.attemptNumber}` : "Explore"}
-                        </Chip>
-                        <span className="text-xs text-default-400">
-                          {session.totalMessages} messages
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Clock className="w-3 h-3 text-default-400" />
-                        <span className="text-xs text-default-500">
-                          Started {new Date(session.startedAt).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      color="warning"
-                      variant="flat"
-                      startContent={<RotateCcw className="w-4 h-4" />}
-                      onPress={() => handleResume(session)}
-                      isLoading={resuming}
-                    >
-                      Continue
-                    </Button>
+            </div>
+            <ul className="flex flex-col gap-2">
+              {unfinishedSessions.map((session) => (
+                <li
+                  key={session.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white px-4 py-3"
+                >
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-sm font-semibold text-ink">
+                      {session.mode === "assessed" ? `Attempt #${session.attemptNumber}` : "Explore"}
+                      <span className="font-normal text-muted"> · {session.totalMessages} messages</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                      <Clock aria-hidden className="size-3" />
+                      Started {new Date(session.startedAt).toLocaleString()}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </CardBody>
-          </Card>
+                  <button
+                    className="inline-flex items-center gap-1 rounded-md text-sm font-bold text-true-blue hover:underline focus-visible:outline-true-blue disabled:opacity-50"
+                    disabled={resuming}
+                    type="button"
+                    onClick={() => handleResume(session)}
+                  >
+                    {resuming ? "Resuming…" : "Continue"}
+                    <ArrowRight aria-hidden size={15} strokeWidth={2.5} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <section
+          aria-labelledby="case-situation-heading"
+          className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-6"
+        >
+          <h2 className="font-display text-xl font-medium text-cwru-blue" id="case-situation-heading">
+            The situation
+          </h2>
+          <p className="max-w-[75ch] whitespace-pre-wrap text-[15px] leading-7 text-ink">
+            {caseData.backgroundInfo}
+          </p>
+        </section>
+
+        {characterCount > 0 && (
+          <section aria-labelledby="case-people-heading" className="flex flex-col gap-3">
+            <h2 className="font-display text-xl font-medium text-cwru-blue" id="case-people-heading">
+              People you can talk to
+            </h2>
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {caseData.avatars.map((avatar) => (
+                <li
+                  key={avatar.id}
+                  className="flex items-center gap-3.5 rounded-2xl border border-line bg-white p-4"
+                >
+                  <AvatarImage
+                    portrait={avatarPortraits[avatar.id]}
+                    name={avatar.name}
+                    size={48}
+                    className="shrink-0"
+                  />
+                  <div className="flex min-w-0 flex-col">
+                    <p className="truncate font-semibold text-ink">{avatar.name}</p>
+                    <p className="truncate text-sm text-muted">{avatar.role}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         {/* Language is fixed for the whole attempt: it pins transcription, the
             roles' replies, and the avatar voice together. Resuming an attempt
             restores its language rather than offering the choice again. */}
-        <div className="flex flex-col items-center gap-2 pt-4">
-          <span className="text-sm text-default-500">Conduct this attempt in</span>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {ATTEMPT_LANGUAGES.map((lang) => (
-              <Button
-                key={lang.code}
-                size="sm"
-                variant={lang.code === attemptLanguage.code ? "solid" : "bordered"}
-                color={lang.code === attemptLanguage.code ? "primary" : "default"}
-                onPress={() => setAttemptLanguage(lang)}
-              >
-                {lang.label}
-              </Button>
-            ))}
-          </div>
-        </div>
+        <section
+          aria-label="Start the case"
+          className="flex flex-col gap-5 rounded-2xl border border-line bg-white p-6 md:flex-row md:items-end md:justify-between"
+        >
+          <div className="flex flex-col gap-2.5">
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink" id="case-language-label">
+              <Languages aria-hidden className="size-4 text-true-blue" />
+              Conduct this attempt in
+            </span>
+            <div aria-labelledby="case-language-label" className="flex flex-wrap gap-2" role="group">
+              {ATTEMPT_LANGUAGES.map((lang) => {
+                const selected = lang.code === attemptLanguage.code;
 
-        <div className="flex gap-4 justify-center pt-4">
-          <Button
-            size="lg"
-            variant="bordered"
-            startContent={<Eye className="w-5 h-5" />}
-            onPress={() => handleStart("explore")}
-          >
-            Explore System
-          </Button>
-          <Button
-            size="lg"
-            color="primary"
-            startContent={<Play className="w-5 h-5" />}
-            onPress={() => handleStart("assessed")}
-          >
-            Start
-          </Button>
-        </div>
-        <p className="text-center text-sm text-default-400">
-          &quot;Explore System&quot; lets you try the case without recording.
-          &quot;Start&quot; begins an assessed attempt.
-        </p>
+                return (
+                  <button
+                    key={lang.code}
+                    aria-pressed={selected}
+                    className={`rounded-full border px-3 py-1 text-[13px] transition-colors focus-visible:outline-true-blue ${
+                      selected
+                        ? "border-cwru-blue bg-cwru-blue font-semibold text-white"
+                        : "border-line bg-white text-ink hover:border-true-blue"
+                    }`}
+                    type="button"
+                    onClick={() => setAttemptLanguage(lang)}
+                  >
+                    {lang.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 md:items-end">
+            <div className="flex flex-wrap gap-3">
+              <Button
+                className="font-semibold"
+                startContent={<Eye className="size-4" />}
+                variant="bordered"
+                onPress={() => handleStart("explore")}
+              >
+                Explore first
+              </Button>
+              <Button
+                className="font-semibold"
+                color="primary"
+                startContent={<Play className="size-4" />}
+                onPress={() => handleStart("assessed")}
+              >
+                Start
+              </Button>
+            </div>
+            <p className="text-[13px] text-muted">Explore isn&apos;t scored. Start begins a scored attempt.</p>
+          </div>
+        </section>
       </div>
     );
   }
