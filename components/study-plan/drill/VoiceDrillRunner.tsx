@@ -474,7 +474,7 @@ export default function VoiceDrillRunner({
         </div>
         {videoUnavailable ? (
           <div className="absolute inset-0 grid place-items-center px-8 text-center" role="status">
-            <p className="max-w-sm text-sm leading-6 text-light-blue/32">
+            <p className="max-w-sm text-sm leading-6 text-white">
               The video coach couldn&apos;t connect. The scenario is on screen; answer out loud
               whenever you are ready.
             </p>
@@ -483,9 +483,9 @@ export default function VoiceDrillRunner({
         {!connected ? (
           <div className="absolute inset-x-0 bottom-24 z-10 flex flex-col items-center gap-3 px-6 text-center">
             <Spinner color="primary" size="sm" />
-            <p className="text-sm text-light-blue/32">Connecting to {coachLabel}…</p>
+            <p className="text-sm text-white">Connecting to {coachLabel}…</p>
             {slowConnect ? (
-              <Button size="sm" variant="flat" className="text-light-blue/32" onPress={handleContinueWithoutVideo}>
+              <Button size="sm" variant="flat" className="text-white" onPress={handleContinueWithoutVideo}>
                 Taking a while — continue without video
               </Button>
             ) : null}
@@ -543,7 +543,7 @@ export default function VoiceDrillRunner({
               <Lightbulb size={14} aria-hidden="true" /> Technique to apply
             </p>
             {/* Rendered verbatim from the server (closed technique library); never composed here. */}
-            <p className="mt-2 text-sm leading-6 text-light-blue/32">{liveTip}</p>
+            <p className="mt-2 text-sm leading-6 text-white">{liveTip}</p>
           </aside>
 
           <div className="space-y-3" aria-label="Your answer captions">
@@ -556,7 +556,7 @@ export default function VoiceDrillRunner({
               </article>
             ))}
             {partialTranscript ? (
-              <article className="ml-auto max-w-[88%] rounded-xl rounded-br-sm border border-light-blue bg-cwru-blue px-4 py-3 text-sm leading-6 text-light-blue/32">
+              <article className="ml-auto max-w-[88%] rounded-xl rounded-br-sm border border-light-blue bg-cwru-blue px-4 py-3 text-sm leading-6 text-white">
                 {partialTranscript}
               </article>
             ) : null}
