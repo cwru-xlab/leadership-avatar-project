@@ -77,7 +77,7 @@ export default function RebuildPathNotice({
         {busy ? "Rebuilding your path…" : "Rebuild this path"}
       </Button>
       {error ? (
-        <p className="mt-2 text-sm text-danger-700" role="alert">
+        <p className="mt-2 text-sm text-copper-deep" role="alert">
           {error}
         </p>
       ) : null}

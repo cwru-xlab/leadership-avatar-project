@@ -233,7 +233,7 @@ export default function MyReportsPage() {
           <StudyPlanGenerator
             aside={
               <NextLink
-                className="text-sm font-semibold text-true-blue hover:underline"
+                className="text-sm font-semibold text-link hover:underline"
                 href="/study-plans"
               >
                 {plansError || plans === null

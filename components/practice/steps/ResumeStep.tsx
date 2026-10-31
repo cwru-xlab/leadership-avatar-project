@@ -84,7 +84,7 @@ export default function ResumeStep({
     <section className="mx-auto max-w-3xl" aria-labelledby="resume-heading">
       <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <div className="flex items-start gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-light-blue/32 text-true-blue">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-light-blue/32 text-link">
             <FileUp size={21} />
           </div>
           <div>
@@ -117,7 +117,7 @@ export default function ResumeStep({
             {uploadingResume ? (
               <Spinner color="primary" />
             ) : (
-              <FileUp className="text-true-blue" size={28} />
+              <FileUp className="text-link" size={28} />
             )}
             <span className="mt-3 font-semibold">
               {uploadingResume ? "Reading your PDF…" : "Upload a PDF resume"}

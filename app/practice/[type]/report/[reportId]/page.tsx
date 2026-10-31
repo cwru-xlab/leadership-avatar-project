@@ -437,7 +437,7 @@ function StatusPanel({
     >
       <CircleAlert
         aria-hidden
-        className={tone === "error" ? "text-copper" : "text-cwru-blue"}
+        className={tone === "error" ? "text-copper-deep" : "text-cwru-blue"}
         size={24}
         strokeWidth={1.5}
       />
@@ -527,7 +527,7 @@ function ReportShell({
             <button
               type="button"
               onClick={topBackHandler}
-              className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-true-blue hover:text-cwru-blue"
+              className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-link hover:text-cwru-blue"
             >
               <ArrowLeft aria-hidden size={16} />
               {backLabel}

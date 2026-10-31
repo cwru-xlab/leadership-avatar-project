@@ -16,7 +16,6 @@ import BackLink from "@/components/shell/BackLink";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { ArrowLeft } from "lucide-react";
-import { title } from "@/components/primitives";
 import ScenarioBuilder from "@/components/scenario/ScenarioBuilder";
 
 export default function NewScenarioPage() {
@@ -26,8 +25,8 @@ export default function NewScenarioPage() {
     <div className="space-y-8 py-2 md:py-4">
       <div className="flex flex-col gap-3">
         <BackLink href="/case-play" label="Case studies" />
-        <h1 className={title({ fullWidth: true })}>Create a scenario</h1>
-        <p className="max-w-2xl text-[15px] text-muted">
+        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">Create a scenario</h1>
+        <p className="max-w-[65ch] text-[15px] text-muted">
           Build a practice scenario step by step — your own situation,
           characters, and criteria.
         </p>

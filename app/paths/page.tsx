@@ -124,7 +124,7 @@ function PlanSwitcher({
             );
           })}
           <li>
-            <Link className="flex items-center gap-1 rounded-lg p-2.5 text-sm font-semibold text-true-blue hover:bg-canvas" href="/study-plans">
+            <Link className="flex items-center gap-1 rounded-lg p-2.5 text-sm font-semibold text-link hover:bg-canvas" href="/study-plans">
               Manage study plans <ChevronRight size={14} aria-hidden="true" />
             </Link>
           </li>

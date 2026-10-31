@@ -516,7 +516,7 @@ export default function PracticeTypePage() {
       <main className="grid min-h-[100dvh] place-items-center bg-canvas p-6 text-ink">
         <Card className="max-w-lg border border-line shadow-none">
           <CardBody className="items-start gap-4 p-8">
-            <CircleAlert className="text-true-blue" size={28} />
+            <CircleAlert className="text-link" size={28} />
             <h1 className="font-display font-medium text-3xl">
               That practice type is not available.
             </h1>

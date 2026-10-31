@@ -20,6 +20,8 @@ const config = {
         "cwru-blue": "#003071",
         ink: "#09143A",
         "true-blue": "#007AB8",
+        // True Blue deepened for text: #007AB8 is 4.4:1 on canvas, this is 5.5:1.
+        link: "#006AA1",
         "force-blue": "#2359EF",
         "light-blue": "#A6D2E6",
         canvas: "#F5F8FB",
@@ -29,6 +31,9 @@ const config = {
         "level-4": "#377E72",
         "level-2": "#FF9239",
         copper: "#D63D1F",
+        // Copper text on pale tints (5:1 on a copper wash) and on the dark session room.
+        "copper-deep": "#B8321A",
+        "copper-soft": "#FF9C88",
         ai: "#692C95",
         weatherhead: {
           primary: "#003071",

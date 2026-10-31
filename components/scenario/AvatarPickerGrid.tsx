@@ -93,8 +93,8 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
 
   if (error) {
     return (
-      <Card className="border border-danger-200 bg-danger-50 shadow-none">
-        <CardBody className="gap-3 p-6 text-danger-800">
+      <Card className="border border-copper/40 bg-copper/[0.06] shadow-none">
+        <CardBody className="gap-3 p-6 text-copper-deep">
           <CircleAlert size={22} />
           <p>{error}</p>
           <Button size="sm" variant="flat" onPress={() => window.location.reload()}>
@@ -152,7 +152,7 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
                   </span>
                 )}
               </div>
-              <h3 className="font-display font-medium text-2xl">{interviewer.name}</h3>
+              <p className="font-display font-medium text-2xl">{interviewer.name}</p>
               <p className="mt-1 text-sm text-white/78">Live character</p>
             </div>
           </button>

@@ -10,7 +10,7 @@ export default function BackLink({ href, label, ariaLabel }: { href: string; lab
   return (
     <Link
       aria-label={ariaLabel}
-      className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-true-blue hover:text-cwru-blue"
+      className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-link hover:text-cwru-blue"
       href={href}
     >
       <ArrowLeft aria-hidden size={16} />

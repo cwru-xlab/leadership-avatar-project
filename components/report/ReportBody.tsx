@@ -133,7 +133,7 @@ function DisclosureRow({
         </span>
         <ChevronDown
           aria-hidden
-          className={clsx("shrink-0 text-true-blue transition-transform duration-200", open && "rotate-180")}
+          className={clsx("shrink-0 text-link transition-transform duration-200", open && "rotate-180")}
           size={16}
         />
       </button>
@@ -153,7 +153,7 @@ function Summary({ text }: { text: string }) {
       <p className="max-w-[64ch] text-[17px] leading-[1.55] text-ink">{expanded ? text : lead}</p>
       {hasMore && (
         <button
-          className="w-fit text-sm font-semibold text-true-blue hover:underline"
+          className="w-fit text-sm font-semibold text-link hover:underline"
           type="button"
           onClick={() => setExpanded((value) => !value)}
         >
@@ -305,7 +305,7 @@ export default function ReportBody({
                         </p>
                         {cited && (
                           <a
-                            className="w-fit text-[13.5px] font-semibold text-true-blue hover:underline"
+                            className="w-fit text-[13.5px] font-semibold text-link hover:underline"
                             href="#moments"
                             onClick={(event) => {
                               event.preventDefault();

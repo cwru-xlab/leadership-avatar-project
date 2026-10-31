@@ -147,7 +147,7 @@ function DeltaText({ delta }: { delta: number }) {
     <span
       className={clsx(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] font-bold",
-        delta >= 0 ? "bg-level-4/16 text-level-4" : "bg-copper/12 text-copper",
+        delta >= 0 ? "bg-level-4/16 text-level-4" : "bg-copper/12 text-copper-deep",
       )}
     >
       <Icon size={14} aria-hidden="true" />
@@ -212,7 +212,7 @@ function DriverList({ drivers, timeZone }: { drivers: WindowDriverDTO[]; timeZon
             className="text-xs text-ink"
           >
             {driver.href ? (
-              <Link href={driver.href} className="underline decoration-light-blue underline-offset-2 hover:text-true-blue">
+              <Link href={driver.href} className="underline decoration-light-blue underline-offset-2 hover:text-link">
                 {body}
               </Link>
             ) : (
@@ -276,7 +276,7 @@ function RecentMovement({
               )}
               {entry.drivers.length > 0 && (
                 <details className="group text-xs">
-                  <summary className="flex cursor-pointer list-none items-center gap-1 font-semibold text-true-blue [&::-webkit-details-marker]:hidden">
+                  <summary className="flex cursor-pointer list-none items-center gap-1 font-semibold text-link [&::-webkit-details-marker]:hidden">
                     Moved by {entry.drivers.length} {entry.drivers.length === 1 ? "activity" : "activities"}
                     <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180" size={14} />
                   </summary>
@@ -417,23 +417,23 @@ function CompetencyCard({
           <dd className="font-display text-2xl font-medium text-cwru-blue tabular-nums">
             {formatPercent(competency.lifetime.percent)}
           </dd>
-          <dd className="text-[11.5px] text-muted">
+          <dd className="text-[13px] leading-snug text-muted">
             {`${competency.lifetime.tierLabel} · ${competency.lifetime.evidenceCount} scored`}
           </dd>
         </div>
         <div>
-          <dt className="text-xs font-semibold text-true-blue">{`Recent (last ${windowDays} days)`}</dt>
+          <dt className="text-xs font-semibold text-link">{`Recent (last ${windowDays} days)`}</dt>
           <dd className="font-display text-2xl font-medium text-cwru-blue tabular-nums">
             {formatPercent(competency.current.percent)}
           </dd>
-          <dd className="text-[11.5px] text-muted">
+          <dd className="text-[13px] leading-snug text-muted">
             {`${competency.current.tierLabel} · ${competency.current.evidenceCount} scored`}
           </dd>
         </div>
       </dl>
 
       <details className="group mt-auto border-t border-line pt-3">
-        <summary className="flex cursor-pointer list-none items-center justify-between text-[13px] font-semibold text-true-blue [&::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between text-[13px] font-semibold text-link [&::-webkit-details-marker]:hidden">
           Trend and evidence
           <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180" size={16} />
         </summary>

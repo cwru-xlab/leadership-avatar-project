@@ -566,7 +566,7 @@ export default function VoiceDrillRunner({
 
         <div className="border-t border-white/10 bg-ink px-5 py-5 sm:px-8">
           {startError ? (
-            <p className="mb-2 text-sm text-copper/60" role="alert">
+            <p className="mb-2 text-sm text-copper-soft" role="alert">
               {startError}
             </p>
           ) : null}
@@ -591,12 +591,12 @@ export default function VoiceDrillRunner({
             <p className="mt-2 text-xs text-light-blue">Say a bit more before you finish — a full answer is graded best.</p>
           ) : null}
           {talkError ? (
-            <p className="mt-2 text-sm text-copper/60" role="alert">
+            <p className="mt-2 text-sm text-copper-soft" role="alert">
               {talkError}
             </p>
           ) : null}
           {finishError ? (
-            <p className="mt-2 text-sm text-copper/60" role="alert">
+            <p className="mt-2 text-sm text-copper-soft" role="alert">
               {finishError}
             </p>
           ) : null}
