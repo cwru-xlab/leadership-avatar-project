@@ -16,7 +16,7 @@
  */
 import { useEffect, useState } from "react";
 import clsx from "clsx";
-import { CalendarCheck, Goal } from "lucide-react";
+import { CalendarCheck, Check, Goal } from "lucide-react";
 
 import { levelDotClass } from "@/components/report/LevelChip";
 import { competencyIcon } from "@/components/study-plan/competency-icons";
@@ -96,6 +96,10 @@ export function ProgressRing({
   const circumference = 2 * Math.PI * radius;
   const fraction = total > 0 ? Math.min(1, done / total) : 0;
   const finished = total > 0 && done >= total;
+  const inner = size - stroke * 2;
+  const defaultLabel = `${done}/${total}`;
+  // Tabular digits run ~0.6em wide; leave 3px of air either side.
+  const defaultLabelSize = Math.min(14, Math.floor((inner - 6) / (defaultLabel.length * 0.6)));
   return (
     <div
       className="relative shrink-0"
@@ -129,11 +133,19 @@ export function ProgressRing({
       </svg>
       <span
         className={clsx(
-          "absolute inset-0 flex items-center justify-center text-sm font-bold tabular-nums",
+          "absolute inset-0 flex items-center justify-center font-bold tabular-nums",
           tone === "dark" ? "text-white" : "text-ink",
         )}
+        // The default label sizes itself to the ring's inner diameter, so
+        // "10/10" in a 44px ring stays inside the stroke instead of over it.
+        style={children ? undefined : { fontSize: defaultLabelSize }}
       >
-        {children ?? `${done}/${total}`}
+        {children ??
+          (finished ? (
+            <Check aria-hidden className={tone === "dark" ? "text-white" : "text-level-4"} size={Math.round(inner * 0.5)} strokeWidth={3} />
+          ) : (
+            defaultLabel
+          ))}
       </span>
     </div>
   );

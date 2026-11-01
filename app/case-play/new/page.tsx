@@ -13,13 +13,9 @@
  */
 
 import BackLink from "@/components/shell/BackLink";
-import { useRouter } from "next/navigation";
-import { Button } from "@heroui/button";
-import { ArrowLeft } from "lucide-react";
 import ScenarioBuilder from "@/components/scenario/ScenarioBuilder";
 
 export default function NewScenarioPage() {
-  const router = useRouter();
 
   return (
     <div className="space-y-8 py-2 md:py-4">

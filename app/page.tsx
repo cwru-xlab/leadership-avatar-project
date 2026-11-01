@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { Card, CardBody } from "@heroui/card";
-import { Button } from "@heroui/button";
 import { Briefcase, Video, ArrowRight } from "lucide-react";
 import { title } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";

@@ -37,7 +37,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import PracticeHero from "@/components/practice/PracticeHero";
 import PracticeSessionShell from "@/components/practice/PracticeSessionShell";

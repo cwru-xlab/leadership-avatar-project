@@ -2,10 +2,7 @@
 
 import BackLink from "@/components/shell/BackLink";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button } from "@heroui/button";
-import { ArrowLeft, Mic } from "lucide-react";
 
 import CameraConsentStep from "@/components/session/CameraConsentStep";
 import DrillBrief from "@/components/study-plan/drill/DrillBrief";

@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@heroui/button";
-import { Card, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import { Input } from "@heroui/input";
@@ -26,9 +25,7 @@ import {
   Mic,
   MicOff,
   RotateCcw,
-  DoorOpen,
-  Camera,
-} from "lucide-react";
+  DoorOpen } from "lucide-react";
 import {
   Modal,
   ModalContent,

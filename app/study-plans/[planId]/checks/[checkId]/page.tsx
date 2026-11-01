@@ -6,7 +6,6 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
-import { ArrowLeft } from "lucide-react";
 
 import KnowledgeCheckCard, { type AttemptMarkDTO, type KeylessCheckDTO } from "@/components/study-plan/KnowledgeCheckCard";
 

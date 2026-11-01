@@ -16,7 +16,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
-import { ArrowLeft, CircleAlert } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import ScenarioBuilder from "@/components/scenario/ScenarioBuilder";
 import type { CaseStudy } from "@/types";
 

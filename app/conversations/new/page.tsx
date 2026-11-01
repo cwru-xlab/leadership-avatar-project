@@ -12,13 +12,9 @@
  */
 
 import BackLink from "@/components/shell/BackLink";
-import { useRouter } from "next/navigation";
-import { Button } from "@heroui/button";
-import { ArrowLeft } from "lucide-react";
 import ConversationBuilder from "@/components/difficult-conversation/ConversationBuilder";
 
 export default function NewConversationPage() {
-  const router = useRouter();
 
   return (
     <div className="space-y-8 py-2 md:py-4">
