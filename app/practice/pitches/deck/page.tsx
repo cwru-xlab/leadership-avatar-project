@@ -62,7 +62,7 @@ export default function DeckPitchSettingsPage() {
                     <h3 className="font-display text-xl font-medium leading-tight text-cwru-blue">
                       {mode.cardTitle}
                     </h3>
-                    <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-true-blue">
+                    <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-link">
                       <UserRound aria-hidden size={14} />
                       {mode.listenerLine}
                     </p>
@@ -72,7 +72,7 @@ export default function DeckPitchSettingsPage() {
                 <p className="text-[15px] leading-6 text-muted">{mode.cardBlurb}</p>
 
                 <p className="flex items-start gap-2 text-sm text-ink">
-                  <Target aria-hidden className="mt-0.5 shrink-0 text-true-blue" size={15} />
+                  <Target aria-hidden className="mt-0.5 shrink-0 text-link" size={15} />
                   <span>
                     <span className="font-semibold">Scored on</span> {mode.scoredLine.charAt(0).toLowerCase() + mode.scoredLine.slice(1)}
                   </span>
@@ -99,7 +99,7 @@ export default function DeckPitchSettingsPage() {
                 <div className="mt-auto flex justify-end pt-1">
                   <Link
                     aria-label={`Start ${mode.cardTitle}`}
-                    className="inline-flex items-center gap-1 rounded-md text-sm font-bold text-true-blue after:absolute after:inset-0 after:rounded-2xl hover:underline focus-visible:outline-true-blue"
+                    className="inline-flex items-center gap-1 rounded-md text-sm font-bold text-link after:absolute after:inset-0 after:rounded-2xl hover:underline focus-visible:outline-true-blue"
                     href={`/practice/${mode.slug}`}
                   >
                     Start <ArrowRight aria-hidden size={15} strokeWidth={2.5} />

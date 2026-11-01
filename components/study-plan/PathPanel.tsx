@@ -334,9 +334,10 @@ export default function PathPanel({
     : null;
   const firstHighlightedId = firstHighlighted?.id ?? null;
 
-  const [selectedId, setSelectedId] = useState<string | null>(
-    firstHighlightedId ?? target?.step.id ?? orderedSteps[0]?.id ?? null,
-  );
+  // Nothing opens by default: the rail's Up next card already explains the
+  // next step, so an open card on the same node would say it twice. A
+  // competency handed in from mastery still opens its first step.
+  const [selectedId, setSelectedId] = useState<string | null>(firstHighlightedId);
 
   useEffect(() => {
     if (!firstHighlightedId) return;
@@ -424,7 +425,7 @@ export default function PathPanel({
                         Done{step.completedAt ? ` · ${formatGeneratedAt(step.completedAt)}` : ""}
                       </span>
                     )}
-                    {state === "next" && <span className="text-xs font-semibold text-true-blue">Up next</span>}
+                    {state === "next" && <span className="text-xs font-semibold text-link">Up next</span>}
                   </span>
                 </div>
 
@@ -440,7 +441,7 @@ export default function PathPanel({
                       <>
                         <p className="mt-2 text-sm leading-6 text-ink">{purpose}</p>
                         <details className="mt-1 text-xs text-muted">
-                          <summary className="cursor-pointer select-none font-semibold text-true-blue">Why this skill</summary>
+                          <summary className="cursor-pointer select-none font-semibold text-link">Why this skill</summary>
                           <p className="mt-1 whitespace-pre-wrap leading-5">{step.selectionReason}</p>
                         </details>
                       </>
@@ -527,7 +528,7 @@ export default function PathPanel({
 
         {skills.length > 0 && (
           <section className="flex flex-col gap-3.5 rounded-2xl border border-line bg-white p-4">
-            <h3 className="font-display text-xl font-medium text-cwru-blue">Skills on this path</h3>
+            <h2 className="font-display text-xl font-medium text-cwru-blue">Skills on this path</h2>
             {skills.map((step) => (
               <SkillLevelRow
                 key={step.competencyKey}

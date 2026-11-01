@@ -102,7 +102,7 @@ export default function InteractionDashboard() {
             </h2>
             {recent.length > 0 && (
               <NextLink
-                className="text-sm font-semibold text-true-blue hover:underline"
+                className="text-sm font-semibold text-link hover:underline"
                 href="/reports"
               >
                 All reports

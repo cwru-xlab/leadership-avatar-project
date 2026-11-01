@@ -26,10 +26,14 @@ export function formatElapsed(totalSeconds: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-/** The full-viewport room: dark background and the two radial glows. */
+/**
+ * The full-viewport room: dark background and the two radial glows. Below the
+ * lg breakpoint the panes stack — avatar stage on top, conversation filling
+ * the rest with its own scroll — so a phone never gets two squeezed columns.
+ */
 export function SessionRoom({
   children,
-  className = "relative flex h-[100dvh] overflow-hidden bg-ink text-canvas",
+  className = "relative flex h-[100dvh] flex-col overflow-hidden bg-ink text-canvas lg:flex-row",
 }: {
   children: ReactNode;
   className?: string;
@@ -45,7 +49,7 @@ export function SessionRoom({
 /** Left pane: the avatar stage, its header and the self-view. */
 export function SessionStagePane({
   children,
-  className = "relative flex h-full flex-1 flex-col lg:w-[64%]",
+  className = "relative flex h-[40dvh] min-h-[240px] shrink-0 flex-col lg:h-full lg:w-[64%] lg:flex-1",
 }: {
   children: ReactNode;
   className?: string;
@@ -56,7 +60,7 @@ export function SessionStagePane({
 /** Right pane: status, conversation and the answer controls. */
 export function SessionSidePane({
   children,
-  className = "relative z-10 flex h-full w-full max-w-[570px] flex-col border-l border-white/10 bg-ink/95 lg:w-[36%]",
+  className = "relative z-10 flex min-h-0 w-full flex-1 flex-col border-t border-white/10 bg-ink/95 lg:h-full lg:w-[36%] lg:max-w-[570px] lg:flex-none lg:border-l lg:border-t-0",
 }: {
   children: ReactNode;
   className?: string;
@@ -73,10 +77,10 @@ export function SessionStageHeader({ children }: { children: ReactNode }) {
   );
 }
 
-/** The green-dot pill in the stage header ("LIVE INTERVIEW"). */
+/** The green-dot pill in the stage header ("Live interview"). */
 export function SessionLiveBadge({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-full border border-white/15 bg-ink/65 px-3 py-1.5 text-xs font-medium text-light-blue/32 backdrop-blur-md">
+    <div className="flex items-center gap-2 rounded-full border border-white/15 bg-ink/65 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-md">
       <span className="h-2 w-2 rounded-full bg-level-4" />
       {label}
     </div>
@@ -106,9 +110,9 @@ export function SessionStatus({
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <p className="text-[11px] font-semibold text-light-blue">{eyebrow}</p>
-        <h1 className="mt-1 font-display font-medium text-2xl tracking-[-0.02em] text-white">{title}</h1>
-        <p className="mt-1.5 text-sm text-light-blue">{subtitle}</p>
+        <p className="hidden text-[11px] font-semibold text-light-blue sm:block">{eyebrow}</p>
+        <h1 className="font-display text-xl font-medium tracking-[-0.02em] text-white sm:mt-1 sm:text-2xl">{title}</h1>
+        <p className="mt-1 text-sm text-light-blue sm:mt-1.5">{subtitle}</p>
       </div>
       <Chip
         size="sm"
@@ -155,7 +159,7 @@ export function PushToTalkControl({
         size="sm"
         variant={isRecording || isTranscribing ? "solid" : "flat"}
         color={isRecording ? "danger" : isTranscribing ? "primary" : "default"}
-        className="font-medium text-light-blue/32"
+        className="font-medium text-white"
         isDisabled={isDisabled}
         isLoading={isTranscribing}
         onPress={onToggle}

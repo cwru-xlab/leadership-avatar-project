@@ -91,12 +91,12 @@ export default function LibraryCard({
           {badges ? <span className="flex shrink-0 flex-wrap justify-end gap-1">{badges}</span> : null}
         </div>
 
-        <h3 className="font-display text-[19px] font-medium leading-tight text-cwru-blue">{title}</h3>
+        <h2 className="font-display text-[19px] font-medium leading-tight text-cwru-blue">{title}</h2>
         {summary ? <p className="line-clamp-2 text-[13.5px] leading-5 text-muted">{summary}</p> : null}
 
         <div className="mt-auto flex items-center justify-between gap-3 pt-1">
           <span className="text-[12.5px] text-muted">{footer}</span>
-          <span className="inline-flex items-center gap-1 text-sm font-bold text-true-blue">
+          <span className="inline-flex items-center gap-1 text-sm font-bold text-link">
             {actionLabel} <ArrowRight aria-hidden size={15} strokeWidth={2.5} />
           </span>
         </div>
@@ -111,5 +111,5 @@ export default function LibraryCard({
 export function LibraryBadge({ tone = "neutral", children }: { tone?: "neutral" | "good" | "brand"; children: ReactNode }) {
   const cls =
     tone === "good" ? "bg-level-4/16 text-ink" : tone === "brand" ? "bg-light-blue/32 text-cwru-blue" : "bg-canvas text-muted";
-  return <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${cls}`}>{children}</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{children}</span>;
 }

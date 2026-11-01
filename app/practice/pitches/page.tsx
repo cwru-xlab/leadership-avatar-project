@@ -56,13 +56,13 @@ function PickerCard({
 }) {
   return (
     <div className="relative flex flex-col gap-5 rounded-2xl border border-line bg-white p-6 transition-shadow hover:shadow-raised">
-      <div className="flex size-14 items-center justify-center rounded-[16px] bg-cwru-blue text-white">
-        <Icon aria-hidden size={26} strokeWidth={1.75} />
-      </div>
       <div className="flex flex-col gap-3">
-        <h2 className="font-display text-2xl font-medium text-cwru-blue">{title}</h2>
+        <h2 className="flex items-center gap-3 font-display text-2xl font-medium text-cwru-blue">
+          <Icon aria-hidden className="shrink-0" size={24} strokeWidth={1.75} />
+          {title}
+        </h2>
         <p className="text-[15px] leading-6 text-muted">{description}</p>
-        <p className="inline-flex items-center gap-1.5 text-sm text-true-blue">
+        <p className="inline-flex items-center gap-1.5 text-sm text-link">
           <Clock3 aria-hidden size={14} />
           {minutes}
         </p>
@@ -70,7 +70,7 @@ function PickerCard({
       <div className="mt-auto flex justify-end pt-2">
         <Link
           aria-label={ariaLabel}
-          className="inline-flex items-center gap-1 rounded-md text-sm font-bold text-true-blue after:absolute after:inset-0 after:rounded-2xl hover:underline focus-visible:outline-true-blue"
+          className="inline-flex items-center gap-1 rounded-md text-sm font-bold text-link after:absolute after:inset-0 after:rounded-2xl hover:underline focus-visible:outline-true-blue"
           href={href}
         >
           {actionLabel} <ArrowRight aria-hidden size={15} strokeWidth={2.5} />

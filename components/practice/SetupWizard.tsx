@@ -16,14 +16,11 @@ import type { SetupStepDeclaration } from "@/lib/engine/types";
 import type { CameraMode } from "@/lib/metrics/types";
 import type { InteractionLog } from "@/types";
 import { addToast } from "@heroui/toast";
-import { Check } from "lucide-react";
 import {
-  Fragment,
   type ReactNode,
   useCallback,
   useMemo,
-  useState,
-} from "react";
+  useState } from "react";
 
 /** Result handed to the page after a successful (or bridged) launch. */
 export interface SetupLaunchResult {

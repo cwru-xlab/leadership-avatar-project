@@ -92,7 +92,7 @@ export default function CoachedBriefCard({
         </p>
       ) : null}
 
-      <div className="flex w-full max-w-2xl flex-col gap-2 text-left">
+      <div className="flex w-full max-w-[52ch] flex-col gap-2 text-left">
         <p className="text-sm font-semibold text-ink">
           {progress ? "The moment you just reworked" : "The moment you will rework"}
           {momentDate ? `, from your session on ${momentDate}` : ""}

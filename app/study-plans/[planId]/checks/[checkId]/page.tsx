@@ -6,7 +6,6 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
-import { ArrowLeft } from "lucide-react";
 
 import KnowledgeCheckCard, { type AttemptMarkDTO, type KeylessCheckDTO } from "@/components/study-plan/KnowledgeCheckCard";
 
@@ -108,7 +107,7 @@ export default function KnowledgeCheckPage() {
   if (loadError) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="text-copper">{loadError}</p>
+        <p className="text-copper-deep">{loadError}</p>
         <Button as={Link} href={`/study-plans/${planId}`} className="mt-5" variant="light">
           Back to my study plan
         </Button>

@@ -122,7 +122,7 @@ export default function TalkAudienceStep({
             <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
               {attempted && !audienceOk ? (
                 <p
-                  className="text-copper"
+                  className="text-copper-deep"
                   id="talk-audience-error"
                   role="alert"
                 >
@@ -160,7 +160,7 @@ export default function TalkAudienceStep({
             <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
               {attempted && !takeawayOk ? (
                 <p
-                  className="text-copper"
+                  className="text-copper-deep"
                   id="talk-takeaway-error"
                   role="alert"
                 >

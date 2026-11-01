@@ -56,7 +56,7 @@ export default function InstanceIntroStep({
           <h3 className="text-xl font-semibold">Background Information</h3>
         </CardHeader>
         <CardBody>
-          <p className="whitespace-pre-wrap leading-relaxed text-default-700">
+          <p className="whitespace-pre-wrap leading-relaxed text-ink">
             {background}
           </p>
         </CardBody>
@@ -75,7 +75,7 @@ export default function InstanceIntroStep({
               {avatars.map((avatar) => (
                 <div
                   key={avatar.id}
-                  className="flex items-center gap-4 rounded-lg bg-default-50 p-4"
+                  className="flex items-center gap-4 rounded-lg bg-canvas p-4"
                 >
                   <AvatarImage
                     portrait={avatarPortraits[avatar.id] ?? avatar.portraitUrl ?? undefined}
@@ -85,7 +85,7 @@ export default function InstanceIntroStep({
                   />
                   <div>
                     <p className="font-semibold">{avatar.name}</p>
-                    <p className="text-sm text-default-500">{avatar.role}</p>
+                    <p className="text-sm text-muted">{avatar.role}</p>
                   </div>
                 </div>
               ))}

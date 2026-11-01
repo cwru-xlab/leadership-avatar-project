@@ -1,10 +1,7 @@
 import { cookies } from "next/headers";
 import BackLink from "@/components/shell/BackLink";
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 
-import { title } from "@/components/primitives";
 import ConversationBuilder from "@/components/difficult-conversation/ConversationBuilder";
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
@@ -45,17 +42,17 @@ export default async function EditConversationPage({
             server component, and passing the Link function as a prop to a
             client component throws at render (D15-2). */}
         <BackLink href="/conversations" label="Courageous conversations" />
-        <h1 className={title({ fullWidth: true })}>Edit conversation</h1>
-        <p className="max-w-2xl text-[15px] text-muted">
+        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">Edit conversation</h1>
+        <p className="max-w-[58ch] text-[15px] text-muted">
           Edits to a published scenario go live after the safety check. A
           failing check keeps your new text saved and privately playable, but
           unpublishes it until you fix the problem.
         </p>
-        <p className="max-w-2xl text-sm text-default-500">
+        <p className="max-w-[58ch] text-sm text-muted">
           Unpublish is instant and never gated. Publishing again re-runs the
           same automated check — there is no separate draft-versus-live copy.
         </p>
-        <p className="max-w-2xl text-sm text-default-500">
+        <p className="max-w-[58ch] text-sm text-muted">
           Opening this URL for a classmate&apos;s scenario or a featured id
           shows the standard not-found page, not a permission error.
         </p>

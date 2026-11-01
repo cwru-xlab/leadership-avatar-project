@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
-import { ArrowLeft, ChevronLeft, Sparkles, Volume2 } from "lucide-react";
+import { ChevronLeft, Sparkles, Volume2 } from "lucide-react";
 
 import type { InteractiveAvatarRef } from "@/components/HeyGenAvatar/InteractiveAvatar";
 import { StreamingAvatarSessionState } from "@/components/HeyGenAvatar/logic";
@@ -693,7 +693,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   if (uiPhase === "ENTRY_ERROR" || !legView) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="text-copper" role="alert">
+        <p className="text-copper-deep" role="alert">
           {entryError ?? "Unable to load this coached step."}
         </p>
         <Button as={Link} href="/reports" className="mt-5" variant="light">
@@ -804,7 +804,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
         ) : null}
         {videoUnavailable ? (
           <div className="absolute inset-0 grid place-items-center px-8 text-center" role="status">
-            <p className="max-w-sm text-sm leading-6 text-light-blue/32">
+            <p className="max-w-sm text-sm leading-6 text-white">
               The video coach couldn&apos;t connect, so your coach will continue in text. If the
               video connects later, you&apos;ll hear your coach.
             </p>
@@ -813,9 +813,9 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
         {!connected ? (
           <div className="absolute inset-x-0 bottom-24 z-10 flex flex-col items-center gap-3 px-6 text-center">
             <Spinner color="primary" size="sm" />
-            <p className="text-sm text-light-blue/32">Connecting to {coachLabel}…</p>
+            <p className="text-sm text-white">Connecting to {coachLabel}…</p>
             {slowConnect ? (
-              <Button size="sm" variant="flat" className="text-light-blue/32" onPress={handleContinueWithoutVideo}>
+              <Button size="sm" variant="flat" className="text-white" onPress={handleContinueWithoutVideo}>
                 Taking a while — continue without video
               </Button>
             ) : null}
@@ -897,7 +897,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
               </p>
             ) : null}
             {partialTranscript ? (
-              <article className="ml-auto max-w-[88%] rounded-xl rounded-br-sm border border-light-blue bg-cwru-blue px-4 py-3 text-sm leading-6 text-light-blue/32">
+              <article className="ml-auto max-w-[88%] rounded-xl rounded-br-sm border border-light-blue bg-cwru-blue px-4 py-3 text-sm leading-6 text-white">
                 {partialTranscript}
               </article>
             ) : null}
@@ -938,7 +938,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
                 stopAriaLabel="Stop recording and send your answer"
               />
               {talkError ? (
-                <p className="text-sm text-copper/60" role="alert">
+                <p className="text-sm text-copper-soft" role="alert">
                   {talkError}
                 </p>
               ) : null}
@@ -959,7 +959,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
             </Button>
           )}
           {liveError ? (
-            <p className="mt-2 text-sm text-copper/60" role="alert">
+            <p className="mt-2 text-sm text-copper-soft" role="alert">
               {liveError}
             </p>
           ) : null}
@@ -1032,7 +1032,7 @@ function TipRail({ tips }: { tips: CoachedTipDTO[] }) {
         {tips.map((tip) => (
           <li key={tip.id} className="rounded-lg bg-ink p-3">
             <p className="text-sm font-semibold text-white">{tip.name}</p>
-            <p className="mt-1 text-sm leading-5 text-light-blue/32">{tip.reminder}</p>
+            <p className="mt-1 text-sm leading-5 text-white">{tip.reminder}</p>
           </li>
         ))}
       </ul>
@@ -1046,7 +1046,7 @@ function TipRail({ tips }: { tips: CoachedTipDTO[] }) {
 
 function ScoreBadge({ label, score }: { label: string; score: number | null }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-light-blue bg-white px-2.5 py-0.5 text-xs font-semibold text-true-blue">
+    <span className="inline-flex items-center gap-1 rounded-full border border-light-blue bg-white px-2.5 py-0.5 text-xs font-semibold text-link">
       {label}: {score === null ? "not scored" : `${score}/5`}
     </span>
   );
@@ -1107,14 +1107,14 @@ function CompleteLeg({
 
             {leg.moment.counterpartLine ? (
               <div>
-                <p className="text-xs font-bold text-true-blue">They said:</p>
+                <p className="text-xs font-bold text-link">They said:</p>
                 <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
                   {leg.moment.counterpartLine}
                 </blockquote>
               </div>
             ) : null}
             <div>
-              <p className="text-xs font-bold text-true-blue">
+              <p className="text-xs font-bold text-link">
                 You said originally:
               </p>
               <blockquote className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
@@ -1174,7 +1174,7 @@ function CompleteLeg({
 
       {diagnosis && diagnosis.focuses.length > 0 ? (
         <article className="space-y-3 rounded-xl border border-light-blue/32 bg-canvas p-5" aria-label="What I would focus on">
-          <h2 className="text-xs font-bold text-true-blue">
+          <h2 className="text-xs font-bold text-link">
             {diagnosis.focuses.length > 1 ? "What I would focus on (this session)" : "What I would focus on"}
           </h2>
           <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-ink">

@@ -223,7 +223,7 @@ export default function LoginPage() {
             <p className="font-display text-[28px] font-medium leading-[1.15] min-[900px]:text-[32px]">
               Rehearse the conversation before it counts.
             </p>
-            <p className="text-[15px] leading-[1.55] text-light-blue">
+            <p className="text-[15px] leading-[1.55] text-white/90">
               Practice interviews, pitches, and hard conversations with an AI
               avatar, then read what went well and what to work on.
             </p>
