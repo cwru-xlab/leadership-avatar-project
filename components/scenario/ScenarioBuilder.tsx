@@ -23,7 +23,7 @@ import { Button } from "@heroui/button";
 import { Input, Textarea } from "@heroui/input";
 import { Card, CardBody } from "@heroui/card";
 import { addToast } from "@heroui/toast";
-import { ArrowLeft, ArrowRight, Check, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Trash2 } from "lucide-react";
 import AvatarPickerGrid from "@/components/scenario/AvatarPickerGrid";
 import { SCENARIO_LIMITS, validateScenarioInput } from "@/lib/scenario/validation";
 import type { CaseAvatar, CaseStudy } from "@/types";

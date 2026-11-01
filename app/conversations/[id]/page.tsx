@@ -1,8 +1,6 @@
 import { cookies } from "next/headers";
 import BackLink from "@/components/shell/BackLink";
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 
 import ConversationBuilder from "@/components/difficult-conversation/ConversationBuilder";
 import { getCurrentUser } from "@/lib/auth";

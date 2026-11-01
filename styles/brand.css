@@ -35,19 +35,6 @@
   /* the darker edge under a finished path node */
   --la-level-4-deep: #26594F;
 
-  /* report aliases, repointed at the brand tokens */
-  --report-navy: var(--la-dark-blue);
-  --report-blue: var(--la-true-blue);
-  --report-blue-deep: var(--la-cwru-blue);
-  --report-gold: var(--la-level-2);
-  --report-gold-pale: color-mix(in srgb, var(--la-level-2) 16%, white);
-  --report-surface: var(--la-surface);
-  --report-canvas: var(--la-canvas);
-  --report-ink: var(--la-dark-blue);
-  --report-muted: var(--la-muted);
-  --report-line: var(--la-line);
-  --report-shadow: none;
-
   color-scheme: light;
 }
 
@@ -118,101 +105,6 @@
     background-color: var(--la-cwru-blue);
     background-image: radial-gradient(rgb(166 210 230 / 0.35) 1px, transparent 1.2px);
     background-size: 12px 12px;
-  }
-}
-
-@layer components {
-
-  .report-page {
-    min-height: 100dvh;
-    background: var(--report-canvas);
-    color: var(--report-ink);
-  }
-
-  .report-container {
-    width: min(100%, 76rem);
-    margin-inline: auto;
-    padding: clamp(1.5rem, 4vw, 4rem) clamp(1rem, 4vw, 2.5rem) 3rem;
-  }
-
-  .report-back-link {
-    color: var(--report-muted);
-    transition: color 160ms ease, text-decoration-color 160ms ease;
-  }
-
-  .report-back-link:hover { color: var(--report-blue-deep); }
-
-  .report-kicker {
-    color: var(--report-muted);
-  }
-
-  .report-heading {
-    color: var(--report-navy);
-    text-wrap: balance;
-  }
-
-  .report-content-card,
-  .report-status-card,
-  .report-score-card {
-    border-color: var(--report-line);
-    background: var(--report-surface);
-    box-shadow: var(--report-shadow);
-  }
-
-  .report-content-card {
-    border-top: 4px solid var(--report-navy);
-  }
-
-  .report-status-card {
-    border-left: 4px solid var(--report-blue);
-  }
-
-  .report-score-card {
-    position: relative;
-    overflow: hidden;
-    border-radius: 0.75rem;
-  }
-
-  .report-score-card::before {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 4px;
-    background: var(--report-blue);
-    content: "";
-  }
-
-  .report-score-card-muted::before { background: var(--la-gray-light); }
-
-  .report-section-label { color: var(--report-blue-deep); }
-
-  .report-action-panel {
-    border-color: color-mix(in srgb, var(--la-light-blue) 70%, white);
-    background: color-mix(in srgb, var(--la-light-blue) 32%, white);
-  }
-
-  .report-tabs [role="tab"] {
-    color: var(--report-muted);
-    font-weight: 650;
-  }
-
-  .report-tabs [role="tab"][data-selected="true"] { color: var(--report-navy); }
-
-  .report-tabs [data-slot="cursor"] { background: var(--la-true-blue); }
-
-  .report-page :is(button, a, [role="tab"]):focus-visible {
-    outline: 3px solid var(--la-true-blue);
-    outline-offset: 3px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .report-page *,
-  .report-page *::before,
-  .report-page *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
   }
 }
 

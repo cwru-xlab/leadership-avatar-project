@@ -104,7 +104,7 @@ function PlanSwitcher({
                   }}
                 >
                   {item.path ? (
-                    <ProgressRing done={done} size={40} stroke={4} total={total} />
+                    <ProgressRing done={done} size={44} stroke={4} total={total} />
                   ) : (
                     <span className="grid size-10 shrink-0 place-items-center rounded-full border-2 border-dashed border-light-blue text-cwru-blue">
                       <Plus aria-hidden size={16} />

@@ -214,7 +214,9 @@ export default function StudyPlanPage() {
                 <Trophy aria-hidden size={36} strokeWidth={1.75} />
               ) : (
                 <span className="flex flex-col items-center leading-none">
-                  <span className="font-display text-[28px] font-medium">
+                  <span
+                    className={`font-display font-medium ${`${done}/${total}`.length > 4 ? "text-[23px]" : "text-[28px]"}`}
+                  >
                     {done}/{total}
                   </span>
                   <span className="mt-1 text-[11px] font-normal text-light-blue">steps done</span>

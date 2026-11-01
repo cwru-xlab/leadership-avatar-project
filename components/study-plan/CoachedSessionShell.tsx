@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
-import { ArrowLeft, ChevronLeft, Sparkles, Volume2 } from "lucide-react";
+import { ChevronLeft, Sparkles, Volume2 } from "lucide-react";
 
 import type { InteractiveAvatarRef } from "@/components/HeyGenAvatar/InteractiveAvatar";
 import { StreamingAvatarSessionState } from "@/components/HeyGenAvatar/logic";
