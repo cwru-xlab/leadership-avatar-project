@@ -9,6 +9,7 @@ import { ArrowLeft, Briefcase, PenLine, Plus, Users } from "lucide-react";
 import CaseCard from "@/components/case-card";
 import ScenarioCard from "@/components/scenario/ScenarioCard";
 import type { CaseStudy } from "@/types";
+import { routes } from "@/lib/routes";
 
 export default function CasePlayIndexPage() {
   const router = useRouter();
@@ -89,7 +90,7 @@ export default function CasePlayIndexPage() {
 
   /** Admin case studies stay on the legacy /case-play runtime branch. */
   const handlePlayAdminCase = (caseId: string) => {
-    router.push(`/case-play/${caseId}`);
+    router.push(routes.caseStudy(caseId));
   };
 
   /**
@@ -111,7 +112,7 @@ export default function CasePlayIndexPage() {
       className="h-11 rounded-lg font-semibold"
       color="primary"
       startContent={<Plus className="h-4 w-4" />}
-      onPress={() => router.push("/case-play/new")}
+      onPress={() => router.push(routes.newCaseStudy())}
     >
       Create a scenario
     </Button>
@@ -143,7 +144,7 @@ export default function CasePlayIndexPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-link hover:text-cwru-blue" href="/">
+      <Link className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-link hover:text-cwru-blue" href={routes.practice()}>
         <ArrowLeft aria-hidden className="h-4 w-4" />
         Practice
       </Link>

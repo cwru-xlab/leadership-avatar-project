@@ -10,6 +10,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { routes } from "@/lib/routes";
 import { Button } from "@heroui/button";
 import { Input, Textarea } from "@heroui/input";
 import { Card, CardBody } from "@heroui/card";
@@ -317,7 +318,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
   };
 
   const practiceHref = recordId
-    ? `/practice/difficult-conversation/${recordId}`
+    ? routes.courageousConversation(recordId)
     : null;
 
   const err = (field: string) => fieldErrors[field];
@@ -479,7 +480,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
         <Button color="primary" isLoading={isSaving} onPress={() => void handleSave()}>
           {recordId ? "Save changes" : "Save"}
         </Button>
-        <Button variant="light" onPress={() => router.push("/conversations")}>
+        <Button variant="light" onPress={() => router.push(routes.courageousConversations())}>
           Cancel
         </Button>
       </div>

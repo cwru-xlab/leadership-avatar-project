@@ -17,6 +17,7 @@
  */
 
 import type { InteractionType } from "./types";
+import { routes } from "@/lib/routes";
 
 export type { InteractionAvailability, InteractionType } from "./types";
 
@@ -27,7 +28,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
     description: "A behavioral interview built from your resume.",
     icon: "Briefcase",
     estimatedMinutes: 20,
-    route: "/interview",
+    route: routes.interviews(),
     availability: "live",
   },
   {
@@ -36,7 +37,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
     description: "Talk to the people involved and make the call.",
     icon: "GraduationCap",
     estimatedMinutes: 30,
-    route: "/case-play",
+    route: routes.caseStudies(),
     availability: "live",
   },
   {
@@ -46,7 +47,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
     icon: "Presentation",
     estimatedMinutes: 15,
     // Picker for elevator vs investor deck (both live as of 14-12/14-13).
-    route: "/practice/pitches",
+    route: routes.pitches(),
     availability: "live",
   },
   {
@@ -55,7 +56,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
     description: "Rehearse a hard talk before it happens.",
     icon: "MessageCircleWarning",
     estimatedMinutes: 20,
-    route: "/conversations",
+    route: routes.courageousConversations(),
     availability: "live",
   },
   {
@@ -64,7 +65,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
     description: "Introduce yourself and build rapport with a stranger.",
     icon: "Users",
     estimatedMinutes: 15,
-    route: "/practice/networking",
+    route: routes.networking(),
     availability: "live",
   },
 ];

@@ -9,6 +9,7 @@ import PresetCard from "@/components/interview/PresetCard";
 import CustomizePanel from "@/components/interview/CustomizePanel";
 import { listInterviewTypes } from "@/lib/interview/types";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
+import { routes } from "@/lib/routes";
 
 /**
  * The preset picker index — a static sibling of the dynamic
@@ -43,7 +44,7 @@ export default function InterviewPresetPickerPage() {
         // than blocking the start.
       }
     }
-    router.push(`/practice/${slug}`);
+    router.push(routes.interview(slug));
   };
 
   return (

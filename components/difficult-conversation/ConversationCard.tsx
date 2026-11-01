@@ -13,6 +13,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { routes } from "@/lib/routes";
 import { Button } from "@heroui/button";
 import {
   Modal,
@@ -58,8 +59,8 @@ export default function ConversationCard({
   const [isDeleting, setIsDeleting] = useState(false);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
-  const practiceHref = `/practice/difficult-conversation/${conversation.id}`;
-  const editHref = `/conversations/${conversation.id}`;
+  const practiceHref = routes.courageousConversation(conversation.id);
+  const editHref = routes.editCourageousConversation(conversation.id);
   const owned = conversation.isMine;
   const needsChange =
     owned && conversation.lastCheckStatus === "rejected" && !conversation.published;
