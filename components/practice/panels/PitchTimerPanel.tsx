@@ -90,8 +90,8 @@ export default function PitchTimerPanel({
     band === "past"
       ? "border-amber-400/50 bg-amber-500/15 text-amber-50"
       : band === "target"
-        ? "border-white/25 bg-ink/90 text-light-blue/32"
-        : "border-white/15 bg-ink/75 text-light-blue/32";
+        ? "border-white/25 bg-ink/90 text-white"
+        : "border-white/15 bg-ink/75 text-white";
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {

@@ -58,7 +58,7 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
   return (
     <section className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4" aria-label="Growth since this plan">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="font-display text-xl font-medium text-cwru-blue">Growth since this plan</h3>
+        <h2 className="font-display text-xl font-medium text-cwru-blue">Growth since this plan</h2>
         <span className="text-xs text-muted">
           since {new Date(data.since).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
         </span>
@@ -69,7 +69,7 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
         </p>
       ) : (
         <details className="text-xs text-muted">
-          <summary className="cursor-pointer font-semibold text-true-blue">How to read these</summary>
+          <summary className="cursor-pointer font-semibold text-link">How to read these</summary>
           <p className="mt-1 leading-5">
             All-time figures blend every session you have done, so they move slowly. &quot;Path work&quot; is
             how you scored on this path&apos;s own steps; &quot;Live practice since&quot; is your unaided sessions
@@ -86,7 +86,7 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
             c.direction === "up"
               ? "bg-level-4/16 text-level-4"
               : c.direction === "down"
-                ? "bg-copper/12 text-copper"
+                ? "bg-copper/12 text-copper-deep"
                 : "bg-canvas text-muted";
           return (
             <li key={c.competencyKey} className="flex gap-3 py-2.5 first:pt-0 last:pb-0">
@@ -125,7 +125,7 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
                     {c.drivers.map((driver, index) => (
                       <li key={`${driver.occurredAt}-${index}`} className="text-xs text-muted">
                         {driver.href ? (
-                          <Link href={driver.href} className="text-true-blue underline-offset-2 hover:underline">
+                          <Link href={driver.href} className="text-link underline-offset-2 hover:underline">
                             {driver.activityLabel}
                           </Link>
                         ) : (

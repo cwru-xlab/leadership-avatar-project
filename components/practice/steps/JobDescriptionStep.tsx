@@ -152,7 +152,7 @@ export default function JobDescriptionStep({
     >
       <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <div className="flex items-start gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-light-blue/32 text-true-blue">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-light-blue/32 text-link">
             <BriefcaseBusiness size={21} />
           </div>
           <div>
@@ -191,7 +191,7 @@ export default function JobDescriptionStep({
               className="rounded-xl border border-line bg-canvas p-4 text-ink"
               aria-live="polite"
             >
-              <div className="flex items-center gap-2 font-semibold text-true-blue">
+              <div className="flex items-center gap-2 font-semibold text-link">
                 <Info size={17} />
                 <span>What this posting will and will not do</span>
               </div>
@@ -261,7 +261,7 @@ export default function JobDescriptionStep({
               {uploading ? (
                 <Spinner color="primary" />
               ) : (
-                <FileUp className="text-true-blue" size={28} />
+                <FileUp className="text-link" size={28} />
               )}
               <span className="mt-3 font-semibold">
                 {uploading

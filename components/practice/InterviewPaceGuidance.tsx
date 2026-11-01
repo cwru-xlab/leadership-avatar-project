@@ -23,7 +23,7 @@ export default function InterviewPaceGuidance({
 
   return (
     <aside className="mt-8 flex gap-3 rounded-xl border border-light-blue bg-canvas p-4 text-sm leading-6 text-ink">
-      <Gauge className="mt-0.5 shrink-0 text-true-blue" size={18} />
+      <Gauge className="mt-0.5 shrink-0 text-link" size={18} />
       <div>
         <p className="font-semibold text-ink">Set a measured pace</p>
         <p className="mt-1">

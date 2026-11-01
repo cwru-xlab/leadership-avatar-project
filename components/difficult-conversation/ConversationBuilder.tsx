@@ -13,7 +13,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Input, Textarea } from "@heroui/input";
 import { Card, CardBody } from "@heroui/card";
-import { Chip } from "@heroui/chip";
 import { addToast } from "@heroui/toast";
 import { Lock } from "lucide-react";
 import AvatarPickerGrid from "@/components/scenario/AvatarPickerGrid";
@@ -376,12 +375,12 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
         errorMessage={err("sharedBackstory")}
       />
 
-      <div className="rounded-xl border-2 border-warning-300 bg-warning-50/40 p-4 space-y-3">
+      <div className="space-y-3 rounded-xl border border-level-2/45 bg-level-2/10 p-4">
         <div className="flex items-center gap-2">
-          <Lock className="w-4 h-4 text-warning-700" />
-          <Chip size="sm" color="warning" variant="flat">
+          <Lock className="w-4 h-4 text-ink" />
+          <span className="rounded-full bg-level-2/20 px-2.5 py-0.5 text-xs font-semibold text-ink">
             Hidden from the player
-          </Chip>
+          </span>
         </div>
         <Textarea variant="bordered"
           label="What they privately think"
@@ -420,10 +419,10 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
 
       <div className="space-y-3">
         <div>
-          <p className="text-sm font-medium text-default-700">
+          <p className="text-sm font-medium text-ink">
             Starting difficulty
           </p>
-          <p className="text-xs text-default-500 mt-1">
+          <p className="text-xs text-muted mt-1">
             The record&apos;s default band. The live session never shows which
             band is active.
           </p>
@@ -439,11 +438,11 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
                 className={`rounded-xl border p-3 text-left transition-colors ${
                   selected
                     ? "border-primary bg-primary-50"
-                    : "border-default-200 bg-white hover:border-default-400"
+                    : "border-line bg-white hover:border-link"
                 }`}
               >
                 <span className="font-medium capitalize text-sm">{band}</span>
-                <span className="block text-xs text-default-500 mt-1">
+                <span className="block text-xs text-muted mt-1">
                   {DIFFICULTY_HELP[band]}
                 </span>
               </button>
@@ -451,15 +450,15 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
           })}
         </div>
         {err("difficulty") && (
-          <p className="text-sm text-danger">{err("difficulty")}</p>
+          <p className="text-sm text-copper-deep">{err("difficulty")}</p>
         )}
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm font-medium text-default-700">
+        <p className="text-sm font-medium text-ink">
           The character&apos;s avatar
         </p>
-        <p className="text-xs text-default-500">
+        <p className="text-xs text-muted">
           Pick who they look and sound like. Avatar and voice stay paired.
         </p>
         <AvatarPickerGrid
@@ -470,7 +469,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
           }}
         />
         {(err("avatarId") || err("voiceId")) && (
-          <p className="text-sm text-danger">
+          <p className="text-sm text-copper-deep">
             {err("avatarId") || err("voiceId")}
           </p>
         )}
@@ -487,15 +486,15 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
 
       {/* Post-create: practise immediately or publish deliberately */}
       {justCreated && recordId && practiceHref && (
-        <Card className="border border-success-200 bg-success-50/40 shadow-none">
+        <Card className="border border-level-4/40 bg-level-4/10 shadow-none">
           <CardBody className="gap-4 p-6">
             <div>
               {/* Reflects the live state: after "Publish it" the card must not
                   keep saying "private" (UAT D15-3). */}
-              <h3 className="font-semibold text-default-900">
+              <h3 className="font-semibold text-ink">
                 {published ? "Saved — published" : "Saved — private"}
               </h3>
-              <p className="text-sm text-default-600 mt-1">
+              <p className="text-sm text-muted mt-1">
                 {published
                   ? "Other students can now find and practise it. You can unpublish it at any time."
                   : "Practise it now, or publish it when you are ready. Nothing was published automatically."}
@@ -526,15 +525,15 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
 
       {/* Publish control — edit mode, or create after the post-save choice */}
       {recordId && (props.mode === "edit" || !justCreated) && (
-        <Card className="border border-default-200 shadow-none">
+        <Card className="border border-line shadow-none">
           <CardBody className="gap-4 p-6">
             <div>
-              <h3 className="font-semibold text-default-900">Publish</h3>
-              <p className="text-sm text-default-600 mt-1">
+              <h3 className="font-semibold text-ink">Publish</h3>
+              <p className="text-sm text-muted mt-1">
                 Anyone can find and play it. You stay its owner and can change
                 or unpublish it at any time.
               </p>
-              <p className="text-sm text-default-500 mt-2">
+              <p className="text-sm text-muted mt-2">
                 Current state:{" "}
                 <span className="font-medium">
                   {published ? "Published" : "Private"}
@@ -569,29 +568,29 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
             </div>
 
             {publishConfirm && (
-              <p className="text-sm text-success-700">{publishConfirm}</p>
+              <p className="text-sm text-level-4">{publishConfirm}</p>
             )}
           </CardBody>
         </Card>
       )}
 
       {publishPanel?.kind === "rejected" && (
-        <Card className="border border-warning-300 bg-warning-50 shadow-none">
+        <Card className="border border-level-2/45 bg-level-2/10 shadow-none">
           <CardBody className="gap-3 p-6">
             {publishPanel.demoted && (
-              <p className="text-sm font-medium text-default-800">
+              <p className="text-sm font-medium text-ink">
                 Your changes were saved. This scenario has been unpublished
                 until the problem below is fixed.
               </p>
             )}
-            <h3 className="font-semibold text-default-900">
+            <h3 className="font-semibold text-ink">
               This can&apos;t be published yet
             </h3>
-            <p className="text-sm text-default-700">{publishPanel.reason}</p>
-            <p className="text-sm font-medium text-default-900">
+            <p className="text-sm text-ink">{publishPanel.reason}</p>
+            <p className="text-sm font-medium text-ink">
               What to change: {publishPanel.fix}
             </p>
-            <p className="text-sm text-default-600">
+            <p className="text-sm text-muted">
               Your scenario is saved, and you can still practise it yourself
               right now.
             </p>
@@ -619,18 +618,18 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
       )}
 
       {publishPanel?.kind === "unavailable" && (
-        <Card className="border border-default-300 bg-default-50 shadow-none">
+        <Card className="border border-line bg-canvas shadow-none">
           <CardBody className="gap-3 p-6">
             {publishPanel.demoted && (
-              <p className="text-sm font-medium text-default-800">
+              <p className="text-sm font-medium text-ink">
                 Your changes were saved. This scenario has been unpublished
                 until we can run the safety check again.
               </p>
             )}
-            <h3 className="font-semibold text-default-900">
+            <h3 className="font-semibold text-ink">
               We couldn&apos;t run the safety check just now
             </h3>
-            <p className="text-sm text-default-700">
+            <p className="text-sm text-ink">
               Nothing is wrong with your scenario. Try publishing again in a
               minute.
             </p>

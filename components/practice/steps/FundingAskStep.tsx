@@ -150,7 +150,7 @@ export default function FundingAskStep({
             />
             {attempted && !amountOk ? (
               <p
-                className="mt-2 text-xs text-copper"
+                className="mt-2 text-xs text-copper-deep"
                 id="funding-amount-error"
                 role="alert"
               >
@@ -184,7 +184,7 @@ export default function FundingAskStep({
             <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
               {attempted && !useOfFundsOk ? (
                 <p
-                  className="text-copper"
+                  className="text-copper-deep"
                   id="funding-use-error"
                   role="alert"
                 >

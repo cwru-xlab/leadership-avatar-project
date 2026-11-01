@@ -21,10 +21,10 @@ export default function PlanContent({ content }: { content: StudyPlanContent }) 
   return (
     <div className="flex flex-col gap-7 text-sm text-ink">
       <section className="flex flex-col gap-3">
-        <h3 className="font-display text-[22px] font-medium text-cwru-blue">
+        <h2 className="font-display text-[22px] font-medium text-cwru-blue">
           Practice priorities{" "}
           <span className="font-sans text-sm font-normal text-muted">{content.priorityThemes.length}</span>
-        </h3>
+        </h2>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {content.priorityThemes.map((theme) => {
             const Icon = themeIcon(theme.theme);
@@ -34,16 +34,16 @@ export default function PlanContent({ content }: { content: StudyPlanContent }) 
                   <span className="grid size-[52px] place-items-center rounded-[14px] bg-light-blue/32 text-cwru-blue">
                     <Icon aria-hidden size={26} strokeWidth={1.75} />
                   </span>
-                  <span aria-label={`Priority ${theme.priority}`} className="font-display text-[28px] font-medium text-light-blue">
+                  <span aria-label={`Priority ${theme.priority}`} className="font-display text-[28px] font-medium text-true-blue">
                     {String(theme.priority).padStart(2, "0")}
                   </span>
                 </div>
-                <h4 className="text-base font-bold leading-snug text-ink">{theme.theme}</h4>
+                <h3 className="text-base font-bold leading-snug text-ink">{theme.theme}</h3>
                 <p className="line-clamp-3 leading-6 text-muted">{theme.whyItMatters}</p>
                 <ul className="flex flex-col gap-1.5">
                   {theme.practiceExercises.map((exercise) => (
                     <li key={exercise.title} className="flex items-start gap-2">
-                      <CircleCheckBig aria-hidden className="mt-0.5 shrink-0 text-true-blue" size={15} strokeWidth={2} />
+                      <CircleCheckBig aria-hidden className="mt-0.5 shrink-0 text-link" size={15} strokeWidth={2} />
                       <span>
                         {exercise.title} <span className="text-muted">· {exercise.estimatedMinutes} min</span>
                       </span>
@@ -51,7 +51,7 @@ export default function PlanContent({ content }: { content: StudyPlanContent }) 
                   ))}
                 </ul>
                 <details className="group mt-auto border-t border-line pt-3">
-                  <summary className="flex cursor-pointer list-none items-center gap-1 text-[13.5px] font-semibold text-true-blue [&::-webkit-details-marker]:hidden">
+                  <summary className="flex cursor-pointer list-none items-center gap-1 text-[13.5px] font-semibold text-link [&::-webkit-details-marker]:hidden">
                     How to practice and readiness checks
                     <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180" size={14} />
                   </summary>
@@ -91,7 +91,7 @@ export default function PlanContent({ content }: { content: StudyPlanContent }) 
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="flex flex-col gap-3">
-          <h3 className="font-display text-[22px] font-medium text-cwru-blue">Strengths to leverage</h3>
+          <h2 className="font-display text-[22px] font-medium text-cwru-blue">Strengths to leverage</h2>
           {content.strengthsToLeverage.map((strength) => (
             <div key={strength.theme} className="flex gap-3 rounded-2xl border border-line bg-white p-4">
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-level-4/16 text-level-4">
@@ -106,7 +106,7 @@ export default function PlanContent({ content }: { content: StudyPlanContent }) 
         </section>
 
         <section className="flex flex-col gap-3">
-          <h3 className="font-display text-[22px] font-medium text-cwru-blue">Useful resources</h3>
+          <h2 className="font-display text-[22px] font-medium text-cwru-blue">Useful resources</h2>
           <ul className="flex flex-col gap-3">
             {content.resources.map((resource) => (
               <li key={resource.title} className="flex gap-3 rounded-2xl border border-line bg-white p-4">
@@ -116,7 +116,7 @@ export default function PlanContent({ content }: { content: StudyPlanContent }) 
                 <div className="flex min-w-0 flex-col gap-0.5">
                   {resource.url ? (
                     <a
-                      className="inline-flex items-center gap-1 font-bold text-true-blue hover:underline"
+                      className="inline-flex items-center gap-1 font-bold text-link hover:underline"
                       href={resource.url}
                       rel="noreferrer"
                       target="_blank"

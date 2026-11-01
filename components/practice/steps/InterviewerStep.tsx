@@ -109,8 +109,8 @@ export default function InterviewerStep({
           <Spinner color="primary" />
         </div>
       ) : catalogError ? (
-        <Card className="border border-danger-200 bg-danger-50 shadow-none">
-          <CardBody className="gap-3 p-6 text-danger-800">
+        <Card className="border border-copper/40 bg-copper/[0.06] shadow-none">
+          <CardBody className="gap-3 p-6 text-copper-deep">
             <CircleAlert size={22} />
             <p>{catalogError}</p>
             <Button size="sm" variant="flat" onPress={() => window.location.reload()}>
@@ -140,11 +140,13 @@ export default function InterviewerStep({
                   ) : (
                     <div className="absolute inset-0 z-0 bg-cwru-blue" />
                   )}
-                  <div className="absolute inset-0 z-10 bg-gradient-to-t from-ink via-ink/20 to-transparent" />
+                  {/* The fade has to carry text over any photo: solid ink under the
+                      name block, easing out by mid-card. */}
+                  <div className="absolute inset-0 z-10 bg-gradient-to-t from-ink from-15% via-ink/65 via-45% to-transparent to-75%" />
                   <div className="absolute inset-x-0 bottom-0 z-20 p-5 text-white">
                     <div className="mb-3 flex justify-between gap-2">
                       <span
-                        className="inline-flex items-center gap-1 rounded-full bg-white/18 px-2.5 py-0.5 text-xs text-white"
+                        className="inline-flex items-center gap-1 rounded-full bg-ink/80 px-2.5 py-0.5 text-xs text-white ring-1 ring-white/20"
                         title="Voice profile"
                       >
                         <Mic aria-hidden size={12} />
@@ -152,13 +154,13 @@ export default function InterviewerStep({
                         {interviewer.voice.name}
                       </span>
                       {selected && (
-                        <span className="grid h-6 w-6 place-items-center rounded-full bg-true-blue text-white">
+                        <span className="grid h-6 w-6 place-items-center rounded-full bg-true-blue text-white ring-2 ring-white">
                           <Check size={15} strokeWidth={3} />
                         </span>
                       )}
                     </div>
                     <h3 className="font-display font-medium text-2xl">{interviewer.name}</h3>
-                    <p className="mt-1 text-sm text-white/78">
+                    <p className="mt-1 text-sm text-white/90">
                       {roleLabel} · Live session
                     </p>
                   </div>

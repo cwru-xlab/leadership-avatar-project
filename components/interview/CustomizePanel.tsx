@@ -180,7 +180,7 @@ export default function CustomizePanel({
         <span className="text-sm text-muted">
           {summaryParts.join(" · ")}
         </span>
-        <span className="flex items-center gap-1 text-xs font-semibold text-true-blue">
+        <span className="flex items-center gap-1 text-xs font-semibold text-link">
           Customize {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>
       </button>

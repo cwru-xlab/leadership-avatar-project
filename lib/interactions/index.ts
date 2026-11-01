@@ -24,8 +24,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   {
     slug: "interviews",
     name: "Practice interviews",
-    description:
-      "A structured behavioral interview with an AI interviewer, grounded in your resume.",
+    description: "A behavioral interview built from your resume.",
     icon: "Briefcase",
     estimatedMinutes: 20,
     route: "/interview",
@@ -34,8 +33,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   {
     slug: "case-studies",
     name: "Case studies",
-    description:
-      "Work through a real leadership scenario and make the calls a manager would have to make.",
+    description: "Talk to the people involved and make the call.",
     icon: "GraduationCap",
     estimatedMinutes: 30,
     route: "/case-play",
@@ -44,8 +42,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   {
     slug: "pitches",
     name: "Practice pitches",
-    description:
-      "Deliver a pitch to an AI audience and get feedback on clarity, structure, and persuasion.",
+    description: "Pitch a live listener, with or without slides.",
     icon: "Presentation",
     estimatedMinutes: 15,
     // Picker for elevator vs investor deck (both live as of 14-12/14-13).
@@ -55,8 +52,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   {
     slug: "difficult-conversations",
     name: "Courageous conversations",
-    description:
-      "Practice navigating a tense, high-stakes conversation before you have to have it for real.",
+    description: "Rehearse a hard talk before it happens.",
     icon: "MessageCircleWarning",
     estimatedMinutes: 20,
     route: "/conversations",
@@ -65,8 +61,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   {
     slug: "networking",
     name: "Networking practice",
-    description:
-      "Rehearse introducing yourself and building rapport with a stranger in a professional setting.",
+    description: "Introduce yourself and build rapport with a stranger.",
     icon: "Users",
     estimatedMinutes: 15,
     route: "/practice/networking",

@@ -196,7 +196,7 @@ export default function ConversationCard({
           </p>
           {owned && (
             <span
-              className={`shrink-0 rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${
+              className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
                 conversation.published ? "bg-level-4/16 text-ink" : "bg-canvas text-muted"
               }`}
             >
@@ -205,9 +205,9 @@ export default function ConversationCard({
           )}
         </div>
 
-        <h3 className="font-display text-[19px] font-medium leading-tight text-cwru-blue">
+        <h2 className="font-display text-[19px] font-medium leading-tight text-cwru-blue">
           {conversation.title}
-        </h3>
+        </h2>
 
         {conversation.situation ? (
           <p className="line-clamp-2 text-[13.5px] leading-5 text-muted">{conversation.situation}</p>
@@ -216,7 +216,7 @@ export default function ConversationCard({
         {needsChange && (
           <Link
             href={editHref}
-            className="text-xs font-semibold text-copper hover:underline"
+            className="text-xs font-semibold text-copper-deep hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
             Not published — needs a change
@@ -226,7 +226,7 @@ export default function ConversationCard({
         <div className="mt-auto flex items-center justify-between gap-3 pt-1">
           <DifficultyMeter difficulty={conversation.difficulty} label={difficultyLabel} />
           <button
-            className="inline-flex items-center gap-1 text-sm font-bold text-true-blue hover:underline"
+            className="inline-flex items-center gap-1 text-sm font-bold text-link hover:underline"
             type="button"
             onClick={handlePractice}
           >
@@ -248,7 +248,7 @@ export default function ConversationCard({
             <Button
               size="sm"
               variant="light"
-              className="text-true-blue"
+              className="text-link"
               isDisabled={isPublishing}
               onClick={handleTogglePublish}
             >
@@ -257,7 +257,7 @@ export default function ConversationCard({
             <Button
               size="sm"
               variant="light"
-              className="ml-auto text-copper"
+              className="ml-auto text-copper-deep"
               startContent={<Trash2 className="h-3.5 w-3.5" />}
               isDisabled={isDeleting}
               onClick={handleDeleteClick}
@@ -280,7 +280,7 @@ export default function ConversationCard({
                 Delete this conversation?
               </ModalHeader>
               <ModalBody>
-                <p className="text-sm text-default-600">
+                <p className="text-sm text-muted">
                   Your past reports for it are kept.
                 </p>
               </ModalBody>

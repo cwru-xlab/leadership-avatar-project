@@ -235,7 +235,7 @@ export default function PracticeInstancePage() {
       <main className="grid min-h-[100dvh] place-items-center bg-canvas p-6 text-ink">
         <Card className="max-w-lg border border-line shadow-none">
           <CardBody className="items-start gap-4 p-8">
-            <CircleAlert className="text-true-blue" size={28} />
+            <CircleAlert className="text-link" size={28} />
             <h1 className="font-display font-medium text-3xl">
               That practice type is not available.
             </h1>
@@ -270,7 +270,7 @@ export default function PracticeInstancePage() {
     if (!dcInstance || loadError || !sessionConfig || !dcAvatarConfig) {
       return (
         <main className="mx-auto max-w-4xl px-5 py-12 text-center text-ink">
-          <p className="mb-4 text-lg text-danger">
+          <p className="mb-4 text-lg text-copper-deep">
             {loadError ?? "Conversation not found"}
           </p>
           <Button
@@ -417,7 +417,7 @@ export default function PracticeInstancePage() {
   if (!caseData || loadError || !sessionConfig) {
     return (
       <main className="mx-auto max-w-4xl px-5 py-12 text-center text-ink">
-        <p className="mb-4 text-lg text-danger">
+        <p className="mb-4 text-lg text-copper-deep">
           {loadError ?? "Case not found"}
         </p>
         <Button
@@ -434,7 +434,7 @@ export default function PracticeInstancePage() {
   if (!caseData.ownerId) {
     return (
       <main className="mx-auto max-w-4xl px-5 py-12 text-center text-ink">
-        <p className="mb-4 text-lg text-danger">
+        <p className="mb-4 text-lg text-copper-deep">
           This scenario is not available.
         </p>
         <Button

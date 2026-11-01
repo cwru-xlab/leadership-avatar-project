@@ -65,10 +65,10 @@ export function MomentsPanel({ visual }: { visual: VisualMetrics | null }) {
       {rows.map((row, i) => (
         <div
           key={`${row.group}-${row.label}-${i}`}
-          className="flex items-baseline justify-between gap-3 border-b border-default-100 pb-2 last:border-0 last:pb-0"
+          className="flex items-baseline justify-between gap-3 border-b border-line pb-2 last:border-0 last:pb-0"
         >
           <span className="flex items-baseline gap-2">
-            <span className="font-mono text-small tabular-nums text-default-500">{row.label}</span>
+            <span className="font-mono text-small tabular-nums text-muted">{row.label}</span>
             {/* Muted flat chip, matching the existing timecode idiom — never
                 colour-coded by severity. */}
             <Chip size="sm" variant="flat" className="text-tiny">
@@ -92,12 +92,12 @@ export function DeliveryByAnswerPanel({ vocal }: { vocal: VocalMetrics | null })
       {turns.map((turn) => (
         <div
           key={turn.turn_index}
-          className="flex items-baseline justify-between gap-3 border-b border-default-100 pb-2 last:border-0 last:pb-0"
+          className="flex items-baseline justify-between gap-3 border-b border-line pb-2 last:border-0 last:pb-0"
         >
-          <span className="font-mono text-small tabular-nums text-default-500">
+          <span className="font-mono text-small tabular-nums text-muted">
             {formatTimecode(turn.start_s)}
           </span>
-          <span className="text-small text-right text-default-600">
+          <span className="text-small text-right text-muted">
             {Math.round(turn.words_per_minute)} wpm
             {" · "}
             {turn.filler_count} filler{turn.filler_count === 1 ? "" : "s"}

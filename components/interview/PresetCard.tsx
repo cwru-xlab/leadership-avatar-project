@@ -53,9 +53,9 @@ export default function PresetCard({
           >
             <Icon aria-hidden size={24} strokeWidth={1.75} />
           </span>
-          <h3 className="flex-1 font-display text-[22px] font-medium leading-tight text-cwru-blue">
+          <h2 className="flex-1 font-display text-[22px] font-medium leading-tight text-cwru-blue">
             {interviewType.label}
-          </h3>
+          </h2>
           {active ? (
             <span className="grid size-[26px] shrink-0 place-items-center rounded-full bg-true-blue text-white">
               <Check aria-hidden size={15} strokeWidth={3} />

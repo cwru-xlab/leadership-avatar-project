@@ -71,7 +71,7 @@ export default function ReportMarkdown({ markdown }: ReportMarkdownProps) {
           a: ({ children, href }) => (
             <a
               href={href}
-              className="text-true-blue underline underline-offset-2"
+              className="text-link underline underline-offset-2"
               target="_blank"
               rel="noreferrer"
             >

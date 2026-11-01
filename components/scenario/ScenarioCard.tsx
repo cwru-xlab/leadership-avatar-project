@@ -188,7 +188,7 @@ export default function ScenarioCard({
                 <Button
                   size="sm"
                   variant="light"
-                  className="text-true-blue"
+                  className="text-link"
                   isDisabled={isPublishing}
                   onClick={handleTogglePublish}
                 >
@@ -197,7 +197,7 @@ export default function ScenarioCard({
                 <Button
                   size="sm"
                   variant="light"
-                  className="ml-auto text-copper"
+                  className="ml-auto text-copper-deep"
                   startContent={<Trash2 className="h-3.5 w-3.5" />}
                   isDisabled={isDeleting}
                   onClick={handleDeleteClick}
@@ -241,7 +241,7 @@ export default function ScenarioCard({
                 Delete this scenario?
               </ModalHeader>
               <ModalBody>
-                <p className="text-sm text-default-600">
+                <p className="text-sm text-muted">
                   Your past reports for it are kept.
                 </p>
               </ModalBody>

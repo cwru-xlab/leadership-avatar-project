@@ -84,7 +84,7 @@ export default function DrillResult({
           {change !== null && change !== 0 ? (
             <span
               className={`absolute -right-6 top-1 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-bold ${
-                change > 0 ? "bg-level-4/16 text-level-4" : "bg-copper/12 text-copper"
+                change > 0 ? "bg-level-4/16 text-level-4" : "bg-copper/12 text-copper-deep"
               }`}
             >
               {change > 0 ? <TrendingUp aria-hidden size={13} /> : <TrendingDown aria-hidden size={13} />}
@@ -153,7 +153,7 @@ export default function DrillResult({
                 >
                   <span className="font-semibold">{n}</span> — {rubric[n]}
                   {active ? (
-                    <span className="mt-1 block text-xs font-semibold text-true-blue">
+                    <span className="mt-1 block text-xs font-semibold text-link">
                       This {score} sits nearer here
                     </span>
                   ) : null}

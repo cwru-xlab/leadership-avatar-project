@@ -2,10 +2,7 @@
 
 import BackLink from "@/components/shell/BackLink";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button } from "@heroui/button";
-import { ArrowLeft, Mic } from "lucide-react";
 
 import CameraConsentStep from "@/components/session/CameraConsentStep";
 import DrillBrief from "@/components/study-plan/drill/DrillBrief";
@@ -210,7 +207,7 @@ export default function VoiceDrillShell({
                 onStart={() => setPhase("CONSENT")}
               />
               {coachError ? (
-                <p role="alert" className="text-center text-sm text-copper">
+                <p role="alert" className="text-center text-sm text-copper-deep">
                   We couldn&apos;t load your coach. Refresh the page to try
                   again.
                 </p>
