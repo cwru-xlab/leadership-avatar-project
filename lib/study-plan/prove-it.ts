@@ -6,7 +6,7 @@
  *
  * MECHANISM (optional, additive):
  *   1. The path DTO gives the final UNAIDED_SESSION step an href
- *      `/practice/{slug}[/{instanceId}]?fromPlan={planId}&step={stepId}`.
+ *      the canonical `routes.practiceType(slug, instanceId)` path with `fromPlan` and `step` query parameters.
  *   2. The practice page, ONLY when both params are present, GETs
  *      `/api/study-plans/path-steps/{stepId}/prove-it` and seeds its wizard
  *      state from `prefill` (exactly the values its own setup steps would
@@ -26,6 +26,8 @@ import { COMPETENCIES, type CompetencyKey } from "../mastery/competencies";
 import { asInputSnapshot, type InputSnapshot } from "../report/snapshot";
 import { typeLabelForReport } from "../report/title";
 import { getInterviewType } from "../interview/types";
+import { routes } from "@/lib/routes";
+
 import type { InterviewCustomizationInput } from "../interview/customization";
 import {
   CURATED_INDUSTRIES,
@@ -193,10 +195,10 @@ export function prefillFromSnapshot(typeSlug: string, rawSnapshot: unknown): Pro
 /** PURE. The step's destination. Only path segments the practice routes
  * already serve; the two query params are the ONLY addition. */
 export function proveItHref(planId: string, stepId: string, typeSlug: string, prefill: ProveItPrefill): string {
-  const base =
-    prefill.kind === "instance"
-      ? `/practice/${encodeURIComponent(typeSlug)}/${encodeURIComponent(prefill.instanceId)}`
-      : `/practice/${encodeURIComponent(typeSlug)}`;
+  const base = routes.practiceType(
+    typeSlug,
+    prefill.kind === "instance" ? prefill.instanceId : undefined,
+  );
   return `${base}?fromPlan=${encodeURIComponent(planId)}&step=${encodeURIComponent(stepId)}`;
 }
 

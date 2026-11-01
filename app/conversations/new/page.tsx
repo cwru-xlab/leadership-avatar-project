@@ -13,13 +13,14 @@
 
 import BackLink from "@/components/shell/BackLink";
 import ConversationBuilder from "@/components/difficult-conversation/ConversationBuilder";
+import { routes } from "@/lib/routes";
 
 export default function NewConversationPage() {
 
   return (
     <div className="space-y-8 py-2 md:py-4">
       <div className="flex flex-col gap-3">
-        <BackLink href="/conversations" label="Courageous conversations" />
+        <BackLink href={routes.courageousConversations()} label="Courageous conversations" />
         <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">Write your own</h1>
         <p className="max-w-[58ch] text-[15px] text-muted">
           Same fields as the featured conversations — situation, shared facts,

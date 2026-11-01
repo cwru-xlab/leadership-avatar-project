@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { ArrowLeft, MessageCircleWarning, PenLine, Plus } from "lucide-react";
+import { routes } from "@/lib/routes";
 import ConversationCard, {
   type ConversationDiscoveryCard,
 } from "@/components/difficult-conversation/ConversationCard";
@@ -115,7 +116,7 @@ export default function ConversationsIndexPage() {
       className="h-11 rounded-lg font-semibold"
       color="primary"
       startContent={<Plus className="h-4 w-4" />}
-      onPress={() => router.push("/conversations/new")}
+      onPress={() => router.push(routes.newCourageousConversation())}
     >
       Write your own
     </Button>
@@ -123,7 +124,7 @@ export default function ConversationsIndexPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-link hover:text-cwru-blue" href="/">
+      <Link className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-link hover:text-cwru-blue" href={routes.practice()}>
         <ArrowLeft aria-hidden className="h-4 w-4" />
         Practice
       </Link>

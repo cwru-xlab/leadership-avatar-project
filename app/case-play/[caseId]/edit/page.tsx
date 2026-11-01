@@ -19,6 +19,7 @@ import { Spinner } from "@heroui/spinner";
 import { CircleAlert } from "lucide-react";
 import ScenarioBuilder from "@/components/scenario/ScenarioBuilder";
 import type { CaseStudy } from "@/types";
+import { routes } from "@/lib/routes";
 
 export default function EditScenarioPage() {
   const params = useParams<{ caseId: string }>();
@@ -82,7 +83,7 @@ export default function EditScenarioPage() {
             <h1 className="font-display font-medium text-2xl">
               This scenario doesn&apos;t exist, or isn&apos;t yours to edit.
             </h1>
-            <Button color="primary" onPress={() => router.push("/case-play")}>
+            <Button color="primary" onPress={() => router.push(routes.caseStudies())}>
               Back to scenarios
             </Button>
           </CardBody>
@@ -94,7 +95,7 @@ export default function EditScenarioPage() {
   return (
     <div className="space-y-8 py-2 md:py-4">
       <div className="flex flex-col gap-3">
-        <BackLink href="/case-play" label="Case studies" />
+        <BackLink href={routes.caseStudies()} label="Case studies" />
         <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">Edit scenario</h1>
       </div>
 

@@ -48,6 +48,7 @@
  * is the first line — this is only a backstop.
  */
 import { useEffect, useState, type ReactNode } from "react";
+import { routes } from "@/lib/routes";
 import clsx from "clsx";
 import Link from "next/link";
 import {
@@ -159,7 +160,7 @@ export function hrefForStep(planId: string, step: PathStepViewDTO): string | nul
   // resolved one; otherwise the plain practice entry (unchanged behaviour).
   if (step.proveIt?.href) return step.proveIt.href;
   if (!step.practiceSlug) return null;
-  return `/practice/${step.practiceSlug}`;
+  return routes.practiceType(step.practiceSlug);
 }
 
 export function actionLabelForStep(step: PathStepViewDTO): string {

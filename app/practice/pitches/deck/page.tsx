@@ -22,6 +22,7 @@ import PracticeHero from "@/components/practice/PracticeHero";
 import { deckModeIcon } from "@/components/practice/deckModeIcons";
 import { listDeckModes } from "@/lib/pitch/deck-modes";
 import { deckFamilyMinutes, minutesRange } from "@/lib/pitch/deck-minutes";
+import { routes } from "@/lib/routes";
 
 const DECK_MODES = listDeckModes();
 
@@ -29,7 +30,7 @@ export default function DeckPitchSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PracticeHero
-        backHref="/practice/pitches"
+        backHref={routes.pitches()}
         backLabel="Pitch practice"
         description="Present slides to a live listener. Each setting has its own audience, its own judgment and its own time envelope."
         facts={[
@@ -100,7 +101,7 @@ export default function DeckPitchSettingsPage() {
                   <Link
                     aria-label={`Start ${mode.cardTitle}`}
                     className="inline-flex items-center gap-1 rounded-md text-sm font-bold text-link after:absolute after:inset-0 after:rounded-2xl hover:underline focus-visible:outline-true-blue"
-                    href={`/practice/${mode.slug}`}
+                    href={routes.deckPitch(mode.slug)}
                   >
                     Start <ArrowRight aria-hidden size={15} strokeWidth={2.5} />
                   </Link>

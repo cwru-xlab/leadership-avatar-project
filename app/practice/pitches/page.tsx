@@ -23,6 +23,7 @@ import type { LucideIcon } from "lucide-react";
 import PracticeHero from "@/components/practice/PracticeHero";
 import { listDeckModes } from "@/lib/pitch/deck-modes";
 import { deckFamilyMinutes } from "@/lib/pitch/deck-minutes";
+import { routes } from "@/lib/routes";
 
 const ELEVATOR_OPTION = {
   slug: "pitch-elevator",
@@ -99,7 +100,7 @@ export default function PracticePitchesPickerPage() {
           actionLabel="Start"
           ariaLabel={`Start ${ELEVATOR_OPTION.title}`}
           description={ELEVATOR_OPTION.description}
-          href={`/practice/${ELEVATOR_OPTION.slug}`}
+          href={routes.elevatorPitch()}
           icon={ELEVATOR_OPTION.icon}
           minutes={ELEVATOR_OPTION.minutes}
           title={ELEVATOR_OPTION.title}
@@ -107,7 +108,7 @@ export default function PracticePitchesPickerPage() {
         <PickerCard
           actionLabel="Choose a setting"
           description={`Present slides to a live listener. ${DECK_MODE_COUNT} settings to choose from, each with its own audience, its own judgment, and its own time envelope.`}
-          href="/practice/pitches/deck"
+          href={routes.deckPitches()}
           icon={Layers}
           minutes={deckFamilyMinutes(DECK_MODES)}
           title="With a deck"

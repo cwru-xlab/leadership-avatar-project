@@ -189,12 +189,18 @@ const KIOSK_ROUTES: string[] = [
 ];
 
 const STUDENT_ROUTES: string[] = [
+  // Canonical student browser surfaces.
+  "/practice",
+  "/reports",
+  "/study-plans",
+  "/paths",
+  "/mastery",
+  "/settings",
+  // Legacy browser prefixes remain protected during the URL transition.
   "/interview",
   "/case-play",
   "/conversations",
   "/api/interaction",
-  "/reports",
-  "/settings",
   // Interview APIs are student-owned and return the LiveAvatar profiles a
   // student can launch. Keep this ahead of the generic authenticated fallback.
   "/api/interview",
@@ -322,11 +328,11 @@ export async function middleware(request: NextRequest) {
      * kiosk flows — for those, the kiosk role is also permitted.
      */
     const isStudentRoute = STUDENT_ROUTES.some((route) =>
-      pathname.startsWith(route)
+      pathname === route || pathname.startsWith(route + "/")
     );
 
     const isKioskRoute = KIOSK_ROUTES.some((route) =>
-      pathname.startsWith(route)
+      pathname === route || pathname.startsWith(route + "/")
     );
 
     if (isStudentRoute) {
@@ -409,7 +415,7 @@ export async function middleware(request: NextRequest) {
      * - Compliance operations need proper authorization
      */
     const isAdminRoute = ADMIN_ROUTES.some((route) =>
-      pathname.startsWith(route)
+      pathname === route || pathname.startsWith(route + "/")
     );
 
     if (isAdminRoute) {
