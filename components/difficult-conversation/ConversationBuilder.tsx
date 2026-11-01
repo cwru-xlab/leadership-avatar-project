@@ -13,7 +13,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Input, Textarea } from "@heroui/input";
 import { Card, CardBody } from "@heroui/card";
-import { Chip } from "@heroui/chip";
 import { addToast } from "@heroui/toast";
 import { Lock } from "lucide-react";
 import AvatarPickerGrid from "@/components/scenario/AvatarPickerGrid";
@@ -376,12 +375,12 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
         errorMessage={err("sharedBackstory")}
       />
 
-      <div className="rounded-xl border-2 border-level-2/45 bg-level-2/10 p-4 space-y-3">
+      <div className="space-y-3 rounded-xl border border-level-2/45 bg-level-2/10 p-4">
         <div className="flex items-center gap-2">
           <Lock className="w-4 h-4 text-ink" />
-          <Chip size="sm" color="warning" variant="flat">
+          <span className="rounded-full bg-level-2/20 px-2.5 py-0.5 text-xs font-semibold text-ink">
             Hidden from the player
-          </Chip>
+          </span>
         </div>
         <Textarea variant="bordered"
           label="What they privately think"

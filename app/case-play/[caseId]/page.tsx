@@ -1299,7 +1299,7 @@ export default function CasePlayPage() {
           <h2 className="font-display text-xl font-medium text-cwru-blue" id="case-situation-heading">
             The situation
           </h2>
-          <p className="max-w-[65ch] whitespace-pre-wrap text-[15px] leading-7 text-ink">
+          <p className="max-w-[58ch] whitespace-pre-wrap text-[15px] leading-7 text-ink">
             {caseData.backgroundInfo}
           </p>
         </section>

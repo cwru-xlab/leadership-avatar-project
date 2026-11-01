@@ -34,7 +34,7 @@ export default function PlanContent({ content }: { content: StudyPlanContent }) 
                   <span className="grid size-[52px] place-items-center rounded-[14px] bg-light-blue/32 text-cwru-blue">
                     <Icon aria-hidden size={26} strokeWidth={1.75} />
                   </span>
-                  <span aria-label={`Priority ${theme.priority}`} className="font-display text-[28px] font-medium text-light-blue">
+                  <span aria-label={`Priority ${theme.priority}`} className="font-display text-[28px] font-medium text-true-blue">
                     {String(theme.priority).padStart(2, "0")}
                   </span>
                 </div>

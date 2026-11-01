@@ -150,7 +150,7 @@ function Summary({ text }: { text: string }) {
   const hasMore = sentences.length > 2;
   return (
     <div className="flex flex-col gap-2">
-      <p className="max-w-[64ch] text-[17px] leading-[1.55] text-ink">{expanded ? text : lead}</p>
+      <p className="max-w-[56ch] text-[17px] leading-[1.55] text-ink">{expanded ? text : lead}</p>
       {hasMore && (
         <button
           className="w-fit text-sm font-semibold text-link hover:underline"
