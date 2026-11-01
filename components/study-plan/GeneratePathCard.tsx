@@ -101,7 +101,7 @@ export default function GeneratePathCard({
       {generating ? (
         <div aria-live="polite">
           <div className="flex items-center gap-3">
-            <LoaderCircle className="h-6 w-6 shrink-0 animate-spin text-true-blue" aria-hidden="true" />
+            <LoaderCircle className="h-6 w-6 shrink-0 animate-spin text-link" aria-hidden="true" />
             <div>
               <p className="font-display font-medium text-xl text-ink">Building your path…</p>
               <p className="text-xs text-muted">
@@ -159,7 +159,7 @@ export default function GeneratePathCard({
       {error && !generating ? (
         <div
           role="alert"
-          className="mt-4 flex flex-col gap-3 rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700 sm:flex-row sm:items-center sm:justify-between"
+          className="mt-4 flex flex-col gap-3 rounded-xl border border-copper/40 bg-copper/[0.06] p-4 text-sm text-copper-deep sm:flex-row sm:items-center sm:justify-between"
         >
           <span>{error}</span>
           <Button

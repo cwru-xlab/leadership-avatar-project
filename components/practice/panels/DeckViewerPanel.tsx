@@ -113,7 +113,7 @@ export default function DeckViewerPanel({
 
   if (slides.length === 0) {
     return (
-      <div className="rounded-xl border border-white/15 bg-ink/85 px-4 py-3 text-sm text-light-blue/32">
+      <div className="rounded-xl border border-white/15 bg-ink/85 px-4 py-3 text-sm text-white">
         No slides available for this deck.
       </div>
     );
@@ -140,7 +140,7 @@ export default function DeckViewerPanel({
         <p className="text-[10px] font-semibold text-light-blue">
           Your deck
         </p>
-        <p className="text-xs font-medium tabular-nums text-light-blue/32">
+        <p className="text-xs font-medium tabular-nums text-white">
           {current + 1} / {slides.length}
         </p>
       </div>

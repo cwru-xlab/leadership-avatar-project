@@ -16,8 +16,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
-import { ArrowLeft, CircleAlert } from "lucide-react";
-import { title } from "@/components/primitives";
+import { CircleAlert } from "lucide-react";
 import ScenarioBuilder from "@/components/scenario/ScenarioBuilder";
 import type { CaseStudy } from "@/types";
 
@@ -79,7 +78,7 @@ export default function EditScenarioPage() {
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 text-center">
         <Card className="max-w-lg border border-line shadow-none">
           <CardBody className="items-start gap-4 p-8">
-            <CircleAlert className="text-true-blue" size={28} />
+            <CircleAlert className="text-link" size={28} />
             <h1 className="font-display font-medium text-2xl">
               This scenario doesn&apos;t exist, or isn&apos;t yours to edit.
             </h1>
@@ -96,7 +95,7 @@ export default function EditScenarioPage() {
     <div className="space-y-8 py-2 md:py-4">
       <div className="flex flex-col gap-3">
         <BackLink href="/case-play" label="Case studies" />
-        <h1 className={title({ fullWidth: true })}>Edit scenario</h1>
+        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">Edit scenario</h1>
       </div>
 
       <ScenarioBuilder mode="edit" caseId={params.caseId} initial={scenario} />

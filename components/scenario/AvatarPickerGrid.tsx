@@ -93,8 +93,8 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
 
   if (error) {
     return (
-      <Card className="border border-danger-200 bg-danger-50 shadow-none">
-        <CardBody className="gap-3 p-6 text-danger-800">
+      <Card className="border border-copper/40 bg-copper/[0.06] shadow-none">
+        <CardBody className="gap-3 p-6 text-copper-deep">
           <CircleAlert size={22} />
           <p>{error}</p>
           <Button size="sm" variant="flat" onPress={() => window.location.reload()}>
@@ -140,10 +140,10 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
             ) : (
               <div className="absolute inset-0 z-0 bg-cwru-blue" />
             )}
-            <div className="absolute inset-0 z-10 bg-gradient-to-t from-ink via-ink/20 to-transparent" />
+            <div className="absolute inset-0 z-10 bg-gradient-to-t from-ink from-15% via-ink/65 via-45% to-transparent to-75%" />
             <div className="absolute inset-x-0 bottom-0 z-20 p-5 text-white">
               <div className="mb-3 flex justify-between gap-2">
-                <Chip size="sm" className="bg-white/18 text-white">
+                <Chip size="sm" className="bg-ink/80 text-white ring-1 ring-white/20">
                   {interviewer.voice.name}
                 </Chip>
                 {selected && (
@@ -152,8 +152,8 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
                   </span>
                 )}
               </div>
-              <h3 className="font-display font-medium text-2xl">{interviewer.name}</h3>
-              <p className="mt-1 text-sm text-white/78">Live character</p>
+              <p className="font-display font-medium text-2xl">{interviewer.name}</p>
+              <p className="mt-1 text-sm text-white/90">Live character</p>
             </div>
           </button>
         );

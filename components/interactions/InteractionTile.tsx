@@ -54,7 +54,7 @@ export default function InteractionTile({ type, className }: InteractionTileProp
       <span className="mt-auto flex items-center justify-between gap-3 pt-1 text-[13px]">
         <span className="text-muted tabular-nums">About {type.estimatedMinutes} min</span>
         {live ? (
-          <span className="inline-flex items-center gap-1.5 font-semibold text-true-blue">
+          <span className="inline-flex items-center gap-1.5 font-semibold text-link">
             Start
             <ArrowRight
               aria-hidden

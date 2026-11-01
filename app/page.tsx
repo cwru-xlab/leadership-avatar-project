@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { Card, CardBody } from "@heroui/card";
-import { Button } from "@heroui/button";
 import { Briefcase, Video, ArrowRight } from "lucide-react";
 import { title } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";
@@ -46,7 +45,7 @@ export default function Home() {
     <section className="flex flex-col items-center gap-8 py-8 md:py-10 max-w-5xl mx-auto px-4">
       <div className="text-center">
         <h1 className={title()}>Leadership Avatar</h1>
-        <p className="text-default-500 mt-4 text-lg">
+        <p className="text-muted mt-4 text-lg">
           Welcome back, {user?.name || "User"}
         </p>
       </div>
@@ -67,7 +66,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold">{card.title}</h2>
-                  <p className="text-default-500 text-sm mt-1">
+                  <p className="text-muted text-sm mt-1">
                     {card.description}
                   </p>
                 </div>

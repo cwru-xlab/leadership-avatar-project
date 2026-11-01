@@ -15,7 +15,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@heroui/button";
-import { Card, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import { Input } from "@heroui/input";
@@ -1216,18 +1215,18 @@ export default function CaseStudySessionView({
       {/* Left sidebar - Roles */}
       <div className="w-64 shrink-0 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm">Roles</h3>
+          <h2 className="text-sm font-semibold text-ink">People in this case</h2>
           <Chip size="sm" variant="flat" color={mode === "assessed" ? "primary" : "default"}>
             {mode === "assessed" ? "Assessed" : "Explore"}
           </Chip>
         </div>
         {mode === "assessed" && (
-          <p className="text-xs text-default-500">
+          <p className="text-xs text-muted">
             Progress auto-saves every 15s. You can close this page and continue later.
           </p>
         )}
         {mode === "assessed" && (
-          <p className={`text-xs ${saveState === "error" ? "text-danger-500" : "text-default-400"}`}>
+          <p className={`text-xs ${saveState === "error" ? "text-copper-deep" : "text-muted"}`}>
             {saveState === "saving" && "Saving..."}
             {saveState === "saved" && `Saved at ${lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString() : "just now"}`}
             {saveState === "error" && "Auto-save failed. We will retry shortly."}
@@ -1235,7 +1234,7 @@ export default function CaseStudySessionView({
           </p>
         )}
         {heygenAvatarConfigured === false && (
-          <p className="text-xs text-warning-700">
+          <p className="text-xs text-ink">
             Avatar mode is unavailable (HeyGen API key missing or invalid on the server). Text chat still works.
           </p>
         )}
@@ -1245,13 +1244,15 @@ export default function CaseStudySessionView({
             const msgCount = (chatMessages[avatar.id] || []).length;
             const isSelected = selectedRole?.id === avatar.id;
             return (
-              <Card
+              <button
                 key={avatar.id}
-                isPressable
-                className={`transition-all ${isSelected ? "border-2 border-primary bg-primary/5" : "hover:bg-default-50"}`}
-                onPress={() => handleSelectRole(avatar)}
+                type="button"
+                aria-pressed={isSelected}
+                className={`w-full rounded-xl border p-3 text-left transition-colors focus-visible:outline-true-blue ${
+                  isSelected ? "border-cwru-blue bg-light-blue/20" : "border-line bg-white hover:border-link"
+                }`}
+                onClick={() => handleSelectRole(avatar)}
               >
-                <CardBody className="p-3">
                   <div className="flex items-center gap-3">
                     <AvatarImage
                       portrait={avatarPortraits[avatar.id]}
@@ -1261,17 +1262,16 @@ export default function CaseStudySessionView({
                     />
                     <div className="min-w-0">
                       <p className="font-medium text-sm">{avatar.name}</p>
-                      <p className="text-xs text-default-500 line-clamp-1">{avatar.role}</p>
+                      <p className="text-xs text-muted line-clamp-1">{avatar.role}</p>
                       {msgCount > 0 && (
                         <div className="flex items-center gap-1 mt-1">
-                          <MessageSquare className="w-3 h-3 text-default-400" />
-                          <span className="text-xs text-default-400">{msgCount} messages</span>
+                          <MessageSquare className="w-3 h-3 text-muted" />
+                          <span className="text-xs text-muted">{msgCount} messages</span>
                         </div>
                       )}
                     </div>
                   </div>
-                </CardBody>
-              </Card>
+                </button>
             );
           })}
         </div>
@@ -1288,27 +1288,26 @@ export default function CaseStudySessionView({
           >
             Save &amp; exit
           </Button>
-          <p className="text-[11px] text-center text-default-400 leading-snug px-0.5">
-            Returns to My Cases without submitting. Your attempt stays in progress.
+          <p className="px-0.5 text-center text-xs leading-snug text-muted">
+            Returns to Case studies without submitting. Your attempt stays in progress.
           </p>
           <Button
-            color="danger"
-            variant="flat"
+            color="primary"
             startContent={<CheckCircle className="w-4 h-4" />}
             onPress={() => setShowFinishModal(true)}
             isLoading={finishing}
             isDisabled={leavingCase}
             className="w-full"
           >
-            I&apos;m Finished
+            I&apos;m finished
           </Button>
         </div>
       </div>
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col border rounded-lg overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-line bg-white">
         {!selectedRole ? (
-          <div className="flex-1 flex items-center justify-center text-default-400">
+          <div className="flex-1 flex items-center justify-center text-muted">
             <div className="text-center">
               <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg">Select a person to talk to</p>
@@ -1317,13 +1316,13 @@ export default function CaseStudySessionView({
           </div>
         ) : interactionMode === "avatar" && avatarLimitExhausted && !avatarGrandfathered ? (
           /* ── Avatar limit exhausted screen ── */
-          <div className="flex-1 flex items-center justify-center bg-default-50">
+          <div className="flex-1 flex items-center justify-center bg-canvas">
             <div className="text-center max-w-md px-6">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-danger-100 flex items-center justify-center">
-                <Video className="w-8 h-8 text-danger-500" />
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-copper/[0.06] flex items-center justify-center">
+                <Video className="w-8 h-8 text-copper-deep" />
               </div>
-              <h3 className="text-xl font-semibold text-default-800 mb-2">Avatar Time Used Up</h3>
-              <p className="text-default-500 mb-6">
+              <h3 className="text-xl font-semibold text-ink mb-2">Avatar Time Used Up</h3>
+              <p className="text-muted mb-6">
                 You have used all {avatarTimeLimitSeconds !== null ? avatarTimeLimitSeconds / 60 : 0} minutes of avatar interaction for this case. You can continue the case study using text chat.
               </p>
               <Button
@@ -1399,7 +1398,7 @@ export default function CaseStudySessionView({
                       })()}
                     </div>
                     {avatarTimeLimitSeconds !== null && (
-                      <span className={`text-xs font-medium ${avatarLimitExhausted ? "text-danger-400" : "text-white/60"}`}>
+                      <span className={`text-xs font-medium ${avatarLimitExhausted ? "text-copper-deep" : "text-white/60"}`}>
                         {avatarLimitExhausted
                           ? "Limit reached"
                           : (() => {
@@ -1438,7 +1437,7 @@ export default function CaseStudySessionView({
                     setSelectedRole(null);
                   }}
                 >
-                  Back to Roles
+                  All people
                 </Button>
               </div>
             </div>
@@ -1484,10 +1483,10 @@ export default function CaseStudySessionView({
           /* ── Standard text mode layout ── */
           <>
             {/* Chat header */}
-            <div className="p-4 border-b bg-default-50 flex items-center justify-between">
+            <div className="p-4 border-b border-line bg-canvas flex items-center justify-between">
               <div>
                 <p className="font-semibold">{selectedRole.name}</p>
-                <p className="text-sm text-default-500">{selectedRole.role}</p>
+                <p className="text-sm text-muted">{selectedRole.role}</p>
               </div>
               <div className="flex items-center gap-2">
                 {roleHasAvatarProfile && (
@@ -1520,7 +1519,7 @@ export default function CaseStudySessionView({
                       })()}
                     </div>
                     {avatarTimeLimitSeconds !== null && (
-                      <span className={`text-xs font-medium ${avatarLimitExhausted ? "text-danger-500" : "text-default-400"}`}>
+                      <span className={`text-xs font-medium ${avatarLimitExhausted ? "text-copper-deep" : "text-muted"}`}>
                         {avatarLimitExhausted
                           ? "Limit reached"
                           : (() => {
@@ -1555,18 +1554,18 @@ export default function CaseStudySessionView({
                     setSelectedRole(null);
                   }}
                 >
-                  Back to Roles
+                  All people
                 </Button>
               </div>
             </div>
 
             {/* Messages */}
             {avatarLimitExhausted && roleHasAvatarProfile && (
-              <div className="p-4 border-b bg-warning-50 flex items-start gap-3">
-                <Video className="w-5 h-5 text-warning-600 shrink-0 mt-0.5" />
+              <div className="p-4 border-b border-line bg-level-2/10 flex items-start gap-3">
+                <Video className="w-5 h-5 text-level-2 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold text-warning-800 text-sm">Avatar time limit reached</p>
-                  <p className="text-xs text-warning-700 mt-0.5">
+                  <p className="font-semibold text-ink text-sm">Avatar time limit reached</p>
+                  <p className="text-xs text-ink mt-0.5">
                     You have used all {avatarTimeLimitSeconds !== null ? avatarTimeLimitSeconds / 60 : 0} minutes of avatar interaction for this case. You can continue with text mode.
                   </p>
                 </div>
@@ -1574,7 +1573,7 @@ export default function CaseStudySessionView({
             )}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {currentRoleMessages.length === 0 && (
-                <div className="text-center text-default-400 py-8">
+                <div className="text-center text-muted py-8">
                   <p>Start a conversation with {selectedRole.name}</p>
                 </div>
               )}
@@ -1587,11 +1586,11 @@ export default function CaseStudySessionView({
                     className={`max-w-[80%] p-3 rounded-lg ${
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-default-100"
+                        : "bg-canvas"
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    <p className={`text-xs mt-1 ${msg.role === "user" ? "text-primary-foreground/60" : "text-default-400"}`}>
+                    <p className={`text-xs mt-1 ${msg.role === "user" ? "text-primary-foreground/60" : "text-muted"}`}>
                       {new Date(msg.timestamp).toLocaleTimeString()}
                     </p>
                   </div>
@@ -1599,7 +1598,7 @@ export default function CaseStudySessionView({
               ))}
               {sending && (
                 <div className="flex justify-start">
-                  <div className="bg-default-100 p-3 rounded-lg max-w-[80%]">
+                  <div className="bg-canvas p-3 rounded-lg max-w-[80%]">
                     {streamingText ? (
                       <p className="text-sm whitespace-pre-wrap">{streamingText}</p>
                     ) : (
@@ -1612,7 +1611,7 @@ export default function CaseStudySessionView({
             </div>
 
             {/* Text input */}
-            <div className="p-4 border-t">
+            <div className="p-4 border-t border-line">
               <div className="flex gap-2">
                 <Input
                   placeholder={`Message ${selectedRole.name}...`}
@@ -1642,13 +1641,13 @@ export default function CaseStudySessionView({
         <ModalContent>
           <ModalHeader>End This Session?</ModalHeader>
           <ModalBody>
-            <p className="text-default-600">
+            <p className="text-muted">
               Are you sure you&apos;re finished with the entire case? Submitting now ends this attempt and it will no longer appear under Unfinished Sessions.
             </p>
-            <p className="text-default-600">
+            <p className="text-muted">
               You won&apos;t be able to continue this conversation or make any changes after submission.
               {mode === "assessed" && (
-                <span className="block mt-2 font-medium text-warning-600">
+                <span className="block mt-2 font-medium text-level-2">
                   This is an assessed attempt. Submission will trigger evaluation.
                 </span>
               )}
@@ -1666,7 +1665,7 @@ export default function CaseStudySessionView({
               }}
               isLoading={finishing}
             >
-              Yes, I&apos;m Finished
+              Yes, I&apos;m finished
             </Button>
           </ModalFooter>
         </ModalContent>

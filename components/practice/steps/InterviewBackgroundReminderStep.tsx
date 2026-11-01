@@ -32,7 +32,7 @@ export default function InterviewBackgroundReminderStep({
     >
       <div className="rounded-xl border border-line bg-white p-6 sm:p-9">
         <div className="flex items-start gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-light-blue/32 text-true-blue">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-light-blue/32 text-link">
             <BriefcaseBusiness size={21} aria-hidden="true" />
           </div>
           <div>
@@ -85,7 +85,7 @@ export default function InterviewBackgroundReminderStep({
           aria-labelledby="camera-background-reminder"
         >
           <Image
-            className="mt-0.5 shrink-0 text-true-blue"
+            className="mt-0.5 shrink-0 text-link"
             size={18}
             aria-hidden="true"
           />

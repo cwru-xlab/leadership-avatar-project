@@ -1145,7 +1145,7 @@ function PracticeInterviewRoom({
           >
             <ChevronLeft size={20} />
           </Button>
-          <SessionLiveBadge label="LIVE INTERVIEW" />
+          <SessionLiveBadge label="Live interview" />
           {sessionPanel && mediaLayout !== "deck-primary" ? (
             // Top-right of the avatar pane by default — keeps the face clear.
             // Pitch-deck deck-primary mounts the panel as the stage instead.
@@ -1236,19 +1236,10 @@ function PracticeInterviewRoom({
             <SelfViewThumbnail stream={cameraStream} />
           </>
         )}
-        <div className="relative z-10 mt-auto px-5 pb-6 pt-36 sm:px-8 lg:hidden">
-          <InterviewStatus
-            interviewerName={interviewerName}
-            isInterviewSession={isInterviewSession}
-            stageLabel={stageLabel}
-            elapsedSeconds={elapsedSeconds}
-            avatarReady={avatarReady}
-          />
-        </div>
       </SessionStagePane>
 
       <SessionSidePane>
-        <div className="hidden px-8 pb-5 pt-7 lg:block">
+        <div className="px-5 pb-3 pt-4 sm:px-8 lg:pb-5 lg:pt-7">
           <InterviewStatus
             interviewerName={interviewerName}
             isInterviewSession={isInterviewSession}
@@ -1267,7 +1258,7 @@ function PracticeInterviewRoom({
             <p className="text-[11px] font-semibold text-light-blue">
               Practice flow
             </p>
-            <p className="mt-1 text-xs leading-5 text-light-blue">
+            <p className="mt-1 hidden text-xs leading-5 text-light-blue sm:block">
               Background, behavioral stories, and role-specific discussion. You&apos;ll have time to ask your questions at the end.
             </p>
             <div className="mt-2 flex items-center justify-between text-xs text-light-blue">
@@ -1310,7 +1301,7 @@ function PracticeInterviewRoom({
               </article>
             )}
             {partialTranscript && (
-              <article className="ml-auto max-w-[88%] rounded-xl rounded-br-sm border border-light-blue bg-cwru-blue px-4 py-3 text-sm leading-6 text-light-blue/32">
+              <article className="ml-auto max-w-[88%] rounded-xl rounded-br-sm border border-light-blue bg-cwru-blue px-4 py-3 text-sm leading-6 text-white">
                 {partialTranscript}
               </article>
             )}
@@ -1408,7 +1399,7 @@ function PracticeInterviewRoom({
           className="pointer-events-none absolute inset-x-0 top-20 z-40 flex justify-center px-4"
           role="status"
         >
-          <p className="rounded-full border border-white/15 bg-ink/80 px-4 py-2 text-sm text-light-blue/32 backdrop-blur-md">
+          <p className="rounded-full border border-white/15 bg-ink/80 px-4 py-2 text-sm text-white backdrop-blur-md">
             The conversation ended.
           </p>
         </div>
@@ -1433,10 +1424,10 @@ function PracticeInterviewRoom({
                   value={reportTitleDraft}
                   onValueChange={setReportTitleDraft}
                   maxLength={120}
-                  classNames={{ inputWrapper: "bg-default-100" }}
+                  classNames={{ inputWrapper: "bg-canvas" }}
                 />
                 {answeredCount < SHORT_INTERVIEW_ANSWERS && (
-                  <p className="text-copper">
+                  <p className="text-copper-deep">
                     You&apos;ve only answered {answeredCount} question
                     {answeredCount === 1 ? "" : "s"} — your report will be
                     limited.

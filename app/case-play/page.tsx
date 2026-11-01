@@ -143,7 +143,7 @@ export default function CasePlayIndexPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-true-blue hover:text-cwru-blue" href="/">
+      <Link className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-link hover:text-cwru-blue" href="/">
         <ArrowLeft aria-hidden className="h-4 w-4" />
         Practice
       </Link>

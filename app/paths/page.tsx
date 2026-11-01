@@ -104,7 +104,7 @@ function PlanSwitcher({
                   }}
                 >
                   {item.path ? (
-                    <ProgressRing done={done} size={40} stroke={4} total={total} />
+                    <ProgressRing done={done} size={44} stroke={4} total={total} />
                   ) : (
                     <span className="grid size-10 shrink-0 place-items-center rounded-full border-2 border-dashed border-light-blue text-cwru-blue">
                       <Plus aria-hidden size={16} />
@@ -124,7 +124,7 @@ function PlanSwitcher({
             );
           })}
           <li>
-            <Link className="flex items-center gap-1 rounded-lg p-2.5 text-sm font-semibold text-true-blue hover:bg-canvas" href="/study-plans">
+            <Link className="flex items-center gap-1 rounded-lg p-2.5 text-sm font-semibold text-link hover:bg-canvas" href="/study-plans">
               Manage study plans <ChevronRight size={14} aria-hidden="true" />
             </Link>
           </li>

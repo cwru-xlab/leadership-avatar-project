@@ -61,13 +61,13 @@ export default function VoiceDrillPage() {
         <div className="mx-auto max-w-3xl px-4 py-8">
           <Link
             href={`/study-plans/${params.planId}`}
-            className="inline-flex items-center gap-1 text-sm text-muted hover:text-true-blue"
+            className="inline-flex items-center gap-1 text-sm text-muted hover:text-link"
           >
             <ArrowLeft size={14} aria-hidden="true" /> Back to the path
           </Link>
           <div className="mt-6">
             {error ? (
-              <p role="alert" className="rounded-xl border border-copper/30 bg-copper/8 p-4 text-sm text-copper">
+              <p role="alert" className="rounded-xl border border-copper/30 bg-copper/8 p-4 text-sm text-copper-deep">
                 {error}
               </p>
             ) : (

@@ -23,7 +23,7 @@ import { Button } from "@heroui/button";
 import { Input, Textarea } from "@heroui/input";
 import { Card, CardBody } from "@heroui/card";
 import { addToast } from "@heroui/toast";
-import { ArrowLeft, ArrowRight, Check, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Trash2 } from "lucide-react";
 import AvatarPickerGrid from "@/components/scenario/AvatarPickerGrid";
 import { SCENARIO_LIMITS, validateScenarioInput } from "@/lib/scenario/validation";
 import type { CaseAvatar, CaseStudy } from "@/types";
@@ -407,7 +407,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
           <div className="mt-7 grid max-w-2xl gap-5">
             <Card className="border border-line shadow-none">
               <CardBody className="gap-2 p-6">
-                <p className="text-xs font-bold text-true-blue">
+                <p className="text-xs font-bold text-link">
                   Situation
                 </p>
                 <p className="font-display font-medium text-xl">{name || "Untitled scenario"}</p>
@@ -419,7 +419,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
 
             <Card className="border border-line shadow-none">
               <CardBody className="gap-3 p-6">
-                <p className="text-xs font-bold text-true-blue">
+                <p className="text-xs font-bold text-link">
                   Characters ({avatars.length})
                 </p>
                 {avatars.map((avatar) => (
@@ -435,7 +435,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
 
             <Card className="border border-line shadow-none">
               <CardBody className="gap-2 p-6">
-                <p className="text-xs font-bold text-true-blue">
+                <p className="text-xs font-bold text-link">
                   Criteria
                 </p>
                 <p className="whitespace-pre-wrap text-sm leading-6 text-muted">
@@ -465,7 +465,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
       <div className="mt-10 border-t border-line pt-6">
         <button
           type="button"
-          className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-true-blue focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue"
+          className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-link focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-true-blue"
           onClick={handleCancel}
         >
           <ArrowLeft size={16} /> Cancel
