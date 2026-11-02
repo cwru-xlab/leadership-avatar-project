@@ -40,6 +40,7 @@ import { siteConfig } from "@/config/site";
 // "Node.js module is loaded ('crypto') which is not supported in the Edge
 // Runtime" build warning. roles.ts is dependency-free for exactly this reason.
 import { toAppRole, isAdminRole } from "@/lib/roles";
+import { routes } from "@/lib/routes";
 
 // Secret key for JWT verification (in production, use environment variable)
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
@@ -318,6 +319,15 @@ export async function middleware(request: NextRequest) {
 
     // Extract user role from JWT payload
     const userRole = payload.role as string;
+
+    // "/" is the admin home; a student's home is the practice picker. Students
+    // only, because kiosk accounts are denied /practice and denials redirect to
+    // "/". Keeps the query string so ?error=access_denied still shows its toast.
+    if (pathname === "/" && toAppRole(userRole) === "user") {
+      const practiceUrl = request.nextUrl.clone();
+      practiceUrl.pathname = routes.practice();
+      return NextResponse.redirect(practiceUrl);
+    }
 
     /**
      * STUDENT ROUTE AUTHORIZATION

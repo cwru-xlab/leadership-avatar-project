@@ -5,8 +5,6 @@ import { Card, CardBody } from "@heroui/card";
 import { Briefcase, Video, ArrowRight } from "lucide-react";
 import { title } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";
-import InteractionDashboard from "@/components/interactions/InteractionDashboard";
-import { toAppRole } from "@/lib/roles";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -35,10 +33,6 @@ export default function Home() {
         <div>Loading...</div>
       </section>
     );
-  }
-
-  if (toAppRole(user?.role) === "user") {
-    return <InteractionDashboard />;
   }
 
   return (
