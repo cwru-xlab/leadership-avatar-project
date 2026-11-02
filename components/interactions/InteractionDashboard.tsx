@@ -8,6 +8,7 @@ import { ChevronRight } from "lucide-react";
 import { listInteractionTypes } from "@/lib/interactions";
 import type { ReportDTO } from "@/lib/report/dto";
 import { displayReportTitle, formatReportWhen } from "@/lib/report/title";
+import { routes } from "@/lib/routes";
 
 import InteractionTile from "./InteractionTile";
 
@@ -103,7 +104,7 @@ export default function InteractionDashboard() {
             {recent.length > 0 && (
               <NextLink
                 className="text-sm font-semibold text-link hover:underline"
-                href="/reports"
+                href={routes.reports()}
               >
                 All reports
               </NextLink>
@@ -124,7 +125,7 @@ export default function InteractionDashboard() {
                   <li key={report.id}>
                     <NextLink
                       className="flex min-h-14 items-center gap-4 px-4 py-3 transition-colors duration-150 ease-out hover:bg-canvas"
-                      href={`/practice/${report.typeSlug}/report/${report.id}`}
+                      href={routes.report(report.id)}
                     >
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate text-[15px] font-semibold text-ink">

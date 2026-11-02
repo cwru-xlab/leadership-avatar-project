@@ -13,6 +13,8 @@
  */
 import { prisma } from "@/lib/prisma";
 import { typeLabelForReport } from "@/lib/report/title";
+import { routes } from "@/lib/routes";
+
 import type { MasteryResult, WindowDriver } from "@/lib/mastery/compute";
 import {
   activityKeyForDriver,
@@ -97,7 +99,7 @@ export async function resolveDriverLinks(
     });
     if (key) {
       links.set(key, {
-        href: `/practice/${report.typeSlug}/report/${report.id}`,
+        href: routes.report(report.id),
         label: `${typeLabelForReport(report.typeSlug)} session`,
       });
     }

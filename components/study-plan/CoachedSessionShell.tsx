@@ -1,6 +1,8 @@
 "use client";
 
 import BackLink from "@/components/shell/BackLink";
+import { routes } from "@/lib/routes";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@heroui/button";
@@ -683,7 +685,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
         <p className="text-ink">This coached step is not available.</p>
-        <Button as={Link} href="/reports" className="mt-5" color="primary">
+        <Button as={Link} href={routes.reports()} className="mt-5" color="primary">
           Back to my study plan
         </Button>
       </div>
@@ -696,7 +698,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
         <p className="text-copper-deep" role="alert">
           {entryError ?? "Unable to load this coached step."}
         </p>
-        <Button as={Link} href="/reports" className="mt-5" variant="light">
+        <Button as={Link} href={routes.reports()} className="mt-5" variant="light">
           Back to my study plan
         </Button>
       </div>
@@ -856,7 +858,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
             <CoachedMomentPanel
               counterpartLine={moment.counterpartLine}
               studentLine={moment.studentLine}
-              sessionLink={`/practice/${legView.underlyingTypeSlug}/report/${moment.sourceReportId}`}
+              sessionLink={routes.report(moment.sourceReportId)}
             />
           ) : null}
 

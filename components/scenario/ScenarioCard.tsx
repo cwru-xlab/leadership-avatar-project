@@ -25,6 +25,7 @@ import { addToast } from "@heroui/toast";
 import { Pencil, Trash2 } from "lucide-react";
 import type { CaseStudy } from "@/types";
 import LibraryCard, { LibraryBadge } from "@/components/practice/LibraryCard";
+import { routes } from "@/lib/routes";
 
 interface ScenarioCardProps {
   scenario: CaseStudy;
@@ -47,7 +48,7 @@ export default function ScenarioCard({
   const handleCardClick = () => {
     // Launch on the engine session path (REQ-68 / plan 13-13). Edit/publish/
     // delete below stay on /case-play authoring routes.
-    router.push(`/practice/case-study/${scenario.id}`);
+    router.push(routes.caseStudy(scenario.id));
     onPlay(scenario.id);
   };
 
@@ -60,7 +61,7 @@ export default function ScenarioCard({
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/case-play/${scenario.id}/edit`);
+    router.push(routes.editCaseStudy(scenario.id));
   };
 
   const handleTogglePublish = async (e: React.MouseEvent) => {

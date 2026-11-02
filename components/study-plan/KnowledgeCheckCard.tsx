@@ -1,5 +1,7 @@
 "use client";
 
+import { routes } from "@/lib/routes";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, ListChecks } from "lucide-react";
@@ -358,7 +360,7 @@ function ContextBlock({
       </blockquote>
       {sourceReportId && (
         <Link
-          href={`/practice/reports/${sourceReportId}`}
+          href={routes.report(sourceReportId)}
           className="mt-2 inline-block text-xs font-semibold text-cwru-blue underline underline-offset-2"
         >
           View the session this came from
@@ -392,7 +394,7 @@ function QuoteBlock({ quotedText }: { quotedText: QuotedTextDTO | null }) {
         {quotedText.text}
       </blockquote>
       <Link
-        href={`/practice/reports/${quotedText.sourceReportId}`}
+        href={routes.report(quotedText.sourceReportId)}
         className="mt-2 inline-block text-xs font-semibold text-cwru-blue underline underline-offset-2"
       >
         View the session this came from

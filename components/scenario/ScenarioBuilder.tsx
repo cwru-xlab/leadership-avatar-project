@@ -19,6 +19,7 @@
 import StepTracker from "@/components/shell/StepTracker";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { routes } from "@/lib/routes";
 import { Button } from "@heroui/button";
 import { Input, Textarea } from "@heroui/input";
 import { Card, CardBody } from "@heroui/card";
@@ -110,7 +111,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
       );
       if (!confirmed) return;
     }
-    router.push("/case-play");
+    router.push(routes.caseStudies());
   };
 
   const stepOwningField = (field: string): BuilderStep => {
@@ -187,7 +188,7 @@ export default function ScenarioBuilder(props: ScenarioBuilderProps) {
           props.mode === "edit" ? "Scenario updated" : "Scenario saved",
         color: "success",
       });
-      router.push("/case-play");
+      router.push(routes.caseStudies());
     } catch {
       addToast({
         title: "Could not save this scenario",

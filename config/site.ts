@@ -1,4 +1,4 @@
-export type SiteConfig = typeof siteConfig;
+import { routes } from "@/lib/routes";
 
 export const siteConfig = {
   name: "Leadership Avatar",
@@ -11,8 +11,8 @@ export const siteConfig = {
   ],
   // Settings lives on the sidebar's profile row, not in this list.
   studentNavItems: [
-    { label: "Practice", href: "/", icon: "Mic", group: "Practice" },
-    { label: "My reports", href: "/reports", icon: "FileText", group: "Practice" },
+    { label: "Practice", href: routes.practice(), icon: "Mic", group: "Practice" },
+    { label: "My reports", href: routes.reports(), icon: "FileText", group: "Practice" },
     { label: "Study plans", href: "/study-plans", icon: "BookOpenCheck", group: "Progress" },
     { label: "Paths", href: "/paths", icon: "Route", group: "Progress" },
     { label: "Mastery", href: "/mastery", icon: "ChartColumnBig", group: "Progress" },
@@ -37,3 +37,5 @@ export const siteConfig = {
     addAvatarDraftLocalStorageKey: "wsom-ai-avatar-add-draft",
   },
 };
+
+export type SiteConfig = typeof siteConfig;

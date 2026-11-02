@@ -40,6 +40,7 @@ import { siteConfig } from "@/config/site";
 // "Node.js module is loaded ('crypto') which is not supported in the Edge
 // Runtime" build warning. roles.ts is dependency-free for exactly this reason.
 import { toAppRole, isAdminRole } from "@/lib/roles";
+import { routes } from "@/lib/routes";
 
 // Secret key for JWT verification (in production, use environment variable)
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
@@ -189,12 +190,18 @@ const KIOSK_ROUTES: string[] = [
 ];
 
 const STUDENT_ROUTES: string[] = [
+  // Canonical student browser surfaces.
+  "/practice",
+  "/reports",
+  "/study-plans",
+  "/paths",
+  "/mastery",
+  "/settings",
+  // Legacy browser prefixes remain protected during the URL transition.
   "/interview",
   "/case-play",
   "/conversations",
   "/api/interaction",
-  "/reports",
-  "/settings",
   // Interview APIs are student-owned and return the LiveAvatar profiles a
   // student can launch. Keep this ahead of the generic authenticated fallback.
   "/api/interview",
@@ -313,6 +320,15 @@ export async function middleware(request: NextRequest) {
     // Extract user role from JWT payload
     const userRole = payload.role as string;
 
+    // "/" is the admin home; a student's home is the practice picker. Students
+    // only, because kiosk accounts are denied /practice and denials redirect to
+    // "/". Keeps the query string so ?error=access_denied still shows its toast.
+    if (pathname === "/" && toAppRole(userRole) === "user") {
+      const practiceUrl = request.nextUrl.clone();
+      practiceUrl.pathname = routes.practice();
+      return NextResponse.redirect(practiceUrl);
+    }
+
     /**
      * STUDENT ROUTE AUTHORIZATION
      *
@@ -322,11 +338,11 @@ export async function middleware(request: NextRequest) {
      * kiosk flows — for those, the kiosk role is also permitted.
      */
     const isStudentRoute = STUDENT_ROUTES.some((route) =>
-      pathname.startsWith(route)
+      pathname === route || pathname.startsWith(route + "/")
     );
 
     const isKioskRoute = KIOSK_ROUTES.some((route) =>
-      pathname.startsWith(route)
+      pathname === route || pathname.startsWith(route + "/")
     );
 
     if (isStudentRoute) {
@@ -409,7 +425,7 @@ export async function middleware(request: NextRequest) {
      * - Compliance operations need proper authorization
      */
     const isAdminRoute = ADMIN_ROUTES.some((route) =>
-      pathname.startsWith(route)
+      pathname === route || pathname.startsWith(route + "/")
     );
 
     if (isAdminRoute) {

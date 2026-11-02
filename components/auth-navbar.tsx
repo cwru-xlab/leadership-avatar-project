@@ -30,6 +30,7 @@ import { siteConfig } from "@/config/site";
 import { UpNextCard } from "@/components/shell/UpNextCard";
 import { useLayout } from "@/lib/layout-context";
 import { toAppRole } from "@/lib/roles";
+import { routes } from "@/lib/routes";
 
 const iconMap = {
   Home,
@@ -71,8 +72,8 @@ export const AuthNavbar = () => {
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/")) ||
-    // Practice owns every practice flow, not just the picker at "/".
-    (href === "/" && isStudent && /^\/(practice|interview|case-play|conversations)(\/|$)/.test(pathname));
+    // Practice also owns the legacy prefixes that still serve practice flows.
+    (href === routes.practice() && isStudent && /^\/(interview|case-play|conversations)(\/|$)/.test(pathname));
 
   const initials = (user?.name ?? "")
     .split(/\s+/)
