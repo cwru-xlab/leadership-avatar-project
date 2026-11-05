@@ -8,7 +8,7 @@ const read = (file: string) => readFileSync(path.join(root, file), "utf8");
 const nextConfig = require(path.join(root, "next.config.js"));
 
 const requiredPaths = [
-  "app/practice/page.tsx", "app/practice/interviews/page.tsx", "app/practice/interviews/[type]/page.tsx",
+  "app/practice/page.tsx", "app/practice/interviews/page.tsx", "app/practice/interviews/[type]/page.tsx", "app/practice/interviews/technical/page.tsx",
   "app/practice/case-studies/page.tsx", "app/practice/case-studies/new/page.tsx", "app/practice/case-studies/[caseId]/edit/page.tsx", "app/practice/case-studies/[caseId]/page.tsx",
   "app/practice/courageous-conversations/page.tsx", "app/practice/courageous-conversations/new/page.tsx", "app/practice/courageous-conversations/[id]/edit/page.tsx", "app/practice/courageous-conversations/[id]/page.tsx",
   "app/practice/networking/page.tsx", "app/practice/pitches/page.tsx", "app/practice/pitches/elevator/page.tsx", "app/practice/pitches/deck/page.tsx", "app/practice/pitches/deck/[mode]/page.tsx", "app/reports/[reportId]/page.tsx",
@@ -30,6 +30,10 @@ async function main() {
   };
   expectRedirect("/practice/general", "/practice/interviews/general");
   expectRedirect("/practice/technical", "/practice/interviews/technical");
+  assert(!existsSync(path.join(root, "app/practice/technical-coding/page.tsx")), "Standalone technical-coding route must not exist");
+  assert(!redirects.some((item: { source: string }) => item.source === "/practice/technical-coding"), "Standalone technical-coding route must not redirect");
+  assert(read("app/practice/interviews/technical/page.tsx").includes("TechnicalCodingPracticePage"), "Canonical technical route must launch coding");
+  assert(read("app/practice/[type]/page.tsx").includes("type === \"technical-coding\") notFound()"), "Dynamic route must not catch the internal coding slug");
   expectRedirect("/practice/consulting", "/practice/interviews/consulting");
   expectRedirect("/practice/early-career", "/practice/interviews/early-career");
   expectRedirect("/practice/:type/report/:reportId", "/reports/:reportId");
