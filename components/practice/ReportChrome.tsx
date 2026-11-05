@@ -103,6 +103,15 @@ const DIFFICULT_CONVERSATION_CHROME: ReportChrome = {
  * are the only places a type slug is permitted to appear in a `.tsx` file
  * outside the type's own components.
  */
+const TECHNICAL_CODING_CHROME: ReportChrome = {
+  pollIntervalMs: 2000,
+  giveUpAfterMs: 120_000,
+  stalledAffordance: "retry",
+  distinguishes401: true,
+  guardsRepollAfter404: false,
+  showsCustomizationStrip: false,
+};
+
 const NETWORKING_CHROME: ReportChrome = {
   pollIntervalMs: 2000,
   giveUpAfterMs: 120_000,
@@ -229,6 +238,7 @@ export function getReportChrome(
   if (slug === "case-study") return CASE_STUDY_CHROME;
   if (slug === "difficult-conversation") return DIFFICULT_CONVERSATION_CHROME;
   if (slug === "networking") return NETWORKING_CHROME;
+  if (slug === "technical-coding") return TECHNICAL_CODING_CHROME;
   if (slug === "pitch-elevator") return PITCH_ELEVATOR_CHROME;
   if (isDeckModeSlug(slug)) return deckChromeFor(slug);
   if (INTERVIEW_PRESET_SLUGS.has(slug)) return INTERVIEW_CHROME;

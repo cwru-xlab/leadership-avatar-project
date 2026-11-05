@@ -12,6 +12,7 @@ import { getDeckMode } from "@/lib/pitch/deck-modes";
 const TYPE_LABELS: Record<string, string> = {
   general: "General interview",
   technical: "Technical interview",
+  "technical-coding": "Technical coding interview",
   consulting: "Consulting interview",
   "early-career": "Early-career interview",
   "case-study": "Case study",
@@ -75,6 +76,8 @@ function subjectFromSnapshot(input: InputSnapshot | null): string | null {
           : null;
     case "scenario":
       return input.caseName ? truncate(input.caseName) : null;
+    case "technical-coding":
+      return truncate(input.assignment.title);
     case "pitch":
       return input.pitchSubject ? truncate(input.pitchSubject) : null;
     case "difficult-conversation":
