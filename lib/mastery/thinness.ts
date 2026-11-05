@@ -35,19 +35,21 @@ export type EvidenceTier = (typeof EVIDENCE_TIERS)[number];
  * of "evidence" in the system, instead of a count-based notion for thinness
  * and a weight-based notion for the percentage disagreeing with each other.
  *
+ * The sum is over ACTIVITIES, not ledger rows (`computeMastery` collapses
+ * them first): one session's rows are one reading of the student, so a
+ * coached session with three graded legs is still one piece of evidence.
+ *
  * Neither number below has been validated against real student data. They
  * are derived from the 21-CONTEXT.md example and the weight table's own
  * anchor (`LIVE_SESSION` weight = 1.0):
- *   - `thinBelowWeightSum = 2.0` — roughly two unaided live sessions' worth
- *     of weighted evidence. This is the EXACT example 21-CONTEXT.md gives
- *     for "still displays, with thinness flagged" ("a competency backed by
- *     two sessions").
+ *   - `thinBelowWeightSum = 3.0` — one or two unaided live sessions are thin.
+ *     21-CONTEXT.md's EXACT example of a figure that "still displays, with
+ *     thinness flagged" is "a competency backed by two sessions", so two has
+ *     to land below the line (the earlier 2.0 put it just above).
  *   - `establishedAtWeightSum = 6.0` — roughly six unaided live sessions'
- *     worth. Past this point a weighted mean stops swinging materially on
- *     one more data point (one more LIVE_SESSION contribution moves the
- *     mean by at most ~1/7 of its prior distance from that contribution's
- *     score, which is a small enough swing to call the figure settled
- *     rather than still finding its footing).
+ *     worth. Past this point a figure stops swinging materially on one more
+ *     data point: with the prior's two sessions, one more session moves it
+ *     by at most ~1/9 of its distance from that session's score.
  *
  * A future calibration pass should grep this file for
  * "PROVISIONAL UNTIL CALIBRATED" before touching either number — the Phase
@@ -56,7 +58,7 @@ export type EvidenceTier = (typeof EVIDENCE_TIERS)[number];
  */
 export const THINNESS_THRESHOLDS = {
   /** Below this weighted sum, the figure is THIN. */
-  thinBelowWeightSum: 2.0,
+  thinBelowWeightSum: 3.0,
   /** At or above this weighted sum, the figure is ESTABLISHED. */
   establishedAtWeightSum: 6.0,
 } as const;
@@ -75,23 +77,56 @@ export const TIER_DISCLOSURE: Record<
 > = {
   NONE: {
     label: "Not yet measured",
-    disclosure: "No scored sessions or checks for this competency yet.",
+    disclosure: "No scored sessions or checks for this skill yet.",
   },
   THIN: {
-    label: "Early signal",
+    label: "Early read",
     disclosure:
-      "Based on very little evidence so far — a session or two. Treat this figure as a first read, not a settled score.",
+      "One or two sessions can't settle a skill, so this starts near the middle of the scale and moves toward your real scores as you practise.",
   },
   EMERGING: {
-    label: "Building evidence",
-    disclosure:
-      "Based on a growing but still moderate amount of evidence. This figure will firm up with more sessions and checks.",
+    label: "Taking shape",
+    disclosure: "There is real evidence behind this now, but a few more sessions could still move it.",
   },
   ESTABLISHED: {
-    label: "Well-evidenced",
+    label: "Solid read",
     disclosure: null,
   },
 };
+
+/**
+ * How sure the figure is, as filled steps out of 3, for the confidence pips.
+ * Derived from the tier so the estimate and its confidence stay two separate
+ * things a student reads separately, never one blended number.
+ */
+export const TIER_CONFIDENCE: Record<EvidenceTier, 0 | 1 | 2 | 3> = {
+  NONE: 0,
+  THIN: 1,
+  EMERGING: 2,
+  ESTABLISHED: 3,
+};
+
+/** Display rounding by tier: an early read is not known to the point. */
+export function roundedPercentFor(percent: number, tier: EvidenceTier): number {
+  return tier === "THIN" ? Math.round(percent / 5) * 5 : Math.round(percent);
+}
+
+/**
+ * The one way a mastery percent becomes text: whole numbers only, to the
+ * nearest 5 and "about" for a THIN figure, "about" for an EMERGING one. A
+ * decimal would claim a precision no rubric-scored session has.
+ */
+export function displayPercentFor(
+  percent: number | null,
+  tier: EvidenceTier
+): { rounded: number | null; approximate: boolean; display: string } {
+  if (percent === null) {
+    return { rounded: null, approximate: false, display: "Not yet measured" };
+  }
+  const rounded = roundedPercentFor(percent, tier);
+  const approximate = tier !== "ESTABLISHED";
+  return { rounded, approximate, display: `${approximate ? "about " : ""}${rounded}%` };
+}
 
 /**
  * Resolves the evidence tier for a mastery figure from its raw evidence
