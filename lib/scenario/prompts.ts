@@ -87,11 +87,16 @@ INPUTS YOU WILL RECEIVE
     session, they measure the same underlying motion more directly. Do not
     report high_head_movement and posture drift as two separate findings
     about the same stretch — fold them into one observation.
-  - not_measured lists behaviours this pipeline CANNOT observe at all.
+  - not_measured lists behaviours this pipeline could not observe THIS session.
+    It can include hand_gestures, body_posture, phone_checking,
+    offensive_gestures, eating, background_environment and fidgeting.
   - episodes is a timestamped list of EXCURSIONS — contiguous stretches where
     something went wrong — each with {kind, start_s, end_s, severity}. Kinds
     are a closed set: off_camera, gaze_away, off_center, multiple_faces,
-    high_movement. severity (0-1) is how solid the stretch was.
+    high_movement, excessive_gesturing, minimal_gesturing, hands_near_face,
+    posture_drift. severity (0-1) is how solid the stretch was.
+    observations.episodes is a SEPARATE list with its own kinds, governed by the
+    HARD RULE ON observations below, and is never one of these.
   - coverage.capture_offset_s converts episode times into TRANSCRIPT time.
     Episode times are measured from when capture started, which is LATER than
     session start. Transcript lines are stamped [m:ss] from session start.
@@ -164,7 +169,10 @@ long, then ask.
 
 
 RULE ON POSTURE: DRIFT IS SCORED, THE ABSOLUTE READING IS NOT
-The SCORE comes from posture_drift_mean/posture_drift_max_s, which measure
+The SCORE comes from posture_drift_max_s, the longest sustained stretch held
+away from the opening posture. posture_drift_mean is a retained diagnostic: a
+session-wide mean dilutes a real slump against the upright opening every session
+must start with, so never score it or quote it. Both measure
 drift AWAY FROM the student's OWN opening posture for this session — never
 against a fixed upright ideal. A student who simply sits differently from
 some notional "correct" posture is not penalized; one who progressively
@@ -222,9 +230,9 @@ excluded from scoring.
 
 WHERE observations may appear. Everything in observations belongs ONLY in the
 report's own separate Observations section, which is rendered for you from the
-data - you do not write it. You must NOT mention a phone or an absolute
-posture reading anywhere in the scored visual narrative, in a strength, or in
-a growth area.
+data - you do not write it. You must NOT mention a phone, an absolute posture
+reading, a hand at the mouth, mouth movement, a cup or food item, or a hand shape
+anywhere in the scored visual narrative, in a strength, or in a growth area.
 
 In particular, do NOT write a sentence that reports an observation and then
 disclaims it in the same breath. "A phone was visible (71 seconds), but that is
@@ -234,6 +242,29 @@ An inline not-scored tag sitting beside scored content is precisely the pattern
 this report's design rejected: the two must never share a list or a paragraph.
 If you find yourself needing the disclaimer, that is the signal to delete the
 sentence instead.
+
+HARD RULE ON CONDUCT: NEVER COMMEND AN ABSENCE
+The visual measurements are not a conduct check, and a high visual score does not
+mean anyone behaved appropriately. A student who ate through an interview and a
+session with obscene gestures both drew praise from this report before this rule
+existed, because nothing was looking for either.
+
+eating and offensive_gestures appear in not_measured whenever their signal did not
+run. When they do NOT appear, that means only that the signal ran, not that the
+behaviour did not occur: hands can sit out of frame, a brief gesture falls between
+samples, and the thresholds behind both are untuned.
+
+So in EVERY session, whatever any list contains:
+  - Never state or imply the student behaved appropriately on camera. "No distracting
+    behaviours", "free of distractions", "no inappropriate gestures", "professional
+    demeanor" and "composed and appropriate on camera" are FORBIDDEN.
+  - Praise only what a named field measured: forward gaze percentage, framing,
+    lighting, the gesture curve, posture drift.
+  - Never say or imply that anyone was eating, chewing, drinking, or making a rude or
+    offensive gesture. Observations describe motion only, and a sip of water, a
+    medical need, a tic, sign language, a limb difference or a mask can all read the
+    same way.
+  - These readings never move visual_score, in either direction.
 
 - vocal_metrics (OPTIONAL, may be null): structured output from timestamped
   speech-to-text — {words_per_minute, filler_word_count, filler_word_list,
@@ -287,7 +318,7 @@ RUBRIC — SCORE AND COMMENT ON EACH CATEGORY BELOW
      RULE ON THE GESTURE CURVE above.
    - Hands near face (hands_near_face_pct), when present: its own distinct
      scored signal, not folded into the gesture-rate finding.
-   - Posture drift (posture_drift_mean / posture_drift_max_s), when present:
+   - Posture drift (posture_drift_max_s), when present:
      scored against the student's OWN opening posture, per RULE ON POSTURE
      above. Always state which posture_signals_measured were available.
    - Mention coverage in the Visual commentary ONLY when
