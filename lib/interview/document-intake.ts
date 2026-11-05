@@ -18,7 +18,7 @@
  * description-intake.ts` pins the resume route's literal constants against
  * these so the two contracts cannot silently drift.
  */
-import { documentProcessor } from "@/lib/rag/document-processor";
+import { documentProcessor, PdfPasswordError } from "@/lib/rag/document-processor";
 
 export const PDF_MIME_TYPE = "application/pdf";
 
@@ -35,6 +35,7 @@ export const PDF_MAGIC_BYTES = "%PDF-";
  */
 export interface IntakeFileLike {
   type: string;
+  name?: string;
   size: number;
   arrayBuffer(): Promise<ArrayBuffer>;
 }
@@ -68,11 +69,14 @@ export async function intakePdfDocument(
     return { ok: false, status: 400, error: `A ${label} PDF must be provided` };
   }
 
-  if (file.type !== PDF_MIME_TYPE) {
+  // Some browsers send a real .pdf as application/octet-stream or with no
+  // type at all, so a .pdf name is enough here; the magic-byte check below is
+  // what actually decides.
+  if (file.type !== PDF_MIME_TYPE && !/\.pdf$/i.test(file.name ?? "")) {
     return {
       ok: false,
       status: 400,
-      error: `Only PDF ${label} files are supported`,
+      error: `Only PDF ${label} files are supported. Save or export it as a PDF, then upload it.`,
     };
   }
 
@@ -106,11 +110,18 @@ export async function intakePdfDocument(
       await documentProcessor.extractText(buffer, PDF_MIME_TYPE),
     );
   } catch (error) {
+    if (error instanceof PdfPasswordError) {
+      return {
+        ok: false,
+        status: 422,
+        error: "That PDF is password-protected. Save a copy without a password, then upload it.",
+      };
+    }
     console.error(`Interview ${label} parsing failed:`, error);
     return {
       ok: false,
       status: 422,
-      error: `We could not read text from that PDF`,
+      error: "We could not read that PDF. It may be damaged. Export it again as a PDF, then upload it.",
     };
   }
 
@@ -118,7 +129,7 @@ export async function intakePdfDocument(
     return {
       ok: false,
       status: 422,
-      error: `No readable text was found in that PDF. Upload a text-based ${label} PDF.`,
+      error: `No readable text was found in that PDF. It looks like a scan or photo. Upload a text-based ${label} PDF.`,
     };
   }
 
