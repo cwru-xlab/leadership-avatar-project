@@ -20,6 +20,7 @@
 import {
   composeReportMarkdown,
   parseStructuredReport,
+  REPORT_LENGTH_RULES,
   type StructuredReport,
 } from "@/lib/report/structured";
 import { sanitizeBodySignalWording } from "@/lib/report/body-signal-validator";
@@ -368,7 +369,7 @@ async function attemptEvaluation(
   const completion = await openai.chat.completions.create({
     model,
     messages: [
-      { role: "system", content: evaluatorPrompt },
+      { role: "system", content: `${evaluatorPrompt}\n\n${REPORT_LENGTH_RULES}` },
       {
         role: "user",
         content,
