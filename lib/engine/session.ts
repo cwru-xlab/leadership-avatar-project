@@ -68,9 +68,9 @@ import {
   type TechnicalCodingInputSnapshot,
 } from "@/lib/technical-interview/types";
 import {
-  finalizeTechnicalEvidence,
-  mergeTechnicalEvidence,
-  validateTechnicalEvidence,
+  replaceCandidateCheckpoints,
+  setFinalSource,
+  validateTechnicalCheckpoints,
   validateTechnicalFinalSource,
 } from "@/lib/technical-interview/evidence";
 import type { InteractionLog } from "@/types";
@@ -879,15 +879,15 @@ export async function checkpointSession({
   turns: rawTurns,
   progress: rawProgress,
   revealedSlideIndex,
-  technicalEvidence: rawTechnicalEvidence,
+  technicalCheckpoints: rawTechnicalCheckpoints,
 }: {
   userId: string;
   reportId: string;
   turns: unknown;
   progress?: unknown;
   revealedSlideIndex?: unknown;
-  /** Coding-only bounded source checkpoints. Never execution output. */
-  technicalEvidence?: unknown;
+  /** Coding-only browser-authored source checkpoints. */
+  technicalCheckpoints?: unknown;
 }): Promise<CheckpointSessionResult> {
   if (typeof reportId !== "string" || !UUID_REGEX.test(reportId)) {
     return { ok: false, status: 400, error: "Invalid reportId" };
@@ -901,6 +901,7 @@ export async function checkpointSession({
       typeSlug: true,
       startedAt: true,
       inputSnapshot: true,
+      turnCount: true,
       slideHighWaterMark: true,
       slideReveals: true,
       technicalEvidence: true,
@@ -930,13 +931,17 @@ export async function checkpointSession({
     };
   }
 
-  let technicalEvidence: Prisma.InputJsonValue | undefined;
+  // Coding checkpoints are deliberately independent from conversation state.
+  // A browser can only replace its own source draft; it cannot submit any
+  // transcript, hint, or execution evidence.
   if (report.typeSlug === "technical-coding") {
-    const validated = validateTechnicalEvidence(rawTechnicalEvidence);
-    if (!validated.ok) {
-      return { ok: false, status: 400, error: validated.error };
-    }
-    technicalEvidence = mergeTechnicalEvidence(validated.value, report.technicalEvidence) as unknown as Prisma.InputJsonValue;
+    const validated = validateTechnicalCheckpoints(rawTechnicalCheckpoints);
+    if (!validated.ok) return { ok: false, status: 400, error: validated.error };
+    await prisma.interactionReport.update({
+      where: { id: report.id },
+      data: { technicalEvidence: replaceCandidateCheckpoints(report.technicalEvidence, validated.value) as unknown as Prisma.InputJsonValue },
+    });
+    return { ok: true, turnCount: report.turnCount };
   }
 
   const turns = normalizeTurns(rawTurns);
@@ -982,12 +987,7 @@ export async function checkpointSession({
     transcriptKey: string;
     slideHighWaterMark?: number;
     slideReveals?: Prisma.InputJsonValue;
-    technicalEvidence?: Prisma.InputJsonValue;
   } = { turnCount: turns.length, transcriptKey: key };
-
-  if (technicalEvidence !== undefined) {
-    updateData.technicalEvidence = technicalEvidence;
-  }
 
   if (isPitchDeckSnapshot(report.inputSnapshot)) {
     const slideCount = report.inputSnapshot.slideCount;
@@ -1047,7 +1047,7 @@ export async function finishSession({
   outcome: rawOutcome,
   walkOutProof: rawWalkOutProof,
   title: rawTitle,
-  technicalEvidence: rawTechnicalEvidence,
+  technicalCheckpoints: rawTechnicalCheckpoints,
   finalSource: rawFinalSource,
 }: {
   userId: string;
@@ -1066,8 +1066,8 @@ export async function finishSession({
   walkOutProof?: unknown;
   /** Optional student-chosen My Reports title. */
   title?: unknown;
-  /** Coding-only bounded source checkpoints. */
-  technicalEvidence?: unknown;
+  /** Coding-only browser-authored source checkpoints. */
+  technicalCheckpoints?: unknown;
   /** Coding-only final candidate source, stored with private evidence. */
   finalSource?: unknown;
 }): Promise<FinishSessionResult> {
@@ -1255,14 +1255,15 @@ export async function finishSession({
   // deliberately separate from the general interview branch: coding needs a
   // final source and never accepts execution-provider results from the client. ----
   if (report.typeSlug === "technical-coding") {
-    const turns = normalizedTurns;
-    if (turns.length === 0) {
-      return { ok: false, status: 400, error: "There is no coding transcript to evaluate." };
-    }
-    const evidence = validateTechnicalEvidence(rawTechnicalEvidence);
-    if (!evidence.ok) return { ok: false, status: 400, error: evidence.error };
+    // The transcript is server-recorded by the chat route. Do not use request
+    // turns here: a client can never retroactively author interviewer history.
+    const checkpoints = validateTechnicalCheckpoints(rawTechnicalCheckpoints);
+    if (!checkpoints.ok) return { ok: false, status: 400, error: checkpoints.error };
     const finalSource = validateTechnicalFinalSource(rawFinalSource);
     if (!finalSource.ok) return { ok: false, status: 400, error: finalSource.error };
+    const checkpointed = replaceCandidateCheckpoints(report.technicalEvidence, checkpoints.value);
+    const evidence = setFinalSource(checkpointed, finalSource.value);
+    const turns = evidence.visibleTurns;
 
     const transcript = buildInterviewTranscript({
       reportId: report.id,
@@ -1270,8 +1271,8 @@ export async function finishSession({
       typeSlug: report.typeSlug,
       interviewer: { avatarId: null, name: null },
       startedAt: report.startedAt.getTime(),
-      turns,
-      progress: isValidProgress(rawProgress) ? rawProgress : initialProgress(),
+      turns: turns.map((turn) => ({ ...turn, timestamp: Date.now() })),
+      progress: initialProgress(),
     });
 
     let transcriptKey: string;
@@ -1288,7 +1289,7 @@ export async function finishSession({
         status: "PENDING",
         transcriptKey,
         turnCount: turns.length,
-        technicalEvidence: finalizeTechnicalEvidence(mergeTechnicalEvidence(evidence.value, report.technicalEvidence), finalSource.value) as unknown as Prisma.InputJsonValue,
+        technicalEvidence: evidence as unknown as Prisma.InputJsonValue,
         failureReason: null,
         title: resolvedTitle,
         visualMetrics: toMetricsJsonInput(visualMetrics),

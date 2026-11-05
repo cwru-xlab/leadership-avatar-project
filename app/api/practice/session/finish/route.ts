@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       outcome,
       walkOutProof,
       title,
-      technicalEvidence,
+      technicalCheckpoints,
       finalSource,
     } = body as Record<string, unknown>;
 
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       outcome,
       walkOutProof,
       title,
-      technicalEvidence,
+      technicalCheckpoints,
       finalSource,
     });
 

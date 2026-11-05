@@ -364,6 +364,9 @@ function buildEvaluationContextForReport(
       ...base,
       technicalEvidence: evidence,
       finalSource: evidence?.finalSource ?? null,
+      // The current sandbox deliberately executes nothing. Correctness must
+      // remain unavailable rather than be inferred from source or dialogue.
+      finalExecution: null,
     };
   }
 
@@ -681,12 +684,17 @@ export async function runAndPersistEvaluation({
       // Type-declared score cap (e.g. early-end discovery_tailoring ceiling).
       // Looked up on the type record — never via typeSlug branching.
       const scoresForPost = outcome.result.scores;
-      const finalScores = typeRecord?.postProcessScores
+      const postProcessedScores = typeRecord?.postProcessScores
         ? typeRecord.postProcessScores(scoresForPost, {
             terminationReason: report.terminationReason,
             outcome: validatedOutcome,
           })
         : scoresForPost;
+      // This cannot be left to a prompt: no managed deterministic executor is
+      // configured, so the report may not claim a correctness score.
+      const finalScores = snapshot?.kind === "technical-coding"
+        ? { ...postProcessedScores, coding_correctness: null }
+        : postProcessedScores;
 
       await prisma.interactionReport.update({
         where: { id: reportId },
