@@ -18,6 +18,8 @@ export default function TechnicalCodingSession({ reportId, avatarConfig }: { rep
   const avatarRef = useRef<React.ElementRef<typeof SessionAvatar>>(null);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const [snapshot, setSnapshot] = useState<TechnicalCodingInputSnapshot | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [source, setSource] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [terminalOpen, setTerminalOpen] = useState(true);
@@ -40,26 +42,34 @@ export default function TechnicalCodingSession({ reportId, avatarConfig }: { rep
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(null);
     void fetch(`/api/practice/report/${reportId}`, { cache: "no-store" })
-      .then(async (response) => ({ response, data: await response.json() as { report?: ReportDTO; technicalHintCount?: number } }))
+      .then(async (response) => ({ response, data: await response.json().catch(() => ({})) as { report?: ReportDTO; technicalHintCount?: number; error?: string } }))
       .then(({ response, data }) => {
+        if (cancelled) return;
         const input = data.report?.input;
-        if (!cancelled && response.ok && input?.kind === "technical-coding") {
-          setSnapshot(input);
-          setHintsUsed(Math.max(0, Math.min(2, data.technicalHintCount ?? 0)));
-          try {
-            const saved = window.localStorage.getItem(`technical-coding:${reportId}:source`);
-            setSource(saved || input.assignment.starterCode);
-          } catch {
-            setSource(input.assignment.starterCode);
-          }
+        if (!response.ok) {
+          setLoadError(data.error || "Unable to load the coding workspace.");
+          return;
+        }
+        if (input?.kind !== "technical-coding") {
+          setLoadError("This coding assignment is unavailable. Please start a new technical interview.");
+          return;
+        }
+        setSnapshot(input);
+        setHintsUsed(Math.max(0, Math.min(2, data.technicalHintCount ?? 0)));
+        try {
+          const saved = window.localStorage.getItem(`technical-coding:${reportId}:source`);
+          setSource(saved || input.assignment.starterCode);
+        } catch {
+          setSource(input.assignment.starterCode);
         }
       })
       .catch(() => {
-        if (!cancelled) setTerminalLines((lines) => [...lines, "Unable to load the assignment. Refresh to try again."]);
+        if (!cancelled) setLoadError("Unable to reach the coding workspace. Check your connection and try again.");
       });
     return () => { cancelled = true; };
-  }, [reportId]);
+  }, [loadAttempt, reportId]);
 
   useEffect(() => {
     if (!snapshot) return;
@@ -193,6 +203,10 @@ export default function TechnicalCodingSession({ reportId, avatarConfig }: { rep
       setSubmitting(false);
     }
   }, [evidence, reportId, source, submitting, turns]);
+
+  if (loadError) {
+    return <main className="grid min-h-[100dvh] place-items-center bg-ink p-5 text-canvas"><section className="w-full max-w-md rounded-xl border border-white/15 bg-[#101c2d] p-6 shadow-xl"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-light-blue">Coding workspace unavailable</p><h1 className="mt-2 font-display text-2xl text-white">We couldn’t open your interview.</h1><p role="alert" className="mt-3 text-sm leading-6 text-slate-300">{loadError}</p><div className="mt-6 flex gap-3"><Button color="primary" onPress={() => setLoadAttempt((value) => value + 1)}>Try again</Button><Button variant="flat" className="text-white" onPress={() => window.location.assign("/practice/interviews")}>Back to interviews</Button></div></section></main>;
+  }
 
   if (!snapshot) {
     return <main className="grid min-h-[100dvh] place-items-center bg-ink text-canvas"><Spinner color="primary" label="Loading coding workspace" /></main>;
