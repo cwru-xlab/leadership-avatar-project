@@ -4,7 +4,10 @@
  * Per-plan "growth since this plan was generated" card, rendered in
  * PathPanel's growthSlot (the path rail). Figures come from GET /api/mastery/since-plan —
  * this component only displays them (baseline, now, delta and tier are all
- * computed server-side by growthSincePlan / toSincePlanDTO).
+ * computed server-side by growthSincePlan / toSincePlanDTO). Baseline and now
+ * are estimates; "Path work" and "Live practice since" are what was scored.
+ * Before and after only print as a pair when the figure moved: "51.8% -> 51.8%"
+ * read as a measured standstill when nothing had been measured since the plan.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -12,7 +15,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 
 import { competencyIcon } from "@/components/study-plan/competency-icons";
 
-import type { SincePlanDTO } from "@/lib/mastery/mastery-dto";
+import type { CompetencySincePlanDTO, SincePlanDTO } from "@/lib/mastery/mastery-dto";
 
 type LoadState =
   | { status: "loading" }
@@ -20,7 +23,16 @@ type LoadState =
   | { status: "loaded"; data: SincePlanDTO };
 
 function formatPercent(percent: number | null): string {
-  return percent === null ? "—" : `${percent}%`;
+  return percent === null ? "—" : `${Math.round(percent)}%`;
+}
+
+function growthLine(c: CompetencySincePlanDTO): string {
+  const moved = c.delta !== null && c.delta !== 0;
+  if (moved && c.baseline.rounded !== null && c.now.rounded !== null) {
+    return `All time ${c.baseline.display} → ${c.now.display}`;
+  }
+  if (c.now.rounded === null) return "Not yet measured";
+  return `All time ${c.now.display}${c.sinceEvidenceCount === 0 ? " · no new evidence yet" : " · no change yet"}`;
 }
 
 export default function SincePlanGrowth({ planId }: { planId: string }) {
@@ -71,9 +83,9 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
         <details className="text-xs text-muted">
           <summary className="cursor-pointer font-semibold text-link">How to read these</summary>
           <p className="mt-1 leading-5">
-            All-time figures blend every session you have done, so they move slowly. &quot;Path work&quot; is
-            how you scored on this path&apos;s own steps; &quot;Live practice since&quot; is your unaided sessions
-            since the plan was generated.
+            All-time figures are estimates from every session you have done, so they move slowly. &quot;Path work&quot; is
+            how you scored on this path&apos;s own steps; &quot;Live practice since&quot; is what your unaided sessions
+            scored since the plan was generated.
           </p>
         </details>
       )}
@@ -96,28 +108,28 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-ink">{c.label}</span>
-                  {c.delta !== null ? (
+                  {c.delta !== null && c.delta !== 0 ? (
                     <span className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-bold ${tone}`}>
                       <Icon size={13} aria-hidden />
                       {c.delta > 0 ? "+" : ""}
-                      {c.delta} pts
+                      {c.delta} {Math.abs(c.delta) === 1 ? "pt" : "pts"}
                     </span>
                   ) : null}
                 </div>
                 <p className="text-xs text-muted">
-                  All time {formatPercent(c.baseline.percent)} → {formatPercent(c.now.percent)}
-                  {c.now.disclosure ? ` · ${c.now.tierLabel}` : ""}
+                  {growthLine(c)}
+                  {c.now.disclosure && c.now.rounded !== null ? ` · ${c.now.tierLabel}` : ""}
                 </p>
                 {c.sinceBySource.path.percent !== null ? (
                   <p className="text-xs font-semibold text-level-4">
-                    Path work: {c.sinceBySource.path.percent}% across {c.sinceBySource.path.count}{" "}
+                    Path work: {formatPercent(c.sinceBySource.path.percent)} across {c.sinceBySource.path.count}{" "}
                     {c.sinceBySource.path.count === 1 ? "step result" : "step results"}
                   </p>
                 ) : null}
                 {c.sinceBySource.live.percent !== null ? (
                   <p className="text-xs text-ink">
-                    Live practice since: {c.sinceBySource.live.percent}% across {c.sinceBySource.live.count}{" "}
-                    {c.sinceBySource.live.count === 1 ? "scored moment" : "scored moments"}
+                    Live practice since: {formatPercent(c.sinceBySource.live.percent)} across {c.sinceBySource.live.count}{" "}
+                    {c.sinceBySource.live.count === 1 ? "session" : "sessions"}
                   </p>
                 ) : null}
                 {c.drivers.length > 0 ? (
@@ -131,7 +143,7 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
                         ) : (
                           driver.activityLabel
                         )}{" "}
-                        · {driver.percent}%
+                        · {formatPercent(driver.percent)}
                       </li>
                     ))}
                   </ul>
