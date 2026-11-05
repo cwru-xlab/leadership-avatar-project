@@ -8,16 +8,16 @@
  * Fetch discipline: only a level-filtered view of the persona is held in
  * React state / the DOM. A student can read the DOM, and at `blind` the
  * discovery is the exercise — never fetch or render the full persona and
- * then hide fields client-side.
+ * then hide fields client-side. The server draws the listener and filters to
+ * the level, and at `blind` nothing is requested at all.
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
-import {
-  ELEVATOR_LISTENER_PERSONA,
-  type ListenerKnowledge,
-} from "@/lib/pitch/elevator-prompts";
+import type { ListenerKnowledge } from "@/lib/pitch/elevator-prompts";
 import { Button } from "@heroui/button";
+import { Spinner } from "@heroui/spinner";
 import { ArrowRight, Check, UserRound } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export type { ListenerKnowledge };
 
@@ -25,6 +25,8 @@ export interface ListenerKnowledgeStepProps {
   nav: SetupStepNav;
   /** Wizard-owned value — must survive back/forward (reversible). */
   listenerKnowledge: ListenerKnowledge | null;
+  /** Part of the draw: restarting the same pitch keeps the same listener. */
+  pitchSubject: string;
   onSelect: (level: ListenerKnowledge) => void;
 }
 
@@ -53,37 +55,69 @@ const LEVELS: Array<{
   },
 ];
 
-/**
- * Level-filtered persona view. At `blind` returns null so nothing about the
- * person — name, role, interests, priorities — enters the DOM.
- */
-function disclosureForLevel(level: ListenerKnowledge | null): {
-  name?: string;
-  role?: string;
+/** The level-filtered persona view the server returned. Absent at `blind`. */
+interface ListenerDisclosure {
+  name: string;
+  role: string;
+  previewUrl: string | null;
   interests?: readonly string[];
   priorities?: readonly string[];
-} | null {
-  if (!level || level === "blind") return null;
-  if (level === "name-role") {
-    return {
-      name: ELEVATOR_LISTENER_PERSONA.name,
-      role: ELEVATOR_LISTENER_PERSONA.role,
-    };
-  }
-  return {
-    name: ELEVATOR_LISTENER_PERSONA.name,
-    role: ELEVATOR_LISTENER_PERSONA.role,
-    interests: ELEVATOR_LISTENER_PERSONA.interests,
-    priorities: ELEVATOR_LISTENER_PERSONA.priorities,
-  };
 }
+
+type DisclosureState =
+  | { status: "loading" }
+  | { status: "failed" }
+  | { status: "ready"; disclosure: ListenerDisclosure };
 
 export default function ListenerKnowledgeStep({
   nav,
   listenerKnowledge,
+  pitchSubject,
   onSelect,
 }: ListenerKnowledgeStepProps) {
-  const disclosure = disclosureForLevel(listenerKnowledge);
+  const [state, setState] = useState<DisclosureState>({ status: "loading" });
+  const sighted = listenerKnowledge !== null && listenerKnowledge !== "blind";
+
+  useEffect(() => {
+    if (!sighted) return;
+    let cancelled = false;
+    setState({ status: "loading" });
+
+    void (async () => {
+      try {
+        const response = await fetch(
+          "/api/practice/session/elevator-listener",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              listenerKnowledge,
+              pitchSubject: pitchSubject.trim(),
+            }),
+          },
+        );
+        const data = (await response.json().catch(() => ({}))) as {
+          listener?: ListenerDisclosure | null;
+        };
+
+        if (cancelled) return;
+        setState(
+          response.ok && data.listener
+            ? { status: "ready", disclosure: data.listener }
+            : { status: "failed" },
+        );
+      } catch {
+        if (!cancelled) setState({ status: "failed" });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sighted, listenerKnowledge, pitchSubject]);
+
+  const disclosure =
+    sighted && state.status === "ready" ? state.disclosure : null;
 
   return (
     <section
@@ -157,15 +191,52 @@ export default function ListenerKnowledgeStep({
           </div>
         )}
 
+        {sighted && state.status === "loading" && (
+          <div
+            aria-busy="true"
+            className="flex items-center gap-4 rounded-xl border border-line bg-white p-5 text-sm text-muted"
+          >
+            <Spinner color="primary" size="sm" />
+            Finding your listener
+          </div>
+        )}
+
+        {sighted && state.status === "failed" && (
+          <p className="rounded-xl border border-dashed border-line bg-canvas p-5 text-sm leading-6 text-muted">
+            We could not load their profile. You can still continue: you will
+            meet them when the session starts.
+          </p>
+        )}
+
         {disclosure && (
-          <div className="rounded-xl border border-line bg-white p-5">
-            <p className="text-xs font-semibold text-link">
-              Your listener
-            </p>
-            <p className="mt-2 font-display font-medium text-2xl tracking-[-0.02em] text-ink">
-              {disclosure.name}
-            </p>
-            <p className="mt-1 text-sm text-muted">{disclosure.role}</p>
+          <div
+            className="rounded-xl border border-line bg-white p-5"
+            data-testid="listener-disclosure"
+          >
+            <div className="flex items-center gap-4">
+              {disclosure.previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  alt=""
+                  className="h-14 w-14 shrink-0 rounded-full object-cover"
+                  src={disclosure.previewUrl}
+                />
+              ) : (
+                <div
+                  aria-hidden
+                  className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-line text-ink"
+                >
+                  <UserRound size={26} />
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-link">Your listener</p>
+                <p className="mt-1 font-display font-medium text-2xl tracking-[-0.02em] text-ink">
+                  {disclosure.name}
+                </p>
+                <p className="mt-1 text-sm text-muted">{disclosure.role}</p>
+              </div>
+            </div>
             {disclosure.interests && disclosure.priorities && (
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>

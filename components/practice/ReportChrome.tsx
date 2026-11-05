@@ -29,6 +29,7 @@ import DeckVerdictPanel from "@/components/practice/report/DeckVerdictPanel";
 import { DisengagementDeclinePanel } from "@/components/practice/report/DisengagementDeclinePanel";
 import InRoleReactionPanel from "@/components/practice/report/InRoleReactionPanel";
 import NegotiationTriplePanel from "@/components/practice/report/NegotiationTriplePanel";
+import ListenerIdentityPanel from "@/components/practice/report/ListenerIdentityPanel";
 import PitchOutcomeBanner from "@/components/practice/report/PitchOutcomeBanner";
 
 export type StalledAffordance = "retry" | "check-again";
@@ -138,7 +139,7 @@ const PITCH_ELEVATOR_CHROME: ReportChrome = {
   guardsRepollAfter404: false,
   showsCustomizationStrip: false,
   extras: {
-    above: (report) => <><PitchOutcomeBanner report={report} /><DisengagementDeclinePanel report={report} /></>,
+    above: (report) => <><ListenerIdentityPanel report={report} /><PitchOutcomeBanner report={report} /><DisengagementDeclinePanel report={report} /></>,
   },
 };
 

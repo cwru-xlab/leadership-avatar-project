@@ -10,6 +10,7 @@
  * here — type-specific branching belongs in a step component, not this file.
  */
 
+import type { ElevatorListenerStart } from "@/lib/pitch/elevator-personas";
 import StepTracker from "@/components/shell/StepTracker";
 import CameraConsentStep from "@/components/session/CameraConsentStep";
 import type { SetupStepDeclaration } from "@/lib/engine/types";
@@ -30,6 +31,8 @@ export interface SetupLaunchResult {
   log?: InteractionLog;
   /** Server-clamped budget when the type persists one (pitch-deck, 14-13). */
   timeBudgetSeconds?: number | null;
+  /** Elevator only: who the server drew, filtered to the knowledge level. */
+  listener?: ElevatorListenerStart;
 }
 
 /**
@@ -188,6 +191,7 @@ export default function SetupWizard({
           cameraMode?: CameraMode;
           log?: InteractionLog;
           timeBudgetSeconds?: number | null;
+          listener?: ElevatorListenerStart;
           error?: string;
         };
         if (!res.ok || !data.reportId) {
@@ -201,6 +205,7 @@ export default function SetupWizard({
             typeof data.timeBudgetSeconds === "number"
               ? data.timeBudgetSeconds
               : null,
+          listener: data.listener,
         });
       } catch (error) {
         addToast({
