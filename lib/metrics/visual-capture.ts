@@ -1316,6 +1316,7 @@ export function createVisualCapture(
   let winPhoneCount = 0;
   let winPhoneProcessed = 0;
   let captureOffsetS = 0;
+  let captureStartedAtEpochMs: number | null = null;
   let poseUnavailableSamples = 0;
   let centeredSamples = 0;
   let outOfFrameSamples = 0;
@@ -2289,6 +2290,7 @@ export function createVisualCapture(
     if (started || stopped) return;
     started = true;
     startedAtMs = sessionStartMs();
+    captureStartedAtEpochMs = Date.now();
     // Distance between the session clock (which transcript turns are stamped
     // against) and this engine's clock. Captured once, here, rather than
     // re-derived later — see `VisualCoverage.capture_offset_s`.
@@ -2818,6 +2820,7 @@ export function createVisualCapture(
         speaking_samples: speakingSamples,
         listening_samples: listeningSamples,
         capture_offset_s: captureOffsetS,
+        ...(captureStartedAtEpochMs !== null ? { capture_started_at_ms: captureStartedAtEpochMs } : {}),
         sample_hz: METRICS_SAMPLE_HZ,
         analyzer_error: analyzerError,
       },
