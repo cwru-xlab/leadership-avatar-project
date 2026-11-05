@@ -119,6 +119,7 @@ function syntheticRow(
       "self-introduction": 5,
       "goal-progress": 2,
     } as unknown as Prisma.JsonValue,
+    technicalEvidence: null,
     transcriptKey: null,
     interactionLogId: null,
     studentEmail: null,

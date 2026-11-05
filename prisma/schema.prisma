@@ -370,6 +370,10 @@ model InteractionReport {
   // deck_quality}. A new rubric dimension needs no migration.
   scores Json?
 
+  // Coding-only private evidence: bounded source checkpoints plus final source.
+  // Never expose this through ReportDTO or a public report route.
+  technicalEvidence Json?
+
   // Three separate nullable pointers, deliberately NOT converged into one
   // tagged-union pointer (discretion item, decided here): `transcriptKey`
   // (interview) and `interactionLogId` (scenario) resolve through different
