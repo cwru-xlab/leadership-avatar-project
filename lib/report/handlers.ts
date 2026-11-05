@@ -13,7 +13,7 @@ import { waitUntil } from "@vercel/functions";
 import { getEngineType } from "@/lib/engine/registry";
 import { runAndPersistEvaluation } from "@/lib/engine/evaluation-runner";
 import { prisma } from "@/lib/prisma";
-import { toReportDto, type ReportDTO } from "@/lib/report/dto";
+import { REPORT_DTO_SELECT, toReportDto, type ReportDTO } from "@/lib/report/dto";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -50,8 +50,12 @@ export async function getReportForUser(
     return { ok: false, status: 404, error: "Report not found" };
   }
 
+  // Explicit select (REPORT_DTO_SELECT): only DTO-serialized columns reach
+  // the query, so a private column added ahead of its migration cannot
+  // break this read with Prisma P2022.
   const row = await prisma.interactionReport.findFirst({
     where: { id: reportId, userId },
+    select: REPORT_DTO_SELECT,
   });
 
   if (!row) {
@@ -152,6 +156,7 @@ export async function listReportsForUser(
       ...typeFilter,
     },
     orderBy: { createdAt: "desc" },
+    select: REPORT_DTO_SELECT,
   });
 
   return { ok: true, reports: rows.map(toReportDto) };
