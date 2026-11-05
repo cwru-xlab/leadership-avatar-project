@@ -40,6 +40,7 @@ import MomentsTimeline, {
   buildTimelineAnswers,
 } from "@/components/report/MomentsTimeline";
 import ReportStatistics, { hasStatistics } from "@/components/report/ReportStatistics";
+import { fallbackClock, reclockVisual, type ReportMoments } from "@/lib/report/moments";
 import {
   formatTimecode,
   visualBands,
@@ -77,6 +78,8 @@ interface ReportBodyProps {
   markdown: string | null;
   scores: ReportScoreCardsProps["scores"];
   metrics: ReportScoreCardsProps["metrics"];
+  /** Timeline clock and excerpts from the stored transcript. Null without one. */
+  moments?: ReportMoments | null;
   showInterviewPaceTarget?: boolean;
 }
 
@@ -179,18 +182,27 @@ export default function ReportBody({
   markdown,
   scores,
   metrics,
+  moments = null,
   showInterviewPaceTarget = false,
 }: ReportBodyProps) {
   const [selectedAnswer, setSelectedAnswer] = useState(0);
+
+  // Everything on the Moments timeline reads this copy, so episode times agree
+  // with the answers and with the growth-area timecodes that cite them.
+  const timelineVisual = useMemo(() => {
+    const visual = metrics?.visual ?? null;
+    return visual && reclockVisual(visual, moments?.clock ?? fallbackClock(visual));
+  }, [metrics, moments]);
 
   const answers = useMemo(
     () =>
       buildTimelineAnswers(
         metrics?.vocal ?? null,
-        metrics?.visual ?? null,
+        timelineVisual,
         structured?.growth_areas ?? [],
+        moments,
       ),
-    [metrics, structured],
+    [metrics, timelineVisual, structured, moments],
   );
 
   // Pre-structured rows: render exactly what they rendered before. No tabs,
@@ -475,8 +487,9 @@ export default function ReportBody({
       {hasMomentsSection && (
         <MomentsTimeline
           answers={answers}
+          hasTranscript={moments !== null}
           selected={selectedAnswer}
-          visual={metrics?.visual ?? null}
+          visual={timelineVisual}
           onSelect={setSelectedAnswer}
         />
       )}

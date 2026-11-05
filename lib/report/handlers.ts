@@ -14,6 +14,7 @@ import { getEngineType } from "@/lib/engine/registry";
 import { runAndPersistEvaluation } from "@/lib/engine/evaluation-runner";
 import { prisma } from "@/lib/prisma";
 import { toReportDto, type ReportDTO } from "@/lib/report/dto";
+import { loadReportMoments } from "@/lib/report/moments-loader";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -58,7 +59,9 @@ export async function getReportForUser(
     return { ok: false, status: 404, error: "Report not found" };
   }
 
-  return { ok: true, report: toReportDto(row) };
+  const report = toReportDto(row);
+  report.moments = await loadReportMoments(row, report.metrics);
+  return { ok: true, report };
 }
 
 /**

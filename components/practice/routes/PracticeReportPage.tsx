@@ -360,6 +360,7 @@ export default function PracticeReportPage({
           markdown={report.reportMarkdown}
           scores={scores}
           metrics={report.metrics ?? null}
+          moments={report.moments ?? null}
           showInterviewPaceTarget={report.input?.kind === "interview"}
         />
       ) : report?.status === "FAILED" ? (
@@ -558,7 +559,9 @@ function ReportShell({
             {title}
           </h1>
           {(subtitle || aiLabel || setup) && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14.5px] text-muted">
+            // `relative` anchors Session setup's panel at phone width. The panel floats, so
+            // opening it leaves this line, the title and "Practice again" where they are.
+            <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14.5px] text-muted">
               {subtitle && <span>{subtitle}</span>}
               {aiLabel && (
                 <span className="rounded-sm bg-ai/10 px-2 py-0.5 text-xs font-semibold text-ai">
