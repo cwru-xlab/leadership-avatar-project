@@ -137,6 +137,11 @@ not implementation: `lib/metrics/ingest.ts` rejects media-shaped payloads by
 design, and the consent dialog promises nothing leaves the browser, with no
 revoke path. That is an IRB conversation.
 
+*Partly superseded (2026-11-05):* one specific shape is now read by a rule on the
+existing hand landmarks, with no training data and no frame leaving the browser,
+as a descriptive and never-scored observation (`middle_finger_extended`). General
+gesture identification, and sending any frame anywhere, stay deferred.
+
 **Background assessment.** `ImageSegmenter` can isolate the background. The
 factual half (someone walking behind the student) is fair game; judging a
 background as "unprofessional" is largely a judgment about someone's housing, so
