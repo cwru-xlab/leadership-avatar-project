@@ -11,6 +11,12 @@ const SHOTS = ".loop-shots";
 const RUN = Date.now();
 const STUDENT = { email: "alice.johnson@case.edu", password: "student123" };
 
+/** Bounded: the live shell keeps animating, which can stall a default capture. */
+async function shot(page: Page, path: string) {
+  console.log(`shot ${path}`);
+  await page.screenshot({ path, timeout: 20_000, animations: "disabled", caret: "hide" });
+}
+
 async function signIn(page: Page) {
   await page.goto("/login");
   await page.locator('input[type="email"]').fill(STUDENT.email);
@@ -32,7 +38,7 @@ async function blockSpend(page: Page) {
 async function toKnowledgeStep(page: Page, subject: string) {
   await page.goto("/practice/pitches/elevator");
   await page.getByLabel("What you are pitching").fill(subject);
-  await page.getByRole("button", { name: /continue|next/i }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: /how much do you know/i }),
   ).toBeVisible();
@@ -43,28 +49,50 @@ async function chooseLevel(page: Page, level: RegExp) {
   await page.getByRole("button", { name: level }).click();
   const card = page.getByTestId("listener-disclosure");
   await expect(card).toBeVisible({ timeout: 30_000 });
+  await card.scrollIntoViewIfNeeded();
+  // Let the headshot land so the screenshot shows the face, not a gap.
+  await page
+    .waitForFunction(
+      () =>
+        [...document.querySelectorAll('[data-testid="listener-disclosure"] img')].every(
+          (img) => (img as HTMLImageElement).complete,
+        ),
+      undefined,
+      { timeout: 15_000 },
+    )
+    .catch(() => undefined);
   return (await card.locator("p.font-display").innerText()).trim();
 }
 
-/** Continue through the camera gate; resolves with the start response. */
-async function launch(page: Page) {
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByRole("button", { name: /camera off/i }).click();
-  const started = page.waitForResponse("**/api/practice/session/start");
-  await page
-    .getByRole("button", { name: /^(start|begin|launch)/i })
-    .first()
-    .click();
-  const response = await started;
-  expect(response.ok()).toBe(true);
-  return (await response.json()) as {
-    reportId: string;
-    listener: { avatarId: string; voiceId: string; name: string | null };
-  };
+type StartBody = {
+  reportId: string;
+  listener: { avatarId: string; voiceId: string; name: string | null };
+};
+
+/** Continue through the camera gate; resolves with the start response body. */
+async function launch(page: Page): Promise<StartBody> {
+  let body: StartBody | null = null;
+  await page.route("**/api/practice/session/start", async (route) => {
+    const response = await route.fetch();
+    body = (await response.json()) as StartBody;
+    await route.fulfill({ response, json: body });
+  });
+  const step = (label: string) => console.log(`${new Date().toISOString().slice(11, 19)} ${label}`);
+  step("launch: continue");
+  await page.getByRole("button", { name: "Continue", exact: true }).click({ timeout: 20_000 });
+  step("launch: camera off");
+  await page.getByRole("button", { name: /camera off/i }).click({ timeout: 20_000 });
+  // Choosing "Camera off" launches straight away (CameraConsentStep).
+  step("launch: wait body");
+  await expect.poll(() => body, { timeout: 60_000 }).not.toBeNull();
+  step("launch: unroute");
+  await page.unroute("**/api/practice/session/start");
+  console.log(`started ${body!.reportId}`);
+  return body!;
 }
 
 test.describe("elevator pitch listener", () => {
-  test.setTimeout(240_000);
+  test.setTimeout(300_000);
   test.use({ viewport: { width: 1440, height: 900 } });
 
   test.beforeAll(() => mkdirSync(SHOTS, { recursive: true }));
@@ -81,19 +109,21 @@ test.describe("elevator pitch listener", () => {
       await toKnowledgeStep(page, subject);
       const shown = await chooseLevel(page, /full profile/i);
       if (i === 0) {
-        await page.screenshot({ path: `${SHOTS}/personas-wizard-full.png` });
+        await shot(page, `${SHOTS}/personas-wizard-full.png`);
         await page.reload();
         await toKnowledgeStep(page, subject);
         expect(await chooseLevel(page, /name and role/i)).toBe(shown);
-        await page.screenshot({ path: `${SHOTS}/personas-wizard-name-role.png` });
+        await shot(page, `${SHOTS}/personas-wizard-name-role.png`);
       }
       const { listener } = await launch(page);
       expect(listener.name).toBe(shown);
       starts.push({ name: shown, avatarId: listener.avatarId });
       console.log(`start ${i}: ${shown}`);
       if (i === 0) {
-        await expect(page.getByText(shown).first()).toBeVisible({ timeout: 30_000 });
-        await page.screenshot({ path: `${SHOTS}/personas-session-start.png` });
+        await expect(
+          page.getByRole("heading", { name: `Conversation with ${shown}` }),
+        ).toBeVisible({ timeout: 30_000 });
+        await shot(page, `${SHOTS}/personas-session-start.png`);
       }
     }
 
@@ -132,14 +162,66 @@ test.describe("elevator pitch listener", () => {
     await page.getByRole("button", { name: /completely blind/i }).click();
     await expect(page.getByText(/you will meet them cold/i)).toBeVisible();
     await expect(page.getByTestId("listener-disclosure")).toHaveCount(0);
-    await page.screenshot({ path: `${SHOTS}/personas-wizard-blind.png` });
+    await shot(page, `${SHOTS}/personas-wizard-blind.png`);
     expect(previews).toEqual([]);
     const blind = await launch(page);
     expect(blind.listener.name).toBeNull();
     expect(blind.listener.avatarId).toBeTruthy();
-    await expect(page.getByText("Your listener").first()).toBeVisible({
-      timeout: 30_000,
-    });
-    await page.screenshot({ path: `${SHOTS}/personas-session-blind.png` });
+    await expect(
+      page.getByRole("heading", { name: "Conversation with Your listener" }),
+    ).toBeVisible({ timeout: 30_000 });
+    await shot(page, `${SHOTS}/personas-session-blind.png`);
+  });
+
+  test("reports name the listener, including pre-roster reports", async ({
+    page,
+  }) => {
+    await signIn(page);
+    // Test copy of a READY report whose snapshot pins anastasia-doyle, and
+    // the original, which predates the roster (listenerPersona: null).
+    const cases = [
+      ["7ba2a6cd-9ff4-41ce-9a94-b8f21933293f", "Anastasia Doyle", "report-roster"],
+      ["97d9f6b3-0cc5-4560-a6f9-1b89c3d7c08f", "Dana Reyes", "report-legacy"],
+    ] as const;
+    for (const [id, name, file] of cases) {
+      await page.goto(`/reports/${id}`);
+      const panel = page.getByTestId("listener-identity-panel");
+      await expect(panel).toBeVisible({ timeout: 60_000 });
+      await expect(panel).toContainText(name);
+      await expect(panel.getByText("Interests")).toBeHidden();
+      await panel.getByText("What they cared about").click();
+      await expect(panel.getByText("Interests")).toBeVisible();
+      await panel.scrollIntoViewIfNeeded();
+      await shot(page, `${SHOTS}/personas-${file}.png`);
+    }
+  });
+});
+
+test.describe("elevator pitch listener at 375px", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("wizard card and report panel fit, disclosure is keyboard reachable", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await blockSpend(page);
+    await signIn(page);
+    await toKnowledgeStep(page, `E2E persona run ${RUN} narrow`);
+    await chooseLevel(page, /full profile/i);
+    await shot(page, `${SHOTS}/personas-375-wizard.png`);
+    const overflow = () =>
+      page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(await overflow()).toBeLessThanOrEqual(0);
+
+    await page.goto("/reports/7ba2a6cd-9ff4-41ce-9a94-b8f21933293f");
+    const panel = page.getByTestId("listener-identity-panel");
+    await expect(panel).toBeVisible({ timeout: 60_000 });
+    const summary = panel.locator("summary");
+    await summary.focus();
+    await page.keyboard.press("Enter");
+    await expect(panel.getByText("Interests")).toBeVisible();
+    await panel.scrollIntoViewIfNeeded();
+    await shot(page, `${SHOTS}/personas-375-report.png`);
+    expect(await overflow()).toBeLessThanOrEqual(0);
   });
 });
