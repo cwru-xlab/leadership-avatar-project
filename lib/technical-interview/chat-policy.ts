@@ -21,9 +21,12 @@ const SOLUTION_WORDS = /\b(solution|solve (it|this|the problem)|implement (it|th
 const CLARIFICATION_WORDS = /\b(clarif|what does|does .* mean|can i assume|is .* allowed|constraint|input|output|signature|edge case)\b/i;
 
 export function categorizeTechnicalChatRequest(content: string): TechnicalChatRequestCategory {
+  // A direct visible-contract question may contain words such as “answer”; it
+  // must not be mistaken for a solution request. This classifier selects a
+  // reply style only—the server's static refusals remain the policy boundary.
+  if (CLARIFICATION_WORDS.test(content)) return "clarification";
   if (SOLUTION_WORDS.test(content)) return "solution_request";
   if (HINT_WORDS.test(content)) return "hint_request";
-  if (CLARIFICATION_WORDS.test(content)) return "clarification";
   return "interview_response";
 }
 

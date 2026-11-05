@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { getReportForUser } from "@/lib/report/handlers";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
@@ -41,7 +42,10 @@ export async function GET(
       return response({ error: result.error }, result.status);
     }
 
-    return response({ report: result.report }, 200);
+    const technicalHintCount = result.report.typeSlug === "technical-coding"
+      ? await prisma.technicalInterviewHint.count({ where: { reportId } })
+      : undefined;
+    return response({ report: result.report, ...(technicalHintCount !== undefined ? { technicalHintCount } : {}) }, 200);
   } catch (error) {
     console.error("Practice report fetch failed:", error);
     return response({ error: "Unable to load the report." }, 500);
