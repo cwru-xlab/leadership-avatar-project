@@ -173,6 +173,30 @@ export function weightForSource(source: ContributionSource): number {
  */
 export const MASTERY_WINDOW_DAYS = 30;
 
+/**
+ * ESTIMATE_PRIOR and RECENT_HALF_LIFE_DAYS — PROVISIONAL UNTIL CALIBRATED.
+ *
+ * A mastery figure is an ESTIMATE, not an average of what happened to be
+ * scored: every skill starts as if the student had `strength` full sessions
+ * at `mean`, and real evidence pulls it away from there (`computeMastery`).
+ * This is what stops one 5/5 reading as 100%: the weighted mean of one row is
+ * that row's score, because its weight cancels.
+ *   - `mean` 0.5: a straight 3 on the rubric, the middle of the scale. Fixed
+ *     rather than cohort-derived, so a figure needs nobody else's data and is
+ *     symmetric: a first 1/5 and a first 5/5 are equally unsettled.
+ *   - `strength` 2: two sessions' worth. One perfect session reads 66.7, one
+ *     floor session 33.3, five perfect 85.7.
+ *
+ * RECENT_HALF_LIFE_DAYS tilts the CURRENT-WINDOW figure toward its newest
+ * activities: at 14 days, a session four weeks older than the student's latest
+ * counts a quarter as much toward what the window says. It is anchored on that
+ * latest activity, never on the clock, so a figure does not drift while a
+ * student is away (a weak figure must not improve by not practising). The
+ * lifetime figure takes no tilt: "all time" means every activity counted evenly.
+ */
+export const ESTIMATE_PRIOR = { mean: 0.5, strength: 2 } as const;
+export const RECENT_HALF_LIFE_DAYS = 14;
+
 /** The display/arithmetic scale every mastery figure in this phase is on. */
 export const MASTERY_SCALE = { min: 0, max: 1 } as const;
 

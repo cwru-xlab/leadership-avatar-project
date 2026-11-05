@@ -34,6 +34,10 @@ function blankCompetency(
     competencyKey: key,
     lifetimePercent: null,
     currentPercent: null,
+    lifetimeObservedPercent: null,
+    currentObservedPercent: null,
+    lifetimeRange: null,
+    currentRange: null,
     lifetimeEvidenceCount: 0,
     currentEvidenceCount: 0,
     lifetimeWeightSum: 0,
@@ -56,6 +60,8 @@ function resultWith(
     competencies,
     overallLifetimePercent: null,
     overallCurrentPercent: null,
+    overallLifetimeEvidence: { count: 0, weightSum: 0 },
+    overallCurrentEvidence: { count: 0, weightSum: 0 },
     windowStart: new Date(NOW.getTime() - 30 * 24 * 60 * 60 * 1000),
     windowDays: 30,
     unmappedRowCount: 0,
@@ -75,12 +81,12 @@ console.log("1. TIER BOUNDARIES");
     evidenceTierFor({ evidenceCount: 1, weightSum: 0.2 }) === "THIN"
   );
   check(
-    "count 2, weight 1.999 -> THIN",
-    evidenceTierFor({ evidenceCount: 2, weightSum: 1.999 }) === "THIN"
+    "count 2, weight 2.0 (21-CONTEXT's two sessions) -> THIN",
+    evidenceTierFor({ evidenceCount: 2, weightSum: 2.0 }) === "THIN"
   );
   check(
-    "count 2, weight 2.0 -> EMERGING",
-    evidenceTierFor({ evidenceCount: 2, weightSum: 2.0 }) === "EMERGING"
+    "count 3, weight 3.0 -> EMERGING",
+    evidenceTierFor({ evidenceCount: 3, weightSum: 3.0 }) === "EMERGING"
   );
   check(
     "weight 5.999 -> EMERGING",

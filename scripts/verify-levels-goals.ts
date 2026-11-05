@@ -57,24 +57,27 @@ function row(
 
 console.log("\n=== Section 1: LEVEL BOUNDARIES ===");
 
-check("39.9% -> level 1", levelFor({ percent: 39.9, tier: "ESTABLISHED" }).level === 1);
-check("40% -> level 2 (inclusive lower bound)", levelFor({ percent: 40, tier: "ESTABLISHED" }).level === 2);
-check("54.9% -> level 2", levelFor({ percent: 54.9, tier: "ESTABLISHED" }).level === 2);
-check("55% -> level 3 (inclusive lower bound)", levelFor({ percent: 55, tier: "ESTABLISHED" }).level === 3);
-check("69.9% -> level 3", levelFor({ percent: 69.9, tier: "ESTABLISHED" }).level === 3);
-check("70% -> level 4 (inclusive lower bound)", levelFor({ percent: 70, tier: "ESTABLISHED" }).level === 4);
-check("84.9% -> level 4", levelFor({ percent: 84.9, tier: "ESTABLISHED" }).level === 4);
-check("85% -> level 5 (inclusive lower bound)", levelFor({ percent: 85, tier: "ESTABLISHED" }).level === 5);
-check("0% -> level 1", levelFor({ percent: 0, tier: "ESTABLISHED" }).level === 1);
-check("100% -> level 5", levelFor({ percent: 100, tier: "ESTABLISHED" }).level === 5);
-check("null percent -> null level", levelFor({ percent: null, tier: "NONE" }).level === null);
-check("null percent -> name 'Not yet measured'", levelFor({ percent: null, tier: "NONE" }).name === "Not yet measured");
+// Evidence far past every gate, so these checks read the percent thresholds alone.
+const PROVEN = { sessions: 99, liveSessions: 99 };
+
+check("39.9% -> level 1", levelFor({ percent: 39.9, tier: "ESTABLISHED", evidence: PROVEN }).level === 1);
+check("40% -> level 2 (inclusive lower bound)", levelFor({ percent: 40, tier: "ESTABLISHED", evidence: PROVEN }).level === 2);
+check("54.9% -> level 2", levelFor({ percent: 54.9, tier: "ESTABLISHED", evidence: PROVEN }).level === 2);
+check("55% -> level 3 (inclusive lower bound)", levelFor({ percent: 55, tier: "ESTABLISHED", evidence: PROVEN }).level === 3);
+check("69.9% -> level 3", levelFor({ percent: 69.9, tier: "ESTABLISHED", evidence: PROVEN }).level === 3);
+check("70% -> level 4 (inclusive lower bound)", levelFor({ percent: 70, tier: "ESTABLISHED", evidence: PROVEN }).level === 4);
+check("84.9% -> level 4", levelFor({ percent: 84.9, tier: "ESTABLISHED", evidence: PROVEN }).level === 4);
+check("85% -> level 5 (inclusive lower bound)", levelFor({ percent: 85, tier: "ESTABLISHED", evidence: PROVEN }).level === 5);
+check("0% -> level 1", levelFor({ percent: 0, tier: "ESTABLISHED", evidence: PROVEN }).level === 1);
+check("100% -> level 5", levelFor({ percent: 100, tier: "ESTABLISHED", evidence: PROVEN }).level === 5);
+check("null percent -> null level", levelFor({ percent: null, tier: "NONE", evidence: PROVEN }).level === null);
+check("null percent -> name 'Not yet measured'", levelFor({ percent: null, tier: "NONE", evidence: PROVEN }).name === "Not yet measured");
 
 check(
   "-1% throws",
   (() => {
     try {
-      levelFor({ percent: -1, tier: "ESTABLISHED" });
+      levelFor({ percent: -1, tier: "ESTABLISHED", evidence: PROVEN });
       return false;
     } catch {
       return true;
@@ -85,7 +88,7 @@ check(
   "101% throws",
   (() => {
     try {
-      levelFor({ percent: 101, tier: "ESTABLISHED" });
+      levelFor({ percent: 101, tier: "ESTABLISHED", evidence: PROVEN });
       return false;
     } catch {
       return true;
@@ -93,17 +96,29 @@ check(
   })()
 );
 
-const thinResult = levelFor({ percent: 90, tier: "THIN" });
+const thinResult = levelFor({ percent: 90, tier: "THIN", evidence: PROVEN });
 check("THIN tier at 90% -> level 5", thinResult.level === 5);
 check("THIN tier at 90% -> provisional: true", thinResult.provisional === true);
-const establishedResult = levelFor({ percent: 90, tier: "ESTABLISHED" });
+const establishedResult = levelFor({ percent: 90, tier: "ESTABLISHED", evidence: PROVEN });
 check("ESTABLISHED tier at 90% -> provisional: false", establishedResult.provisional === false);
 
-check("nextLevelAtPercent at level 1 is 40", levelFor({ percent: 0, tier: "ESTABLISHED" }).nextLevelAtPercent === 40);
-check("nextLevelAtPercent at level 2 is 55", levelFor({ percent: 40, tier: "ESTABLISHED" }).nextLevelAtPercent === 55);
-check("nextLevelAtPercent at level 3 is 70", levelFor({ percent: 55, tier: "ESTABLISHED" }).nextLevelAtPercent === 70);
-check("nextLevelAtPercent at level 4 is 85", levelFor({ percent: 70, tier: "ESTABLISHED" }).nextLevelAtPercent === 85);
-check("nextLevelAtPercent at level 5 is null", levelFor({ percent: 85, tier: "ESTABLISHED" }).nextLevelAtPercent === null);
+{
+  const NONE_YET = { sessions: 1, liveSessions: 1 };
+  const capped = levelFor({ percent: 66.7, tier: "THIN", evidence: NONE_YET });
+  check("66.7% off one session is capped at level 2, not 3", capped.level === 2);
+  check("the cap says one more session confirms level 3", capped.toConfirm?.level === 3 && capped.toConfirm.sessions === 1);
+  check("97% off one session is still level 2", levelFor({ percent: 97, tier: "THIN", evidence: NONE_YET }).level === 2);
+  const drills = levelFor({ percent: 90, tier: "EMERGING", evidence: { sessions: 5, liveSessions: 0 } });
+  check("no live session caps a high figure at level 3", drills.level === 3 && drills.toConfirm?.live === true && drills.toConfirm.sessions === 1);
+  check("level 5 needs 6 sessions and 3 live", levelFor({ percent: 90, tier: "ESTABLISHED", evidence: { sessions: 6, liveSessions: 3 } }).level === 5 && levelFor({ percent: 90, tier: "ESTABLISHED", evidence: { sessions: 5.8, liveSessions: 3 } }).level === 4 && levelFor({ percent: 90, tier: "ESTABLISHED", evidence: { sessions: 6, liveSessions: 2 } }).level === 4);
+  check("no gate hides level 1 or 2", levelFor({ percent: 40, tier: "THIN", evidence: { sessions: 0.2, liveSessions: 0 } }).level === 2);
+  check("an uncapped figure has nothing to confirm", levelFor({ percent: 45, tier: "THIN", evidence: NONE_YET }).toConfirm === null);
+}
+check("nextLevelAtPercent at level 1 is 40", levelFor({ percent: 0, tier: "ESTABLISHED", evidence: PROVEN }).nextLevelAtPercent === 40);
+check("nextLevelAtPercent at level 2 is 55", levelFor({ percent: 40, tier: "ESTABLISHED", evidence: PROVEN }).nextLevelAtPercent === 55);
+check("nextLevelAtPercent at level 3 is 70", levelFor({ percent: 55, tier: "ESTABLISHED", evidence: PROVEN }).nextLevelAtPercent === 70);
+check("nextLevelAtPercent at level 4 is 85", levelFor({ percent: 70, tier: "ESTABLISHED", evidence: PROVEN }).nextLevelAtPercent === 85);
+check("nextLevelAtPercent at level 5 is null", levelFor({ percent: 85, tier: "ESTABLISHED", evidence: PROVEN }).nextLevelAtPercent === null);
 check("LEVEL_THRESHOLDS has exactly 5 entries", LEVEL_THRESHOLDS.length === 5);
 
 console.log("\n=== Section 2: GOAL WINDOWS ===");
@@ -482,12 +497,12 @@ console.log(`\nTotal checks: ${checkCount}`);
 console.log("");
 console.log("\nLevel progress (UAT 2026-10-25: small gains must be visible)");
 {
-  const r = levelFor({ percent: 39.2, tier: "ESTABLISHED" });
+  const r = levelFor({ percent: 39.2, tier: "ESTABLISHED", evidence: PROVEN });
   check("level carries its figure and floor for a progress bar", r.percent === 39.2 && r.levelFloorPercent === 0 && r.nextLevelAtPercent === 40);
-  const unmeasured = levelFor({ percent: null, tier: "ESTABLISHED" });
+  const unmeasured = levelFor({ percent: null, tier: "ESTABLISHED", evidence: PROVEN });
   check("unmeasured carries no progress figures", unmeasured.percent === null && unmeasured.levelFloorPercent === null);
   const badge = readFileSync("components/study-plan/PathVisuals.tsx", "utf8");
-  const shows = (src: string) => /<LevelProgress level=\{level\} \/>/.test(src) && /pts to Lv/.test(src);
+  const shows = (src: string) => /<LevelProgress level=\{level\} \/>/.test(src) && /to Lv/.test(src);
   check("LevelBadge renders progress toward the next level", shows(badge));
   check("bite-proof: removing the progress render is caught", !shows(badge.replace("<LevelProgress level={level} />", "")));
 }
