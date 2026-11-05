@@ -39,6 +39,14 @@ import {
   ratchetHighWaterMark,
   resolveRevealedSlides,
 } from "@/lib/pitch/slide-reveal";
+import { mergeTechnicalEvidence } from "@/lib/technical-interview/evidence";
+import {
+  buildTechnicalHint,
+  categorizeTechnicalChatRequest,
+  technicalHintRequestKey,
+  technicalPolicyDirective,
+} from "@/lib/technical-interview/chat-policy";
+import type { TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
 
 export const maxDuration = 60;
 
@@ -411,6 +419,17 @@ function attachTerminationToStream(
 }
 
 /** Legacy case-study / admin-case assembly — byte-identical to pre-Phase-13. */
+function staticChatStream(text: string): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "content", delta: text })}\n\n`));
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "end", metadata: { technicalHint: true } })}\n\n`));
+      controller.close();
+    },
+  });
+}
+
 function assembleLegacyCaseStudyPrompt(
   systemPrompt: unknown,
   roleContext:
@@ -469,6 +488,7 @@ export async function POST(request: NextRequest) {
       engine,
       revealedSlideIndex,
       reportId: rawReportId,
+      technicalHintRequestId,
       // TOP-LEVEL, not nested under `interview`/`engine`: this is what
       // PracticeSessionShell's existing `...extraChatBody` spread produces, so
       // the shell needs no edit (quick task 003, decision 4).
@@ -562,6 +582,8 @@ export async function POST(request: NextRequest) {
       content: string;
     }>;
     let interviewStyleTurnControl = false;
+    let technicalStaticReply: string | null = null;
+    let technicalReportId: string | null = null;
     let parseOpts: {
       previousProgress?: InterviewProgress;
       hasResume?: boolean;
@@ -600,6 +622,51 @@ export async function POST(request: NextRequest) {
       );
       const startedAt = engineTurn?.startedAt ?? interviewInput?.startedAt;
       const isInterview = Boolean(getInterviewType(sessionConfig.typeSlug));
+      let technicalAssignment: TechnicalCodingInputSnapshot["assignment"] | null = null;
+      let technicalDirective: string | undefined;
+
+      // Technical coding never receives assignment, hint, or evidence data from
+      // the request. An active, owner-scoped report is the sole authority.
+      if (sessionConfig.typeSlug === "technical-coding") {
+        if (!currentUser || typeof rawReportId !== "string") {
+          return NextResponse.json({ error: "Report not found" }, { status: 404 });
+        }
+        const report = await prisma.interactionReport.findFirst({
+          where: { id: rawReportId, userId: currentUser.id, typeSlug: "technical-coding", status: "IN_PROGRESS" },
+          select: { id: true, inputSnapshot: true, technicalEvidence: true },
+        });
+        const snapshot = report ? asInputSnapshot(report.inputSnapshot) : null;
+        if (!report || snapshot?.kind !== "technical-coding") {
+          return NextResponse.json({ error: "Technical assignment is unavailable." }, { status: 409 });
+        }
+        technicalAssignment = snapshot.assignment;
+        technicalReportId = report.id;
+        const latestUser = [...messages].reverse().find((message) => message.role === "user");
+        if (!latestUser) return NextResponse.json({ error: "A coding turn must include a candidate message" }, { status: 400 });
+        const category = categorizeTechnicalChatRequest(latestUser.content);
+        if (category === "hint_request") {
+          const requestKey = technicalHintRequestKey(latestUser.content, technicalHintRequestId);
+          const prior = mergeTechnicalEvidence({ version: 1, checkpoints: [] }, report.technicalEvidence);
+          const existing = prior.issuedHints?.find((hint) => hint.requestKey === requestKey);
+          if (existing) {
+            technicalStaticReply = existing.text;
+          } else if ((prior.issuedHints?.length ?? 0) >= 2) {
+            technicalStaticReply = "You have used both available hints. I can clarify the published problem statement, but I cannot provide a solution.";
+          } else {
+            const tier = ((prior.issuedHints?.length ?? 0) + 1) as 1 | 2;
+            const hint = { requestKey, tier, text: buildTechnicalHint(snapshot.assignment, tier), issuedAt: new Date().toISOString() };
+            await prisma.interactionReport.update({
+              where: { id: report.id },
+              data: { technicalEvidence: { ...prior, visibleTurns: [...messages, { role: "assistant" as const, content: hint.text }].filter((message) => Buffer.byteLength(message.content, "utf8") <= 4_000).slice(-48), issuedHints: [...(prior.issuedHints ?? []), hint] } as unknown as Prisma.InputJsonValue },
+            });
+            technicalStaticReply = hint.text;
+          }
+        } else if (category === "solution_request") {
+          technicalStaticReply = "I can’t provide a solution or pseudocode. Talk me through the contract, boundary cases, and the tradeoffs you are considering.";
+        } else {
+          technicalDirective = technicalPolicyDirective(category);
+        }
+      }
 
       // An interview's job posting is captured at session start. Prefer that
       // authenticated, persisted value over a browser-supplied turn payload so
@@ -910,6 +977,7 @@ export async function POST(request: NextRequest) {
           ...(revealedSlides !== undefined
             ? { revealedSlides, slideCount: slideCountForTail }
             : {}),
+          ...(technicalDirective ? { technicalDirective } : {}),
         },
         language: attemptLanguage,
         resumeText,
@@ -920,6 +988,7 @@ export async function POST(request: NextRequest) {
         characterId: networkingCharacterId,
         networkingPersona: networkingPersonaText,
         networkingDisplayName,
+        technicalAssignment,
       });
 
       fullMessages = built.messages;
@@ -959,6 +1028,27 @@ export async function POST(request: NextRequest) {
         { role: "system", content: fullSystemPrompt }, // Must stay at index 0 for caching
         ...messages,
       ];
+    }
+
+    if (technicalStaticReply) {
+      if (technicalReportId && currentUser) {
+        const report = await prisma.interactionReport.findFirst({ where: { id: technicalReportId, userId: currentUser.id, status: "IN_PROGRESS" }, select: { technicalEvidence: true } });
+        if (report) {
+          const prior = mergeTechnicalEvidence({ version: 1, checkpoints: [] }, report.technicalEvidence);
+          await prisma.interactionReport.update({ where: { id: technicalReportId }, data: { technicalEvidence: { ...prior, visibleTurns: [...messages, { role: "assistant", content: technicalStaticReply }].filter((message) => Buffer.byteLength(message.content, "utf8") <= 4_000).slice(-48) } as unknown as Prisma.InputJsonValue } });
+        }
+      }
+      return new Response(staticChatStream(technicalStaticReply), { headers: createSSEHeaders() });
+    }
+
+    // The next request carries the rendered assistant response, so this durable
+    // snapshot records every visible turn without ever storing hidden data.
+    if (technicalReportId && currentUser) {
+      const report = await prisma.interactionReport.findFirst({ where: { id: technicalReportId, userId: currentUser.id, status: "IN_PROGRESS" }, select: { technicalEvidence: true } });
+      if (report) {
+        const prior = mergeTechnicalEvidence({ version: 1, checkpoints: [] }, report.technicalEvidence);
+        await prisma.interactionReport.update({ where: { id: technicalReportId }, data: { technicalEvidence: { ...prior, visibleTurns: messages.filter((message) => Buffer.byteLength(message.content, "utf8") <= 4_000).slice(-48) } as unknown as Prisma.InputJsonValue } });
+      }
     }
 
     const stream = createLLMStream(fullMessages, "gpt-4.1", {
