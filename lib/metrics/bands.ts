@@ -619,7 +619,8 @@ function descriptiveEpisodeRanges(
     .map((episode) => {
       const start = formatTimecode(episode.start_s + o);
       const end = formatTimecode(episode.end_s + o);
-      return start === end ? start : `${start}–${end}`;
+      // Word joiners keep a range on one line on a phone-width row.
+      return start === end ? start : `${start}\u2060–\u2060${end}`;
     });
   if (ranges.length === 0) return null;
   const shown = ranges.slice(0, OBSERVATION_RANGES_SHOWN).join(", ");

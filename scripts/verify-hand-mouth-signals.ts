@@ -448,9 +448,9 @@ const fixture: VisualMetrics = {
 
   const rows = visualObservationRows(parsed);
   const value = (label: string) => rows.find((r) => r.label === label)?.value;
-  check("hand row: motion and time, offset into session time", value("Hand at mouth"), "Repeatedly, 2:10–3:40 (9 times in all)");
-  check("mouth row", value("Mouth movement"), "While not speaking, 2:15–3:45");
-  check("hand shape row", value("Hand shape"), "Middle finger extended, others curled, 5:10–5:12");
+  check("hand row: motion and time, offset into session time", value("Hand at mouth"), "Repeatedly, 2:10\u2060–\u20603:40 (9 times in all)");
+  check("mouth row", value("Mouth movement"), "While not speaking, 2:15\u2060–\u20603:45");
+  check("hand shape row", value("Hand shape"), "Middle finger extended, others curled, 5:10\u2060–\u20605:12");
   check("cup row only as support", value("Cup, bottle or food in frame"), "Visible for about 40 seconds");
   const text = rows.map((r) => r.value).join(" ").toLowerCase();
   check("no row names a cause", /eating|chewing|obscene|offensive|rude|snack/.test(text), false);
