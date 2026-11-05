@@ -1,8 +1,10 @@
 "use client";
 
 /**
- * The report's Statistics tab: the measured figures behind the Delivery band
- * words, in one divided panel. This is the narrative side of the split noted
+ * The measured figures at the top of the report's Delivery tab, in one divided
+ * panel. Each figure carries its band word in its note, so the Delivery tab
+ * does not list the same word again underneath (it used to be its own
+ * Statistics tab, which repeated every Delivery band). This is the narrative side of the split noted
  * atop `ReportScoreCards.tsx`, so raw figures are allowed here; every
  * description of a figure still comes from `lib/metrics/bands.ts`.
  *
@@ -30,13 +32,15 @@ interface Stat {
 
 const PACE_SCALE = 220;
 
-function measuredVocal(metrics: Metrics) {
+/** Voice figures exist only for a spoken session; the Vocal card says why otherwise. */
+export function measuredVocal(metrics: Metrics) {
   const vocal = metrics?.vocal;
   if (!vocal || metrics?.vocalUnscored === "TYPED_ONLY") return null;
   return (vocal.coverage?.spoken_seconds ?? 0) > 0 ? vocal : null;
 }
 
-function measuredVisual(metrics: Metrics) {
+/** Camera figures exist unless the student opted out of the camera. */
+export function measuredVisual(metrics: Metrics) {
   const visual = metrics?.visual;
   if (!visual || metrics?.visualUnscored === "CAMERA_OFF_OPTOUT") return null;
   return visual;
@@ -60,17 +64,17 @@ function buildStats(metrics: Metrics, showInterviewPaceTarget: boolean): Stat[] 
       band: showInterviewPaceTarget ? [100 / PACE_SCALE, 159 / PACE_SCALE] : undefined,
       note: showInterviewPaceTarget
         ? wpm < 100
-          ? "Below the interview target of 100–159 wpm"
+          ? `${words.Pace} · below the interview target of 100–159 wpm`
           : wpm > 159
-            ? "Above the interview target of 100–159 wpm"
-            : "Inside the interview target of 100–159 wpm"
+            ? `${words.Pace} · above the interview target of 100–159 wpm`
+            : `${words.Pace} · inside the interview target of 100–159 wpm`
         : words.Pace,
     });
     stats.push({
       label: "Filler words",
       value: String(vocal.filler_word_count),
       unit: "total",
-      note: `${perMinute(vocal.filler_word_count)}${
+      note: `${words["Filler words"]} · ${perMinute(vocal.filler_word_count)}${
         vocal.filler_word_list.length ? `, mostly “${vocal.filler_word_list.slice(0, 2).join("”, “")}”` : ""
       }`,
     });
@@ -78,7 +82,7 @@ function buildStats(metrics: Metrics, showInterviewPaceTarget: boolean): Stat[] 
       label: "Pauses",
       value: String(vocal.pause_count),
       unit: "total",
-      note: perMinute(vocal.pause_count),
+      note: `${words.Pauses} · ${perMinute(vocal.pause_count)}`,
     });
     stats.push({
       label: "Volume consistency",
@@ -180,3 +184,6 @@ export default function ReportStatistics({
     </div>
   );
 }
+
+/** Camera band rows the figure panel already states, so Delivery lists only the rest. */
+export const VISUAL_ROWS_IN_FIGURES = new Set(["Eye contact", "Framing", "On camera"]);
