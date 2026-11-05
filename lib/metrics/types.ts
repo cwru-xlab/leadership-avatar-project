@@ -101,10 +101,19 @@ export const VISUAL_NOT_MEASURED = ["background_environment", "fidgeting"] as co
 /**
  * The full closed vocabulary `VisualMetrics.not_measured` may ever contain —
  * `VISUAL_NOT_MEASURED`'s two permanently-unmeasurable entries
- * (`background_environment`, and `fidgeting` as of 12-08), plus the two
- * entries that are still per-session conditional now that real producers
- * exist for them: `hand_gestures`/`body_posture` (scored, 12-06) and
- * `phone_checking` (measured but never scored, 12-07).
+ * (`background_environment`, and `fidgeting` as of 12-08), plus the entries
+ * that are still per-session conditional now that real producers exist for
+ * them: `hand_gestures`/`body_posture` (scored, 12-06), `phone_checking`
+ * (measured but never scored, 12-07), and `offensive_gestures`/`eating`
+ * (measured but never scored, descriptive only).
+ *
+ * `offensive_gestures` and `eating` exist because their silence did real harm:
+ * a session with obscene gestures was commended and a student eating through an
+ * interview scored 5/5 on visual, since neither was in this list and nothing
+ * told the evaluator they had never been looked at. Note what taking one OFF
+ * this list means: the session's signal RAN, not that the behaviour did not
+ * occur. Hands can sit out of frame. The prompts' RULE ON CONDUCT forbids
+ * commending an absence in either case.
  * `resolveNotMeasured` below decides, per session, whether each conditional
  * entry belongs in the list — based on whether THIS session's data actually
  * cleared the usability floor, never a standing declaration that the
@@ -125,6 +134,8 @@ export const VISUAL_NOT_MEASURED_VOCABULARY = [
   "hand_gestures",
   "body_posture",
   "phone_checking",
+  "offensive_gestures",
+  "eating",
 ] as const;
 
 export type VisualNotMeasured = (typeof VISUAL_NOT_MEASURED_VOCABULARY)[number];
@@ -288,11 +299,26 @@ export interface VisualCoverage {
  *
  * BUG FIX (12-08 Task 1 checkpoint): `fidgeting` was removed from this
  * vocabulary when fidgeting was retired to permanently not-measured — see
- * `VISUAL_NOT_MEASURED`'s own comment for why. `phone_visible` is the only
- * remaining kind; the type stays a tuple/union (not simplified to a single
- * literal) so a future descriptive signal can extend it the same way.
+ * `VISUAL_NOT_MEASURED`'s own comment for why.
+ *
+ * The three kinds after `phone_visible` describe motion and hand shape only, and
+ * every threshold behind them is untuned (see `body-thresholds.ts`):
+ *   - `hand_at_mouth_repeated`: a fingertip arrived at the lips three or more
+ *     times in one stretch. Not "eating": sipping water, medical eating needs,
+ *     tics and thinking habits all read the same.
+ *   - `mouth_movement_silent`: the jaw kept changing position while the student
+ *     was not speaking. Energy at 3 Hz, never a chewing rhythm (see
+ *     `stepMouthMovement`, the same Nyquist trap that retired fidgeting above).
+ *   - `middle_finger_extended`: that hand shape held across consecutive hands
+ *     ticks. Not "an obscene gesture": sign language handshapes and limb
+ *     differences read the same, and meaning varies by culture.
  */
-export const VISUAL_DESCRIPTIVE_EPISODE_KINDS = ["phone_visible"] as const;
+export const VISUAL_DESCRIPTIVE_EPISODE_KINDS = [
+  "phone_visible",
+  "hand_at_mouth_repeated",
+  "mouth_movement_silent",
+  "middle_finger_extended",
+] as const;
 
 export type VisualDescriptiveEpisodeKind = (typeof VISUAL_DESCRIPTIVE_EPISODE_KINDS)[number];
 
@@ -340,6 +366,20 @@ export interface VisualDescriptiveObservations {
   /** Absolute forward-head offset, or `null` when never measurable. Same
    * absolute-vs-drift distinction as `posture_shoulder_tilt_deg`. */
   posture_forward_head_offset: number | null;
+  /** Times a fingertip arrived at the lips across the session, whether or not
+   * they were repeated enough to form an episode. ABSENT (never 0) when
+   * `eating` is in `not_measured`. */
+  hand_at_mouth_events?: number;
+  /** Seconds of `mouth_movement_silent` episodes. ABSENT when `eating` is in
+   * `not_measured`. */
+  mouth_movement_silent_seconds?: number;
+  /** Seconds a cup, bottle, bowl or food item was visible. Supporting evidence
+   * for the two fields above, never shown without one of them: a cup on a desk
+   * is nothing. ABSENT when the object model never ran. */
+  food_or_drink_visible_seconds?: number;
+  /** Seconds of `middle_finger_extended` episodes. ABSENT when
+   * `offensive_gestures` is in `not_measured`. */
+  middle_finger_extended_seconds?: number;
   /** Descriptive excursions — see `VisualDescriptiveEpisode`. Structurally
    * unable to enter the scored `VisualMetrics.episodes` array: the two are
    * different TypeScript types, not two entries in one list. */
@@ -499,7 +539,7 @@ export interface VisualMetrics {
  * original face-only pipeline (an empty flags array read as "verified
  * clean").
  *
- * Both remaining booleans answer the SAME question as of plan 12-07: "did
+ * The first two booleans answer the SAME question as of plan 12-07: "did
  * THIS session's data clear the usability floor" — never "does a producer
  * exist for the capability at all," which would be true almost every
  * session and would mask a body (or a worker that never started) that was
@@ -517,6 +557,11 @@ export interface VisualMetrics {
  * reaches the output unconditionally via the `background_environment`
  * pattern below, not via a boolean input.
  *
+ * `offensiveGestures`/`eating` answer the same question for the descriptive
+ * signals: did their inputs run this session (see
+ * `computeConductSignalsMeasured`). A session whose worker failed, or that
+ * predates those signals, must declare them, not imply they were clean.
+ *
  * `background_environment` AND `fidgeting` are ALWAYS returned — neither
  * has a producer in this phase or any planned future one (see each
  * constant's own comment in `VISUAL_NOT_MEASURED` for why).
@@ -525,11 +570,15 @@ export function resolveNotMeasured(measured: {
   handSignals: boolean;
   postureSignals: boolean;
   phone: boolean;
+  offensiveGestures: boolean;
+  eating: boolean;
 }): VisualNotMeasured[] {
   const out: VisualNotMeasured[] = [];
   if (!measured.handSignals) out.push("hand_gestures");
   if (!measured.postureSignals) out.push("body_posture");
   if (!measured.phone) out.push("phone_checking");
+  if (!measured.offensiveGestures) out.push("offensive_gestures");
+  if (!measured.eating) out.push("eating");
   out.push("background_environment");
   out.push("fidgeting");
   return out;
