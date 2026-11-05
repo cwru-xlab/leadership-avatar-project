@@ -2,7 +2,7 @@
  * Grades a student's SPOKEN rework in a coached session against the coached
  * competency only (REQ-114).
  *
- * The grade is a model judgement, so it is never the sole gate: the server
+ * The grade is a model judgment, so it is never the sole gate: the server
  * requires BOTH the model's `acceptable` flag AND `score >= COACHED_ACCEPTABLE_SCORE`,
  * and `coach.ts` additionally forces `acceptable = false` for a parroted
  * demonstration (a mechanical check, `isParrotOf`, that never consults a model).

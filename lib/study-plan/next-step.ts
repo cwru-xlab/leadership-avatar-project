@@ -1,9 +1,9 @@
 /**
- * Decides what a student practises next, deterministically and explainably.
+ * Decides what a student practices next, deterministically and explainably.
  *
  * 21-CONTEXT.md locks that "what's next" is "deterministic and explainable",
  * and this phase's hard constraint is deterministic derivation over model
- * judgement for anything consequential. `selectPathSteps` is pure arithmetic
+ * judgment for anything consequential. `selectPathSteps` is pure arithmetic
  * and string-building: no model call, no network read, no database read.
  *
  * PHASE 23 (23-CONTEXT.md "Path design decisions", user, 2026-10-24):

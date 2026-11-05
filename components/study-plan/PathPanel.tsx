@@ -157,7 +157,7 @@ export function hrefForStep(planId: string, step: PathStepViewDTO): string | nul
     return `/study-plans/${planId}/drills/${step.id}`;
   }
   // UNAIDED_SESSION — the prove-it step's pre-filled entry when the server
-  // resolved one; otherwise the plain practice entry (unchanged behaviour).
+  // resolved one; otherwise the plain practice entry (unchanged behavior).
   if (step.proveIt?.href) return step.proveIt.href;
   if (!step.practiceSlug) return null;
   return routes.practiceType(step.practiceSlug);

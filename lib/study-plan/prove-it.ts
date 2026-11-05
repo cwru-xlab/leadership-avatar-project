@@ -1,7 +1,7 @@
 /**
  * The PRE-FILLED PROVE-IT step (23-CONTEXT.md, 2026-10-24): "the final
  * UNAIDED_SESSION opens the plan's source practice type with setup pre-filled
- * and a brief naming the target skill; practice behaviour is unchanged when
+ * and a brief naming the target skill; practice behavior is unchanged when
  * not pre-filled. Graded as a normal live session."
  *
  * MECHANISM (optional, additive):

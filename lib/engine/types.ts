@@ -98,7 +98,7 @@ export interface TerminationPolicyConfig {
    * Optional map from a dominant observable cause to the reason this type's
    * avatar cites when that cause ends the session. Every value MUST already
    * be a member of avatarEndReasons — the engine never invents a reason.
-   * Omitted -> the existing behaviour, where the model's own marker reason
+   * Omitted -> the existing behavior, where the model's own marker reason
    * is used.
    */
   avatarEndReasonByCause?: Partial<Record<DisengagementCause, string>> | null;

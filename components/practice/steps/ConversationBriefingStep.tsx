@@ -59,7 +59,7 @@ export default function ConversationBriefingStep({
 }: ConversationBriefingStepProps) {
   // Call buildStudentBriefing so the narrower authored-text helper stays on
   // the dependency path (compile-time refusal of hiddenPosition). The UI
-  // lays out labelled blocks rather than the delimited prompt string.
+  // lays out labeled blocks rather than the delimited prompt string.
   void buildStudentBriefing(briefing);
 
   return (

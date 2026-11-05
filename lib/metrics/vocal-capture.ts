@@ -99,7 +99,7 @@ function normalizeToken(word: string): string {
   return word.toLowerCase().replace(/^[^a-z0-9']+|[^a-z0-9']+$/gi, "");
 }
 
-/** Pure aggregation result for one analysed turn's word list, folded into the
+/** Pure aggregation result for one analyzed turn's word list, folded into the
  * running session totals by `mergeAnalysedTurn`. Exported so a throwaway
  * verification script can exercise it directly without a stubbed `fetch`. */
 export interface TurnAggregate {
@@ -392,7 +392,7 @@ export function createVocalCapture(): VocalCaptureHandle {
       ]);
     }
     // Any promise that has not settled by now is simply not merged and not
-    // counted as analysed — never a thrown error, never a blocked End button.
+    // counted as analyzed — never a thrown error, never a blocked End button.
 
     const wordsPerMinute =
       totalAnalysedSpokenSeconds > 0

@@ -138,7 +138,7 @@ export interface LevelResult {
  * `percent === null` returns a null level with the label "Not yet measured"
  * — NOT level 1. Level 1 "Starting out" means measured and at the bottom;
  * conflating "never attempted" with "attempted and starting out" tells a
- * student who has never practised a competency that they are already
+ * student who has never practiced a competency that they are already
  * failing at it, which is false and would be its own harm.
  *
  * `tier === "THIN"` computes the level normally but flags `provisional:

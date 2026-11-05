@@ -218,7 +218,7 @@ export interface InterviewProgress {
    * `<interview-turn kind="planned" />` therefore parked the interview in
    * `behavioral` permanently. This counter is the independent escape hatch:
    * enough questions asked in the stage advances it even when none of them
-   * were labelled. Absent on progress objects persisted before this field
+   * were labeled. Absent on progress objects persisted before this field
    * existed — always read it defensively.
    */
   behavioralQuestionsAsked: number;

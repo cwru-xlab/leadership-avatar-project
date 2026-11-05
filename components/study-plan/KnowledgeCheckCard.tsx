@@ -457,7 +457,7 @@ function FormatBody(props: FormatBodyProps) {
           rendered — the card takes a choice, not an explanation.
         */}
         {/*
-          Neither candidate is ever labelled "yours" — even when one is the
+          Neither candidate is ever labeled "yours" — even when one is the
           student's own verbatim line — because naming it would hand the
           answer away for free.
         */}
@@ -658,7 +658,7 @@ function MarkPanel({
             <Check size={14} strokeWidth={3} aria-hidden="true" />
           </span>
         )}
-        {/* Correctness conveyed in TEXT, not only colour. */}
+        {/* Correctness conveyed in TEXT, not only color. */}
         {correctnessLabel}
         {!isRewrite && (
           <span className="ml-2 font-normal text-muted">

@@ -177,7 +177,7 @@ check(
 // Section 2: PURE BEHAVIOUR (assembleSources — no DB, no S3)
 // ---------------------------------------------------------------------------
 
-console.log("\nSection 2: pure behaviour (assembleSources)");
+console.log("\nSection 2: pure behavior (assembleSources)");
 
 const USER = "requesting-user";
 

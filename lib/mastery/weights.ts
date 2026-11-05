@@ -58,7 +58,7 @@ const MODEL_GRADED_WEIGHT = 0.2;
  *     evidence but narrow recall against one moment — under half of what a
  *     whole session is worth.
  *   - COACHED_SESSION (= MODEL_GRADED_WEIGHT, 0.20): Phase 22 - a coached
- *     session has no scored conversation; its evidence is a model's judgement
+ *     session has no scored conversation; its evidence is a model's judgment
  *     of the student's reworked line against the competency. That is the same
  *     evidential class as a rewrite check, so it is bound to the same
  *     constant (22-CONTEXT.md "Scoring": "recorded at the lower model-graded
@@ -67,7 +67,7 @@ const MODEL_GRADED_WEIGHT = 0.2;
  *     weights are snapshotted at write time and history is not rewritten.
  *   - CHECK_MODEL_GRADED (MODEL_GRADED_WEIGHT, 0.20): a model-graded rewrite (REQ-111's "rewrite a
  *     weak line" format) is the weakest evidence here because its grade is
- *     itself a judgement call, not a deterministic check against a known
+ *     itself a judgment call, not a deterministic check against a known
  *     answer — it earns the floor.
  *   - VOICE_DRILL (= COACHED_SESSION, 0.20): Phase 23 - a 60-90s spoken rep
  *     on one competency, graded by a model at the end. 23-CONTEXT.md:
@@ -191,7 +191,7 @@ export const MASTERY_WINDOW_DAYS = 30;
  * activities: at 14 days, a session four weeks older than the student's latest
  * counts a quarter as much toward what the window says. It is anchored on that
  * latest activity, never on the clock, so a figure does not drift while a
- * student is away (a weak figure must not improve by not practising). The
+ * student is away (a weak figure must not improve by not practicing). The
  * lifetime figure takes no tilt: "all time" means every activity counted evenly.
  */
 export const ESTIMATE_PRIOR = { mean: 0.5, strength: 2 } as const;

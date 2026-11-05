@@ -155,7 +155,7 @@ export function toIsotropic(
 const FINGERTIPS = [4, 8, 12, 16, 20] as const;
 
 /**
- * Closest fingertip to the lip centre, in units of the face's own size, or null
+ * Closest fingertip to the lip center, in units of the face's own size, or null
  * when the face size is unusable. Measures FINGERTIPS, not the wrist: fingers
  * at the lips can leave the wrist well outside the expanded face box that
  * `nearFace` tests, so that scored signal is blind to this by construction.

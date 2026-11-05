@@ -188,8 +188,8 @@ export default function VoiceDrillShell({
               }}
               launchLabel={`Start with ${coach.name}`}
               sessionNoun="drill"
-              cameraOnDescription="Your camera and voice are analysed to give you delivery feedback with your drill result."
-              cameraOffDescription="Your voice is still analysed for your drill result; your camera isn't used, so visual delivery won't be described."
+              cameraOnDescription="Your camera and voice are analyzed to give you delivery feedback with your drill result."
+              cameraOffDescription="Your voice is still analyzed for your drill result; your camera isn't used, so visual delivery won't be described."
             />
           ) : (
             <>

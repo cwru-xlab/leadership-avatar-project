@@ -17,7 +17,7 @@ function response(body: Record<string, unknown>, status: number) {
 }
 
 /**
- * Upload the job posting a student is practising for.
+ * Upload the job posting a student is practicing for.
  *
  * Structural mirror of `app/api/interview/upload-resume/route.ts`, with the
  * PDF contract itself delegated to `lib/interview/document-intake.ts`.

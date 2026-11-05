@@ -11,7 +11,7 @@
  *
  * A 409 means a path already exists (double click, second tab): the existing
  * path is fetched and handed back instead of showing an error, matching the
- * saved-plan page's original behaviour.
+ * saved-plan page's original behavior.
  */
 import { useEffect, useState } from "react";
 import { Button } from "@heroui/button";
