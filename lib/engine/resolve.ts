@@ -153,6 +153,7 @@ export function resolveFromTypeConfig(
   const config: ResolvedSessionConfig = {
     typeSlug: type.slug,
     typeName: type.name,
+    sessionExperience: type.sessionExperience ?? "conversation",
     rubricDimensions: rubric.dimensions,
     limits,
     terminationPolicy: type.terminationPolicy,

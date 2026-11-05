@@ -20,6 +20,7 @@
  */
 
 import { waitUntil } from "@vercel/functions";
+import { randomInt } from "node:crypto";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
@@ -57,6 +58,15 @@ import {
   type DifficultyBand,
 } from "@/lib/difficult-conversation/types";
 import { buildNetworkingStartSnapshot } from "@/lib/networking/start-snapshot";
+import {
+  TECHNICAL_ASSIGNMENTS,
+} from "@/lib/technical-interview/assignments.server";
+import {
+  TECHNICAL_CODING_LANGUAGE,
+  TECHNICAL_RUNTIME_POLICY_VERSION,
+  toPublicTechnicalAssignment,
+  type TechnicalCodingInputSnapshot,
+} from "@/lib/technical-interview/types";
 import type { InteractionLog } from "@/types";
 
 import { runAndPersistEvaluation } from "./evaluation-runner";
@@ -444,6 +454,53 @@ export async function startSession({
     });
 
     return { ok: true, reportId: report.id, cameraMode };
+  }
+
+  // ---- Technical coding: server-random assignment snapshot, ONE Prisma write ----
+  // The catalog entry is chosen only here, before the report is returned. The
+  // learner receives the snapshot's public fields; private tests/reference
+  // code remain in the server-only catalog and are reconstructed by id later.
+  if (type.slug === "technical-coding") {
+    const resolved = resolveSessionConfig(typeSlug);
+    if (!resolved.ok) return { ok: false, status: 400, error: resolved.reason };
+    const selected = TECHNICAL_ASSIGNMENTS[randomInt(TECHNICAL_ASSIGNMENTS.length)];
+    if (!selected) {
+      console.error("Technical coding catalog is empty");
+      return { ok: false, status: 500, error: "Technical practice is unavailable." };
+    }
+    const inputSnapshot: TechnicalCodingInputSnapshot = {
+      kind: "technical-coding",
+      assignmentId: selected.id,
+      assignmentVersion: selected.version,
+      assignmentHash: selected.contentHash,
+      assignment: toPublicTechnicalAssignment(selected),
+      language: TECHNICAL_CODING_LANGUAGE,
+      runtimePolicyVersion: TECHNICAL_RUNTIME_POLICY_VERSION,
+      selectedAt: new Date().toISOString(),
+    };
+    const timeBudgetSeconds = resolvePersistedBudget(
+      resolved.config.timeBudget,
+      timeBudgetOverrideSeconds,
+    );
+    const report = await prisma.interactionReport.create({
+      data: {
+        userId,
+        typeSlug: type.slug,
+        status: "IN_PROGRESS",
+        cameraMode,
+        metricsConsentAt: consentAt,
+        inputSnapshot: inputSnapshot as unknown as Prisma.InputJsonValue,
+        timeBudgetSeconds,
+      },
+      select: { id: true },
+    });
+    console.info("Technical coding report created", {
+      userId,
+      reportId: report.id,
+      assignmentId: selected.id,
+      assignmentVersion: selected.version,
+    });
+    return { ok: true, reportId: report.id, cameraMode, timeBudgetSeconds };
   }
 
   // ---- Interview presets: ONE Prisma write, ZERO S3 writes ----
