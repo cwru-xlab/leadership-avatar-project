@@ -4,14 +4,24 @@
  * Resume-upload step, ported verbatim from `app/interview/[type]/page.tsx`.
  * Optional: "Skip for now" advances without a resume (nav.optional is true
  * for the interview resume declaration).
+ *
+ * A failed upload stays on screen until the next pick (toasts fade before a
+ * student can act on them), and an attached resume can be replaced or
+ * removed without leaving the step.
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { addToast } from "@heroui/toast";
-import { ArrowRight, FileCheck2, FileUp } from "lucide-react";
+import { ArrowRight, FileCheck2, FileUp, RefreshCw, X } from "lucide-react";
 import { type ChangeEvent, useState } from "react";
+
+import {
+  PDF_ACCEPT,
+  looksLikePdf,
+  uploadFailureMessage,
+} from "@/components/practice/steps/pdf-upload";
 
 const MAX_RESUME_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -33,17 +43,23 @@ export default function ResumeStep({
   onResumeChange,
 }: ResumeStepProps) {
   const [uploadingResume, setUploadingResume] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadResume = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (file.type !== "application/pdf") {
-      addToast({ title: "Choose a PDF resume", color: "warning" });
+    setUploadError(null);
+    if (!looksLikePdf(file)) {
+      setUploadError("Choose a PDF. Save or export your resume as a PDF, then upload it.");
+      return;
+    }
+    if (file.size === 0) {
+      setUploadError("That PDF is empty. Choose the saved resume file and try again.");
       return;
     }
     if (file.size > MAX_RESUME_SIZE_BYTES) {
-      addToast({ title: "Your PDF must be 10 MB or smaller", color: "warning" });
+      setUploadError("Your PDF must be 10 MB or smaller.");
       return;
     }
 
@@ -51,17 +67,22 @@ export default function ResumeStep({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const response = await fetch("/api/interview/upload-resume", {
-        method: "POST",
-        body: formData,
-      });
+      let response: Response;
+      try {
+        response = await fetch("/api/interview/upload-resume", {
+          method: "POST",
+          body: formData,
+        });
+      } catch {
+        throw new Error("The upload could not reach the server. Check your connection and try again.");
+      }
       const data = (await response.json().catch(() => ({}))) as {
         error?: string;
         resumeId?: string;
         resumeText?: string;
       };
       if (!response.ok || !data.resumeId || typeof data.resumeText !== "string") {
-        throw new Error(data.error || "We could not process that PDF.");
+        throw new Error(uploadFailureMessage(response, data.error));
       }
       onResumeChange({
         resumeId: data.resumeId,
@@ -70,14 +91,15 @@ export default function ResumeStep({
       });
       addToast({ title: "Resume ready", color: "success" });
     } catch (error) {
-      addToast({
-        title: "Resume upload failed",
-        description: error instanceof Error ? error.message : undefined,
-        color: "danger",
-      });
+      setUploadError(error instanceof Error ? error.message : uploadFailureMessage(null));
     } finally {
       setUploadingResume(false);
     }
+  };
+
+  const removeResume = () => {
+    setUploadError(null);
+    onResumeChange({ resumeId: null, resumeText: "", resumeFileName: undefined });
   };
 
   return (
@@ -103,16 +125,40 @@ export default function ResumeStep({
         </div>
 
         {resumeId ? (
-          <div className="mt-7 flex items-center gap-3 rounded-xl border border-level-4/40 bg-level-4/10 p-4 text-level-4">
-            <FileCheck2 size={20} />
-            <div>
-              <p className="font-semibold">{resumeFileName}</p>
-              <p className="text-sm">Parsed and ready for this interview.</p>
+          <div className="mt-7 flex flex-col gap-3 rounded-xl border border-level-4/40 bg-level-4/10 p-4 text-level-4 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <FileCheck2 className="mt-0.5 shrink-0" size={20} />
+              <div className="min-w-0">
+                <p className="font-semibold [overflow-wrap:anywhere]">{resumeFileName}</p>
+                <p className="text-sm">Parsed and ready for this interview.</p>
+              </div>
+            </div>
+            <div className="flex gap-1 pl-6 sm:pl-0">
+              <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-link hover:bg-level-4/10 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-true-blue">
+                {uploadingResume ? <Spinner size="sm" /> : <RefreshCw size={14} />}
+                Replace
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept={PDF_ACCEPT}
+                  disabled={uploadingResume}
+                  onChange={uploadResume}
+                />
+              </label>
+              <Button
+                size="sm"
+                variant="light"
+                isDisabled={uploadingResume}
+                startContent={<X size={14} />}
+                onPress={removeResume}
+              >
+                Remove
+              </Button>
             </div>
           </div>
         ) : (
           <label
-            className={`mt-7 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 text-center transition-colors ${uploadingResume ? "border-light-blue bg-canvas" : "border-line hover:border-true-blue hover:bg-canvas"}`}
+            className={`mt-7 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 text-center transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-true-blue ${uploadingResume ? "pointer-events-none border-light-blue bg-canvas" : "border-line hover:border-true-blue hover:bg-canvas"}`}
           >
             {uploadingResume ? (
               <Spinner color="primary" />
@@ -126,20 +172,30 @@ export default function ResumeStep({
             <input
               className="sr-only"
               type="file"
-              accept="application/pdf"
+              accept={PDF_ACCEPT}
               disabled={uploadingResume}
               onChange={uploadResume}
             />
           </label>
         )}
 
+        {uploadError && !uploadingResume && (
+          <p
+            role="alert"
+            className="mt-4 rounded-xl border border-level-2/40 bg-level-2/8 p-4 text-sm leading-6 text-copper-deep"
+          >
+            {uploadError}
+          </p>
+        )}
+
         <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-line pt-6">
-          <Button variant="light" onPress={nav.goBack}>
+          <Button variant="light" isDisabled={uploadingResume} onPress={nav.goBack}>
             Back
           </Button>
           <div className="flex gap-2">
             <Button
               variant="flat"
+              isDisabled={uploadingResume}
               onPress={() => {
                 onResumeChange({
                   resumeId: null,
