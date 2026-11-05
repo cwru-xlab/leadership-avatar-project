@@ -48,10 +48,12 @@ Lives in the app shell. Real files: `app/practice/[type]/report/[reportId]/page.
 | (target) One thing to practice next time              |  Light Blue tint
 |          "Italic statement, one sentence"             |
 +-------------------------------------------------------+
-| Overview | Takeaways | Statistics | Delivery | Content|
-|  Overview:   summary; Strengths | Growth areas rows   |
-|  Takeaways:  Keep doing | Work on next | Rewatch      |
-|  Statistics: 8 figures in one divided panel           |
+| Overview | Delivery | Content                        |
+|  Overview: 2-sentence summary; Strengths | Growth     |
+|            areas, 3 rows each, then "Show all (n)"    |
+|  Delivery: figures panel (figure + band word), then   |
+|            only the rows the figures don't state      |
++-------------------------------------------------------+
 +-------------------------------------------------------+
 | Moments (flat Dark Blue)                              |
 |  line chart: delivery per answer over time   | detail |
@@ -59,13 +61,17 @@ Lives in the app shell. Real files: `app/practice/[type]/report/[reportId]/page.
 +-------------------------------------------------------+
 ```
 Tabs carry what the student chooses to read; the timeline closes the page so the screen has no empty
-tail and every growth area and rewatch item can jump to it (`href="#moments"` plus selecting the
+tail and every growth area can jump to it (`href="#moments"` plus selecting the
 point).
 Rules the code already enforces, which the design keeps:
 - No combined score. Four category cards, in fixed order, titles copied from the rubric.
 - Score cards never show raw metric numbers; `lib/metrics/bands.ts` turns numbers into words.
 - "One thing to practice next time" is the only tinted panel on the page.
 - Tabs with no data are dropped, never shown empty.
+- One home per fact. Takeaways and Statistics were removed (2026-11) because they restated the
+  Overview rows and the Delivery bands; do not bring back a tab that re-lists another tab's content.
+- Delivery shows voice and camera rows only when measured, by the same gates as the figures, so it
+  never contradicts a "Not measured" score card.
 - Camera observations are muted and labeled as unscored, at the end of Delivery.
 - Reports made before structured data fall back to markdown; pending and failed states keep their
   skeleton and "transcript is saved" message.
