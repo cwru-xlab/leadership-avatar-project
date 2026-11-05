@@ -44,6 +44,7 @@ import {
   formatTimecode,
   visualBands,
   visualBodyLanguageBands,
+  visualObservationCaveat,
   visualObservationRows,
   vocalBands,
 } from "@/lib/metrics/bands";
@@ -428,6 +429,9 @@ export default function ReportBody({
                   <SectionHeading>Observations</SectionHeading>
                   <p className="text-sm text-muted">
                     Things the camera recorded during the session. These do not affect any score.
+                    {visualObservationCaveat(metrics.visual) && (
+                      <> {visualObservationCaveat(metrics.visual)}</>
+                    )}
                   </p>
                   <BandList rows={visualObservationRows(metrics.visual)} />
                 </section>
