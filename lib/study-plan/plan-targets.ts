@@ -26,7 +26,9 @@ export interface PlanEvidence {
   competencyKey: CompetencyKey;
   /**
    * Mean per-session figure (whole percent) across the plan's source reports
-   * that scored this competency. The MEAN, not the minimum: a plan is often
+   * that scored this competency: what those sessions scored, deliberately not
+   * the shrunk mastery estimate (`lib/mastery/compute.ts`), because the
+   * WEAK_THRESHOLD_PERCENT line is stated on this average. The MEAN, not the minimum: a plan is often
    * built from 10-35 sessions, and with that many the minimum is 0% for
    * nearly every competency (one bad session floors it), which would rank by
    * tie-break alone. The minimum is still carried for the coached reason.

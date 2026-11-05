@@ -70,20 +70,29 @@ export async function GET(request: NextRequest) {
     // lifetime figure would be the easier-looking choice (it is usually the
     // more "established" of the two) but would show a student a level they
     // may no longer actually hold, since their current-window performance
-    // can have fallen below it.
+    // can have fallen below it. The evidence gate reads the LIFETIME evidence
+    // in both cases: a long record backs a recent figure, while the figure
+    // itself (and its own THIN flag) still says how the last few sessions went.
     const levels: Record<
       string,
       { current: ReturnType<typeof levelFor>; lifetime: ReturnType<typeof levelFor> }
     > = {};
     for (const competency of mastery.competencies) {
+      const evidence = {
+        sessions: competency.lifetime.effectiveSessions,
+        liveSessions:
+          competency.sources.find((source) => source.origin === "live")?.lifetime.evidenceCount ?? 0,
+      };
       levels[competency.competencyKey] = {
         current: levelFor({
           percent: competency.current.percent,
           tier: competency.current.tier,
+          evidence,
         }),
         lifetime: levelFor({
           percent: competency.lifetime.percent,
           tier: competency.lifetime.tier,
+          evidence,
         }),
       };
     }

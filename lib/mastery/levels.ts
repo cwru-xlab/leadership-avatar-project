@@ -1,6 +1,6 @@
 /**
- * Per-competency levels, derived deterministically from a mastery percentage
- * and its evidence tier. This is the "progression" half of REQ-119 — levels
+ * Per-competency levels, derived deterministically from a mastery percentage,
+ * its evidence tier and how many independent sessions back it. This is the "progression" half of REQ-119 — levels
  * and daily/weekly goals (`lib/study-plan/goals.ts`) are the two Duolingo
  * mechanics 21-CONTEXT.md selected. Streaks and unlocking are the two it
  * explicitly rejected ("Not selected. Do not add them.") and their absence
@@ -50,7 +50,8 @@ const LEVEL_NAMES: Record<Level, string> = {
  * performance at 75%. The four boundaries below are placed so that:
  *   - a consistent 3 (50%) lands at level 2 "Building" — an honest read for
  *     a student performing at the middle of the rubric, not a punishing one;
- *   - a consistent 4 (75%) lands at level 4 "Strong";
+ *   - a consistent 4 (75%) lands at level 4 "Strong", once the estimate has
+ *     climbed there from the prior (8 sessions of straight 4s reach 70%);
  *   - level 5 "Mastered" requires performing BETTER than a straight 4 (85%),
  *     so the top label is not handed out for merely-good, repeatable work.
  *
@@ -68,6 +69,38 @@ export const LEVEL_THRESHOLDS: ReadonlyArray<{
   { level: 5, minPercent: 85, name: LEVEL_NAMES[5] },
 ];
 
+/**
+ * LEVEL_EVIDENCE_GATES — PROVISIONAL UNTIL CALIBRATED.
+ *
+ * The evidence a level needs on top of its percent, because a level is a
+ * stronger claim than a figure. `minSessions` is effective sessions (weighted
+ * activities: a live session is 1, a voice drill 0.2). `minLiveSessions` is
+ * unaided live sessions, the only unassisted evidence the system collects, so
+ * no run of perfect quizzes or drills reads as "Mastered". Levels 1 and 2
+ * claim nothing that needs proving, so they have no gate: any one session can
+ * land on them. One session can never reach level 3, and 6 is where a figure
+ * becomes ESTABLISHED (`THINNESS_THRESHOLDS`), so "Mastered" is always a solid read.
+ *
+ * A gate caps the label only. It never withholds anything: no step, check or
+ * competency depends on a level (see the header).
+ */
+export const LEVEL_EVIDENCE_GATES: Readonly<
+  Record<Level, { minSessions: number; minLiveSessions: number }>
+> = {
+  1: { minSessions: 0, minLiveSessions: 0 },
+  2: { minSessions: 0, minLiveSessions: 0 },
+  3: { minSessions: 2, minLiveSessions: 0 },
+  4: { minSessions: 3, minLiveSessions: 1 },
+  5: { minSessions: 6, minLiveSessions: 3 },
+};
+
+export interface LevelEvidence {
+  /** Effective sessions: weighted activities (`effectiveSessions` on a figure). */
+  sessions: number;
+  /** Distinct unaided live sessions. */
+  liveSessions: number;
+}
+
 export interface LevelResult {
   level: Level | null;
   name: string;
@@ -75,6 +108,12 @@ export interface LevelResult {
    * computed normally but flagged as a weaker claim, same resolution 21-13
    * chose for a thin percentage. */
   provisional: boolean;
+  /**
+   * Set when the percent has already reached the next level and only the
+   * evidence gate holds the label back: how many more sessions confirm it.
+   * This replaces "points to go", which would read "0 pts" here.
+   */
+  toConfirm: { level: Level; sessions: number; live: boolean } | null;
   /** The minPercent of the next threshold up, or null at level 5. This is
    * what makes a level PROGRESSION rather than a static badge: there is
    * always a visible next target, until there genuinely is none. */
@@ -87,7 +126,10 @@ export interface LevelResult {
 }
 
 /**
- * Resolves a competency's level from its percentage and evidence tier.
+ * Resolves a competency's level from its percentage, evidence tier and the
+ * evidence behind it. `percent` is the estimate (`computeMastery`), so a level
+ * and the figure beside it are the same number; `LEVEL_EVIDENCE_GATES` then
+ * caps the label until enough independent sessions back it.
  *
  * Thresholds are INCLUSIVE lower bounds: a percent exactly equal to a
  * threshold's `minPercent` belongs to that (higher) level, not the one below
@@ -113,14 +155,17 @@ export interface LevelResult {
 export function levelFor(args: {
   percent: number | null;
   tier: EvidenceTier;
+  /** Lifetime evidence behind this skill. Required: no caller gets an ungated level. */
+  evidence: LevelEvidence;
 }): LevelResult {
-  const { percent, tier } = args;
+  const { percent, tier, evidence } = args;
 
   if (percent === null) {
     return {
       level: null,
       name: "Not yet measured",
       provisional: false,
+      toConfirm: null,
       nextLevelAtPercent: null,
       percent: null,
       levelFloorPercent: null,
@@ -132,11 +177,16 @@ export function levelFor(args: {
   }
 
   // Inclusive lower bounds: find the highest threshold whose minPercent is
-  // <= percent. LEVEL_THRESHOLDS is declared in ascending minPercent order,
-  // so the last match wins.
+  // <= percent AND whose evidence gate is met. LEVEL_THRESHOLDS is declared in
+  // ascending minPercent order, so the last match wins.
   let resolved = LEVEL_THRESHOLDS[0];
   for (const threshold of LEVEL_THRESHOLDS) {
-    if (percent >= threshold.minPercent) {
+    const gate = LEVEL_EVIDENCE_GATES[threshold.level];
+    if (
+      percent >= threshold.minPercent &&
+      evidence.sessions >= gate.minSessions &&
+      evidence.liveSessions >= gate.minLiveSessions
+    ) {
       resolved = threshold;
     }
   }
@@ -144,10 +194,23 @@ export function levelFor(args: {
   const resolvedIndex = LEVEL_THRESHOLDS.indexOf(resolved);
   const nextThreshold = LEVEL_THRESHOLDS[resolvedIndex + 1];
 
+  let toConfirm: LevelResult["toConfirm"] = null;
+  if (nextThreshold && percent >= nextThreshold.minPercent) {
+    const gate = LEVEL_EVIDENCE_GATES[nextThreshold.level];
+    const liveShort = Math.max(0, gate.minLiveSessions - evidence.liveSessions);
+    const sessionsShort = Math.max(0, Math.ceil(gate.minSessions - evidence.sessions));
+    toConfirm = {
+      level: nextThreshold.level,
+      sessions: Math.max(liveShort, sessionsShort),
+      live: liveShort > 0,
+    };
+  }
+
   return {
     level: resolved.level,
     name: resolved.name,
     provisional: tier === "THIN",
+    toConfirm,
     nextLevelAtPercent: nextThreshold ? nextThreshold.minPercent : null,
     percent,
     levelFloorPercent: resolved.minPercent,
