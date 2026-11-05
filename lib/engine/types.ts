@@ -422,6 +422,13 @@ export type InstanceConfig =
       kind: "pitch-elevator";
       pitchSubject: string;
       listenerKnowledge: "blind" | "name-role" | "full-profile";
+      /**
+       * Which listener this session drew. SERVER-OWNED: set by startSession and
+       * re-read from the report snapshot by the chat route and the evaluation
+       * runner, overwriting anything a client sends. Absent means the legacy
+       * listener (`resolveElevatorListener`).
+       */
+      listenerPersonaId?: string;
     }
   /**
    * Shared by ALL FIVE deck modes (REQ-88, REQ-93): the existing investor
