@@ -25,7 +25,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
-import { ArrowLeft, Check, Footprints, Play, Trophy } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Footprints, Play, Trophy } from "lucide-react";
 
 import type { StudyPlanDTO } from "@/lib/study-plan/plan-dto";
 import PlanContent from "@/components/study-plan/PlanContent";
@@ -260,7 +260,7 @@ export default function StudyPlanPage() {
           The full map is on /paths; here it is a strip of its steps. A fetch
           failure never blocks the plan content below. */}
       {pathLoading ? (
-        <div className="h-12 animate-pulse rounded-full bg-white" />
+        <div className="h-28 animate-pulse rounded-2xl border border-line bg-white" />
       ) : pathError ? (
         <p role="alert" className="text-sm text-copper-deep">{pathError}</p>
       ) : path ? (
@@ -276,9 +276,21 @@ export default function StudyPlanPage() {
           ) : null}
           <Link
             aria-label={`Open this plan's path: ${done} of ${total} steps complete`}
-            className="group flex items-center rounded-full px-1 py-2 hover:bg-white"
+            className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-5 transition-colors duration-150 hover:border-true-blue motion-reduce:transition-none"
             href={`/paths?plan=${plan.id}`}
           >
+            <span className="flex items-baseline justify-between gap-4">
+              <span className="font-display text-[22px] font-medium text-cwru-blue">
+                Your path{" "}
+                <span className="font-sans text-sm font-normal text-muted">
+                  {done} of {total} steps
+                </span>
+              </span>
+              <span className="inline-flex shrink-0 items-center gap-1 text-[13.5px] font-semibold text-link">
+                Open map <ChevronRight aria-hidden size={14} />
+              </span>
+            </span>
+            <span className="flex items-center">
             {orderedSteps.map((step, index) => {
               const Icon = step.proveIt ? Trophy : KIND_ICON[step.kind];
               const isDone = isStepDone(step);
@@ -306,6 +318,7 @@ export default function StudyPlanPage() {
                 </span>
               );
             })}
+            </span>
           </Link>
           <DegradedStepsNote count={degradedStepCount} />
         </div>
@@ -338,6 +351,8 @@ function PlanSummary({ text }: { text: string }) {
         <button
           className="w-fit text-sm font-semibold text-link hover:underline"
           type="button"
+          // A press does not take focus, so the ring stays keyboard-only in every browser.
+          onMouseDown={(event) => event.preventDefault()}
           onClick={() => setExpanded((v) => !v)}
         >
           {expanded ? "Show less" : "Read the full summary"}
