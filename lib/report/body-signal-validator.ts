@@ -49,6 +49,20 @@ const FORBIDDEN_PHRASES: string[] = [
   "you were distracted",
   "checking your phone",
   "checking a phone",
+  // The descriptive hand and mouth signals report motion, never its cause. See
+  // HARD RULE ON CONDUCT in the prompts.
+  "you were eating",
+  "you were chewing",
+  "you were snacking",
+  "while eating",
+  "while chewing",
+  "obscene",
+  "rude gesture",
+  "offensive gesture",
+  "vulgar",
+  "middle finger",
+  "flipping off",
+  "flipped off",
 ];
 
 /**
@@ -87,6 +101,37 @@ const EFFECT_CLAIM_STEMS: string[] = [
   "seem unprepared",
 ];
 
+/**
+ * STRUCTURAL rule, for HARD RULE ON CONDUCT in the prompts: a sentence commending
+ * the ABSENCE of something no sensor can vouch for. A real session with obscene
+ * gestures was praised for "minimal obvious fidgeting or posture concerns", and
+ * the prompt's own ban on that sentence is prose, with the track record this
+ * file's header describes.
+ *
+ * A negation, then within one clause a conduct noun. The noun list stays narrow on
+ * purpose: "no gestures" is a real finding on the gesture curve, not a commendation.
+ * `eating` skips "eating into" and "eating away", which are about budgets. Sentences
+ * about what was SAID are exempt: "no inappropriate language" comes from the
+ * transcript, which the evaluator can read.
+ */
+const ABSENCE_COMMENDATION =
+  /\b(no|not any|without(?: any)?|free (?:of|from)|absence of|lack of|minimal|avoided)\b[^.?!]{0,50}\b(distract\w*|fidget\w*|eating(?! into| away| up)|chewing|snacking|inappropriate|unprofessional|offensive|misconduct|(?:posture|behaviou?ral?) concerns?)\b|\b(never|did not|didn't)\s+(?:\w+\s+)?(fidget\w*|eat|chew|snack|distract\w*)\b/i;
+
+/** A conduct verdict on camera, asserted outright rather than by absence. Nothing
+ * here can establish one. */
+const CONDUCT_VERDICT =
+  /\b(professional|appropriate|respectful|polished)\b[^.?!]{0,40}\b(demeanou?r|composure|on camera|on-camera|body language)\b/i;
+
+/** Marks a sentence as being about speech, so the conduct rules above leave it be. */
+const ABOUT_SPEECH =
+  /\b(language|word|words|wording|phrase|phrasing|remark|remarks|comment|comments|said|say|joke|jokes|answer|answers|tone)\b/i;
+
+function commendsAbsence(text: string): string | null {
+  if (ABOUT_SPEECH.test(text)) return null;
+  const match = text.match(ABSENCE_COMMENDATION) ?? text.match(CONDUCT_VERDICT);
+  return match ? match[0] : null;
+}
+
 /** Keywords (lowercase-matched substrings) that mark a sentence as a body
  * finding subject to the question-mark rule. Deliberately broad — a false
  * positive here only means a sentence that should have ended in "?" anyway
@@ -104,6 +149,9 @@ const BODY_SIGNAL_KEYWORDS: string[] = [
   "slouch",
   "wrist",
   "finger",
+  "mouth",
+  "jaw",
+  "chew",
 ];
 
 function mentionsBodySignal(text: string): boolean {
@@ -125,7 +173,8 @@ function splitSentences(text: string): string[] {
 export type BodySignalViolationReason =
   | "missing-question-mark"
   | "forbidden-phrase"
-  | "effect-claim-stem";
+  | "effect-claim-stem"
+  | "absence-commendation";
 
 export interface BodySignalViolation {
   field: string;
@@ -143,6 +192,12 @@ function sentenceViolation(
     if (lower.includes(phrase)) {
       return { field: "", sentence, reason: "forbidden-phrase", phrase };
     }
+  }
+  // Unconditional, including on advisory fields and sentences that name no body
+  // signal: "no distractions" names nothing and is exactly the failure.
+  const absence = commendsAbsence(sentence);
+  if (absence) {
+    return { field: "", sentence, reason: "absence-commendation", phrase: absence };
   }
   // Structural rule (12-08 Task 1 checkpoint, Defect G): an effect-claim verb
   // stem ANYWHERE in a sentence that also mentions a body signal is a
@@ -382,6 +437,15 @@ export function sanitizeBodySignalWording(report: StructuredReport): {
   clone.growth_areas = clone.growth_areas.filter(
     (g) => g.detail.trim().length > 0
   );
+
+  // The same hollow-entry reasoning for a strength, plus one thing the sentence
+  // pass above cannot reach: `title` is never validated, and a strength titled
+  // "No distracting behaviours" is the commendation whatever its detail says.
+  const strengthCount = clone.strengths.length;
+  clone.strengths = clone.strengths.filter(
+    (s) => s.detail.trim().length > 0 && !commendsAbsence(s.title)
+  );
+  strippedCount += strengthCount - clone.strengths.length;
 
   return { report: clone, strippedCount };
 }
