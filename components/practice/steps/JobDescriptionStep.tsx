@@ -35,6 +35,12 @@ import {
 } from "lucide-react";
 import { type ChangeEvent, useState } from "react";
 
+import {
+  PDF_ACCEPT,
+  looksLikePdf,
+  uploadFailureMessage,
+} from "@/components/practice/steps/pdf-upload";
+
 const MAX_JOB_DESCRIPTION_SIZE_BYTES = 10 * 1024 * 1024;
 // This text is included in every chat turn, so keep the client payload aligned
 // with the server's per-turn prompt ceiling.
@@ -70,7 +76,7 @@ export default function JobDescriptionStep({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (file.type !== "application/pdf") {
+    if (!looksLikePdf(file)) {
       addToast({ title: "Choose a PDF of the posting", color: "warning" });
       return;
     }
@@ -100,7 +106,7 @@ export default function JobDescriptionStep({
         !data.jobDescriptionId ||
         typeof data.jobDescriptionText !== "string"
       ) {
-        throw new Error(data.error || "We could not process that PDF.");
+        throw new Error(uploadFailureMessage(response, data.error));
       }
       setPasted("");
       onJobDescriptionChange({
@@ -274,7 +280,7 @@ export default function JobDescriptionStep({
               <input
                 className="sr-only"
                 type="file"
-                accept="application/pdf"
+                accept={PDF_ACCEPT}
                 disabled={uploading}
                 onChange={uploadJobDescription}
               />
