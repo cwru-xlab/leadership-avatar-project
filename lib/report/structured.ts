@@ -206,6 +206,24 @@ export const STRUCTURED_REPORT_REQUIRED = [
   "practice_next",
 ] as const;
 
+/**
+ * Length rules for every evaluator's written fields, appended to each type's
+ * system prompt by `lib/engine/evaluation.ts`. The pitch, networking and
+ * conversation prompts had no length guidance at all, and the report page
+ * shows every field in its own place, so a restated point reads as
+ * repetition. Wording only: nothing here touches a score or what may be
+ * claimed. Deliberately prose, not JSON-schema `description`s, which would
+ * break the frozen schema snapshots in `scripts/verify-report-structure.ts`.
+ */
+export const REPORT_LENGTH_RULES = `REPORT LENGTH (applies to the written fields only; never to scores or to what you may claim)
+- overall_summary: 2 sentences, at most 40 words. The gist only; do not list the strengths or growth areas.
+- strengths and growth_areas: 2-4 items each, most important first, no two about the same thing.
+- strengths[].detail: one sentence, at most 30 words. growth_areas[].detail: at most 40 words. suggestion: at most 30 words.
+- category_notes: one sentence each, at most 30 words, explaining the score without repeating a strength or growth area.
+- rubric_notes: one short line each.
+- practice_next: one sentence, at most 35 words, turning the most important growth area into an action without restating its detail.
+- Say each point once across the whole report.`;
+
 // ---------------------------------------------------------------------------
 // Parsing
 // ---------------------------------------------------------------------------
