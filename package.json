@@ -17,7 +17,8 @@
     "verify:live-resume-attribution": "tsx scripts/verify-live-resume-attribution.ts",
     "test:e2e": "playwright test",
     "verify:answer-level": "tsx scripts/verify-answer-level.ts",
-    "verify:route-contract": "tsx scripts/verify-route-contract.ts"
+    "verify:route-contract": "tsx scripts/verify-route-contract.ts",
+    "verify:technical-execution": "tsx scripts/verify-technical-execution-contract.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

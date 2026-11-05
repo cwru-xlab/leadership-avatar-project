@@ -20,6 +20,7 @@ export default function TechnicalCodingSession({ reportId, avatarConfig }: { rep
   const [elapsed, setElapsed] = useState(0);
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalLines, setTerminalLines] = useState<string[]>(["Workspace ready.", "Visible tests are listed in the problem panel."]);
+  const [runningTests, setRunningTests] = useState(false);
   const [avatarConnected, setAvatarConnected] = useState(false);
 
   useAvatarKeepAlive(avatarRef, avatarConnected);
@@ -60,13 +61,38 @@ export default function TechnicalCodingSession({ reportId, avatarConfig }: { rep
     }
   }, [reportId, snapshot, source]);
 
-  const runVisibleTests = () => {
-    setTerminalLines((lines) => [
-      ...lines,
-      "> Run visible tests",
-      "Execution sandbox is not configured yet. Your code remains in this editor; no code was executed.",
-    ]);
-    editorRef.current?.focus();
+  const runVisibleTests = async () => {
+    if (!snapshot || runningTests) return;
+    setRunningTests(true);
+    setTerminalLines((lines) => [...lines, "> Run visible tests"]);
+    try {
+      const response = await fetch("/api/technical-interview/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reportId,
+          source,
+          requestedTestIds: snapshot.assignment.publicTests.map((test) => test.id),
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      });
+      const data = await response.json().catch(() => ({})) as {
+        error?: string;
+        execution?: { publicResults?: Array<{ id: string; passed: boolean; message?: string }> };
+      };
+      const resultLines = data.execution?.publicResults?.map((result) =>
+        `${result.passed ? "PASS" : "FAIL"} ${result.id}${result.message ? ` — ${result.message}` : ""}`,
+      ) ?? [];
+      setTerminalLines((lines) => [
+        ...lines,
+        ...(resultLines.length > 0 ? resultLines : [data.error || "Unable to run visible tests."]),
+      ]);
+    } catch {
+      setTerminalLines((lines) => [...lines, "Unable to reach the execution service. No code was run."]);
+    } finally {
+      setRunningTests(false);
+      editorRef.current?.focus();
+    }
   };
 
   if (!snapshot) {
@@ -108,7 +134,7 @@ export default function TechnicalCodingSession({ reportId, avatarConfig }: { rep
       </section>
 
       <section className="relative z-20 border-t border-white/10 bg-[#050a12]">
-        <div className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-6"><button type="button" onClick={() => setTerminalOpen((open) => !open)} className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-light-blue"><TerminalSquare size={16} className="text-level-4" />Execution terminal<ChevronDown size={15} className={terminalOpen ? "rotate-180 transition-transform" : "transition-transform"} /></button><div className="flex gap-2"><Button size="sm" variant="flat" className="font-semibold text-white" onPress={runVisibleTests} startContent={<Play size={15} />}>Run visible tests</Button><Button size="sm" color="primary" isDisabled startContent={<Send size={15} />}>Submit & report</Button></div></div>
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-6"><button type="button" onClick={() => setTerminalOpen((open) => !open)} className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-light-blue"><TerminalSquare size={16} className="text-level-4" />Execution terminal<ChevronDown size={15} className={terminalOpen ? "rotate-180 transition-transform" : "transition-transform"} /></button><div className="flex gap-2"><Button size="sm" variant="flat" className="font-semibold text-white" onPress={() => void runVisibleTests()} isLoading={runningTests} isDisabled={runningTests} startContent={runningTests ? undefined : <Play size={15} />}>Run visible tests</Button><Button size="sm" color="primary" isDisabled startContent={<Send size={15} />}>Submit & report</Button></div></div>
         {terminalOpen && <div className="max-h-40 overflow-y-auto border-t border-white/10 px-4 py-3 font-mono text-xs leading-5 text-slate-300 sm:px-6" aria-live="polite">{terminalLines.map((line, index) => <p key={`${line}-${index}`} className={line.startsWith(">") ? "text-level-4" : undefined}>{line}</p>)}</div>}
       </section>
     </main>
