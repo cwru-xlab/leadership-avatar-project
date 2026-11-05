@@ -97,11 +97,15 @@ INPUTS YOU WILL RECEIVE
     posture_drift. severity (0-1) is how solid the stretch was.
     observations.episodes is a SEPARATE list with its own kinds, governed by the
     HARD RULE ON observations below, and is never one of these.
-  - coverage.capture_offset_s converts episode times into TRANSCRIPT time.
-    Episode times are measured from when capture started, which is LATER than
-    session start. Transcript lines are stamped [m:ss] from session start.
-    ALWAYS add capture_offset_s to start_s/end_s before matching an episode to
-    a transcript line, and always quote the converted time. Quoting raw
+  - coverage.capture_offset_s brings episode times CLOSER to transcript time,
+    but not exactly onto it. Episode times are measured from when capture
+    started. capture_offset_s is the gap from the avatar connecting to capture
+    starting, while transcript lines are stamped [m:ss] from when the session
+    record was created, which can be several seconds earlier. ALWAYS add
+    capture_offset_s to start_s/end_s before matching an episode to a
+    transcript line, and quote the converted time, but treat it as accurate to
+    within several seconds: confirm the match against what was being discussed,
+    and never pin an episode to a single sentence on time alone. Quoting raw
     episode times attributes the behaviour to the wrong moment.
 
 RULE ON TIMESTAMPS AND TOPICS
@@ -270,9 +274,11 @@ So in EVERY session, whatever any list contains:
   speech-to-text — {words_per_minute, filler_word_count, filler_word_list,
   pause_count, volume_consistency, turns, coverage}. "turns" is a per-turn
   breakdown — {turn_index, start_s, duration_s, words_per_minute,
-  filler_count, pause_count, volume_consistency} — on the SAME capture clock
-  as episodes, so coverage.capture_offset_s converts it to transcript time
-  too. As with visual_metrics, coverage here is measurement-quality metadata,
+  filler_count, pause_count, volume_consistency}. Turn start_s is on its OWN
+  clock, which starts before capture and before the transcript, so neither
+  capture_offset_s nor any other field converts it to transcript time. Match a
+  turn to the transcript by its order among the student's answers and by
+  content, never by adding an offset to start_s. As with visual_metrics, coverage here is measurement-quality metadata,
   not a performance signal.
 - author-criteria section (optional): additional grading guidance written by
   the person who authored this scenario, fenced off in its own labelled

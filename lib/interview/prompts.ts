@@ -384,11 +384,15 @@ INPUTS YOU WILL RECEIVE
     posture_drift. severity (0-1) is how solid the stretch was.
     observations.episodes is a SEPARATE list with its own kinds, governed by the
     HARD RULE ON observations below, and is never one of these.
-  - coverage.capture_offset_s converts episode times into TRANSCRIPT time.
-    Episode times are measured from when capture started, which is LATER than
-    session start. Transcript lines are stamped [m:ss] from session start.
-    ALWAYS add capture_offset_s to start_s/end_s before matching an episode to
-    a transcript line, and always quote the converted time. Quoting raw
+  - coverage.capture_offset_s brings episode times CLOSER to transcript time,
+    but not exactly onto it. Episode times are measured from when capture
+    started. capture_offset_s is the gap from the avatar connecting to capture
+    starting, while transcript lines are stamped [m:ss] from when the session
+    record was created, which can be several seconds earlier. ALWAYS add
+    capture_offset_s to start_s/end_s before matching an episode to a
+    transcript line, and quote the converted time, but treat it as accurate to
+    within several seconds: confirm the match against what was being discussed,
+    and never pin an episode to a single sentence on time alone. Quoting raw
     episode times attributes the behaviour to the wrong moment.
 
 RULE ON TIMESTAMPS AND TOPICS
