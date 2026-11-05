@@ -9,6 +9,7 @@
  * There is deliberately no combined-score filter or sort: a report has four
  * category scores, never a blended one.
  */
+import { resolveElevatorListener } from "@/lib/pitch/elevator-personas";
 import type { ReportDTO } from "@/lib/report/dto";
 import { isDeckModeSlug } from "@/lib/pitch/deck-modes";
 import { displayReportTitle, typeLabelForReport } from "@/lib/report/title";
@@ -174,7 +175,12 @@ function searchText(report: ReportDTO): string {
       parts.push(input.caseName, input.background);
       break;
     case "pitch":
-      parts.push(input.pitchSubject, input.listenerPersona);
+      parts.push(input.pitchSubject);
+      // The snapshot holds the listener's id; search the person the student met.
+      if (input.pitchKind === "elevator") {
+        const listener = resolveElevatorListener(input.listenerPersona);
+        parts.push(listener.name, listener.role);
+      }
       break;
     case "difficult-conversation":
       parts.push(input.conversationTitle, input.role, input.studentRole, input.situation, input.studentObjective);
