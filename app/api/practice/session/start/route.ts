@@ -97,6 +97,9 @@ export async function POST(request: NextRequest) {
     if (result.timeBudgetSeconds != null) {
       payload.timeBudgetSeconds = result.timeBudgetSeconds;
     }
+    if (result.listener) {
+      payload.listener = result.listener;
+    }
 
     return response(payload, 200);
   } catch (error) {
