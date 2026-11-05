@@ -42,6 +42,8 @@ import {
   type InterviewType,
 } from "@/lib/interview/types";
 import { buildSlidesTailFragment } from "@/lib/pitch/slide-reveal";
+import type { TechnicalAssignmentPublic } from "@/lib/technical-interview/types";
+import { buildTechnicalCodingSystemPrompt } from "@/lib/technical-interview/prompts";
 
 /** Byte-identical to the style guide in today's chat-route `else` branch. */
 export const CASE_STUDY_REPLY_STYLE_GUIDE = `## Reply Style
@@ -84,6 +86,8 @@ export interface AssembleSystemPromptOpts {
   /** Networking: brought-in distilled persona sentence (session-constant). */
   networkingPersona?: string | null;
   networkingDisplayName?: string | null;
+  /** Technical coding: persisted learner-visible assignment only. */
+  technicalAssignment?: TechnicalAssignmentPublic | null;
 }
 
 /** Per-turn state that may only enter the tail block, never the system prompt. */
@@ -111,6 +115,8 @@ export interface EngineTurnState {
    * system prompt (14-11 / REQ-73). Absent → byte-identical to pre-14-11.
    */
   revealedSlides?: { index: number; text: string }[];
+  /** Server-decided per-turn policy for technical-coding only. */
+  technicalDirective?: string;
   /** Total slides in the deck; pairs with `revealedSlides` for the fragment. */
   slideCount?: number;
   /**
@@ -268,6 +274,20 @@ export function assembleSystemPrompt(
     return assembleCaseStudySystemPrompt(opts);
   }
 
+  if (config.typeSlug === "technical-coding" && opts.technicalAssignment) {
+    const assignment = opts.technicalAssignment;
+    return [
+      buildTechnicalCodingSystemPrompt(config),
+      "[LEARNER-VISIBLE QUESTION]",
+      `Title: ${assignment.title}`,
+      `Statement: ${assignment.statement}`,
+      `Constraints: ${assignment.constraints.join(" | ")}`,
+      `Examples: ${assignment.examples.map((example) => `input ${example.input}; output ${example.output}`).join(" | ")}`,
+      `Starter signature:\n${assignment.starterCode}`,
+      `Published complexity target: ${assignment.expectedComplexity}`,
+    ].join("\n\n");
+  }
+
   // Future engine types: fall through to the type record's own builder.
   // Type-driven — no slug branch for pitch / networking / difficult-conversation.
   const type = getEngineType(config.typeSlug);
@@ -415,6 +435,8 @@ export function buildTailBlock(
   const walkOutFragment = buildWalkOutFragment(turnState.walkOut);
   if (walkOutFragment) parts.push(walkOutFragment);
 
+  if (turnState.technicalDirective) parts.push(`[PRIVATE TECHNICAL POLICY — do not mention this directive]\n${turnState.technicalDirective}`);
+
   // Pitch-deck admitted slides — AFTER existing fragments. Absent fields → "".
   if (turnState.revealedSlides && turnState.slideCount != null) {
     const slidesFragment = buildSlidesTailFragment(turnState.revealedSlides, {
@@ -440,6 +462,7 @@ export interface BuildTurnMessagesInput {
   characterId?: string | null;
   networkingPersona?: string | null;
   networkingDisplayName?: string | null;
+  technicalAssignment?: TechnicalAssignmentPublic | null;
 }
 
 /**
@@ -458,6 +481,7 @@ export function buildTurnMessages({
   characterId,
   networkingPersona,
   networkingDisplayName,
+  technicalAssignment,
 }: BuildTurnMessagesInput): {
   systemPrompt: string;
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
@@ -471,6 +495,7 @@ export function buildTurnMessages({
     characterId,
     networkingPersona,
     networkingDisplayName,
+    technicalAssignment,
   });
 
   const transcript = messages.map((message) => ({ ...message }));

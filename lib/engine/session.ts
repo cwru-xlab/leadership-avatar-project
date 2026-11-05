@@ -67,6 +67,12 @@ import {
   toPublicTechnicalAssignment,
   type TechnicalCodingInputSnapshot,
 } from "@/lib/technical-interview/types";
+import {
+  finalizeTechnicalEvidence,
+  mergeTechnicalEvidence,
+  validateTechnicalEvidence,
+  validateTechnicalFinalSource,
+} from "@/lib/technical-interview/evidence";
 import type { InteractionLog } from "@/types";
 
 import { runAndPersistEvaluation } from "./evaluation-runner";
@@ -873,12 +879,15 @@ export async function checkpointSession({
   turns: rawTurns,
   progress: rawProgress,
   revealedSlideIndex,
+  technicalEvidence: rawTechnicalEvidence,
 }: {
   userId: string;
   reportId: string;
   turns: unknown;
   progress?: unknown;
   revealedSlideIndex?: unknown;
+  /** Coding-only bounded source checkpoints. Never execution output. */
+  technicalEvidence?: unknown;
 }): Promise<CheckpointSessionResult> {
   if (typeof reportId !== "string" || !UUID_REGEX.test(reportId)) {
     return { ok: false, status: 400, error: "Invalid reportId" };
@@ -894,6 +903,7 @@ export async function checkpointSession({
       inputSnapshot: true,
       slideHighWaterMark: true,
       slideReveals: true,
+      technicalEvidence: true,
     },
   });
 
@@ -918,6 +928,15 @@ export async function checkpointSession({
       reportId: report.id,
       reportStatus: report.status,
     };
+  }
+
+  let technicalEvidence: Prisma.InputJsonValue | undefined;
+  if (report.typeSlug === "technical-coding") {
+    const validated = validateTechnicalEvidence(rawTechnicalEvidence);
+    if (!validated.ok) {
+      return { ok: false, status: 400, error: validated.error };
+    }
+    technicalEvidence = mergeTechnicalEvidence(validated.value, report.technicalEvidence) as unknown as Prisma.InputJsonValue;
   }
 
   const turns = normalizeTurns(rawTurns);
@@ -963,7 +982,12 @@ export async function checkpointSession({
     transcriptKey: string;
     slideHighWaterMark?: number;
     slideReveals?: Prisma.InputJsonValue;
+    technicalEvidence?: Prisma.InputJsonValue;
   } = { turnCount: turns.length, transcriptKey: key };
+
+  if (technicalEvidence !== undefined) {
+    updateData.technicalEvidence = technicalEvidence;
+  }
 
   if (isPitchDeckSnapshot(report.inputSnapshot)) {
     const slideCount = report.inputSnapshot.slideCount;
@@ -1023,6 +1047,8 @@ export async function finishSession({
   outcome: rawOutcome,
   walkOutProof: rawWalkOutProof,
   title: rawTitle,
+  technicalEvidence: rawTechnicalEvidence,
+  finalSource: rawFinalSource,
 }: {
   userId: string;
   userEmail: string;
@@ -1040,6 +1066,10 @@ export async function finishSession({
   walkOutProof?: unknown;
   /** Optional student-chosen My Reports title. */
   title?: unknown;
+  /** Coding-only bounded source checkpoints. */
+  technicalEvidence?: unknown;
+  /** Coding-only final candidate source, stored with private evidence. */
+  finalSource?: unknown;
 }): Promise<FinishSessionResult> {
   if (typeof reportId !== "string" || !reportId) {
     return { ok: false, status: 404, error: "Report not found" };
@@ -1219,6 +1249,59 @@ export async function finishSession({
   // ---- REQ-72: metrics parsing is UNCONDITIONAL — no type can skip it ----
   const { visual: visualMetrics, vocal: vocalMetrics } =
     parseMetricsPayload(metricsPayload);
+
+  // ---- Technical coding: persist the canonical transcript and bounded,
+  // private source evidence atomically before the report can queue. This is
+  // deliberately separate from the general interview branch: coding needs a
+  // final source and never accepts execution-provider results from the client. ----
+  if (report.typeSlug === "technical-coding") {
+    const turns = normalizedTurns;
+    if (turns.length === 0) {
+      return { ok: false, status: 400, error: "There is no coding transcript to evaluate." };
+    }
+    const evidence = validateTechnicalEvidence(rawTechnicalEvidence);
+    if (!evidence.ok) return { ok: false, status: 400, error: evidence.error };
+    const finalSource = validateTechnicalFinalSource(rawFinalSource);
+    if (!finalSource.ok) return { ok: false, status: 400, error: finalSource.error };
+
+    const transcript = buildInterviewTranscript({
+      reportId: report.id,
+      userId,
+      typeSlug: report.typeSlug,
+      interviewer: { avatarId: null, name: null },
+      startedAt: report.startedAt.getTime(),
+      turns,
+      progress: isValidProgress(rawProgress) ? rawProgress : initialProgress(),
+    });
+
+    let transcriptKey: string;
+    try {
+      transcriptKey = await s3Storage.saveInterviewTranscript(userId, report.id, transcript);
+    } catch (error) {
+      console.error("Engine coding finish: transcript save failed", error);
+      return { ok: false, status: 502, error: "We could not save your coding interview. Please try again." };
+    }
+
+    await prisma.interactionReport.update({
+      where: { id: report.id },
+      data: {
+        status: "PENDING",
+        transcriptKey,
+        turnCount: turns.length,
+        technicalEvidence: finalizeTechnicalEvidence(mergeTechnicalEvidence(evidence.value, report.technicalEvidence), finalSource.value) as unknown as Prisma.InputJsonValue,
+        failureReason: null,
+        title: resolvedTitle,
+        visualMetrics: toMetricsJsonInput(visualMetrics),
+        vocalMetrics: toMetricsJsonInput(vocalMetrics),
+        terminationReason: recordedTerminationReason,
+        terminationAtSeconds: recordedTerminationAtSeconds,
+        outcome: recordedOutcome === null ? Prisma.DbNull : (recordedOutcome as Prisma.InputJsonValue),
+      },
+    });
+
+    waitUntil(runAndPersistEvaluation({ reportId: report.id }));
+    return { ok: true, accepted: true, reportId: report.id, pendingStatus: "PENDING" };
+  }
 
   // ---- Interview finish shape (finishPendingFlip: "request-path") ----
   if (type.finishPendingFlip === "request-path") {
