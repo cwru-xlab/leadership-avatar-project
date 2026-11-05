@@ -66,8 +66,8 @@ export default function MetricsConsentDialog({
           <ul className="list-disc space-y-2 pl-5 text-sm">
             <li>
               With your camera on, we measure how you present: whether your
-              face is in frame, how you&apos;re framed and lit, and how
-              steady your gaze is.
+              face is in frame, how you&apos;re framed and lit, how steady your
+              gaze is, and how your hands, posture and mouth move.
             </li>
             <li>
               We measure your speaking too: your pace, filler words, pauses,
