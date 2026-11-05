@@ -23,12 +23,39 @@ import type {
   MasteryResult,
   WindowDriver,
 } from "./compute";
-import { evidenceTierFor, TIER_DISCLOSURE, type EvidenceTier } from "./thinness";
+import {
+  displayPercentFor,
+  evidenceTierFor,
+  roundedPercentFor,
+  TIER_CONFIDENCE,
+  TIER_DISCLOSURE,
+  type EvidenceTier,
+} from "./thinness";
 
+/**
+ * One figure, with the estimate and how sure it is kept apart: `percent` and
+ * `display` say where the student probably stands; `tier`, `tierLabel`,
+ * `confidence` and `range` say how much to trust that. `observedPercent` is
+ * the plain average of what was scored, so a student who just got a 5/5 can
+ * see the 100% was seen. Components print `display`, never `percent`.
+ */
 export interface MasteryFigureDTO {
+  /** The estimate, one decimal: for arithmetic such as levels, not for reading. */
   percent: number | null;
+  /** Whole number (nearest 5 on an early read), and `display` is its only text form. */
+  rounded: number | null;
+  approximate: boolean;
+  display: string;
+  observedPercent: number | null;
+  /** Rounded like `rounded`; null with no evidence. */
+  range: { low: number; high: number } | null;
+  /** Distinct sessions, checks and drills, not ledger rows. */
   evidenceCount: number;
+  /** Weighted activities: a live session is 1, a voice drill 0.2. */
+  effectiveSessions: number;
   tier: EvidenceTier;
+  /** Filled steps out of 3, for the confidence pips. */
+  confidence: 0 | 1 | 2 | 3;
   disclosure: string | null;
   tierLabel: string;
 }
@@ -64,7 +91,7 @@ export interface TrendPointDTO {
   endsAt: string;
   /** The all-time figure as it stood at `endsAt`; null before any evidence. */
   percent: number | null;
-  /** Evidence rows that landed in this 7-day bucket. */
+  /** Activities that landed in this 7-day bucket. */
   count: number;
 }
 
@@ -93,6 +120,9 @@ export interface RecentGrowthDTO {
   delta: number | null;
   windowStartPercent: number | null;
   lifetimePercent: number | null;
+  /** The two ends as text, with the tier of each figure's own evidence. */
+  windowStartDisplay: string | null;
+  lifetimeDisplay: string;
   drivers: WindowDriverDTO[];
 }
 
@@ -108,13 +138,19 @@ export interface CompetencyMasteryDTO {
   sources: OriginFigureDTO[];
   /** Rolling weekly points of the all-time figure, oldest first. */
   trend: TrendPointDTO[];
-  windowChange: { startPercent: number | null; delta: number | null };
+  windowChange: { startPercent: number | null; startDisplay: string | null; delta: number | null };
   drivers: WindowDriverDTO[];
 }
 
 export interface MasteryDTO {
   competencies: CompetencyMasteryDTO[];
-  overall: { lifetimePercent: number | null; currentPercent: number | null };
+  overall: {
+    lifetimePercent: number | null;
+    currentPercent: number | null;
+    /** The same figures with their own evidence: one session counts once here. */
+    lifetime: MasteryFigureDTO;
+    current: MasteryFigureDTO;
+  };
   window: { days: number; startsAt: string };
   /**
    * Non-zero means the competency catalog and the contribution ledger
@@ -192,20 +228,30 @@ function driverDTOFor(
  * Does NOT round, re-scale, or clamp `percent` — `lib/mastery/compute.ts`'s
  * `figureFor()` already rounded it once (to one decimal). Rounding again
  * here would let this boundary and the arithmetic module disagree on the
- * last digit.
+ * last digit. `display` is the separate, coarser form a student reads.
  */
-function figureDTOFor(
-  percent: number | null,
-  evidenceCount: number,
-  weightSum: number
-): MasteryFigureDTO {
+function figureDTOFor(figure: {
+  percent: number | null;
+  observedPercent: number | null;
+  range: { low: number; high: number } | null;
+  evidenceCount: number;
+  weightSum: number;
+}): MasteryFigureDTO {
+  const { percent, observedPercent, range, evidenceCount, weightSum } = figure;
   const tier = evidenceTierFor({ evidenceCount, weightSum });
   const { label, disclosure } = TIER_DISCLOSURE[tier];
 
   return {
     percent,
+    ...displayPercentFor(percent, tier),
+    observedPercent,
+    range: range
+      ? { low: roundedPercentFor(range.low, tier), high: roundedPercentFor(range.high, tier) }
+      : null,
     evidenceCount,
+    effectiveSessions: weightSum,
     tier,
+    confidence: TIER_CONFIDENCE[tier],
     disclosure,
     tierLabel: label,
   };
@@ -234,16 +280,20 @@ function competencyDTOFor(
     label: catalogEntry.label,
     description: catalogEntry.description,
     order: catalogEntry.order,
-    lifetime: figureDTOFor(
-      result.lifetimePercent,
-      result.lifetimeEvidenceCount,
-      result.lifetimeWeightSum
-    ),
-    current: figureDTOFor(
-      result.currentPercent,
-      result.currentEvidenceCount,
-      result.currentWeightSum
-    ),
+    lifetime: figureDTOFor({
+      percent: result.lifetimePercent,
+      observedPercent: result.lifetimeObservedPercent,
+      range: result.lifetimeRange,
+      evidenceCount: result.lifetimeEvidenceCount,
+      weightSum: result.lifetimeWeightSum,
+    }),
+    current: figureDTOFor({
+      percent: result.currentPercent,
+      observedPercent: result.currentObservedPercent,
+      range: result.currentRange,
+      evidenceCount: result.currentEvidenceCount,
+      weightSum: result.currentWeightSum,
+    }),
     lastContributionAt: result.lastContributionAt
       ? result.lastContributionAt.toISOString()
       : null,
@@ -261,6 +311,10 @@ function competencyDTOFor(
     })),
     windowChange: {
       startPercent: result.windowStartLifetimePercent,
+      startDisplay:
+        result.windowStartLifetimePercent === null
+          ? null
+          : `${Math.round(result.windowStartLifetimePercent)}%`,
       delta: result.windowDelta,
     },
     drivers: result.windowDrivers.map((driver) => driverDTOFor(driver, links)),
@@ -310,6 +364,9 @@ export function toMasteryDTO(
       delta: entry.windowDelta,
       windowStartPercent: competency.windowChange.startPercent,
       lifetimePercent: competency.lifetime.percent,
+      windowStartDisplay: competency.windowChange.startDisplay,
+      lifetimeDisplay:
+        competency.lifetime.percent === null ? competency.lifetime.display : `${Math.round(competency.lifetime.percent)}%`,
       drivers: competency.drivers,
     };
   });
@@ -319,6 +376,20 @@ export function toMasteryDTO(
     overall: {
       lifetimePercent: result.overallLifetimePercent,
       currentPercent: result.overallCurrentPercent,
+      lifetime: figureDTOFor({
+        percent: result.overallLifetimePercent,
+        observedPercent: null,
+        range: null,
+        evidenceCount: result.overallLifetimeEvidence.count,
+        weightSum: result.overallLifetimeEvidence.weightSum,
+      }),
+      current: figureDTOFor({
+        percent: result.overallCurrentPercent,
+        observedPercent: null,
+        range: null,
+        evidenceCount: result.overallCurrentEvidence.count,
+        weightSum: result.overallCurrentEvidence.weightSum,
+      }),
     },
     window: {
       days: result.windowDays,
@@ -341,7 +412,7 @@ export interface CompetencySincePlanDTO {
   delta: number | null;
   direction: "up" | "down" | "flat" | null;
   sinceEvidenceCount: number;
-  /** Weighted mean of only the evidence since the plan; null when none. */
+  /** What was actually scored since the plan (plain average); null when none. */
   sincePercent: number | null;
   /** Since-plan figures split into path learning and live practice. */
   sinceBySource: {
@@ -384,8 +455,8 @@ export function toSincePlanDTO(args: {
       return {
         competencyKey: r.competencyKey,
         label: entry.label,
-        baseline: figureDTOFor(r.baseline.percent, r.baseline.evidenceCount, r.baseline.weightSum),
-        now: figureDTOFor(r.now.percent, r.now.evidenceCount, r.now.weightSum),
+        baseline: figureDTOFor(r.baseline),
+        now: figureDTOFor(r.now),
         delta: r.delta,
         direction: r.delta === null ? null : r.delta > 0 ? "up" : r.delta < 0 ? "down" : "flat",
         sinceEvidenceCount: r.sinceEvidenceCount,

@@ -17,6 +17,7 @@
     "verify:live-resume-attribution": "tsx scripts/verify-live-resume-attribution.ts",
     "test:e2e": "playwright test",
     "verify:answer-level": "tsx scripts/verify-answer-level.ts",
+    "verify:moments-clock": "tsx scripts/verify-moments-clock.ts",
     "verify:route-contract": "tsx scripts/verify-route-contract.ts"
   },
   "prisma": {

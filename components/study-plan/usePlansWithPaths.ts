@@ -7,11 +7,16 @@
  * Uses only the existing routes, so auth and ownership scoping are exactly
  * theirs. A plan whose path fetch fails keeps its own `pathError` and never
  * blocks the rest of the list.
+ *
+ * Every consumer receives each `plan.title` as its display title, unique in
+ * this list (`withDisplayTitles`); the stored title stays in `state` so a plan
+ * added later can still collide with it correctly.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { StudyPlanSummaryDTO } from "@/lib/study-plan/plan-dto";
 import type { PathViewDTO } from "@/components/study-plan/PathPanel";
+import { withDisplayTitles } from "@/lib/study-plan/title";
 
 export interface PlanWithPath {
   plan: StudyPlanSummaryDTO;
@@ -124,5 +129,11 @@ export function usePlansWithPaths() {
     );
   }, []);
 
-  return { state, reload: load, setPathFor, addPlan };
+  const titledState = useMemo<PlansState>(() => {
+    if (state.status !== "loaded") return state;
+    const plans = withDisplayTitles(state.items.map((item) => item.plan));
+    return { ...state, items: state.items.map((item, index) => ({ ...item, plan: plans[index]! })) };
+  }, [state]);
+
+  return { state: titledState, reload: load, setPathFor, addPlan };
 }

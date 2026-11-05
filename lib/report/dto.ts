@@ -2,6 +2,7 @@ import { asStructuredReport, type StructuredReport } from "@/lib/report/structur
 import { asInputSnapshot, asScoreMap, type InputSnapshot, type ScoreMap } from "@/lib/report/snapshot";
 import { DISENGAGEMENT_CAUSES, type DisengagementEpisode } from "@/lib/engine/disengagement";
 import { sanitizeOutcomeQuotes } from "@/lib/report/quote-sanitizer";
+import type { ReportMoments } from "@/lib/report/moments";
 import type { InteractionReport } from "@prisma/client";
 import type {
   CameraMode,
@@ -104,6 +105,13 @@ export interface ReportDTO {
    * rows, which fall back to rendering `reportMarkdown`. */
   reportStructured: StructuredReport | null;
   reportMarkdown: string | null;
+  /**
+   * The Moments section's timeline clock and per-answer excerpts, read from
+   * the stored transcript. Only the single-report read fills this (see
+   * `lib/report/moments-loader.ts`); it stays `null` on lists, on unfinished
+   * reports, and whenever the transcript is missing or unreadable.
+   */
+  moments?: ReportMoments | null;
   failureReason: string | null;
   evalModel: string | null;
   startedAt: string; // ISO
@@ -434,6 +442,7 @@ export function toReportDto(row: InteractionReport): ReportDTO {
     elapsedSeconds: computeElapsedSeconds(startedAt, completedAt),
     reportStructured: asStructuredReport(row.reportStructured),
     reportMarkdown: row.reportMarkdown,
+    moments: null,
     failureReason: row.failureReason,
     evalModel: row.evalModel,
     startedAt,

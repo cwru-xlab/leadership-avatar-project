@@ -18,7 +18,8 @@ import {
 } from "@/components/practice/ReportChrome";
 import { listRubricDimensionsForSlug } from "@/lib/engine/resolve";
 import type { ReportDTO } from "@/lib/report/dto";
-import { formatReportWhen, typeLabelForReport } from "@/lib/report/title";
+import { displayReportTitle, formatReportWhen, typeLabelForReport } from "@/lib/report/title";
+import { reportsListHref } from "@/lib/report/filters";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { RubricDimension } from "@/lib/engine/types";
 import { routes } from "@/lib/routes";
@@ -219,6 +220,13 @@ export default function PracticeReportPage({
 
   const typeLabel = typeLabelForReport(report?.typeSlug ?? typeSlug);
 
+  // Shared with the reports list. The subtitle only adds what the title doesn't say.
+  const reportTitle = report
+    ? displayReportTitle({ title: report.title, typeSlug: report.typeSlug, input: report.input })
+    : isInterviewChrome
+      ? "Your interview report"
+      : "Your practice report";
+
   if (unknownType) {
     return (
       <ReportShell
@@ -296,15 +304,16 @@ export default function PracticeReportPage({
 
   return (
     <ReportShell
-      title={isInterviewChrome ? "Your interview report" : "Your practice report"}
+      title={reportTitle}
       subtitle={[
-        interviewerName ? `${typeLabel} with ${interviewerName}` : typeLabel,
+        reportTitle.startsWith(typeLabel) ? null : typeLabel,
+        interviewerName && !reportTitle.includes(interviewerName) ? `with ${interviewerName}` : null,
         report?.completedAt ? formatReportWhen(report.completedAt) : null,
       ]
         .filter(Boolean)
         .join(" · ")}
       aiLabel={report?.status === "READY"}
-      onBackToReports={() => router.push(routes.reports())}
+      onBackToReports={() => router.push(reportsListHref())}
       onPracticeAgain={
         isInterviewChrome
           ? () => router.push(routes.interview(typeSlug))
@@ -351,6 +360,7 @@ export default function PracticeReportPage({
           markdown={report.reportMarkdown}
           scores={scores}
           metrics={report.metrics ?? null}
+          moments={report.moments ?? null}
           showInterviewPaceTarget={report.input?.kind === "interview"}
         />
       ) : report?.status === "FAILED" ? (
@@ -549,7 +559,9 @@ function ReportShell({
             {title}
           </h1>
           {(subtitle || aiLabel || setup) && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14.5px] text-muted">
+            // `relative` anchors Session setup's panel at phone width. The panel floats, so
+            // opening it leaves this line, the title and "Practice again" where they are.
+            <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14.5px] text-muted">
               {subtitle && <span>{subtitle}</span>}
               {aiLabel && (
                 <span className="rounded-sm bg-ai/10 px-2 py-0.5 text-xs font-semibold text-ai">

@@ -158,14 +158,17 @@ function levelNumber(level: LevelResult): 1 | 2 | 3 | 4 | 5 {
 /**
  * How far the recent-form figure sits between this level's floor and the next
  * level, so a small gain from one path step is visible even when the level
- * itself does not change.
+ * itself does not change. When the figure already clears the next level and
+ * only evidence holds the label back, the line says how many sessions confirm
+ * it (points to go would read "0 pts").
  */
 function LevelProgress({ level, wide = false }: { level: LevelResult; wide?: boolean }) {
   const { percent, levelFloorPercent, nextLevelAtPercent } = level;
   if (percent === null || levelFloorPercent === null || nextLevelAtPercent === null) return null;
   const span = nextLevelAtPercent - levelFloorPercent;
   const fill = span > 0 ? Math.min(1, Math.max(0, (percent - levelFloorPercent) / span)) : 0;
-  const toGo = Math.max(0, Math.ceil((nextLevelAtPercent - percent) * 10) / 10);
+  const toGo = Math.max(1, Math.ceil(nextLevelAtPercent - percent));
+  const confirm = level.toConfirm;
   return (
     <span className={clsx("inline-flex items-center gap-2 font-normal text-muted", wide && "w-full flex-col items-stretch gap-1.5")}>
       <span
@@ -179,7 +182,9 @@ function LevelProgress({ level, wide = false }: { level: LevelResult; wide?: boo
         <span className="block h-full rounded-full bg-true-blue" style={{ width: `${Math.round(fill * 100)}%` }} />
       </span>
       <span className="text-xs">
-        {toGo} pts to Lv {(level.level ?? 0) + 1}
+        {confirm
+          ? `${confirm.sessions} more ${confirm.live ? "live " : ""}${confirm.sessions === 1 ? "session" : "sessions"} to confirm Lv ${confirm.level}`
+          : `${level.provisional ? "About " : ""}${toGo} ${toGo === 1 ? "pt" : "pts"} to Lv ${(level.level ?? 0) + 1}`}
       </span>
     </span>
   );
@@ -221,7 +226,7 @@ export function LevelBadge({ level }: { level: LevelResult | undefined }) {
           {level.level}
         </span>
         {level.name}
-        {level.provisional ? <span className="font-normal text-muted">· provisional</span> : null}
+        {level.provisional ? <span className="font-normal text-muted">· early read</span> : null}
       </span>
       <LevelProgress level={level} />
     </span>

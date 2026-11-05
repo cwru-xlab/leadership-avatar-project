@@ -204,9 +204,11 @@ export function createVocalCapture(): VocalCaptureHandle {
 
   // Turn/coverage state.
   let spokenTurns = 0;
-  /** Capture-clock ms at which the engine was constructed; per-turn
-   * `start_s` values are relative to this, matching `VisualEpisode`. */
+  /** Ms at which the engine was constructed; per-turn `start_s` values are
+   * relative to this. It is earlier than visual capture, so they do not share
+   * `VisualEpisode`'s clock. */
   const captureStartMs = performance.now();
+  const captureStartedAtEpochMs = Date.now();
   /** Set by `beginTurnRecording`, consumed by the next `submitSpokenTurn`. */
   let pendingTurnStartS: number | null = null;
   let pendingTurnRmsIndex = 0;
@@ -419,6 +421,7 @@ export function createVocalCapture(): VocalCaptureHandle {
         analyzed_turns: analysedTurns,
         spoken_seconds: spokenSecondsTotal,
         analyzer_error: analyzerErrorFlag,
+        capture_started_at_ms: captureStartedAtEpochMs,
       },
     };
   }
