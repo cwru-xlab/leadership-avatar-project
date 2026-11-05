@@ -26,11 +26,11 @@ import type {
  *
  *   eye_contact_pct     (Eye contact): <30 Limited, 30-50 Developing,
  *                        50-70 Solid, 70-85 Strong, >=85 Excellent.
- *                        Centred on the evaluator prompt's own stated
+ *                        Centered on the evaluator prompt's own stated
  *                        70-80% target (`lib/interview/prompts.ts:229`).
  *   camera_centered_pct (Framing):     <40 Often off-frame, 40-65 Inconsistent,
- *                        65-80 Mostly centred, 80-92 Well centred,
- *                        >=92 Consistently centred.
+ *                        65-80 Mostly centered, 80-92 Well centered,
+ *                        >=92 Consistently centered.
  *   eye_contact_pct     (Eye contact): whole-session forward gaze.
  *   attentiveness_pct   (Attention):   listening stretches only.
  *                        <40 Often looking away, 40-65 Intermittent,
@@ -94,9 +94,9 @@ function bandFraming(pctRaw: number): string {
   const pct = clampFinite(pctRaw, 0, 100);
   if (pct < 40) return "Often off-frame";
   if (pct < 65) return "Inconsistent";
-  if (pct < 80) return "Mostly centred";
-  if (pct < 92) return "Well centred";
-  return "Consistently centred";
+  if (pct < 80) return "Mostly centered";
+  if (pct < 92) return "Well centered";
+  return "Consistently centered";
 }
 
 /** Minimum listening samples before an attentiveness figure is worth
@@ -258,7 +258,7 @@ export function visualBands(m: VisualMetrics): MetricBandRow[] {
 const EPISODE_LABELS: Record<VisualEpisode["kind"], string> = {
   off_camera: "Off camera",
   gaze_away: "Looking away",
-  off_center: "Off centre in frame",
+  off_center: "Off center in frame",
   multiple_faces: "Another person in frame",
   high_movement: "Moving around a lot",
   excessive_gesturing: "A lot of hand movement",

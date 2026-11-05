@@ -191,7 +191,7 @@ async function main() {
     );
   });
 
-  console.log("\n=== Full triples (for human judgement) ===\n");
+  console.log("\n=== Full triples (for human judgment) ===\n");
   triples.forEach((t, i) => {
     console.log(`### Triple ${i + 1}`);
     console.log(`HINT: ${t.hint}`);

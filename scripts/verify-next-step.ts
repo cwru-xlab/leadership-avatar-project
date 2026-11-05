@@ -581,7 +581,7 @@ console.log("\n10b. STORED REASONS MATCH THE STORED STEP KIND");
     reasonForDegradedCheck(original.selectionReason) === rewritten
   );
 
-  // PLANTED REGRESSION: the old behaviour (kind changed, reason kept) must
+  // PLANTED REGRESSION: the old behavior (kind changed, reason kept) must
   // be detected.
   const planted = selection.steps.map((s) =>
     s.kind === "KNOWLEDGE_CHECK" ? { ...s, kind: "UNAIDED_SESSION" } : s

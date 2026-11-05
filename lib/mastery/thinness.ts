@@ -82,7 +82,7 @@ export const TIER_DISCLOSURE: Record<
   THIN: {
     label: "Early read",
     disclosure:
-      "One or two sessions can't settle a skill, so this starts near the middle of the scale and moves toward your real scores as you practise.",
+      "One or two sessions can't settle a skill, so this starts near the middle of the scale and moves toward your real scores as you practice.",
   },
   EMERGING: {
     label: "Taking shape",

@@ -22,7 +22,7 @@ import type { MasteryContributionRow } from "../mastery/ledger";
 /**
  * GOAL_DEFAULTS — PROVISIONAL UNTIL CALIBRATED.
  *
- * Neither number has been validated against real student behaviour.
+ * Neither number has been validated against real student behavior.
  * Derivation:
  *   - `dailyActivities: 1` — one activity a day is achievable alongside a
  *     full course load and is the smallest unit that still means something;
@@ -65,7 +65,7 @@ export interface GoalProgress {
  * local day boundaries without adding a date library — `now` and `timeZone`
  * are both required parameters precisely so a "today" computed from the
  * server's own clock/zone (typically UTC) never disagrees with the
- * student's actual local day: a student practising at 8pm Eastern must not
+ * student's actual local day: a student practicing at 8pm Eastern must not
  * be told their session landed on "tomorrow" because the server is in UTC.
  */
 function localParts(date: Date, timeZone: string): {

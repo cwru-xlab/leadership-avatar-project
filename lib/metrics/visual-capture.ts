@@ -32,7 +32,7 @@
  * constructed, or does not reply `ready` within `WORKER_INIT_TIMEOUT_MS`, this
  * engine falls back to the original synchronous main-thread landmarker path
  * unchanged (`runMainThreadTick`/`initLandmarker`) - a technical failure to
- * start the worker must degrade to Phase 10 behaviour, never to
+ * start the worker must degrade to Phase 10 behavior, never to
  * `analyzer_error` (REQ-42's discipline: a technical fallback is not the
  * student's poor performance). Both paths funnel their result into the same
  * `applyFaceResult`, so the two paths cannot silently diverge in what they
@@ -394,7 +394,7 @@ const DROPPED_TICK_GAP_MULTIPLIER = 1.8;
  * a single dropped frame cannot create one. */
 const EPISODE_WINDOW_SECONDS = 5;
 /** An excursion must persist at least this long to be reported. Below it,
- * we are describing noise rather than behaviour. */
+ * we are describing noise rather than behavior. */
 const MIN_EPISODE_SECONDS = 10;
 /** How many consecutive non-tripping windows an episode may absorb without
  * ending. Without this, a student who glances back at the camera once mid-way
@@ -455,7 +455,7 @@ export interface VisualRates {
  * `eye_contact_pct` covers the whole session deliberately — engagement is
  * expected throughout, not only while the student holds the floor.
  * `attentiveness_pct` is the one window-scoped rate: it isolates the stretches
- * where someone ELSE was talking, so listening behaviour is visible as its own
+ * where someone ELSE was talking, so listening behavior is visible as its own
  * number rather than only as part of the session average.
  */
 export function computeVisualRates(counts: VisualSampleCounts): VisualRates {
@@ -897,7 +897,7 @@ export function computeGestureRates(counts: GestureCounts): {
  * `eating` also needs both its inputs: a mouth position on most hands ticks, and
  * jaw readings on most face ticks. Hand-to-mouth alone does not clear it.
  *
- * "Measured" never means "the behaviour did not occur". See RULE ON CONDUCT in
+ * "Measured" never means "the behavior did not occur". See RULE ON CONDUCT in
  * the evaluator prompts.
  */
 export function computeConductSignalsMeasured(counts: {
@@ -1066,7 +1066,7 @@ function windowTrips(w: CaptureWindow, kind: VisualEpisodeKind): boolean {
     // sample count, never by wall-clock time). At the hands model's real
     // ~1.5 Hz achievable rate, a 5s window holds only ~7-8 real ticks; just 2-3
     // of them registering as gesture events (a single emphatic gesture
-    // spanning a couple of ticks — ordinary, not excessive, behaviour) was
+    // spanning a couple of ticks — ordinary, not excessive, behavior) was
     // enough to extrapolate past 25/min, which is exactly why real sessions
     // whose SESSION-WIDE rate measured 4, 9, and 12.2/min still tripped
     // `excessive_gesturing` episodes that read to a student as "told off for
@@ -1121,7 +1121,7 @@ function windowTrips(w: CaptureWindow, kind: VisualEpisodeKind): boolean {
  * without ending, so one glance back at the camera during a long absence does
  * not shatter one episode into three. Trailing non-tripping windows are
  * trimmed back off before the run is measured, so the reported end time is
- * when the behaviour actually stopped rather than when tolerance ran out.
+ * when the behavior actually stopped rather than when tolerance ran out.
  *
  * `severity` is the fraction of windows inside the run that genuinely tripped
  * — which is why the gap tolerance matters twice: it keeps the episode whole
@@ -2969,7 +2969,7 @@ export function createVisualCapture(
       // to be TOLD what was never looked at. An empty `posture_flags` alone
       // reads as "we checked and it was clean", which is exactly how a session
       // with several people gesturing obscenely earned a commendation for
-      // having no distracting behaviours.
+      // having no distracting behaviors.
       //
       // 12-07: both remaining booleans are real per-session usability, not
       // a standing placeholder. A session is allowed to declare either of

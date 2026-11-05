@@ -74,7 +74,7 @@ export default function MetricsConsentDialog({
               and how steady your volume is.
             </li>
             <li>
-              Your video and audio are analysed as they happen and then
+              Your video and audio are analyzed as they happen and then
               discarded. Nothing is recorded, saved, or uploaded — only the
               numbers above are kept, on your own report.
             </li>

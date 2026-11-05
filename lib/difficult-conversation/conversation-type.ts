@@ -17,7 +17,7 @@ import {
 /**
  * PROVISIONAL UNTIL CALIBRATED. Evidence: fixture arithmetic in
  * scripts/verify-disengagement.ts and scripts/verify-hostility-detector.ts
- * only — no live session and no human-labelled transcript. 18-VALIDATION.md's
+ * only — no live session and no human-labeled transcript. 18-VALIDATION.md's
  * calibration policy governs: do not retune this, the weights below, or the
  * cue acceleration without explicit human calibration approval.
  */
@@ -27,7 +27,7 @@ export const DIFFICULT_CONVERSATION_TYPE: InteractionTypeConfig = {
   slug: "difficult-conversation",
   name: "Courageous Conversations",
   description:
-    "Practise a hard interpersonal conversation in character — clarity, empathy, and holding the line under real pushback.",
+    "Practice a hard interpersonal conversation in character — clarity, empathy, and holding the line under real pushback.",
   // Four extras → eight dimensions total. Research Section G: no
   // dimension-count cap (pitch-deck already ships nine). Eight cards is a
   // report-layout legibility concern for plan 15-09, not a technical one.

@@ -1,7 +1,7 @@
 /**
  * Coach persona system prompt (REQ-113).
  *
- * Authority: 22-CONTEXT.md (locked behaviours) and 22-COACH-LAYER-DECISION.md.
+ * Authority: 22-CONTEXT.md (locked behaviors) and 22-COACH-LAYER-DECISION.md.
  * HARD CONTAINMENT RULE: a coach must never appear in any other kind of
  * session. This module is therefore imported only from `lib/study-plan/coached/`
  * and the coached route; `scripts/verify-coach-containment.ts` proves that
@@ -233,7 +233,7 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
     );
   } else if (input.escalation === "CLOSE") {
     lines.push(
-      "ESCALATION: that was the last try. Close kindly with LEG_DONE: one sentence of honest credit for the effort, then one line naming the single thing to practise next. No verdict and no number.",
+      "ESCALATION: that was the last try. Close kindly with LEG_DONE: one sentence of honest credit for the effort, then one line naming the single thing to practice next. No verdict and no number.",
     );
   }
   if (input.diagnosisCapReached && !input.isOpening) {

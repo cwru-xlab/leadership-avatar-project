@@ -117,9 +117,9 @@ function visual(over: Partial<VisualMetrics> = {}): VisualMetrics {
 }
 
 console.log("\n1. Rate arithmetic — the reported production failure");
-// 10-minute session, face visible only a fifth of the time, but centred
+// 10-minute session, face visible only a fifth of the time, but centered
 // whenever it WAS visible. The old denominator (face_detected_samples)
-// reported 100% and the report told the student "Consistently centred".
+// reported 100% and the report told the student "Consistently centered".
 {
   const c = counts({
     processedSamples: 3600,
@@ -150,7 +150,7 @@ console.log("\n1. Rate arithmetic — the reported production failure");
     listeningSamples: 1800,
     listeningForwardSamples: 1600,
   }));
-  // 75% forward gaze, 97% centred, 99% present.
+  // 75% forward gaze, 97% centered, 99% present.
   const goodRows = visualBands(visual({
     eye_contact_pct: r.eyeContactPct,
     camera_centered_pct: r.cameraCenteredPct,
@@ -158,7 +158,7 @@ console.log("\n1. Rate arithmetic — the reported production failure");
   }));
   check("good session still bands well",
     ["Eye contact", "Framing", "On camera"].map((l) => bandFor(goodRows, l)),
-    ["Strong", "Consistently centred", "Present throughout"]);
+    ["Strong", "Consistently centered", "Present throughout"]);
 }
 
 check("zero processed samples never divides by zero",
@@ -209,7 +209,7 @@ check("the UNSCALED pre-fix accounting would have wrongly starved this same heal
       // Pre-fix: expected_samples came from the WHOLE tick stream
       // (trackLiveSeconds * METRICS_SAMPLE_HZ) with no schedule-share
       // scaling. Reproduced here literally as a historical marker of the
-      // bug's shape, NOT current production behaviour.
+      // bug's shape, NOT current production behavior.
       expected_samples: 3600,
       processed_samples: 1790,
       face_detected_samples: 1790,
@@ -299,7 +299,7 @@ console.log("\n5. Whole-session eye contact + listening breakdown");
   check("thin listening window omits Attention",
     rows.some((b) => b.label === "Attention"), false);
   check("but keeps Eye contact", bandFor(rows, "Eye contact"), "Strong");
-  check("and keeps Framing", bandFor(rows, "Framing"), "Well centred");
+  check("and keeps Framing", bandFor(rows, "Framing"), "Well centered");
 }
 
 console.log("\n6. Episode extraction");
@@ -342,7 +342,7 @@ function win(startS: number, over: Partial<CaptureWindow> = {}): CaptureWindow {
   check("and records it as less than fully solid", eps[0].severity < 1, true);
 }
 {
-  // Below the minimum duration — noise, not behaviour.
+  // Below the minimum duration — noise, not behavior.
   const windows = [win(0), win(5, { detected: 0, forward: 0, centered: 0 }), win(10), win(15)];
   check("short excursion is dropped",
     extractEpisodes(windows, VISUAL_EPISODE_KINDS).length, 0);
@@ -619,7 +619,7 @@ console.log(
   // out-of-frame counts over total pose ticks — NOT the raw per-landmark x/y
   // coordinates. So the coordinates used in the per-tick predicate assertion
   // further down are ILLUSTRATIVE of the out-of-frame condition those
-  // aggregates establish, and are labelled as such; they are not transcribed
+  // aggregates establish, and are labeled as such; they are not transcribed
   // readings. Every session-level assertion uses the transcribed counts
   // directly.
   //
@@ -894,7 +894,7 @@ console.log(
 );
 {
   // THE READING THIS SECTION REPLAYS. Session A, run by the user on
-  // 2026-10-03 as 12-11 Task 2: fully in frame, well centred, upright for
+  // 2026-10-03 as 12-11 Task 2: fully in frame, well centered, upright for
   // ~20s, then a hard and unmistakable HELD slump. 108.0s, 162 pose ticks,
   // 131 of them post-baseline and all 131 scored. Signals measured:
   // shoulder_line + forward_head. Baseline (31 samples): tilt = 4.307 deg,
@@ -924,7 +924,7 @@ console.log(
     n === null ? null : Math.round(n * 1000) / 1000;
   // The aggregation as it stood before 12-11 Task 3, kept here so the
   // assertions can state the burial as an arithmetic FACT rather than assert
-  // only the fixed behaviour. A test that shows only the new value cannot
+  // only the fixed behavior. A test that shows only the new value cannot
   // demonstrate that the old one was wrong.
   const preFixMean = (perSignal: Partial<Record<string, number>>) => {
     const values = Object.values(perSignal).filter(
@@ -1393,7 +1393,7 @@ function reading(over: Partial<PostureReading> = {}): PostureReading {
   // (12-08 Task 1 checkpoint, Defect A root cause) — pose only receives 1/4
   // of SCHEDULE's ticks (~1.5 Hz effective), so 60 samples inside the 20s
   // POSTURE_BASELINE_WINDOW_S was structurally unreachable and the baseline
-  // could never establish for ANY session, regardless of behaviour.
+  // could never establish for ANY session, regardless of behavior.
   const tooFew = Array.from({ length: 14 }, (_, i) =>
     reading({ tS: i * 0.25, shoulderTiltDeg: 5 })
   );
@@ -1563,7 +1563,7 @@ console.log("\n18. New episode kinds extract through the existing machinery");
 }
 {
   // Anchored on a real recording: session S4 measured handsNearFacePct 26 and
-  // was ordinary behaviour, not deliberate face-touching. It must stay silent.
+  // was ordinary behavior, not deliberate face-touching. It must stay silent.
   const windows = [
     win(0, { handsDetected: 100, nearFaceCount: 26 }),
     win(5, { handsDetected: 100, nearFaceCount: 26 }),
@@ -1585,7 +1585,7 @@ console.log("\n18. New episode kinds extract through the existing machinery");
 }
 {
   // Below MIN_EPISODE_SECONDS — a single 5s tripped window is noise, not
-  // behaviour, for the new kinds too.
+  // behavior, for the new kinds too.
   const windows = [win(0, { gestureSamples: 10 }), win(5)];
   check("a single tripped window is dropped (below MIN_EPISODE_SECONDS)",
     extractEpisodes(windows, VISUAL_EPISODE_KINDS)

@@ -22,7 +22,7 @@
  * 21-CONTEXT.md locks mastery as BOTH lifetime and current — "a durable
  * record accumulating across every session and study plan, alongside a
  * current-window figure reflecting recent form" — and this phase's hard
- * constraint is deterministic derivation over model judgement for anything
+ * constraint is deterministic derivation over model judgment for anything
  * consequential. A mastery percentage shown to a student, driving which
  * exercise they are given next, is as consequential as this phase gets. So
  * this module:

@@ -18,7 +18,7 @@
  * decision 2: the posting is interviewer context only. It is NOT sent to the
  * evaluator and does NOT affect the report in this version, and the panel must
  * say so. Do not add promises of matching, gap analysis, keyword scoring, or
- * tailored feedback to this copy without shipping the behaviour first.
+ * tailored feedback to this copy without shipping the behavior first.
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
@@ -160,7 +160,7 @@ export default function JobDescriptionStep({
               id="job-description-heading"
               className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             >
-              Practise for the actual posting
+              Practice for the actual posting
             </h2>
             <p className="mt-3 max-w-xl text-[15px] leading-7 text-muted">
               Paste the job posting you are targeting, or upload it as a PDF.

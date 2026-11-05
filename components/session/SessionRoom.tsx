@@ -10,7 +10,7 @@
  *
  * Every default className here is the practice shell's string, byte for byte;
  * the optional `className` overrides exist so a caller can change the frame's
- * responsive behaviour without the practice room changing at all.
+ * responsive behavior without the practice room changing at all.
  *
  * REQ-85: nothing here renders a meter, a level indicator or a score.
  */
