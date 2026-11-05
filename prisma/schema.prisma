@@ -373,6 +373,7 @@ model InteractionReport {
   // Coding-only private evidence: bounded source checkpoints plus final source.
   // Never expose this through ReportDTO or a public report route.
   technicalEvidence Json?
+  technicalHints    TechnicalInterviewHint[]
 
   // Three separate nullable pointers, deliberately NOT converged into one
   // tagged-union pointer (discretion item, decided here): `transcriptKey`
@@ -457,6 +458,22 @@ model InteractionReport {
 
   @@index([userId, createdAt])
   @@index([userId, typeSlug])
+}
+
+/// Server-issued coding hint ledger. The database, rather than a JSON
+/// read/modify/write cycle, owns retry idempotency and the two-tier limit.
+model TechnicalInterviewHint {
+  id         String   @id @default(uuid())
+  reportId   String
+  report     InteractionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  requestKey String
+  tier       Int
+  hintText   String   @db.Text
+  issuedAt   DateTime @default(now())
+
+  @@unique([reportId, requestKey])
+  @@unique([reportId, tier])
+  @@index([reportId, issuedAt])
 }
 
 // ============================================================================

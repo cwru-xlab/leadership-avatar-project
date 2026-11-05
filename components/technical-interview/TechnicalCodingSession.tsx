@@ -41,11 +41,12 @@ export default function TechnicalCodingSession({ reportId, avatarConfig }: { rep
   useEffect(() => {
     let cancelled = false;
     void fetch(`/api/practice/report/${reportId}`, { cache: "no-store" })
-      .then(async (response) => ({ response, data: await response.json() as { report?: ReportDTO } }))
+      .then(async (response) => ({ response, data: await response.json() as { report?: ReportDTO; technicalHintCount?: number } }))
       .then(({ response, data }) => {
         const input = data.report?.input;
         if (!cancelled && response.ok && input?.kind === "technical-coding") {
           setSnapshot(input);
+          setHintsUsed(Math.max(0, Math.min(2, data.technicalHintCount ?? 0)));
           try {
             const saved = window.localStorage.getItem(`technical-coding:${reportId}:source`);
             setSource(saved || input.assignment.starterCode);
@@ -108,12 +109,12 @@ export default function TechnicalCodingSession({ reportId, avatarConfig }: { rep
     checkpoints: [{ source }],
   }), [source]);
 
-  const checkpoint = useCallback(async (nextTurns: Array<{ role: "user" | "assistant"; content: string }>) => {
+  const checkpoint = useCallback(async () => {
     await fetch("/api/practice/session/checkpoint", {
       method: "POST",
       keepalive: true,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reportId, turns: nextTurns, progress: {}, technicalEvidence: evidence() }),
+      body: JSON.stringify({ reportId, turns: [], progress: {}, technicalCheckpoints: evidence() }),
     }).catch(() => {});
   }, [evidence, reportId]);
 
@@ -131,8 +132,10 @@ export default function TechnicalCodingSession({ reportId, avatarConfig }: { rep
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reportId,
-          messages: nextTurns,
-          engine: { typeSlug: "technical-coding", turnState: { startedAt: Date.now() } },
+          // The server receives a new candidate turn only. It owns prior
+          // transcript history and every interviewer reply.
+          messages: [{ role: "user", content: trimmed }],
+          engine: { typeSlug: "technical-coding" },
           ...(requestHint ? { technicalHintRequestId: crypto.randomUUID() } : {}),
         }),
       });
@@ -165,7 +168,7 @@ export default function TechnicalCodingSession({ reportId, avatarConfig }: { rep
         setStreamingReply("");
         avatarRef.current?.speak(reply);
         if (requestHint) setHintsUsed((value) => Math.min(2, value + 1));
-        void checkpoint(completedTurns);
+        void checkpoint();
       }
     } catch {
       setStreamingReply("Unable to reach the interviewer. Please try again.");
@@ -181,10 +184,10 @@ export default function TechnicalCodingSession({ reportId, avatarConfig }: { rep
       const response = await fetch("/api/practice/session/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reportId, turns, progress: {}, technicalEvidence: evidence(), finalSource: source }),
+        body: JSON.stringify({ reportId, turns: [], progress: {}, technicalCheckpoints: evidence(), finalSource: source }),
       });
       if (!response.ok && response.status !== 409) throw new Error("submit failed");
-      window.location.assign(`/practice/technical-coding/report/${reportId}`);
+      window.location.assign(`/reports/${reportId}`);
     } catch {
       setTerminalLines((lines) => [...lines, "Unable to submit yet. Your code remains available; try again."]);
       setSubmitting(false);
