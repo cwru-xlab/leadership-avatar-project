@@ -313,7 +313,7 @@ function win(startS: number, over: Partial<CaptureWindow> = {}): CaptureWindow {
     // new body kinds too.
     poseProcessed: 0, driftMean: 0, gestureSum: 0, gestureSamples: 0,
     handsDetected: 0, nearFaceCount: 0, phoneCount: 0,
-    phoneProcessed: 0,
+    phoneProcessed: 0, mouthMovementSum: 0, mouthMovementSamples: 0,
     ...over,
   };
 }
@@ -396,13 +396,13 @@ console.log("\n9. resolveNotMeasured");
 // hand_gestures/body_posture (12-06) and phone_checking (12-07) are the two
 // remaining per-session conditional entries.
 check("all-false input returns the full not-measured vocabulary",
-  resolveNotMeasured({ handSignals: false, postureSignals: false, phone: false }),
-  ["hand_gestures", "body_posture", "phone_checking", ...VISUAL_NOT_MEASURED]);
+  resolveNotMeasured({ handSignals: false, postureSignals: false, phone: false, offensiveGestures: false, eating: false }),
+  ["hand_gestures", "body_posture", "phone_checking", "offensive_gestures", "eating", ...VISUAL_NOT_MEASURED]);
 check("all-true input returns exactly the two permanent entries",
-  resolveNotMeasured({ handSignals: true, postureSignals: true, phone: true }),
+  resolveNotMeasured({ handSignals: true, postureSignals: true, phone: true, offensiveGestures: true, eating: true }),
   ["background_environment", "fidgeting"]);
 check("hand-only input keeps body_posture",
-  resolveNotMeasured({ handSignals: true, postureSignals: false, phone: true })
+  resolveNotMeasured({ handSignals: true, postureSignals: false, phone: true, offensiveGestures: true, eating: true })
     .includes("body_posture"),
   true);
 
@@ -1595,15 +1595,15 @@ console.log("\n18. New episode kinds extract through the existing machinery");
 
 console.log("\n19. resolveNotMeasured wiring (12-06: hands/posture are now conditional)");
 check("a session with no usable pose still lists body_posture",
-  resolveNotMeasured({ handSignals: true, postureSignals: false, phone: true })
+  resolveNotMeasured({ handSignals: true, postureSignals: false, phone: true, offensiveGestures: true, eating: true })
     .includes("body_posture"),
   true);
 check("a session with usable pose AND hands lists neither",
-  resolveNotMeasured({ handSignals: true, postureSignals: true, phone: true })
+  resolveNotMeasured({ handSignals: true, postureSignals: true, phone: true, offensiveGestures: true, eating: true })
     .some((e) => e === "body_posture" || e === "hand_gestures"),
   false);
 check("fidgeting is ALWAYS present regardless of input — permanently retired, not per-session (12-08)",
-  resolveNotMeasured({ handSignals: true, postureSignals: true, phone: true })
+  resolveNotMeasured({ handSignals: true, postureSignals: true, phone: true, offensiveGestures: true, eating: true })
     .includes("fidgeting"),
   true);
 

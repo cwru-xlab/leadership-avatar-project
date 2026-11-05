@@ -225,6 +225,18 @@ function sanitizeNullableNumber(value: unknown, min: number, max: number): numbe
   return n;
 }
 
+/** One optional non-negative observation field: a one-key object when the
+ * incoming value is a real number, otherwise nothing at all. */
+function optionalSeconds<K extends string>(
+  key: K,
+  value: unknown
+): Partial<Record<K, number>> {
+  if (typeof value !== "number" || !Number.isFinite(value)) return {};
+  return { [key]: clampNumber(value, 0, Number.MAX_SAFE_INTEGER) } as Partial<
+    Record<K, number>
+  >;
+}
+
 /**
  * Returns `null` for a missing/garbage observations block, rather than a
  * half-populated object — mirrors `sanitizeVisualCoverage`'s all-or-nothing
@@ -249,6 +261,12 @@ function sanitizeObservations(value: unknown): VisualDescriptiveObservations | n
       -1,
       1
     ),
+    // Emitted ONLY when present, never defaulted to 0: absent means the signal
+    // did not run this session, and a 0 would read as "looked and found nothing".
+    ...optionalSeconds("hand_at_mouth_events", v.hand_at_mouth_events),
+    ...optionalSeconds("mouth_movement_silent_seconds", v.mouth_movement_silent_seconds),
+    ...optionalSeconds("food_or_drink_visible_seconds", v.food_or_drink_visible_seconds),
+    ...optionalSeconds("middle_finger_extended_seconds", v.middle_finger_extended_seconds),
     episodes: sanitizeDescriptiveEpisodes(v.episodes),
   };
 }

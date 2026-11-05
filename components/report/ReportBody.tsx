@@ -45,6 +45,7 @@ import {
   formatTimecode,
   visualBands,
   visualBodyLanguageBands,
+  visualObservationCaveat,
   visualObservationRows,
   vocalBands,
 } from "@/lib/metrics/bands";
@@ -435,13 +436,18 @@ export default function ReportBody({
                   at the section level, never as a per-row tag inside a scored
                   list. Muted treatment only; the tinted panel is reserved for
                   "One thing to practice next time". */}
-              {metrics?.visual && visualObservationRows(metrics.visual).length > 0 && (
+              {/* `timelineVisual`, not `metrics.visual`: the rows quote episode
+                  times, and must read on the same clock as the Moments tab. */}
+              {timelineVisual && visualObservationRows(timelineVisual).length > 0 && (
                 <section className="flex flex-col gap-3">
                   <SectionHeading>Observations</SectionHeading>
                   <p className="text-sm text-muted">
                     Things the camera recorded during the session. These do not affect any score.
+                    {visualObservationCaveat(timelineVisual) && (
+                      <> {visualObservationCaveat(timelineVisual)}</>
+                    )}
                   </p>
-                  <BandList rows={visualObservationRows(metrics.visual)} />
+                  <BandList rows={visualObservationRows(timelineVisual)} />
                 </section>
               )}
             </div>

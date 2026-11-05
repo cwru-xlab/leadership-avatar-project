@@ -28,6 +28,11 @@
  * whether a hand sits inside an expanded face box) — not scoring verdicts. No
  * threshold that decides a SCORE lives in this file.
  *
+ * `middleFingerPoseHands` is the same kind of detection-time reduction: the
+ * joint geometry needs all 21 landmarks, so the reduction to a per-tick count
+ * must happen here (`isMiddleFingerPose`, `hand-mouth-signals.ts`). It decides no
+ * score; nothing in `observations` can.
+ *
  * 12-10 Task 3: `visible.*` on `PoseDetectResult` means OBSERVED IN FRAME,
  * not "the model reported a confident `visibility` score". That distinction
  * was the root cause of an item-7 sign-off failure that survived two
@@ -57,9 +62,17 @@ import {
  * signature. */
 type WasmFileset = Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>;
 import {
+  FOOD_DRINK_LABELS,
+  FOOD_DRINK_SCORE_THRESHOLD,
   HANDS_NEAR_FACE_RADIUS,
+  MOUTH_READING_MAX_AGE_MS,
   PHONE_SCORE_THRESHOLD,
 } from "@/lib/metrics/body-thresholds";
+import {
+  fingertipToLipRatio,
+  isMiddleFingerPose,
+  toIsotropic,
+} from "@/lib/metrics/hand-mouth-signals";
 import {
   isInFrame,
   isLandmarkObservedInFrame,
@@ -103,6 +116,10 @@ export interface FaceDetectResult {
   yawDeg: number | null;
   pitchDeg: number | null;
   poseAvailable: boolean;
+  /** The primary face's `jawOpen` blendshape score (0-1), or null when no face
+   * was found or blendshapes were unavailable. Read only for movement between
+   * ticks, while the student is not speaking: see `stepMouthMovement`. */
+  jawOpen: number | null;
 }
 
 /**
@@ -192,16 +209,32 @@ export interface HandsDetectResult {
     /** Null when no face box is currently available, never a substituted
      * false. */
     nearFace: boolean | null;
+    /** MediaPipe's label for this hand. Matching input only, and unstable on
+     * its own, see `matchHands`. */
+    handedness: "Left" | "Right" | null;
   }>;
+  /** How many hands this tick held the middle-finger shape, counted across ALL
+   * in-frame hands: `primary`'s two-hand selection must not get to discard
+   * the hand this exists to see, including a second person's. */
+  middleFingerPoseHands: number;
+  /** Nearest fingertip of any in-frame hand to the lips, in face-size units.
+   * Null when no hand was in frame or no mouth reading exists. */
+  fingertipToLipRatio: number | null;
+  /** Whether a recent mouth reading existed this tick at all, so "no hand at the
+   * mouth" and "could not tell" remain two different answers. */
+  mouthReadingAvailable: boolean;
 }
 
-/** Scalar-only object (phone) detection payload (12-05). Only the "cell
- * phone" category is ever retained from the 80-class COCO set this model
- * ships - `phoneScore` is the single highest-scoring "cell phone" detection
- * this tick, nothing else from the detector's output survives. */
+/** Scalar-only object detection payload (12-05). `phoneScore` is the single
+ * highest-scoring "cell phone" detection this tick, and `foodOrDrinkPresent` one
+ * boolean across `FOOD_DRINK_LABELS`. Nothing else from the 80-class COCO set
+ * survives. */
 export interface ObjectDetectResult {
   phonePresent: boolean;
   phoneScore: number;
+  /** A cup, bottle, bowl or food label cleared `FOOD_DRINK_SCORE_THRESHOLD`.
+   * A bare boolean: which label, and where, never leave this function. */
+  foodOrDrinkPresent: boolean;
 }
 
 type DetectResult =
@@ -241,6 +274,21 @@ const POSE_LANDMARK = {
  * hand topology); index 0 is always the wrist. */
 const FINGERTIP_LANDMARKS = [4, 8, 12, 16, 20] as const;
 
+/** The two inner-lip midpoints, and the two outer eye corners, in MediaPipe's
+ * fixed 478-point face topology. */
+const FACE_LANDMARK = {
+  UPPER_LIP_INNER: 13,
+  LOWER_LIP_INNER: 14,
+  LEFT_EYE_OUTER: 33,
+  RIGHT_EYE_OUTER: 263,
+} as const;
+
+/** The category name MediaPipe's blendshape model reports jaw opening under. */
+const JAW_OPEN_CATEGORY = "jawOpen";
+
+/** Index of the middle fingertip in the 21-point hand topology. */
+const MIDDLE_FINGERTIP = 12;
+
 let faceLandmarker: FaceLandmarker | null = null;
 let poseLandmarker: PoseLandmarker | null = null;
 let handLandmarker: HandLandmarker | null = null;
@@ -264,6 +312,14 @@ let lastFaceBox: {
   minY: number;
   maxY: number;
 } | null = null;
+
+/** The primary face's lip centre and size from the most recent face tick that
+ * saw one, by the same "persisted scalar" discipline. Unlike `lastFaceBox` this
+ * is NOT cleared when a tick misses the face: a hand over the mouth can cost the
+ * tracker the face at exactly the moment this is needed, so it ages out on
+ * `MOUTH_READING_MAX_AGE_MS` instead. */
+let lastMouth: { x: number; y: number; faceSize: number; timestamp: number } | null =
+  null;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -330,6 +386,7 @@ async function createFaceLandmarker(
     runningMode: "VIDEO",
     numFaces: MAX_TRACKED_FACES,
     outputFacialTransformationMatrixes: true,
+    outputFaceBlendshapes: true,
   });
 }
 
@@ -533,6 +590,7 @@ function detectFace(bitmap: ImageBitmap, timestamp: number): FaceDetectResult {
       yawDeg: null,
       pitchDeg: null,
       poseAvailable: false,
+      jawOpen: null,
     };
   }
 
@@ -546,6 +604,7 @@ function detectFace(bitmap: ImageBitmap, timestamp: number): FaceDetectResult {
       yawDeg: null,
       pitchDeg: null,
       poseAvailable: false,
+      jawOpen: null,
     };
   }
 
@@ -584,7 +643,34 @@ function detectFace(bitmap: ImageBitmap, timestamp: number): FaceDetectResult {
     poseAvailable = true;
   }
 
-  return { faceCount, primary, yawDeg, pitchDeg, poseAvailable };
+  // The eye-corner distance, not the box: a hand over the lower face can stretch
+  // the box, and the eyes are what stays readable then. Corrected for aspect
+  // because the distance runs mostly along x, and the frame is rarely square.
+  const landmarks = result.faceLandmarks[primaryIndex];
+  const aspect = bitmap.height > 0 ? bitmap.width / bitmap.height : 1;
+  const upperLip = landmarks[FACE_LANDMARK.UPPER_LIP_INNER];
+  const lowerLip = landmarks[FACE_LANDMARK.LOWER_LIP_INNER];
+  const leftEye = landmarks[FACE_LANDMARK.LEFT_EYE_OUTER];
+  const rightEye = landmarks[FACE_LANDMARK.RIGHT_EYE_OUTER];
+  lastMouth =
+    upperLip && lowerLip && leftEye && rightEye
+      ? {
+          x: (upperLip.x + lowerLip.x) / 2,
+          y: (upperLip.y + lowerLip.y) / 2,
+          faceSize: Math.hypot(
+            (rightEye.x - leftEye.x) * aspect,
+            rightEye.y - leftEye.y
+          ),
+          timestamp,
+        }
+      : lastMouth;
+
+  const jawOpen =
+    result.faceBlendshapes?.[primaryIndex]?.categories.find(
+      (category) => category.categoryName === JAW_OPEN_CATEGORY
+    )?.score ?? null;
+
+  return { faceCount, primary, yawDeg, pitchDeg, poseAvailable, jawOpen };
 }
 
 /** Runs the pose model on one already-transferred bitmap and reduces the
@@ -758,13 +844,24 @@ function detectHands(
   bitmap: ImageBitmap,
   timestamp: number
 ): HandsDetectResult {
+  const mouth =
+    lastMouth && timestamp - lastMouth.timestamp <= MOUTH_READING_MAX_AGE_MS
+      ? lastMouth
+      : null;
+  const noHands: HandsDetectResult = {
+    handCount: 0,
+    primary: [],
+    middleFingerPoseHands: 0,
+    fingertipToLipRatio: null,
+    mouthReadingAvailable: mouth !== null,
+  };
   if (!handLandmarker) {
-    return { handCount: 0, primary: [] };
+    return { ...noHands, mouthReadingAvailable: false };
   }
 
   const result = handLandmarker.detectForVideo(bitmap, timestamp);
   if (result.landmarks.length === 0) {
-    return { handCount: 0, primary: [] };
+    return noHands;
   }
 
   // 12-10 Task 3: the hands path shows the SAME extrapolation the pose path
@@ -790,15 +887,51 @@ function detectHands(
   // handedness/confidence per hand instead), and no hands path has ever
   // consulted that score. Adding it here would be a new, untuned gate rather
   // than the honesty fix this plan is scoped to.
-  const inFrameHands = result.landmarks.filter((landmarks) =>
-    isInFrame(landmarks[0])
+  const inFrameIndices = result.landmarks.flatMap((landmarks, index) =>
+    isInFrame(landmarks[0]) ? [index] : []
   );
-  const handCount = inFrameHands.length;
+  const handCount = inFrameIndices.length;
   if (handCount === 0) {
-    return { handCount: 0, primary: [] };
+    return noHands;
   }
 
-  const candidates = inFrameHands.map((landmarks) => {
+  // Both descriptive readings run over EVERY in-frame hand, before selection.
+  const aspect = bitmap.height > 0 ? bitmap.width / bitmap.height : 1;
+  const faceBoxNow = lastFaceBox;
+  let middleFingerPoseHands = 0;
+  let nearestFingertipToLip: number | null = null;
+  for (const index of inFrameIndices) {
+    const landmarks = result.landmarks[index];
+    // World landmarks are metric 3D, so a hand turned toward the camera keeps
+    // its joint angles. Image landmarks are the fallback, corrected for aspect.
+    const world = result.worldLandmarks?.[index];
+    const geometry =
+      world && world.length === 21 ? world : toIsotropic(landmarks, aspect);
+    const tip = landmarks[MIDDLE_FINGERTIP];
+    // A fingertip over the face is excluded: pushing up glasses or scratching
+    // with one finger makes this shape, and that is where those happen.
+    const tipOverFace =
+      faceBoxNow !== null &&
+      tip.x >= faceBoxNow.minX &&
+      tip.x <= faceBoxNow.maxX &&
+      tip.y >= faceBoxNow.minY &&
+      tip.y <= faceBoxNow.maxY;
+    if (isInFrame(tip) && !tipOverFace && isMiddleFingerPose(geometry)) {
+      middleFingerPoseHands += 1;
+    }
+    if (mouth) {
+      const ratio = fingertipToLipRatio(landmarks, mouth, mouth.faceSize, aspect);
+      if (
+        ratio !== null &&
+        (nearestFingertipToLip === null || ratio < nearestFingertipToLip)
+      ) {
+        nearestFingertipToLip = ratio;
+      }
+    }
+  }
+
+  const candidates = inFrameIndices.map((index) => {
+    const landmarks = result.landmarks[index];
     const wrist = landmarks[0];
     let minX = Infinity;
     let maxX = -Infinity;
@@ -817,6 +950,7 @@ function detectHands(
       fingertipSpanX: maxX - minX,
       fingertipSpanY: maxY - minY,
       area: boundsOf(landmarks).area,
+      handedness: readHandedness(result.handedness?.[index]?.[0]?.categoryName),
     };
   });
 
@@ -866,16 +1000,27 @@ function detectHands(
       fingertipSpanY: candidate.fingertipSpanY,
       aboveShoulder,
       nearFace,
+      handedness: candidate.handedness,
     };
   });
 
-  return { handCount, primary };
+  return {
+    handCount,
+    primary,
+    middleFingerPoseHands,
+    fingertipToLipRatio: nearestFingertipToLip,
+    mouthReadingAvailable: mouth !== null,
+  };
+}
+
+function readHandedness(label: string | undefined): "Left" | "Right" | null {
+  return label === "Left" || label === "Right" ? label : null;
 }
 
 /** Runs the object detector on one already-transferred bitmap and reduces
- * the result to a single "cell phone" scalar reading. Every other one of the
- * 80 COCO categories the model can return is discarded here and never
- * crosses back - `scoreThreshold` on the model itself (see
+ * the result to one "cell phone" scalar reading and one food-or-drink boolean.
+ * Every other one of the 80 COCO categories the model can return is discarded
+ * here and never crosses back - `scoreThreshold` on the model itself (see
  * `createObjectDetectorModel`) already filters low-confidence detections of
  * ANY category before this function ever sees them. */
 function detectObject(
@@ -883,15 +1028,22 @@ function detectObject(
   timestamp: number
 ): ObjectDetectResult {
   if (!objectDetector) {
-    return { phonePresent: false, phoneScore: 0 };
+    return { phonePresent: false, phoneScore: 0, foodOrDrinkPresent: false };
   }
 
   const result = objectDetector.detectForVideo(bitmap, timestamp);
   let bestScore = 0;
+  let foodOrDrinkPresent = false;
   for (const detection of result.detections) {
     for (const category of detection.categories) {
       if (category.categoryName === "cell phone" && category.score > bestScore) {
         bestScore = category.score;
+      }
+      if (
+        category.score >= FOOD_DRINK_SCORE_THRESHOLD &&
+        FOOD_DRINK_LABELS.includes(category.categoryName)
+      ) {
+        foodOrDrinkPresent = true;
       }
     }
   }
@@ -903,6 +1055,7 @@ function detectObject(
   return {
     phonePresent: bestScore >= PHONE_SCORE_THRESHOLD,
     phoneScore: bestScore,
+    foodOrDrinkPresent,
   };
 }
 

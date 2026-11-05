@@ -55,12 +55,16 @@ import {
   type VisualPostureSignal,
 } from "@/lib/metrics/types";
 import {
-  GESTURE_AMPLITUDE_MIN,
+  CONDUCT_MIN_HAND_TICKS,
+  CONDUCT_MODEL_COVERAGE_MIN_RATIO,
+  FOOD_DRINK_MIN_VISIBLE_S,
   GESTURE_WINDOW_EXCESSIVE_PCT,
   GESTURE_WINDOW_MIN_HAND_SAMPLES,
   GESTURE_WINDOW_STILL_PCT,
   HANDS_COVERAGE_MIN_RATIO,
   HANDS_NEAR_FACE_TRIP_PCT,
+  MOUTH_MOVEMENT_ENERGY_TRIP,
+  MOUTH_MOVEMENT_WINDOW_MIN_SAMPLES,
   PHONE_EPISODE_TRIP_PCT,
   PHONE_MIN_VISIBLE_S,
   // TEMPORARY (12-11 Task 1): read ONLY by the dev-only phone confidence
@@ -78,6 +82,17 @@ import {
   POSTURE_TORSO_LEAN_DRIFT_SCALE_DEG,
   POSTURE_TORSO_OPENNESS_DRIFT_SCALE,
 } from "@/lib/metrics/body-thresholds";
+import {
+  createHeldPoseTracker,
+  groupHandAtMouthEvents,
+  matchedDisplacements,
+  scaledGestureAmplitudeMin,
+  stepHandAtMouth,
+  stepMouthMovement,
+  type HandObservation,
+  type HandAtMouthState,
+  type MouthMovementState,
+} from "@/lib/metrics/hand-mouth-signals";
 import type {
   FaceDetectResult,
   HandsDetectResult,
@@ -871,6 +886,44 @@ export function computeGestureRates(counts: GestureCounts): {
 }
 
 /**
+ * Pure. Whether the two descriptive signals really ran this session, which
+ * decides whether `resolveNotMeasured` declares them.
+ *
+ * Deliberately NOT gated on `computeHandsUsable`, whose 25%-of-ticks floor drops
+ * every hand field for a student whose hands are seen only when raised: the
+ * exact student eating through an interview. The questions here are whether the
+ * models ran and whether hands were ever looked at.
+ *
+ * `eating` also needs both its inputs: a mouth position on most hands ticks, and
+ * jaw readings on most face ticks. Hand-to-mouth alone does not clear it.
+ *
+ * "Measured" never means "the behaviour did not occur". See RULE ON CONDUCT in
+ * the evaluator prompts.
+ */
+export function computeConductSignalsMeasured(counts: {
+  handSamples: number;
+  handsDetectedSamples: number;
+  expectedHandsSamples: number;
+  mouthEligibleHandSamples: number;
+  jawSamples: number;
+  faceDetectedSamples: number;
+}): { offensiveGestures: boolean; eating: boolean } {
+  const offensiveGestures =
+    counts.handSamples > 0 &&
+    counts.handSamples >=
+      counts.expectedHandsSamples * CONDUCT_MODEL_COVERAGE_MIN_RATIO &&
+    counts.handsDetectedSamples >= CONDUCT_MIN_HAND_TICKS;
+  const eating =
+    offensiveGestures &&
+    counts.mouthEligibleHandSamples >=
+      counts.handSamples * CONDUCT_MODEL_COVERAGE_MIN_RATIO &&
+    counts.jawSamples > 0 &&
+    counts.jawSamples >=
+      counts.faceDetectedSamples * CONDUCT_MODEL_COVERAGE_MIN_RATIO;
+  return { offensiveGestures, eating };
+}
+
+/**
  * Raw material for `computeObservations` (12-07's measured-but-never-scored
  * half). `phoneSampleHz` arrives PRE-COMPUTED by the caller (`stop()`), not
  * derived inside this function — see that field's own doc comment for why.
@@ -970,6 +1023,10 @@ export interface CaptureWindow {
    * `handsDetected` is distinct from `gestureSamples`: a window with few
    * processed object ticks must not trip on one frame. */
   phoneProcessed: number;
+  /** Sum and count of absolute `jawOpen` changes on not-speaking face ticks.
+   * Descriptive only, see `stepMouthMovement`. */
+  mouthMovementSum: number;
+  mouthMovementSamples: number;
 }
 
 /** Whether a single window trips each episode condition. Ratios, never raw
@@ -1144,8 +1201,11 @@ export function extractEpisodes(
  * unified its window-level trip with the session-level `fidget_pct` gate)
  * was removed entirely when fidgeting was retired to permanently
  * not-measured — see `VisualDescriptiveObservations`'s own comment in
- * `types.ts`. `phone_visible` is the only remaining descriptive episode
- * kind, so this function no longer needs an options parameter at all. */
+ * `types.ts`.
+ *
+ * `hand_at_mouth_repeated` and `middle_finger_extended` never trip here. They
+ * are built from individual ticks (see `stop()`), because a shape held for two
+ * seconds cannot satisfy a window-run engine with a 10 s minimum. */
 function descriptiveWindowTrips(
   w: CaptureWindow,
   kind: VisualDescriptiveEpisodeKind
@@ -1156,6 +1216,14 @@ function descriptiveWindowTrips(
         w.phoneProcessed > 0 &&
         (w.phoneCount / w.phoneProcessed) * 100 > PHONE_EPISODE_TRIP_PCT
       );
+    case "mouth_movement_silent":
+      return (
+        w.mouthMovementSamples >= MOUTH_MOVEMENT_WINDOW_MIN_SAMPLES &&
+        w.mouthMovementSum / w.mouthMovementSamples > MOUTH_MOVEMENT_ENERGY_TRIP
+      );
+    case "hand_at_mouth_repeated":
+    case "middle_finger_extended":
+      return false;
   }
 }
 
@@ -1315,6 +1383,8 @@ export function createVisualCapture(
   let winNearFaceCount = 0;
   let winPhoneCount = 0;
   let winPhoneProcessed = 0;
+  let winMouthMovementSum = 0;
+  let winMouthMovementSamples = 0;
   let captureOffsetS = 0;
   let captureStartedAtEpochMs: number | null = null;
   let poseUnavailableSamples = 0;
@@ -1387,12 +1457,14 @@ export function createVisualCapture(
   // tick — the denominator `handsNearFacePct` needs (see `GestureCounts`'s
   // own doc comment for why this must differ from `handSamples`).
   let handsNearFaceEligibleSamples = 0;
-  // Gesture-amplitude raw material — tracked the same way `lastCenter`/
-  // `movementSum` already track face motion, one slot per selected hand
-  // index (at most two). Hand identity is NOT guaranteed stable across ticks
-  // (see the worker's own selection-rule comment); this is the same accepted
-  // risk, applied to displacement rather than detection.
-  let lastGestureWristPositions: Array<{ x: number; y: number }> = [];
+  // Gesture-amplitude raw material. Each hand is matched to its own previous
+  // position (`matchHands`) rather than compared by list slot, because
+  // `primary` is distance-sorted and its order swaps whenever one hand passes
+  // the other, which used to read as two large gestures.
+  let lastGestureHands: HandObservation[] = [];
+  // Scales the gesture floor. Kept from the most recent pose tick that saw a
+  // shoulder line, and null until one does (see `scaledGestureAmplitudeMin`).
+  let lastShoulderWidth: number | null = null;
   let gestureDisplacementSum = 0;
   let gestureEventCount = 0;
 
@@ -1409,6 +1481,16 @@ export function createVisualCapture(
   // --- 12-05 object (phone) accumulators.
   let phoneSamples = 0;
   let phoneVisibleSamples = 0;
+  // Supporting evidence only. See `food_or_drink_visible_seconds`.
+  let foodOrDrinkVisibleSamples = 0;
+
+  // --- Descriptive hand and mouth accumulators. Nothing scored reads these.
+  const middleFingerTracker = createHeldPoseTracker();
+  let handAtMouthState: HandAtMouthState = { atMouth: false };
+  const handAtMouthEventTimesS: number[] = [];
+  let mouthEligibleHandSamples = 0;
+  let mouthMovementState: MouthMovementState = { lastJaw: null, lastSpeakingS: null };
+  let jawSamples = 0;
 
   // --- 12-05 per-model diagnostics (frame-budget log only — never part of
   // `VisualMetrics`). Additional breakdown alongside the overall
@@ -1492,6 +1574,8 @@ export function createVisualCapture(
       nearFaceCount: winNearFaceCount,
       phoneCount: winPhoneCount,
       phoneProcessed: winPhoneProcessed,
+      mouthMovementSum: winMouthMovementSum,
+      mouthMovementSamples: winMouthMovementSamples,
     });
     windowStartS = nowS;
     winProcessed = 0;
@@ -1510,6 +1594,8 @@ export function createVisualCapture(
     winNearFaceCount = 0;
     winPhoneCount = 0;
     winPhoneProcessed = 0;
+    winMouthMovementSum = 0;
+    winMouthMovementSamples = 0;
   }
 
   function elapsedS(): number {
@@ -1648,6 +1734,21 @@ export function createVisualCapture(
     const hasFace = result.faceCount > 0;
     reportFaceState(hasFace);
 
+    // A missed face or a speaking tick breaks the chain, inside
+    // `stepMouthMovement`, so a delta only ever spans adjacent silent ticks.
+    if (result.jawOpen !== null) jawSamples += 1;
+    const mouthStep = stepMouthMovement(
+      mouthMovementState,
+      result.jawOpen,
+      speakingNow,
+      nowS
+    );
+    mouthMovementState = mouthStep.state;
+    if (mouthStep.delta !== null) {
+      winMouthMovementSum += mouthStep.delta;
+      winMouthMovementSamples += 1;
+    }
+
     if (!hasFace) {
       lastCenter = null;
       if (videoEl && tickCount % LUMA_SAMPLE_EVERY_N_TICKS === 0) {
@@ -1732,6 +1833,7 @@ export function createVisualCapture(
   function applyPoseResult(result: PoseDetectResult) {
     poseSamples += 1;
     winPoseProcessed += 1;
+    if (result.shoulderWidth !== null) lastShoulderWidth = result.shoulderWidth;
 
     if (result.visible.shoulderLine) {
       poseVisibleSamples.shoulder_line += 1;
@@ -1836,12 +1938,7 @@ export function createVisualCapture(
 
   /**
    * Folds one tick's scalar hands-detection result into the 12-05
-   * accumulators. Maintains TWO independent position histories over the same
-   * wrist readings — `lastGestureWristPositions` (unfiltered displacement,
-   * the gesture-amplitude raw material) and `lastFidgetWristPositions`
-   * (displacement PLUS direction-reversal counting, the fidget raw
-   * material) — deliberately kept as separate variables so neither can be
-   * derived from the other (see the fidget accumulator's doc comment above).
+   * accumulators, then the descriptive hand-shape and hand-to-mouth readings.
    */
   function applyHandsResult(result: HandsDetectResult) {
     handSamples += 1;
@@ -1882,29 +1979,37 @@ export function createVisualCapture(
     // below was removed entirely when fidgeting was retired to permanently
     // not-measured — see `VisualDescriptiveObservations`'s own comment in
     // `types.ts`.
-    result.primary.forEach((hand, index) => {
-      const prevGesture = lastGestureWristPositions[index];
-      if (prevGesture) {
-        const dx = hand.wristX - prevGesture.x;
-        const dy = hand.wristY - prevGesture.y;
-        const delta = Math.hypot(dx, dy);
-        // Only displacements clearing GESTURE_AMPLITUDE_MIN count as a
-        // gesture event.
-        if (delta >= GESTURE_AMPLITUDE_MIN) {
-          gestureDisplacementSum += delta;
-          gestureEventCount += 1;
-          winGestureSum += delta;
-          winGestureSamples += 1;
-        }
+    const hands: HandObservation[] = result.primary.map((hand) => ({
+      wristX: hand.wristX,
+      wristY: hand.wristY,
+      handedness: hand.handedness,
+    }));
+    const amplitudeMin = scaledGestureAmplitudeMin(lastShoulderWidth);
+    for (const delta of matchedDisplacements(lastGestureHands, hands)) {
+      // Only displacements clearing the scaled floor count as a gesture event.
+      if (delta >= amplitudeMin) {
+        gestureDisplacementSum += delta;
+        gestureEventCount += 1;
+        winGestureSum += delta;
+        winGestureSamples += 1;
       }
-      lastGestureWristPositions[index] = { x: hand.wristX, y: hand.wristY };
-    });
-    // Trim stale slots so a hand that left frame does not leave a fossil
-    // position behind to be compared against a future, unrelated hand.
-    lastGestureWristPositions = lastGestureWristPositions.slice(
-      0,
-      result.primary.length
+    }
+    // Replaced wholesale, so a hand that left frame leaves no fossil position
+    // behind to be compared against a future, unrelated hand.
+    lastGestureHands = hands;
+
+    // Descriptive signals. Read `handCount`, not `handsUsable`: see
+    // `computeConductSignalsMeasured`.
+    const tS = elapsedS();
+    middleFingerTracker.step(result.middleFingerPoseHands > 0, tS);
+    if (result.mouthReadingAvailable) mouthEligibleHandSamples += 1;
+    const mouthHand = stepHandAtMouth(
+      handAtMouthState,
+      result.fingertipToLipRatio,
+      result.mouthReadingAvailable
     );
+    handAtMouthState = mouthHand.state;
+    if (mouthHand.entered) handAtMouthEventTimesS.push(tS);
   }
 
   /** Folds one tick's scalar phone-detection result into the 12-05
@@ -1923,6 +2028,7 @@ export function createVisualCapture(
       phoneVisibleSamples += 1;
       winPhoneCount += 1;
     }
+    if (result.foodOrDrinkPresent) foodOrDrinkVisibleSamples += 1;
   }
 
   /** Constructs the worker and waits (bounded by `WORKER_INIT_TIMEOUT_MS`)
@@ -2110,7 +2216,7 @@ export function createVisualCapture(
     const faceCount = detectResult.faceLandmarks.length;
     if (faceCount === 0) {
       applyFaceResult(
-        { faceCount: 0, primary: null, yawDeg: null, pitchDeg: null, poseAvailable: false },
+        { faceCount: 0, primary: null, yawDeg: null, pitchDeg: null, poseAvailable: false, jawOpen: null },
         speakingNow
       );
       return;
@@ -2149,7 +2255,12 @@ export function createVisualCapture(
       poseAvailable = true;
     }
 
-    applyFaceResult({ faceCount, primary, yawDeg, pitchDeg, poseAvailable }, speakingNow);
+    // This fallback landmarker is created without blendshapes. Jaw movement is
+    // a worker-only reading, so `eating` stays declared not measured here.
+    applyFaceResult(
+      { faceCount, primary, yawDeg, pitchDeg, poseAvailable, jawOpen: null },
+      speakingNow
+    );
   }
 
   async function initLandmarker(delegate: "GPU" | "CPU") {
@@ -2694,6 +2805,26 @@ export function createVisualCapture(
         ? poseForwardHeadOffsetSum / poseVisibleSamples.forward_head
         : null;
 
+    const conductMeasured = computeConductSignalsMeasured({
+      handSamples,
+      handsDetectedSamples,
+      expectedHandsSamples,
+      mouthEligibleHandSamples,
+      jawSamples,
+      faceDetectedSamples,
+    });
+
+    // Built from individual ticks rather than `collapseRuns`: see
+    // `descriptiveWindowTrips`. Each is emitted only when its signal counts as
+    // measured, so a stray hit in a session that is otherwise declared
+    // not-measured cannot contradict the declaration.
+    const middleFingerRuns = conductMeasured.offensiveGestures
+      ? middleFingerTracker.finish()
+      : [];
+    const handAtMouthRuns = conductMeasured.eating
+      ? groupHandAtMouthEvents(handAtMouthEventTimesS)
+      : [];
+
     // Omit the whole `observations` key when NOTHING descriptive was
     // measurable this session — an object with every field at a flattering
     // default would read as "we looked and found nothing," exactly the
@@ -2701,6 +2832,7 @@ export function createVisualCapture(
     let observations: VisualDescriptiveObservations | undefined;
     if (
       phoneUsable ||
+      conductMeasured.offensiveGestures ||
       absoluteShoulderTiltDegMean !== null ||
       absoluteForwardHeadOffsetMean !== null
     ) {
@@ -2716,11 +2848,55 @@ export function createVisualCapture(
         posture_shoulder_tilt_deg: derivedObservations.postureShoulderTiltDeg,
         posture_forward_head_offset:
           derivedObservations.postureForwardHeadOffset,
-        episodes: extractDescriptiveEpisodes(
-          windows,
-          VISUAL_DESCRIPTIVE_EPISODE_KINDS
-        ),
+        episodes: [],
       };
+      const windowEpisodes = extractDescriptiveEpisodes(
+        windows,
+        VISUAL_DESCRIPTIVE_EPISODE_KINDS
+      ).filter(
+        (episode) =>
+          episode.kind !== "mouth_movement_silent" || conductMeasured.eating
+      );
+      const silentMouthEpisodes = windowEpisodes.filter(
+        (episode) => episode.kind === "mouth_movement_silent"
+      );
+      // `severity` is a fraction of windows for the kinds above. These two have
+      // no windows, and nothing reads it for grading either way.
+      observations.episodes = [
+        ...windowEpisodes,
+        ...handAtMouthRuns.map(({ start_s, end_s }) => ({
+          kind: "hand_at_mouth_repeated" as const,
+          start_s,
+          end_s,
+          severity: 1,
+        })),
+        ...middleFingerRuns.map(({ start_s, end_s }) => ({
+          kind: "middle_finger_extended" as const,
+          start_s,
+          end_s,
+          severity: 1,
+        })),
+      ].sort((a, b) => a.start_s - b.start_s);
+      if (conductMeasured.eating) {
+        observations.hand_at_mouth_events = handAtMouthEventTimesS.length;
+        observations.mouth_movement_silent_seconds = silentMouthEpisodes.reduce(
+          (sum, episode) => sum + (episode.end_s - episode.start_s),
+          0
+        );
+      }
+      if (conductMeasured.offensiveGestures) {
+        observations.middle_finger_extended_seconds = middleFingerRuns.reduce(
+          (sum, run) => sum + (run.end_s - run.start_s),
+          0
+        );
+      }
+      if (phoneUsable && phoneSampleHz > 0) {
+        const rawFoodSeconds = foodOrDrinkVisibleSamples / phoneSampleHz;
+        observations.food_or_drink_visible_seconds =
+          rawFoodSeconds >= FOOD_DRINK_MIN_VISIBLE_S
+            ? Math.round(rawFoodSeconds)
+            : 0;
+      }
     }
 
     // --- DEV-ONLY: the phone confidence session summary. Skipped entirely
@@ -2809,6 +2985,8 @@ export function createVisualCapture(
         handSignals: handsUsable,
         postureSignals: postureSignalsMeasured.length > 0,
         phone: phoneUsable,
+        offensiveGestures: conductMeasured.offensiveGestures,
+        eating: conductMeasured.eating,
       }),
       episodes,
       coverage: {

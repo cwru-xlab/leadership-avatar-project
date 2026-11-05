@@ -1192,5 +1192,41 @@ console.log("\n9. growth_areas[].dimension (quick-004)");
   );
 }
 
+console.log("\nConduct: no commending an absence, no naming a cause");
+{
+  const base = () => asStructuredReport(JSON.parse(JSON.stringify(FULL))) as StructuredReport;
+  for (const sentence of [
+    "You showed no distracting behaviours throughout.",
+    "Your delivery was free of distractions.",
+    "There was minimal obvious fidgeting or posture concerns detected.",
+    "You kept a professional demeanor on camera.",
+    "You avoided eating or anything inappropriate.",
+    "You were eating during the third answer?",
+    "There was an obscene gesture at 2:10?",
+  ]) {
+    const report = base();
+    report.overall_summary = `Your forward gaze held at 82%. ${sentence}`;
+    const { report: out } = sanitizeBodySignalWording(report);
+    check(`stripped: ${sentence}`, out.overall_summary, "Your forward gaze held at 82%.");
+  }
+  for (const sentence of [
+    "You offered no inappropriate language in your answers.",
+    "The plan avoided eating into the contingency budget.",
+    "You never mentioned the inappropriate expense claim.",
+    "You gave no examples of cost control.",
+  ]) {
+    const report = base();
+    report.overall_summary = sentence;
+    check(`kept: ${sentence}`, sanitizeBodySignalWording(report).report.overall_summary, sentence);
+  }
+  const titled = base();
+  titled.strengths = [
+    { ...titled.strengths[0], title: "No distracting behaviours", detail: "Your gaze held at 82%." },
+    { ...titled.strengths[0], title: "Forward gaze", detail: "Your gaze held at 82%." },
+  ];
+  check("a strength titled as an absence is dropped whole",
+    sanitizeBodySignalWording(titled).report.strengths.map((s) => s.title), ["Forward gaze"]);
+}
+
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);
