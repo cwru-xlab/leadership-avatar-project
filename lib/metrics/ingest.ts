@@ -292,6 +292,9 @@ function sanitizeVisualCoverage(value: unknown): VisualCoverage | null {
     speaking_samples: clampNonNegativeInt(v.speaking_samples),
     listening_samples: clampNonNegativeInt(v.listening_samples),
     capture_offset_s: clampNumber(v.capture_offset_s, 0, Number.MAX_SAFE_INTEGER),
+    ...(typeof v.capture_started_at_ms === "number" && Number.isFinite(v.capture_started_at_ms)
+      ? { capture_started_at_ms: clampNumber(v.capture_started_at_ms, 0, Number.MAX_SAFE_INTEGER) }
+      : {}),
     sample_hz: clampNumber(v.sample_hz, 0, 1000),
     analyzer_error: clampBoolean(v.analyzer_error),
   };
@@ -306,6 +309,9 @@ function sanitizeVocalCoverage(value: unknown): VocalCoverage | null {
     analyzed_turns: clampNonNegativeInt(v.analyzed_turns),
     spoken_seconds: clampNumber(v.spoken_seconds, 0, Number.MAX_SAFE_INTEGER),
     analyzer_error: clampBoolean(v.analyzer_error),
+    ...(typeof v.capture_started_at_ms === "number" && Number.isFinite(v.capture_started_at_ms)
+      ? { capture_started_at_ms: clampNumber(v.capture_started_at_ms, 0, Number.MAX_SAFE_INTEGER) }
+      : {}),
   };
 }
 
