@@ -156,3 +156,19 @@ export async function listReportsForUser(
 
   return { ok: true, reports: rows.map(toReportDto) };
 }
+
+/** Report ids used by any of this user's saved study plans. Owner-scoped. */
+export async function listPlannedReportIds(userId: string): Promise<string[]> {
+  const plans = await prisma.studyPlan.findMany({
+    where: { userId },
+    select: { sourceReportIds: true },
+  });
+  const ids = new Set<string>();
+  for (const plan of plans) {
+    if (!Array.isArray(plan.sourceReportIds)) continue;
+    for (const id of plan.sourceReportIds) {
+      if (typeof id === "string") ids.add(id);
+    }
+  }
+  return [...ids];
+}
