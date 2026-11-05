@@ -11,12 +11,15 @@
  * from `answerDeliveryLevel()` in `lib/metrics/bands.ts`, which is a display
  * word and never a score.
  *
- * Turn and episode times are on the capture clock; every time shown adds the
- * capture offset so it matches the session clock the growth-area timecodes
- * and transcript use.
+ * Turn times and episode times start from different zero points, and neither
+ * is the transcript's. `lib/report/moments.ts` works out the shift for each, so
+ * every time shown matches the growth-area timecodes and the transcript.
+ * `visual` arrives here already reclocked (`reclockVisual`), its offset spent;
+ * `buildTimelineAnswers` shifts turns.
  *
- * "What you said" excerpts are deliberately absent until transcripts are
- * matched to answers; the panel shows only what was measured.
+ * "What you said" is one deterministic line from the student's own stored
+ * transcript, in the detail panel a point selects. Selecting works by click,
+ * tap and keyboard, so the line is never hover-only. No transcript, no line.
  */
 import clsx from "clsx";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -24,12 +27,14 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import LevelChip, { levelDotClass } from "@/components/report/LevelChip";
 import {
   answerDeliveryLevel,
+  EPISODE_KIND_GROUP,
   episodeBand,
   formatTimecode,
   timelineRows,
   type AnswerLevel,
 } from "@/lib/metrics/bands";
-import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
+import type { VisualEpisode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
+import type { ReportMoments } from "@/lib/report/moments";
 import type { ReportGrowthArea } from "@/lib/report/structured";
 
 /** Answer levels onto the shared ramp: Strong reads as the top of the ramp. */
@@ -52,6 +57,7 @@ export interface TimelineAnswer {
   notes: { label: string; value: string }[];
   camera: string[];
   citedBy: string | null;
+  excerpt: string | null;
 }
 
 /** "1:42" or a range like "0:24-1:24" (any dash) as [start, end] seconds. */
@@ -64,18 +70,20 @@ function parseTimecode(code: string): [number, number] | null {
   return [times[0], times[times.length - 1]];
 }
 
-/** Answers on the session clock, each with its level, camera notes and the growth area that cites it. */
+/** Answers on the transcript clock, each with its level, camera notes, excerpt and the growth area that cites it. */
 export function buildTimelineAnswers(
   vocal: VocalMetrics | null,
   visual: VisualMetrics | null,
   growthAreas: ReportGrowthArea[],
+  moments: ReportMoments | null = null,
 ): TimelineAnswer[] {
   const turns = Array.isArray(vocal?.turns) ? vocal.turns : [];
   const offset = visual?.coverage?.capture_offset_s ?? 0;
+  const vocalShift = moments?.clock.vocalShiftS ?? 0;
   const episodes = visual?.episodes ?? [];
 
   return turns.map((turn, i) => {
-    const start = turn.start_s + offset;
+    const start = Math.max(0, turn.start_s + vocalShift);
     const end = start + turn.duration_s;
     const { level, word, notes } = answerDeliveryLevel(turn);
     const camera = episodes
@@ -91,17 +99,20 @@ export function buildTimelineAnswers(
           return range !== null && range[0] <= end && range[1] >= start;
         }),
       )?.title ?? null;
-    return { index: i, start, end, level, word, notes, camera, citedBy };
+    const excerpt = moments?.excerpts[turn.turn_index] ?? null;
+    return { index: i, start, end, level, word, notes, camera, citedBy, excerpt };
   });
 }
 
 export default function MomentsTimeline({
   answers,
+  hasTranscript,
   visual,
   selected,
   onSelect,
 }: {
   answers: TimelineAnswer[];
+  hasTranscript: boolean;
   visual: VisualMetrics | null;
   selected: number;
   onSelect: (index: number) => void;
@@ -115,7 +126,7 @@ export default function MomentsTimeline({
     // recorded moments: keep them, as the old Moments tab did.
     if (allRows.length === 0) return null;
     return (
-      <Stage subtitle="What the camera noticed during your session. These times match the session clock.">
+      <Stage subtitle="What the camera noticed during your session. These times match your transcript.">
         <MomentList rows={allRows} />
       </Stage>
     );
@@ -134,6 +145,7 @@ export default function MomentsTimeline({
   const current = answers[Math.min(selected, answers.length - 1)];
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * span);
   const count = answers.length;
+  const lanes = cameraLanes(episodes);
 
   return (
     <Stage
@@ -144,7 +156,7 @@ export default function MomentsTimeline({
         <div className="min-w-0 flex-[2_1_560px] overflow-x-auto">
           <div className="relative aspect-[1000/340] w-full min-w-[620px]">
             <svg
-              aria-label="Delivery level for each answer across the session, with camera moments below"
+              aria-label="Delivery level for each answer across the session, with camera and body language moments below"
               className="absolute inset-0 size-full"
               role="img"
               viewBox="0 0 1000 340"
@@ -161,26 +173,43 @@ export default function MomentsTimeline({
                     {row.label}
                   </text>
                 ))}
-                <text x="0" y="295">
-                  Camera
-                </text>
+                {lanes.map((lane) => (
+                  <text key={lane.label} x="0" y={lane.y + lane.height - 1}>
+                    {lane.label}
+                  </text>
+                ))}
               </g>
               <g className="stroke-light-blue/15">
                 {LEVEL_ROWS.map((row) => (
                   <line key={row.label} x1={PLOT.left} x2={PLOT.right} y1={row.y} y2={row.y} />
                 ))}
               </g>
-              <rect className="fill-light-blue/10" height="14" rx="4" width={PLOT.right - PLOT.left} x={PLOT.left} y="282" />
-              {episodes.map((episode, i) => (
-                <rect
-                  key={i}
-                  className="fill-level-2/60"
-                  height="14"
-                  rx="4"
-                  width={Math.max(4, x(episode.end_s + offset) - x(episode.start_s + offset))}
-                  x={x(episode.start_s + offset)}
-                  y="282"
-                />
+              {lanes.map((lane) => (
+                <g key={lane.label}>
+                  <rect
+                    className="fill-light-blue/10"
+                    height={lane.height}
+                    rx="4"
+                    width={PLOT.right - PLOT.left}
+                    x={PLOT.left}
+                    y={lane.y}
+                  />
+                  {lane.episodes.map((episode, i) => (
+                    <rect
+                      key={i}
+                      className="fill-level-2/60"
+                      data-moment-kind={episode.kind}
+                      data-moment-start={Math.round(episode.start_s + offset)}
+                      height={lane.height}
+                      rx="4"
+                      width={Math.max(4, x(episode.end_s + offset) - x(episode.start_s + offset))}
+                      x={x(episode.start_s + offset)}
+                      y={lane.y}
+                    >
+                      <title>{episodeBand(episode, offset).value}</title>
+                    </rect>
+                  ))}
+                </g>
               ))}
               <g className="fill-white/60 font-mono text-[17px]">
                 {ticks.map((t, i) => (
@@ -210,7 +239,7 @@ export default function MomentsTimeline({
                 x1={points[current.index].x}
                 x2={points[current.index].x}
                 y1="22"
-                y2="300"
+                y2="310"
               />
             </svg>
 
@@ -282,6 +311,16 @@ export default function MomentsTimeline({
               <LevelChip label={current.word} level={ANSWER_RAMP[current.level]} />
             </span>
           </div>
+          {current.excerpt ? (
+            <figure className="flex flex-col gap-1">
+              <figcaption className="text-[13px] font-semibold text-light-blue">What you said</figcaption>
+              <blockquote className="font-display text-[17px] italic leading-[1.35] text-white">
+                {current.excerpt.startsWith("[") ? current.excerpt : `“${current.excerpt}”`}
+              </blockquote>
+            </figure>
+          ) : hasTranscript ? (
+            <p className="text-[13px] text-white/70">This answer isn&apos;t in your saved transcript.</p>
+          ) : null}
           <ul className="flex list-disc flex-col gap-1 pl-[18px] text-[14.5px] text-white/90">
             {current.notes.map((note) => (
               <li key={note.label}>
@@ -310,7 +349,7 @@ export default function MomentsTimeline({
             <ChevronRight aria-hidden className="transition-transform duration-200 group-open:rotate-90" size={16} />
           </summary>
           <div className="px-4 pb-4">
-            <MomentList rows={allRows} />
+            <MomentList answers={answers} rows={allRows} />
           </div>
         </details>
       )}
@@ -320,14 +359,38 @@ export default function MomentsTimeline({
 
 const GROUP_WORDS = { camera: "Camera", body: "Body language", observation: "Observation" } as const;
 
-function MomentList({ rows }: { rows: ReturnType<typeof timelineRows> }) {
+/** One strip per kind of moment, so body language isn't read as a camera problem. */
+function cameraLanes(episodes: VisualEpisode[]) {
+  const groups = [
+    { label: "Camera", episodes: episodes.filter((e) => EPISODE_KIND_GROUP[e.kind] !== "body") },
+    { label: "Body", episodes: episodes.filter((e) => EPISODE_KIND_GROUP[e.kind] === "body") },
+  ];
+  const shown = groups[1].episodes.length > 0 && groups[0].episodes.length === 0 ? [groups[1]] : groups.filter(
+    (group, i) => i === 0 || group.episodes.length > 0,
+  );
+  return shown.map((group, i) =>
+    shown.length === 1 ? { ...group, y: 282, height: 14 } : { ...group, y: 272 + i * 24, height: 12 },
+  );
+}
+
+/** Which answer a moment fell in. Moments while the interviewer speaks have none. */
+function whenInSession(label: string, answers: TimelineAnswer[]): string {
+  const range = parseTimecode(label);
+  const during = range && answers.find((a) => range[0] < a.end && range[1] > a.start);
+  return during ? `Answer ${during.index + 1}` : "Between answers";
+}
+
+function MomentList({ rows, answers = [] }: { rows: ReturnType<typeof timelineRows>; answers?: TimelineAnswer[] }) {
   return (
     <ul className="flex flex-col divide-y divide-light-blue/15">
       {rows.map((row, i) => (
         <li key={`${row.group}-${row.label}-${i}`} className="flex items-baseline justify-between gap-4 py-2">
           <span className="flex items-baseline gap-3">
             <span className="font-mono text-[13px] tabular-nums text-light-blue">{row.label}</span>
-            <span className="text-xs text-white/70">{GROUP_WORDS[row.group]}</span>
+            <span className="text-xs text-white/70">
+              {GROUP_WORDS[row.group]}
+              {answers.length > 0 && ` · ${whenInSession(row.label, answers)}`}
+            </span>
           </span>
           <span className="text-right text-sm">{row.value}</span>
         </li>
@@ -387,7 +450,7 @@ function Stage({
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2 w-[18px] rounded-sm bg-level-2/60" />
-              Camera moment
+              Camera or body moment
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="size-[9px] rotate-45 bg-level-2" />
