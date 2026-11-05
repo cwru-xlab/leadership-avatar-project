@@ -184,7 +184,7 @@ function LevelProgress({ level, wide = false }: { level: LevelResult; wide?: boo
       <span className="text-xs">
         {confirm
           ? `${confirm.sessions} more ${confirm.live ? "live " : ""}${confirm.sessions === 1 ? "session" : "sessions"} to confirm Lv ${confirm.level}`
-          : `${level.provisional ? "About " : ""}${toGo} pts to Lv ${(level.level ?? 0) + 1}`}
+          : `${level.provisional ? "About " : ""}${toGo} ${toGo === 1 ? "pt" : "pts"} to Lv ${(level.level ?? 0) + 1}`}
       </span>
     </span>
   );

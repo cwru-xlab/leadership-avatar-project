@@ -502,7 +502,7 @@ console.log("\nLevel progress (UAT 2026-10-25: small gains must be visible)");
   const unmeasured = levelFor({ percent: null, tier: "ESTABLISHED", evidence: PROVEN });
   check("unmeasured carries no progress figures", unmeasured.percent === null && unmeasured.levelFloorPercent === null);
   const badge = readFileSync("components/study-plan/PathVisuals.tsx", "utf8");
-  const shows = (src: string) => /<LevelProgress level=\{level\} \/>/.test(src) && /pts to Lv/.test(src);
+  const shows = (src: string) => /<LevelProgress level=\{level\} \/>/.test(src) && /to Lv/.test(src);
   check("LevelBadge renders progress toward the next level", shows(badge));
   check("bite-proof: removing the progress render is caught", !shows(badge.replace("<LevelProgress level={level} />", "")));
 }

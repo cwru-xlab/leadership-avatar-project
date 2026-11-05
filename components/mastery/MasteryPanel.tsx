@@ -213,7 +213,7 @@ function DeltaText({ delta }: { delta: number }) {
       )}
     >
       <Icon size={14} aria-hidden="true" />
-      {`${formatDelta(delta)} pts`}
+      {`${formatDelta(delta)} ${Math.abs(delta) === 1 ? "pt" : "pts"}`}
     </span>
   );
 }
@@ -505,7 +505,9 @@ function CompetencyCard({
           <TrendRow competency={competency} windowDays={windowDays} />
           <div className="flex flex-col gap-0.5">
             <FigureDetail name="All time" figure={competency.lifetime} />
-            <FigureDetail name="Recent" figure={competency.current} />
+            {competency.current.evidenceCount !== competency.lifetime.evidenceCount ? (
+              <FigureDetail name="Recent" figure={competency.current} />
+            ) : null}
           </div>
           <EvidenceSources sources={competency.sources} />
           <CompetencyDisclosures competency={competency} />

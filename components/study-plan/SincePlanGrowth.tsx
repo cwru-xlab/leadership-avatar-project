@@ -112,7 +112,7 @@ export default function SincePlanGrowth({ planId }: { planId: string }) {
                     <span className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-bold ${tone}`}>
                       <Icon size={13} aria-hidden />
                       {c.delta > 0 ? "+" : ""}
-                      {c.delta} pts
+                      {c.delta} {Math.abs(c.delta) === 1 ? "pt" : "pts"}
                     </span>
                   ) : null}
                 </div>
