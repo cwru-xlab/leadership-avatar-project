@@ -5,6 +5,7 @@ import { ArrowRight, ChevronDown, Sparkle, TrendingDown, TrendingUp } from "luci
 import type {
   CompetencyMasteryDTO,
   MasteryDTO,
+  MasteryFigureDTO,
   OriginFigureDTO,
   RecentGrowthDTO,
   WindowDriverDTO,
@@ -38,6 +39,11 @@ import type { GoalProgress } from "@/lib/study-plan/goals";
  * colourblind reader, or a narrow viewport where position and colour both
  * fail as cues.
  *
+ * The figure and how sure it is are read separately: `display` ("about 65%")
+ * is the estimate, the pips and tier label beside it are the confidence, and
+ * the range and the plain average of what was scored sit behind "Trend and
+ * evidence". One session never reads as a settled number.
+ *
  * Layout: a CWRU Blue summary band (recent form ring, all time, goal rings),
  * the recent-movement strip, then one badge card per competency with its
  * level shield, progress to the next level and both figures up front, and
@@ -56,9 +62,65 @@ export interface MasteryPanelProps {
 function formatPercent(percent: number | null): string {
   // A null percent is "not yet measured", never "0%" — a null-to-string
   // coercion bug (e.g. `${percent}%` on a null) would print "null%", and an
-  // arithmetic bug upstream would print "NaN%"; neither is acceptable, so
-  // this is the ONLY place a percent is turned into display text.
-  return percent === null ? "Not yet measured" : `${percent}%`;
+  // arithmetic bug upstream would print "NaN%"; neither is acceptable. Only
+  // for plain averages of what was scored; an estimate prints its `display`.
+  return percent === null ? "Not yet measured" : `${Math.round(percent)}%`;
+}
+
+function activityCount(count: number): string {
+  return `${count} ${count === 1 ? "activity" : "activities"}`;
+}
+
+/** How sure a figure is, as filled pips with its word: never color alone. */
+function Confidence({ figure, tone = "light" }: { figure: MasteryFigureDTO; tone?: "light" | "dark" }) {
+  return (
+    <span className={clsx("inline-flex items-center gap-1.5", tone === "dark" ? "text-light-blue" : "text-muted")}>
+      <span aria-hidden className="inline-flex gap-0.5">
+        {[1, 2, 3].map((step) => (
+          <span
+            key={step}
+            className={clsx(
+              "size-1.5 rounded-full",
+              step <= figure.confidence
+                ? tone === "dark"
+                  ? "bg-white"
+                  : "bg-true-blue"
+                : tone === "dark"
+                  ? "bg-white/30"
+                  : "bg-light-blue/50",
+            )}
+          />
+        ))}
+      </span>
+      {figure.tierLabel}
+    </span>
+  );
+}
+
+/** The estimate as a stat figure: "about" stays small so the number leads. */
+function FigureValue({ figure }: { figure: MasteryFigureDTO }) {
+  if (figure.rounded === null) {
+    return <span className="text-[15px] font-normal text-muted">{figure.display}</span>;
+  }
+  return (
+    <>
+      {figure.approximate ? <span className="mr-1 text-sm text-muted">about</span> : null}
+      {figure.rounded}%
+    </>
+  );
+}
+
+/** What the estimate is built from, for one figure: the range and the real average. */
+function FigureDetail({ name, figure }: { name: string; figure: MasteryFigureDTO }) {
+  if (figure.rounded === null || figure.range === null) return null;
+  return (
+    <p className="text-xs leading-5 text-ink">
+      <span className="font-semibold">{name}:</span>{" "}
+      {`likely ${figure.range.low}–${figure.range.high}%. You averaged ${formatPercent(
+        figure.observedPercent
+      )} across ${activityCount(figure.evidenceCount)}.`}
+    </p>
+  );
 }
 
 /**
@@ -109,13 +171,13 @@ function LevelBadge({ level }: { level: { current: LevelResult; lifetime: LevelR
     <span
       className="text-[13px] font-semibold text-cwru-blue"
       aria-label={`${useCurrent ? "Recent" : "All-time"} level ${shown.level}, ${shown.name}${
-        shown.provisional ? ", provisional" : ""
+        shown.provisional ? ", early read" : ""
       }`}
     >
       {`Level ${shown.level} · ${shown.name}`}
       <span className="font-normal text-muted">
         {useCurrent ? "" : " · all-time level"}
-        {shown.provisional ? " · provisional" : ""}
+        {shown.provisional ? " · early read" : ""}
       </span>
     </span>
   );
@@ -158,8 +220,9 @@ function DeltaText({ delta }: { delta: number }) {
 
 /**
  * Where a competency's evidence came from, split into live practice and
- * path learning (checks, coached sessions). Counts are scored results in
- * the ledger — one session can evidence several competencies.
+ * path learning (checks, coached sessions). Counts are activities, and each
+ * "avg" is what was actually scored, not the estimate — one session can
+ * evidence several competencies.
  */
 function EvidenceSources({ sources }: { sources: OriginFigureDTO[] }) {
   return (
@@ -202,7 +265,7 @@ function DriverList({ drivers, timeZone }: { drivers: WindowDriverDTO[]; timeZon
           <>
             <span className="font-semibold">{driver.activityLabel}</span>
             <span className="text-muted">
-              {` · ${driver.originLabel} · ${formatDay(driver.occurredAt, timeZone)} · scored ${driver.percent}%`}
+              {` · ${driver.originLabel} · ${formatDay(driver.occurredAt, timeZone)} · scored ${formatPercent(driver.percent)}`}
             </span>
           </>
         );
@@ -271,7 +334,7 @@ function RecentMovement({
               </div>
               {entry.kind !== "new" && entry.delta !== null && (
                 <p className="text-xs text-muted">
-                  {`All time ${formatPercent(entry.windowStartPercent)} → ${formatPercent(entry.lifetimePercent)}`}
+                  {`All time ${entry.windowStartDisplay ?? "—"} → ${entry.lifetimeDisplay}`}
                 </p>
               )}
               {entry.drivers.length > 0 && (
@@ -415,19 +478,19 @@ function CompetencyCard({
         <div>
           <dt className="text-xs font-semibold text-muted">All time</dt>
           <dd className="font-display text-2xl font-medium text-cwru-blue tabular-nums">
-            {formatPercent(competency.lifetime.percent)}
+            <FigureValue figure={competency.lifetime} />
           </dd>
-          <dd className="text-[13px] leading-snug text-muted">
-            {`${competency.lifetime.tierLabel} · ${competency.lifetime.evidenceCount} scored`}
+          <dd className="text-[13px] leading-snug">
+            <Confidence figure={competency.lifetime} />
           </dd>
         </div>
         <div>
           <dt className="text-xs font-semibold text-link">{`Recent (last ${windowDays} days)`}</dt>
           <dd className="font-display text-2xl font-medium text-cwru-blue tabular-nums">
-            {formatPercent(competency.current.percent)}
+            <FigureValue figure={competency.current} />
           </dd>
-          <dd className="text-[13px] leading-snug text-muted">
-            {`${competency.current.tierLabel} · ${competency.current.evidenceCount} scored`}
+          <dd className="text-[13px] leading-snug">
+            <Confidence figure={competency.current} />
           </dd>
         </div>
       </dl>
@@ -440,6 +503,10 @@ function CompetencyCard({
         <div className="mt-3 flex flex-col gap-3">
           <p className="text-[13px] text-muted">{competency.description}</p>
           <TrendRow competency={competency} windowDays={windowDays} />
+          <div className="flex flex-col gap-0.5">
+            <FigureDetail name="All time" figure={competency.lifetime} />
+            <FigureDetail name="Recent" figure={competency.current} />
+          </div>
           <EvidenceSources sources={competency.sources} />
           <CompetencyDisclosures competency={competency} />
         </div>
@@ -454,9 +521,7 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
 
   const overallAriaLabel = bothOverallNull
     ? "No mastery measured yet. Complete a session or a knowledge check to begin."
-    : `Recent form over the last ${masteryWindow.days} days: ${formatPercent(
-        overall.currentPercent
-      )}. All time: ${formatPercent(overall.lifetimePercent)}.`;
+    : `Recent form over the last ${masteryWindow.days} days: ${overall.current.display}, ${overall.current.tierLabel}. All time: ${overall.lifetime.display}, ${overall.lifetime.tierLabel}.`;
 
   return (
     <div className="flex flex-col gap-7">
@@ -479,15 +544,18 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
             <div className="relative">
               <ProgressRing
                 done={overall.currentPercent ?? 0}
-                label={`Recent form ${formatPercent(overall.currentPercent)}`}
+                label={`Recent form ${overall.current.display}`}
                 size={120}
                 stroke={11}
                 tone="dark"
                 total={100}
               >
                 <span className="flex flex-col items-center leading-none">
+                  {overall.current.approximate ? (
+                    <span className="mb-0.5 text-[11px] font-normal text-light-blue">about</span>
+                  ) : null}
                   <span className="font-display text-[30px] font-medium">
-                    {overall.currentPercent === null ? "—" : `${overall.currentPercent}%`}
+                    {overall.current.rounded === null ? "—" : `${overall.current.rounded}%`}
                   </span>
                   <span className="mt-1 text-[11px] font-normal text-light-blue">Recent form</span>
                 </span>
@@ -498,13 +566,16 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
               <dl className="flex flex-wrap gap-x-5 text-[15px] text-light-blue">
                 <div className="flex gap-1.5">
                   <dt>{`Recent (last ${masteryWindow.days} days)`}</dt>
-                  <dd className="font-bold text-white">{formatPercent(overall.currentPercent)}</dd>
+                  <dd className="font-bold text-white">{overall.current.display}</dd>
                 </div>
                 <div className="flex gap-1.5">
                   <dt>All time</dt>
-                  <dd className="font-bold text-white">{formatPercent(overall.lifetimePercent)}</dd>
+                  <dd className="font-bold text-white">{overall.lifetime.display}</dd>
                 </div>
               </dl>
+              <p className="text-[13px]">
+                <Confidence figure={overall.current.rounded === null ? overall.lifetime : overall.current} tone="dark" />
+              </p>
               {intro && <p className="max-w-[60ch] text-[13px] leading-5 text-light-blue/90">{intro}</p>}
             </div>
           </>
@@ -527,6 +598,17 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
           <h2 className="font-display text-[22px] font-medium text-cwru-blue">Your skill badges</h2>
           <LevelLadder levels={levels} />
         </div>
+        <details className="group text-[13px]">
+          <summary className="flex w-fit cursor-pointer list-none items-center gap-1 font-semibold text-link [&::-webkit-details-marker]:hidden">
+            How these numbers work
+            <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180" size={14} />
+          </summary>
+          <ul className="mt-2 flex max-w-[65ch] list-disc flex-col gap-1 pl-5 leading-5 text-muted">
+            <li>Each figure is our best estimate, not your average. Every skill starts near the middle of the scale, then moves toward your real scores as you practise.</li>
+            <li>Each session counts once, however many things it scored. Live practice counts most, then knowledge checks, then drills and coached work. Recent work counts a little more.</li>
+            <li>The dots show how sure we are. Higher levels also need more sessions, so one great session can&apos;t make a skill Strong or Mastered.</li>
+          </ul>
+        </details>
         <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {mastery.competencies.map((competency) => (
             <CompetencyCard
