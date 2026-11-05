@@ -215,12 +215,15 @@ export default function ListenerKnowledgeStep({
           >
             <div className="flex items-center gap-4">
               {disclosure.previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  alt=""
-                  className="h-14 w-14 shrink-0 rounded-full object-cover"
-                  src={disclosure.previewUrl}
-                />
+                // Previews are wide desk shots: zoom toward the face.
+                <span className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-line">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt=""
+                    className="h-full w-full origin-[50%_30%] scale-[1.8] object-cover object-[50%_30%]"
+                    src={disclosure.previewUrl}
+                  />
+                </span>
               ) : (
                 <div
                   aria-hidden
