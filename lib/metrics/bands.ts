@@ -281,7 +281,7 @@ const DESCRIPTIVE_EPISODE_LABELS: Record<VisualDescriptiveEpisode["kind"], strin
 /** Which display group each episode kind belongs to, for `timelineRows`'s
  * merged chronological list (REQ-55's "tagged by kind"). Camera/environment
  * kinds predate this phase; body kinds and descriptive kinds are new. */
-const EPISODE_KIND_GROUP: Record<
+export const EPISODE_KIND_GROUP: Record<
   VisualEpisode["kind"],
   "camera" | "body"
 > = {

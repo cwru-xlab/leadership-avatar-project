@@ -261,10 +261,12 @@ export interface VisualCoverage {
    * denominator behind `attentiveness_pct`. */
   listening_samples: number;
   /**
-   * Seconds between session start (`report.startedAt`, which transcript turn
-   * timestamps are relative to) and CAPTURE start. Capture is deliberately
-   * deferred until the avatar stream connects, so the two clocks never share
-   * a zero point.
+   * Seconds between the session shell's start (the avatar connecting) and
+   * CAPTURE start. Capture is deliberately deferred until the stream connects,
+   * so the two clocks never share a zero point. On a scenario the shell's start
+   * is the transcript's zero; on an engine session it is later than
+   * `report.startedAt`, so this alone does not reach transcript time there.
+   * `lib/report/moments.ts` closes that gap for the report.
    *
    * Every episode timestamp is in capture time; every transcript timestamp is
    * in session time. Reporting an episode against the wrong clock silently
@@ -273,6 +275,9 @@ export interface VisualCoverage {
    * than a re-derived guess for exactly that reason.
    */
   capture_offset_s: number;
+  /** Epoch ms of capture start, on the clock transcript turns are stamped with.
+   * Exact where `capture_offset_s` is not. Absent on older reports. */
+  capture_started_at_ms?: number;
   /** The configured throttle rate (see `METRICS_SAMPLE_HZ`). */
   sample_hz: number;
   /** True if landmarker init threw, or the detect loop threw a
@@ -599,6 +604,9 @@ export interface VocalCoverage {
   spoken_seconds: number;
   /** True if the analyzer threw a non-recoverable error. */
   analyzer_error: boolean;
+  /** Epoch ms that `VocalTurnMetrics.start_s` counts from, on the clock
+   * transcript turns are stamped with. Absent on older reports. */
+  capture_started_at_ms?: number;
 }
 
 /**
@@ -617,7 +625,8 @@ export interface VocalCoverage {
  */
 export interface VocalTurnMetrics {
   turn_index: number;
-  /** Seconds elapsed from capture start, same clock as `VisualEpisode`. */
+  /** Seconds elapsed from when the vocal engine was created. That is its own
+   * clock, earlier than visual capture: not the `VisualEpisode` clock. */
   start_s: number;
   duration_s: number;
   words_per_minute: number;

@@ -9,15 +9,18 @@
  * absent, every type is returned.
  *
  * `app/reports/page.tsx` lists every finished interaction type and filters
- * client-side (type tabs + title search). Study-plan generation remains
- * interview-only.
+ * client-side (`lib/report/filters.ts`), which relies on this route returning
+ * the whole list unpaged. Study-plan generation remains interview-only.
+ *
+ * `plannedReportIds` names the owner's reports used by any of their saved
+ * plans, so "has a study plan" can be filtered without a schema change.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
-import { listReportsForUser } from "@/lib/report/handlers";
+import { listPlannedReportIds, listReportsForUser } from "@/lib/report/handlers";
 
 export const runtime = "nodejs";
 
@@ -52,7 +55,9 @@ export async function GET(request: NextRequest) {
       return response({ error: result.error }, result.status);
     }
 
-    return response({ reports: result.reports }, 200);
+    const plannedReportIds = await listPlannedReportIds(currentUser.id);
+
+    return response({ reports: result.reports, plannedReportIds }, 200);
   } catch (error) {
     console.error("Practice reports list fetch failed:", error);
     return response({ error: "Unable to load your reports." }, 500);

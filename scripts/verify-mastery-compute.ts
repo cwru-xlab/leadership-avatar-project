@@ -108,8 +108,8 @@ console.log(
   const rows = [mkRow({ competencyKey: KEY_A, rawScore: 0.75, weight: 1.0 })];
   const result = computeMastery(rows, NOW);
   const a = result.competencies.find((c) => c.competencyKey === KEY_A)!;
-  check("competency A lifetimePercent is 75.0", a.lifetimePercent === 75.0, `got ${a.lifetimePercent}`);
-  check("competency A currentPercent is 75.0", a.currentPercent === 75.0, `got ${a.currentPercent}`);
+  check("competency A observed average is 75.0", a.lifetimeObservedPercent === 75.0, `got ${a.lifetimeObservedPercent}`);
+  check("competency A recent observed average is 75.0", a.currentObservedPercent === 75.0, `got ${a.currentObservedPercent}`);
   check(
     "every other competency is null",
     result.competencies
@@ -118,12 +118,12 @@ console.log(
   );
   check(
     "overallLifetimePercent equals the one figure (mean of one)",
-    result.overallLifetimePercent === 75.0,
+    result.overallLifetimePercent === a.lifetimePercent,
     `got ${result.overallLifetimePercent}`
   );
   check(
     "overallCurrentPercent equals the one figure (mean of one)",
-    result.overallCurrentPercent === 75.0,
+    result.overallCurrentPercent === a.currentPercent,
     `got ${result.overallCurrentPercent}`
   );
 }
@@ -139,7 +139,7 @@ console.log(
   const result = computeMastery(rows, NOW);
   const a = result.competencies.find((c) => c.competencyKey === KEY_A)!;
   // (0.4*1.0 + 0.8*0.2) / (1.0+0.2) = 0.56/1.2 = 0.466666... -> 46.7
-  check("lifetimePercent is 46.7 (weighted, not flat 60.0)", a.lifetimePercent === 46.7, `got ${a.lifetimePercent}`);
+  check("observed average is 46.7 (weighted, not flat 60.0)", a.lifetimeObservedPercent === 46.7, `got ${a.lifetimeObservedPercent}`);
   check("lifetimeEvidenceCount is 2", a.lifetimeEvidenceCount === 2);
   check("lifetimeWeightSum is 1.2", Math.abs(a.lifetimeWeightSum - 1.2) < 1e-9, `got ${a.lifetimeWeightSum}`);
 }
@@ -173,11 +173,11 @@ console.log(
     `got ${b.currentEvidenceCount}`
   );
   check(
-    "lifetimePercent and currentPercent genuinely differ",
-    b.lifetimePercent !== null &&
-      b.currentPercent !== null &&
-      b.lifetimePercent === b.currentPercent, // both rows same rawScore/weight -> same percent value
-    `lifetime=${b.lifetimePercent}, current=${b.currentPercent}`
+    "lifetime and current observed averages agree when both rows score the same",
+    b.lifetimeObservedPercent !== null &&
+      b.currentObservedPercent !== null &&
+      b.lifetimeObservedPercent === b.currentObservedPercent,
+    `lifetime=${b.lifetimeObservedPercent}, current=${b.currentObservedPercent}`
   );
   check(
     "but the underlying evidence counts differ (proving two distinct windows, not one path reused blindly)",
@@ -197,7 +197,7 @@ console.log(
   });
   const result = computeMastery([old], NOW);
   const c = result.competencies.find((comp) => comp.competencyKey === KEY_C)!;
-  check("lifetimePercent is non-null (90.0)", c.lifetimePercent === 90.0, `got ${c.lifetimePercent}`);
+  check("observed average is non-null (90.0)", c.lifetimeObservedPercent === 90.0, `got ${c.lifetimeObservedPercent}`);
   check("currentPercent is NULL, not 0", c.currentPercent === null, `got ${c.currentPercent}`);
   check("currentEvidenceCount is 0", c.currentEvidenceCount === 0);
   check("lifetimeEvidenceCount is 1", c.lifetimeEvidenceCount === 1);
@@ -236,11 +236,11 @@ console.log(
   const result = computeMastery([...manyRows, ...oneRow], NOW);
   const a = result.competencies.find((c) => c.competencyKey === KEY_A)!;
   const b = result.competencies.find((c) => c.competencyKey === KEY_B)!;
-  check("competency A (10 rows) lifetimePercent is 30.0", a.lifetimePercent === 30.0, `got ${a.lifetimePercent}`);
-  check("competency B (1 row) lifetimePercent is 90.0", b.lifetimePercent === 90.0, `got ${b.lifetimePercent}`);
+  check("competency A (10 rows) observed average is 30.0", a.lifetimeObservedPercent === 30.0, `got ${a.lifetimeObservedPercent}`);
+  check("competency B (1 row) observed average is 90.0", b.lifetimeObservedPercent === 90.0, `got ${b.lifetimeObservedPercent}`);
   check(
-    "overallLifetimePercent is 60.0, not pulled toward 0.3 by volume",
-    result.overallLifetimePercent === 60.0,
+    "overallLifetimePercent is the plain mean of the two figures, not pulled toward A by volume",
+    result.overallLifetimePercent === Math.round(((a.lifetimePercent! + b.lifetimePercent!) / 2) * 10) / 10,
     `got ${result.overallLifetimePercent}`
   );
 }
@@ -332,7 +332,7 @@ console.log("\n11. trend: TREND_BUCKETS rolling weekly points of the lifetime fi
   check("points before any evidence are null, not 0", b.trend[0].cumulativePercent === null);
   // Bucket ending now-14d holds the -20d row only -> 25; final -> 50.
   const at14 = b.trend[TREND_BUCKETS - 3];
-  check("the figure as it stood 14 days ago is 25 (only the older row)", at14.cumulativePercent === 25, `got ${at14.cumulativePercent}`);
+  check("the figure as it stood 14 days ago is 41.7 (only the older 25% row, shrunk)", at14.cumulativePercent === 41.7, `got ${at14.cumulativePercent}`);
   check("bucket counts sum to rows inside the trend span", b.trend.reduce((n, p) => n + p.bucketCount, 0) === 2);
   const shifted = computeMastery(rows, new Date(NOW.getTime() + 7 * DAY_MS)).competencies.find((c) => c.competencyKey === KEY_B)!;
   check(
@@ -346,11 +346,11 @@ console.log("\n12. windowDelta, drivers and recentGrowth");
   const before = new Date(WINDOW_START.getTime() - DAY_MS);
   const inWin = new Date(NOW.getTime() - DAY_MS);
   const rows = [
-    // KEY_A: baseline 25 -> in-window 75 x2 -> lifetime (0.25+0.75+0.75)/3 = 58.3; delta 33.3
+    // KEY_A: baseline row 25 (estimate 41.7) -> in-window 75 x2 -> lifetime climbs
     mkRow({ competencyKey: KEY_A, rawScore: 0.25, occurredAt: before, sourceReportId: "old" }),
     mkRow({ competencyKey: KEY_A, rawScore: 0.75, occurredAt: inWin, sourceReportId: "rA" }),
     mkRow({ competencyKey: KEY_A, rawScore: 0.75, occurredAt: inWin, sourceReportId: "rB" }),
-    // KEY_B: baseline 50 -> in-window 62.5 -> lifetime 56.3; delta 6.3 (smaller)
+    // KEY_B: baseline row 50 -> in-window 62.5 -> a smaller move
     mkRow({ competencyKey: KEY_B, rawScore: 0.5, occurredAt: before, sourceReportId: "old" }),
     mkRow({ competencyKey: KEY_B, rawScore: 0.625, occurredAt: inWin, sourceReportId: "rA" }),
     // KEY_C: only in-window -> "new"
@@ -363,8 +363,8 @@ console.log("\n12. windowDelta, drivers and recentGrowth");
   const result = computeMastery(rows, NOW);
   const get = (k: CompetencyKey) => result.competencies.find((c) => c.competencyKey === k)!;
   const a = get(KEY_A);
-  check("A windowStartLifetimePercent = 25", a.windowStartLifetimePercent === 25, `got ${a.windowStartLifetimePercent}`);
-  check("A windowDelta = lifetime - start", a.windowDelta === Math.round((a.lifetimePercent! - 25) * 10) / 10, `got ${a.windowDelta}`);
+  check("A windowStartLifetimePercent = 41.7 (the estimate from its one 25% row)", a.windowStartLifetimePercent === 41.7, `got ${a.windowStartLifetimePercent}`);
+  check("A windowDelta = lifetime - start, whole points", a.windowDelta === Math.round(a.lifetimePercent! - 41.7), `got ${a.windowDelta}`);
   check("C (first measured in window) has null delta", get(KEY_C).windowDelta === null && get(KEY_C).windowStartLifetimePercent === null);
   check("D (no in-window evidence) has null delta", get(KEY_D).windowDelta === null);
   check("A drivers: rows from one report are grouped (2 drivers, not 3)", a.windowDrivers.length === 2, JSON.stringify(a.windowDrivers.map((d) => d.sourceReportId)));
@@ -388,7 +388,7 @@ console.log("\n13. growthSincePlan: per-study-plan baseline");
 {
   const since = new Date(NOW.getTime() - 10 * DAY_MS);
   const rows = [
-    // A: baseline 25 (before since), then 75 + 75 after -> now 58.3, delta 33.3
+    // A: one row 25 before since (estimate 41.7), then more after
     mkRow({ competencyKey: KEY_A, rawScore: 0.25, occurredAt: new Date(since.getTime() - DAY_MS), sourceReportId: "pre" }),
     mkRow({ competencyKey: KEY_A, rawScore: 0.75, occurredAt: new Date(since.getTime() + DAY_MS), sourceReportId: "p1" }),
     mkRow({ competencyKey: KEY_A, source: "CHECK_DETERMINISTIC", weight: 0.45, rawScore: 0.75, occurredAt: since, sourceAttemptId: "chk" }),
@@ -406,9 +406,9 @@ console.log("\n13. growthSincePlan: per-study-plan baseline");
   check("one entry per distinct known key, in first-seen order", out.map((r) => r.competencyKey).join() === [KEY_A, KEY_B, KEY_C].join());
   const a = get(KEY_A);
   // now = (0.25*1 + 0.75*1 + 0.75*0.45) / 2.45 = 54.6
-  check("A baseline 25 from rows strictly before since", a.baseline.percent === 25 && a.baseline.evidenceCount === 1);
-  check("A now includes the row exactly at since and ignores the future row (54.6)", a.now.percent === 54.6 && a.now.evidenceCount === 3, `got ${a.now.percent}/${a.now.evidenceCount}`);
-  check("A delta = now - baseline", a.delta === 29.6, `got ${a.delta}`);
+  check("A baseline from rows strictly before since (observed 25, estimate 41.7)", a.baseline.observedPercent === 25 && a.baseline.percent === 41.7 && a.baseline.evidenceCount === 1);
+  check("A now includes the row exactly at since and ignores the future row (observed 54.6)", a.now.observedPercent === 54.6 && a.now.evidenceCount === 3, `got ${a.now.observedPercent}/${a.now.evidenceCount}`);
+  check("A delta = now - baseline, whole points", a.delta === Math.round(a.now.percent! - a.baseline.percent!), `got ${a.delta}`);
   check("A sinceEvidenceCount 2, drivers name the report and the check", a.sinceEvidenceCount === 2 && a.drivers.length === 2 && a.drivers.some((d) => d.sourceAttemptId === "chk") && a.drivers.every((d) => d.sourceReportId !== "future"));
   check("A sincePercent is the weighted mean of only the since rows (75)", a.sincePercent === 75, `got ${a.sincePercent}`);
   check("C with nothing since has sincePercent null", get(KEY_C).sincePercent === null);
@@ -416,9 +416,9 @@ console.log("\n13. growthSincePlan: per-study-plan baseline");
   check("A sinceBySource splits path vs live", a.sinceBySource.live.count === 1 && a.sinceBySource.path.count === 1 && a.sinceBySource.path.percent === 75 && a.sinceBySource.live.percent === 75, JSON.stringify(a.sinceBySource));
   check("B since rows are all live (no path work)", get(KEY_B).sinceBySource.path.count === 0 && get(KEY_B).sinceBySource.path.percent === null && get(KEY_B).sinceBySource.live.percent === 0);
   check("bite-proof: counts sum to sinceEvidenceCount", a.sinceBySource.path.count + a.sinceBySource.live.count === a.sinceEvidenceCount);
-  check("B shows a drop (negative delta)", get(KEY_B).delta === -50, `got ${get(KEY_B).delta}`);
+  check("B shows a drop (negative delta)", get(KEY_B).delta === -17, `got ${get(KEY_B).delta}`);
   check("C with nothing since has delta null", get(KEY_C).delta === null && get(KEY_C).sinceEvidenceCount === 0);
-  check("snapshot figure echoed, never substituted (A snapshot null, baseline 25)", a.snapshotLifetimePercent === null && get(KEY_B).snapshotLifetimePercent === 90 && get(KEY_B).baseline.percent === 100);
+  check("snapshot figure echoed, never substituted (A snapshot null, baseline 25)", a.snapshotLifetimePercent === null && get(KEY_B).snapshotLifetimePercent === 90 && get(KEY_B).baseline.observedPercent === 100);
   let threw = false;
   try { growthSincePlan([mkRow({ reversedAt: NOW })], [KEY_A], since, NOW); } catch { threw = true; }
   check("a reversed row THROWS", threw);
