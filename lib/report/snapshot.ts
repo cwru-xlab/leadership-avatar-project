@@ -12,6 +12,7 @@
 
 import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
 import { isDeckModeSlug } from "@/lib/pitch/deck-modes";
+import type { TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
 
 /**
  * The interview type's input snapshot — the union of every typed
@@ -187,7 +188,8 @@ export type InputSnapshot =
   | ScenarioInputSnapshot
   | PitchInputSnapshot
   | DifficultConversationInputSnapshot
-  | NetworkingInputSnapshot;
+  | NetworkingInputSnapshot
+  | TechnicalCodingInputSnapshot;
 
 /**
  * The dimension-keyed score map replacing the four fixed score columns
@@ -264,6 +266,17 @@ const DIFFICULT_CONVERSATION_INPUT_KEYS: readonly (keyof DifficultConversationIn
     "difficulty",
     "avatarId",
   ];
+
+const TECHNICAL_CODING_INPUT_KEYS: readonly (keyof TechnicalCodingInputSnapshot)[] = [
+  "kind",
+  "assignmentId",
+  "assignmentVersion",
+  "assignmentHash",
+  "assignment",
+  "language",
+  "runtimePolicyVersion",
+  "selectedAt",
+];
 
 const NETWORKING_PERSONA_SOURCES = ["character", "brought-in"] as const;
 
@@ -405,6 +418,21 @@ export function asInputSnapshot(value: unknown): InputSnapshot | null {
     typeof v.avatarId === "string"
   ) {
     return value as DifficultConversationInputSnapshot;
+  }
+  if (
+    v.kind === "technical-coding" &&
+    hasAllKeys(v, TECHNICAL_CODING_INPUT_KEYS) &&
+    typeof v.assignmentId === "string" &&
+    typeof v.assignmentVersion === "string" &&
+    typeof v.assignmentHash === "string" &&
+    typeof v.runtimePolicyVersion === "string" &&
+    typeof v.selectedAt === "string" &&
+    v.language === "python" &&
+    !!v.assignment &&
+    typeof v.assignment === "object" &&
+    !Array.isArray(v.assignment)
+  ) {
+    return value as TechnicalCodingInputSnapshot;
   }
   if (
     v.kind === "networking" &&

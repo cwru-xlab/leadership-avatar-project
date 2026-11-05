@@ -43,6 +43,11 @@ import { PITCH_PRODUCT_TYPE } from "../pitch/product-type";
 import { PITCH_TALK_TYPE } from "../pitch/talk-type";
 import { PITCH_GENERAL_TYPE } from "../pitch/general-deck-type";
 import { DIFFICULT_CONVERSATION_TYPE } from "../difficult-conversation/conversation-type";
+import {
+  buildTechnicalCodingSystemPrompt,
+  TECHNICAL_CODING_EVALUATOR_PROMPT,
+  TECHNICAL_CODING_RUBRIC_EXTRAS,
+} from "../technical-interview/prompts";
 
 /**
  * Builds an interview preset's `InteractionTypeConfig` record. `base` is the
@@ -261,6 +266,30 @@ const CASE_STUDY: InteractionTypeConfig = {
  * dashboard tile and this type do not drift. That file is a DIFFERENT
  * namespace with its own slugs; plan 16-11 owns flipping the tile live.
  */
+const TECHNICAL_CODING: InteractionTypeConfig = {
+  slug: "technical-coding",
+  name: "Technical Coding Interview",
+  description:
+    "Solve an original Python algorithm exercise while explaining your reasoning to an interviewer.",
+  sessionExperience: "coding",
+  extraRubricDimensions: [...TECHNICAL_CODING_RUBRIC_EXTRAS],
+  prompts: {
+    liveSystemPrompt: buildTechnicalCodingSystemPrompt,
+    evaluatorPrompt: TECHNICAL_CODING_EVALUATOR_PROMPT,
+    buildEvaluationContext: () => ({ kind: "technical-coding" }),
+  },
+  limits: { targetMinutes: 30, targetQuestionCount: 1 },
+  terminationPolicy: { studentMayEnd: true, avatarMayEnd: false, avatarEndReasons: [] },
+  visibleContext: { visibleChannels: "*" },
+  outcome: { fields: [] },
+  timeBudget: { totalSeconds: 30 * 60, warnAtRemainingSeconds: 120 },
+  instance: { required: false },
+  checkpointing: "none",
+  finishPendingFlip: "request-path",
+  supportsRetry: true,
+  setupSteps: [{ id: "interviewer", label: "Interviewer", customComponent: "InterviewerStep" }],
+};
+
 const NETWORKING: InteractionTypeConfig = {
   slug: "networking",
   name: "Networking Practice",
@@ -370,6 +399,7 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   CONSULTING,
   EARLY_CAREER,
   CASE_STUDY,
+  TECHNICAL_CODING,
   NETWORKING,
   PITCH_ELEVATOR_TYPE,
   PITCH_DECK_TYPE,
