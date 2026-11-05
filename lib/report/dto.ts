@@ -25,9 +25,10 @@ import type {
  * engine-level fields (REQ-62/REQ-64) neither legacy table carries.
  *
  * Deliberately excludes the same private columns the legacy DTOs already
- * excluded: the owning user id, the S3 transcript/log pointers
- * (`transcriptKey`/`interactionLogId`/`studentEmail`), `evalModel`,
- * `createdAt`, `updatedAt`. See `toReportDto` for the explicit,
+ * excluded: the owning user id, private coding evidence (`technicalEvidence`),
+ * the S3 transcript/log pointers (`transcriptKey`/`interactionLogId`/
+ * `studentEmail`), `evalModel`, `createdAt`, `updatedAt`. See `toReportDto`
+ * for the explicit,
  * field-by-field mapping that enforces this — never spread the Prisma row.
  */
 export interface ReportDTO {
@@ -440,6 +441,6 @@ export function toReportDto(row: InteractionReport): ReportDTO {
     completedAt,
   };
   // Deliberately excluded, never in the object literal above:
-  // row.userId, row.transcriptKey, row.interactionLogId, row.studentEmail,
-  // row.createdAt, row.updatedAt.
+  // row.userId, row.technicalEvidence, row.transcriptKey,
+  // row.interactionLogId, row.studentEmail, row.createdAt, row.updatedAt.
 }
