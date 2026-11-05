@@ -18,7 +18,8 @@ import {
 } from "@/components/practice/ReportChrome";
 import { listRubricDimensionsForSlug } from "@/lib/engine/resolve";
 import type { ReportDTO } from "@/lib/report/dto";
-import { formatReportWhen, typeLabelForReport } from "@/lib/report/title";
+import { displayReportTitle, formatReportWhen, typeLabelForReport } from "@/lib/report/title";
+import { reportsListHref } from "@/lib/report/filters";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { RubricDimension } from "@/lib/engine/types";
 import { routes } from "@/lib/routes";
@@ -219,6 +220,13 @@ export default function PracticeReportPage({
 
   const typeLabel = typeLabelForReport(report?.typeSlug ?? typeSlug);
 
+  // Shared with the reports list. The subtitle only adds what the title doesn't say.
+  const reportTitle = report
+    ? displayReportTitle({ title: report.title, typeSlug: report.typeSlug, input: report.input })
+    : isInterviewChrome
+      ? "Your interview report"
+      : "Your practice report";
+
   if (unknownType) {
     return (
       <ReportShell
@@ -296,15 +304,16 @@ export default function PracticeReportPage({
 
   return (
     <ReportShell
-      title={isInterviewChrome ? "Your interview report" : "Your practice report"}
+      title={reportTitle}
       subtitle={[
-        interviewerName ? `${typeLabel} with ${interviewerName}` : typeLabel,
+        reportTitle.startsWith(typeLabel) ? null : typeLabel,
+        interviewerName && !reportTitle.includes(interviewerName) ? `with ${interviewerName}` : null,
         report?.completedAt ? formatReportWhen(report.completedAt) : null,
       ]
         .filter(Boolean)
         .join(" · ")}
       aiLabel={report?.status === "READY"}
-      onBackToReports={() => router.push(routes.reports())}
+      onBackToReports={() => router.push(reportsListHref())}
       onPracticeAgain={
         isInterviewChrome
           ? () => router.push(routes.interview(typeSlug))

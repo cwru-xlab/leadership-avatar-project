@@ -43,12 +43,17 @@ import {
 import GeneratePathCard from "@/components/study-plan/GeneratePathCard";
 import RebuildPathNotice from "@/components/study-plan/RebuildPathNotice";
 import { ProgressRing } from "@/components/study-plan/PathVisuals";
+import { displayPlanTitle } from "@/lib/study-plan/title";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
+    // The title carries no date here, so the time is what tells apart two
+    // otherwise identical plans saved on one day.
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
@@ -230,7 +235,7 @@ export default function StudyPlanPage() {
           )}
         </span>
         <div className="relative flex min-w-[240px] flex-1 flex-col gap-2">
-          <h1 className="max-w-[28ch] font-display text-[26px] font-medium leading-[1.12] md:text-[30px]">{plan.title}</h1>
+          <h1 className="max-w-[28ch] font-display text-[26px] font-medium leading-[1.12] md:text-[30px]">{displayPlanTitle(plan)}</h1>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-light-blue">
             Built from {plan.sourceReportCount} {plan.sourceReportCount === 1 ? "report" : "reports"} · Saved{" "}
             {formatDate(plan.savedAt)}
