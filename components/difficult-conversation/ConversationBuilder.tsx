@@ -150,12 +150,15 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
     if (clientErrors.length > 0) {
       applyFieldErrors(clientErrors);
       // The avatar grid sits below every text field, so a missing pick is
-      // easy to miss: move focus there (first card, else the section).
-      if (clientErrors.some((e) => e.field === "avatarId" || e.field === "voiceId")) {
+      // easy to miss: when it is the only problem, move focus there (first
+      // card, else the section). Text-field errors show inline as before.
+      if (
+        clientErrors.every((e) => e.field === "avatarId" || e.field === "voiceId")
+      ) {
         const section = avatarSectionRef.current;
         const target =
           section?.querySelector<HTMLElement>("[role=group] button") ?? section;
-        target?.scrollIntoView({ behavior: "smooth", block: "center" });
+        section?.scrollIntoView({ behavior: "smooth", block: "start" });
         target?.focus({ preventScroll: true });
       }
       return;
@@ -472,7 +475,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
       <div
         ref={avatarSectionRef}
         tabIndex={-1}
-        className="space-y-2 outline-none"
+        className="scroll-mt-24 space-y-2 outline-none"
       >
         <p id="dc-avatar-label" className="text-sm font-medium text-ink">
           The character&apos;s avatar{" "}
@@ -481,6 +484,18 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
         <p id="dc-avatar-help" className="text-xs text-muted">
           Pick who they look and sound like. Avatar and voice stay paired.
         </p>
+        {/* Above the grid: the catalog is long, so an error below it is
+            off screen when focus lands on the first card. */}
+        {(err("avatarId") || err("voiceId")) && (
+          <p
+            id="dc-avatar-error"
+            role="alert"
+            className="flex items-start gap-1.5 text-sm text-copper-deep"
+          >
+            <CircleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+            {err("avatarId") || err("voiceId")}
+          </p>
+        )}
         <AvatarPickerGrid
           value={avatarId || null}
           labelledBy="dc-avatar-label"
@@ -502,16 +517,6 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
             });
           }}
         />
-        {(err("avatarId") || err("voiceId")) && (
-          <p
-            id="dc-avatar-error"
-            role="alert"
-            className="flex items-start gap-1.5 text-sm text-copper-deep"
-          >
-            <CircleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
-            {err("avatarId") || err("voiceId")}
-          </p>
-        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
