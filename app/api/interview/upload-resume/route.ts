@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
+import {
+  intakeExtractedText,
+  readExtractedTextBody,
+} from "@/lib/interview/document-intake";
 import { documentProcessor, PdfPasswordError } from "@/lib/rag/document-processor";
 import { s3Storage } from "@/lib/s3-client";
 
@@ -11,6 +15,8 @@ export const maxDuration = 60;
 
 const MAX_RESUME_SIZE_BYTES = 10 * 1024 * 1024;
 const PDF_MIME_TYPE = "application/pdf";
+const SCANNED_RESUME_ERROR =
+  "No readable text was found in that PDF. It looks like a scan or photo. Export your resume from Word, Google Docs or Pages as a PDF, then upload it.";
 
 function response(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, {
@@ -25,6 +31,10 @@ function response(body: Record<string, unknown>, status: number) {
  * The original PDF is private in S3. Only its extracted text and an opaque
  * resume ID return to the browser; later interview/report routes must derive
  * the S3 key server-side from the authenticated user and that ID.
+ *
+ * A PDF over the direct-upload size arrives as JSON text instead (the browser
+ * read it, because Vercel rejects bodies over 4.5 MB). That path stores the
+ * cleaned text privately in place of the PDF and answers with the same shape.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -33,6 +43,10 @@ export async function POST(request: NextRequest) {
 
     if (!currentUser) {
       return response({ error: "Unauthorized" }, 401);
+    }
+
+    if (request.headers.get("content-type")?.startsWith("application/json")) {
+      return await uploadExtractedText(request, currentUser.id);
     }
 
     const formData = await request.formData();
@@ -91,13 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!resumeText) {
-      return response(
-        {
-          error:
-            "No readable text was found in that PDF. It looks like a scan or photo. Export your resume from Word, Google Docs or Pages as a PDF, then upload it.",
-        },
-        422
-      );
+      return response({ error: SCANNED_RESUME_ERROR }, 422);
     }
 
     const resumeId = randomUUID();
@@ -121,4 +129,37 @@ export async function POST(request: NextRequest) {
     console.error("Interview resume upload failed:", error);
     return response({ error: "Unable to upload the resume. Please try again." }, 500);
   }
+}
+
+async function uploadExtractedText(request: NextRequest, userId: string) {
+  const read = await readExtractedTextBody(request);
+  if (!read.ok) {
+    return response({ error: read.error }, read.status);
+  }
+  const intake = intakeExtractedText(read.body, {
+    label: "resume",
+    scannedError: SCANNED_RESUME_ERROR,
+  });
+  if (!intake.ok) {
+    return response({ error: intake.error }, intake.status);
+  }
+
+  const resumeId = randomUUID();
+  let resumeS3Key: string;
+  try {
+    resumeS3Key = await s3Storage.saveInterviewDocumentText("resume", userId, resumeId, intake.text);
+  } catch (error) {
+    console.error("Interview resume text storage failed:", error);
+    return response({ error: "Unable to save the resume. Please try again." }, 502);
+  }
+
+  console.info("Interview resume text uploaded", {
+    userId,
+    resumeId,
+    resumeS3Key,
+    pdfSizeBytes: intake.fileSize,
+    textLength: intake.text.length,
+  });
+
+  return response({ success: true, resumeId, resumeText: intake.text }, 201);
 }

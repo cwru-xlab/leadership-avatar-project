@@ -8,6 +8,9 @@
  * A failed upload stays on screen until the next pick (toasts fade before a
  * student can act on them), and an attached resume can be replaced or
  * removed without leaving the step.
+ *
+ * A PDF over 4 MB is read in the browser and only its text is uploaded (see
+ * `pdf-upload.ts`); the attached card says so, since only the text is kept.
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
@@ -19,11 +22,17 @@ import { type ChangeEvent, useState } from "react";
 
 import {
   PDF_ACCEPT,
+  isSignedOut,
   looksLikePdf,
+  sendInterviewPdf,
+  signInAgainHref,
   uploadFailureMessage,
 } from "@/components/practice/steps/pdf-upload";
 
 const MAX_RESUME_SIZE_BYTES = 10 * 1024 * 1024;
+// Same wording the upload route uses for a scan.
+const SCANNED_MESSAGE =
+  "No readable text was found in that PDF. It looks like a scan or photo. Export your resume from Word, Google Docs or Pages as a PDF, then upload it.";
 
 export interface ResumeStepProps {
   nav: SetupStepNav;
@@ -44,12 +53,16 @@ export default function ResumeStep({
 }: ResumeStepProps) {
   const [uploadingResume, setUploadingResume] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [signedOut, setSignedOut] = useState(false);
+  // A PDF over the direct-upload size was read here and only its text saved.
+  const [readOnDevice, setReadOnDevice] = useState(false);
 
   const uploadResume = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
     setUploadError(null);
+    setSignedOut(false);
     if (!looksLikePdf(file)) {
       setUploadError("Choose a PDF. Save or export your resume as a PDF, then upload it.");
       return;
@@ -65,25 +78,18 @@ export default function ResumeStep({
 
     setUploadingResume(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      let response: Response;
-      try {
-        response = await fetch("/api/interview/upload-resume", {
-          method: "POST",
-          body: formData,
-        });
-      } catch {
-        throw new Error("The upload could not reach the server. Check your connection and try again.");
-      }
-      const data = (await response.json().catch(() => ({}))) as {
-        error?: string;
+      const { response, data, readOnDevice: readHere } = await sendInterviewPdf<{
         resumeId?: string;
         resumeText?: string;
-      };
+      }>(file, "/api/interview/upload-resume", {
+        notPdf: "The uploaded file is not a valid PDF",
+        scanned: SCANNED_MESSAGE,
+      });
       if (!response.ok || !data.resumeId || typeof data.resumeText !== "string") {
+        setSignedOut(isSignedOut(response));
         throw new Error(uploadFailureMessage(response, data.error));
       }
+      setReadOnDevice(readHere);
       onResumeChange({
         resumeId: data.resumeId,
         resumeText: data.resumeText,
@@ -131,6 +137,9 @@ export default function ResumeStep({
               <div className="min-w-0">
                 <p className="font-semibold [overflow-wrap:anywhere]">{resumeFileName}</p>
                 <p className="text-sm">Parsed and ready for this interview.</p>
+                {readOnDevice && (
+                  <p className="text-sm">Large file, so it was read on this device and only its text was saved.</p>
+                )}
               </div>
             </div>
             <div className="flex gap-1 pl-6 sm:pl-0">
@@ -185,6 +194,14 @@ export default function ResumeStep({
             className="mt-4 rounded-xl border border-level-2/40 bg-level-2/8 p-4 text-sm leading-6 text-copper-deep"
           >
             {uploadError}
+            {signedOut && (
+              <>
+                {" "}
+                <a className="font-semibold text-link underline" href={signInAgainHref()}>
+                  Sign in again
+                </a>
+              </>
+            )}
           </p>
         )}
 

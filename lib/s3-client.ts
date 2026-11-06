@@ -1739,6 +1739,38 @@ export class S3AvatarStorage {
   }
 
   /**
+   * Store the extracted text of an interview PDF that was read in the browser
+   * because it was over the direct-upload size. The PDF itself never reaches
+   * the server, so this text is the private copy kept in its place, under the
+   * same prefix and id the PDF would have had (`.txt` instead of `.pdf`).
+   * Same guarantees as the two methods above.
+   */
+  async saveInterviewDocumentText(
+    kind: "resume" | "job-description",
+    userId: string,
+    documentId: string,
+    text: string
+  ): Promise<string> {
+    const safeUserId = this.sanitizePathSegment(userId, "userId");
+    const safeDocumentId = this.sanitizePathSegment(documentId, "documentId");
+    const prefix =
+      kind === "resume" ? INTERVIEW_RESUMES_PREFIX : INTERVIEW_JOB_DESCRIPTIONS_PREFIX;
+    const key = `${prefix}${safeUserId}/${safeDocumentId}.txt`;
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: text,
+        ContentType: "text/plain; charset=utf-8",
+        ContentDisposition: "attachment",
+      })
+    );
+
+    return key;
+  }
+
+  /**
    * Write the canonical interview transcript to S3.
    *
    * Keys are server-derived from the authenticated userId and a server-
