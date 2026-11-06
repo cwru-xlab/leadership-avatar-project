@@ -48,14 +48,18 @@ async function main() {
   const {
     SEEDED_CONVERSATIONS,
     findSeededConversation,
-    SEEDED_AVATAR_GENDER_HINTS,
+    SEEDED_COUNTERPART_CAST,
   } = await import("../lib/difficult-conversation/seeded");
   const { loadOwnedDifficultConversation } = await import(
     "../lib/difficult-conversation/store"
   );
-  const { assignSeededAvatar, fetchActiveAvatarCatalog } = await import(
+  const { assignSeededAvatar } = await import(
     "../lib/difficult-conversation/avatar-assignment"
   );
+  const { loadInterviewerCatalog } = await import(
+    "../lib/interview/avatar-catalog"
+  );
+  const { SEATED_PUBLIC_AVATAR_ID_SET } = await import("../lib/avatar-roster");
 
   let failures = 0;
 
@@ -192,39 +196,44 @@ async function main() {
 
   // ---- 7. Live avatar resolution ----
   console.log(
-    "\n7. Live avatar resolution — assignSeededAvatar against today's ACTIVE catalog"
+    "\n7. Live avatar resolution — assignSeededAvatar against today's catalog (stock only)"
   );
   {
-    let catalog: Awaited<ReturnType<typeof fetchActiveAvatarCatalog>>;
-    try {
-      catalog = await fetchActiveAvatarCatalog();
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      check("LiveAvatar ACTIVE catalog reachable", false, detail);
-      catalog = [];
-    }
-
-    const activeIds = new Set(catalog.map((a) => a.avatarId));
-    console.log(`  ACTIVE catalog size: ${catalog.length}`);
-    console.log("  conversationId                 avatarId                              voiceId");
+    const loaded = await loadInterviewerCatalog();
+    check(
+      "interviewer catalog reachable",
+      loaded.ok,
+      loaded.ok ? undefined : loaded.message
+    );
+    const catalog = loaded.ok ? loaded.interviewers : [];
+    const byId = new Map(catalog.map((o) => [o.avatarId, o]));
+    console.log(`  catalog size: ${catalog.length}`);
+    console.log("  conversationId                 avatar                    voice");
 
     for (const r of SEEDED_CONVERSATIONS) {
       try {
-        const hint = SEEDED_AVATAR_GENDER_HINTS[r.id];
-        const pair = await assignSeededAvatar(
-          r.id,
-          hint ? { genderHint: hint } : undefined
-        );
+        const pair = await assignSeededAvatar(r.id);
+        const option = byId.get(pair.avatarId);
+        const cast = SEEDED_COUNTERPART_CAST[r.id];
         console.log(
-          `  ${r.id.padEnd(30)} ${pair.avatarId.padEnd(36)} ${pair.voiceId}`
+          `  ${r.id.padEnd(30)} ${(option?.name ?? pair.avatarId).padEnd(25)} ${option?.voice.name ?? pair.voiceId}`
         );
         check(
-          `"${r.id}" resolved non-empty avatarId+voiceId`,
-          pair.avatarId.length > 0 && pair.voiceId.length > 0
+          `"${r.id}" avatar is in today's catalog`,
+          Boolean(option)
         );
         check(
-          `"${r.id}" avatarId is in today's ACTIVE catalog`,
-          activeIds.has(pair.avatarId)
+          `"${r.id}" avatar is a stock (public seated) avatar, not faculty`,
+          SEATED_PUBLIC_AVATAR_ID_SET.has(pair.avatarId)
+        );
+        check(
+          `"${r.id}" voice is that avatar's own default voice`,
+          option?.voice.id === pair.voiceId
+        );
+        check(
+          `"${r.id}" voice gender matches the cast presentation`,
+          option?.gender === cast?.presentation,
+          `catalog ${option?.gender} vs cast ${cast?.presentation}`
         );
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
