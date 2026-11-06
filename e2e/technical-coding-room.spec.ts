@@ -122,6 +122,34 @@ test.describe("technical coding room", () => {
     expect(apiFailures, "the interviewer turn must not fail").toEqual([]);
   });
 
+  test("a failed avatar connection degrades to text instead of stranding the room", async ({
+    page,
+  }) => {
+    await signIn(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    // Force a definitive vendor failure: the session-token fetch fails, which
+    // is what `onSessionTokenError` reports. Before this was handled, the room
+    // kept a dead video box with no brief and a disabled microphone.
+    // Scoped to the token route alone so the rest of the room still loads
+    // normally — the point is a dead interviewer, not a dead page.
+    await page.route("**/api/avatar/get-access-token", (route) => route.abort());
+
+    await openRoom(page);
+
+    // The room explains itself rather than showing a bare "Disconnected" box.
+    await expect(page.getByText(/continues in text/i).locator("visible=true")).toBeVisible({
+      timeout: 45_000,
+    });
+
+    // The brief still arrives in the transcript, and input is still usable.
+    const transcript = page.locator('[aria-label="Interviewer conversation"]:visible');
+    await expect(transcript).toContainText(/talk me through/i, { timeout: 45_000 });
+    await expect(
+      page.getByRole("button", { name: /Start recording answer/i }).locator("visible=true"),
+    ).toBeEnabled();
+  });
+
   test("interviewer brief is server-authored, spoken once, and idempotent", async ({
     page,
     request,

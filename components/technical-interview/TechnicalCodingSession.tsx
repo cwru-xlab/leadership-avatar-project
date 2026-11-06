@@ -70,6 +70,10 @@ export default function TechnicalCodingSession({
   const [hintsUsed, setHintsUsed] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [sidePanel, setSidePanel] = useState<"problem" | "interviewer">("problem");
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  // Read at call time inside callbacks that must not re-create on failure.
+  const avatarFailedRef = useRef(false);
+  avatarFailedRef.current = avatarFailed;
 
   const { run: runPython, runtimeReady } = useVisibleTestRunner();
   useAvatarKeepAlive(avatarRef, avatarConnected);
@@ -143,7 +147,9 @@ export default function TechnicalCodingSession({
    */
   const openingRef = useRef(false);
   useEffect(() => {
-    if (!snapshot || !avatarConnected || openingRef.current) return;
+    // A definitive vendor failure must not strand the interview: the brief is
+    // still recorded and shown in text, exactly as the coached shell degrades.
+    if (!snapshot || (!avatarConnected && !avatarFailed) || openingRef.current) return;
     openingRef.current = true;
     void fetch("/api/technical-interview/opening", {
       method: "POST",
@@ -156,12 +162,12 @@ export default function TechnicalCodingSession({
         setTurns((prior) =>
           prior.length === 0 ? [{ role: "assistant", content: data.opening! }] : prior,
         );
-        avatarRef.current?.speak(data.opening);
+        if (!avatarFailed) avatarRef.current?.speak(data.opening);
       })
       .catch(() => {
         openingRef.current = false;
       });
-  }, [avatarConnected, reportId, snapshot]);
+  }, [avatarConnected, avatarFailed, reportId, snapshot]);
 
   const entryPoint = useMemo(
     () => (snapshot ? entryPointFromStarterCode(snapshot.assignment.starterCode) : null),
@@ -308,7 +314,7 @@ export default function TechnicalCodingSession({
         if (reply) {
           setTurns((prior) => [...prior, { role: "assistant", content: reply }]);
           setStreamingReply("");
-          avatarRef.current?.speak(reply);
+          if (!avatarFailedRef.current) avatarRef.current?.speak(reply);
           if (requestHint) setHintsUsed((value) => Math.min(MAX_HINTS, value + 1));
           void checkpoint();
         }
@@ -589,6 +595,8 @@ export default function TechnicalCodingSession({
               isTranscribing={isTranscribing}
               partialTranscript={partialTranscript}
               avatarConnected={avatarConnected}
+              avatarFailed={avatarFailed}
+              onAvatarFailed={() => setAvatarFailed(true)}
               onToggleRecording={toggleRecording}
               mounted={false}
             />
@@ -718,6 +726,8 @@ export default function TechnicalCodingSession({
             isTranscribing={isTranscribing}
             partialTranscript={partialTranscript}
             avatarConnected={avatarConnected}
+            avatarFailed={avatarFailed}
+            onAvatarFailed={() => setAvatarFailed(true)}
             onToggleRecording={toggleRecording}
             mounted
           />
@@ -749,6 +759,8 @@ function InterviewerPanel({
   isTranscribing,
   partialTranscript,
   avatarConnected,
+  avatarFailed,
+  onAvatarFailed,
   onToggleRecording,
   mounted,
 }: {
@@ -767,6 +779,8 @@ function InterviewerPanel({
   isTranscribing: boolean;
   partialTranscript: string;
   avatarConnected: boolean;
+  avatarFailed: boolean;
+  onAvatarFailed: () => void;
   onToggleRecording: () => void;
   mounted: boolean;
 }) {
@@ -777,14 +791,29 @@ function InterviewerPanel({
           className="shrink-0 overflow-hidden rounded-xl border border-white/15 bg-ink shadow-xl"
           aria-label="Live interviewer video"
         >
-          <div className="aspect-[4/3] bg-black">
+          <div className="relative aspect-[4/3] bg-black">
             <SessionAvatar
               ref={avatarRef}
               config={avatarConfig}
               onSessionStateChange={(state) =>
                 onConnectedChange(state === StreamingAvatarSessionState.CONNECTED)
               }
+              // Every other live session handles this; without it a vendor
+              // failure left the room stuck with no video, no brief, no
+              // microphone and no explanation.
+              onSessionTokenError={onAvatarFailed}
             />
+            {avatarFailed && (
+              <div
+                role="status"
+                className="absolute inset-0 grid place-items-center bg-ink/95 px-4 text-center"
+              >
+                <p className="text-xs leading-5 text-slate-300">
+                  The video interviewer couldn’t connect, so your interview continues in text.
+                  Everything you type is still scored.
+                </p>
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -873,7 +902,9 @@ function InterviewerPanel({
               disabled={sendingChat || isTranscribing}
               maxLength={4000}
               placeholder={
-                avatarConnected ? "Speak, or type your approach…" : "Connecting to your interviewer…"
+                avatarConnected || avatarFailed
+                  ? "Speak, or type your approach…"
+                  : "Connecting to your interviewer…"
               }
               aria-label="Message the interviewer"
               className="min-w-0 flex-1 rounded-md border border-white/20 bg-ink px-2.5 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-light-blue disabled:opacity-60"
@@ -893,7 +924,7 @@ function InterviewerPanel({
           <PushToTalkControl
             isRecording={isRecording}
             isTranscribing={isTranscribing}
-            isDisabled={sendingChat || isTranscribing || !avatarConnected}
+            isDisabled={sendingChat || isTranscribing || (!avatarConnected && !avatarFailed)}
             onToggle={onToggleRecording}
           />
         </div>
