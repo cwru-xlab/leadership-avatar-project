@@ -296,13 +296,14 @@ export default function PracticeInstancePage({
               </p>
               <div className="flex flex-wrap gap-3">
                 {dcCanEdit && (
-                  <Button
-                    as={Link}
+                  // A real link (not a HeroUI Button, which renders
+                  // role="button"): it navigates to the editor.
+                  <Link
                     href={routes.editCourageousConversation(instanceId)}
-                    color="primary"
+                    className="inline-flex h-10 items-center rounded-xl bg-cwru-blue px-4 text-sm font-semibold text-white hover:bg-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue"
                   >
                     Edit and pick an avatar
-                  </Button>
+                  </Link>
                 )}
                 <Button
                   variant="flat"
