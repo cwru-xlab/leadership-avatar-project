@@ -4,6 +4,8 @@ import { DISENGAGEMENT_CAUSES, type DisengagementEpisode } from "@/lib/engine/di
 import { sanitizeOutcomeQuotes } from "@/lib/report/quote-sanitizer";
 import type { ReportMoments } from "@/lib/report/moments";
 import type { InteractionReport } from "@prisma/client";
+import { withoutStoredCheckIn } from "@/lib/metrics/types";
+import { asStoredCheckIn, STORED_CHECK_IN_KEY, type CheckInAnswers } from "@/lib/report/check-in";
 import type {
   CameraMode,
   VisualMetrics,
@@ -112,6 +114,12 @@ export interface ReportDTO {
    * reports, and whenever the transcript is missing or unreadable.
    */
   moments?: ReportMoments | null;
+  /**
+   * The student's check-in answers about flagged visual observations (see
+   * `lib/report/check-in.ts`). Stored beside the metrics, stripped from
+   * `metrics.visual`, and never read by any score. Empty or absent when unanswered.
+   */
+  checkIn?: CheckInAnswers;
   failureReason: string | null;
   evalModel: string | null;
   startedAt: string; // ISO
@@ -143,13 +151,22 @@ export const REPORT_TERMINAL_STATUSES = ["READY", "FAILED"] as const;
 function asVisualMetrics(value: unknown): VisualMetrics | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const v = value as Partial<VisualMetrics>;
-  return typeof v.eye_contact_pct === "number" && v.coverage ? (value as VisualMetrics) : null;
+  // Check-in answers share the column; they ship as `checkIn`, never as metrics.
+  return typeof v.eye_contact_pct === "number" && v.coverage
+    ? withoutStoredCheckIn(value as VisualMetrics)
+    : null;
 }
 
 function asVocalMetrics(value: unknown): VocalMetrics | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const v = value as Partial<VocalMetrics>;
   return typeof v.words_per_minute === "number" && v.coverage ? (value as VocalMetrics) : null;
+}
+
+function storedCheckIn(value: unknown): unknown {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)[STORED_CHECK_IN_KEY]
+    : undefined;
 }
 
 const CAMERA_MODES: readonly CameraMode[] = ["ON", "OFF"];
@@ -443,6 +460,7 @@ export function toReportDto(row: InteractionReport): ReportDTO {
     reportStructured: asStructuredReport(row.reportStructured),
     reportMarkdown: row.reportMarkdown,
     moments: null,
+    checkIn: asStoredCheckIn(storedCheckIn(row.visualMetrics)),
     failureReason: row.failureReason,
     evalModel: row.evalModel,
     startedAt,
