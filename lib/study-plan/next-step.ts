@@ -1,9 +1,9 @@
 /**
- * Decides what a student practises next, deterministically and explainably.
+ * Decides what a student practices next, deterministically and explainably.
  *
  * 21-CONTEXT.md locks that "what's next" is "deterministic and explainable",
  * and this phase's hard constraint is deterministic derivation over model
- * judgement for anything consequential. `selectPathSteps` is pure arithmetic
+ * judgment for anything consequential. `selectPathSteps` is pure arithmetic
  * and string-building: no model call, no network read, no database read.
  *
  * PHASE 23 (23-CONTEXT.md "Path design decisions", user, 2026-10-24):
@@ -23,10 +23,15 @@
  *      threshold, weakest mean first. User decision (2026-10-24): "only plan
  *      skills below 70% (average) count as weak targets. Plan skills at or
  *      above 70% rank BELOW plan themes and global gaps."
+ *      The line reads what these sessions actually scored (plain mean), not
+ *      the mastery estimate: it asks what this plan's sessions showed, and
+ *      the user's line is stated on that average. So a 75% here and a mastery
+ *      estimate of 62% for the same skill can both be true.
  *   With no plan signal at all, the ranking is exactly the global one.
  *
- * GLOBAL COMPARATOR (`compareCompetencies`, unchanged from Phase 21): a
- * NONE-tier competency first (explicit branch, null never coerced), then
+ * GLOBAL COMPARATOR (`compareCompetencies`, unchanged from Phase 21; its
+ * percents are the mastery estimates, so one session sits near the middle
+ * rather than at the extremes): a NONE-tier competency first (explicit branch, null never coerced), then
  * current percent ascending (falling back to lifetime when stale), lifetime
  * ascending, evidence tier ascending, and finally `TIE_BREAK_ORDER` (never
  * array order or key collation).
@@ -175,9 +180,9 @@ function globalFigureSentence(ranked: RankedCompetency): string {
   if (ranked.tier === "NONE") {
     return `${label} has no scored evidence yet: it has never been measured, so it counts as an absent gap in your overall mastery.`;
   }
-  const figure = ranked.currentPercent ?? ranked.lifetimePercent;
+  const figure = Math.round((ranked.currentPercent ?? ranked.lifetimePercent) as number);
   const figureKind = ranked.currentPercent !== null ? "current" : "lifetime";
-  return `${label} is at ${figure}% ${figureKind} in your overall mastery (${ranked.tier.toLowerCase()} evidence).`;
+  return `${label} is at about ${figure}% ${figureKind} in your overall mastery (${ranked.tier.toLowerCase()} evidence).`;
 }
 
 function baseReasonFor(
@@ -200,7 +205,11 @@ function baseReasonFor(
   }
   if (entry.basis === "STRONG") {
     const n = entry.planScoredReportCount ?? 0;
-    return `${label} is already at ${entry.planMeanPercent}% on average across the ${n} ${plural(n, "session", "sessions")} this plan was built from, at or above the ${WEAK_THRESHOLD_PERCENT}% weak-skill line, so it ranks after the plan's weak skills, themes and gaps.`;
+    const scored =
+      n === 1
+        ? `scored ${entry.planMeanPercent}% in the one session this plan was built from`
+        : `is already at ${entry.planMeanPercent}% on average across the ${n} sessions this plan was built from`;
+    return `${label} ${scored}, at or above the ${WEAK_THRESHOLD_PERCENT}% weak-skill line, so it ranks after the plan's weak skills, themes and gaps.`;
   }
   return `${globalFigureSentence(ranked)} It is not one of this plan's own weak skills, so it fills a remaining slot.`;
 }

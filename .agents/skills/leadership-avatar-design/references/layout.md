@@ -66,6 +66,11 @@ Rules the code already enforces, which the design keeps:
 - Score cards never show raw metric numbers; `lib/metrics/bands.ts` turns numbers into words.
 - "One thing to practice next time" is the only tinted panel on the page.
 - Tabs with no data are dropped, never shown empty.
+- Reports keep all five tabs and every item the evaluator wrote. A 2026-11 pass that cut the tabs
+  to three and showed three rows behind "Show all" was rejected by the user ("would prefer more
+  over less") and reverted; do not condense report content again without asking.
+- Delivery shows voice and camera rows only when measured, by the same gates as the Statistics
+  figures, so it never contradicts a "Not measured" score card.
 - Camera observations are muted and labeled as unscored, at the end of Delivery.
 - Reports made before structured data fall back to markdown; pending and failed states keep their
   skeleton and "transcript is saved" message.

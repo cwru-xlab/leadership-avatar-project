@@ -30,13 +30,15 @@ interface Stat {
 
 const PACE_SCALE = 220;
 
-function measuredVocal(metrics: Metrics) {
+/** Voice figures exist only for a spoken session; the Vocal card says why otherwise. */
+export function measuredVocal(metrics: Metrics) {
   const vocal = metrics?.vocal;
   if (!vocal || metrics?.vocalUnscored === "TYPED_ONLY") return null;
   return (vocal.coverage?.spoken_seconds ?? 0) > 0 ? vocal : null;
 }
 
-function measuredVisual(metrics: Metrics) {
+/** Camera figures exist unless the student opted out of the camera. */
+export function measuredVisual(metrics: Metrics) {
   const visual = metrics?.visual;
   if (!visual || metrics?.visualUnscored === "CAMERA_OFF_OPTOUT") return null;
   return visual;

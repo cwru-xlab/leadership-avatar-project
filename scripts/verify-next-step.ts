@@ -59,6 +59,10 @@ function blank(
     competencyKey: key,
     lifetimePercent: null,
     currentPercent: null,
+    lifetimeObservedPercent: null,
+    currentObservedPercent: null,
+    lifetimeRange: null,
+    currentRange: null,
     lifetimeEvidenceCount: 0,
     currentEvidenceCount: 0,
     lifetimeWeightSum: 0,
@@ -91,6 +95,8 @@ function resultWith(competencies: CompetencyMastery[]): MasteryResult {
     competencies,
     overallLifetimePercent: null,
     overallCurrentPercent: null,
+    overallLifetimeEvidence: { count: 0, weightSum: 0 },
+    overallCurrentEvidence: { count: 0, weightSum: 0 },
     windowStart: WINDOW_START,
     windowDays: 30,
     unmappedRowCount: 0,
@@ -575,7 +581,7 @@ console.log("\n10b. STORED REASONS MATCH THE STORED STEP KIND");
     reasonForDegradedCheck(original.selectionReason) === rewritten
   );
 
-  // PLANTED REGRESSION: the old behaviour (kind changed, reason kept) must
+  // PLANTED REGRESSION: the old behavior (kind changed, reason kept) must
   // be detected.
   const planted = selection.steps.map((s) =>
     s.kind === "KNOWLEDGE_CHECK" ? { ...s, kind: "UNAIDED_SESSION" } : s

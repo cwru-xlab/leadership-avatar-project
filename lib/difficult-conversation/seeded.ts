@@ -5,8 +5,10 @@
  * them — which is what makes a seeded id un-editable and un-deletable through
  * the API.
  *
- * Avatar ids are left empty and filled at resolve time by `assignSeededAvatar`
- * against the live ACTIVE HeyGen catalog — never hardcoded.
+ * Avatar ids are left empty on the records and filled at resolve time by
+ * `assignSeededAvatar` from `SEEDED_COUNTERPART_CAST` below, checked against
+ * the live catalog. Nothing is stored per scenario, so a recast reaches every
+ * student on their next session without touching any data.
  *
  * Default difficulty is `"guarded"` (the middle band); the student may pick
  * another band at setup. Nothing else about a seeded conversation is adjustable.
@@ -17,24 +19,87 @@ import type { DifficultConversationRecord } from "@/lib/difficult-conversation/t
 /** Fixed timestamps — seeded content is version-controlled, not user-edited. */
 const SEEDED_AT = "2026-10-04T00:00:00.000Z";
 
-/** Resolve-time placeholder — filled by assignSeededAvatar, never a real id. */
+/** Resolve-time placeholder — filled by assignSeededAvatar from the cast. */
 const UNRESOLVED = "";
 
+export interface SeededCounterpartCast {
+  avatarId: string;
+  /** The avatar's own default voice, as the catalog paired it. */
+  voiceId: string;
+  /** The catalog's voice gender; matches the scenario's pronouns for them. */
+  presentation: "female" | "male";
+}
+
 /**
- * Optional gender hints for `assignSeededAvatar`, keyed by conversation id.
- * Not part of DifficultConversationRecord — resolve-time preference only.
- * Derived from the character pronouns in each scenario ("she" / "he").
+ * Who plays the other person in each seeded conversation, keyed by id.
+ *
+ * WHY STOCK FACES. These used to be drawn from the account's custom avatars,
+ * which are likenesses of real Weatherhead faculty, so a real professor played
+ * the defensive analyst or the employee being let go. Every face here comes
+ * from the seated PUBLIC roster in `lib/avatar-roster.ts`, as the elevator
+ * pitch's cast does (`lib/pitch/elevator-personas.ts`). A student building
+ * their own conversation can still pick a faculty avatar deliberately.
+ *
+ * WHY PINNED, NOT HASHED. A hash over the catalog could land a woman's voice on
+ * a scenario that calls the counterpart "he", or a person named Maya on a face
+ * the catalog calls Thomas. Pinning keeps name, pronouns, face and voice in
+ * agreement and is reviewable here. `presentation` follows the scenario's
+ * pronouns; where the scenario names the person, the avatar's catalog name
+ * does not contradict it.
+ *
+ * CASTING. Authority roles (manager, professor, client, senior leader) and the
+ * harder seats (the analyst, the employee being let go, the credit-taking peer)
+ * were spread so no group clusters on either side. The visa worry in
+ * fire-team-member was deliberately not used to pick a face.
+ *
+ * The voice id is a fallback for a catalog outage; the live catalog's current
+ * default voice for the same avatar wins when it is reachable.
  */
-export const SEEDED_AVATAR_GENDER_HINTS: Readonly<
-  Record<string, "male" | "female">
+export const SEEDED_COUNTERPART_CAST: Readonly<
+  Record<string, SeededCounterpartCast>
 > = {
-  "confront-low-performer": "female",
-  "fire-team-member": "male",
-  "ask-for-raise": "male",
-  "challenge-grade": "female",
-  "deliver-bad-news-client": "male",
-  "peer-conflict": "male",
-  "decline-senior-request": "female",
+  // Maya, product analyst.
+  "confront-low-performer": {
+    avatarId: "e2336732-dc9b-4c90-8a91-3d80f4b8dd13", // Maya (Friendly)
+    voiceId: "8d7ca40c-5ee6-45f3-8b4a-e2b01df302a1", // Maya
+    presentation: "female",
+  },
+  // Jordan, direct report being let go.
+  "fire-team-member": {
+    avatarId: "6c2017bc-1eef-4071-ba70-0e9d5bcbf00f", // Thomas (Friendly)
+    voiceId: "6ec23890-d16c-4a40-82f5-10d4f57e1b9f", // Thomas
+    presentation: "male",
+  },
+  // The student's manager.
+  "ask-for-raise": {
+    avatarId: "af93e3b6-e07d-4246-8219-ad7f0fd2e6ed", // Andrew (Friendly)
+    voiceId: "832850fa-468d-4704-81a5-4acf9f9fe994", // Andrew
+    presentation: "male",
+  },
+  // Professor Chen.
+  "challenge-grade": {
+    avatarId: "4857d1c6-a3b0-4d0a-b363-48cb9a62e496", // Lucy (Friendly)
+    voiceId: "d8102af2-20f5-47eb-88d5-68f979675d10", // Lucy
+    presentation: "female",
+  },
+  // Client stakeholder.
+  "deliver-bad-news-client": {
+    avatarId: "7b888024-f8c9-4205-95e1-78ce01497bda", // Shawn Therapist
+    voiceId: "51afbab6-7af4-473b-95fc-6ce26aac8bb1", // Shawn - IA
+    presentation: "male",
+  },
+  // Peer on a neighbouring squad.
+  "peer-conflict": {
+    avatarId: "a4991f42-d211-4581-9631-639f7fe7c635", // William (Friendly)
+    voiceId: "33e686e7-cae5-4b2b-a8c4-003c91aa6cfd", // William
+    presentation: "male",
+  },
+  // Senior leader.
+  "decline-senior-request": {
+    avatarId: "bf00036b-558a-44b5-b2ff-1e3cec0f4ceb", // Marianne Sitting
+    voiceId: "8a504f9b-95dd-42d4-8b0c-edc2567b6382", // Marianne - IA
+    presentation: "female",
+  },
 };
 
 /**
@@ -77,7 +142,7 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "If it escalates she goes to HR about workload; if it goes nowhere the " +
       "team misses the next release.",
     difficulty: "guarded", // middle band default; student chooses at setup
-    // Filled at resolve time by assignSeededAvatar — never hardcoded.
+    // Filled at resolve time from SEEDED_COUNTERPART_CAST.
     avatarId: UNRESOLVED,
     voiceId: UNRESOLVED,
     ownerId: null,
@@ -134,13 +199,13 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "formal review cycle is four months away. Both of you know the migration " +
       "outcome and how long it has been since your last adjustment.",
     hiddenPosition:
-      "You agree she is underpaid, but your budget was cut. You have a lower " +
+      "You agree the employee is underpaid, but your budget was cut. You have a lower " +
       "number you can get approved today and a higher one that needs your own " +
-      "boss. You will offer the low number first and only move if she makes a " +
+      "boss. You will offer the low number first and only move if they make a " +
       "specific, evidenced case. You prefer to stall toward the review cycle.",
     studentObjective:
       "Discuss how your expanded responsibilities should be reflected in your compensation.",
-    stakes: "Another vague deferral and she starts interviewing elsewhere.",
+    stakes: "Another vague deferral and you start interviewing elsewhere.",
     difficulty: "guarded",
     avatarId: UNRESOLVED,
     voiceId: UNRESOLVED,

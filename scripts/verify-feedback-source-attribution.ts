@@ -89,7 +89,7 @@ const FULL = {
     },
   ],
   category_notes: {
-    visual: "Centred 57% of the time.",
+    visual: "Centered 57% of the time.",
     vocal: "Pace climbed.",
     content: null,
     behavioral: "Good ownership.",

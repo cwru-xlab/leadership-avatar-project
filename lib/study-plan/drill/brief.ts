@@ -122,7 +122,7 @@ function addressYou(text: string): string {
 
 /**
  * What the plan's source sessions say about the student (D4): the practice
- * type, the role/industry they practised for, and interviewer questions they
+ * type, the role/industry they practiced for, and interviewer questions they
  * were actually asked. Questions are the INTERVIEWER's words (never the
  * student's), pass the same structural redactor as moments, and a question
  * the redactor would alter is dropped, never sent redacted.
@@ -239,7 +239,7 @@ export function templateBrief(
 
   // Q2: the technique that FITS this prompt (and its weak-moment flag), never
   // a library-position pick. A later drill on the same competency takes the
-  // next-best fit so the two reps practise different moves.
+  // next-best fit so the two reps practice different moves.
   const ranked = rankDrillTechniques(request.competencyKey, scenarioPrompt, moment?.linkedGrowthAreaTitles ?? []);
   const technique = ranked.length ? ranked[Math.min(request.variant, ranked.length - 1)] : null;
 
@@ -259,7 +259,7 @@ export function templateBrief(
 export const DRILL_GENERATION_SYSTEM_PROMPT = `You write short spoken-practice prompts ("voice drills") for a leadership-practice student. Each drill is a 60-90 second spoken rep on ONE competency.
 
 For each requested drill return:
-- "scenario_prompt": 1-3 sentences addressing the student as you, naming the situation to speak to (for example "You're in an interview… you're asked to…"). Never write as the learner ("I'm asked", "I navigated"). It MUST be specific to this student: tailor it to their own moments when supplied (the same kind of question they found hard); otherwise ground it in one of "student_sessions" — name the role or industry they practised for and build on a question they were actually asked, paraphrased in your own words (never in quotation marks). Only when no sessions are supplied may you fall back to the plan theme. Never give them words to say, never write a sample answer, never write lines of dialogue.
+- "scenario_prompt": 1-3 sentences addressing the student as you, naming the situation to speak to (for example "You're in an interview… you're asked to…"). Never write as the learner ("I'm asked", "I navigated"). It MUST be specific to this student: tailor it to their own moments when supplied (the same kind of question they found hard); otherwise ground it in one of "student_sessions" — name the role or industry they practiced for and build on a question they were actually asked, paraphrased in your own words (never in quotation marks). Only when no sessions are supplied may you fall back to the plan theme. Never give them words to say, never write a sample answer, never write lines of dialogue.
 - "technique_id": exactly one id from that drill's "allowed_techniques".
 - "quoted_text": null, OR a line copied CHARACTER FOR CHARACTER from one of that drill's supplied moments' studentText (when the prompt reminds them what they said). If you quote, the quote must appear verbatim inside scenario_prompt, and "source_report_id"/"quoted_turn_index" must be that moment's. Otherwise all three are null.
 
@@ -565,7 +565,7 @@ function contentWords(text: string): Set<string> {
 
 /**
  * PURE (D4 gate): an unquoted prompt counts as specific to the student when
- * it names a role or industry they practised for, or shares at least two
+ * it names a role or industry they practiced for, or shares at least two
  * content words with a question they were actually asked.
  */
 /** PURE: a scenario must not name a library technique — that belongs on the live tip. */

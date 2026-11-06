@@ -206,6 +206,16 @@ export const STRUCTURED_REPORT_REQUIRED = [
   "practice_next",
 ] as const;
 
+/**
+ * Spelling rule for every evaluator's written fields, appended to each type's
+ * system prompt by `lib/engine/evaluation.ts` so interview, pitch, networking,
+ * conversation, case and deck reports all read in one spelling. Prose, not a
+ * JSON-schema `description`, which would break the frozen schema snapshots in
+ * `scripts/verify-report-structure.ts`.
+ */
+export const REPORT_SPELLING_RULE =
+  "Use American English spelling (practice, behavior, center, analyze), whatever spelling appears in the transcript or materials.";
+
 // ---------------------------------------------------------------------------
 // Parsing
 // ---------------------------------------------------------------------------

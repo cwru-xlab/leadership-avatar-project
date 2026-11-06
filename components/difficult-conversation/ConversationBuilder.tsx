@@ -7,7 +7,7 @@
  * 422 and a distinct try-again panel on 503 — editing is the only remedy.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { routes } from "@/lib/routes";
@@ -15,7 +15,7 @@ import { Button } from "@heroui/button";
 import { Input, Textarea } from "@heroui/input";
 import { Card, CardBody } from "@heroui/card";
 import { addToast } from "@heroui/toast";
-import { Lock } from "lucide-react";
+import { CircleAlert, Lock } from "lucide-react";
 import AvatarPickerGrid from "@/components/scenario/AvatarPickerGrid";
 import { validateDifficultConversationInput } from "@/lib/difficult-conversation/validation";
 import {
@@ -115,6 +115,11 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
   const [justCreated, setJustCreated] = useState(false);
   const [publishPanel, setPublishPanel] = useState<PublishPanel>(null);
   const [publishConfirm, setPublishConfirm] = useState<string | null>(null);
+  const avatarSectionRef = useRef<HTMLDivElement>(null);
+
+  // A conversation cannot be played without an avatar (the validator requires
+  // one), so Save is blocked until a card is picked. Never auto-assigned.
+  const avatarMissing = !avatarId || !voiceId;
 
   const payload = () => ({
     title,
@@ -144,6 +149,18 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
     const clientErrors = validateDifficultConversationInput(payload());
     if (clientErrors.length > 0) {
       applyFieldErrors(clientErrors);
+      // The avatar grid sits below every text field, so a missing pick is
+      // easy to miss: when it is the only problem, move focus there (first
+      // card, else the section). Text-field errors show inline as before.
+      if (
+        clientErrors.every((e) => e.field === "avatarId" || e.field === "voiceId")
+      ) {
+        const section = avatarSectionRef.current;
+        const target =
+          section?.querySelector<HTMLElement>("[role=group] button") ?? section;
+        section?.scrollIntoView({ behavior: "smooth", block: "start" });
+        target?.focus({ preventScroll: true });
+      }
       return;
     }
     setFieldErrors({});
@@ -455,37 +472,73 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
         )}
       </div>
 
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-ink">
-          The character&apos;s avatar
+      <div
+        ref={avatarSectionRef}
+        tabIndex={-1}
+        className="scroll-mt-24 space-y-2 outline-none"
+      >
+        <p id="dc-avatar-label" className="text-sm font-medium text-ink">
+          The character&apos;s avatar{" "}
+          <span className="font-normal text-muted">(required)</span>
         </p>
-        <p className="text-xs text-muted">
+        <p id="dc-avatar-help" className="text-xs text-muted">
           Pick who they look and sound like. Avatar and voice stay paired.
         </p>
-        <AvatarPickerGrid
-          value={avatarId || null}
-          onChange={({ avatarId: nextAvatar, voiceId: nextVoice }) => {
-            setAvatarId(nextAvatar);
-            setVoiceId(nextVoice);
-          }}
-        />
+        {/* Above the grid: the catalog is long, so an error below it is
+            off screen when focus lands on the first card. */}
         {(err("avatarId") || err("voiceId")) && (
-          <p className="text-sm text-copper-deep">
+          <p
+            id="dc-avatar-error"
+            role="alert"
+            className="flex items-start gap-1.5 text-sm text-copper-deep"
+          >
+            <CircleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
             {err("avatarId") || err("voiceId")}
           </p>
         )}
+        <AvatarPickerGrid
+          value={avatarId || null}
+          labelledBy="dc-avatar-label"
+          describedBy={
+            err("avatarId") || err("voiceId")
+              ? "dc-avatar-help dc-avatar-error"
+              : "dc-avatar-help"
+          }
+          invalid={Boolean(err("avatarId") || err("voiceId"))}
+          onChange={({ avatarId: nextAvatar, voiceId: nextVoice }) => {
+            setAvatarId(nextAvatar);
+            setVoiceId(nextVoice);
+            setFieldErrors((prev) => {
+              if (!prev.avatarId && !prev.voiceId) return prev;
+              const next = { ...prev };
+              delete next.avatarId;
+              delete next.voiceId;
+              return next;
+            });
+          }}
+        />
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <Button color="primary" isLoading={isSaving} onPress={() => void handleSave()}>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          color="primary"
+          isLoading={isSaving}
+          aria-describedby={avatarMissing ? "dc-save-avatar-hint" : undefined}
+          onPress={() => void handleSave()}
+        >
           {recordId ? "Save changes" : "Save"}
         </Button>
         <Button variant="light" onPress={() => router.push(routes.courageousConversations())}>
           Cancel
         </Button>
+        {avatarMissing && (
+          <p id="dc-save-avatar-hint" className="basis-full text-sm text-muted">
+            Choose an avatar above before saving.
+          </p>
+        )}
       </div>
 
-      {/* Post-create: practise immediately or publish deliberately */}
+      {/* Post-create: practice immediately or publish deliberately */}
       {justCreated && recordId && practiceHref && (
         <Card className="border border-level-4/40 bg-level-4/10 shadow-none">
           <CardBody className="gap-4 p-6">
@@ -497,8 +550,8 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
               </h3>
               <p className="text-sm text-muted mt-1">
                 {published
-                  ? "Other students can now find and practise it. You can unpublish it at any time."
-                  : "Practise it now, or publish it when you are ready. Nothing was published automatically."}
+                  ? "Other students can now find and practice it. You can unpublish it at any time."
+                  : "Practice it now, or publish it when you are ready. Nothing was published automatically."}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -507,7 +560,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
                 href={practiceHref}
                 color="primary"
               >
-                Practise it now
+                Practice it now
               </Button>
               {!published ? (
                 <Button
@@ -563,7 +616,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
               )}
               {practiceHref && (
                 <Button as={Link} href={practiceHref} variant="flat">
-                  Practise privately
+                  Practice privately
                 </Button>
               )}
             </div>
@@ -592,7 +645,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
               What to change: {publishPanel.fix}
             </p>
             <p className="text-sm text-muted">
-              Your scenario is saved, and you can still practise it yourself
+              Your scenario is saved, and you can still practice it yourself
               right now.
             </p>
             <div className="flex flex-wrap gap-3 pt-1">
@@ -610,7 +663,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
               </Button>
               {practiceHref && (
                 <Button as={Link} href={practiceHref} variant="flat">
-                  Practise it privately
+                  Practice it privately
                 </Button>
               )}
             </div>
@@ -644,7 +697,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
               </Button>
               {practiceHref && (
                 <Button as={Link} href={practiceHref} variant="flat">
-                  Practise privately
+                  Practice privately
                 </Button>
               )}
             </div>

@@ -12,13 +12,15 @@
  * yields both an opaque server-issued id and the extracted text. The
  * client-side PDF/size pre-checks below are a courtesy only — the server
  * (`lib/interview/document-intake.ts`) is the authority, and it checks the
- * actual `%PDF-` bytes rather than the browser's forgeable MIME type.
+ * actual `%PDF-` bytes rather than the browser's forgeable MIME type. A PDF
+ * over 4 MB is read in the browser and only its text is uploaded (see
+ * `pdf-upload.ts`); the attached card says so.
  *
  * The confirmation panel's claims are deliberately narrow. Quick task 003
  * decision 2: the posting is interviewer context only. It is NOT sent to the
  * evaluator and does NOT affect the report in this version, and the panel must
  * say so. Do not add promises of matching, gap analysis, keyword scoring, or
- * tailored feedback to this copy without shipping the behaviour first.
+ * tailored feedback to this copy without shipping the behavior first.
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
@@ -34,6 +36,16 @@ import {
   Info,
 } from "lucide-react";
 import { type ChangeEvent, useState } from "react";
+
+import {
+  PDF_ACCEPT,
+  SIGNED_OUT_MESSAGE,
+  isSignedOut,
+  looksLikePdf,
+  sendInterviewPdf,
+  signInAgainHref,
+  uploadFailureMessage,
+} from "@/components/practice/steps/pdf-upload";
 
 const MAX_JOB_DESCRIPTION_SIZE_BYTES = 10 * 1024 * 1024;
 // This text is included in every chat turn, so keep the client payload aligned
@@ -60,6 +72,8 @@ export default function JobDescriptionStep({
   onJobDescriptionChange,
 }: JobDescriptionStepProps) {
   const [uploading, setUploading] = useState(false);
+  // A PDF over the direct-upload size was read here and only its text saved.
+  const [readOnDevice, setReadOnDevice] = useState(false);
   const [pasted, setPasted] = useState(
     jobDescriptionId ? "" : jobDescriptionText,
   );
@@ -70,7 +84,7 @@ export default function JobDescriptionStep({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (file.type !== "application/pdf") {
+    if (!looksLikePdf(file)) {
       addToast({ title: "Choose a PDF of the posting", color: "warning" });
       return;
     }
@@ -84,24 +98,38 @@ export default function JobDescriptionStep({
 
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetch(
-        "/api/interview/upload-job-description",
-        { method: "POST", body: formData },
-      );
-      const data = (await response.json().catch(() => ({}))) as {
-        error?: string;
+      const { response, data, readOnDevice: readHere } = await sendInterviewPdf<{
         jobDescriptionId?: string;
         jobDescriptionText?: string;
-      };
+      }>(file, "/api/interview/upload-job-description", {
+        notPdf: "The uploaded job posting file is not a valid PDF",
+        scanned:
+          "No readable text was found in that PDF. It looks like a scan or photo. Upload a text-based job posting PDF.",
+      });
       if (
         !response.ok ||
         !data.jobDescriptionId ||
         typeof data.jobDescriptionText !== "string"
       ) {
-        throw new Error(data.error || "We could not process that PDF.");
+        if (isSignedOut(response)) {
+          addToast({
+            title: "Job posting upload failed",
+            description: SIGNED_OUT_MESSAGE,
+            color: "danger",
+            endContent: (
+              <a
+                className="shrink-0 text-sm font-semibold text-link underline"
+                href={signInAgainHref()}
+              >
+                Sign in again
+              </a>
+            ),
+          });
+          return;
+        }
+        throw new Error(uploadFailureMessage(response, data.error));
       }
+      setReadOnDevice(readHere);
       setPasted("");
       onJobDescriptionChange({
         jobDescriptionId: data.jobDescriptionId,
@@ -160,7 +188,7 @@ export default function JobDescriptionStep({
               id="job-description-heading"
               className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             >
-              Practise for the actual posting
+              Practice for the actual posting
             </h2>
             <p className="mt-3 max-w-xl text-[15px] leading-7 text-muted">
               Paste the job posting you are targeting, or upload it as a PDF.
@@ -182,6 +210,12 @@ export default function JobDescriptionStep({
                   {jobDescriptionText.trim().length.toLocaleString()} characters
                   ready for this interview.
                 </p>
+                {readOnDevice && jobDescriptionId && (
+                  <p className="text-sm">
+                    Large file, so it was read on this device and only its
+                    text was saved.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -203,8 +237,8 @@ export default function JobDescriptionStep({
                   picked earlier when the two disagree.
                 </li>
                 <li>
-                  <span className="font-semibold">It stays private.</span> A
-                  PDF you upload is stored privately and is never shown to
+                  <span className="font-semibold">It stays private.</span>{" "}
+                  What you upload is stored privately and is never shown to
                   other students.
                 </li>
                 <li>
@@ -274,7 +308,7 @@ export default function JobDescriptionStep({
               <input
                 className="sr-only"
                 type="file"
-                accept="application/pdf"
+                accept={PDF_ACCEPT}
                 disabled={uploading}
                 onChange={uploadJobDescription}
               />

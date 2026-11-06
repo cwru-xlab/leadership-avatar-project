@@ -7,7 +7,7 @@ import { useEffect, useRef } from "react";
  * camera stream. Purely presentational - no inference, no scoring, no
  * coaching text. CONTEXT.md defers live coaching explicitly; this component
  * must never display a metric, a percentage, a rating or any performance
- * judgement, only the student's own video.
+ * judgment, only the student's own video.
  *
  * Renders nothing when `stream` is null, so a camera-off session renders no
  * DOM at all.

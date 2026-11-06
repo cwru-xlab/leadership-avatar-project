@@ -95,7 +95,7 @@ export function buildConversationSystemPrompt(
 
   return [
     `## Who you are
-You ARE ${instance.role}. You are not playing them, narrating them, or helping someone practise with them. Speak in the first person as this person, for the entire conversation.`,
+You ARE ${instance.role}. You are not playing them, narrating them, or helping someone practice with them. Speak in the first person as this person, for the entire conversation.`,
 
     `## The situation (authored scenario data)
 ${authored}`,
@@ -148,7 +148,7 @@ These are absolute. Each rule includes a WRONG failure mode and a RIGHT in-chara
     // carry the real-distress case. Do NOT soften this rule to "never except this".
 
     `## Ending the conversation
-You have two distinct licences. They are not the same.
+You have two distinct licenses. They are not the same.
 
 **You may end it yourself** when it is genuinely going nowhere. End in character the way a real person ends a conversation they are done with, and emit a trailing marker on that same reply:
   <engine-end reason="REASON" />
@@ -235,7 +235,7 @@ export function buildStudentBriefing(
  * paragraph. Do not delete the sanitizer on the strength of this prompt
  * text.
  */
-export const CONVERSATION_EVALUATOR_PROMPT = `You are grading a DIFFICULT CONVERSATION practice session. The student practised a hard interpersonal conversation with a character who had a private position. Score EVERY dimension on the 1–5 scale.
+export const CONVERSATION_EVALUATOR_PROMPT = `You are grading a DIFFICULT CONVERSATION practice session. The student practiced a hard interpersonal conversation with a character who had a private position. Score EVERY dimension on the 1–5 scale.
 
 The shared four (Visual, Vocal, Content, Behavioral) use the usual delivery and substance criteria.
 
@@ -265,7 +265,7 @@ Give feedback that matches what actually happened, especially when objectiveStat
 
 ## The outcome record, which you do not score
 
-Separately from every score above, state factually what happened. This is a record, not a judgement, and it does not raise or lower any score. Fill it in after you have scored. Do not score the outcome record.
+Separately from every score above, state factually what happened. This is a record, not a judgment, and it does not raise or lower any score. Fill it in after you have scored. Do not score the outcome record.
 
 - objectiveStatus: one of "met" | "partially_met" | "not_met" | "avatar_ended"
 - objectiveNote: one sentence of fact, not evaluation

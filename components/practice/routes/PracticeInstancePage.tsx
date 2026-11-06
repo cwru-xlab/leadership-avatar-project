@@ -48,6 +48,7 @@ import {
   Users,
 } from "lucide-react";
 import PracticeHero from "@/components/practice/PracticeHero";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -78,6 +79,7 @@ export default function PracticeInstancePage({
   const [dcInstance, setDcInstance] =
     useState<DifficultConversationInstance | null>(null);
   const [dcTitle, setDcTitle] = useState("");
+  const [dcCanEdit, setDcCanEdit] = useState(false);
   const [difficulty, setDifficulty] = useState<DifficultyBand | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -108,10 +110,12 @@ export default function PracticeInstancePage({
           const data = (await res.json()) as {
             instance: DifficultConversationInstance;
             title: string;
+            canEdit?: boolean;
           };
           if (cancelled) return;
           setDcInstance(data.instance);
           setDcTitle(data.title);
+          setDcCanEdit(data.canEdit === true);
           setDifficulty(data.instance.difficulty);
           setCaseData(null);
         } else {
@@ -274,6 +278,47 @@ export default function PracticeInstancePage({
   }
 
   if (isDifficultConversation) {
+    // A record saved before an avatar was required loads fine but cannot
+    // start a session. Say so, and send the owner to the editor to pick one.
+    if (dcInstance && !loadError && sessionConfig && !dcAvatarConfig) {
+      return (
+        <main className="mx-auto max-w-xl px-5 py-12 text-ink">
+          <Card className="border border-line shadow-none">
+            <CardBody className="items-start gap-4 p-8">
+              <UserRound aria-hidden className="text-link" size={28} />
+              <h1 className="font-display text-2xl font-medium">
+                This conversation needs an avatar
+              </h1>
+              <p className="text-muted">
+                {dcCanEdit
+                  ? "It was saved without a character avatar, so it cannot start yet. Pick one in the editor, save, and come back."
+                  : "It was saved without a character avatar, so it cannot start yet. Its author needs to pick one."}
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {dcCanEdit && (
+                  // A real link (not a HeroUI Button, which renders
+                  // role="button"): it navigates to the editor.
+                  <Link
+                    href={routes.editCourageousConversation(instanceId)}
+                    className="inline-flex h-10 items-center rounded-xl bg-cwru-blue px-4 text-sm font-semibold text-white hover:bg-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue"
+                  >
+                    Edit and pick an avatar
+                  </Link>
+                )}
+                <Button
+                  variant="flat"
+                  onPress={() => router.push(routes.courageousConversations())}
+                  startContent={<ArrowLeft className="h-4 w-4" />}
+                >
+                  Back to Conversations
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        </main>
+      );
+    }
+
     if (!dcInstance || loadError || !sessionConfig || !dcAvatarConfig) {
       return (
         <main className="mx-auto max-w-4xl px-5 py-12 text-center text-ink">

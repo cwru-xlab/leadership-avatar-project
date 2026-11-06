@@ -31,8 +31,8 @@ import { formatTimecode, timelineRows } from "@/lib/metrics/bands";
 import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 
 /** Plain-language label for each timeline row's kind tag (REQ-55's "tagged
- * by kind") — never colour-coded by severity, since severity is not a grade
- * and must not be implied by colour. */
+ * by kind") — never color-coded by severity, since severity is not a grade
+ * and must not be implied by color. */
 const GROUP_LABELS: Record<"camera" | "body" | "observation", string> = {
   camera: "Camera",
   body: "Body language",
@@ -70,7 +70,7 @@ export function MomentsPanel({ visual }: { visual: VisualMetrics | null }) {
           <span className="flex items-baseline gap-2">
             <span className="font-mono text-small tabular-nums text-muted">{row.label}</span>
             {/* Muted flat chip, matching the existing timecode idiom — never
-                colour-coded by severity. */}
+                color-coded by severity. */}
             <Chip size="sm" variant="flat" className="text-tiny">
               {GROUP_LABELS[row.group]}
             </Chip>

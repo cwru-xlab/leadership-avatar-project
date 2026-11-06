@@ -66,6 +66,7 @@ export default function LoginPage() {
       sso_unavailable:
         "CWRU SSO is unavailable right now. Please try again shortly.",
       sso_session_expired: "Your sign-in session expired. Please start again.",
+      session_expired: "Your sign-in expired. Sign in again to continue.",
       sso_sign_in_failed:
         "CWRU could not complete your sign-in. Please try again.",
       sso_handoff_invalid:
@@ -206,7 +207,7 @@ export default function LoginPage() {
         </div>
       </section>
       {/* Brand panel: the dot grid is reserved for login and the kiosk. */}
-      {/* The column is centred both ways and capped at the showcase's widest
+      {/* The column is centered both ways and capped at the showcase's widest
           frame, so copy and screenshot share one left edge and the spare
           blue splits evenly around them. */}
       <section className="la-dot-grid relative order-1 flex flex-col px-6 py-8 text-white min-[900px]:order-2 min-[900px]:justify-center min-[900px]:overflow-hidden min-[900px]:px-14 min-[900px]:py-14">

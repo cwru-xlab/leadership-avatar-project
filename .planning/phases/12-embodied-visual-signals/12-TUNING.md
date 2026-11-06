@@ -769,3 +769,43 @@ Distinguishing these needs the raw per-tick `phoneScore` series from a
 phone-held session. The dump that produces it was removed when this plan closed;
 re-adding it is the first step of any future attempt.
 
+## Untuned: hand matching and the descriptive hand and mouth signals (2026-11-05)
+
+**No real session has been recorded against anything in this section.** The
+constants at the end of `lib/metrics/body-thresholds.ts` are geometric estimates.
+Only synthetic landmarks have exercised them
+(`scripts/verify-hand-mouth-signals.ts`). None may move a score, and none should
+until they have a labelled dataset, written precision targets and an appeal path.
+
+**Changes that touch previously tuned numbers:**
+
+- `matchHands` replaces list-index comparison in the gesture loop. `primary` is
+  sorted by distance to the shoulders, so its order swaps when one hand passes the
+  other, and the old loop read still hands as two events. S1-S4's 0, 9, 12.2 and
+  4/min all include any such events, so `GESTURE_RATE_STILL_MAX`,
+  `GESTURE_RATE_EXCESSIVE_MIN` and `GESTURE_WINDOW_*_PCT` were tuned on counts
+  that real sessions will no longer produce. The direction is lower; the size is
+  unknown.
+- `GESTURE_AMPLITUDE_MIN` now scales with shoulder width, clamped to 0.6x-1.6x,
+  around a reference width of 0.4 that is an estimate. No dump recorded raw
+  shoulder width.
+- `HANDS_NEAR_FACE_RADIUS` and the wrist-to-expanded-box test are deliberately
+  unchanged, because `HANDS_NEAR_FACE_TRIP_PCT` was tuned from them.
+
+**Blendshape cost, measured 2026-11-05.** Same worker, same frame, alternating, 300
+calls per arm, one face at 640x480, Apple M1 Pro, Chromium headless:
+
+| Delegate | Without blendshapes (mean / p95 ms) | With (mean / p95 ms) |
+|---|---|---|
+| CPU | 14.71 / 15.6 | 14.58 / 15.2 |
+| GPU | 15.42 / 18.8 | 15.45 / 19.0 |
+
+The difference is inside the noise on this machine. Not measured: more than one
+face (the three-face test image found none), a live camera, or a low-end laptop.
+The live `[visual-capture] frame budget` log reports the face model's real cost
+per session, and is what to read on a school machine.
+
+**To tune these, record:** repeated eating, sipping water, chin resting, nail
+biting, listening with a mask on, speaking without holding push-to-talk, and the
+middle-finger shape at several angles, against pointing, peace, adjusting glasses
+and holding a pen.

@@ -3,10 +3,26 @@
  * supplied contribution) and a CURRENT-WINDOW figure (a bounded recent
  * window), plus one overall figure for each.
  *
+ * Each figure is an ESTIMATE of the student's level, not an average of their
+ * scores. A plain weighted mean over one row is exactly that row's score, its
+ * weight cancelling out, so one 5/5 read as 100% and "Mastered". Now, in order:
+ *   1. rows collapse into ACTIVITIES (`activitiesFrom`): one session, check or
+ *      drill is one piece of evidence however many rows it wrote;
+ *   2. activities are weighted by source;
+ *   3. that mean is shrunk toward a prior (`ESTIMATE_PRIOR`) by how much
+ *      evidence there is, so it moves toward the observed value as sessions
+ *      accumulate and can never reach 100 or 0.
+ * The current-window figure differs in two ways, so recent form moves quickly
+ * without forgetting a long record: its prior is the estimate from before the
+ * window, and its activities tilt toward the newest (`RECENT_HALF_LIFE_DAYS`,
+ * anchored on the latest activity, so a figure never drifts on its own). The plain
+ * average survives as `*ObservedPercent` for "what you actually scored"; how
+ * sure the estimate is lives in `*Range` and the evidence tier, shown apart.
+ *
  * 21-CONTEXT.md locks mastery as BOTH lifetime and current — "a durable
  * record accumulating across every session and study plan, alongside a
  * current-window figure reflecting recent form" — and this phase's hard
- * constraint is deterministic derivation over model judgement for anything
+ * constraint is deterministic derivation over model judgment for anything
  * consequential. A mastery percentage shown to a student, driving which
  * exercise they are given next, is as consequential as this phase gets. So
  * this module:
@@ -20,7 +36,7 @@
  *     already saw.
  */
 import { COMPETENCIES, type CompetencyKey } from "./competencies";
-import { MASTERY_WINDOW_DAYS } from "./weights";
+import { ESTIMATE_PRIOR, MASTERY_WINDOW_DAYS, RECENT_HALF_LIFE_DAYS } from "./weights";
 import type { MasteryContributionRow } from "./ledger";
 
 /**
@@ -58,6 +74,7 @@ export const MAX_WINDOW_DRIVERS = 3;
 /** How many competencies the "recent growth" list names. */
 export const MAX_RECENT_GROWTH = 3;
 
+/** Plain averages per origin (what was scored, not the estimate); counts are activities. */
 export interface OriginFigure {
   origin: EvidenceOrigin;
   lifetimeCount: number;
@@ -68,12 +85,18 @@ export interface OriginFigure {
   currentPercent: number | null;
 }
 
+/** About two-in-three range around an estimate, 0..100, one decimal. */
+export interface EstimateRange {
+  low: number;
+  high: number;
+}
+
 export interface TrendPoint {
   /** Exclusive end of this 7-day bucket. The last bucket ends at `now`. */
   endsAt: Date;
   /** The LIFETIME figure as it stood at `endsAt` (every row before it). */
   cumulativePercent: number | null;
-  /** Evidence rows that landed inside this bucket. */
+  /** Activities that landed inside this bucket. */
   bucketCount: number;
 }
 
@@ -92,8 +115,9 @@ export interface WindowDriver {
   /** Phase 23: the voice-drill attempt that produced the rows, when any. */
   sourceVoiceDrillAttemptId: string | null;
   occurredAt: Date;
-  /** Weighted mean of this activity's rows, 0..100, one decimal. */
+  /** What this activity scored (mean of its rows), 0..100, one decimal. */
   percent: number;
+  /** The activity's evidence weight: one activity counts once. */
   weightSum: number;
   /**
    * How hard this activity pulled the figure: weight x distance from the
@@ -105,12 +129,19 @@ export interface WindowDriver {
 
 export interface CompetencyMastery {
   competencyKey: CompetencyKey;
-  /** 0..100, rounded to one decimal. null when no contribution exists. */
+  /** The estimate, 0..100, rounded to one decimal. null when no contribution exists. */
   lifetimePercent: number | null;
   currentPercent: number | null;
+  /** The plain weighted average of what was scored, before any shrinkage. */
+  lifetimeObservedPercent: number | null;
+  currentObservedPercent: number | null;
+  /** Where the estimate plausibly sits; narrows as evidence accumulates. */
+  lifetimeRange: EstimateRange | null;
+  currentRange: EstimateRange | null;
+  /** Distinct activities (sessions, checks, drills), not ledger rows. */
   lifetimeEvidenceCount: number;
   currentEvidenceCount: number;
-  /** Weighted-evidence totals, carried so 21-13 can judge thinness without recomputing. */
+  /** Effective sessions: summed activity weights. 21-13 judges thinness from these. */
   lifetimeWeightSum: number;
   currentWeightSum: number;
   /** Most recent contributing occurredAt, or null. */
@@ -126,9 +157,9 @@ export interface CompetencyMastery {
    */
   windowStartLifetimePercent: number | null;
   /**
-   * lifetimePercent - windowStartLifetimePercent, one decimal. Null when
-   * either side is null or no evidence landed in the window (nothing moved
-   * it, so there is no movement to report).
+   * lifetimePercent - windowStartLifetimePercent, whole points (a move under
+   * half a point is no move). Null when either side is null or no evidence
+   * landed in the window (nothing moved it, so there is no movement to report).
    */
   windowDelta: number | null;
   /** Up to MAX_WINDOW_DRIVERS in-window activities, strongest pull first. */
@@ -147,6 +178,10 @@ export interface MasteryResult {
   competencies: CompetencyMastery[];
   overallLifetimePercent: number | null;
   overallCurrentPercent: number | null;
+  /** Evidence behind the overall figures: one session counts once, however
+   * many competencies it scored. */
+  overallLifetimeEvidence: { count: number; weightSum: number };
+  overallCurrentEvidence: { count: number; weightSum: number };
   /** The window boundary actually used, echoed so a caller can label it. */
   windowStart: Date;
   windowDays: number;
@@ -173,42 +208,130 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+function round6(n: number): number {
+  return Math.round(n * 1e6) / 1e6;
+}
+
+/** One independent piece of evidence: everything one session, check or drill wrote. */
+interface Activity {
+  key: string;
+  score: number;
+  /** The largest row weight, never the sum: one activity counts once. */
+  weight: number;
+  at: number;
+}
+
 /**
- * Weighted-mean arithmetic over one window's worth of rows for a single
- * competency. Returns null percent (not 0) when there is no evidence — zero
- * is a measured failure, null is "we have not measured this." Shared by both
- * the lifetime and current-window calls below so the two figures always go
- * through the SAME code path and cannot drift apart.
+ * Collapses ledger rows into activities, the unit of independent evidence. A
+ * row with no source id stands alone. Sorted so float summation downstream
+ * cannot depend on the order the rows arrived in.
  */
-function figureFor(rows: MasteryContributionRow[]): {
+function activitiesFrom(rows: ReadonlyArray<MasteryContributionRow>): Activity[] {
+  const groups = new Map<string, MasteryContributionRow[]>();
+  for (const row of rows) {
+    const key = activityKeyFor(row);
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(row);
+    else groups.set(key, [row]);
+  }
+  const activities: Activity[] = [];
+  for (const [key, group] of groups) {
+    let numerator = 0;
+    let weightSum = 0;
+    let weight = 0;
+    let at = 0;
+    for (const row of [...group].sort((a, b) => a.id.localeCompare(b.id))) {
+      numerator += row.rawScore * row.weight;
+      weightSum += row.weight;
+      weight = Math.max(weight, row.weight);
+      at = Math.max(at, row.occurredAt.getTime());
+    }
+    activities.push({ key, score: weightSum > 0 ? numerator / weightSum : 0, weight, at });
+  }
+  return activities.sort((a, b) => a.at - b.at || a.key.localeCompare(b.key));
+}
+
+interface Figure {
+  /** The estimate; null (not 0) when there is no evidence. */
   percent: number | null;
+  /** The estimate unrounded, 0..1, to seed a later figure's prior. */
+  estimate: number | null;
+  observedPercent: number | null;
+  range: EstimateRange | null;
   count: number;
   weightSum: number;
   lastAt: Date | null;
-} {
-  if (rows.length === 0) {
-    return { percent: null, count: 0, weightSum: 0, lastAt: null };
-  }
-
-  let numerator = 0;
-  let weightSum = 0;
-  let lastAt: Date | null = null;
-
-  for (const row of rows) {
-    numerator += row.rawScore * row.weight;
-    weightSum += row.weight;
-    if (lastAt === null || row.occurredAt.getTime() > lastAt.getTime()) {
-      lastAt = row.occurredAt;
-    }
-  }
-
-  const percent = weightSum > 0 ? round1((numerator / weightSum) * 100) : null;
-
-  return { percent, count: rows.length, weightSum, lastAt };
 }
 
-function round6(n: number): number {
-  return Math.round(n * 1e6) / 1e6;
+/**
+ * The figure for one set of rows for a single competency. Returns null percent
+ * (not 0) when there is no evidence — zero is a measured failure, null is "we
+ * have not measured this." Every figure goes through this one path so lifetime,
+ * current, trend and since-plan numbers can never drift apart.
+ *
+ * With `w` activity weight, `d` recency tilt against the latest activity (1
+ * unless `halfLifeDays` is given), `N` = sum(w), `m` = sum(w d score) /
+ * sum(w d), and prior (`p`, `k`):
+ *
+ *   estimate = (k p + N m) / (k + N)
+ *
+ * N is untilted: recency decides what the evidence says, never how much of it
+ * there is. The range is one standard deviation of the matching
+ * Beta(k p + N m, k (1 - p) + N (1 - m)).
+ */
+function figureFor(
+  rows: ReadonlyArray<MasteryContributionRow>,
+  opts: { priorMean?: number; halfLifeDays?: number } = {}
+): Figure {
+  const priorMean = opts.priorMean ?? ESTIMATE_PRIOR.mean;
+  const activities = activitiesFrom(rows);
+  let observedNumerator = 0;
+  let weightSum = 0;
+  let decayedNumerator = 0;
+  let decayedWeight = 0;
+  const latest = activities.length > 0 ? activities[activities.length - 1].at : 0;
+  const halfLifeMs = opts.halfLifeDays ? opts.halfLifeDays * 24 * 60 * 60 * 1000 : null;
+
+  for (const activity of activities) {
+    const decay = halfLifeMs ? Math.pow(0.5, (latest - activity.at) / halfLifeMs) : 1;
+    observedNumerator += activity.score * activity.weight;
+    weightSum += activity.weight;
+    decayedNumerator += activity.score * activity.weight * decay;
+    decayedWeight += activity.weight * decay;
+  }
+
+  const lastAt = activities.length > 0 ? new Date(latest) : null;
+  if (weightSum <= 0) {
+    return {
+      percent: null,
+      estimate: null,
+      observedPercent: null,
+      range: null,
+      count: activities.length,
+      weightSum: 0,
+      lastAt,
+    };
+  }
+
+  const mean = decayedNumerator / decayedWeight;
+  const alpha = ESTIMATE_PRIOR.strength * priorMean + weightSum * mean;
+  const beta = ESTIMATE_PRIOR.strength * (1 - priorMean) + weightSum * (1 - mean);
+  const total = alpha + beta;
+  const estimate = alpha / total;
+  const sd = Math.sqrt((alpha * beta) / (total * total * (total + 1)));
+
+  return {
+    percent: round1(estimate * 100),
+    estimate,
+    observedPercent: round1((observedNumerator / weightSum) * 100),
+    range: {
+      low: round1(Math.max(0, estimate - sd) * 100),
+      high: round1(Math.min(1, estimate + sd) * 100),
+    },
+    count: activities.length,
+    weightSum: round6(weightSum),
+    lastAt,
+  };
 }
 
 /** Mean of the non-null values in `values`, each counted once. Null when
@@ -236,10 +359,10 @@ function originFigures(
       origin,
       lifetimeCount: lifetime.count,
       lifetimeWeightSum: lifetime.weightSum,
-      lifetimePercent: lifetime.percent,
+      lifetimePercent: lifetime.observedPercent,
       currentCount: current.count,
       currentWeightSum: current.weightSum,
-      currentPercent: current.percent,
+      currentPercent: current.observedPercent,
     };
   });
 }
@@ -256,7 +379,7 @@ function trendFor(rows: MasteryContributionRow[], now: Date): TrendPoint[] {
     const upTo = rows.filter((r) =>
       isLast ? r.occurredAt.getTime() <= endsAt.getTime() : r.occurredAt.getTime() < endsAt.getTime()
     );
-    const bucketCount = upTo.filter((r) => r.occurredAt.getTime() >= startsAt).length;
+    const bucketCount = activitiesFrom(upTo.filter((r) => r.occurredAt.getTime() >= startsAt)).length;
     points.push({ endsAt, cumulativePercent: figureFor(upTo).percent, bucketCount });
   }
   return points;
@@ -287,9 +410,9 @@ function windowDriversFor(
   const drivers: WindowDriver[] = [];
   for (const rows of groups.values()) {
     const figure = figureFor(rows);
-    if (figure.percent === null || figure.lastAt === null) continue;
+    if (figure.observedPercent === null || figure.lastAt === null) continue;
     const first = rows[0];
-    const mean = figure.percent / 100;
+    const mean = figure.observedPercent / 100;
     drivers.push({
       origin: originForSource(first.source),
       source: first.source,
@@ -298,7 +421,7 @@ function windowDriversFor(
       sourceCoachedSessionId: first.sourceCoachedSessionId,
       sourceVoiceDrillAttemptId: first.sourceVoiceDrillAttemptId ?? null,
       occurredAt: figure.lastAt,
-      percent: figure.percent,
+      percent: figure.observedPercent,
       // Rounded so float summation order (row order) can never reorder ties.
       weightSum: round6(figure.weightSum),
       pull: round6(
@@ -390,19 +513,28 @@ export function computeMastery(
     );
 
     const lifetime = figureFor(rows);
-    const current = figureFor(currentRows);
     const beforeWindow = figureFor(
       rows.filter((row) => row.occurredAt.getTime() < windowStart.getTime())
     );
+    // Recent form starts from where the student stood when the window opened,
+    // so one good session after a long weak record does not read as new form.
+    const current = figureFor(currentRows, {
+      priorMean: beforeWindow.estimate ?? ESTIMATE_PRIOR.mean,
+      halfLifeDays: RECENT_HALF_LIFE_DAYS,
+    });
     const windowDelta =
       lifetime.percent !== null && beforeWindow.percent !== null && current.count > 0
-        ? round1(lifetime.percent - beforeWindow.percent)
+        ? Math.round(lifetime.percent - beforeWindow.percent)
         : null;
 
     competencyResults.push({
       competencyKey: competency.key,
       lifetimePercent: lifetime.percent,
       currentPercent: current.percent,
+      lifetimeObservedPercent: lifetime.observedPercent,
+      currentObservedPercent: current.observedPercent,
+      lifetimeRange: lifetime.range,
+      currentRange: current.range,
       lifetimeEvidenceCount: lifetime.count,
       currentEvidenceCount: current.count,
       lifetimeWeightSum: lifetime.weightSum,
@@ -423,10 +555,23 @@ export function computeMastery(
     competencyResults.map((c) => c.currentPercent)
   );
 
+  const mappedRows = [...byCompetency.values()].flat();
+  const overallEvidence = (rows: MasteryContributionRow[]) => {
+    const activities = activitiesFrom(rows);
+    return {
+      count: activities.length,
+      weightSum: round6(activities.reduce((sum, a) => sum + a.weight, 0)),
+    };
+  };
+
   return {
     competencies: competencyResults,
     overallLifetimePercent,
     overallCurrentPercent,
+    overallLifetimeEvidence: overallEvidence(mappedRows),
+    overallCurrentEvidence: overallEvidence(
+      mappedRows.filter((row) => row.occurredAt.getTime() >= windowStart.getTime())
+    ),
     windowStart,
     windowDays,
     unmappedRowCount,
@@ -444,6 +589,8 @@ export interface SincePlanSnapshotFigure {
 
 export interface SincePlanFigure {
   percent: number | null;
+  observedPercent: number | null;
+  range: EstimateRange | null;
   evidenceCount: number;
   weightSum: number;
 }
@@ -454,13 +601,13 @@ export interface CompetencySincePlan {
   baseline: SincePlanFigure;
   /** All-time figure from ledger rows with occurredAt <= `now`. */
   now: SincePlanFigure;
-  /** now - baseline, one decimal; null when either side is unmeasured. */
+  /** now - baseline, whole points; null when either side is unmeasured. */
   delta: number | null;
-  /** Rows that landed in [since, now]. */
+  /** Activities that landed in [since, now]. */
   sinceEvidenceCount: number;
   /**
-   * Weighted mean of only the rows in [since, now], one decimal; null when
-   * none landed. How the student has performed on this skill since the plan,
+   * What was actually scored in [since, now] (the plain average, one decimal,
+   * not the estimate); null when none landed. How the student has performed on this skill since the plan,
    * as opposed to `now`, which blends in every earlier row.
    */
   sincePercent: number | null;
@@ -479,7 +626,8 @@ export interface CompetencySincePlan {
    * The lifetime figure FROZEN into the path's selectionSnapshot at
    * generation, when present. Reported alongside, never substituted for
    * `baseline`: the snapshot predates any later-ingested history (e.g. the
-   * live-session backfill), so it can disagree with a ledger recompute.
+   * live-session backfill) and, on older paths, the estimate itself (it holds
+   * the old plain average), so it can disagree with a ledger recompute.
    */
   snapshotLifetimePercent: number | null;
 }
@@ -487,8 +635,8 @@ export interface CompetencySincePlan {
 /**
  * Growth since a study plan's path was generated, for the plan's targeted
  * competencies. Pure: no database, no clock (`since` = the path's
- * `generatedAt`, `now` from the caller). Baseline and now go through the
- * same `figureFor` as every other figure, so the delta compares like with
+ * `generatedAt`, `now` from the caller). Baseline and now are estimates from
+ * the same `figureFor` as every other figure, so the delta compares like with
  * like; the frozen snapshot figure is echoed separately for reference.
  *
  * Unknown competency keys are skipped (the catalog decides what exists).
@@ -524,26 +672,36 @@ export function growthSincePlan(
     const sinceRows = rows.filter((r) => r.occurredAt.getTime() >= since.getTime());
     const baseline = figureFor(beforeRows);
     const current = figureFor(rows);
+    const sinceFigure = figureFor(sinceRows);
     const delta =
-      baseline.percent !== null && current.percent !== null && sinceRows.length > 0
-        ? round1(current.percent - baseline.percent)
+      baseline.percent !== null && current.percent !== null && sinceFigure.count > 0
+        ? Math.round(current.percent - baseline.percent)
         : null;
+    const sinceFigureFor = (figure: Figure): SincePlanFigure => ({
+      percent: figure.percent,
+      observedPercent: figure.observedPercent,
+      range: figure.range,
+      evidenceCount: figure.count,
+      weightSum: figure.weightSum,
+    });
     return {
       competencyKey,
-      baseline: { percent: baseline.percent, evidenceCount: baseline.count, weightSum: baseline.weightSum },
-      now: { percent: current.percent, evidenceCount: current.count, weightSum: current.weightSum },
+      baseline: sinceFigureFor(baseline),
+      now: sinceFigureFor(current),
       delta,
-      sinceEvidenceCount: sinceRows.length,
-      sincePercent: figureFor(sinceRows).percent,
+      sinceEvidenceCount: sinceFigure.count,
+      sincePercent: sinceFigure.observedPercent,
       sinceBySource: (() => {
         const live = sinceRows.filter((r) => originForSource(r.source) === "live");
         const path = sinceRows.filter((r) => {
           const origin = originForSource(r.source);
           return origin !== null && origin !== "live";
         });
+        const pathFigure = figureFor(path);
+        const liveFigure = figureFor(live);
         return {
-          path: { percent: figureFor(path).percent, count: path.length },
-          live: { percent: figureFor(live).percent, count: live.length },
+          path: { percent: pathFigure.observedPercent, count: pathFigure.count },
+          live: { percent: liveFigure.observedPercent, count: liveFigure.count },
         };
       })(),
       drivers: windowDriversFor(sinceRows, baseline.percent ?? current.percent),

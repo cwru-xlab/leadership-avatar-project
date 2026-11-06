@@ -728,8 +728,8 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
             onLaunch={handleConsent}
             launchLabel={`Start with ${legView.coach.name}`}
             sessionNoun="session"
-            cameraOnDescription="Your camera and voice are analysed to give you delivery feedback in your end-of-session summary."
-            cameraOffDescription="Your voice is still analysed for your end-of-session summary; your camera isn't used, so visual delivery won't be described."
+            cameraOnDescription="Your camera and voice are analyzed to give you delivery feedback in your end-of-session summary."
+            cameraOffDescription="Your voice is still analyzed for your end-of-session summary; your camera isn't used, so visual delivery won't be described."
           />
         ) : moment ? (
           <CoachedBriefCard
@@ -980,7 +980,7 @@ export default function CoachedSessionShell({ planId, stepId }: CoachedSessionSh
   );
 }
 
-/** The labelled way out, before the live room opens. Resuming is server-side. */
+/** The labeled way out, before the live room opens. Resuming is server-side. */
 function LeaveBar({ planId }: { planId: string }) {
   return (
     <div>

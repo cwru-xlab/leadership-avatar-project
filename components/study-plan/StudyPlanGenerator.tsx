@@ -12,7 +12,10 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Checkbox } from "@heroui/checkbox";
+import clsx from "clsx";
+import { Search } from "lucide-react";
 import { Button } from "@heroui/button";
+import { Input } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
 import {
   Modal,
@@ -24,18 +27,15 @@ import {
 } from "@heroui/modal";
 
 import type { ReportDTO } from "@/lib/report/dto";
-import { typeLabelForReport } from "@/lib/report/title";
+import { displayReportTitle, formatReportWhen, typeLabelForReport } from "@/lib/report/title";
+import { INTERVIEW_TYPE_SLUGS } from "@/lib/report/filters";
+import LevelChip from "@/components/report/LevelChip";
+import { displayPlanTitle } from "@/lib/study-plan/title";
 import type { StudyPlanDTO, StudyPlanSummaryDTO } from "@/lib/study-plan/plan-dto";
 import type { StudyPlanContent } from "@/lib/study-plan/types";
 import PlanContent from "@/components/study-plan/PlanContent";
 
-/** Study-plan generation still uses interview feedback only. */
-export const INTERVIEW_TYPE_SLUGS = new Set([
-  "general",
-  "technical",
-  "consulting",
-  "early-career",
-]);
+export { INTERVIEW_TYPE_SLUGS };
 
 export function scoreOf(report: ReportDTO, key: string): number | null {
   const value = report.scores?.[key];
@@ -55,28 +55,65 @@ interface GeneratedPreview {
  * server-only and this is a client component. */
 const MAX_REPORTS_PER_PLAN = 10;
 
+/** Above this many rows the picker offers a filter. */
+const PICKER_FILTER_THRESHOLD = 5;
+
+const SCORE_WORDS: Record<number, string> = {
+  5: "Excellent",
+  4: "Strong",
+  3: "Solid",
+  2: "Developing",
+  1: "Needs work",
+};
+
 interface SelectableReport {
   id: string;
+  title: string;
   typeSlug: string;
   completedAt: string | null;
   contentScore: number | null;
   behavioralScore: number | null;
+  /** "12 min · 14 turns" — differs even between otherwise identical sessions. */
+  shape: string;
+  /** What this session's feedback pointed at, in the report's own words. */
+  cue: string | null;
+  searchText: string;
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+function sessionShape(report: ReportDTO): string {
+  const minutes = report.elapsedSeconds ? Math.max(1, Math.round(report.elapsedSeconds / 60)) : null;
+  return [
+    minutes ? `${minutes} min` : null,
+    report.turnCount ? `${report.turnCount} ${report.turnCount === 1 ? "turn" : "turns"}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function sessionCue(report: ReportDTO): string | null {
+  const structured = report.reportStructured;
+  return structured?.growth_areas[0]?.title?.trim() || structured?.strengths[0]?.title?.trim() || null;
+}
+
+function PickerScore({ label, score }: { label: string; score: number | null }) {
+  if (score === null) return null;
+  return (
+    <LevelChip
+      label={`${label}: ${SCORE_WORDS[score] ?? `${score} / 5`}`}
+      level={Math.min(5, Math.max(1, score)) as 1 | 2 | 3 | 4 | 5}
+    />
+  );
 }
 
 export default function StudyPlanGenerator({
   reports,
   onSaved,
   aside,
+  loading = false,
 }: {
   reports: ReportDTO[];
+  /** The caller is still fetching reports: show the card as it will look, button off. */
+  loading?: boolean;
   onSaved: (plan: StudyPlanSummaryDTO) => void;
   /** Rendered beside the primary button, e.g. a link to saved plans. */
   aside?: React.ReactNode;
@@ -113,13 +150,34 @@ export default function StudyPlanGenerator({
             report.status === "READY" &&
             Boolean(report.reportMarkdown?.trim()),
         )
-        .map((report) => ({
-          id: report.id,
-          typeSlug: report.typeSlug,
-          completedAt: report.completedAt ?? report.startedAt ?? null,
-          contentScore: scoreOf(report, "content"),
-          behavioralScore: scoreOf(report, "behavioral"),
-        }))
+        .map((report) => {
+          const title = displayReportTitle({
+            title: report.title,
+            typeSlug: report.typeSlug,
+            input: report.input,
+          });
+          const completedAt = report.completedAt ?? report.startedAt ?? null;
+          const cue = sessionCue(report);
+          return {
+            id: report.id,
+            title,
+            typeSlug: report.typeSlug,
+            completedAt,
+            contentScore: scoreOf(report, "content"),
+            behavioralScore: scoreOf(report, "behavioral"),
+            shape: sessionShape(report),
+            cue,
+            searchText: [
+              title,
+              typeLabelForReport(report.typeSlug),
+              completedAt ? formatReportWhen(completedAt) : null,
+              cue,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase(),
+          };
+        })
         // Most recent first, matching the route's default-selection ordering.
         .sort((a, b) => {
           const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
@@ -149,6 +207,18 @@ export default function StudyPlanGenerator({
       return eligibleReports.slice(0, MAX_REPORTS_PER_PLAN).map((r) => r.id);
     });
   }, [eligibleReports]);
+
+  const [pickerFilter, setPickerFilter] = useState("");
+  const selectedCount = (selectedReportIds ?? []).length;
+  const pickerRows = useMemo(() => {
+    const terms = pickerFilter.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return eligibleReports.filter((report) =>
+      terms.every((term) => report.searchText.includes(term)),
+    );
+  }, [eligibleReports, pickerFilter]);
+  const hiddenSelectedCount = (selectedReportIds ?? []).filter(
+    (id) => !pickerRows.some((row) => row.id === id),
+  ).length;
 
   function toggleReportSelection(reportId: string) {
     setSelectedReportIds((current) => {
@@ -257,7 +327,7 @@ export default function StudyPlanGenerator({
           <p className="text-sm leading-6 text-muted">
             We&apos;ll identify recurring feedback themes from your completed interview reports and turn them into focused practice.
           </p>
-          {eligibleReportCount < 1 && (
+          {!loading && eligibleReportCount < 1 && (
             <p className="text-sm font-semibold text-ink">Finish an interview with feedback to build a study plan.</p>
           )}
         </div>
@@ -266,7 +336,7 @@ export default function StudyPlanGenerator({
           <Button
             className="h-11 rounded-lg font-semibold"
             color="primary"
-            isDisabled={eligibleReportCount < 1 || generating}
+            isDisabled={loading || eligibleReportCount < 1 || generating}
             onPress={openPicker}
           >
             {generating ? <><Spinner color="current" size="sm" /> Creating plan</> : "Generate study plan"}
@@ -281,50 +351,96 @@ export default function StudyPlanGenerator({
               <ModalHeader className="flex flex-col gap-1">
                 Choose which interviews to use
               </ModalHeader>
-              <ModalBody>
-                <p className="text-xs font-medium text-muted">
-                  {(selectedReportIds ?? []).length} of {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} selected
-                  {" "}· cap {MAX_REPORTS_PER_PLAN}
-                </p>
-                <p className="mt-1 text-sm text-muted">
-                  The most recent {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)} are preselected. Deselect any and pick others instead.
-                </p>
-                <div className="mt-4 max-h-96 space-y-2 overflow-y-auto pr-1">
-                  {eligibleReports.map((report) => {
+              <ModalBody className="gap-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <p aria-live="polite" className="text-sm font-semibold text-ink">
+                    {selectedCount} selected, up to {MAX_REPORTS_PER_PLAN}
+                    {hiddenSelectedCount > 0 && (
+                      <span className="font-normal text-muted"> ({hiddenSelectedCount} hidden by your filter)</span>
+                    )}
+                  </p>
+                  <div className="flex gap-3 text-[13px] font-semibold">
+                    <button
+                      className="text-link hover:underline disabled:text-muted disabled:no-underline"
+                      disabled={selectedCount === 0}
+                      type="button"
+                      onClick={() => setSelectedReportIds([])}
+                    >
+                      Clear
+                    </button>
+                    <button
+                      className="text-link hover:underline"
+                      type="button"
+                      onClick={() =>
+                        setSelectedReportIds(eligibleReports.slice(0, MAX_REPORTS_PER_PLAN).map((r) => r.id))
+                      }
+                    >
+                      Use latest {Math.min(eligibleReportCount, MAX_REPORTS_PER_PLAN)}
+                    </button>
+                  </div>
+                </div>
+                {eligibleReports.length > PICKER_FILTER_THRESHOLD && (
+                  <Input
+                    aria-label="Filter interviews"
+                    classNames={{ inputWrapper: "h-10 rounded-sm border border-line bg-white shadow-none" }}
+                    isClearable
+                    placeholder="Filter by person, role or date"
+                    startContent={<Search aria-hidden className="text-muted" size={16} />}
+                    value={pickerFilter}
+                    onClear={() => setPickerFilter("")}
+                    onValueChange={setPickerFilter}
+                  />
+                )}
+                {selectedCount >= MAX_REPORTS_PER_PLAN && (
+                  <p className="text-[13px] text-muted">
+                    That&apos;s the most one plan can use. Deselect one to add another.
+                  </p>
+                )}
+                <ul aria-label="Interviews you can use" className="flex max-h-[52vh] flex-col gap-2 overflow-y-auto p-0.5 pr-1">
+                  {pickerRows.map((report) => {
                     const isSelected = (selectedReportIds ?? []).includes(report.id);
-                    const atCap =
-                      !isSelected && (selectedReportIds ?? []).length >= MAX_REPORTS_PER_PLAN;
+                    const atCap = !isSelected && selectedCount >= MAX_REPORTS_PER_PLAN;
                     return (
-                      <div
-                        key={report.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-line bg-canvas px-3 py-2"
-                      >
+                      <li key={report.id}>
                         <Checkbox
-                          isSelected={isSelected}
+                          classNames={{
+                            base: clsx(
+                              "m-0 flex w-full max-w-none items-start gap-1 rounded-lg border border-line bg-white p-3 transition-colors duration-150 ease-out",
+                              isSelected ? "border-true-blue bg-light-blue/16" : "hover:bg-canvas",
+                            ),
+                            label: "w-full min-w-0",
+                            wrapper: "mt-0.5",
+                          }}
                           isDisabled={atCap}
+                          isSelected={isSelected}
                           onValueChange={() => toggleReportSelection(report.id)}
                         >
-                          <span className="text-sm text-ink">
-                            {typeLabelForReport(report.typeSlug)}
-                            {" · "}
-                            {report.completedAt ? formatDate(report.completedAt) : "Date unknown"}
-                            {report.contentScore !== null
-                              ? ` · Content ${report.contentScore}/5`
-                              : ""}
-                            {report.behavioralScore !== null
-                              ? ` · Behavioral ${report.behavioralScore}/5`
-                              : ""}
+                          <span className="flex min-w-0 flex-col gap-1.5">
+                            <span className="flex flex-col gap-0.5">
+                              <span className="text-[15px] font-semibold leading-snug text-ink">{report.title}</span>
+                              <span className="text-[13px] text-muted">
+                                {report.completedAt ? formatReportWhen(report.completedAt) : "Date unknown"}
+                                {report.shape ? ` · ${report.shape}` : ""}
+                              </span>
+                            </span>
+                            {report.cue && (
+                              <span className="line-clamp-1 text-[13px] text-ink">Focus: {report.cue}</span>
+                            )}
+                            <span className="flex flex-wrap gap-1.5">
+                              <PickerScore label="Content" score={report.contentScore} />
+                              <PickerScore label="Behavioral" score={report.behavioralScore} />
+                            </span>
                           </span>
                         </Checkbox>
-                        {atCap && (
-                          <span className="shrink-0 text-xs font-medium text-muted">
-                            Cap reached — deselect one first
-                          </span>
-                        )}
-                      </div>
+                      </li>
                     );
                   })}
-                </div>
+                  {pickerRows.length === 0 && (
+                    <li className="rounded-lg border border-line bg-white p-4 text-center text-sm text-muted">
+                      No interviews match that filter.
+                    </li>
+                  )}
+                </ul>
                 {actionError && (
                   <p role="alert" className="mt-2 rounded-lg border border-copper/40 bg-copper/[0.08] p-4 text-sm text-ink">
                     {actionError}
@@ -333,7 +449,7 @@ export default function StudyPlanGenerator({
               </ModalBody>
               <ModalFooter>
                 <Button variant="light" onPress={onModalClose}>Cancel</Button>
-                <Button color="primary" isDisabled={generating} onPress={generateFromPicker}>
+                <Button color="primary" isDisabled={generating || selectedCount === 0} onPress={generateFromPicker}>
                   {generating ? <><Spinner color="current" size="sm" /> Creating plan</> : "Generate study plan"}
                 </Button>
               </ModalFooter>
@@ -350,7 +466,7 @@ export default function StudyPlanGenerator({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="w-fit rounded-full bg-level-2/16 px-2.5 py-1 text-xs font-semibold text-ink">Preview, not saved yet</p>
-              <h2 className="mt-3 font-display text-[26px] font-medium leading-[1.15] text-cwru-blue">{preview.content.title}</h2>
+              <h2 className="mt-3 font-display text-[26px] font-medium leading-[1.15] text-cwru-blue">{displayPlanTitle(preview.content)}</h2>
               <p className="mt-2 max-w-3xl leading-7 text-ink">{preview.content.summary}</p>
               <p className="mt-2 text-xs text-muted">Based on {preview.sourceReportCount} completed {preview.sourceReportCount === 1 ? "report" : "reports"}.</p>
               {/* Honest accounting alongside the count above — how many of

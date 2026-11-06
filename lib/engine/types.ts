@@ -98,7 +98,7 @@ export interface TerminationPolicyConfig {
    * Optional map from a dominant observable cause to the reason this type's
    * avatar cites when that cause ends the session. Every value MUST already
    * be a member of avatarEndReasons — the engine never invents a reason.
-   * Omitted -> the existing behaviour, where the model's own marker reason
+   * Omitted -> the existing behavior, where the model's own marker reason
    * is used.
    */
   avatarEndReasonByCause?: Partial<Record<DisengagementCause, string>> | null;
@@ -424,6 +424,13 @@ export type InstanceConfig =
       kind: "pitch-elevator";
       pitchSubject: string;
       listenerKnowledge: "blind" | "name-role" | "full-profile";
+      /**
+       * Which listener this session drew. SERVER-OWNED: set by startSession and
+       * re-read from the report snapshot by the chat route and the evaluation
+       * runner, overwriting anything a client sends. Absent means the legacy
+       * listener (`resolveElevatorListener`).
+       */
+      listenerPersonaId?: string;
     }
   /**
    * Shared by ALL FIVE deck modes (REQ-88, REQ-93): the existing investor

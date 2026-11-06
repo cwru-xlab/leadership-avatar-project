@@ -240,7 +240,9 @@ The report's closing section on the flat Dark Blue stage, radius 16.
   point to see what happened."). Legend on the right: Delivery line, Camera moment, Cited in a growth
   area, and an "Example data" chip while data is sample.
 - **Chart:** SVG `viewBox="0 0 1000 340"` in a box with `aspect-ratio: 1000 / 340` (uniform scaling,
-  no stretched strokes), min-width 620px with horizontal scroll below that. X is session time with
+  no stretched strokes), min-width 620px with horizontal scroll below that. Beside the detail panel it
+  grows to the panel's height (up to 1000 x 760) by adding viewBox height, never by stretching, so the
+  chart column leaves no blank block under the chart. X is session time with
   5 even ticks in mono; Y is delivery per answer in four labelled levels (Strong, Steady, Uneven, Off)
   on faint gridlines. Light Blue 2.5px line in straight segments; a True Blue area fading to clear
   under it. A camera strip below the plot marks camera episodes as Orange bars.

@@ -34,16 +34,29 @@ import ReportMarkdown from "@/components/interview/ReportMarkdown";
 import ReportScoreCards, {
   type ReportScoreCardsProps,
 } from "@/components/interview/ReportScoreCards";
+import CheckInBanner from "@/components/report/CheckInBanner";
 import { levelDotClass } from "@/components/report/LevelChip";
 import MomentsTimeline, {
   ANSWER_RAMP,
   buildTimelineAnswers,
 } from "@/components/report/MomentsTimeline";
-import ReportStatistics, { hasStatistics } from "@/components/report/ReportStatistics";
+import ReportStatistics, {
+  hasStatistics,
+  measuredVisual,
+  measuredVocal,
+} from "@/components/report/ReportStatistics";
+import { fallbackClock, reclockVisual, type ReportMoments } from "@/lib/report/moments";
+import {
+  applyCheckInHiding,
+  eligibleCheckIns,
+  type CheckInAnswers,
+  type CheckInLead,
+} from "@/lib/report/check-in";
 import {
   formatTimecode,
   visualBands,
   visualBodyLanguageBands,
+  visualObservationCaveat,
   visualObservationRows,
   vocalBands,
 } from "@/lib/metrics/bands";
@@ -77,7 +90,15 @@ interface ReportBodyProps {
   markdown: string | null;
   scores: ReportScoreCardsProps["scores"];
   metrics: ReportScoreCardsProps["metrics"];
+  /** Timeline clock and excerpts from the stored transcript. Null without one. */
+  moments?: ReportMoments | null;
   showInterviewPaceTarget?: boolean;
+  /** Needed to save check-in answers. Without it no check-in is asked. */
+  reportId?: string;
+  /** Saved check-in answers (`ReportDTO.checkIn`). */
+  checkIn?: CheckInAnswers;
+  /** The practice type's check-in coaching opener (`ReportChrome.checkInLead`). */
+  checkInLead?: CheckInLead;
 }
 
 function SectionHeading({ children, count }: { children: React.ReactNode; count?: number }) {
@@ -123,7 +144,7 @@ function DisclosureRow({
     <div className="overflow-hidden rounded-lg border border-line bg-white">
       <button
         aria-expanded={open}
-        className="flex min-h-12 w-full items-center gap-2.5 px-3.5 py-3 text-left transition-colors duration-150 ease-out hover:bg-canvas"
+        className="flex min-h-12 w-full items-center gap-2.5 px-3.5 py-3 text-left outline-none transition-colors duration-150 ease-out hover:bg-canvas focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-true-blue"
         type="button"
         onClick={() => setOpen((value) => !value)}
       >
@@ -153,7 +174,7 @@ function Summary({ text }: { text: string }) {
       <p className="max-w-[56ch] text-[17px] leading-[1.55] text-ink">{expanded ? text : lead}</p>
       {hasMore && (
         <button
-          className="w-fit text-sm font-semibold text-link hover:underline"
+          className="w-fit rounded-sm text-sm font-semibold text-link outline-none hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-true-blue"
           type="button"
           onClick={() => setExpanded((value) => !value)}
         >
@@ -179,28 +200,63 @@ export default function ReportBody({
   markdown,
   scores,
   metrics,
+  moments = null,
   showInterviewPaceTarget = false,
+  reportId,
+  checkIn,
+  checkInLead,
 }: ReportBodyProps) {
   const [selectedAnswer, setSelectedAnswer] = useState(0);
+  const [checkInAnswers, setCheckInAnswers] = useState<CheckInAnswers>(checkIn ?? {});
+
+  // Everything on the Moments timeline reads this copy, so episode times agree
+  // with the answers and with the growth-area timecodes that cite them.
+  const timelineVisual = useMemo(() => {
+    const visual = metrics?.visual ?? null;
+    return visual && reclockVisual(visual, moments?.clock ?? fallbackClock(visual));
+  }, [metrics, moments]);
+
+  // Asked from the full reading, so a flag the student hid stays answerable.
+  const checkInQuestions = useMemo(
+    () => (reportId ? eligibleCheckIns(metrics?.cameraMode, timelineVisual, checkInLead) : []),
+    [reportId, metrics, timelineVisual, checkInLead],
+  );
+
+  // What the page SHOWS after "No" or "Something else" took a flag off this
+  // report. Display only: `scores` come from the evaluator and are untouched.
+  const shown = useMemo(
+    () => (timelineVisual ? applyCheckInHiding(timelineVisual, checkInAnswers) : null),
+    [timelineVisual, checkInAnswers],
+  );
+  const displayVisual = shown?.visual ?? null;
+  const hiddenRows = shown?.hiddenRowLabels;
 
   const answers = useMemo(
     () =>
       buildTimelineAnswers(
         metrics?.vocal ?? null,
-        metrics?.visual ?? null,
+        displayVisual,
         structured?.growth_areas ?? [],
+        moments,
       ),
-    [metrics, structured],
+    [metrics, displayVisual, structured, moments],
   );
 
-  // Pre-structured rows: render exactly what they rendered before. No tabs,
-  // no empty panels — the data to fill them does not exist.
+  // Pre-structured rows: the score panel, then the stored markdown. No tabs,
+  // no empty panels — the data to fill them does not exist. The score panel
+  // was missing here once the body took it over from the page, which left a
+  // legacy report with no scores on its first screen.
   if (!structured) {
-    return markdown ? (
-      <div className="rounded-xl border border-line bg-white p-6 sm:p-8">
-        <ReportMarkdown markdown={markdown} />
+    return (
+      <div className="flex flex-col gap-7">
+        <ReportScoreCards metrics={metrics} scores={scores} />
+        {markdown && (
+          <div className="rounded-xl border border-line bg-white p-6 sm:p-8">
+            <ReportMarkdown markdown={markdown} />
+          </div>
+        )}
       </div>
-    ) : null;
+    );
   }
 
   const showMoment = (index: number) => {
@@ -210,15 +266,24 @@ export default function ReportBody({
 
   const hasMomentsSection =
     answers.length > 0 ||
-    (metrics?.visual?.episodes?.length ?? 0) > 0 ||
-    (metrics?.visual?.observations?.episodes?.length ?? 0) > 0;
+    (displayVisual?.episodes?.length ?? 0) > 0 ||
+    (displayVisual?.observations?.episodes?.length ?? 0) > 0;
   // Scenario reports have no rubric-notes section at all. An empty tab is
   // worse than an absent one, so the panel is dropped rather than shown blank.
   const hasContentTab =
     Boolean(structured.category_notes.content) ||
     Boolean(structured.category_notes.behavioral) ||
     structured.rubric_notes.length > 0;
-  const hasDeliveryTab = Boolean(metrics?.visual || metrics?.vocal);
+  // Delivery sections follow the same "was it measured" gates as the
+  // Statistics figures, so a typed session never shows Voice bands under a
+  // Vocal card that says "Not measured".
+  const vocal = measuredVocal(metrics);
+  const visual = measuredVisual(metrics);
+  const notHidden = (row: { label: string }) => !hiddenRows?.has(row.label);
+  const cameraRows = visual ? visualBands(visual).filter(notHidden) : [];
+  const bodyRows = visual ? visualBodyLanguageBands(visual).filter(notHidden) : [];
+  const observationRows = displayVisual ? visualObservationRows(displayVisual).filter(notHidden) : [];
+  const hasDeliveryTab = Boolean(visual || vocal) || observationRows.length > 0;
   const hasStatsTab = hasStatistics(metrics);
   const revisit = answers
     .filter((a) => a.level <= 2)
@@ -226,6 +291,18 @@ export default function ReportBody({
 
   return (
     <div className="flex flex-col gap-7">
+      {/* Above the scores so it is seen, but a card in the flow: it never
+          blocks reading, and nothing it saves reaches a score. */}
+      {reportId && checkInQuestions.length > 0 && (
+        <CheckInBanner
+          answers={checkInAnswers}
+          lead={checkInLead}
+          questions={checkInQuestions}
+          reportId={reportId}
+          onAnswersChange={setCheckInAnswers}
+        />
+      )}
+
       <ReportScoreCards metrics={metrics} scores={scores} />
 
       {/* Promoted from the very bottom of the old report. It is the single
@@ -387,23 +464,23 @@ export default function ReportBody({
         {hasDeliveryTab ? (
           <Tab key="delivery" title="Delivery">
             <div className="grid gap-7 md:grid-cols-2">
-              {metrics?.visual && (
+              {visual && (
                 <section className="flex flex-col gap-3">
                   <SectionHeading>On camera</SectionHeading>
-                  <BandList rows={visualBands(metrics.visual)} />
+                  <BandList rows={cameraRows} />
                   {structured.category_notes.visual && <Prose>{structured.category_notes.visual}</Prose>}
                 </section>
               )}
 
-              {metrics?.vocal && (
+              {vocal && (
                 <section className="flex flex-col gap-3">
                   <SectionHeading>Voice</SectionHeading>
                   {showInterviewPaceTarget && (
                     <p className="text-sm text-muted">
-                      Assessed pace: {Math.round(metrics.vocal.words_per_minute)} WPM. {"Interview target: 100–159 WPM."}
+                      Assessed pace: {Math.round(vocal.words_per_minute)} WPM. {"Interview target: 100–159 WPM."}
                     </p>
                   )}
-                  <BandList rows={vocalBands(metrics.vocal)} />
+                  <BandList rows={vocalBands(vocal)} />
                   {structured.category_notes.vocal && <Prose>{structured.category_notes.vocal}</Prose>}
                 </section>
               )}
@@ -411,10 +488,10 @@ export default function ReportBody({
               {/* Legible as its own thing rather than extra rows on the camera
                   list — a pre-Phase-12 report has no scored body-language fields
                   on `metrics.visual`, so this renders nothing new. */}
-              {metrics?.visual && visualBodyLanguageBands(metrics.visual).length > 0 && (
+              {bodyRows.length > 0 && (
                 <section className="flex flex-col gap-3">
                   <SectionHeading>Body language</SectionHeading>
-                  <BandList rows={visualBodyLanguageBands(metrics.visual)} />
+                  <BandList rows={bodyRows} />
                 </section>
               )}
 
@@ -423,13 +500,18 @@ export default function ReportBody({
                   at the section level, never as a per-row tag inside a scored
                   list. Muted treatment only; the tinted panel is reserved for
                   "One thing to practice next time". */}
-              {metrics?.visual && visualObservationRows(metrics.visual).length > 0 && (
+              {/* The reclocked copy, not `metrics.visual`: the rows quote episode
+                  times, and must read on the same clock as Moments. */}
+              {displayVisual && observationRows.length > 0 && (
                 <section className="flex flex-col gap-3">
                   <SectionHeading>Observations</SectionHeading>
                   <p className="text-sm text-muted">
                     Things the camera recorded during the session. These do not affect any score.
+                    {visualObservationCaveat(displayVisual) && (
+                      <> {visualObservationCaveat(displayVisual)}</>
+                    )}
                   </p>
-                  <BandList rows={visualObservationRows(metrics.visual)} />
+                  <BandList rows={observationRows} />
                 </section>
               )}
             </div>
@@ -475,8 +557,9 @@ export default function ReportBody({
       {hasMomentsSection && (
         <MomentsTimeline
           answers={answers}
+          hasTranscript={moments !== null}
           selected={selectedAnswer}
-          visual={metrics?.visual ?? null}
+          visual={displayVisual}
           onSelect={setSelectedAnswer}
         />
       )}

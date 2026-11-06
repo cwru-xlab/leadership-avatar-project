@@ -1,5 +1,6 @@
-import PDFParser from "pdf2json";
 import mammoth from "mammoth";
+
+import { cleanExtractedText } from "@/lib/interview/extracted-text";
 
 export interface TextChunk {
   text: string;
@@ -18,40 +19,55 @@ export interface ProcessedDocument {
   };
 }
 
+/** The PDF needs a password to open, so no text can be read from it. */
+export class PdfPasswordError extends Error {
+  constructor() {
+    super("PDF is password-protected");
+    this.name = "PdfPasswordError";
+  }
+}
+
 export class DocumentProcessor {
-  // Extract text from PDF buffer
+  // Extract text from PDF buffer.
+  //
+  // pdfjs-dist, not pdf2json: pdf2json 4.x returns raw (no longer
+  // URI-encoded) runs, so the old decodeURIComponent threw "URI malformed" on
+  // any PDF containing a bare "%" ("grew revenue 20%"), it split ligature
+  // fonts into single glyphs ("Teﬆcase"), glued lines together, and it
+  // rejects AES-256 owner-restricted PDFs that open without a password.
+  // pdfjs-dist is already a serverExternalPackage for the deck pipeline.
   async extractTextFromPDF(buffer: Buffer): Promise<string> {
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    // Copy: pdfjs may transfer/detach the underlying ArrayBuffer.
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(buffer),
+      useSystemFonts: true,
+      isEvalSupported: false,
+    });
+    let doc: Awaited<typeof loadingTask.promise>;
     try {
-      const pdfParser = new PDFParser();
-
-      return new Promise((resolve, reject) => {
-        pdfParser.on("pdfParser_dataError", (errData: any) => {
-          reject(new Error(`PDF parsing error: ${errData.parserError}`));
-        });
-
-        pdfParser.on("pdfParser_dataReady", (pdfData: any) => {
-          try {
-            // Extract text from all pages
-            let fullText = "";
-            pdfData.Pages.forEach((page: any) => {
-              page.Texts.forEach((text: any) => {
-                text.R.forEach((run: any) => {
-                  fullText += decodeURIComponent(run.T);
-                });
-              });
-              fullText += "\n";
-            });
-            resolve(fullText);
-          } catch (error) {
-            reject(new Error(`Failed to extract text from PDF data: ${error}`));
-          }
-        });
-
-        pdfParser.parseBuffer(buffer);
-      });
+      doc = await loadingTask.promise;
     } catch (error) {
-      console.error("Failed to extract text from PDF:", error);
-      throw new Error("Failed to extract text from PDF");
+      if ((error as { name?: string } | null)?.name === "PasswordException") {
+        throw new PdfPasswordError();
+      }
+      throw new Error(
+        `PDF parsing error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    try {
+      let fullText = "";
+      for (let i = 1; i <= doc.numPages; i++) {
+        const content = await (await doc.getPage(i)).getTextContent();
+        for (const item of content.items) {
+          if ("str" in item) fullText += item.str + (item.hasEOL ? "\n" : "");
+        }
+        fullText += "\n";
+      }
+      return fullText;
+    } finally {
+      await doc.destroy();
     }
   }
 
@@ -120,11 +136,9 @@ export class DocumentProcessor {
   }
 
   // Clean extracted text
+  // Shared with the browser-side reader so both upload paths match.
   cleanText(text: string): string {
-    return text
-      .replace(/\s+/g, " ") // Replace multiple whitespace with single space
-      .replace(/\n{3,}/g, "\n\n") // Replace multiple newlines with double newline
-      .trim(); // Remove leading/trailing whitespace
+    return cleanExtractedText(text);
   }
 
   // Split text into chunks

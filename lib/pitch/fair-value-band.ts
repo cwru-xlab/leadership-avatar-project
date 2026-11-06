@@ -3,7 +3,7 @@
  *
  * Ask-independent by correctness constraint (14-12 / 14-CONTEXT.md /
  * 14-RESEARCH.md Pattern 4). Deriving this from askPriceUsd / askEquityPct
- * — including "a band centred near a discount to the ask" — is DISALLOWED:
+ * — including "a band centered near a discount to the ask" — is DISALLOWED:
  * a band that moves with whatever the student types makes ask-vs-fair
  * circular. The student never chooses or sees this band; startSession
  * injects it server-side and overwrites any client-supplied value.

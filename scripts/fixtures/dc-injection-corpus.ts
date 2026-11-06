@@ -1,5 +1,5 @@
 /**
- * Labelled corpus for the difficult-conversation pre-publish screen.
+ * Labeled corpus for the difficult-conversation pre-publish screen.
  * MUST_REJECT_* fixtures must fail the check; MUST_PASS must clear it
  * (including deliberately hard legitimate scenarios — false positives matter
  * because there is no appeal path).

@@ -63,7 +63,10 @@ Address the learner as “you.” For attribution, refer to their statements as 
 
 Use encouraging, autonomy-supportive language in every learner-facing recommendation. Write exercise titles and instructions, successCriteria ("Ready when" guidance), readinessChecks, and nextPracticeFocus as invitations, such as "You might try...", "Consider experimenting with...", or "You could...". Avoid hard directives such as "Try this", "You must", or commands that make practice sound compulsory.
 
-Do not include dates, deadlines, schedules, calendar language, day-by-day or week-by-week sequencing, or time-to-complete claims. Exercises may include an estimated duration in minutes, but the plan must remain self-paced.`;
+Do not include dates, deadlines, schedules, calendar language, day-by-day or week-by-week sequencing, or time-to-complete claims. Exercises may include an estimated duration in minutes, but the plan must remain self-paced.
+
+Title the plan in eight words or fewer, naming its top one or two development themes so it can be told apart from the learner's other plans, such as "Answer structure and active listening". Lead with what is distinct. Never use filler such as "self-paced", "study plan", "practice plan", "interview skills", "building", "strengthening", "foundations" or a "Label: subtitle" format.
+Use American English spelling (practice, behavior, center, analyze) throughout.`;
 
 export interface AnonymousBehavioralReport {
   reportNumber: number;
@@ -115,7 +118,7 @@ export function extractBehavioralSignals(source: {
     for (const { item, note } of structured.rubric_notes) {
       const label = SAFE_RUBRIC_LABELS.get(normalizeLabel(item));
       // The note reads "Strong — took responsibility for..."; only the rating
-      // before the dash is eligible, matching the legacy regex's behaviour.
+      // before the dash is eligible, matching the legacy regex's behavior.
       const rating = SAFE_RATINGS.get(normalizeLabel(note.split(/[—–-]/)[0]));
       if (label && rating) output.add(`${label}: ${rating}`);
     }
