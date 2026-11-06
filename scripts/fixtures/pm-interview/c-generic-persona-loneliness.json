@@ -1,0 +1,28 @@
+{
+  "id": "c-generic-persona-loneliness",
+  "label": "(c) Good structure, generic persona, no tradeoffs or summary",
+  "questionId": "pm-design-loneliness",
+  "expect": {
+    "processRigorMax": 2,
+    "stepsNotHit": ["identify_customer", "evaluate_tradeoffs", "summarize_recommendation"],
+    "stepsHit": ["comprehend_situation", "list_solutions"],
+    "productSenseMax": 3,
+    "analyticalJudgmentMax": 3
+  },
+  "turns": [
+    { "t": "0:05", "who": "Interviewer", "text": "Thanks for joining. What got you interested in product management?" },
+    { "t": "0:13", "who": "Candidate", "text": "I studied business and did a product internship last summer at a fintech startup. I liked being the person connecting engineering, design and the customer." },
+    { "t": "1:05", "who": "Interviewer", "text": "Great. Here's the question: design a product for people who are lonely." },
+    { "t": "1:12", "who": "Candidate", "text": "Okay, I'll use a structured approach. First, to comprehend the situation: are we a big tech company or a startup, and what's the goal — engagement, revenue, or wellbeing?" },
+    { "t": "1:25", "who": "Interviewer", "text": "You can assume either. The company's goal is meaningful impact on wellbeing; a sustainable business model matters but isn't the first priority." },
+    { "t": "1:38", "who": "Candidate", "text": "Great, so I'll assume a large consumer tech company and the goal is wellbeing. Next, identify the customer. The customer is busy young professionals, ages 25 to 35, who live in cities and feel lonely." },
+    { "t": "1:58", "who": "Candidate", "text": "Now their needs. Busy professionals need to meet new people, they need to feel connected, and they need to have someone to talk to. They also need things to do on the weekends." },
+    { "t": "2:30", "who": "Candidate", "text": "Prioritizing, I'd say the most important need is meeting new people, because that's the core of loneliness." },
+    { "t": "2:45", "who": "Candidate", "text": "Now solutions. One: an app that matches you with people nearby who share your interests. Two: a group events feature where you can join small activities like hiking or board games. Three: an AI companion chatbot you can talk to anytime. Four: a feature that reminds you to reach out to old friends." },
+    { "t": "3:30", "who": "Interviewer", "text": "Okay. Tell me more about those." },
+    { "t": "3:35", "who": "Candidate", "text": "The matching app would use your profile and location to suggest people. The group events would be curated by the app weekly. The AI companion could be available 24/7. And the reminders would scan your contacts and suggest someone to message every week. I think all four would really help busy professionals feel less lonely." },
+    { "t": "4:20", "who": "Interviewer", "text": "Alright. We're near time — any questions for me?" },
+    { "t": "4:25", "who": "Candidate", "text": "What does a typical day look like for a PM on your team?" },
+    { "t": "4:40", "who": "Interviewer", "text": "A lot of time with research and engineering. Thanks for your time." }
+  ]
+}
