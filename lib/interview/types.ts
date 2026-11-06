@@ -107,7 +107,8 @@ const TECHNICAL_INTERVIEW: InterviewType = {
  * "consulting" so reports from the earlier behavioral-style preset still
  * resolve and render. The session is a real case interview (fit → one case →
  * close); content, persona and copy live in `lib/case-interview/`.
- * `targetQuestionCount` counts the fit question, the case, and the close.
+ * `targetQuestionCount` is 1: one problem (the problem-interview factory
+ * sets the same limit).
  */
 const CONSULTING_INTERVIEW: InterviewType = {
   slug: "consulting",
@@ -118,7 +119,7 @@ const CONSULTING_INTERVIEW: InterviewType = {
   defaultIndustry: "management consulting",
   difficulty: "Advanced",
   targetMinutes: CASE_TARGET_MINUTES,
-  targetQuestionCount: 3,
+  targetQuestionCount: 1,
   caseBackground: CASE_BACKGROUND,
   questionAreas: [...CASE_QUESTION_AREAS],
 };
