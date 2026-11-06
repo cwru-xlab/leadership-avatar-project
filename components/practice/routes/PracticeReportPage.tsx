@@ -364,6 +364,7 @@ export default function PracticeReportPage({
           showInterviewPaceTarget={report.input?.kind === "interview"}
           reportId={report.id}
           checkIn={report.checkIn}
+          checkInLead={chrome?.checkInLead}
         />
       ) : report?.status === "FAILED" ? (
         <StatusPanel

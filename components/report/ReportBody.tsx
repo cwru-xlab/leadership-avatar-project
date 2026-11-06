@@ -46,7 +46,12 @@ import ReportStatistics, {
   measuredVocal,
 } from "@/components/report/ReportStatistics";
 import { fallbackClock, reclockVisual, type ReportMoments } from "@/lib/report/moments";
-import { applyCheckInHiding, eligibleCheckIns, type CheckInAnswers } from "@/lib/report/check-in";
+import {
+  applyCheckInHiding,
+  eligibleCheckIns,
+  type CheckInAnswers,
+  type CheckInLead,
+} from "@/lib/report/check-in";
 import {
   formatTimecode,
   visualBands,
@@ -92,6 +97,8 @@ interface ReportBodyProps {
   reportId?: string;
   /** Saved check-in answers (`ReportDTO.checkIn`). */
   checkIn?: CheckInAnswers;
+  /** The practice type's check-in coaching opener (`ReportChrome.checkInLead`). */
+  checkInLead?: CheckInLead;
 }
 
 function SectionHeading({ children, count }: { children: React.ReactNode; count?: number }) {
@@ -197,6 +204,7 @@ export default function ReportBody({
   showInterviewPaceTarget = false,
   reportId,
   checkIn,
+  checkInLead,
 }: ReportBodyProps) {
   const [selectedAnswer, setSelectedAnswer] = useState(0);
   const [checkInAnswers, setCheckInAnswers] = useState<CheckInAnswers>(checkIn ?? {});
@@ -210,8 +218,8 @@ export default function ReportBody({
 
   // Asked from the full reading, so a flag the student hid stays answerable.
   const checkInQuestions = useMemo(
-    () => (reportId ? eligibleCheckIns(metrics?.cameraMode, timelineVisual) : []),
-    [reportId, metrics, timelineVisual],
+    () => (reportId ? eligibleCheckIns(metrics?.cameraMode, timelineVisual, checkInLead) : []),
+    [reportId, metrics, timelineVisual, checkInLead],
   );
 
   // What the page SHOWS after "No" or "Something else" took a flag off this
@@ -288,6 +296,7 @@ export default function ReportBody({
       {reportId && checkInQuestions.length > 0 && (
         <CheckInBanner
           answers={checkInAnswers}
+          lead={checkInLead}
           questions={checkInQuestions}
           reportId={reportId}
           onAnswersChange={setCheckInAnswers}

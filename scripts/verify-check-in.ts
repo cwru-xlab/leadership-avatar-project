@@ -8,6 +8,7 @@
  */
 import assert from "node:assert/strict";
 
+import { getReportChrome } from "../components/practice/ReportChrome";
 import { asVisualMetrics } from "../lib/metrics/ingest";
 import { visualObservationRows } from "../lib/metrics/bands";
 import type { VisualMetrics } from "../lib/metrics/types";
@@ -144,9 +145,51 @@ check("stored answers round trip and bad entries drop one by one", () => {
 check("coaching lines appear only for Yes", () => {
   const at = "2026-11-05T12:00:00.000Z";
   assert.deepEqual(
-    checkInCoaching({ phone: { answer: "yes", at }, hand_at_mouth: { answer: "no", at } }),
-    [CHECK_IN_FLAGS.phone.yesCoaching],
+    checkInCoaching({ phone: { answer: "yes", at }, hand_at_mouth: { answer: "no", at } }, "In a real interview"),
+    ["In a real interview, put your phone away and out of frame before you join."],
   );
+});
+
+check("coaching names the practice type's own situation, never a hard-coded interview", () => {
+  const at = "2026-11-05T12:00:00.000Z";
+  const yes = { answer: "yes", at } as const;
+  const all = { hand_at_mouth: yes, mouth_movement: yes, hand_shape: yes, another_person: yes, phone: yes };
+  // The leads each type declares on its report chrome.
+  for (const lead of [
+    "In a real interview",
+    "When you pitch for real",
+    "In a real courageous conversation",
+    "In a real networking conversation",
+    "In a real meeting",
+    "In a real presentation",
+  ]) {
+    const lines = checkInCoaching(all, lead);
+    assert.equal(lines.length, CHECK_IN_FLAG_IDS.length);
+    for (const line of lines) assert.ok(line.startsWith(`${lead}, `), line);
+    if (lead !== "In a real interview") assert.ok(!lines.some((line) => /interview/i.test(line)), lead);
+    // The water allowance stays on the eating tip whatever the type.
+    assert.ok(lines[0].endsWith("A quick sip of water is fine."), lines[0]);
+    // The same lead reaches the questions' own coaching.
+    assert.ok(eligibleCheckIns("ON", base, lead).every((q) => q.yesCoaching.startsWith(`${lead}, `)));
+  }
+  // A caller with no type gets a neutral opener, not "interview".
+  assert.ok(!checkInCoaching(all).some((line) => /interview/i.test(line)));
+});
+
+check("every practice type declares its own coaching lead", () => {
+  const expected: Record<string, string> = {
+    general: "In a real interview",
+    technical: "In a real interview",
+    "case-study": "In a real meeting",
+    "difficult-conversation": "In a real courageous conversation",
+    networking: "In a real networking conversation",
+    "pitch-elevator": "When you pitch for real",
+    "pitch-deck": "In a real presentation",
+    "pitch-talk": "In a real presentation",
+  };
+  for (const [slug, lead] of Object.entries(expected)) {
+    assert.equal(getReportChrome(slug)?.checkInLead, lead, slug);
+  }
 });
 
 check("No and Something else hide only that flag's rows; Yes hides nothing", () => {

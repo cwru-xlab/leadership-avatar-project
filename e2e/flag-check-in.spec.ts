@@ -67,11 +67,13 @@ test.beforeAll(async () => {
       where: {
         userId: alice.id,
         status: "READY",
+        // An interview, so the coaching lines open "In a real interview".
+        typeSlug: { in: ["general", "technical", "consulting", "early-career"] },
         NOT: [{ reportStructured: { equals: Prisma.DbNull } }, { title: { startsWith: "Check-in fixture" } }],
       },
       orderBy: { createdAt: "desc" },
     });
-    if (!source) throw new Error("Alice has no READY structured report to clone");
+    if (!source) throw new Error("Alice has no READY structured interview report to clone");
 
     async function upsert(
       title: string,
@@ -364,4 +366,47 @@ test("phone width: one question at a time, then the thanks line", async ({ page 
   await expect(banner(page).getByText("Thanks for checking in.")).toBeVisible();
   await expect(banner(page).getByRole("listitem")).toHaveCount(4);
   await page.screenshot({ path: `${SHOTS}/check-in-375-thanks.png` });
+});
+
+test("coaching lines name the practice type, not always an interview", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page, ALICE);
+  // Host the flagged reading on one of Alice's READY reports of each other
+  // type, at the network layer only: nothing is written.
+  const list = await (await page.request.get("/api/practice/reports")).json();
+  const rows: Array<Record<string, unknown>> = list.reports ?? list.items ?? list;
+  const leads: Array<[RegExp, string]> = [
+    [/^pitch-elevator$/, "When you pitch for real"],
+    [/^pitch-(deck|funding|product|talk|general)$/, "In a real presentation"],
+    [/^difficult-conversation$/, "In a real courageous conversation"],
+    [/^networking$/, "In a real networking conversation"],
+    [/^case-study$/, "In a real meeting"],
+  ];
+  const at = "2026-11-06T12:00:00.000Z";
+  const yes = { answer: "yes", at };
+  let checked = 0;
+  for (const [slug, lead] of leads) {
+    const row = rows.find((r) => r.status === "READY" && slug.test(String(r.typeSlug ?? r.type ?? "")));
+    if (!row) continue;
+    const id = String(row.id ?? row.reportId);
+    await page.route(`**/api/practice/report/${id}`, async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      body.report.metrics = { ...body.report.metrics, cameraMode: "ON", visual: FLAGGED_VISUAL, visualUnscored: null };
+      body.report.checkIn = { hand_at_mouth: yes, mouth_movement: yes, hand_shape: yes, another_person: yes, phone: yes };
+      await route.fulfill({ response, json: body });
+    });
+    await openReport(page, id);
+    const tips = banner(page).getByRole("list", { name: "Tips from your check-in" });
+    await expect(tips.getByRole("listitem")).toHaveCount(5, { timeout: 30_000 });
+    const lines = await tips.getByRole("listitem").allInnerTexts();
+    for (const line of lines) expect(line.startsWith(`${lead}, `), line).toBe(true);
+    expect(lines.join(" ")).not.toMatch(/interview/i);
+    expect(lines[0]).toMatch(/A quick sip of water is fine\.$/);
+    await banner(page).screenshot({ path: `${SHOTS}/check-in-lead-${lead.replace(/\W+/g, "-").toLowerCase()}.png` });
+    checked += 1;
+  }
+  console.log(`check-in leads verified on ${checked} practice types`);
+  expect(checked).toBeGreaterThan(0);
 });

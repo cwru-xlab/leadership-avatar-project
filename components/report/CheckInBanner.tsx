@@ -23,6 +23,7 @@ import {
   CHECK_IN_ANSWERS,
   checkInCoaching,
   type CheckInAnswer,
+  type CheckInLead,
   type CheckInAnswers,
   type CheckInQuestion,
 } from "@/lib/report/check-in";
@@ -40,9 +41,11 @@ interface CheckInBannerProps {
   questions: CheckInQuestion[];
   answers: CheckInAnswers;
   onAnswersChange: (answers: CheckInAnswers) => void;
+  /** The practice type's coaching opener, e.g. "In a real interview". */
+  lead?: CheckInLead;
 }
 
-export default function CheckInBanner({ reportId, questions, answers, onAnswersChange }: CheckInBannerProps) {
+export default function CheckInBanner({ reportId, questions, answers, onAnswersChange, lead }: CheckInBannerProps) {
   const headingId = useId();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +56,7 @@ export default function CheckInBanner({ reportId, questions, answers, onAnswersC
   const thanksRef = useRef<HTMLParagraphElement>(null);
 
   const allAnswered = questions.every((question) => answers[question.id]);
-  const coaching = checkInCoaching(answers);
+  const coaching = checkInCoaching(answers, lead);
 
   async function save(question: CheckInQuestion, answer: CheckInAnswer, reason?: string) {
     setSaving(true);

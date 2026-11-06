@@ -93,12 +93,25 @@ interface CheckInFlagDefinition {
    */
   when: (visual: VisualMetrics) => string | null;
   question: (when: string) => string;
-  /** Fixed. Shown only after "Yes". Never model-written. */
-  yesCoaching: string;
+  /**
+   * Fixed. Shown only after "Yes". Never model-written. Takes the practice
+   * type's `CheckInLead` so a pitch is not told "in a real interview".
+   */
+  yesCoaching: (lead: CheckInLead) => string;
   /** Revealed by "Something else". The last entry is always the catch-all. */
   otherOptions: readonly CheckInOption[];
   hides: CheckInHides;
 }
+
+/**
+ * How a "Yes" coaching line opens, naming the real situation this practice
+ * stands in for ("In a real interview", "When you pitch for real"). Each
+ * practice type declares its own on its report chrome
+ * (`components/practice/ReportChrome.tsx`), so this module never learns a
+ * type slug. The default covers a caller with no type.
+ */
+export type CheckInLead = string;
+export const DEFAULT_CHECK_IN_LEAD: CheckInLead = "In the real conversation";
 
 const OTHER_REASON: CheckInOption = { id: "other", label: "Another reason" };
 
@@ -108,7 +121,7 @@ export const CHECK_IN_FLAGS: Record<CheckInFlagId, CheckInFlagDefinition> = {
     when: (v) => descriptiveWhen(v, "hand_at_mouth_repeated"),
     question: (when) => `We noticed your hand at your mouth repeatedly ${when}. Were you eating or drinking?`,
     yesCoaching:
-      "In a real interview, finish eating before you join and keep food off camera. A quick sip of water is fine.",
+      (lead) => `${lead}, finish eating before you join and keep food off camera. A quick sip of water is fine.`,
     otherOptions: [
       { id: "water", label: "Sipping water" },
       { id: "medical", label: "A medical need" },
@@ -123,7 +136,7 @@ export const CHECK_IN_FLAGS: Record<CheckInFlagId, CheckInFlagDefinition> = {
     when: (v) => descriptiveWhen(v, "mouth_movement_silent"),
     question: (when) =>
       `We noticed your mouth moving while you weren't speaking ${when}. Were you eating or chewing something?`,
-    yesCoaching: "In a real interview, finish eating and set gum aside before you join.",
+    yesCoaching: (lead) => `${lead}, finish eating and set gum aside before you join.`,
     otherOptions: [
       { id: "thinking", label: "Thinking or mouthing words" },
       { id: "medical", label: "A medical need" },
@@ -138,7 +151,7 @@ export const CHECK_IN_FLAGS: Record<CheckInFlagId, CheckInFlagDefinition> = {
     when: (v) => descriptiveWhen(v, "middle_finger_extended"),
     question: (when) =>
       `We noticed a hand shape that can read as an offensive gesture ${when}. Was that intentional?`,
-    yesCoaching: "In a real interview, that gesture could end the conversation. Keep your hands open and relaxed.",
+    yesCoaching: (lead) => `${lead}, that gesture could end the exchange. Keep your hands open and relaxed.`,
     otherOptions: [
       { id: "glasses", label: "Adjusting my glasses or face" },
       { id: "signing", label: "Signing" },
@@ -157,7 +170,7 @@ export const CHECK_IN_FLAGS: Record<CheckInFlagId, CheckInFlagDefinition> = {
         : null,
     question: (when) =>
       `We noticed what looked like another person in frame ${when}. Was someone else there with you?`,
-    yesCoaching: "In a real interview, find a private space so it's just you on camera.",
+    yesCoaching: (lead) => `${lead}, find a private space so it's just you on camera.`,
     otherOptions: [
       { id: "picture", label: "A photo or poster behind me" },
       { id: "screen", label: "A face on a screen behind me" },
@@ -178,7 +191,7 @@ export const CHECK_IN_FLAGS: Record<CheckInFlagId, CheckInFlagDefinition> = {
       return descriptiveWhen(v, "phone_visible") ?? `for about ${Math.round(seconds)} seconds`;
     },
     question: (when) => `We noticed a phone visible in frame ${when}. Was there a phone in view?`,
-    yesCoaching: "In a real interview, put your phone away and out of frame before you join.",
+    yesCoaching: (lead) => `${lead}, put your phone away and out of frame before you join.`,
     otherOptions: [
       { id: "object", label: "Another object, like a remote or wallet" },
       { id: "screen", label: "A tablet or second screen" },
@@ -243,6 +256,7 @@ export interface CheckInQuestion {
 export function eligibleCheckIns(
   cameraMode: string | null | undefined,
   visual: VisualMetrics | null | undefined,
+  lead: CheckInLead = DEFAULT_CHECK_IN_LEAD,
 ): CheckInQuestion[] {
   if (cameraMode !== "ON" || !visual) return [];
   const out: CheckInQuestion[] = [];
@@ -250,7 +264,7 @@ export function eligibleCheckIns(
     const flag = CHECK_IN_FLAGS[id];
     const when = flag.when(visual);
     if (when) {
-      out.push({ id, question: flag.question(when), yesCoaching: flag.yesCoaching, otherOptions: flag.otherOptions });
+      out.push({ id, question: flag.question(when), yesCoaching: flag.yesCoaching(lead), otherOptions: flag.otherOptions });
     }
   }
   return out;
@@ -332,8 +346,8 @@ export function parseCheckInInput(body: unknown): CheckInInput | null {
 // ---------------------------------------------------------------------------
 
 /** The fixed coaching lines a report shows, one per "Yes", in catalog order. */
-export function checkInCoaching(answers: CheckInAnswers): string[] {
-  return CHECK_IN_FLAG_IDS.filter((id) => answers[id]?.answer === "yes").map((id) => CHECK_IN_FLAGS[id].yesCoaching);
+export function checkInCoaching(answers: CheckInAnswers, lead: CheckInLead = DEFAULT_CHECK_IN_LEAD): string[] {
+  return CHECK_IN_FLAG_IDS.filter((id) => answers[id]?.answer === "yes").map((id) => CHECK_IN_FLAGS[id].yesCoaching(lead));
 }
 
 /**
