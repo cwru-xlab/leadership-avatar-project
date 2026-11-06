@@ -27,10 +27,10 @@ async function reportsReady(page: Page) {
 }
 
 test("the reports API stays owner-scoped", async ({ page }) => {
-  // Signed out, the middleware redirects to /login before the route runs.
+  // Signed out, the middleware answers 401 JSON before the route runs.
   const signedOut = await page.request.get("/api/practice/reports", { maxRedirects: 0 });
-  expect(signedOut.status()).toBe(307);
-  expect(signedOut.headers().location).toBe("/login");
+  expect(signedOut.status()).toBe(401);
+  expect(signedOut.headers().location).toBeUndefined();
 
   await signIn(page, "student@case.edu");
   const student = await (await page.request.get("/api/practice/reports")).json();

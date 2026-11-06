@@ -168,9 +168,9 @@ test("legacy states: no transcript, and no recorded setup", async ({ page }) => 
 });
 
 test("a report never exposes another user's data", async ({ page, request, browser }) => {
-  // Middleware sends a signed-out request to the login page before the route runs.
+  // Middleware answers a signed-out API request with 401 before the route runs.
   const anonymous = await request.get(`/api/practice/report/${INTERVIEW}`, { maxRedirects: 0 });
-  expect(anonymous.status()).toBe(307);
+  expect(anonymous.status()).toBe(401);
   expect(await anonymous.text()).not.toContain("excerpts");
 
   await signIn(page, ALICE);
