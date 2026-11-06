@@ -193,6 +193,9 @@ export default function StudyPlansPage() {
   const inProgress = items.filter((i) => !isFinished(i));
   const completed = items.filter(isFinished);
   const shown = tab === "completed" ? completed : inProgress;
+  // A plan is only known finished once its path loads; until every path has,
+  // counts would show a finished plan as in progress and then move it.
+  const countsKnown = state.status === "loaded" && items.every((i) => i.path !== undefined);
 
   return (
     <div className="flex flex-col gap-6">
@@ -214,10 +217,10 @@ export default function StudyPlansPage() {
         <>
           {reportsError ? (
             <p role="alert" className="text-sm text-copper-deep">{reportsError}</p>
-          ) : reports === null ? (
-            <div className="h-24 animate-pulse rounded-xl border border-line bg-white" />
           ) : (
-            <StudyPlanGenerator reports={reports} onSaved={addPlan} />
+            // While reports load, the card renders as it will look with its
+            // button off, rather than as a blank box that then changes size.
+            <StudyPlanGenerator loading={reports === null} reports={reports ?? []} onSaved={addPlan} />
           )}
 
           <section aria-label="Saved study plans" className="flex flex-col gap-4">
@@ -238,7 +241,9 @@ export default function StudyPlansPage() {
                   type="button"
                   onClick={() => setTab(id)}
                 >
-                  {label} <span className="font-normal text-muted">{count}</span>
+                  {label}
+                  {/* No count until known: "0" would read as having none. */}
+                  {countsKnown && <span className="font-normal text-muted"> {count}</span>}
                 </button>
               ))}
             </div>
