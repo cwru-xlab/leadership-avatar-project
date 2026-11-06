@@ -2,8 +2,9 @@
  * One-shot generator for scripts/fixtures used by verify-deck-intake.ts.
  * Run: npx tsx scripts/generate-deck-fixtures.ts
  *
- * PDFs are built with pdf-lib (classic xref, no object streams) so pdf2json
- * can read them. PPTX is a minimal OOXML package via jszip.
+ * PDFs are built with pdf-lib (classic xref, no object streams), which the
+ * pdfjs-dist extractor in lib/deck/pdf-extract.ts reads. PPTX is a minimal
+ * OOXML package via jszip.
  */
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
