@@ -23,6 +23,7 @@
  */
 import clsx from "clsx";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import LevelChip, { levelDotClass } from "@/components/report/LevelChip";
 import {
@@ -47,6 +48,49 @@ const LEVEL_ROWS: { y: number; label: string }[] = [
   { y: 180, label: "Uneven" },
   { y: 250, label: "Off" },
 ];
+/** The chart's resting height in viewBox units; it is 1000 wide. */
+const BASE_HEIGHT = 340;
+/** Tallest the chart grows to beside a long detail panel (about 4:3). */
+const MAX_HEIGHT = 760;
+
+/**
+ * Beside the detail panel the chart grows to the panel's height, so its column
+ * leaves no blank block. It grows by adding viewBox height, never by
+ * stretching: rows spread apart, strokes and text keep their size. Stacked
+ * (narrow screens) it stays 1000 x 340.
+ */
+function useChartHeight(hasChart: boolean) {
+  const columnRef = useRef<HTMLDivElement>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(BASE_HEIGHT);
+
+  useEffect(() => {
+    const column = columnRef.current;
+    const detail = detailRef.current;
+    if (!column || !detail || typeof ResizeObserver === "undefined") return;
+    let width = 0;
+    const measure = () => {
+      const box = column.firstElementChild as HTMLElement | null;
+      const beside = Math.abs(detail.getBoundingClientRect().top - column.getBoundingClientRect().top) < 2;
+      if (!box || !beside) return setHeight(BASE_HEIGHT);
+      // The panel's own content, not its stretched box, or the two would feed
+      // each other. Only grow while the width holds, so stepping to a shorter
+      // answer never moves the points under the pointer.
+      const panel = detail.firstElementChild as HTMLElement | null;
+      const panelHeight = (panel?.offsetHeight ?? 0) + 40;
+      const target = Math.round((1000 * panelHeight) / box.clientWidth);
+      const next = Math.min(MAX_HEIGHT, Math.max(BASE_HEIGHT, target));
+      setHeight((prev) => (box.clientWidth === width ? Math.max(prev, next) : next));
+      width = box.clientWidth;
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    observer.observe(detail.firstElementChild ?? detail);
+    return () => observer.disconnect();
+  }, [hasChart]);
+
+  return { columnRef, detailRef, height };
+}
 
 export interface TimelineAnswer {
   index: number;
@@ -117,6 +161,7 @@ export default function MomentsTimeline({
   selected: number;
   onSelect: (index: number) => void;
 }) {
+  const { columnRef, detailRef, height: chartHeight } = useChartHeight(answers.length > 0);
   const offset = visual?.coverage?.capture_offset_s ?? 0;
   const episodes = visual?.episodes ?? [];
   const allRows = visual ? timelineRows(visual) : [];
@@ -138,14 +183,18 @@ export default function MomentsTimeline({
   );
   const span = Math.max(60, lastEnd * 1.02);
   const x = (t: number) => PLOT.left + (t / span) * (PLOT.right - PLOT.left);
-  const points = answers.map((a) => ({ x: x(a.start), y: PLOT.levelY[a.level] }));
-  const line = points.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)} ${p.y}`).join(" ");
-  const area = `${line} L${points[points.length - 1].x.toFixed(1)} 268 L${points[0].x.toFixed(1)} 268 Z`;
+  // Extra height spreads the level rows apart and moves everything below them down.
+  const extra = chartHeight - BASE_HEIGHT;
+  const y = (base: number) => 40 + ((base - 40) * (210 + extra)) / 210;
+  const points = answers.map((a) => ({ x: x(a.start), y: y(PLOT.levelY[a.level]) }));
+  const line = points.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const floor = 268 + extra;
+  const area = `${line} L${points[points.length - 1].x.toFixed(1)} ${floor} L${points[0].x.toFixed(1)} ${floor} Z`;
   const weakest = answers.reduce((low, a) => (a.level < answers[low].level ? a.index : low), 0);
   const current = answers[Math.min(selected, answers.length - 1)];
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * span);
   const count = answers.length;
-  const lanes = cameraLanes(episodes);
+  const lanes = cameraLanes(episodes).map((lane) => ({ ...lane, y: lane.y + extra }));
 
   return (
     <Stage
@@ -153,13 +202,13 @@ export default function MomentsTimeline({
       subtitle={`How each of your ${count} answer${count === 1 ? "" : "s"} went. Select a point to see what happened.`}
     >
       <div className="flex flex-wrap items-stretch gap-5">
-        <div className="min-w-0 flex-[2_1_560px] overflow-x-auto">
-          <div className="relative aspect-[1000/340] w-full min-w-[620px]">
+        <div ref={columnRef} className="min-w-0 flex-[2_1_560px] overflow-x-auto">
+          <div className="relative w-full min-w-[620px]" style={{ aspectRatio: `1000 / ${chartHeight}` }}>
             <svg
               aria-label="Delivery level for each answer across the session, with camera and body language moments below"
               className="absolute inset-0 size-full"
               role="img"
-              viewBox="0 0 1000 340"
+              viewBox={`0 0 1000 ${chartHeight}`}
             >
               <defs>
                 <linearGradient id="moments-area" x1="0" x2="0" y1="0" y2="1">
@@ -169,7 +218,7 @@ export default function MomentsTimeline({
               </defs>
               <g className="fill-light-blue/90 font-sans text-[19px]">
                 {LEVEL_ROWS.map((row) => (
-                  <text key={row.label} x="0" y={row.y + 5}>
+                  <text key={row.label} x="0" y={y(row.y) + 5}>
                     {row.label}
                   </text>
                 ))}
@@ -181,7 +230,7 @@ export default function MomentsTimeline({
               </g>
               <g className="stroke-light-blue/15">
                 {LEVEL_ROWS.map((row) => (
-                  <line key={row.label} x1={PLOT.left} x2={PLOT.right} y1={row.y} y2={row.y} />
+                  <line key={row.label} x1={PLOT.left} x2={PLOT.right} y1={y(row.y)} y2={y(row.y)} />
                 ))}
               </g>
               {lanes.map((lane) => (
@@ -213,7 +262,7 @@ export default function MomentsTimeline({
               ))}
               <g className="fill-white/60 font-mono text-[17px]">
                 {ticks.map((t, i) => (
-                  <text key={t} textAnchor={i === 0 ? "start" : i === ticks.length - 1 ? "end" : "middle"} x={x(t)} y="330">
+                  <text key={t} textAnchor={i === 0 ? "start" : i === ticks.length - 1 ? "end" : "middle"} x={x(t)} y={330 + extra}>
                     {formatTimecode(t)}
                   </text>
                 ))}
@@ -239,7 +288,7 @@ export default function MomentsTimeline({
                 x1={points[current.index].x}
                 x2={points[current.index].x}
                 y1="22"
-                y2="310"
+                y2={310 + extra}
               />
             </svg>
 
@@ -252,7 +301,7 @@ export default function MomentsTimeline({
                   aria-label={`Answer ${i + 1} at ${formatTimecode(a.start)}, ${a.word}`}
                   aria-pressed={on}
                   className="group absolute -ml-5 -mt-5 grid size-10 place-items-center rounded-full focus-visible:outline-light-blue"
-                  style={{ left: `${points[i].x / 10}%`, top: `${(points[i].y / 340) * 100}%` }}
+                  style={{ left: `${points[i].x / 10}%`, top: `${(points[i].y / chartHeight) * 100}%` }}
                   type="button"
                   onClick={() => onSelect(i)}
                 >
@@ -288,57 +337,60 @@ export default function MomentsTimeline({
         </div>
 
         <aside
+          ref={detailRef}
           aria-live="polite"
-          className="flex min-w-0 flex-[1_1_280px] flex-col gap-3.5 rounded-xl bg-white/[0.07] p-5"
+          className="flex min-w-0 flex-[1_1_280px] flex-col rounded-xl bg-white/[0.07] p-5"
         >
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-[13px] tabular-nums text-light-blue">
-              {formatTimecode(current.start)}–{formatTimecode(current.end)}
-            </span>
-            <div className="flex gap-1.5">
-              <StepButton label="Previous answer" onClick={() => onSelect((current.index - 1 + count) % count)}>
-                <ChevronLeft aria-hidden size={16} />
-              </StepButton>
-              <StepButton label="Next answer" onClick={() => onSelect((current.index + 1) % count)}>
-                <ChevronRight aria-hidden size={16} />
-              </StepButton>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h3 className="font-display text-2xl font-medium leading-tight">Answer {current.index + 1}</h3>
-            {/* White under the chip: its tint is translucent and would sink into the stage. */}
-            <span className="rounded-full bg-white">
-              <LevelChip label={current.word} level={ANSWER_RAMP[current.level]} />
-            </span>
-          </div>
-          {current.excerpt ? (
-            <figure className="flex flex-col gap-1">
-              <figcaption className="text-[13px] font-semibold text-light-blue">What you said</figcaption>
-              <blockquote className="font-display text-[17px] italic leading-[1.35] text-white">
-                {current.excerpt.startsWith("[") ? current.excerpt : `“${current.excerpt}”`}
-              </blockquote>
-            </figure>
-          ) : hasTranscript ? (
-            <p className="text-[13px] text-white/70">This answer isn&apos;t in your saved transcript.</p>
-          ) : null}
-          <ul className="flex list-disc flex-col gap-1 pl-[18px] text-[14.5px] text-white/90">
-            {current.notes.map((note) => (
-              <li key={note.label}>
-                {note.label}: {note.value.toLowerCase()}
-              </li>
-            ))}
-            {current.camera.map((line) => (
-              <li key={line}>Camera: {line}</li>
-            ))}
-          </ul>
-          {current.citedBy && (
-            <p className="flex items-center gap-2.5 rounded-lg bg-level-2/15 px-3 py-2.5 text-sm">
-              <span aria-hidden className="size-[9px] shrink-0 rotate-45 bg-level-2" />
-              <span>
-                Cited in growth area <span className="font-semibold">{current.citedBy}</span>
+          <div className="flex flex-col gap-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-[13px] tabular-nums text-light-blue">
+                {formatTimecode(current.start)}–{formatTimecode(current.end)}
               </span>
-            </p>
-          )}
+              <div className="flex gap-1.5">
+                <StepButton label="Previous answer" onClick={() => onSelect((current.index - 1 + count) % count)}>
+                  <ChevronLeft aria-hidden size={16} />
+                </StepButton>
+                <StepButton label="Next answer" onClick={() => onSelect((current.index + 1) % count)}>
+                  <ChevronRight aria-hidden size={16} />
+                </StepButton>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h3 className="font-display text-2xl font-medium leading-tight">Answer {current.index + 1}</h3>
+              {/* White under the chip: its tint is translucent and would sink into the stage. */}
+              <span className="rounded-full bg-white">
+                <LevelChip label={current.word} level={ANSWER_RAMP[current.level]} />
+              </span>
+            </div>
+            {current.excerpt ? (
+              <figure className="flex flex-col gap-1">
+                <figcaption className="text-[13px] font-semibold text-light-blue">What you said</figcaption>
+                <blockquote className="font-display text-[17px] italic leading-[1.35] text-white">
+                  {current.excerpt.startsWith("[") ? current.excerpt : `“${current.excerpt}”`}
+                </blockquote>
+              </figure>
+            ) : hasTranscript ? (
+              <p className="text-[13px] text-white/70">This answer isn&apos;t in your saved transcript.</p>
+            ) : null}
+            <ul className="flex list-disc flex-col gap-1 pl-[18px] text-[14.5px] text-white/90">
+              {current.notes.map((note) => (
+                <li key={note.label}>
+                  {note.label}: {note.value.toLowerCase()}
+                </li>
+              ))}
+              {current.camera.map((line) => (
+                <li key={line}>Camera: {line}</li>
+              ))}
+            </ul>
+            {current.citedBy && (
+              <p className="flex items-center gap-2.5 rounded-lg bg-level-2/15 px-3 py-2.5 text-sm">
+                <span aria-hidden className="size-[9px] shrink-0 rotate-45 bg-level-2" />
+                <span>
+                  Cited in growth area <span className="font-semibold">{current.citedBy}</span>
+                </span>
+              </p>
+            )}
+          </div>
         </aside>
       </div>
 
