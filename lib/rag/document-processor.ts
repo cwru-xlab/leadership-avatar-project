@@ -1,5 +1,7 @@
 import mammoth from "mammoth";
 
+import { cleanExtractedText } from "@/lib/interview/extracted-text";
+
 export interface TextChunk {
   text: string;
   chunkIndex: number;
@@ -134,12 +136,9 @@ export class DocumentProcessor {
   }
 
   // Clean extracted text
+  // Shared with the browser-side reader so both upload paths match.
   cleanText(text: string): string {
-    return text
-      .replace(/[^\S\n]+/g, " ") // Collapse spaces and tabs, keep line breaks
-      .replace(/ ?\n ?/g, "\n") // Drop spaces hugging a line break
-      .replace(/\n{3,}/g, "\n\n") // Replace multiple newlines with double newline
-      .trim(); // Remove leading/trailing whitespace
+    return cleanExtractedText(text);
   }
 
   // Split text into chunks

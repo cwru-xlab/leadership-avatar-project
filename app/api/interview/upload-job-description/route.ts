@@ -3,7 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
-import { intakePdfDocument } from "@/lib/interview/document-intake";
+import {
+  intakeExtractedText,
+  intakePdfDocument,
+  readExtractedTextBody,
+} from "@/lib/interview/document-intake";
 import { s3Storage } from "@/lib/s3-client";
 
 export const runtime = "nodejs";
@@ -25,6 +29,10 @@ function response(body: Record<string, unknown>, status: number) {
  * The original PDF is private in S3. Only its extracted text and an opaque
  * job-description ID return to the browser — the S3 key is logged only, and
  * later routes must re-derive it from the authenticated user plus that ID.
+ *
+ * A PDF over the direct-upload size arrives as JSON text instead (the browser
+ * read it, because Vercel rejects bodies over 4.5 MB). That path stores the
+ * cleaned text privately in place of the PDF and answers with the same shape.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -33,6 +41,10 @@ export async function POST(request: NextRequest) {
 
     if (!currentUser) {
       return response({ error: "Unauthorized" }, 401);
+    }
+
+    if (request.headers.get("content-type")?.startsWith("application/json")) {
+      return await uploadExtractedText(request, currentUser.id);
     }
 
     const formData = await request.formData();
@@ -83,4 +95,45 @@ export async function POST(request: NextRequest) {
       500
     );
   }
+}
+
+async function uploadExtractedText(request: NextRequest, userId: string) {
+  const read = await readExtractedTextBody(request);
+  if (!read.ok) {
+    return response({ error: read.error }, read.status);
+  }
+  const intake = intakeExtractedText(read.body, { label: "job posting" });
+  if (!intake.ok) {
+    return response({ error: intake.error }, intake.status);
+  }
+
+  const jobDescriptionId = randomUUID();
+  let jobDescriptionS3Key: string;
+  try {
+    jobDescriptionS3Key = await s3Storage.saveInterviewDocumentText(
+      "job-description",
+      userId,
+      jobDescriptionId,
+      intake.text
+    );
+  } catch (error) {
+    console.error("Interview job description text storage failed:", error);
+    return response(
+      { error: "Unable to save the job posting. Please try again." },
+      502
+    );
+  }
+
+  console.info("Interview job description text uploaded", {
+    userId,
+    jobDescriptionId,
+    jobDescriptionS3Key,
+    pdfSizeBytes: intake.fileSize,
+    textLength: intake.text.length,
+  });
+
+  return response(
+    { success: true, jobDescriptionId, jobDescriptionText: intake.text },
+    201
+  );
 }
