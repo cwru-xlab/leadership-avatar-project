@@ -8,6 +8,7 @@
  * a 403 (Phase 6 criterion, still binding).
  */
 
+import { Prisma } from "@prisma/client";
 import { waitUntil } from "@vercel/functions";
 
 import { getEngineType } from "@/lib/engine/registry";
@@ -15,6 +16,16 @@ import { runAndPersistEvaluation } from "@/lib/engine/evaluation-runner";
 import { prisma } from "@/lib/prisma";
 import { toReportDto, type ReportDTO } from "@/lib/report/dto";
 import { loadReportMoments } from "@/lib/report/moments-loader";
+import { asVisualMetrics } from "@/lib/metrics/ingest";
+import {
+  asStoredCheckIn,
+  CHECK_IN_VERSION,
+  eligibleCheckIns,
+  parseCheckInInput,
+  STORED_CHECK_IN_KEY,
+  type CheckInAnswers,
+  type StoredCheckIn,
+} from "@/lib/report/check-in";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -174,4 +185,85 @@ export async function listPlannedReportIds(userId: string): Promise<string[]> {
     }
   }
   return [...ids];
+}
+
+export type SaveCheckInResult =
+  | { ok: true; checkIn: CheckInAnswers }
+  | ReportHandlerError;
+
+/** Attempts before a write that keeps losing a concurrent-update race gives up. */
+const CHECK_IN_WRITE_ATTEMPTS = 3;
+
+/**
+ * Owner-scoped write of one check-in answer (see `lib/report/check-in.ts`).
+ *
+ * Malformed id, missing row and not-owned are the same 404 as the read. The
+ * flag must be one this report actually asks about, recomputed here from the
+ * stored metrics rather than trusted from the client.
+ *
+ * The answer is merged under `STORED_CHECK_IN_KEY` on `visualMetrics`; every
+ * other key in that JSON is written back exactly as read. Nothing here
+ * touches a score, the report body or the evaluator. The update is
+ * conditional on `updatedAt`, so two answers saved at once cannot drop each
+ * other.
+ */
+export async function saveCheckInForUser(
+  userId: string,
+  reportId: string,
+  body: unknown,
+): Promise<SaveCheckInResult> {
+  if (typeof reportId !== "string" || !UUID_REGEX.test(reportId)) {
+    return { ok: false, status: 404, error: "Report not found" };
+  }
+
+  for (let attempt = 0; attempt < CHECK_IN_WRITE_ATTEMPTS; attempt += 1) {
+    const row = await prisma.interactionReport.findFirst({
+      where: { id: reportId, userId },
+      select: { id: true, status: true, cameraMode: true, visualMetrics: true, updatedAt: true },
+    });
+
+    if (!row) {
+      return { ok: false, status: 404, error: "Report not found" };
+    }
+
+    // Checked after ownership so a stranger learns nothing from a 400.
+    const input = parseCheckInInput(body);
+    if (!input) {
+      return { ok: false, status: 400, error: "Invalid check-in answer" };
+    }
+
+    if (row.status !== "READY") {
+      return { ok: false, status: 409, error: "This report isn't ready yet.", reportStatus: row.status };
+    }
+
+    const stored = row.visualMetrics;
+    const visual = asVisualMetrics(stored);
+    if (!eligibleCheckIns(row.cameraMode, visual).some((question) => question.id === input.flag)) {
+      return { ok: false, status: 400, error: "That question doesn't apply to this report." };
+    }
+
+    const raw = stored as Record<string, unknown>;
+    const answers: CheckInAnswers = {
+      ...asStoredCheckIn(raw[STORED_CHECK_IN_KEY]),
+      [input.flag]: {
+        answer: input.answer,
+        ...(input.reason ? { reason: input.reason } : {}),
+        at: new Date().toISOString(),
+      },
+    };
+    const checkIn: StoredCheckIn = { version: CHECK_IN_VERSION, answers };
+
+    const { count } = await prisma.interactionReport.updateMany({
+      where: { id: row.id, userId, status: "READY", updatedAt: row.updatedAt },
+      data: {
+        visualMetrics: { ...raw, [STORED_CHECK_IN_KEY]: checkIn } as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    if (count === 1) {
+      return { ok: true, checkIn: answers };
+    }
+  }
+
+  return { ok: false, status: 409, error: "Your answer couldn't be saved. Please try again." };
 }
