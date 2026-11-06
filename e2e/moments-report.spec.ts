@@ -26,7 +26,9 @@ async function openReport(page: Page, id: string) {
 async function headerBoxes(page: Page) {
   return {
     title: await page.locator("h1").boundingBox(),
-    meta: await page.getByText(/ · /).first().boundingBox(),
+    // The date line under the title. (" · " also matches the setup panel's
+    // "~20 min · 9 questions" row, which is not the header.)
+    meta: await page.locator("main").getByText(/\b\d{4}, \d{1,2}:\d\d [AP]M/).first().boundingBox(),
     again: await page.getByRole("button", { name: "Practice again" }).boundingBox(),
   };
 }

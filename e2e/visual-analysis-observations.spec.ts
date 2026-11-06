@@ -51,9 +51,15 @@ for (const size of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) 
 
     const list = await (await page.request.get("/api/practice/reports")).json();
     const rows: Array<Record<string, unknown>> = list.reports ?? list.items ?? list;
-    const ready = rows.find((r) => r.status === "READY");
-    test.skip(!ready, "Alice has no READY report to host the fixture");
-    const id = String(ready!.id ?? ready!.reportId);
+    // Host on a structured report: legacy markdown-only reports (such as the
+    // check-in spec's "legacy report" fixture) have no tabs to open.
+    let id: string | null = null;
+    for (const row of rows.filter((r) => r.status === "READY")) {
+      const candidate = String(row.id ?? row.reportId);
+      const detail = await (await page.request.get(`/api/practice/report/${candidate}`)).json();
+      if (detail.report?.reportStructured) { id = candidate; break; }
+    }
+    test.skip(!id, "Alice has no READY structured report to host the fixture");
 
     await page.route(`**/api/practice/report/${id}`, async (route) => {
       const response = await route.fetch();
