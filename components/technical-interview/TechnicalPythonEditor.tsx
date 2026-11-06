@@ -54,7 +54,7 @@ const TechnicalPythonEditor = forwardRef<ReactCodeMirrorRef, TechnicalPythonEdit
         bracketMatching: true,
         autocompletion: true,
       }}
-      className="min-h-0 flex-1 text-[14px] leading-6 [&_.cm-editor]:h-full [&_.cm-editor]:outline-none [&_.cm-focused]:outline-none [&_.cm-gutters]:border-r [&_.cm-gutters]:border-slate-200 [&_.cm-gutters]:bg-slate-50 [&_.cm-gutters]:text-slate-400 [&_.cm-activeLine]:bg-blue-50/60 [&_.cm-activeLineGutter]:bg-blue-50 [&_.cm-content]:py-4 [&_.cm-content]:caret-cwru-blue [&_.cm-line]:px-4 [&_.cm-scroller]:font-mono [&_.cm-scroller]:overflow-auto [&_.cm-selectionBackground]:bg-blue-200 [&_.cm-tooltip]:border-slate-200 [&_.cm-tooltip]:bg-white"
+      className="min-h-0 flex-1 overflow-hidden text-[14px] leading-6 [&_.cm-editor]:h-full [&_.cm-editor]:outline-none [&_.cm-focused]:outline-none [&_.cm-gutters]:border-r [&_.cm-gutters]:border-slate-200 [&_.cm-gutters]:bg-slate-50 [&_.cm-gutters]:text-slate-400 [&_.cm-activeLine]:bg-blue-50/60 [&_.cm-activeLineGutter]:bg-blue-50 [&_.cm-content]:py-4 [&_.cm-content]:caret-cwru-blue [&_.cm-line]:px-4 [&_.cm-scroller]:font-mono [&_.cm-scroller]:overflow-auto [&_.cm-selectionBackground]:bg-blue-200 [&_.cm-tooltip]:border-slate-200 [&_.cm-tooltip]:bg-white"
       aria-label="Python solution editor"
       aria-describedby="editor-help"
     />
