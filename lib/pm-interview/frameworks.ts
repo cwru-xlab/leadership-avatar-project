@@ -139,7 +139,7 @@ export const METRICS_EXECUTION_FRAMEWORK: ProcessFramework = {
         "Lay out the funnel or key user actions the metrics will measure.",
       evidenceCriteria:
         "The candidate walks through the user's path (e.g. discover → sign up → first value → repeat → pay, or an AARM-style funnel) and uses it to locate where metrics live or where a drop could originate.",
-      nudge: "Walk me through how someone actually uses it.",
+      nudge: "How does someone actually use it, start to finish?",
     },
     {
       key: "define_success_metrics",
@@ -223,11 +223,11 @@ export const ESTIMATION_FRAMEWORK: ProcessFramework = {
     },
     {
       key: "sanity_check",
-      label: "Sanity-check",
+      label: "Sanity-check against an anchor",
       description:
-        "Test the result against a known anchor or a second method.",
+        "Compare the result with something independent: a known figure, a second method, or a per-user gut check.",
       evidenceCriteria:
-        "The candidate checks the answer against an independent anchor (a known company figure, a top-down vs bottom-up cross-check, per-capita reasonableness) and adjusts or defends it.",
+        "The candidate checks the answer against an independent anchor (a known company figure, a top-down vs bottom-up cross-check, per-capita or per-user reasonableness against something they know) and adjusts or defends it. Naming the most sensitive assumption, or saying how the answer moves if an input changes, is sensitivity analysis — it belongs to 'Land the answer' and does NOT count as a sanity check.",
       nudge: "Does that number feel right to you?",
     },
     {
@@ -301,7 +301,7 @@ export const STRATEGY_FRAMEWORK: ProcessFramework = {
         "Commit to a recommendation with first steps and how to measure it.",
       evidenceCriteria:
         "The candidate ends with a clear go/no-go or chosen option, the first concrete steps, and how success would be measured.",
-      nudge: "So what would you recommend?",
+      nudge: "So what should the company do?",
     },
   ],
 };

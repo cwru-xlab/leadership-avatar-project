@@ -1,0 +1,95 @@
+{
+  "id": "g-estimation-no-sanity-check",
+  "label": "(g) Estimation, solid structure, never sanity-checks",
+  "questionId": "pm-estimate-gmail-storage",
+  "knownGap": "gpt-4.1 sometimes (about 1 run in 3 in the final study) credits sensitivity ('if attachments were 20% the number goes up by half') as a sanity check despite the criteria excluding it. See docs/interviews/pm-interview-validity.md.",
+  "expect": {
+    "stepsHit": [
+      "clarify_scope",
+      "structure_approach",
+      "state_assumptions",
+      "calculate_aloud"
+    ],
+    "stepsMissed": [
+      "sanity_check"
+    ],
+    "processRigorMax": 3
+  },
+  "turns": [
+    {
+      "t": "0:05",
+      "who": "Interviewer",
+      "text": "Thanks for joining. Why product management?"
+    },
+    {
+      "t": "0:12",
+      "who": "Candidate",
+      "text": "I'm finishing an MBA after four years in data engineering. I want to own the why behind what my teams build, not just the how."
+    },
+    {
+      "t": "1:00",
+      "who": "Interviewer",
+      "text": "Here's the question. How much new storage does Gmail need every day?"
+    },
+    {
+      "t": "1:08",
+      "who": "Candidate",
+      "text": "Let me clarify a few things. Are we talking about new email data stored per day worldwide, in bytes? And should I include backups or replicas?"
+    },
+    {
+      "t": "1:18",
+      "who": "Interviewer",
+      "text": "New email storage only, worldwide, per day. Ignore redundancy and backup copies unless you want to add them at the end."
+    },
+    {
+      "t": "1:28",
+      "who": "Candidate",
+      "text": "Okay. Do we know roughly how many accounts there are?"
+    },
+    {
+      "t": "1:32",
+      "who": "Interviewer",
+      "text": "Gmail has roughly 1.8 billion accounts."
+    },
+    {
+      "t": "1:40",
+      "who": "Candidate",
+      "text": "My approach: daily active users times emails received per user per day times average size per email. And I'll split emails into plain emails and emails with attachments, because attachments dominate size."
+    },
+    {
+      "t": "2:05",
+      "who": "Candidate",
+      "text": "Assumptions. Of 1.8 billion accounts, I'd say about 1 billion are active on a given day — lots of accounts are secondary or dormant, maybe half or a bit more are active daily. Each active user receives about 40 emails a day after spam is filtered out — think of newsletters, receipts, notifications, and a few personal emails. Of those 40, I'd guess 10% have an attachment, so 4 emails with attachments and 36 without."
+    },
+    {
+      "t": "2:55",
+      "who": "Candidate",
+      "text": "Sizes: a plain email with HTML formatting is around 50 kilobytes. An email with an attachment — PDFs, images — averages maybe 500 kilobytes."
+    },
+    {
+      "t": "3:20",
+      "who": "Candidate",
+      "text": "Math: plain emails, 36 times 50 KB is 1,800 KB, call it 1.8 megabytes per user per day. Attachments, 4 times 500 KB is 2,000 KB, 2 megabytes. Total about 3.8 megabytes per user per day. Times 1 billion users is 3.8 billion megabytes, which is 3.8 petabytes per day."
+    },
+    {
+      "t": "4:05",
+      "who": "Candidate",
+      "text": "So my answer is roughly 4 petabytes of new storage a day. The assumption that matters most is the attachment share and size — if attachments are 20% instead of 10%, the number goes up by about half."
+    },
+    {
+      "t": "4:30",
+      "who": "Interviewer",
+      "text": "Okay, thanks. Any questions for me?"
+    },
+    {
+      "t": "4:35",
+      "who": "Candidate",
+      "text": "How do PMs on storage-heavy products think about cost versus user experience?"
+    },
+    {
+      "t": "4:50",
+      "who": "Interviewer",
+      "text": "Carefully. Thanks for your time."
+    }
+  ]
+}

@@ -114,10 +114,21 @@ sense, and you must say so. Specifically:
   asked for the breakdown and then used it.
 - Estimation: credit the decomposition and stated assumptions over the final
   number; an answer within ~2-3x of the benchmark with sound structure is good,
-  a lucky number with no structure is not.
+  a lucky number with no structure is not. The sanity-check step needs the
+  candidate to hold the result up against something INDEPENDENT of their own
+  inputs (a known figure, a second method, a per-user gut check). "If X were
+  20% instead of 10% the answer moves by half" is sensitivity, not a sanity
+  check; when that is all they did, sanity_check is missed.
 - Interviewer nudges: when the interviewer asks a short open question about a
   skipped step (e.g. "Who do you picture using this?") and the candidate only
   then covers it, that step is PROMPTED, not hit. Look for these turns.
+
+ORDER OF WORK for process_rigor_score: decide every step's status FIRST and
+write processSteps; THEN count the prompted and missed steps and read
+process_rigor_score straight off the bands, with no adjustment for how good
+the rest of the answer was. Two prompted steps is a 3, never a 4. Three missed
+steps is a 1, never a 3. A strong final answer belongs in product_sense and
+analytical_judgment, not here.
 
 product_sense_score (1-5): 5 = specific, insightful segments and needs that
 reveal real user empathy, a deliberate choice, and solutions that are creative

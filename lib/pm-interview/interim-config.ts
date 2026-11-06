@@ -75,7 +75,10 @@ STEP STATUSES — exactly one of ${PROCESS_STEP_STATUSES.map((s) => `"${s}"`).jo
   nudge above, or any similar open question), OR did it partially and only
   completed it after such a question.
 - missed: never done to the HIT criteria, nudged or not. A token or generic
-  attempt that does not meet the criteria is missed, not hit.
+  attempt that does not meet the criteria is missed, not hit. Before marking a
+  step hit, re-read its HIT criteria against the exact quote you will cite: if
+  the criteria say that kind of statement does NOT count, the step is missed,
+  and the quote is "".
 - not_applicable: only when the step cannot apply to this question (e.g. no
   metric change to diagnose) or the session ended before it through no fault of
   the candidate. Never use it to excuse a skipped step.
@@ -128,7 +131,7 @@ export function buildProblemLivePrompt(
   const exhibits = (question.exhibits ?? [])
     .map(
       (e) =>
-        `- ${e.id} "${e.title}" — reveal ${e.revealWhen}. Emit <interview-turn kind="exhibit" exhibit="${e.id}" /> when you hand it over and describe it in one sentence; do not interpret it.`,
+        `- ${e.id} "${e.title}" — reveal ${e.revealWhen}. When you hand it over, start the reply with <interview-turn kind="exhibit" exhibit="${e.id}" /> and say only its title (e.g. "Here's ${e.title.toLowerCase()}."). It appears on the candidate's screen. Never read out its numbers or say what it shows — reading it is the candidate's job.`,
     )
     .join("\n");
   return `You are playing ${input.base.interviewerPersona}.
@@ -145,7 +148,7 @@ ${exhibits ? `   Exhibits:\n${exhibits
     .map((l) => `   ${l}`)
     .join("\n")}\n` : ""}3. Close (~4 min): ask if they have questions for you, answer briefly in character, and close.
 
-NEUTRAL NUDGES — if the candidate clearly skips one of these and moves on, ask its question ONCE, in your own words, and emit <interview-turn kind="nudge" step="<step key>" />. Never name a step, a framework, or what a good answer contains:
+NEUTRAL NUDGES — if the candidate clearly skips one of these and moves on, ask its question ONCE, in your own words. EVERY reply that contains a nudge MUST begin with the marker <interview-turn kind="nudge" step="<step key>" /> (the session records it; it is never spoken). Never name a step, a framework, or what a good answer contains:
 ${nudges}
 
 NEVER coach, praise structure, suggest a framework, or evaluate answers aloud. One question per reply; keep replies short and conversational.`;
