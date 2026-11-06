@@ -78,6 +78,11 @@ import {
   validateTechnicalCheckpoints,
   validateTechnicalFinalSource,
 } from "@/lib/technical-interview/evidence";
+import {
+  getProblemBank,
+  selectProblemQuestion,
+} from "@/lib/problem-interview/banks.server";
+import { buildProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
 import type { InteractionLog } from "@/types";
 
 import { runAndPersistEvaluation } from "./evaluation-runner";
@@ -377,6 +382,7 @@ export async function startSession({
   language,
   timeBudgetOverrideSeconds,
   difficulty: rawDifficulty,
+  problemFamily: rawProblemFamily,
 }: {
   userId: string;
   userEmail: string;
@@ -399,6 +405,11 @@ export async function startSession({
   timeBudgetOverrideSeconds?: unknown;
   /** Difficult-conversation wizard band override (15-08). */
   difficulty?: unknown;
+  /**
+   * Problem interviews: optional question-family preference (e.g.
+   * "guesstimate"). Ignored when no bank entry matches.
+   */
+  problemFamily?: unknown;
 }): Promise<StartSessionResult> {
   const type = getEngineType(typeSlug);
   if (!type) {
@@ -570,6 +581,39 @@ export async function startSession({
         ? truncate(rawJobDescriptionText, MAX_RESUME_TEXT_LENGTH)
         : null;
 
+    // Problem interviews: ONE question per session, chosen here, server-side,
+    // and pinned on the snapshot. The chat route (live prompt + exhibits),
+    // the live client (via turn metadata) and the evaluator all read this
+    // pin, never a client value — so all three see the same question.
+    let problem: InterviewInputSnapshot["problem"];
+    if (type.problemInterview) {
+      const selected = selectProblemQuestion(
+        getProblemBank(type.slug),
+        type.problemInterview.frameworks,
+        {
+          family:
+            typeof rawProblemFamily === "string" && rawProblemFamily.trim()
+              ? rawProblemFamily.trim()
+              : null,
+        },
+      );
+      if (!selected) {
+        console.error("Problem interview bank is empty or unusable", {
+          typeSlug: type.slug,
+        });
+        return {
+          ok: false,
+          status: 500,
+          error: "This interview is unavailable right now.",
+        };
+      }
+      problem = buildProblemSessionSnapshot(
+        selected.question,
+        selected.framework,
+        new Date().toISOString(),
+      );
+    }
+
     const inputSnapshot: InterviewInputSnapshot = {
       kind: "interview",
       interviewerAvatarId,
@@ -584,6 +628,7 @@ export async function startSession({
       interviewerPersona: customizationRecord.interviewerPersona,
       jobDescriptionId,
       jobDescriptionText,
+      ...(problem ? { problem } : {}),
     };
 
     const report = await prisma.interactionReport.create({
@@ -606,6 +651,7 @@ export async function startSession({
       reportId: report.id,
       typeSlug: type.slug,
       cameraMode,
+      ...(problem ? { problemQuestionId: problem.questionId } : {}),
     });
 
     return { ok: true, reportId: report.id, cameraMode };

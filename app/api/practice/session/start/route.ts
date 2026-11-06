@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       language,
       timeBudgetOverrideSeconds,
       difficulty,
+      problemFamily,
     } = body as Record<string, unknown>;
 
     if (typeof typeSlug !== "string" || !typeSlug) {
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
       language,
       timeBudgetOverrideSeconds,
       difficulty,
+      problemFamily,
     });
 
     if (!result.ok) {
