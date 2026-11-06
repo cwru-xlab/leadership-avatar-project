@@ -136,7 +136,9 @@ export const NO_FILTERS: ReportFilters = {
 
 export function matchesTypeFilter(typeSlug: string, filter: TypeFilter): boolean {
   if (filter === "all") return true;
-  if (filter === "interview") return INTERVIEW_TYPE_SLUGS.has(typeSlug);
+  // The coding interview files under Interviews too; it stays out of
+  // INTERVIEW_TYPE_SLUGS because study plans don't read it yet.
+  if (filter === "interview") return INTERVIEW_TYPE_SLUGS.has(typeSlug) || typeSlug === "technical-coding";
   // All five deck modes (19-01's DECK_MODES table) land under the existing
   // Pitches tab alongside the elevator pitch — no new filter tab is added.
   if (filter === "pitch")
@@ -187,6 +189,9 @@ function searchText(report: ReportDTO): string {
       break;
     case "networking":
       parts.push(input.displayName, input.goal);
+      break;
+    case "technical-coding":
+      parts.push(input.assignment?.title);
       break;
   }
   return parts.filter(Boolean).join(" ").toLowerCase();

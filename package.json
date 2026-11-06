@@ -18,13 +18,18 @@
     "test:e2e": "playwright test",
     "verify:answer-level": "tsx scripts/verify-answer-level.ts",
     "verify:moments-clock": "tsx scripts/verify-moments-clock.ts",
-    "verify:route-contract": "tsx scripts/verify-route-contract.ts"
+    "verify:route-contract": "tsx scripts/verify-route-contract.ts",
+    "verify:technical-execution": "tsx scripts/verify-technical-execution-contract.ts",
+    "verify:technical-evidence": "tsx scripts/verify-technical-evidence.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1014.0",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/view": "^6.43.15",
     "@heroui/accordion": "^2.2.29",
     "@heroui/button": "^2.2.32",
     "@heroui/calendar": "^2.2.32",
@@ -60,6 +65,7 @@
     "@types/js-cookie": "^3.0.6",
     "@types/nodemailer": "^6.4.23",
     "@types/qrcode": "^1.5.6",
+    "@uiw/react-codemirror": "^4.25.12",
     "@vercel/edge-config": "^1.4.3",
     "@vercel/functions": "^3.4.3",
     "ahooks": "^3.9.6",

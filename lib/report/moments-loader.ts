@@ -10,7 +10,7 @@
  * `toReportDto` gives outcome quotes: an explicit remark is characterized, never
  * recited. A storage failure costs the excerpts, never the report.
  */
-import type { InteractionReport } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 import { buildReportMoments, type ReportMoments } from "@/lib/report/moments";
@@ -23,8 +23,26 @@ function screenQuote(content: string) {
   return { text: quote, replaced: sanitized };
 }
 
+/**
+ * Exactly the columns this module reads. Callers merge it into their own
+ * explicit select, never load the whole row: a column added ahead of its
+ * migration must not be able to take the report read down (see
+ * REPORT_DTO_SELECT in `lib/report/dto.ts`).
+ */
+export const REPORT_MOMENTS_SELECT = {
+  id: true,
+  userId: true,
+  status: true,
+  transcriptKey: true,
+  interactionLogId: true,
+  studentEmail: true,
+  inputSnapshot: true,
+} as const satisfies Prisma.InteractionReportSelect;
+
+export type ReportMomentsRow = Prisma.InteractionReportGetPayload<{ select: typeof REPORT_MOMENTS_SELECT }>;
+
 export async function loadReportMoments(
-  row: InteractionReport,
+  row: ReportMomentsRow,
   metrics: { vocal: VocalMetrics | null; visual: VisualMetrics | null },
 ): Promise<ReportMoments | null> {
   const hasMoments = (metrics.vocal?.turns?.length ?? 0) > 0 || (metrics.visual?.episodes?.length ?? 0) > 0;

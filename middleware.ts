@@ -211,6 +211,9 @@ const STUDENT_ROUTES: string[] = [
   "/api/scenario",
   // Student-owned difficult-conversation authoring + discovery (Phase 15).
   "/api/difficult-conversation",
+  // The coding interview's opening line and public-test runner; its chat
+  // turns already go through /api/interaction.
+  "/api/technical-interview",
   // REQ-36 consent endpoint, owner-scoped in the route handler itself.
   "/api/metrics",
   // Student-owned study-plan generation and saved-plan history. Every route

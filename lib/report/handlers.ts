@@ -14,8 +14,8 @@ import { waitUntil } from "@vercel/functions";
 import { getEngineType } from "@/lib/engine/registry";
 import { runAndPersistEvaluation } from "@/lib/engine/evaluation-runner";
 import { prisma } from "@/lib/prisma";
-import { toReportDto, type ReportDTO } from "@/lib/report/dto";
-import { loadReportMoments } from "@/lib/report/moments-loader";
+import { REPORT_DTO_SELECT, toReportDto, type ReportDTO } from "@/lib/report/dto";
+import { loadReportMoments, REPORT_MOMENTS_SELECT } from "@/lib/report/moments-loader";
 import { asVisualMetrics } from "@/lib/metrics/ingest";
 import {
   asStoredCheckIn,
@@ -62,8 +62,13 @@ export async function getReportForUser(
     return { ok: false, status: 404, error: "Report not found" };
   }
 
+  // Explicit select (REPORT_DTO_SELECT): only DTO-serialized columns reach
+  // the query, so a private column added ahead of its migration cannot
+  // break this read with Prisma P2022. The Moments loader's storage keys
+  // ride along under the same rule.
   const row = await prisma.interactionReport.findFirst({
     where: { id: reportId, userId },
+    select: { ...REPORT_DTO_SELECT, ...REPORT_MOMENTS_SELECT },
   });
 
   if (!row) {
@@ -166,6 +171,7 @@ export async function listReportsForUser(
       ...typeFilter,
     },
     orderBy: { createdAt: "desc" },
+    select: REPORT_DTO_SELECT,
   });
 
   return { ok: true, reports: rows.map(toReportDto) };

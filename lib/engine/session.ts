@@ -20,6 +20,7 @@
  */
 
 import { waitUntil } from "@vercel/functions";
+import { randomInt } from "node:crypto";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
@@ -62,6 +63,21 @@ import {
   type DifficultyBand,
 } from "@/lib/difficult-conversation/types";
 import { buildNetworkingStartSnapshot } from "@/lib/networking/start-snapshot";
+import {
+  TECHNICAL_ASSIGNMENTS,
+} from "@/lib/technical-interview/assignments.server";
+import {
+  TECHNICAL_CODING_LANGUAGE,
+  TECHNICAL_RUNTIME_POLICY_VERSION,
+  toPublicTechnicalAssignment,
+  type TechnicalCodingInputSnapshot,
+} from "@/lib/technical-interview/types";
+import {
+  replaceCandidateCheckpoints,
+  setFinalSource,
+  validateTechnicalCheckpoints,
+  validateTechnicalFinalSource,
+} from "@/lib/technical-interview/evidence";
 import type { InteractionLog } from "@/types";
 
 import { runAndPersistEvaluation } from "./evaluation-runner";
@@ -451,6 +467,53 @@ export async function startSession({
     });
 
     return { ok: true, reportId: report.id, cameraMode };
+  }
+
+  // ---- Technical coding: server-random assignment snapshot, ONE Prisma write ----
+  // The catalog entry is chosen only here, before the report is returned. The
+  // learner receives the snapshot's public fields; private tests/reference
+  // code remain in the server-only catalog and are reconstructed by id later.
+  if (type.slug === "technical-coding") {
+    const resolved = resolveSessionConfig(typeSlug);
+    if (!resolved.ok) return { ok: false, status: 400, error: resolved.reason };
+    const selected = TECHNICAL_ASSIGNMENTS[randomInt(TECHNICAL_ASSIGNMENTS.length)];
+    if (!selected) {
+      console.error("Technical coding catalog is empty");
+      return { ok: false, status: 500, error: "Technical practice is unavailable." };
+    }
+    const inputSnapshot: TechnicalCodingInputSnapshot = {
+      kind: "technical-coding",
+      assignmentId: selected.id,
+      assignmentVersion: selected.version,
+      assignmentHash: selected.contentHash,
+      assignment: toPublicTechnicalAssignment(selected),
+      language: TECHNICAL_CODING_LANGUAGE,
+      runtimePolicyVersion: TECHNICAL_RUNTIME_POLICY_VERSION,
+      selectedAt: new Date().toISOString(),
+    };
+    const timeBudgetSeconds = resolvePersistedBudget(
+      resolved.config.timeBudget,
+      timeBudgetOverrideSeconds,
+    );
+    const report = await prisma.interactionReport.create({
+      data: {
+        userId,
+        typeSlug: type.slug,
+        status: "IN_PROGRESS",
+        cameraMode,
+        metricsConsentAt: consentAt,
+        inputSnapshot: inputSnapshot as unknown as Prisma.InputJsonValue,
+        timeBudgetSeconds,
+      },
+      select: { id: true },
+    });
+    console.info("Technical coding report created", {
+      userId,
+      reportId: report.id,
+      assignmentId: selected.id,
+      assignmentVersion: selected.version,
+    });
+    return { ok: true, reportId: report.id, cameraMode, timeBudgetSeconds };
   }
 
   // ---- Interview presets: ONE Prisma write, ZERO S3 writes ----
@@ -848,12 +911,15 @@ export async function checkpointSession({
   turns: rawTurns,
   progress: rawProgress,
   revealedSlideIndex,
+  technicalCheckpoints: rawTechnicalCheckpoints,
 }: {
   userId: string;
   reportId: string;
   turns: unknown;
   progress?: unknown;
   revealedSlideIndex?: unknown;
+  /** Coding-only browser-authored source checkpoints. */
+  technicalCheckpoints?: unknown;
 }): Promise<CheckpointSessionResult> {
   if (typeof reportId !== "string" || !UUID_REGEX.test(reportId)) {
     return { ok: false, status: 400, error: "Invalid reportId" };
@@ -867,8 +933,10 @@ export async function checkpointSession({
       typeSlug: true,
       startedAt: true,
       inputSnapshot: true,
+      turnCount: true,
       slideHighWaterMark: true,
       slideReveals: true,
+      technicalEvidence: true,
     },
   });
 
@@ -893,6 +961,19 @@ export async function checkpointSession({
       reportId: report.id,
       reportStatus: report.status,
     };
+  }
+
+  // Coding checkpoints are deliberately independent from conversation state.
+  // A browser can only replace its own source draft; it cannot submit any
+  // transcript, hint, or execution evidence.
+  if (report.typeSlug === "technical-coding") {
+    const validated = validateTechnicalCheckpoints(rawTechnicalCheckpoints);
+    if (!validated.ok) return { ok: false, status: 400, error: validated.error };
+    await prisma.interactionReport.update({
+      where: { id: report.id },
+      data: { technicalEvidence: replaceCandidateCheckpoints(report.technicalEvidence, validated.value) as unknown as Prisma.InputJsonValue },
+    });
+    return { ok: true, turnCount: report.turnCount };
   }
 
   const turns = normalizeTurns(rawTurns);
@@ -998,6 +1079,8 @@ export async function finishSession({
   outcome: rawOutcome,
   walkOutProof: rawWalkOutProof,
   title: rawTitle,
+  technicalCheckpoints: rawTechnicalCheckpoints,
+  finalSource: rawFinalSource,
 }: {
   userId: string;
   userEmail: string;
@@ -1015,6 +1098,10 @@ export async function finishSession({
   walkOutProof?: unknown;
   /** Optional student-chosen My Reports title. */
   title?: unknown;
+  /** Coding-only browser-authored source checkpoints. */
+  technicalCheckpoints?: unknown;
+  /** Coding-only final candidate source, stored with private evidence. */
+  finalSource?: unknown;
 }): Promise<FinishSessionResult> {
   if (typeof reportId !== "string" || !reportId) {
     return { ok: false, status: 404, error: "Report not found" };
@@ -1194,6 +1281,60 @@ export async function finishSession({
   // ---- REQ-72: metrics parsing is UNCONDITIONAL — no type can skip it ----
   const { visual: visualMetrics, vocal: vocalMetrics } =
     parseMetricsPayload(metricsPayload);
+
+  // ---- Technical coding: persist the canonical transcript and bounded,
+  // private source evidence atomically before the report can queue. This is
+  // deliberately separate from the general interview branch: coding needs a
+  // final source and never accepts execution-provider results from the client. ----
+  if (report.typeSlug === "technical-coding") {
+    // The transcript is server-recorded by the chat route. Do not use request
+    // turns here: a client can never retroactively author interviewer history.
+    const checkpoints = validateTechnicalCheckpoints(rawTechnicalCheckpoints);
+    if (!checkpoints.ok) return { ok: false, status: 400, error: checkpoints.error };
+    const finalSource = validateTechnicalFinalSource(rawFinalSource);
+    if (!finalSource.ok) return { ok: false, status: 400, error: finalSource.error };
+    const checkpointed = replaceCandidateCheckpoints(report.technicalEvidence, checkpoints.value);
+    const evidence = setFinalSource(checkpointed, finalSource.value);
+    const turns = evidence.visibleTurns;
+
+    const transcript = buildInterviewTranscript({
+      reportId: report.id,
+      userId,
+      typeSlug: report.typeSlug,
+      interviewer: { avatarId: null, name: null },
+      startedAt: report.startedAt.getTime(),
+      turns: turns.map((turn) => ({ ...turn, timestamp: Date.now() })),
+      progress: initialProgress(),
+    });
+
+    let transcriptKey: string;
+    try {
+      transcriptKey = await s3Storage.saveInterviewTranscript(userId, report.id, transcript);
+    } catch (error) {
+      console.error("Engine coding finish: transcript save failed", error);
+      return { ok: false, status: 502, error: "We could not save your coding interview. Please try again." };
+    }
+
+    await prisma.interactionReport.update({
+      where: { id: report.id },
+      data: {
+        status: "PENDING",
+        transcriptKey,
+        turnCount: turns.length,
+        technicalEvidence: evidence as unknown as Prisma.InputJsonValue,
+        failureReason: null,
+        title: resolvedTitle,
+        visualMetrics: toMetricsJsonInput(visualMetrics),
+        vocalMetrics: toMetricsJsonInput(vocalMetrics),
+        terminationReason: recordedTerminationReason,
+        terminationAtSeconds: recordedTerminationAtSeconds,
+        outcome: recordedOutcome === null ? Prisma.DbNull : (recordedOutcome as Prisma.InputJsonValue),
+      },
+    });
+
+    waitUntil(runAndPersistEvaluation({ reportId: report.id }));
+    return { ok: true, accepted: true, reportId: report.id, pendingStatus: "PENDING" };
+  }
 
   // ---- Interview finish shape (finishPendingFlip: "request-path") ----
   if (type.finishPendingFlip === "request-path") {
