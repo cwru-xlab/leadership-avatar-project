@@ -14,6 +14,14 @@
  * or Postgres later touches exactly one function.
  */
 
+import {
+  CASE_BACKGROUND,
+  CASE_DESCRIPTION,
+  CASE_INTERVIEWER_PERSONA,
+  CASE_QUESTION_AREAS,
+  CASE_TARGET_MINUTES,
+} from "../case-interview/live";
+
 export type InterviewDifficulty = "Beginner" | "Intermediate" | "Advanced";
 
 export interface InterviewType {
@@ -95,29 +103,24 @@ const TECHNICAL_INTERVIEW: InterviewType = {
 };
 
 /**
- * Consulting / case-style interview. Persona is Socratic and composed, asking
- * the candidate to structure their thinking out loud rather than race to an
- * answer.
+ * Consulting case interview. Upgraded in place (2026-11-06): the slug stays
+ * "consulting" so reports from the earlier behavioral-style preset still
+ * resolve and render. The session is a real case interview (fit → one case →
+ * close); content, persona and copy live in `lib/case-interview/`.
+ * `targetQuestionCount` counts the fit question, the case, and the close.
  */
 const CONSULTING_INTERVIEW: InterviewType = {
   slug: "consulting",
   label: "Consulting / Case-Style Interview",
-  description:
-    "A behavioral interview styled after a consulting-firm interview, emphasizing " +
-    "structured, Socratic thinking under the interviewer's questioning.",
-  interviewerPersona:
-    "a composed, Socratic consulting-firm interviewer who asks the candidate to " +
-    "structure their thinking out loud. You are patient but exacting, and you " +
-    "reward candidates who lay out a clear framework before diving into details",
+  description: CASE_DESCRIPTION,
+  interviewerPersona: CASE_INTERVIEWER_PERSONA,
   defaultRoleTitle: "a management consulting associate role",
   defaultIndustry: "management consulting",
   difficulty: "Advanced",
-  targetMinutes: 20,
-  targetQuestionCount: 9,
-  caseBackground:
-    "For the role-specific stage, pose a generic business situation and ask the " +
-    "candidate to structure how they would approach it.",
-  questionAreas: ["Your background", "Behavioral stories", "Structured problem solving"],
+  targetMinutes: CASE_TARGET_MINUTES,
+  targetQuestionCount: 3,
+  caseBackground: CASE_BACKGROUND,
+  questionAreas: [...CASE_QUESTION_AREAS],
 };
 
 /**
