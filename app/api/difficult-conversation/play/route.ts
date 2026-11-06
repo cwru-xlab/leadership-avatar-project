@@ -44,12 +44,16 @@ export async function GET(request: NextRequest) {
 
     const seeded = findSeededConversation(id);
     let title = seeded?.title ?? "";
-    if (!title) {
+    // Only the owner of an authored record may edit it. The page uses this to
+    // offer an edit link when a legacy record was saved without an avatar.
+    let canEdit = false;
+    if (!seeded) {
       const authored = await loadDifficultConversationForPlay(id);
-      title = authored?.title ?? instance.situation.slice(0, 80);
+      title = authored?.title || instance.situation.slice(0, 80);
+      canEdit = Boolean(authored?.ownerId) && authored?.ownerId === currentUser.id;
     }
 
-    return response({ instance, title }, 200);
+    return response({ instance, title, canEdit }, 200);
   } catch (error) {
     console.error("Difficult-conversation play load failed:", error);
     return response({ error: "Unable to load conversation." }, 500);
