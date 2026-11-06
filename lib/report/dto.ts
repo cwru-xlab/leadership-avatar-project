@@ -28,9 +28,10 @@ import type {
  * engine-level fields (REQ-62/REQ-64) neither legacy table carries.
  *
  * Deliberately excludes the same private columns the legacy DTOs already
- * excluded: the owning user id, the S3 transcript/log pointers
- * (`transcriptKey`/`interactionLogId`/`studentEmail`), `evalModel`,
- * `createdAt`, `updatedAt`. See `toReportDto` for the explicit,
+ * excluded: the owning user id, private coding evidence (`technicalEvidence`),
+ * the S3 transcript/log pointers (`transcriptKey`/`interactionLogId`/
+ * `studentEmail`), `evalModel`, `createdAt`, `updatedAt`. See `toReportDto`
+ * for the explicit,
  * field-by-field mapping that enforces this — never spread the Prisma row.
  */
 export interface ReportDTO {
@@ -421,7 +422,82 @@ export function computeElapsedSeconds(
  * nothing is synthesized (REQ-48), via the same `asCameraMode` narrowing
  * both legacy DTOs already used.
  */
-export function toReportDto(row: InteractionReport): ReportDTO {
+/**
+ * Exactly the columns `toReportDto` reads — nothing more.
+ *
+ * Callers select these explicitly rather than fetching the whole row. That
+ * is both a privacy and an availability property:
+ *
+ * - Privacy: a private column (`userId`, `technicalEvidence`,
+ *   `transcriptKey`, `studentEmail`, ...) is never even loaded into the
+ *   process on the report-read path, so it cannot leak downstream.
+ * - Availability: an unselected column is absent from the generated SQL, so
+ *   a database that has not yet run the newest migration still serves
+ *   reports instead of failing the query with Prisma P2022
+ *   ("The column `InteractionReport.technicalEvidence` does not exist in
+ *   the current database"). Adding a private column to the schema can no
+ *   longer take the whole read path down between deploy and migrate.
+ *
+ * Widening this type is a deliberate act: add a field only when
+ * `toReportDto` genuinely serializes it, and never add a private column.
+ */
+export type ReportDtoRow = Pick<
+  InteractionReport,
+  | "id"
+  | "typeSlug"
+  | "title"
+  | "status"
+  | "turnCount"
+  | "scores"
+  | "cameraMode"
+  | "visualMetrics"
+  | "vocalMetrics"
+  | "visualUnscoredReason"
+  | "vocalUnscoredReason"
+  | "inputSnapshot"
+  | "terminationReason"
+  | "terminationAtSeconds"
+  | "outcome"
+  | "slideHighWaterMark"
+  | "slideReveals"
+  | "timeBudgetSeconds"
+  | "reportStructured"
+  | "reportMarkdown"
+  | "failureReason"
+  | "evalModel"
+  | "startedAt"
+  | "completedAt"
+>;
+
+/** Prisma `select` clause matching `ReportDtoRow`, for the read handlers. */
+export const REPORT_DTO_SELECT = {
+  id: true,
+  typeSlug: true,
+  title: true,
+  status: true,
+  turnCount: true,
+  scores: true,
+  cameraMode: true,
+  visualMetrics: true,
+  vocalMetrics: true,
+  visualUnscoredReason: true,
+  vocalUnscoredReason: true,
+  inputSnapshot: true,
+  terminationReason: true,
+  terminationAtSeconds: true,
+  outcome: true,
+  slideHighWaterMark: true,
+  slideReveals: true,
+  timeBudgetSeconds: true,
+  reportStructured: true,
+  reportMarkdown: true,
+  failureReason: true,
+  evalModel: true,
+  startedAt: true,
+  completedAt: true,
+} as const satisfies Record<keyof ReportDtoRow, true>;
+
+export function toReportDto(row: ReportDtoRow): ReportDTO {
   const startedAt = row.startedAt.toISOString();
   const completedAt = row.completedAt ? row.completedAt.toISOString() : null;
   return {
@@ -467,6 +543,6 @@ export function toReportDto(row: InteractionReport): ReportDTO {
     completedAt,
   };
   // Deliberately excluded, never in the object literal above:
-  // row.userId, row.transcriptKey, row.interactionLogId, row.studentEmail,
-  // row.createdAt, row.updatedAt.
+  // row.userId, row.technicalEvidence, row.transcriptKey,
+  // row.interactionLogId, row.studentEmail, row.createdAt, row.updatedAt.
 }

@@ -273,6 +273,8 @@ export interface InteractionTypeConfig {
   slug: string;
   name: string;
   description: string;
+  /** Rendering model. Omitted legacy types resolve to the conversation room. */
+  sessionExperience?: "conversation" | "coding";
   /** Additional scored dimensions beyond the four shared ones. Empty for
    * every built-in type today. */
   extraRubricDimensions: RubricDimension[];
@@ -525,6 +527,8 @@ export type InstanceConfig =
 export interface ResolvedSessionConfig {
   typeSlug: string;
   typeName: string;
+  /** Chosen from the type record; legacy fixture/config objects may omit it. */
+  sessionExperience?: "conversation" | "coding";
   /** Always `[visual, vocal, content, behavioral, ...extras]` in that order. */
   rubricDimensions: RubricDimension[];
   limits: InteractionLimitsConfig;

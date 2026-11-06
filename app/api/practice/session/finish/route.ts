@@ -49,6 +49,8 @@ export async function POST(request: NextRequest) {
       outcome,
       walkOutProof,
       title,
+      technicalCheckpoints,
+      finalSource,
     } = body as Record<string, unknown>;
 
     if (typeof reportId !== "string") {
@@ -73,6 +75,8 @@ export async function POST(request: NextRequest) {
       outcome,
       walkOutProof,
       title,
+      technicalCheckpoints,
+      finalSource,
     });
 
     if (!result.ok) {

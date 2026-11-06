@@ -40,6 +40,7 @@ import {
   type ScenarioInputSnapshot,
 } from "@/lib/report/snapshot";
 import { asDisengagementDeclineRecord } from "@/lib/report/dto";
+import { asTechnicalEvidence } from "@/lib/technical-interview/evidence";
 import { recordLiveSessionContributions } from "@/lib/mastery/from-report";
 import type { InteractionLog, InteractionEvent } from "@/types";
 
@@ -350,6 +351,7 @@ function buildEvaluationContextForReport(
     atSeconds: number | null;
   },
   outcome?: unknown,
+  technicalEvidence?: unknown,
 ): Record<string, unknown> {
   const type = getEngineType(config.typeSlug);
   if (!type) {
@@ -357,6 +359,20 @@ function buildEvaluationContextForReport(
   }
 
   const base = type.prompts.buildEvaluationContext(config);
+
+  // Private candidate-authored source may reach only the evaluator context.
+  // It is validated again on read and is never part of ReportDTO.
+  if (snapshot?.kind === "technical-coding") {
+    const evidence = asTechnicalEvidence(technicalEvidence);
+    return {
+      ...base,
+      technicalEvidence: evidence,
+      finalSource: evidence?.finalSource ?? null,
+      // The current sandbox deliberately executes nothing. Correctness must
+      // remain unavailable rather than be inferred from source or dialogue.
+      finalExecution: null,
+    };
+  }
 
   if (snapshot?.kind === "interview") {
     const presetCustomization = config.customization;
@@ -589,6 +605,7 @@ export async function runAndPersistEvaluation({
         atSeconds: report.terminationAtSeconds,
       },
       report.outcome,
+      report.technicalEvidence,
     );
 
     // Type-declared images (looked up via the type record — ResolvedSessionConfig
@@ -671,12 +688,17 @@ export async function runAndPersistEvaluation({
       // Type-declared score cap (e.g. early-end discovery_tailoring ceiling).
       // Looked up on the type record — never via typeSlug branching.
       const scoresForPost = outcome.result.scores;
-      const finalScores = typeRecord?.postProcessScores
+      const postProcessedScores = typeRecord?.postProcessScores
         ? typeRecord.postProcessScores(scoresForPost, {
             terminationReason: report.terminationReason,
             outcome: validatedOutcome,
           })
         : scoresForPost;
+      // This cannot be left to a prompt: no managed deterministic executor is
+      // configured, so the report may not claim a correctness score.
+      const finalScores = snapshot?.kind === "technical-coding"
+        ? { ...postProcessedScores, coding_correctness: null }
+        : postProcessedScores;
 
       await prisma.interactionReport.update({
         where: { id: reportId },

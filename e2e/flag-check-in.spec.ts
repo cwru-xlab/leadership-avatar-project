@@ -72,6 +72,18 @@ test.beforeAll(async () => {
         NOT: [{ reportStructured: { equals: Prisma.DbNull } }, { title: { startsWith: "Check-in fixture" } }],
       },
       orderBy: { createdAt: "desc" },
+      // Explicit select: a report column added ahead of its migration must
+      // not break the fixture read (see REPORT_DTO_SELECT, lib/report/dto.ts).
+      select: {
+        typeSlug: true,
+        inputSnapshot: true,
+        scores: true,
+        reportStructured: true,
+        reportMarkdown: true,
+        turnCount: true,
+        startedAt: true,
+        completedAt: true,
+      },
     });
     if (!source) throw new Error("Alice has no READY structured interview report to clone");
 
@@ -94,10 +106,13 @@ test.beforeAll(async () => {
         title,
         ...data,
       };
-      const existing = await prisma.interactionReport.findFirst({ where: { userId: alice.id, title } });
+      const existing = await prisma.interactionReport.findFirst({ where: { userId: alice.id, title }, select: { id: true } });
       const row = existing
-        ? await prisma.interactionReport.update({ where: { id: existing.id }, data: base })
-        : await prisma.interactionReport.create({ data: base as Prisma.InteractionReportUncheckedCreateInput });
+        ? await prisma.interactionReport.update({ where: { id: existing.id }, data: base, select: { id: true } })
+        : await prisma.interactionReport.create({
+            data: base as Prisma.InteractionReportUncheckedCreateInput,
+            select: { id: true },
+          });
       return { id: row.id };
     }
 
@@ -347,7 +362,7 @@ test("phone width: one question at a time, then the thanks line", async ({ page 
   await page.setViewportSize({ width: 375, height: 812 });
   // Reset the flagged fixture's answers so the first question shows again.
   const prisma = new PrismaClient();
-  await prisma.interactionReport.update({ where: { id: fixtures.flagged.id }, data: { visualMetrics: FLAGGED_VISUAL } });
+  await prisma.interactionReport.update({ where: { id: fixtures.flagged.id }, data: { visualMetrics: FLAGGED_VISUAL }, select: { id: true } });
   await prisma.$disconnect();
 
   await signIn(page, ALICE);

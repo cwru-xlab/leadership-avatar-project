@@ -90,15 +90,28 @@ interface InteractiveAvatarWrapperProps {
 }
 
 async function fetchSessionToken(config: StartAvatarRequest): Promise<string> {
-  const response = await fetch("/api/avatar/get-access-token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      avatar_id: config.avatarName,
-      voice_id: config.voice.voiceId,
-      language: config.language,
-    }),
-  });
+  // A dropped connection to our own token route is just as definitive a
+  // failure as a rejected key, and callers only act on `HeygenSessionError`.
+  // Letting the raw `TypeError` escape meant `onSessionTokenError` never
+  // fired, so every live session sat on a dead video box with no explanation.
+  let response: Response;
+  try {
+    response = await fetch("/api/avatar/get-access-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        avatar_id: config.avatarName,
+        voice_id: config.voice.voiceId,
+        language: config.language,
+      }),
+    });
+  } catch (cause) {
+    throw new HeygenSessionError(
+      "Could not reach the video interviewer service.",
+      "HEYGEN_UPSTREAM_ERROR",
+      { cause },
+    );
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throwHeygenTokenError(data);

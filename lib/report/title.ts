@@ -20,6 +20,7 @@ import { CURATED_INDUSTRIES, CURATED_ROLES } from "@/lib/interview/customization
 const TYPE_LABELS: Record<string, string> = {
   general: "General interview",
   technical: "Technical interview",
+  "technical-coding": "Technical coding interview",
   consulting: "Consulting interview",
   "early-career": "Early-career interview",
   "case-study": "Case study",
@@ -83,6 +84,8 @@ function subjectFromSnapshot(input: InputSnapshot | null): string | null {
           : null;
     case "scenario":
       return input.caseName ? truncate(input.caseName) : null;
+    case "technical-coding":
+      return truncate(input.assignment.title);
     case "pitch":
       return input.pitchSubject ? truncate(input.pitchSubject) : null;
     case "difficult-conversation":
@@ -174,6 +177,12 @@ function deriveInterviewTitle(typeSlug: string, input: InputSnapshot | null): st
   return `${clampTitleWords(lead, TITLE_WORD_BUDGET - titleWords(suffix).length)}${suffix}`;
 }
 
+/** The coding exercise's public title. The snapshot check doesn't type `assignment` deeply. */
+function codingExerciseTitle(input: Extract<InputSnapshot, { kind: "technical-coding" }>): string | null {
+  const title = input.assignment?.title;
+  return typeof title === "string" && title.trim() ? title.trim() : null;
+}
+
 /** A short title from what the session was about. No date: see `disambiguateTitles`. */
 export function deriveReportTitle(typeSlug: string, input: InputSnapshot | null): string {
   const type = typeLabelForReport(typeSlug);
@@ -189,6 +198,8 @@ export function deriveReportTitle(typeSlug: string, input: InputSnapshot | null)
     }
     case "difficult-conversation":
       return clampTitleWords(input.conversationTitle?.trim() || type);
+    case "technical-coding":
+      return clampTitleWords(codingExerciseTitle(input) || type);
     case "networking": {
       const name = input.displayName?.trim();
       if (name) return clampTitleWords(`Networking with ${name}`);
@@ -238,6 +249,9 @@ function isMachineTitle(title: string, typeSlug: string, input: InputSnapshot | 
     case "networking":
       sources.push(input.goal);
       if (input.displayName) sources.push(`with ${input.displayName}`);
+      break;
+    case "technical-coding":
+      sources.push(codingExerciseTitle(input));
       break;
   }
   return sources.some((source) => source?.trim().replace(/\s+/g, " ").startsWith(tail));
