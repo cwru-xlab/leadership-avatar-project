@@ -109,8 +109,11 @@ export default function StudyPlanGenerator({
   reports,
   onSaved,
   aside,
+  loading = false,
 }: {
   reports: ReportDTO[];
+  /** The caller is still fetching reports: show the card as it will look, button off. */
+  loading?: boolean;
   onSaved: (plan: StudyPlanSummaryDTO) => void;
   /** Rendered beside the primary button, e.g. a link to saved plans. */
   aside?: React.ReactNode;
@@ -324,7 +327,7 @@ export default function StudyPlanGenerator({
           <p className="text-sm leading-6 text-muted">
             We&apos;ll identify recurring feedback themes from your completed interview reports and turn them into focused practice.
           </p>
-          {eligibleReportCount < 1 && (
+          {!loading && eligibleReportCount < 1 && (
             <p className="text-sm font-semibold text-ink">Finish an interview with feedback to build a study plan.</p>
           )}
         </div>
@@ -333,7 +336,7 @@ export default function StudyPlanGenerator({
           <Button
             className="h-11 rounded-lg font-semibold"
             color="primary"
-            isDisabled={eligibleReportCount < 1 || generating}
+            isDisabled={loading || eligibleReportCount < 1 || generating}
             onPress={openPicker}
           >
             {generating ? <><Spinner color="current" size="sm" /> Creating plan</> : "Generate study plan"}
