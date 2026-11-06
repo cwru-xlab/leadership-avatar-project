@@ -36,7 +36,7 @@ import type { GoalProgress } from "@/lib/study-plan/goals";
  * distinction obvious or it will confuse." The fix lives in WORDS, not
  * layout: every figure is paired with a literal text label ("All time" /
  * "Recent") inside a `<dt>`, so the pairing survives a screenshot, a
- * colourblind reader, or a narrow viewport where position and colour both
+ * colourblind reader, or a narrow viewport where position and color both
  * fail as cues.
  *
  * The figure and how sure it is are read separately: `display` ("about 65%")
@@ -158,7 +158,7 @@ function CompetencyDisclosures({ competency }: { competency: CompetencyMasteryDT
 /**
  * The level line under a competency's name. Levels are computed by the route
  * (`levelFor`) from the RECENT figure; when there is no recent evidence, the
- * all-time level is shown instead and labelled as such, so a student whose
+ * all-time level is shown instead and labeled as such, so a student whose
  * practice is older than the window still sees where they stand.
  */
 function LevelBadge({ level }: { level: { current: LevelResult; lifetime: LevelResult } }) {
@@ -606,7 +606,7 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
             <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180" size={14} />
           </summary>
           <ul className="mt-2 flex max-w-[65ch] list-disc flex-col gap-1 pl-5 leading-5 text-muted">
-            <li>Each figure is our best estimate, not your average. Every skill starts near the middle of the scale, then moves toward your real scores as you practise.</li>
+            <li>Each figure is our best estimate, not your average. Every skill starts near the middle of the scale, then moves toward your real scores as you practice.</li>
             <li>Each session counts once, however many things it scored. Live practice counts most, then knowledge checks, then drills and coached work. Recent work counts a little more.</li>
             <li>The dots show how sure we are. Higher levels also need more sessions, so one great session can&apos;t make a skill Strong or Mastered.</li>
           </ul>

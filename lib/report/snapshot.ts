@@ -100,6 +100,11 @@ export interface PitchInputSnapshot {
   } | null;
   firstTurnWindowSeconds: number | null;
   budgetSeconds: number | null;
+  /**
+   * Elevator only: the id of the listener drawn at session start
+   * (lib/pitch/elevator-personas.ts). Null on reports from before the roster,
+   * which all spoke to the legacy listener; `resolveElevatorListener` handles both.
+   */
   listenerPersona: string | null;
   /**
    * Per-mode wizard inputs (Phase 19), riding alongside the negotiation

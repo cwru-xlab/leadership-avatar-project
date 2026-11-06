@@ -37,7 +37,7 @@ export const PERSON_GENERATION_SYSTEM_PROMPT = `You invent ONE plausible, fictio
 
 Give them:
 - a full name
-- an employer described generically (an invented company name is fine; a real, recognisable company name is not)
+- an employer described generically (an invented company name is fine; a real, recognizable company name is not)
 - a seniority / title
 - a field or domain
 - a few years-in detail

@@ -289,7 +289,7 @@ check(
       adjustableRangeSeconds: null,
     },
     // A real scenario instance: the DC type's in-character reminder refuses
-    // to build without one, and that refusal is correct behaviour worth
+    // to build without one, and that refusal is correct behavior worth
     // keeping rather than stubbing around.
     instance: {
       kind: "difficult-conversation",
@@ -426,7 +426,7 @@ console.log("\n11. UAT 2026-10-25 — auto-finish survives Strict Mode; the reco
   check(!floored(session.replace("? walkOutProof!.disengagement", "? replayedDisengagement")), "bite-proof: dropping the floor is caught");
 }
 
-console.log("\n12. UAT 2026-10-25 — non-interview sessions are not labelled interviews (D17-1, agenda)");
+console.log("\n12. UAT 2026-10-25 — non-interview sessions are not labeled interviews (D17-1, agenda)");
 {
   const headerOk = (src: string) =>
     /\{isInterviewSession \? "Interview" : "Conversation"\} with \{interviewerName\}/.test(src) &&

@@ -72,7 +72,7 @@ export const PITCH_GENERAL_TYPE: InteractionTypeConfig = {
   },
   visibleContext: DECK_VISIBLE_CONTEXT,
   // No outcome record at all — matches the interview presets' shape. This
-  // mode has no distinctive judgement to report descriptively.
+  // mode has no distinctive judgment to report descriptively.
   outcome: { fields: [] },
   timeBudget: {
     totalSeconds: GENERAL_ENVELOPE_SECONDS[0],

@@ -440,7 +440,7 @@ export function sanitizeBodySignalWording(report: StructuredReport): {
 
   // The same hollow-entry reasoning for a strength, plus one thing the sentence
   // pass above cannot reach: `title` is never validated, and a strength titled
-  // "No distracting behaviours" is the commendation whatever its detail says.
+  // "No distracting behaviors" is the commendation whatever its detail says.
   const strengthCount = clone.strengths.length;
   clone.strengths = clone.strengths.filter(
     (s) => s.detail.trim().length > 0 && !commendsAbsence(s.title)

@@ -167,7 +167,7 @@ export interface PoseDetectResult {
    *
    * CORRECTION TO 12-10's RECORDED HYPOTHESIS — this is NOT a detection
    * failure. 12-10's close recorded that "the sign may be backwards relative
-   * to the behaviour being graded", and 12-11's Session A readings confirmed
+   * to the behavior being graded", and 12-11's Session A readings confirmed
    * the DECREASE while refuting the consequence. `computePostureDrift` scores
    * `Math.abs(current - baseline)`, so a decrease registers exactly as
    * strongly as an increase of the same size: the direction cannot affect the
@@ -313,7 +313,7 @@ let lastFaceBox: {
   maxY: number;
 } | null = null;
 
-/** The primary face's lip centre and size from the most recent face tick that
+/** The primary face's lip center and size from the most recent face tick that
  * saw one, by the same "persisted scalar" discipline. Unlike `lastFaceBox` this
  * is NOT cleared when a tick misses the face: a hand over the mouth can cost the
  * tracker the face at exactly the moment this is needed, so it ages out on

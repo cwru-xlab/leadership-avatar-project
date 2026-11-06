@@ -18,7 +18,7 @@
  * decision 2: the posting is interviewer context only. It is NOT sent to the
  * evaluator and does NOT affect the report in this version, and the panel must
  * say so. Do not add promises of matching, gap analysis, keyword scoring, or
- * tailored feedback to this copy without shipping the behaviour first.
+ * tailored feedback to this copy without shipping the behavior first.
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
@@ -34,6 +34,12 @@ import {
   Info,
 } from "lucide-react";
 import { type ChangeEvent, useState } from "react";
+
+import {
+  PDF_ACCEPT,
+  looksLikePdf,
+  uploadFailureMessage,
+} from "@/components/practice/steps/pdf-upload";
 
 const MAX_JOB_DESCRIPTION_SIZE_BYTES = 10 * 1024 * 1024;
 // This text is included in every chat turn, so keep the client payload aligned
@@ -70,7 +76,7 @@ export default function JobDescriptionStep({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (file.type !== "application/pdf") {
+    if (!looksLikePdf(file)) {
       addToast({ title: "Choose a PDF of the posting", color: "warning" });
       return;
     }
@@ -100,7 +106,7 @@ export default function JobDescriptionStep({
         !data.jobDescriptionId ||
         typeof data.jobDescriptionText !== "string"
       ) {
-        throw new Error(data.error || "We could not process that PDF.");
+        throw new Error(uploadFailureMessage(response, data.error));
       }
       setPasted("");
       onJobDescriptionChange({
@@ -160,7 +166,7 @@ export default function JobDescriptionStep({
               id="job-description-heading"
               className="mt-1 font-display font-medium text-3xl tracking-[-0.03em]"
             >
-              Practise for the actual posting
+              Practice for the actual posting
             </h2>
             <p className="mt-3 max-w-xl text-[15px] leading-7 text-muted">
               Paste the job posting you are targeting, or upload it as a PDF.
@@ -274,7 +280,7 @@ export default function JobDescriptionStep({
               <input
                 className="sr-only"
                 type="file"
-                accept="application/pdf"
+                accept={PDF_ACCEPT}
                 disabled={uploading}
                 onChange={uploadJobDescription}
               />

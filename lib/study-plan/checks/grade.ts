@@ -658,7 +658,7 @@ export async function submitAndGrade(args: {
     score = success.score;
     gradedBy = "MODEL";
     graderModel = success.model;
-    // K2: the result names the library technique the rewrite practises.
+    // K2: the result names the library technique the rewrite practices.
     graderRationale = technique
       ? joinDetail([success.rationale, `Technique: ${technique.name} — ${technique.reminder}`])
       : success.rationale;

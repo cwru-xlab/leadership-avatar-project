@@ -143,7 +143,7 @@ check(
   );
   check(
     "the coached shell passes its own summary-oriented consent wording",
-    /cameraOnDescription="Your camera and voice are analysed/.test(coachedSrc),
+    /cameraOnDescription="Your camera and voice are analyzed/.test(coachedSrc),
   );
 }
 
@@ -235,7 +235,7 @@ console.log("\nSection 7: resumed brief shows part progress (23 L5)");
   check("L5 bite-proof: a shell without the progress prop is caught", !shellPasses(coachedSrc.replace(/progress=\{/, "progressX={")));
 }
 
-console.log("\nSection 8: off-topic tries are labelled in the end summary (23 Q4)");
+console.log("\nSection 8: off-topic tries are labeled in the end summary (23 Q4)");
 {
   const runtimeSrc = read("lib/study-plan/coached/runtime.ts");
   const maps = (src: string) => /offTopic:\s*isOffTopicRow\(r\)/.test(src);

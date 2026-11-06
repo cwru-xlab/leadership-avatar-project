@@ -59,8 +59,8 @@ Output rules:
   system-prompt sentence.
 - End the persona with an explicit in-character directive naming the person,
   so the interviewer actually inhabits them rather than treating the
-  description as background colour. For example: "You introduce yourself as
-  Maria Chen when the interview opens, and you stay recognisably her —
+  description as background color. For example: "You introduce yourself as
+  Maria Chen when the interview opens, and you stay recognizably her —
   her seniority, her domain, her manner — for the whole conversation."
 
 Return JSON with exactly two keys:

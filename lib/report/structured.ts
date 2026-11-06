@@ -222,7 +222,9 @@ export const REPORT_LENGTH_RULES = `REPORT LENGTH (applies to the written fields
 - category_notes: one sentence each, at most 30 words, explaining the score without repeating a strength or growth area.
 - rubric_notes: one short line each.
 - practice_next: one sentence, at most 35 words, turning the most important growth area into an action without restating its detail.
-- Say each point once across the whole report.`;
+- Say each point once across the whole report.
+- Use American English spelling (practice, behavior, center, analyze), whatever spelling the transcript or materials use.
+- Use American English spelling (practice, behavior, center, analyze), whatever spelling appears in the transcript or materials.`;
 
 // ---------------------------------------------------------------------------
 // Parsing
