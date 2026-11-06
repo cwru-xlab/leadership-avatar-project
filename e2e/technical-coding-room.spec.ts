@@ -86,6 +86,42 @@ test.describe("technical coding room", () => {
     await expect(terminal).toContainText(/Error/i, { timeout: 60_000 });
   });
 
+  test("uses the shared push-to-talk control and answers a typed turn", async ({ page }) => {
+    const apiFailures: string[] = [];
+    page.on("response", (response) => {
+      const url = response.url();
+      if (
+        (url.includes("/api/interaction/chat") ||
+          url.includes("/api/technical-interview/opening")) &&
+        response.status() >= 400
+      ) {
+        apiFailures.push(`${response.status()} ${url}`);
+      }
+    });
+
+    await signIn(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openRoom(page);
+
+    // The SAME control every other live session renders
+    // (components/session/SessionRoom PushToTalkControl), not a second
+    // implementation. Both responsive panels carry the label, so scope to the
+    // one actually on screen.
+    await expect(
+      page.getByRole("button", { name: /Start recording answer/i }).locator("visible=true"),
+    ).toBeVisible();
+
+    await page
+      .getByRole("textbox", { name: /Message the interviewer/i })
+      .locator("visible=true")
+      .fill("I plan to iterate once and build the result as I go.");
+    await page.getByRole("button", { name: "Send", exact: true }).locator("visible=true").click();
+
+    const transcript = page.locator('[aria-label="Interviewer conversation"]:visible');
+    await expect(transcript).toContainText(/Interviewer/, { timeout: 60_000 });
+    expect(apiFailures, "the interviewer turn must not fail").toEqual([]);
+  });
+
   test("interviewer brief is server-authored, spoken once, and idempotent", async ({
     page,
     request,
