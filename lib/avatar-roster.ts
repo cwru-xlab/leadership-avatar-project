@@ -21,12 +21,13 @@
  * Ann -> `Ann Therapist`, Dexter -> `Dexter Lawyer`. `Santa Fireplace Front`
  * is excluded outright.
  *
- * CHURN. `lib/difficult-conversation/avatar-assignment.ts` warns that hardcoding
- * catalog ids breaks silently when the account churns. That warning is honoured
- * here by treating this list as a FILTER, never as a source of truth: ids that
- * vanish upstream simply stop matching and drop out of the picker, and
- * `app/api/interview/interviewers/route.ts` logs the names it could not find so
- * the churn is visible rather than silent.
+ * CHURN. Hardcoded catalog ids break silently when the account churns. That is
+ * honoured here by treating this list as a FILTER, never as a source of truth:
+ * ids that vanish upstream simply stop matching and drop out of the picker, and
+ * `lib/interview/avatar-catalog.ts` logs the names it could not find so the
+ * churn is visible rather than silent. The casts that pin ids from this list
+ * (the elevator pitch's listeners, the seeded difficult conversations'
+ * counterparts) check the live catalog and fall back when one is missing.
  *
  * Regenerate by listing `/v1/avatars/public`, grouping by the first name token,
  * and taking the seated look per person.
