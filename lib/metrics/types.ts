@@ -527,6 +527,24 @@ export interface VisualMetrics {
 }
 
 /**
+ * The key under which a report row's stored `visualMetrics` JSON also holds
+ * the student's check-in answers (`lib/report/check-in.ts`). They share the
+ * column only to avoid a migration; they are NOT metrics. Every reader that
+ * narrows the column to `VisualMetrics` must strip this key first with
+ * `withoutStoredCheckIn`, so answers can never reach an evaluator prompt,
+ * a band or a score.
+ */
+export const STORED_CHECK_IN_KEY = "check_in";
+
+/** Pure. The stored object minus `STORED_CHECK_IN_KEY`; the input is untouched. */
+export function withoutStoredCheckIn<T extends object>(value: T): T {
+  if (!(STORED_CHECK_IN_KEY in value)) return value;
+  const copy = { ...value } as Record<string, unknown>;
+  delete copy[STORED_CHECK_IN_KEY];
+  return copy as T;
+}
+
+/**
  * Pure. Returns the entries of `VISUAL_NOT_MEASURED_VOCABULARY` that a
  * session genuinely could not observe, given what its producers actually
  * attempted to measure and what they actually found usable this session.
