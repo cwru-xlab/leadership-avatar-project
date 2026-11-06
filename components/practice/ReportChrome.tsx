@@ -18,6 +18,7 @@
 
 import type { ReactNode } from "react";
 import type { ReportDTO } from "@/lib/report/dto";
+import type { CheckInLead } from "@/lib/report/check-in";
 
 import { deckModeNegotiates, isDeckModeSlug, type DeckModeSlug } from "@/lib/pitch/deck-modes";
 
@@ -47,6 +48,11 @@ export interface ReportChrome {
   guardsRepollAfter404: boolean;
   showsCustomizationStrip: boolean;
   /**
+   * How the report check-in's coaching lines open, naming the real situation
+   * this practice stands in for (see `CheckInLead` in `lib/report/check-in.ts`).
+   */
+  checkInLead: CheckInLead;
+  /**
    * Per-type report panels. Types that declare none leave both slots
    * undefined — interview presets and case-study stay visually unchanged.
    */
@@ -61,6 +67,7 @@ const INTERVIEW_CHROME: ReportChrome = {
   distinguishes401: true,
   guardsRepollAfter404: false,
   showsCustomizationStrip: true,
+  checkInLead: "In a real interview",
 };
 
 /** Case-study — sourced from `app/case-play/[caseId]/report/[reportId]/page.tsx`. */
@@ -71,6 +78,7 @@ const CASE_STUDY_CHROME: ReportChrome = {
   distinguishes401: false,
   guardsRepollAfter404: true,
   showsCustomizationStrip: false,
+  checkInLead: "In a real meeting",
 };
 
 /**
@@ -85,6 +93,7 @@ const DIFFICULT_CONVERSATION_CHROME: ReportChrome = {
   distinguishes401: true,
   guardsRepollAfter404: false,
   showsCustomizationStrip: false,
+  checkInLead: "In a real courageous conversation",
   extras: {
     above: (report) => <ConversationEndBanner report={report} />,
     below: (report) => (
@@ -111,6 +120,7 @@ const NETWORKING_CHROME: ReportChrome = {
   distinguishes401: true,
   guardsRepollAfter404: false,
   showsCustomizationStrip: false,
+  checkInLead: "In a real networking conversation",
   extras: {
     below: (report) => <NetworkingOutcomePanel report={report} />,
   },
@@ -138,6 +148,7 @@ const PITCH_ELEVATOR_CHROME: ReportChrome = {
   distinguishes401: true,
   guardsRepollAfter404: false,
   showsCustomizationStrip: false,
+  checkInLead: "When you pitch for real",
   extras: {
     above: (report) => <><ListenerIdentityPanel report={report} /><PitchOutcomeBanner report={report} /><DisengagementDeclinePanel report={report} /></>,
   },
@@ -175,6 +186,7 @@ function deckChromeFor(slug: DeckModeSlug): ReportChrome {
     distinguishes401: true,
     guardsRepollAfter404: false,
     showsCustomizationStrip: false,
+    checkInLead: "In a real presentation",
     extras: {
       above: (report) => <><PitchOutcomeBanner report={report} /><DisengagementDeclinePanel report={report} /></>,
       below: (report) => (
