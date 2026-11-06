@@ -16,6 +16,9 @@
  * states an explicit acceptable range in `strongAnswerNotes`, and the
  * evaluator grades `quantitative` against that tolerance, not exact match.
  *
+ * SERVER-ONLY: register via lib/problem-interview/banks.server.ts; never import
+ * this module from client code or the engine registry.
+ *
  * `interviewerFacts` are released ONLY when asked. Exhibit `keyInsight` and
  * `strongAnswerNotes` are evaluator-only and never spoken.
  */

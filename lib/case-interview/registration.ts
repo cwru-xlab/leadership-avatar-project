@@ -1,34 +1,36 @@
 /**
- * Everything the problem-interview type factory needs to register the
- * upgraded `consulting` preset.
+ * The upgraded `consulting` preset's input to the problem-interview type
+ * factory, in the signature of `makeProblemInterviewTypeConfig` on branch
+ * loop/problem-engine (commit c3365be):
+ *   { base, frameworks, evaluatorAddendum?, rubricExtras?, briefing? }
  *
- * TODO(integrator, loop/problem-engine): `makeProblemInterviewTypeConfig`
- * does not exist on this branch yet. When it lands, replace the `CONSULTING`
- * record in lib/engine/registry.ts with:
+ * TODO(integrator): the factory is not on this branch. After merging
+ * loop/problem-engine:
+ *   1. lib/engine/registry.ts — replace
+ *        const CONSULTING = makeInterviewTypeConfig(getInterviewType("consulting")!);
+ *      with
+ *        const CONSULTING = makeProblemInterviewTypeConfig(CONSULTING_PROBLEM_INTERVIEW_INPUT);
+ *      (slug stays "consulting"; old reports keep resolving).
+ *   2. lib/problem-interview/banks.server.ts — add
+ *        consulting: CASE_BANK   (import from "@/lib/case-interview/cases")
+ *      to PROBLEM_BANKS. The bank is SERVER-ONLY: never import
+ *      lib/case-interview/cases.ts from this file or anything the registry
+ *      imports, or interviewer facts and benchmark answers reach the browser.
  *
- *   import { CONSULTING_PROBLEM_INTERVIEW_INPUT } from "../case-interview/registration";
- *   const CONSULTING = makeProblemInterviewTypeConfig(CONSULTING_PROBLEM_INTERVIEW_INPUT);
- *
- * keeping the slug "consulting" (old reports persist it). The factory is
- * expected to add the shared `process_rigor` dimension and the
- * `questionId` / `frameworkKey` / `processSteps` outcome fields itself;
- * `rubricExtras` here are ONLY consulting's own extras.
- *
- * Until then the registry keeps building `consulting` with
- * `makeInterviewTypeConfig`, which now reads the upgraded persona and copy
- * from lib/interview/types.ts.
+ * This module is safe for the registry to import: frameworks, the addendum,
+ * the extras and the briefing are all meant to be public.
  */
 
 import { getInterviewType, type InterviewType } from "@/lib/interview/types";
 
-import { CASE_BANK } from "./cases";
 import { CASE_EVALUATOR_ADDENDUM, CASE_RUBRIC_EXTRAS } from "./evaluator";
 import { CASE_FRAMEWORKS } from "./frameworks";
+import { CASE_BRIEFING } from "./live";
 
 export const CONSULTING_PROBLEM_INTERVIEW_INPUT = {
   base: getInterviewType("consulting") as InterviewType,
-  bank: CASE_BANK,
   frameworks: CASE_FRAMEWORKS,
   evaluatorAddendum: CASE_EVALUATOR_ADDENDUM,
-  rubricExtras: [...CASE_RUBRIC_EXTRAS],
+  rubricExtras: CASE_RUBRIC_EXTRAS.map((dim) => ({ ...dim })),
+  briefing: CASE_BRIEFING,
 };

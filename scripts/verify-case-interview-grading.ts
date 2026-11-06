@@ -12,8 +12,13 @@
  *   nudged → nudged steps marked prompted, never hit
  * Quantitative is graded against each case's TOLERANCE band, not exact match.
  *
- * The type config comes from scripts/fixtures/case-interview/factory-mirror.ts
- * until the engine factory lands (see TODO in lib/case-interview/registration.ts).
+ * ENGINE MODE (preferred): when lib/problem-interview/type-config.ts exists
+ * (after merging loop/problem-engine), the type config is the REAL
+ * `makeProblemInterviewTypeConfig(CONSULTING_PROBLEM_INTERVIEW_INPUT)` (or the
+ * registry's record, if already registered), the brief is the REAL
+ * `buildProblemEvaluatorBrief` with the nudges as server events, and scores
+ * go through the type's real `postProcessScores`.
+ * MIRROR MODE (fallback): scripts/fixtures/case-interview/factory-mirror.ts.
  *
  * Run:  npx tsx --env-file=.env.local scripts/verify-case-interview-grading.ts [--runs 3] [--only airline-strong,retail-nudged] [--json out.json]
  * Exits 1 when any expectation fails in any run.
@@ -22,7 +27,9 @@
 import { writeFileSync } from "node:fs";
 
 import { getCase } from "../lib/case-interview/cases";
-import { buildCaseEvaluationBrief } from "../lib/case-interview/evaluator";
+import { CONSULTING_PROBLEM_INTERVIEW_INPUT } from "../lib/case-interview/registration";
+import { getEngineType } from "../lib/engine/registry";
+import type { InteractionTypeConfig } from "../lib/engine/types";
 import { getCaseFramework } from "../lib/case-interview/frameworks";
 import { validateEvaluationResult } from "../lib/engine/evaluation";
 import { resolveFromTypeConfig } from "../lib/engine/resolve";
@@ -33,7 +40,12 @@ import { REPORT_SPELLING_RULE } from "../lib/report/structured";
 import type { ProcessStepResult } from "../lib/problem-interview/types";
 
 import { AIRLINE_GOLDENS } from "./fixtures/case-interview/airline";
-import { capProcessRigor, mirrorConsultingTypeConfig, processRigorCeiling } from "./fixtures/case-interview/factory-mirror";
+import {
+  capProcessRigor,
+  mirrorConsultingTypeConfig,
+  mirrorEvaluatorBrief,
+  processRigorCeiling,
+} from "./fixtures/case-interview/factory-mirror";
 import { HAIRGEL_GOLDENS } from "./fixtures/case-interview/hair-gel";
 import { RETAIL_GOLDENS } from "./fixtures/case-interview/retail";
 import type { GoldenTranscript } from "./fixtures/case-interview/types";
@@ -52,12 +64,75 @@ const GOLDENS: GoldenTranscript[] = [...AIRLINE_GOLDENS, ...RETAIL_GOLDENS, ...H
   (g) => !ONLY || ONLY.includes(g.id),
 );
 
-const typeConfig = mirrorConsultingTypeConfig();
-const resolved = resolveFromTypeConfig(typeConfig, {});
-if (!resolved.ok) throw new Error(resolved.reason);
-const config = resolved.config;
-const schema = buildRubricJsonSchema(config);
-const SYSTEM = `${typeConfig.prompts.evaluatorPrompt}\n\n${REPORT_SPELLING_RULE}`;
+/** Loaded by path so this file type-checks on a branch without the engine. */
+async function tryImport<T>(path: string): Promise<T | null> {
+  try {
+    return (await import(path)) as T;
+  } catch {
+    return null;
+  }
+}
+
+type BriefFn = (input: {
+  questionId: string;
+  frameworkKey: string;
+  question: unknown;
+  publicTitle: string;
+  publicPrompt: string;
+  framework: unknown;
+  events: unknown[];
+}) => string;
+
+let MODE: "engine" | "mirror" = "mirror";
+let typeConfig: InteractionTypeConfig = mirrorConsultingTypeConfig();
+let engineBrief: BriefFn | null = null;
+
+async function loadEngine() {
+  const factory = await tryImport<{ makeProblemInterviewTypeConfig: (i: unknown) => InteractionTypeConfig }>(
+    "../lib/problem-interview/type-config",
+  );
+  const prompts = await tryImport<{ buildProblemEvaluatorBrief: BriefFn }>("../lib/problem-interview/prompts");
+  if (!factory || !prompts) return;
+  MODE = "engine";
+  const registered = getEngineType("consulting") as (InteractionTypeConfig & { problemInterview?: unknown }) | null;
+  typeConfig = registered?.problemInterview
+    ? registered
+    : factory.makeProblemInterviewTypeConfig(CONSULTING_PROBLEM_INTERVIEW_INPUT);
+  engineBrief = prompts.buildProblemEvaluatorBrief;
+}
+
+let config: ReturnType<typeof resolveConfig>;
+let schema: ReturnType<typeof buildRubricJsonSchema>;
+let SYSTEM = "";
+
+function resolveConfig() {
+  const resolved = resolveFromTypeConfig(typeConfig, {});
+  if (!resolved.ok) throw new Error(resolved.reason);
+  return resolved.config;
+}
+
+function briefFor(g: GoldenTranscript): string {
+  const q = getCase(g.caseId)!;
+  const fw = getCaseFramework(q.frameworkKey)!;
+  if (engineBrief) {
+    return engineBrief({
+      questionId: q.id,
+      frameworkKey: fw.key,
+      question: q,
+      publicTitle: q.title,
+      publicPrompt: q.prompt,
+      framework: fw,
+      events: g.nudgesIssued.map((n, i) => ({ kind: "nudge", step: n.stepKey, atSeconds: n.atSeconds, turnIndex: i })),
+    });
+  }
+  return mirrorEvaluatorBrief(q, fw, g.nudgesIssued);
+}
+
+function postProcess(scores: Record<string, number | null>, outcome: Record<string, unknown> | null) {
+  return typeConfig.postProcessScores
+    ? typeConfig.postProcessScores(scores, { terminationReason: null, outcome })
+    : capProcessRigor(scores, outcome);
+}
 
 function transcriptText(g: GoldenTranscript): string {
   const startedAt = 1_800_000_000_000;
@@ -75,10 +150,8 @@ function transcriptText(g: GoldenTranscript): string {
   return formatTranscriptForEvaluator(t);
 }
 
-/** Mirrors lib/engine/evaluation.ts's interview-kind user message + problem_context. */
+/** Mirrors lib/engine/evaluation.ts's interview-kind user message + the problem brief. */
 function userMessage(g: GoldenTranscript): string {
-  const q = getCase(g.caseId)!;
-  const fw = getCaseFramework(q.frameworkKey)!;
   const c = config.customization!;
   return `full_transcript:
 ${transcriptText(g)}
@@ -92,7 +165,7 @@ ${JSON.stringify({ role_title: c.roleTitle, industry: c.industry, difficulty: c.
 visual_metrics: null
 vocal_metrics: null
 
-${buildCaseEvaluationBrief(q, fw, g.nudgesIssued)}`;
+${briefFor(g)}`;
 }
 
 interface Graded {
@@ -134,7 +207,7 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
     failures.push("processSteps is not valid JSON");
   }
   const rawRigor = validated.scores.process_rigor ?? null;
-  const scores = capProcessRigor(validated.scores, outcome);
+  const scores = postProcess(validated.scores, outcome);
   const e = g.expect;
   const s = (k: string) => scores[k] ?? null;
   const fw = getCaseFramework(getCase(g.caseId)!.frameworkKey)!;
@@ -169,7 +242,11 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
 const ABBR: Record<string, string> = { hit: "H", prompted: "P", missed: "M", not_applicable: "-" };
 
 async function main() {
-  console.log(`Model ${MODEL}; ${GOLDENS.length} transcripts × ${RUNS} run(s)\n`);
+  await loadEngine();
+  config = resolveConfig();
+  schema = buildRubricJsonSchema(config);
+  SYSTEM = `${typeConfig.prompts.evaluatorPrompt}\n\n${REPORT_SPELLING_RULE}`;
+  console.log(`Mode ${MODE}; model ${MODEL}; ${GOLDENS.length} transcripts × ${RUNS} run(s)\n`);
   const all: Graded[] = [];
   for (let run = 1; run <= RUNS; run++) {
     const results = await Promise.all(

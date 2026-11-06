@@ -1,20 +1,23 @@
 /**
- * A LOCAL mirror of what `makeProblemInterviewTypeConfig` (engine worker,
- * branch loop/problem-engine) is expected to produce for `consulting`, so the
- * grading study can run before the factory lands.
+ * FALLBACK ONLY. A local mirror of `makeProblemInterviewTypeConfig` and the
+ * evaluator brief from branch loop/problem-engine (commit c3365be), used by
+ * scripts/verify-case-interview-grading.ts when the engine modules are not on
+ * the branch. When `lib/problem-interview/type-config.ts` exists the script
+ * uses the REAL factory, registry and runEvaluation instead, and this file is
+ * unused. Delete it once both branches are merged.
  *
- * What it assumes the factory does — the integrator must confirm each:
- * 1. extraRubricDimensions = [PROCESS_RIGOR_DIMENSION, ...rubricExtras].
- * 2. outcome.fields = questionId, frameworkKey, processSteps (all strings).
- * 3. evaluatorPrompt = INTERVIEW_EVALUATOR_PROMPT + "\n\n" + evaluatorAddendum.
- * 4. The evaluator user message = the interview envelope (transcript, resume,
- *    role_context, metrics) + a `problem_context` block equal to
- *    `buildCaseEvaluationBrief(question, framework, nudgesIssued)`.
- * If the factory differs, rerun scripts/verify-case-interview-grading.ts
- * against the real registry record.
+ * Mirrors: extraRubricDimensions = [process_rigor, ...extras]; outcome fields
+ * questionId / frameworkKey / processSteps; evaluatorPrompt = interview
+ * prompt + shared problem rules (abridged here) + the type addendum; the
+ * user message's `problem_interview` block; the process_rigor ceiling.
  */
 
 import { CASE_EVALUATOR_ADDENDUM, CASE_RUBRIC_EXTRAS } from "../../../lib/case-interview/evaluator";
+import {
+  PROCESS_RIGOR_SCORING_GUIDE,
+  type ProblemQuestion,
+  type ProcessFramework,
+} from "../../../lib/problem-interview/types";
 import { INTERVIEW_EVALUATOR_PROMPT } from "../../../lib/interview/prompts";
 import { getInterviewType } from "../../../lib/interview/types";
 import { PROCESS_RIGOR_DIMENSION, PROBLEM_OUTCOME_FIELD_KEYS } from "../../../lib/problem-interview/types";
@@ -29,7 +32,7 @@ export function mirrorConsultingTypeConfig(): InteractionTypeConfig {
     extraRubricDimensions: [{ ...PROCESS_RIGOR_DIMENSION }, ...CASE_RUBRIC_EXTRAS.map((d) => ({ ...d }))],
     prompts: {
       liveSystemPrompt: () => "",
-      evaluatorPrompt: `${INTERVIEW_EVALUATOR_PROMPT}\n\n${CASE_EVALUATOR_ADDENDUM}`,
+      evaluatorPrompt: [INTERVIEW_EVALUATOR_PROMPT.trim(), MIRROR_SHARED_RULES, CASE_EVALUATOR_ADDENDUM].join("\n\n"),
       buildEvaluationContext: () => ({ kind: "interview" }),
     },
     limits: { targetMinutes: base.targetMinutes, targetQuestionCount: base.targetQuestionCount },
@@ -89,4 +92,75 @@ export function capProcessRigor(
   if (!Array.isArray(steps)) return scores;
   const ceiling = processRigorCeiling(steps);
   return ceiling !== null && current > ceiling ? { ...scores, process_rigor: ceiling } : scores;
+}
+
+/** Abridged copy of the engine's `buildProblemEvaluatorRules`. */
+const MIRROR_SHARED_RULES = `
+PROBLEM INTERVIEW — ADDITIONAL RULES
+This was a problem-solving interview: a short fit question, then ONE problem the
+candidate worked through out loud. The user message carries a problem_interview
+block: the question, the interviewer's facts, the exhibits and what a strong
+candidate reads from each, reference notes on a strong answer, the framework
+being graded, and interviewer_events recorded by the server.
+
+GRADING THE PROCESS
+- Grade every step of the named framework as one of: hit, prompted, missed, not_applicable.
+  - hit: the candidate did it unprompted. Quote their words.
+  - prompted: they did it only after the interviewer's nudge for that step.
+  - missed: they never did it, nudged or not.
+  - not_applicable: the session ended before the step could be reached through no
+    fault of the candidate's process. Never use it to excuse a skipped step.
+- interviewer_events is GROUND TRUTH. A step the server recorded as nudged can
+  never be "hit".
+- The reference notes are a reference, not an answer key.
+- Timecodes: the [m:ss] stamp of the evidence line, in seconds; null when none.
+
+SCORES
+- "process_rigor_score": 1-5
+${PROCESS_RIGOR_SCORING_GUIDE}
+- Also return "quantitative_score": 1-5, "synthesis_score": 1-5.
+- content_score covers the quality of the analysis and the final answer; do not
+  double-count process gaps there.
+
+OUTCOME
+Also return an "outcome" object with exactly these keys:
+- "questionId", "frameworkKey": copied exactly from the problem_interview block.
+- "processSteps": a JSON-encoded STRING holding one object per framework step, in
+  order: {"key","status","evidenceQuote","timecodeSeconds","note"}.
+`.trim();
+
+function clock(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** Abridged copy of the engine's `buildProblemEvaluatorBrief`. */
+export function mirrorEvaluatorBrief(
+  question: ProblemQuestion,
+  framework: ProcessFramework,
+  nudges: { stepKey: string; atSeconds: number }[],
+): string {
+  const events = nudges.length
+    ? nudges.map((n) => `- [${clock(n.atSeconds)}] the interviewer nudged step "${n.stepKey}" — that step cannot be "hit".`)
+    : ["- (none recorded)"];
+  return [
+    "problem_interview:",
+    `question_id: ${question.id}`,
+    `framework_key: ${framework.key}`,
+    `title: ${question.title}`,
+    `family: ${question.family}; difficulty: ${question.difficulty}`,
+    `prompt: ${question.prompt}`,
+    `interviewer_facts (given only when asked):\n${question.interviewerFacts.map((f) => `- ${f}`).join("\n")}`,
+    (question.exhibits ?? []).length
+      ? `exhibits:\n${(question.exhibits ?? []).map((e) => `- ${e.id} "${e.title}". Key insight: ${e.keyInsight}`).join("\n")}`
+      : "",
+    `reference_notes (a reference, not an answer key): ${question.strongAnswerNotes}`,
+    `graded_framework:\n${[
+      `Framework key="${framework.key}" — ${framework.label}`,
+      ...framework.steps.map((st) => `  - step="${st.key}" — ${st.label}. Counts as hit when: ${st.evidenceCriteria}`),
+    ].join("\n")}`,
+    `interviewer_events (server-recorded ground truth; times are approximate):\n${events.join("\n")}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
