@@ -988,6 +988,7 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
                   industry={interviewType.defaultIndustry}
                   interviewerName={listenerDisplayName || "Your interviewer"}
                   nav={nav}
+                  problemBriefing={engineType.problemInterview?.briefing ?? null}
                   roleTitle={interviewType.defaultRoleTitle}
                 />
               );
