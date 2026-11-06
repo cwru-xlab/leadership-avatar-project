@@ -59,7 +59,9 @@ function PlanCard({ item }: { item: PlanWithPath }) {
   return (
     <li className="flex flex-col overflow-hidden rounded-2xl border border-line bg-white">
       <Link
-        className={`relative flex items-center gap-4 px-5 py-[18px] text-white transition-colors duration-150 ease-out ${
+        // The card clips its corners, so the ring sits inside the header in
+        // Light Blue, which reads on both header colors.
+        className={`relative flex items-center gap-4 px-5 py-[18px] text-white transition-colors duration-150 ease-out focus-visible:-outline-offset-6 focus-visible:outline-light-blue ${
           finished ? "bg-level-4 hover:bg-level-4/90" : "bg-cwru-blue hover:bg-ink"
         }`}
         href={`/study-plans/${item.plan.id}`}

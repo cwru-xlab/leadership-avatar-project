@@ -58,7 +58,7 @@ export function DisengagementDeclinePanel({
       className="group rounded-xl border border-line bg-white text-ink"
       data-testid="disengagement-decline-panel"
     >
-      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-5 py-3 outline-none focus-visible:outline-2 focus-visible:outline-true-blue [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-5 py-3 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-true-blue [&::-webkit-details-marker]:hidden">
         <span className="font-display text-xl font-medium leading-snug">
           Observable signals before the conversation ended
           <span className="ml-2 font-sans text-sm font-normal text-muted">
