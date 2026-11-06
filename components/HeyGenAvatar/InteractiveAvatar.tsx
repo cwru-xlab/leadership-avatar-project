@@ -79,7 +79,7 @@ interface InteractiveAvatarWrapperProps {
    * OFF by default, and deliberately opt-in rather than keyed off `cleanMode`:
    * the kiosk main display and case-play both render in clean mode too, and a
    * kiosk is a large standing display where a full-length avatar is plausibly
-   * the right look. Cropping is a judgement about the SURFACE, not about the
+   * the right look. Cropping is a judgment about the SURFACE, not about the
    * avatar, so each call site states it.
    */
   applyAvatarFraming?: boolean;

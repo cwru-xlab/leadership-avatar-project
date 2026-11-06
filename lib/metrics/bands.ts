@@ -26,11 +26,11 @@ import type {
  *
  *   eye_contact_pct     (Eye contact): <30 Limited, 30-50 Developing,
  *                        50-70 Solid, 70-85 Strong, >=85 Excellent.
- *                        Centred on the evaluator prompt's own stated
+ *                        Centered on the evaluator prompt's own stated
  *                        70-80% target (`lib/interview/prompts.ts:229`).
  *   camera_centered_pct (Framing):     <40 Often off-frame, 40-65 Inconsistent,
- *                        65-80 Mostly centred, 80-92 Well centred,
- *                        >=92 Consistently centred.
+ *                        65-80 Mostly centered, 80-92 Well centered,
+ *                        >=92 Consistently centered.
  *   eye_contact_pct     (Eye contact): whole-session forward gaze.
  *   attentiveness_pct   (Attention):   listening stretches only.
  *                        <40 Often looking away, 40-65 Intermittent,
@@ -94,9 +94,9 @@ function bandFraming(pctRaw: number): string {
   const pct = clampFinite(pctRaw, 0, 100);
   if (pct < 40) return "Often off-frame";
   if (pct < 65) return "Inconsistent";
-  if (pct < 80) return "Mostly centred";
-  if (pct < 92) return "Well centred";
-  return "Consistently centred";
+  if (pct < 80) return "Mostly centered";
+  if (pct < 92) return "Well centered";
+  return "Consistently centered";
 }
 
 /** Minimum listening samples before an attentiveness figure is worth
@@ -258,7 +258,7 @@ export function visualBands(m: VisualMetrics): MetricBandRow[] {
 const EPISODE_LABELS: Record<VisualEpisode["kind"], string> = {
   off_camera: "Off camera",
   gaze_away: "Looking away",
-  off_center: "Off centre in frame",
+  off_center: "Off center in frame",
   multiple_faces: "Another person in frame",
   high_movement: "Moving around a lot",
   excessive_gesturing: "A lot of hand movement",
@@ -273,12 +273,15 @@ const EPISODE_LABELS: Record<VisualEpisode["kind"], string> = {
  * between `VisualEpisodeKind` and `VisualDescriptiveEpisodeKind`. */
 const DESCRIPTIVE_EPISODE_LABELS: Record<VisualDescriptiveEpisode["kind"], string> = {
   phone_visible: "Phone visible",
+  hand_at_mouth_repeated: "Hand at mouth repeatedly",
+  mouth_movement_silent: "Mouth moving while not speaking",
+  middle_finger_extended: "Middle finger extended, others curled",
 };
 
 /** Which display group each episode kind belongs to, for `timelineRows`'s
  * merged chronological list (REQ-55's "tagged by kind"). Camera/environment
  * kinds predate this phase; body kinds and descriptive kinds are new. */
-const EPISODE_KIND_GROUP: Record<
+export const EPISODE_KIND_GROUP: Record<
   VisualEpisode["kind"],
   "camera" | "body"
 > = {
@@ -569,7 +572,75 @@ export function visualObservationRows(m: VisualMetrics): MetricBandRow[] {
     });
   }
 
+  // The rows below describe motion and hand shape, then stop. No row says what
+  // anyone was doing or why, and none reports an absence: a session where these
+  // tripped nothing shows nothing, because hands out of frame also trip nothing
+  // and "no gesture detected" would be a clean bill of health nobody issued.
+  const handAtMouth = descriptiveEpisodeRanges(m, "hand_at_mouth_repeated");
+  if (handAtMouth) {
+    const events = observations.hand_at_mouth_events;
+    rows.push({
+      label: "Hand at mouth",
+      value: `Repeatedly, ${handAtMouth}${
+        typeof events === "number" && events > 0 ? ` (${Math.round(events)} times in all)` : ""
+      }`,
+    });
+  }
+
+  const mouthMovement = descriptiveEpisodeRanges(m, "mouth_movement_silent");
+  if (mouthMovement) {
+    rows.push({ label: "Mouth movement", value: `While not speaking, ${mouthMovement}` });
+  }
+
+  const foodSeconds = observations.food_or_drink_visible_seconds;
+  if ((handAtMouth || mouthMovement) && typeof foodSeconds === "number" && foodSeconds > 0) {
+    rows.push({
+      label: "Cup, bottle or food in frame",
+      value: `Visible for about ${Math.round(clampFinite(foodSeconds, 0, Number.MAX_SAFE_INTEGER))} seconds`,
+    });
+  }
+
+  const fingerShape = descriptiveEpisodeRanges(m, "middle_finger_extended");
+  if (fingerShape) {
+    rows.push({ label: "Hand shape", value: `Middle finger extended, others curled, ${fingerShape}` });
+  }
+
   return rows;
+}
+
+/** The session-time ranges of one descriptive kind, or null when it has none. */
+function descriptiveEpisodeRanges(
+  m: VisualMetrics,
+  kind: VisualDescriptiveEpisode["kind"]
+): string | null {
+  const o = clampFinite(m.coverage?.capture_offset_s ?? 0, 0, 86_400);
+  const ranges = (m.observations?.episodes ?? [])
+    .filter((episode) => episode.kind === kind)
+    .map((episode) => {
+      const start = formatTimecode(episode.start_s + o);
+      const end = formatTimecode(episode.end_s + o);
+      // Word joiners keep a range on one line on a phone-width row.
+      return start === end ? start : `${start}\u2060–\u2060${end}`;
+    });
+  if (ranges.length === 0) return null;
+  const shown = ranges.slice(0, OBSERVATION_RANGES_SHOWN).join(", ");
+  const more = ranges.length - OBSERVATION_RANGES_SHOWN;
+  return more > 0 ? `${shown} and ${more} more` : shown;
+}
+
+/** How many time ranges one observation row lists before summarising the rest. */
+const OBSERVATION_RANGES_SHOWN = 3;
+
+/**
+ * The one line that travels with the motion rows, or null when none is showing.
+ * It is the only statement a student gets of what those rows cannot establish,
+ * so it lists innocent causes rather than a generic disclaimer.
+ */
+export function visualObservationCaveat(m: VisualMetrics): string | null {
+  const episodes = m.observations?.episodes ?? [];
+  return episodes.some((episode) => episode.kind !== "phone_visible")
+    ? "The camera sees motion, not reasons. Sipping water, a medical need, a tic, signing or a mask can read the same way."
+    : null;
 }
 
 /**

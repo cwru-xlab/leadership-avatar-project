@@ -11,7 +11,7 @@
  * scope, so importing it from `scripts/verify-visual-metrics.ts` (plain Node
  * via tsx, no `self`) throws before any export is reachable. 12-09's
  * equivalent check "failed" only because the symbols it needed were not
- * exported, which proved the test was new and nothing about the behaviour —
+ * exported, which proved the test was new and nothing about the behavior —
  * this module is what makes the behavioural check possible instead.
  *
  * Pure and dependency-free apart from the one threshold it applies, for the

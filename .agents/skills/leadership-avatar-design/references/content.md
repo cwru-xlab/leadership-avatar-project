@@ -29,7 +29,7 @@ skipped; three clear points and a next step get acted on.
 | Four category scores with level words | 1 | Score cards |
 | "One thing to practice next time" | 1 | Tinted panel under the scores |
 | Overall summary | 1 | Two sentences in the Overview tab |
-| Strength and growth-area titles, source and timecodes | 1 | Collapsed rows, 3 visible, "Show all" for more |
+| Strength and growth-area titles, source and timecodes | 1 | Collapsed rows, every item listed (no "Show all" cut) |
 | Strength detail and evidence quote; growth detail and suggestion | 2 | Inside each row |
 | Rubric notes, category notes | 2 | Content tab, one expandable row each |
 | Delivery bands | 1 | Short label / word lists in the Delivery tab |

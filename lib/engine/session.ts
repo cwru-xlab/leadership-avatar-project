@@ -51,6 +51,11 @@ import {
 } from "@/lib/report/title";
 import { resolveDifficultConversationInstance } from "@/lib/difficult-conversation/resolve-instance";
 import { findSeededConversation } from "@/lib/difficult-conversation/seeded";
+import {
+  drawElevatorListener,
+  toElevatorListenerStart,
+} from "@/lib/pitch/elevator-listener-draw";
+import type { ElevatorListenerStart } from "@/lib/pitch/elevator-personas";
 import { ratchetHighWaterMark } from "@/lib/pitch/slide-reveal";
 import { resolveDeckFairValueBand } from "@/lib/pitch/fair-value-band";
 import {
@@ -143,7 +148,7 @@ export function pitchSnapshotFromInstance(
       fairValueBand: null,
       firstTurnWindowSeconds: 60,
       budgetSeconds,
-      listenerPersona: null,
+      listenerPersona: instance.listenerPersonaId ?? null,
     };
   }
   if (instance.kind === "pitch-deck") {
@@ -274,6 +279,8 @@ export type StartSessionSuccess = {
    * Pitch-deck timer displays this, not the wizard's requested value (14-13).
    */
   timeBudgetSeconds?: number | null;
+  /** Elevator only: the drawn listener's casting and level-filtered identity. */
+  listener?: ElevatorListenerStart;
 };
 
 export type CheckpointSessionSuccess = {
@@ -634,6 +641,25 @@ export async function startSession({
       }
     }
 
+    // pitch-elevator: the listener is drawn here, once, and pinned in the
+    // snapshot below. Always overwrite, so a client cannot choose its listener.
+    let listener: ElevatorListenerStart | undefined;
+    if (wizardInstance?.kind === "pitch-elevator") {
+      const draw = await drawElevatorListener({
+        userId,
+        pitchSubject: wizardInstance.pitchSubject,
+        blind: wizardInstance.listenerKnowledge === "blind",
+      });
+      listener = toElevatorListenerStart(
+        draw,
+        wizardInstance.listenerKnowledge,
+      );
+      wizardInstance = {
+        ...wizardInstance,
+        listenerPersonaId: draw.persona.id,
+      };
+    }
+
     const resolved = resolveSessionConfig(typeSlug, {
       instance: wizardInstance,
     });
@@ -674,7 +700,13 @@ export async function startSession({
       timeBudgetSeconds,
     });
 
-    return { ok: true, reportId: report.id, cameraMode, timeBudgetSeconds };
+    return {
+      ok: true,
+      reportId: report.id,
+      cameraMode,
+      timeBudgetSeconds,
+      ...(listener ? { listener } : {}),
+    };
   }
 
 

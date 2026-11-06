@@ -810,9 +810,34 @@ export async function POST(request: NextRequest) {
       // Pitch-deck only: hydrate slide text from private storage, then ratchet
       // the high-water mark into the tail. The live shell intentionally sends
       // `slideTexts: []` (14-12) — never trust client texts for admission.
-      // Interview / case-study / elevator paths are untouched below.
+      // Interview / case-study paths are untouched below.
       let revealedSlides: { index: number; text: string }[] | undefined;
       let slideCountForTail: number | undefined;
+
+      // Elevator: the listener is whoever the report's snapshot pinned at start,
+      // re-read per turn like the job posting above, so a reconnect keeps the
+      // same person and the prompt prefix stays byte-identical (REQ-73). Never
+      // the client's value: the browser does not know who a blind listener is.
+      if (sessionConfig.instance.kind === "pitch-elevator") {
+        const report =
+          currentUser && typeof rawReportId === "string"
+            ? await prisma.interactionReport.findFirst({
+                where: { id: rawReportId, userId: currentUser.id },
+                select: { inputSnapshot: true },
+              })
+            : null;
+        const snapshot = report ? asInputSnapshot(report.inputSnapshot) : null;
+        sessionConfig = {
+          ...sessionConfig,
+          instance: {
+            ...sessionConfig.instance,
+            listenerPersonaId:
+              snapshot?.kind === "pitch" && snapshot.listenerPersona
+                ? snapshot.listenerPersona
+                : undefined,
+          },
+        };
+      }
 
       if (sessionConfig.instance.kind === "pitch-deck") {
         let stored: number | null = null;

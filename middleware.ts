@@ -17,8 +17,9 @@
  *   1. Public routes: accessible to all users (unauthenticated)
  *   2. Kiosk routes: accessible to kiosk and admin users
  *   3. Admin routes: accessible to admin users only
- * - Invalid tokens are cleared and users redirected to login
- * - API routes return JSON errors, page routes redirect with error params
+ * - Invalid tokens are cleared; signed-out page requests redirect to login
+ * - API routes return JSON errors (401 signed out, 403 wrong role), page
+ *   routes redirect with error params
  *
  * Role-Based Access Control:
  * - Unauthenticated users: public routes only
@@ -210,6 +211,9 @@ const STUDENT_ROUTES: string[] = [
   "/api/scenario",
   // Student-owned difficult-conversation authoring + discovery (Phase 15).
   "/api/difficult-conversation",
+  // The coding interview's opening line and public-test runner; its chat
+  // turns already go through /api/interaction.
+  "/api/technical-interview",
   // REQ-36 consent endpoint, owner-scoped in the route handler itself.
   "/api/metrics",
   // Student-owned study-plan generation and saved-plan history. Every route
@@ -274,20 +278,13 @@ export async function middleware(request: NextRequest) {
   /**
    * UNAUTHENTICATED USER HANDLING
    *
-   * Redirects users without valid tokens to the login page.
-   * This enforces authentication for all protected routes.
+   * Page routes redirect to the login page with a returnTo. API routes answer
+   * 401 JSON instead: a redirect makes fetch re-send the request (an upload
+   * included) to /login and hand the caller an HTML page, so callers could not
+   * tell an expired sign-in from a broken route.
    */
   if (!token) {
-    // Preserve only same-origin page destinations. API callers should handle
-    // their normal authentication response rather than receiving a return URL.
-    const loginUrl = new URL("/login", request.url);
-    if (!pathname.startsWith("/api/")) {
-      loginUrl.searchParams.set(
-        "returnTo",
-        `${request.nextUrl.pathname}${request.nextUrl.search}`
-      );
-    }
-    return NextResponse.redirect(loginUrl);
+    return signedOut(request);
   }
 
   try {
@@ -484,7 +481,7 @@ export async function middleware(request: NextRequest) {
      *
      * Security response:
      * - Clear the invalid token to prevent repeated failures
-     * - Redirect to login for re-authentication
+     * - Redirect pages to login, answer API calls with 401
      * - Log error for debugging (but don't expose details to client)
      */
     console.error("JWT verification failed:", error);
@@ -492,21 +489,32 @@ export async function middleware(request: NextRequest) {
     /**
      * INVALID TOKEN CLEANUP
      *
-     * Removes the invalid token from cookies and redirects to login.
-     * Uses centralized cookie configuration for consistency.
+     * Removes the invalid token from cookies, then answers like a request
+     * that never had one. Uses centralized cookie configuration for
+     * consistency.
      */
-    const loginUrl = new URL("/login", request.url);
-    if (!pathname.startsWith("/api/")) {
-      loginUrl.searchParams.set(
-        "returnTo",
-        `${request.nextUrl.pathname}${request.nextUrl.search}`
-      );
-    }
-    const response = NextResponse.redirect(loginUrl);
+    const response = signedOut(request);
     response.cookies.delete(siteConfig.auth.cookie.name);
 
     return response;
   }
+}
+
+/**
+ * The response for a request with no usable sign-in: 401 JSON for /api/*,
+ * otherwise a redirect to /login that keeps the same-origin page destination.
+ */
+function signedOut(request: NextRequest): NextResponse {
+  const { pathname, search } = request.nextUrl;
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      { error: "Sign in to continue." },
+      { status: 401, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("returnTo", `${pathname}${search}`);
+  return NextResponse.redirect(loginUrl);
 }
 
 /**

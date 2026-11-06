@@ -1,5 +1,5 @@
 /**
- * Plan 22-10: proves the mechanical coach behaviours with stubbed generate and
+ * Plan 22-10: proves the mechanical coach behaviors with stubbed generate and
  * grade functions (no model calls).
  *
  * Section 1 is pure. Section 2 needs a database and prints an explicit SKIP

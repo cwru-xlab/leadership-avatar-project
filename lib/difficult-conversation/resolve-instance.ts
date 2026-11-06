@@ -8,10 +8,7 @@
  */
 
 import { assignSeededAvatar } from "@/lib/difficult-conversation/avatar-assignment";
-import {
-  findSeededConversation,
-  SEEDED_AVATAR_GENDER_HINTS,
-} from "@/lib/difficult-conversation/seeded";
+import { findSeededConversation } from "@/lib/difficult-conversation/seeded";
 import { loadDifficultConversationForPlay } from "@/lib/difficult-conversation/store";
 import type { DifficultConversationRecord } from "@/lib/difficult-conversation/types";
 import type { DifficultConversationInstance } from "@/lib/engine/types";
@@ -57,9 +54,7 @@ export async function resolveDifficultConversationInstance(
   const seeded = findSeededConversation(trimmed);
 
   if (seeded) {
-    const avatar = await assignSeededAvatar(trimmed, {
-      genderHint: SEEDED_AVATAR_GENDER_HINTS[trimmed],
-    });
+    const avatar = await assignSeededAvatar(trimmed);
     return mapRecordToInstance(seeded, "seeded", avatar);
   }
 

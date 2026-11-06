@@ -5,8 +5,8 @@
  * of a joined blob). Implementation uses `pdfjs-dist` rather than in-process
  * `pdf2json`: pdf2json's fake worker keeps process-global state that returns
  * stale pages from a prior buffer under sequential load — verified against
- * the 14-03 fixtures. `lib/rag/document-processor.ts` is deliberately NOT
- * edited (still pdf2json for the RAG pipeline).
+ * the 14-03 fixtures. `lib/rag/document-processor.ts` has since moved to
+ * pdfjs-dist as well, and pdf2json is no longer a dependency.
  */
 
 import { normalizeDeckWhitespace } from "./pptx-extract";

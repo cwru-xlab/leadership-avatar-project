@@ -182,7 +182,7 @@ export interface CoachedLegSummaryAttempt {
   score: number | null;
   acceptable: boolean | null;
   parroted: boolean | null;
-  /** Phase 23 L6/Q4: the try did not answer this moment's question (labelled "Off-topic"). */
+  /** Phase 23 L6/Q4: the try did not answer this moment's question (labeled "Off-topic"). */
   offTopic: boolean;
 }
 

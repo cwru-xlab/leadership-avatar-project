@@ -5,8 +5,9 @@
  * enter the paths page and then just pick a study plan to generate a path
  * from, if it hasn't already been done for that study plan."
  *
- * Header: a plan switcher (every saved plan with its progress ring, or "no
- * path yet") and the goal rings. Below: the selected plan's path map
+ * Header: a labeled plan selector ("Plan 1 of 3", every saved plan with its
+ * progress ring or "no path yet"; a single plan is shown as a plain label
+ * because there is nothing to switch to) and the goal rings. Below: the selected plan's path map
  * (`PathPanel`) with its single Continue button, or — for a plan without a
  * path — `GeneratePathCard`, which calls the existing POST route inline. Levels and daily/weekly goals come from
  * the existing `/api/mastery` route. `?plan={id}` preselects a plan.
@@ -14,12 +15,12 @@
  * Progression mechanics are limited to levels and daily/weekly goals
  * (21-CONTEXT.md, re-confirmed 2026-10-24). Every step stays reachable.
  */
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
-import { ChevronDown, ChevronRight, Plus, Route } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Plus, Route } from "lucide-react";
 
 import PathPanel, {
   DegradedStepsNote,
@@ -57,6 +58,15 @@ function planProgressLabel(item: PlanWithPath): string {
   return target ? `Next: ${KIND_LABEL[target.step.kind]} — ${target.step.competencyLabel}` : `${done} of ${total} steps done`;
 }
 
+/**
+ * The plan selector. Titles are long sentences, so a segmented control would
+ * truncate them: this is a select-style button and a listbox whose rows wrap.
+ * DOM focus stays on the list and `aria-activedescendant` names the row, so
+ * the arrows move one highlight shared with hover; Tab reaches "Manage study
+ * plans", which is a link and not an option. Focus moves in script here, and
+ * browsers disagree on `:focus-visible` for that, so the ring follows the last
+ * input explicitly: a press hides it, a key or leaving the control restores it.
+ */
 function PlanSwitcher({
   items,
   selectedId,
@@ -69,66 +79,183 @@ function PlanSwitcher({
   onSelect: (planId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const selected = items.find((i) => i.plan.id === selectedId) ?? null;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [showRing, setShowRing] = useState(true);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const baseId = useId();
+  const selectedIndex = items.findIndex((i) => i.plan.id === selectedId);
+  const optionId = (index: number) => `${baseId}-option-${index}`;
+
+  function openMenu() {
+    setActiveIndex(Math.max(0, selectedIndex));
+    setOpen(true);
+  }
+
+  function choose(index: number) {
+    onSelect(items[index].plan.id);
+    setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.focus({ preventScroll: true });
+    // Pointer-down, not click: it also closes for presses on things that
+    // swallow the click, and a press outside keeps whatever it focused.
+    function onPointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setShowRing(true);
+      setOpen(false);
+      triggerRef.current?.focus({ preventScroll: true });
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) document.getElementById(optionId(activeIndex))?.scrollIntoView({ block: "nearest" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- optionId only depends on the stable baseId.
+  }, [open, activeIndex]);
+
+  function onListKeyDown(event: React.KeyboardEvent<HTMLUListElement>) {
+    const last = items.length - 1;
+    if (event.key === "ArrowDown") setActiveIndex((i) => (i >= last ? 0 : i + 1));
+    else if (event.key === "ArrowUp") setActiveIndex((i) => (i <= 0 ? last : i - 1));
+    else if (event.key === "Home") setActiveIndex(0);
+    else if (event.key === "End") setActiveIndex(last);
+    else if (event.key === "Enter" || event.key === " ") choose(activeIndex);
+    else return;
+    event.preventDefault();
+  }
+
+  // One plan: nothing to switch to, so no control pretending otherwise.
+  if (items.length === 1) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <p className="text-[13px] font-semibold leading-[1.3] text-muted">Your study plan</p>
+        <p className="text-[15px] font-semibold leading-snug text-ink">{items[0].plan.title}</p>
+        <Link className="flex min-h-6 w-fit items-center gap-1 text-[13px] font-semibold text-link hover:underline" href="/study-plans">
+          Manage study plans <ChevronRight aria-hidden size={14} />
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative">
+    <div
+      ref={rootRef}
+      className="relative w-full max-w-[560px]"
+      onBlur={(event) => {
+        // Tabbing past the last control closes it; a null target is a press
+        // on nothing focusable, which the pointer-down handler already judged.
+        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) {
+          setOpen(false);
+          setShowRing(true);
+        }
+      }}
+      onKeyDown={() => setShowRing(true)}
+      onPointerDown={() => setShowRing(false)}
+    >
       <button
+        ref={triggerRef}
+        aria-controls={open ? `${baseId}-list` : undefined}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="flex max-w-full items-center gap-2 rounded-lg py-1 text-left text-[15px] text-muted hover:text-ink"
+        className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-left transition-colors duration-150 hover:border-true-blue motion-reduce:transition-none ${
+          open ? "border-true-blue" : "border-line"
+        } ${showRing ? "" : "outline-none"}`}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) return openMenu();
+          setOpen(false);
+          triggerRef.current?.focus({ preventScroll: true });
+        }}
+        onKeyDown={(event) => {
+          if (!open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+            event.preventDefault();
+            openMenu();
+          }
+        }}
       >
-        <span className="truncate font-semibold text-ink">{selected?.plan.title ?? "Choose a study plan"}</span>
-        <ChevronDown aria-hidden className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} size={16} />
-        <span className="shrink-0">· {items.length} {items.length === 1 ? "plan" : "plans"}</span>
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[13px] font-semibold leading-[1.3] text-muted">
+            {selectedIndex >= 0 ? `Plan ${selectedIndex + 1} of ${items.length}` : `${items.length} study plans`}
+          </span>
+          <span className="text-[15px] font-semibold leading-snug text-ink">
+            {selectedIndex >= 0 ? items[selectedIndex].plan.title : "Choose a study plan"}
+          </span>
+        </span>
+        <ChevronDown
+          aria-hidden
+          className={`shrink-0 text-true-blue transition-transform duration-200 motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
+          size={20}
+        />
       </button>
       {open && (
-        <ul
-          aria-label="Choose a study plan"
-          className="absolute left-0 top-full z-30 mt-2 flex max-h-[60vh] w-[min(92vw,440px)] flex-col gap-0.5 overflow-y-auto rounded-xl border border-line bg-white p-1.5 shadow-raised"
-          role="listbox"
-        >
-          {items.map((item) => {
-            const total = item.path ? item.path.steps.length : 0;
-            const done = item.path ? item.path.steps.filter(isStepDone).length : 0;
-            const on = item.plan.id === selectedId;
-            return (
-              <li key={item.plan.id} aria-selected={on} role="option">
-                <button
-                  className={`flex w-full items-center gap-3 rounded-lg p-2.5 text-left hover:bg-canvas ${on ? "bg-light-blue/32" : ""}`}
-                  type="button"
-                  onClick={() => {
-                    onSelect(item.plan.id);
-                    setOpen(false);
-                  }}
+        <div className="absolute left-0 top-full z-30 mt-2 flex max-h-[60vh] w-full flex-col overflow-hidden rounded-xl border border-line bg-white shadow-raised">
+          <ul
+            ref={listRef}
+            aria-activedescendant={optionId(activeIndex)}
+            aria-label="Choose a study plan"
+            className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5 outline-none"
+            id={`${baseId}-list`}
+            role="listbox"
+            tabIndex={0}
+            onKeyDown={onListKeyDown}
+          >
+            {items.map((item, index) => {
+              const total = item.path ? item.path.steps.length : 0;
+              const done = item.path ? item.path.steps.filter(isStepDone).length : 0;
+              const on = index === selectedIndex;
+              const active = index === activeIndex;
+              return (
+                <li
+                  key={item.plan.id}
+                  aria-selected={on}
+                  className={`flex cursor-pointer items-center gap-3 rounded-lg p-2.5 text-left ${
+                    on ? "bg-light-blue/32" : active ? "bg-canvas" : ""
+                  } ${active && showRing ? "ring-2 ring-inset ring-true-blue" : ""}`}
+                  id={optionId(index)}
+                  role="option"
+                  onClick={() => choose(index)}
+                  onMouseMove={() => setActiveIndex(index)}
                 >
                   {item.path ? (
                     <ProgressRing done={done} size={44} stroke={4} total={total} />
                   ) : (
-                    <span className="grid size-10 shrink-0 place-items-center rounded-full border-2 border-dashed border-light-blue text-cwru-blue">
+                    <span className="grid size-11 shrink-0 place-items-center rounded-full border-2 border-dashed border-light-blue text-cwru-blue">
                       <Plus aria-hidden size={16} />
                     </span>
                   )}
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-sm font-semibold text-ink">{item.plan.title}</span>
-                    <span className="truncate text-xs text-muted">{planProgressLabel(item)}</span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-sm font-semibold leading-snug text-ink">{item.plan.title}</span>
+                    <span className="text-xs text-muted">{planProgressLabel(item)}</span>
                     {pathTargets(item, focusCompetency) ? (
                       <span className="mt-1 w-fit rounded-full bg-level-2/16 px-2 py-0.5 text-[11px] font-semibold text-ink">
                         Works on the skill you picked
                       </span>
                     ) : null}
                   </span>
-                </button>
-              </li>
-            );
-          })}
-          <li>
-            <Link className="flex items-center gap-1 rounded-lg p-2.5 text-sm font-semibold text-link hover:bg-canvas" href="/study-plans">
-              Manage study plans <ChevronRight size={14} aria-hidden="true" />
+                  {on ? <Check aria-hidden className="shrink-0 text-true-blue" size={18} strokeWidth={2.5} /> : null}
+                </li>
+              );
+            })}
+          </ul>
+          <div className="border-t border-line p-1.5">
+            <Link className="flex min-h-11 items-center gap-1 rounded-lg px-2.5 text-sm font-semibold text-link hover:bg-canvas" href="/study-plans">
+              Manage study plans <ChevronRight aria-hidden size={14} />
             </Link>
-          </li>
-        </ul>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -205,7 +332,7 @@ function PathsHub() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-1 basis-80 flex-col gap-2">
           <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
             Paths
           </h1>

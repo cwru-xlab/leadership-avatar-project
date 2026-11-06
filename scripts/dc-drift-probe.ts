@@ -409,6 +409,6 @@ async function main() {
 
 main().catch((err) => {
   console.error("dc-drift-probe crashed:", err);
-  // Crash is not a content judgement — surface it.
+  // Crash is not a content judgment — surface it.
   process.exit(1);
 });

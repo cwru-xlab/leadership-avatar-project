@@ -213,6 +213,10 @@ export async function instanceFromPitchSnapshot(
       kind: "pitch-elevator",
       pitchSubject: snapshot.pitchSubject,
       listenerKnowledge: snapshot.listenerKnowledge,
+      // Grade against the person this student actually spoke to.
+      ...(snapshot.listenerPersona
+        ? { listenerPersonaId: snapshot.listenerPersona }
+        : {}),
     };
   }
 

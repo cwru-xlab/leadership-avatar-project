@@ -19,7 +19,7 @@ import { useLayout } from "@/lib/layout-context";
  * complete) — that keeps the leg state in exactly one place. This page's
  * only job is to suppress the normal chrome (a live avatar conversation
  * inside a sidebar layout is a worse session) and be the scroll container.
- * The labelled way to leave and come back is rendered by the shell; it works
+ * The labeled way to leave and come back is rendered by the shell; it works
  * because 21-23's GET resumes from whatever leg the student left on.
  *
  * NO PATH MUTATION. Step completion happens server-side inside
@@ -49,7 +49,7 @@ export default function CoachedSessionPage() {
     // h-dvh rather than h-full: the percentage-height chain through the flex
     // ancestors is not guaranteed (not verified in a browser).
     <div className="h-dvh overflow-y-auto bg-canvas">
-      {/* The labelled "Leave coached session" link lives in the shell: above
+      {/* The labeled "Leave coached session" link lives in the shell: above
           the brief and camera step, and in the live room's header (Phase 22
           G4 — the live room is the shared dark session room, and a light bar
           above it would split the screen). */}

@@ -41,6 +41,7 @@ import {
   type VocalTurnMetrics,
   type VocalCoverage,
   type VocalMetrics,
+  withoutStoredCheckIn,
 } from "./types";
 
 /** Hard cap on the serialized payload size.
@@ -225,6 +226,18 @@ function sanitizeNullableNumber(value: unknown, min: number, max: number): numbe
   return n;
 }
 
+/** One optional non-negative observation field: a one-key object when the
+ * incoming value is a real number, otherwise nothing at all. */
+function optionalSeconds<K extends string>(
+  key: K,
+  value: unknown
+): Partial<Record<K, number>> {
+  if (typeof value !== "number" || !Number.isFinite(value)) return {};
+  return { [key]: clampNumber(value, 0, Number.MAX_SAFE_INTEGER) } as Partial<
+    Record<K, number>
+  >;
+}
+
 /**
  * Returns `null` for a missing/garbage observations block, rather than a
  * half-populated object — mirrors `sanitizeVisualCoverage`'s all-or-nothing
@@ -249,6 +262,12 @@ function sanitizeObservations(value: unknown): VisualDescriptiveObservations | n
       -1,
       1
     ),
+    // Emitted ONLY when present, never defaulted to 0: absent means the signal
+    // did not run this session, and a 0 would read as "looked and found nothing".
+    ...optionalSeconds("hand_at_mouth_events", v.hand_at_mouth_events),
+    ...optionalSeconds("mouth_movement_silent_seconds", v.mouth_movement_silent_seconds),
+    ...optionalSeconds("food_or_drink_visible_seconds", v.food_or_drink_visible_seconds),
+    ...optionalSeconds("middle_finger_extended_seconds", v.middle_finger_extended_seconds),
     episodes: sanitizeDescriptiveEpisodes(v.episodes),
   };
 }
@@ -292,6 +311,9 @@ function sanitizeVisualCoverage(value: unknown): VisualCoverage | null {
     speaking_samples: clampNonNegativeInt(v.speaking_samples),
     listening_samples: clampNonNegativeInt(v.listening_samples),
     capture_offset_s: clampNumber(v.capture_offset_s, 0, Number.MAX_SAFE_INTEGER),
+    ...(typeof v.capture_started_at_ms === "number" && Number.isFinite(v.capture_started_at_ms)
+      ? { capture_started_at_ms: clampNumber(v.capture_started_at_ms, 0, Number.MAX_SAFE_INTEGER) }
+      : {}),
     sample_hz: clampNumber(v.sample_hz, 0, 1000),
     analyzer_error: clampBoolean(v.analyzer_error),
   };
@@ -306,6 +328,9 @@ function sanitizeVocalCoverage(value: unknown): VocalCoverage | null {
     analyzed_turns: clampNonNegativeInt(v.analyzed_turns),
     spoken_seconds: clampNumber(v.spoken_seconds, 0, Number.MAX_SAFE_INTEGER),
     analyzer_error: clampBoolean(v.analyzer_error),
+    ...(typeof v.capture_started_at_ms === "number" && Number.isFinite(v.capture_started_at_ms)
+      ? { capture_started_at_ms: clampNumber(v.capture_started_at_ms, 0, Number.MAX_SAFE_INTEGER) }
+      : {}),
   };
 }
 
@@ -439,11 +464,17 @@ export function parseMetricsPayload(value: unknown): {
  * the shared type. Keyed on `coverage` plus one required numeric field so a
  * garbage or hand-edited row degrades to null instead of crashing a
  * background evaluation job.
+ *
+ * Strips the student's check-in answers, which share the column (see
+ * `STORED_CHECK_IN_KEY`): the evaluator reads metrics through here, and the
+ * answers must never reach it.
  */
 export function asVisualMetrics(value: unknown): VisualMetrics | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const v = value as Partial<VisualMetrics>;
-  return typeof v.eye_contact_pct === "number" && v.coverage ? (value as VisualMetrics) : null;
+  return typeof v.eye_contact_pct === "number" && v.coverage
+    ? withoutStoredCheckIn(value as VisualMetrics)
+    : null;
 }
 
 /**
