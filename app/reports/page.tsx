@@ -600,7 +600,7 @@ function MyReportsPage() {
                       return (
                         <li key={report.id}>
                           <NextLink
-                            className="flex flex-col gap-2 px-5 py-3.5 transition-colors duration-150 ease-out hover:bg-canvas md:flex-row md:items-center md:gap-4"
+                            className="flex flex-col gap-2 px-5 py-3.5 transition-colors duration-150 ease-out hover:bg-canvas focus-visible:-outline-offset-3 md:flex-row md:items-center md:gap-4"
                             href={routes.report(report.id)}
                           >
                             <span className="flex min-w-0 flex-1 flex-col gap-0.5">

@@ -161,7 +161,7 @@ function DisclosureRow({
     <div className="overflow-hidden rounded-lg border border-line bg-white">
       <button
         aria-expanded={open}
-        className="flex min-h-12 w-full items-center gap-2.5 px-3.5 py-3 text-left outline-none transition-colors duration-150 ease-out hover:bg-canvas focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-true-blue"
+        className="flex min-h-12 w-full items-center gap-2.5 px-3.5 py-3 text-left outline-none transition-colors duration-150 ease-out hover:bg-canvas focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-true-blue"
         type="button"
         onClick={() => setOpen((value) => !value)}
       >
@@ -191,7 +191,7 @@ function Summary({ text }: { text: string }) {
       <p className="max-w-[56ch] text-[17px] leading-[1.55] text-ink">{expanded ? text : lead}</p>
       {hasMore && (
         <button
-          className="w-fit rounded-sm text-sm font-semibold text-link outline-none hover:underline focus-visible:outline-2 focus-visible:outline-true-blue"
+          className="w-fit rounded-sm text-sm font-semibold text-link outline-none hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-true-blue"
           type="button"
           onClick={() => setExpanded((value) => !value)}
         >
@@ -226,7 +226,7 @@ function ShowAll<T>({
       {items.length > VISIBLE_ROWS && (
         <button
           aria-expanded={all}
-          className="w-fit rounded-sm text-sm font-semibold text-link outline-none hover:underline focus-visible:outline-2 focus-visible:outline-true-blue"
+          className="w-fit rounded-sm text-sm font-semibold text-link outline-none hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-true-blue"
           type="button"
           onClick={() => setAll((value) => !value)}
         >
