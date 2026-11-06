@@ -66,6 +66,7 @@ export default function LoginPage() {
       sso_unavailable:
         "CWRU SSO is unavailable right now. Please try again shortly.",
       sso_session_expired: "Your sign-in session expired. Please start again.",
+      session_expired: "Your sign-in expired. Sign in again to continue.",
       sso_sign_in_failed:
         "CWRU could not complete your sign-in. Please try again.",
       sso_handoff_invalid:

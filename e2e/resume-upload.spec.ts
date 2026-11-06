@@ -1,4 +1,4 @@
-import { chromium, expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { chromium, expect, test, type APIRequestContext, type APIResponse, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -14,7 +14,11 @@ import { PDFDocument } from "pdf-lib";
  * in under e2e/fixtures/resume/.
  *
  * Writes only under alice.johnson@case.edu: each accepted upload stores one
- * private PDF in S3 for that test account.
+ * private PDF in S3 for that test account (or, for a PDF over 4 MB, its text).
+ *
+ * PDFs over 4 MB are read in the browser and only their text is posted, since
+ * Vercel rejects request bodies over 4.5 MB. The "large PDF" tests check that
+ * the text arrives whole and that the PDF bytes never leave the browser.
  */
 
 const SHOTS = ".loop-shots";
@@ -69,16 +73,22 @@ test.beforeAll(async () => {
   scan.addPage([612, 792]).drawImage(img, { x: 0, y: 0, width: 612, height: 792 });
   fx.scanned = Buffer.from(await scan.save());
 
-  // A real text PDF padded with an incompressible attachment to hit a size.
-  const padded = async (target: number) => {
-    const doc = await PDFDocument.load(fx.text);
-    const base = (await doc.save()).length;
-    const pad = randomBytes(target - base - 4096);
+  // A real PDF padded with an incompressible attachment to hit a size. The
+  // attachment carries no page text, so the text is the base PDF's.
+  const padded = async (target: number, base: Buffer = fx.text) => {
+    const doc = await PDFDocument.load(base);
+    const baseSize = (await doc.save()).length;
+    const pad = randomBytes(target - baseSize - 4096);
     await doc.attach(pad, "pad.bin", { mimeType: "application/octet-stream" });
     return Buffer.from(await doc.save({ useObjectStreams: false }));
   };
   fx.under10 = await padded(10 * MB - 64 * 1024);
   fx.over10 = await padded(10 * MB + 64 * 1024);
+  fx.large6 = await padded(6 * MB);
+  fx.large9 = await padded(9.5 * MB, fx.unicode);
+  fx.largeLong = await padded(5 * MB, fx.long);
+  fx.largeScanned = await padded(5 * MB, fx.scanned);
+  fx.largeFake = Buffer.concat([fx.png, randomBytes(5 * MB)]);
   fx.corrupt = fx.text.subarray(0, Math.floor(fx.text.length / 3));
   fx.garbage = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(4000, 7)]);
 
@@ -180,17 +190,94 @@ test.describe("resume upload route", () => {
     }
   });
 
-  test("signed out never reaches the parser", async ({ playwright, baseURL }) => {
-    // Middleware answers a cookieless API call with a redirect to /login
-    // (not a 401); the route itself is never invoked.
+  test("a large PDF's text arrives through the text-only path", async ({ page }) => {
+    await signIn(page);
+    const post = (data: unknown, path = "/api/interview/upload-resume") =>
+      page.request.post(path, { data, timeout: 60_000 });
+    const ok = await post({ text: "Jordan  Q.   Testcase \n\n\n\nreduced cycle time by 18%\u0000", fileName: "Big résumé.PDF", fileSize: 6 * MB });
+    const okBody = await ok.json();
+    expect(ok.status(), okBody.error).toBe(201);
+    expect(okBody.resumeId).toMatch(/^[0-9a-f-]{36}$/);
+    // Cleaned exactly as server-extracted text is.
+    expect(okBody.resumeText).toBe("Jordan Q. Testcase\n\nreduced cycle time by 18%");
+
+    const jd = await post(
+      { text: "Senior Analyst\nOwn the forecasting roadmap.", fileName: "posting.pdf", fileSize: 7 * MB },
+      "/api/interview/upload-job-description",
+    );
+    const jdBody = await jd.json();
+    expect(jd.status(), jdBody.error).toBe(201);
+    expect(jdBody.jobDescriptionId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(jdBody.jobDescriptionText).toBe("Senior Analyst\nOwn the forecasting roadmap.");
+
+    const rejected: [string, unknown, number, RegExp][] = [
+      ["scan", { text: " \n\t ", fileName: "a.pdf", fileSize: 5 * MB }, 422, /scan or photo/],
+      ["not a PDF", { text: "x", fileName: "a.docx", fileSize: 5 * MB }, 400, /Only PDF/],
+      ["over 10 MB", { text: "x", fileName: "a.pdf", fileSize: 10 * MB + 1 }, 400, /10MB/],
+      ["no size", { text: "x", fileName: "a.pdf" }, 400, /empty/],
+      ["text not a string", { text: 42, fileName: "a.pdf", fileSize: 5 * MB }, 400, /must be provided/],
+      ["too much text", { text: "word ".repeat(50_000), fileName: "a.pdf", fileSize: 5 * MB }, 413, /more text/],
+      ["body over the cap", { text: "x".repeat(2.5 * MB), fileName: "a.pdf", fileSize: 5 * MB }, 413, /more text/],
+    ];
+    for (const [name, data, status, message] of rejected) {
+      const res = await post(data);
+      const body = await res.json();
+      expect(res.status(), name).toBe(status);
+      expect(body.error, name).toMatch(message);
+    }
+  });
+
+  test("signed out gets a 401, never a redirect, and never reaches the parser", async ({ playwright, baseURL }) => {
     const anon = await playwright.request.newContext({ baseURL });
-    const res = await anon.post("/api/interview/upload-resume", {
-      multipart: { file: { name: "text.pdf", mimeType: "application/pdf", buffer: fx.text } },
-      maxRedirects: 0,
-    });
-    expect(res.status()).toBe(307);
-    expect(res.headers().location).toMatch(/\/login$/);
+    const unauthorized = async (res: APIResponse, name: string) => {
+      expect(res.status(), name).toBe(401);
+      expect(res.headers().location, name).toBeUndefined();
+      expect((await res.json()).error, name).toBe("Sign in to continue.");
+    };
+    await unauthorized(
+      await anon.post("/api/interview/upload-resume", {
+        multipart: { file: { name: "text.pdf", mimeType: "application/pdf", buffer: fx.text } },
+        maxRedirects: 0,
+      }),
+      "PDF upload",
+    );
+    await unauthorized(
+      await anon.post("/api/interview/upload-resume", {
+        data: { text: "Jordan", fileName: "big.pdf", fileSize: 6 * MB },
+        maxRedirects: 0,
+      }),
+      "text upload",
+    );
+    await unauthorized(
+      await anon.post("/api/interview/upload-job-description", {
+        data: { text: "Posting", fileName: "big.pdf", fileSize: 6 * MB },
+        maxRedirects: 0,
+      }),
+      "job posting text upload",
+    );
+    await unauthorized(await anon.get("/api/practice/reports", { maxRedirects: 0 }), "reports API");
+
+    // Pages still redirect to sign-in and come back.
+    const pageRes = await anon.get("/practice/interviews/general?x=1", { maxRedirects: 0 });
+    expect(pageRes.status()).toBe(307);
+    expect(pageRes.headers().location).toBe("/login?returnTo=%2Fpractice%2Finterviews%2Fgeneral%3Fx%3D1");
+
+    // Public routes stay public: the route answers, not middleware.
+    expect((await anon.get("/login", { maxRedirects: 0 })).status()).toBe(200);
+    const me = await anon.get("/api/auth/me", { maxRedirects: 0 });
+    expect(me.status()).toBe(401);
+    expect((await me.json()).error).toBe("Unauthorized");
     await anon.dispose();
+
+    // An invalid token gets the same 401 and is cleared.
+    const forged = await playwright.request.newContext({
+      baseURL,
+      extraHTTPHeaders: { cookie: "auth-token=not-a-real-token" },
+    });
+    const bad = await forged.get("/api/practice/reports", { maxRedirects: 0 });
+    await unauthorized(bad, "invalid token");
+    expect(bad.headers()["set-cookie"] ?? "").toMatch(/auth-token=;/);
+    await forged.dispose();
   });
 });
 
@@ -274,10 +361,114 @@ test.describe("resume step", () => {
     await page.screenshot({ path: `${SHOTS}/resume-error-413-1440.png`, fullPage: true });
   });
 
-  test("an expired sign-in says so instead of blaming the file", async ({ page }) => {
+  test("an expired sign-in says so and leads back to sign-in", async ({ page }) => {
     await page.context().clearCookies();
     await dropzone(page).setInputFiles({ name: "text.pdf", mimeType: "application/pdf", buffer: fx.text });
     await expect(alert(page)).toContainText("sign-in has expired");
+    // The large-file path says the same.
+    await dropzone(page).setInputFiles({ name: "big.pdf", mimeType: "application/pdf", buffer: fx.large6 });
+    await expect(alert(page)).toContainText("sign-in has expired", { timeout: 30_000 });
+    const link = alert(page).getByRole("link", { name: "Sign in again" });
+    await expect(link).toHaveAttribute("href", "/login?error=session_expired&returnTo=%2Fpractice%2Finterviews%2Fgeneral");
+    await page.screenshot({ path: `${SHOTS}/resume-signed-out-1440.png`, fullPage: true });
+    await link.click();
+    await expect(page).toHaveURL(/\/login\?error=session_expired/);
+    await expect(page.getByRole("alert").filter({ hasText: "Your sign-in expired" })).toBeVisible();
+    await page.screenshot({ path: `${SHOTS}/resume-signed-out-login-1440.png` });
+  });
+
+  test("a large PDF is read here and only its text is sent", async ({ page, browserName }) => {
+    test.setTimeout(180_000);
+    const sent: { contentType: string; bytes: number; body: string }[] = [];
+    page.on("request", (req) => {
+      if (req.url().endsWith("/api/interview/upload-resume")) {
+        const body = req.postDataBuffer() ?? Buffer.alloc(0);
+        sent.push({ contentType: req.headers()["content-type"] ?? "", bytes: body.length, body: body.toString("utf8") });
+      }
+    });
+
+    const cases: [string, Buffer, string][] = [
+      ["Résumé 6 MB.pdf", fx.large6, "reduced cycle time by 18%"],
+      ["unicode 9.5 MB.pdf", fx.large9, "Jöse Ñúñez-Testcase 李测试"],
+      ["long 5 MB.pdf", fx.largeLong, "Role 400:"],
+    ];
+    for (const [name, buffer, phrase] of cases) {
+      expect(buffer.length).toBeGreaterThan(4 * MB);
+      expect(buffer.length).toBeLessThan(10 * MB);
+      sent.length = 0;
+      await page.locator('input[type="file"]').first().setInputFiles({ name, mimeType: "application/pdf", buffer });
+      await expect(page.getByText(name)).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByText("read on this device and only its text was saved")).toBeVisible();
+      expect(sent).toHaveLength(1);
+      expect(sent[0].contentType).toContain("application/json");
+      expect(sent[0].bytes).toBeLessThan(1 * MB);
+      const payload = JSON.parse(sent[0].body) as { text: string; fileName: string; fileSize: number };
+      expect(payload.text, name).toContain(phrase);
+      expect(payload.fileName).toBe(name);
+      expect(payload.fileSize).toBe(buffer.length);
+    }
+    await page.screenshot({ path: `${SHOTS}/resume-large-ready-${browserName}-1440.png`, fullPage: true });
+    await page.setViewportSize({ width: 375, height: 812 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+    await page.getByRole("button", { name: "Remove" }).evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${SHOTS}/resume-large-ready-${browserName}-375.png` });
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    // A small PDF after a large one goes up as the PDF again, notice gone.
+    sent.length = 0;
+    await page.locator('input[type="file"]').first().setInputFiles({ name: "small.pdf", mimeType: "application/pdf", buffer: fx.text });
+    await expect(page.getByText("small.pdf")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("read on this device")).toHaveCount(0);
+    expect(sent[0].contentType).toContain("multipart/form-data");
+  });
+
+  test("a large scan or non-PDF gets the same message, and nothing is sent", async ({ page, browserName }) => {
+    test.setTimeout(120_000);
+    let requests = 0;
+    page.on("request", (req) => {
+      if (req.url().endsWith("/api/interview/upload-resume")) requests += 1;
+    });
+    await dropzone(page).setInputFiles({ name: "scanned 5 MB.pdf", mimeType: "application/pdf", buffer: fx.largeScanned });
+    await expect(alert(page)).toContainText(
+      "No readable text was found in that PDF. It looks like a scan or photo. Export your resume from Word, Google Docs or Pages as a PDF, then upload it.",
+      { timeout: 60_000 },
+    );
+    await page.screenshot({ path: `${SHOTS}/resume-large-scan-${browserName}-1440.png`, fullPage: true });
+    await page.setViewportSize({ width: 375, height: 812 });
+    await alert(page).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${SHOTS}/resume-large-scan-${browserName}-375.png` });
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await dropzone(page).setInputFiles({ name: "photo 5 MB.pdf", mimeType: "application/pdf", buffer: fx.largeFake });
+    await expect(alert(page)).toContainText("not a valid PDF", { timeout: 30_000 });
+    expect(requests).toBe(0);
+  });
+
+  test("the job posting step takes a large PDF the same way", async ({ page, browserName }) => {
+    test.setTimeout(120_000);
+    let contentType = "";
+    page.on("request", (req) => {
+      if (req.url().endsWith("/api/interview/upload-job-description")) contentType = req.headers()["content-type"] ?? "";
+    });
+    await page.getByRole("button", { name: "Skip for now" }).click();
+    await expect(page.getByRole("heading", { name: "Practice for the actual posting" })).toBeVisible();
+    await page.locator('input[type="file"]').first().setInputFiles({ name: "posting 6 MB.pdf", mimeType: "application/pdf", buffer: fx.large6 });
+    await expect(page.getByText("posting 6 MB.pdf")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("read on this device and only its text was saved")).toBeVisible();
+    expect(contentType).toContain("application/json");
+    await page.screenshot({ path: `${SHOTS}/job-posting-large-${browserName}-1440.png`, fullPage: true });
+    await page.setViewportSize({ width: 375, height: 812 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+    await page.getByText("posting 6 MB.pdf").evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await page.mouse.wheel(0, -120);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${SHOTS}/job-posting-large-${browserName}-375.png` });
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await page.getByRole("button", { name: "Use a different posting" }).click();
+    await page.locator('input[type="file"]').first().setInputFiles({ name: "scan.pdf", mimeType: "application/pdf", buffer: fx.largeScanned });
+    await expect(page.getByText("Upload a text-based job posting PDF.").first()).toBeVisible({ timeout: 60_000 });
   });
 
   test("Skip and Back wait while a PDF is being read", async ({ page }) => {
@@ -298,40 +489,45 @@ test.describe("resume step", () => {
   });
 });
 
-test("the extracted text reaches session setup", async ({ baseURL }) => {
-  test.setTimeout(120_000);
-  // Its own Chromium with a fake camera, since the wizard ends in a camera step.
-  const browser = await chromium.launch({
-    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
-  });
-  const context = await browser.newContext({ baseURL, permissions: ["camera", "microphone"], viewport: { width: 1440, height: 900 } });
-  const page = await context.newPage();
-  await signIn(page);
-  await openResumeStep(page);
-  await dropzone(page).setInputFiles({ name: "text.pdf", mimeType: "application/pdf", buffer: fx.text });
-  await expect(page.getByText("Parsed and ready for this interview.")).toBeVisible({ timeout: 30_000 });
+for (const [label, file, phrase] of [
+  ["the extracted text reaches session setup", "text", "reduced cycle time by 18%"],
+  ["a large PDF's browser-read text reaches session setup", "large6", "reduced cycle time by 18%"],
+] as const) {
+  test(label, async ({ baseURL }) => {
+    test.setTimeout(150_000);
+    // Its own Chromium with a fake camera, since the wizard ends in a camera step.
+    const browser = await chromium.launch({
+      args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+    });
+    const context = await browser.newContext({ baseURL, permissions: ["camera", "microphone"], viewport: { width: 1440, height: 900 } });
+    const page = await context.newPage();
+    await signIn(page);
+    await openResumeStep(page);
+    await dropzone(page).setInputFiles({ name: `${file}.pdf`, mimeType: "application/pdf", buffer: fx[file] });
+    await expect(page.getByText("Parsed and ready for this interview.")).toBeVisible({ timeout: 60_000 });
 
-  // Stop at the session-start request: no avatar or model call is made.
-  let startBody: Record<string, unknown> | null = null;
-  await page.route("**/api/practice/session/start", async (route) => {
-    startBody = route.request().postDataJSON();
-    await route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"stopped by test"}' });
-  });
-  for (let i = 0; i < 10 && !startBody; i++) {
-    const next = page.getByRole("button", { name: /^(Continue.*|Skip for now|Start.*|Begin.*|Enter.*)$/ }).last();
-    if (await next.isVisible().catch(() => false)) {
-      if (await next.isDisabled()) {
-        const box = page.getByRole("checkbox").first();
-        if (await box.isVisible().catch(() => false)) await box.check();
+    // Stop at the session-start request: no avatar or model call is made.
+    let startBody: Record<string, unknown> | null = null;
+    await page.route("**/api/practice/session/start", async (route) => {
+      startBody = route.request().postDataJSON();
+      await route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"stopped by test"}' });
+    });
+    for (let i = 0; i < 10 && !startBody; i++) {
+      const next = page.getByRole("button", { name: /^(Continue.*|Skip for now|Start.*|Begin.*|Enter.*)$/ }).last();
+      if (await next.isVisible().catch(() => false)) {
+        if (await next.isDisabled()) {
+          const box = page.getByRole("checkbox").first();
+          if (await box.isVisible().catch(() => false)) await box.check();
+        }
+        await next.click({ timeout: 10_000 }).catch(() => {});
       }
-      await next.click({ timeout: 10_000 }).catch(() => {});
+      await page.waitForTimeout(1500);
     }
-    await page.waitForTimeout(1500);
-  }
-  await page.screenshot({ path: `${SHOTS}/resume-session-start-1440.png` });
-  await expect.poll(() => startBody, { timeout: 20_000 }).not.toBeNull();
-  const sent = startBody as unknown as { resumeId: string; resumeText: string };
-  expect(sent.resumeId).toMatch(/^[0-9a-f-]{36}$/);
-  expect(sent.resumeText).toContain("reduced cycle time by 18%");
-  await browser.close();
-});
+    await page.screenshot({ path: `${SHOTS}/resume-session-start-${file}-1440.png` });
+    await expect.poll(() => startBody, { timeout: 20_000 }).not.toBeNull();
+    const sent = startBody as unknown as { resumeId: string; resumeText: string };
+    expect(sent.resumeId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(sent.resumeText).toContain(phrase);
+    await browser.close();
+  });
+}
