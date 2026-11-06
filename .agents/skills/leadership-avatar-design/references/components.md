@@ -18,6 +18,7 @@ HeroUI through tokens rather than replacing it. Class names below assume the tok
 - Icons
 - Sidebar
 - Score panel and stat tiles
+- Takeaways columns
 - Moments timeline
 
 ## Buttons
@@ -214,14 +215,22 @@ grid can wrap without double lines), never a row of separate cards with icons.
 
 - **Score cell:** label 13/600 muted ("Content and structure"), figure Newsreader 40 ("2") with
   "/ 5" at 15px muted, then the level chip.
-- **Stat cell** (top of the Delivery tab): label 13/600 muted ("Speech rate"), figure Newsreader 36 with its
+- **Stat cell** (Statistics tab): label 13/600 muted ("Speech rate"), figure Newsreader 36 with its
   unit at 14px muted ("138" "wpm"), a 6px bar, and one 13.5px line that says what the figure means
-  ("Slightly fast · above the interview target of 100–159 wpm"), leading with the band word so
-  Delivery need not list that band again. A target range is a Blue Green band on the bar's
+  ("Inside the interview target of 100–159 wpm"). A target range is a Blue Green band on the bar's
   track behind the True Blue fill. Rates say what they are per ("2.9 per minute").
-- The figures panel shows figures the report already has: speech rate, filler words, pauses, volume
+- Statistics shows figures the report already has: speech rate, filler words, pauses, volume
   consistency, on camera, eye contact, framing, speaking time. Add a caption that names the basis
   ("Rates are per spoken minute").
+
+## Takeaways columns
+
+One white panel, three divided columns, each headed in Newsreader 22:
+- **Keep doing:** each strength title (600) with its one-line detail; Blue Green 8px dot.
+- **Work on next:** each growth area title with "Try this: [suggestion]"; Orange 8px dot.
+- **Rewatch:** the answers at Uneven or Off, worst first, each a row link with a level dot, "Answer 6",
+  why ("Off delivery, 6 filler words"), and its time in mono. Selecting one selects that point on the
+  Moments timeline and scrolls to it.
 
 ## Moments timeline
 

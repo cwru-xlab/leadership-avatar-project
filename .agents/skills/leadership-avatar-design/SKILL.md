@@ -135,7 +135,7 @@ Detail: `references/layout.md`.
 |---|---|---|
 | App shell | Home, Practice picker, Reports list, Study Plans, Paths, Mastery, Settings | 240px CWRU Blue sidebar, content max 1080px, title then tabs then content |
 | Session | Device check (centered card variant), live avatar session | Sidebar collapses; top strip; stage 2/3 + transcript/tips panel 1/3; control bar with End on the right |
-| Report | Report detail (`app/practice/[type]/report/[reportId]`) | App shell; header with back link, title, and "Practice again" as the one primary; one score panel split into four category scores (1–5 with level word, never a combined score); the "One thing to practice next time" panel; tabs Overview / Delivery / Content (each fact in one place: no tab restates another); the Moments timeline as the closing section below the tabs |
+| Report | Report detail (`app/practice/[type]/report/[reportId]`) | App shell; header with back link, title, and "Practice again" as the one primary; one score panel split into four category scores (1–5 with level word, never a combined score); the "One thing to practice next time" panel; tabs Overview / Takeaways / Statistics / Delivery / Content; the Moments timeline as the closing section below the tabs |
 
 Every frame is designed for a 1440×900 desktop first: on screens 900px and wider the sidebar stays
 fixed at full height and only the content column scrolls. Below 900px the sidebar moves to the top and

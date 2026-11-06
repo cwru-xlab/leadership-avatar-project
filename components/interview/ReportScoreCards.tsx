@@ -91,7 +91,7 @@ export default function ReportScoreCards({
   return (
     <section
       aria-label="Scores"
-      className="grid grid-cols-2 overflow-hidden rounded-xl border border-line bg-white lg:grid-cols-4"
+      className="grid grid-cols-1 overflow-hidden rounded-xl border border-line bg-white sm:grid-cols-2 lg:grid-cols-4"
     >
       <DeliveryCard
         title="Visual & Environment"
@@ -243,7 +243,7 @@ function CardShell({
   // two rows on narrow screens without doubled lines.
   return (
     <div
-      className={`flex h-full min-h-[148px] min-w-0 flex-col gap-2.5 px-4 py-4 sm:px-5 sm:py-[18px] shadow-[-1px_0_0_var(--la-line),0_-1px_0_var(--la-line)] ${
+      className={`flex h-full min-h-[148px] flex-col gap-2.5 px-5 py-[18px] shadow-[-1px_0_0_var(--la-line),0_-1px_0_var(--la-line)] ${
         muted ? "la-hatch" : ""
       }`}
     >

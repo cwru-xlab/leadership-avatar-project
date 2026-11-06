@@ -17,26 +17,11 @@
  * this component falls back to `ReportMarkdown` rather than showing an empty
  * page. That fallback is the most likely thing to break silently here.
  *
- * RAW FIGURES: unlike `ReportScoreCards`, the Delivery tab's figures and the narrative
+ * RAW FIGURES: unlike `ReportScoreCards`, the Statistics tab and the narrative
  * quote concrete numbers. That split is deliberate — see the note atop
  * `ReportScoreCards.tsx`.
  *
  * Tabs with no data are dropped, never shown empty.
- *
- * ONE HOME PER FACT (2026-11 condense pass): students said they had the gist
- * a third of the way down and the rest read as repetition. So:
- * - The first screen is the gist: four scores, the one thing to practice, a
- *   two-sentence summary and the top three strengths and growth areas.
- * - Three tabs, not five. Takeaways restated the Overview rows' own detail and
- *   suggestions word for word, and its "answers to revisit" were the low
- *   points already marked on Moments. Statistics restated every Delivery band
- *   word beside its figure. Its figures now head the Delivery tab and carry
- *   the band word, and Delivery lists only the rows the figures do not.
- * - Voice and camera rows appear only when they were measured, by the same
- *   gates as the figures, so the tab can never contradict a "Not measured"
- *   score card.
- * Nothing is removed: details, suggestions, evidence, Observations and every
- * rubric note stay one click away.
  */
 import type { FeedbackSource, StructuredReport } from "@/lib/report/structured";
 
@@ -50,20 +35,25 @@ import ReportScoreCards, {
   type ReportScoreCardsProps,
 } from "@/components/interview/ReportScoreCards";
 import CheckInBanner from "@/components/report/CheckInBanner";
-import MomentsTimeline, { buildTimelineAnswers } from "@/components/report/MomentsTimeline";
+import { levelDotClass } from "@/components/report/LevelChip";
+import MomentsTimeline, {
+  ANSWER_RAMP,
+  buildTimelineAnswers,
+} from "@/components/report/MomentsTimeline";
 import ReportStatistics, {
   hasStatistics,
   measuredVisual,
   measuredVocal,
-  VISUAL_ROWS_IN_FIGURES,
 } from "@/components/report/ReportStatistics";
 import { fallbackClock, reclockVisual, type ReportMoments } from "@/lib/report/moments";
 import { applyCheckInHiding, eligibleCheckIns, type CheckInAnswers } from "@/lib/report/check-in";
 import {
+  formatTimecode,
   visualBands,
   visualBodyLanguageBands,
   visualObservationCaveat,
   visualObservationRows,
+  vocalBands,
 } from "@/lib/metrics/bands";
 
 /**
@@ -72,17 +62,14 @@ import {
  * field existed, or any non-interview evaluator, which never declares it)
  * must stay silent, never render an "unknown" badge.
  */
-function sourceLabel(source: FeedbackSource): string {
-  return source === "resume"
-    ? "From your resume"
-    : source === "conversation"
-      ? "From the conversation"
-      : "Resume + conversation";
-}
-
 function SourceChip({ source }: { source?: FeedbackSource | null }) {
   if (!source) return null;
-  const label = sourceLabel(source);
+  const label =
+    source === "resume"
+      ? "From your resume"
+      : source === "conversation"
+        ? "From the conversation"
+        : "Resume + conversation";
   return (
     <span
       className="whitespace-nowrap rounded-sm bg-light-blue/32 px-2 py-0.5 text-xs text-cwru-blue"
@@ -107,23 +94,12 @@ interface ReportBodyProps {
   checkIn?: CheckInAnswers;
 }
 
-function SectionHeading({
-  children,
-  count,
-  note,
-}: {
-  children: React.ReactNode;
-  count?: number;
-  /** A fact every row shares, said once here instead of on each row. */
-  note?: string | null;
-}) {
+function SectionHeading({ children, count }: { children: React.ReactNode; count?: number }) {
   return (
     <h3 className="font-display text-[22px] font-medium leading-[1.15] text-cwru-blue">
       {children}
-      {(count !== undefined || note) && (
-        <span className="ml-2 font-sans text-sm font-normal text-muted">
-          {[count, note].filter((part) => part !== undefined && part !== null).join(" · ")}
-        </span>
+      {count !== undefined && (
+        <span className="ml-2 font-sans text-sm font-normal text-muted">{count}</span>
       )}
     </h3>
   );
@@ -200,50 +176,6 @@ function Summary({ text }: { text: string }) {
       )}
     </div>
   );
-}
-
-/** How many rows any report list shows before "Show all (n)". */
-const VISIBLE_ROWS = 3;
-
-/**
- * A list that shows its first three items and puts the rest behind one
- * button. The evaluator lists most important first, so the cut keeps the top.
- */
-function ShowAll<T>({
-  items,
-  render,
-  className = "flex flex-col gap-2",
-}: {
-  items: T[];
-  render: (item: T, index: number) => React.ReactNode;
-  className?: string;
-}) {
-  const [all, setAll] = useState(false);
-  const shown = all ? items : items.slice(0, VISIBLE_ROWS);
-  return (
-    <>
-      <div className={className}>{shown.map(render)}</div>
-      {items.length > VISIBLE_ROWS && (
-        <button
-          aria-expanded={all}
-          className="w-fit rounded-sm text-sm font-semibold text-link outline-none hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-true-blue"
-          type="button"
-          onClick={() => setAll((value) => !value)}
-        >
-          {all ? "Show fewer" : `Show all (${items.length})`}
-        </button>
-      )}
-    </>
-  );
-}
-
-/**
- * When every item in a list rests on the same input, say so once under the
- * heading instead of on every row.
- */
-function sharedSource(items: { source?: FeedbackSource | null }[]): FeedbackSource | null {
-  const first = items[0]?.source ?? null;
-  return first && items.every((item) => item.source === first) ? first : null;
 }
 
 const TAB_CLASSES = {
@@ -334,22 +266,20 @@ export default function ReportBody({
     Boolean(structured.category_notes.content) ||
     Boolean(structured.category_notes.behavioral) ||
     structured.rubric_notes.length > 0;
-  // Delivery rows follow the same "was it measured" gates as the figures.
+  // Delivery sections follow the same "was it measured" gates as the
+  // Statistics figures, so a typed session never shows Voice bands under a
+  // Vocal card that says "Not measured".
   const vocal = measuredVocal(metrics);
   const visual = measuredVisual(metrics);
-  const cameraRows = visual
-    ? visualBands(visual).filter((row) => !VISUAL_ROWS_IN_FIGURES.has(row.label) && !hiddenRows?.has(row.label))
-    : [];
-  const bodyRows = visual ? visualBodyLanguageBands(visual) : [];
-  const observationRows = displayVisual
-    ? visualObservationRows(displayVisual).filter((row) => !hiddenRows?.has(row.label))
-    : [];
-  const visualNote = visual ? structured.category_notes.visual : null;
-  const vocalNote = vocal ? structured.category_notes.vocal : null;
-  const hasDeliveryTab =
-    hasStatistics(metrics) || cameraRows.length > 0 || bodyRows.length > 0 || observationRows.length > 0;
-  const strengthSource = sharedSource(structured.strengths);
-  const growthSource = sharedSource(structured.growth_areas);
+  const notHidden = (row: { label: string }) => !hiddenRows?.has(row.label);
+  const cameraRows = visual ? visualBands(visual).filter(notHidden) : [];
+  const bodyRows = visual ? visualBodyLanguageBands(visual).filter(notHidden) : [];
+  const observationRows = displayVisual ? visualObservationRows(displayVisual).filter(notHidden) : [];
+  const hasDeliveryTab = Boolean(visual || vocal) || observationRows.length > 0;
+  const hasStatsTab = hasStatistics(metrics);
+  const revisit = answers
+    .filter((a) => a.level <= 2)
+    .sort((a, b) => a.level - b.level || a.start - b.start);
 
   return (
     <div className="flex flex-col gap-7">
@@ -400,144 +330,181 @@ export default function ReportBody({
             <div className="grid gap-6 md:grid-cols-2">
               {structured.strengths.length > 0 && (
                 <section className="flex min-w-0 flex-col gap-2">
-                  <SectionHeading
-                    count={structured.strengths.length}
-                    note={strengthSource && sourceLabel(strengthSource).toLowerCase()}
-                  >
-                    Strengths
-                  </SectionHeading>
-                  <ShowAll
-                    items={structured.strengths}
-                    render={(s, i) => (
-                      <DisclosureRow
-                        key={`s-${i}`}
-                        meta={strengthSource ? null : <SourceChip source={s.source} />}
-                        title={s.title}
-                      >
-                        <Prose>{s.detail}</Prose>
-                        {s.evidence && (
-                          <p className="font-display text-base italic text-muted">“{s.evidence}”</p>
-                        )}
-                      </DisclosureRow>
-                    )}
-                  />
+                  <SectionHeading count={structured.strengths.length}>Strengths</SectionHeading>
+                  {structured.strengths.map((s, i) => (
+                    <DisclosureRow key={`s-${i}`} meta={<SourceChip source={s.source} />} title={s.title}>
+                      <Prose>{s.detail}</Prose>
+                      {s.evidence && (
+                        <p className="font-display text-base italic text-muted">“{s.evidence}”</p>
+                      )}
+                    </DisclosureRow>
+                  ))}
                 </section>
               )}
 
               {structured.growth_areas.length > 0 && (
                 <section className="flex min-w-0 flex-col gap-2">
-                  <SectionHeading
-                    count={structured.growth_areas.length}
-                    note={growthSource && sourceLabel(growthSource).toLowerCase()}
-                  >
-                    Growth areas
-                  </SectionHeading>
-                  <ShowAll
-                    items={structured.growth_areas}
-                    render={(g, i) => {
-                      const cited = answers.find((a) => a.citedBy === g.title);
-                      return (
-                        <DisclosureRow
-                          key={`g-${i}`}
-                          meta={
-                            <>
-                              {/* Source answers "where did this come from"; the
-                                  timecodes answer "when". Timecodes stay on the
-                                  collapsed row: they are the link to Moments and
-                                  are useless hidden inside it. */}
-                              {!growthSource && <SourceChip source={g.source} />}
-                              {g.timecodes.length > 0 && (
-                                <span className="whitespace-nowrap font-mono text-[12.5px] tabular-nums text-muted">
-                                  {g.timecodes.join(" · ")}
-                                </span>
-                              )}
-                            </>
-                          }
-                          title={g.title}
-                        >
-                          <Prose>{g.detail}</Prose>
-                          {g.suggestion && (
-                            <p className="max-w-[65ch] text-ink">
-                              <span className="font-semibold">Consider trying this: </span>
-                              {g.suggestion}
-                            </p>
-                          )}
-                          {cited && (
-                            <a
-                              className="w-fit text-[13.5px] font-semibold text-link hover:underline"
-                              href="#moments"
-                              onClick={(event) => {
-                                event.preventDefault();
-                                showMoment(cited.index);
-                              }}
-                            >
-                              Show this moment on the timeline ↓
-                            </a>
-                          )}
-                        </DisclosureRow>
-                      );
-                    }}
-                  />
+                  <SectionHeading count={structured.growth_areas.length}>Growth areas</SectionHeading>
+                  {structured.growth_areas.map((g, i) => {
+                    const cited = answers.find((a) => a.citedBy === g.title);
+                    return (
+                      <DisclosureRow
+                        key={`g-${i}`}
+                        meta={
+                          <>
+                            {/* Source answers "where did this come from"; the
+                                timecodes answer "when". Timecodes stay on the
+                                collapsed row: they are the link to Moments and
+                                are useless hidden inside it. */}
+                            <SourceChip source={g.source} />
+                            {g.timecodes.length > 0 && (
+                              <span className="whitespace-nowrap font-mono text-[12.5px] tabular-nums text-muted">
+                                {g.timecodes.join(" · ")}
+                              </span>
+                            )}
+                          </>
+                        }
+                        title={g.title}
+                      >
+                        <Prose>{g.detail}</Prose>
+                        <p className="max-w-[65ch] text-ink">
+                          <span className="font-semibold">Consider trying this: </span>
+                          {g.suggestion}
+                        </p>
+                        {cited && (
+                          <a
+                            className="w-fit text-[13.5px] font-semibold text-link hover:underline"
+                            href="#moments"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              showMoment(cited.index);
+                            }}
+                          >
+                            Show this moment on the timeline ↓
+                          </a>
+                        )}
+                      </DisclosureRow>
+                    );
+                  })}
                 </section>
               )}
             </div>
           </div>
         </Tab>
 
+        {structured.strengths.length + structured.growth_areas.length > 0 ? (
+          <Tab key="takeaways" title="Takeaways">
+            <div className="grid overflow-hidden rounded-xl border border-line bg-white md:grid-cols-[repeat(auto-fit,minmax(240px,1fr))]">
+              <TakeawayColumn title="Keep doing">
+                {structured.strengths.map((s, i) => (
+                  <TakeawayItem key={i} dot="bg-level-4" detail={s.detail} title={s.title} />
+                ))}
+              </TakeawayColumn>
+              <TakeawayColumn title="Work on next">
+                {structured.growth_areas.map((g, i) => (
+                  <TakeawayItem
+                    key={i}
+                    dot="bg-level-2"
+                    detail={`Consider trying this: ${g.suggestion}`}
+                    title={g.title}
+                  />
+                ))}
+              </TakeawayColumn>
+              {answers.length > 0 && (
+                <TakeawayColumn title="Answers to revisit">
+                  {revisit.length === 0 ? (
+                    <li className="text-sm text-muted">No answer stood out as uneven.</li>
+                  ) : (
+                    revisit.map((a) => (
+                      <li key={a.index}>
+                        <a
+                          className="flex items-center gap-3 rounded-lg border border-line px-3 py-2.5 text-ink transition-colors duration-150 ease-out hover:bg-canvas"
+                          href="#moments"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            showMoment(a.index);
+                          }}
+                        >
+                          <span aria-hidden className={clsx("size-2.5 shrink-0 rounded-full", levelDotClass(ANSWER_RAMP[a.level]))} />
+                          <span className="flex min-w-0 flex-1 flex-col leading-snug">
+                            <span className="font-semibold">Answer {a.index + 1}</span>
+                            <span className="text-[13px] text-muted">
+                              {a.word} delivery
+                              {offTargetSummary(a.notes)}
+                            </span>
+                          </span>
+                          <span className="font-mono text-[12.5px] tabular-nums text-muted">
+                            {formatTimecode(a.start)}
+                          </span>
+                        </a>
+                      </li>
+                    ))
+                  )}
+                </TakeawayColumn>
+              )}
+            </div>
+          </Tab>
+        ) : null}
+
+        {hasStatsTab ? (
+          <Tab key="statistics" title="Statistics">
+            <ReportStatistics metrics={metrics} showInterviewPaceTarget={showInterviewPaceTarget} />
+          </Tab>
+        ) : null}
+
         {hasDeliveryTab ? (
           <Tab key="delivery" title="Delivery">
-            <div className="flex flex-col gap-7">
-              {/* Figures first, each with its band word. The sections below
-                  hold only what the figures don't: the remaining camera rows,
-                  body language, the coach's note per category, Observations. */}
-              <ReportStatistics metrics={metrics} showInterviewPaceTarget={showInterviewPaceTarget} />
+            <div className="grid gap-7 md:grid-cols-2">
+              {visual && (
+                <section className="flex flex-col gap-3">
+                  <SectionHeading>On camera</SectionHeading>
+                  <BandList rows={cameraRows} />
+                  {structured.category_notes.visual && <Prose>{structured.category_notes.visual}</Prose>}
+                </section>
+              )}
 
-              <div className="grid gap-7 md:grid-cols-2">
-                {(cameraRows.length > 0 || visualNote) && (
-                  <section className="flex flex-col gap-3">
-                    <SectionHeading>On camera</SectionHeading>
-                    {cameraRows.length > 0 && <BandList rows={cameraRows} />}
-                    {visualNote && <Prose>{visualNote}</Prose>}
-                  </section>
-                )}
-
-                {vocalNote && (
-                  <section className="flex flex-col gap-3">
-                    <SectionHeading>Voice</SectionHeading>
-                    <Prose>{vocalNote}</Prose>
-                  </section>
-                )}
-
-                {/* Legible as its own thing rather than extra rows on the camera
-                    list — a pre-Phase-12 report has no scored body-language fields
-                    on `metrics.visual`, so this renders nothing new. */}
-                {bodyRows.length > 0 && (
-                  <section className="flex flex-col gap-3">
-                    <SectionHeading>Body language</SectionHeading>
-                    <BandList rows={bodyRows} />
-                  </section>
-                )}
-
-                {/* LAST section of Delivery, deliberately. These are things the
-                    camera recorded that do not affect any score — stated once here,
-                    at the section level, never as a per-row tag inside a scored
-                    list. Muted treatment only; the tinted panel is reserved for
-                    "One thing to practice next time". */}
-                {/* The reclocked copy, not `metrics.visual`: the rows quote episode
-                    times, and must read on the same clock as Moments. */}
-                {displayVisual && observationRows.length > 0 && (
-                  <section className="flex flex-col gap-3">
-                    <SectionHeading>Observations</SectionHeading>
+              {vocal && (
+                <section className="flex flex-col gap-3">
+                  <SectionHeading>Voice</SectionHeading>
+                  {showInterviewPaceTarget && (
                     <p className="text-sm text-muted">
-                      Things the camera recorded during the session. These do not affect any score.
-                      {visualObservationCaveat(displayVisual) && (
-                        <> {visualObservationCaveat(displayVisual)}</>
-                      )}
+                      Assessed pace: {Math.round(vocal.words_per_minute)} WPM. {"Interview target: 100–159 WPM."}
                     </p>
-                    <BandList rows={observationRows} />
-                  </section>
-                )}
-              </div>
+                  )}
+                  <BandList rows={vocalBands(vocal)} />
+                  {structured.category_notes.vocal && <Prose>{structured.category_notes.vocal}</Prose>}
+                </section>
+              )}
+
+              {/* Legible as its own thing rather than extra rows on the camera
+                  list — a pre-Phase-12 report has no scored body-language fields
+                  on `metrics.visual`, so this renders nothing new. */}
+              {bodyRows.length > 0 && (
+                <section className="flex flex-col gap-3">
+                  <SectionHeading>Body language</SectionHeading>
+                  <BandList rows={bodyRows} />
+                </section>
+              )}
+
+              {/* LAST section of Delivery, deliberately. These are things the
+                  camera recorded that do not affect any score — stated once here,
+                  at the section level, never as a per-row tag inside a scored
+                  list. Muted treatment only; the tinted panel is reserved for
+                  "One thing to practice next time". */}
+              {/* The reclocked copy, not `metrics.visual`: the rows quote episode
+                  times, and must read on the same clock as Moments. */}
+              {displayVisual && observationRows.length > 0 && (
+                <section className="flex flex-col gap-3">
+                  <SectionHeading>Observations</SectionHeading>
+                  <p className="text-sm text-muted">
+                    Things the camera recorded during the session. These do not affect any score.
+                    {visualObservationCaveat(displayVisual) && (
+                      <> {visualObservationCaveat(displayVisual)}</>
+                    )}
+                  </p>
+                  <BandList rows={observationRows} />
+                </section>
+              )}
             </div>
           </Tab>
         ) : null}
@@ -559,20 +526,18 @@ export default function ReportBody({
               )}
               {structured.rubric_notes.length > 0 && (
                 <section className="flex flex-col gap-3">
-                  <SectionHeading count={structured.rubric_notes.length}>By rubric item</SectionHeading>
-                  <ShowAll
-                    className="flex flex-col divide-y divide-line rounded-lg border border-line bg-white"
-                    items={structured.rubric_notes}
-                    render={(n, i) => (
+                  <SectionHeading>By rubric item</SectionHeading>
+                  <dl className="flex flex-col divide-y divide-line rounded-lg border border-line bg-white">
+                    {structured.rubric_notes.map((n) => (
                       <div
-                        key={`${n.item}-${i}`}
+                        key={n.item}
                         className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6"
                       >
-                        <p className="text-sm font-semibold text-ink">{n.item}</p>
-                        <p className="text-sm text-muted sm:max-w-[70%] sm:text-right">{n.note}</p>
+                        <dt className="text-sm font-semibold text-ink">{n.item}</dt>
+                        <dd className="text-sm text-muted sm:max-w-[70%] sm:text-right">{n.note}</dd>
                       </div>
-                    )}
-                  />
+                    ))}
+                  </dl>
                 </section>
               )}
             </div>
@@ -590,6 +555,36 @@ export default function ReportBody({
         />
       )}
     </div>
+  );
+}
+
+function offTargetSummary(notes: { label: string; value: string }[]): string {
+  const flagged = notes.filter((n) =>
+    ["Slow", "Fast", "Frequent", "Very frequent", "Variable", "Uneven"].includes(n.value),
+  );
+  return flagged.length
+    ? `, ${flagged.map((n) => `${n.label.toLowerCase()} ${n.value.toLowerCase()}`).join(", ")}`
+    : "";
+}
+
+function TakeawayColumn({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3.5 px-6 py-[22px] shadow-[-1px_0_0_var(--la-line),0_-1px_0_var(--la-line)]">
+      <h3 className="font-display text-[22px] font-medium text-cwru-blue">{title}</h3>
+      <ul className="flex flex-col gap-3.5">{children}</ul>
+    </section>
+  );
+}
+
+function TakeawayItem({ title, detail, dot }: { title: string; detail: string; dot: string }) {
+  return (
+    <li className="flex gap-2.5">
+      <span aria-hidden className={clsx("mt-2 size-2 shrink-0 rounded-full", dot)} />
+      <span className="flex flex-col">
+        <span className="font-semibold text-ink">{title}</span>
+        <span className="text-sm text-muted">{detail}</span>
+      </span>
+    </li>
   );
 }
 

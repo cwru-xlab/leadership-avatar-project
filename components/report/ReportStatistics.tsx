@@ -1,10 +1,8 @@
 "use client";
 
 /**
- * The measured figures at the top of the report's Delivery tab, in one divided
- * panel. Each figure carries its band word in its note, so the Delivery tab
- * does not list the same word again underneath (it used to be its own
- * Statistics tab, which repeated every Delivery band). This is the narrative side of the split noted
+ * The report's Statistics tab: the measured figures behind the Delivery band
+ * words, in one divided panel. This is the narrative side of the split noted
  * atop `ReportScoreCards.tsx`, so raw figures are allowed here; every
  * description of a figure still comes from `lib/metrics/bands.ts`.
  *
@@ -64,17 +62,17 @@ function buildStats(metrics: Metrics, showInterviewPaceTarget: boolean): Stat[] 
       band: showInterviewPaceTarget ? [100 / PACE_SCALE, 159 / PACE_SCALE] : undefined,
       note: showInterviewPaceTarget
         ? wpm < 100
-          ? `${words.Pace} · below the interview target of 100–159 wpm`
+          ? "Below the interview target of 100–159 wpm"
           : wpm > 159
-            ? `${words.Pace} · above the interview target of 100–159 wpm`
-            : `${words.Pace} · inside the interview target of 100–159 wpm`
+            ? "Above the interview target of 100–159 wpm"
+            : "Inside the interview target of 100–159 wpm"
         : words.Pace,
     });
     stats.push({
       label: "Filler words",
       value: String(vocal.filler_word_count),
       unit: "total",
-      note: `${words["Filler words"]} · ${perMinute(vocal.filler_word_count)}${
+      note: `${perMinute(vocal.filler_word_count)}${
         vocal.filler_word_list.length ? `, mostly “${vocal.filler_word_list.slice(0, 2).join("”, “")}”` : ""
       }`,
     });
@@ -82,7 +80,7 @@ function buildStats(metrics: Metrics, showInterviewPaceTarget: boolean): Stat[] 
       label: "Pauses",
       value: String(vocal.pause_count),
       unit: "total",
-      note: `${words.Pauses} · ${perMinute(vocal.pause_count)}`,
+      note: perMinute(vocal.pause_count),
     });
     stats.push({
       label: "Volume consistency",
@@ -184,6 +182,3 @@ export default function ReportStatistics({
     </div>
   );
 }
-
-/** Camera band rows the figure panel already states, so Delivery lists only the rest. */
-export const VISUAL_ROWS_IN_FIGURES = new Set(["Eye contact", "Framing", "On camera"]);
