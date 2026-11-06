@@ -95,9 +95,14 @@ async function main() {
   );
   {
     for (const record of SEEDED_CONVERSATIONS) {
-      const errs = validateDifficultConversationInput(
-        authoredInputFrom(record)
-      );
+      // Seeded records ship with empty avatar ids (filled at resolve time),
+      // and the validator requires an avatar, so validate with the cast pair.
+      const cast = SEEDED_COUNTERPART_CAST[record.id];
+      const errs = validateDifficultConversationInput({
+        ...authoredInputFrom(record),
+        avatarId: cast?.avatarId ?? "",
+        voiceId: cast?.voiceId ?? "",
+      });
       check(
         `"${record.id}" validates to []`,
         errs.length === 0,

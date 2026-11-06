@@ -4,6 +4,10 @@
  * Imported by `/api/difficult-conversation/*` server routes and by the
  * builder UI so client and server can never disagree about field limits.
  * Pure — no S3, no session — safe to import from a client component.
+ *
+ * Seeded records carry empty avatar ids (filled at resolve time from their
+ * cast), so code that runs a seeded record through here must supply the cast
+ * pair first; see scripts/verify-dc-seeded.ts.
  */
 
 import {
@@ -251,7 +255,16 @@ export function validateDifficultConversationInput(
   const hasAvatar = avatarId.length > 0;
   const hasVoice = voiceId.length > 0;
 
-  if (hasAvatar !== hasVoice) {
+  // An authored conversation has no resolve-time cast (only seeded ones do),
+  // so without a picked avatar it cannot start a session. Required on create
+  // and edit; never auto-assigned.
+  if (!hasAvatar && !hasVoice) {
+    errors.push({
+      field: "avatarId",
+      message:
+        "Choose an avatar for the character before saving. The conversation cannot be played without one.",
+    });
+  } else if (hasAvatar !== hasVoice) {
     if (hasAvatar && !hasVoice) {
       errors.push({
         field: "voiceId",

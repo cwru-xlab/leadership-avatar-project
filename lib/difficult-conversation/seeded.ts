@@ -199,13 +199,13 @@ export const SEEDED_CONVERSATIONS: DifficultConversationRecord[] = [
       "formal review cycle is four months away. Both of you know the migration " +
       "outcome and how long it has been since your last adjustment.",
     hiddenPosition:
-      "You agree she is underpaid, but your budget was cut. You have a lower " +
+      "You agree the employee is underpaid, but your budget was cut. You have a lower " +
       "number you can get approved today and a higher one that needs your own " +
-      "boss. You will offer the low number first and only move if she makes a " +
+      "boss. You will offer the low number first and only move if they make a " +
       "specific, evidenced case. You prefer to stall toward the review cycle.",
     studentObjective:
       "Discuss how your expanded responsibilities should be reflected in your compensation.",
-    stakes: "Another vague deferral and she starts interviewing elsewhere.",
+    stakes: "Another vague deferral and you start interviewing elsewhere.",
     difficulty: "guarded",
     avatarId: UNRESOLVED,
     voiceId: UNRESOLVED,
