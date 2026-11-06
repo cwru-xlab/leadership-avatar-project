@@ -245,13 +245,15 @@ async function main() {
       "both present passes",
       validateDifficultConversationInput(validInput()).length === 0
     );
+    const neither = validateDifficultConversationInput({
+      ...validInput(),
+      avatarId: "",
+      voiceId: "",
+    });
     check(
-      "both absent passes",
-      validateDifficultConversationInput({
-        ...validInput(),
-        avatarId: "",
-        voiceId: "",
-      }).length === 0
+      "both absent fails (an avatar is required)",
+      neither.some((e) => e.field === "avatarId"),
+      JSON.stringify(neither)
     );
   }
 
