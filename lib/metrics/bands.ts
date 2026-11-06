@@ -696,8 +696,8 @@ export function vocalBands(m: VocalMetrics): MetricBandRow[] {
 }
 
 /**
- * One answer's delivery as a level word for the report's Moments timeline.
- * DISPLAY ONLY: it never feeds a score, a
+ * One answer's delivery as a level word for the report's Moments timeline and
+ * its "Answers to revisit" list. DISPLAY ONLY: it never feeds a score, a
  * mastery figure or the evaluator. Approved rule (2026-10-30): run the answer's
  * own pace, filler words, pauses and volume through the same bands the session
  * uses, count the ones off target, and name the count:

@@ -8,7 +8,7 @@ import { expect, test, type Page } from "@playwright/test";
  */
 const SHOTS = ".loop-shots";
 const INTERVIEW = "2cd23e87-49e4-4d94-a5b3-aeaa048589f5";
-// Elevator pitch whose listener walked out: has the collapsed signals panel.
+// Elevator pitch whose listener walked out: has the walk-out signals panel.
 const ELEVATOR = "97d9f6b3-0cc5-4560-a6f9-1b89c3d7c08f";
 
 async function signIn(page: Page) {
@@ -120,24 +120,17 @@ test.describe("keyboard focus ring", () => {
     expect(ringed).toBeGreaterThan(0);
   });
 
-  test("walk-out signals summary: ring on Tab, none on click", async ({ page }) => {
+  test("walk-out signals panel is open, with nothing to toggle", async ({ page }) => {
     await signIn(page);
     await page.goto(`/reports/${ELEVATOR}`);
-    const summary = page.getByTestId("disengagement-decline-panel").locator("summary");
-    await expect(summary).toBeVisible({ timeout: 45_000 });
-    await summary.click();
-    expect(await summary.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("none");
-    await summary.click();
-    await page.locator("h1").click();
-    for (let i = 0; i < 40; i++) {
-      await page.keyboard.press("Tab");
-      if (await summary.evaluate((el) => el === document.activeElement)) break;
-    }
-    await expect(summary).toBeFocused();
-    await page.waitForTimeout(200);
-    expect((await readStop(page))!.ring).toBe(true);
-    await summary.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `${SHOTS}/focus-walkout-summary.png` });
+    const panel = page.getByTestId("disengagement-decline-panel");
+    await expect(panel).toBeVisible({ timeout: 45_000 });
+    // Every moment is on screen without a click; the panel has no summary
+    // or toggle that would need a focus ring.
+    await expect(panel.locator("summary, details, button")).toHaveCount(0);
+    await expect(panel.getByRole("listitem").first()).toBeVisible();
+    await panel.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${SHOTS}/focus-walkout-panel.png` });
   });
 
   test("Delivery tab stops all show a ring", async ({ page }) => {
