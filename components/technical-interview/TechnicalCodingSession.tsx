@@ -2,6 +2,7 @@
 
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
+import { addToast } from "@heroui/toast";
 import {
   Braces,
   CheckCircle2,
@@ -20,7 +21,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { StreamingAvatarSessionState } from "@/components/HeyGenAvatar/logic";
 import SessionAvatar, { useAvatarKeepAlive } from "@/components/session/SessionAvatar";
-import { formatElapsed } from "@/components/session/SessionRoom";
+import { PushToTalkControl, formatElapsed } from "@/components/session/SessionRoom";
+import { usePushToTalkRecorder } from "@/components/session/usePushToTalkRecorder";
 import TechnicalPythonEditor from "@/components/technical-interview/TechnicalPythonEditor";
 import {
   entryPointFromStarterCode,
@@ -319,6 +321,68 @@ export default function TechnicalCodingSession({
     [checkpoint, reportId, sendingChat],
   );
 
+  /**
+   * The SAME shared push-to-talk recorder every other live session uses
+   * (`components/session/usePushToTalkRecorder`): microphone acquisition, the
+   * silent/short-recording guards, vocal capture and the transcription read
+   * are not reimplemented here. The transcript is sent as an ordinary
+   * candidate turn, so the server stays the sole author of the transcript.
+   */
+  const sendTranscript = useCallback(
+    (transcript: string) => sendChat(transcript),
+    [sendChat],
+  );
+  const talkLockRef = useRef(false);
+  const {
+    isRecording,
+    isTranscribing,
+    partialTranscript,
+    toggleRecording,
+    releaseMicrophone,
+    vocalCaptureRef,
+  } = usePushToTalkRecorder({
+    language: avatarConfig.language ?? "en",
+    sending: sendingChat,
+    isPaused: false,
+    lockRef: talkLockRef,
+    onTranscript: sendTranscript,
+    // Only cut the interviewer off once a recording has validly been claimed.
+    onRecordingClaimed: () => avatarRef.current?.interrupt(),
+    onRejected: (reason) =>
+      addToast({
+        title: reason === "too-short" ? "Nothing recorded" : "No speech detected",
+        description:
+          reason === "too-short"
+            ? "Tap the microphone, speak, then tap again to send."
+            : "Check that the right microphone is selected and not muted.",
+        color: "warning",
+      }),
+    onTranscriptionFailed: (error) => {
+      console.error("Technical interview transcription failed:", error);
+      addToast({ title: "Could not transcribe your answer", color: "danger" });
+    },
+    onMicrophoneUnavailable: (error) => {
+      console.error("Microphone unavailable:", error);
+      addToast({
+        title: "Could not access your microphone",
+        description: "You can type to your interviewer instead.",
+        color: "danger",
+      });
+    },
+    audioFileName: "technical-interview-answer.webm",
+  });
+
+  // Leaving the room releases the microphone and the provider session; an
+  // unfinished recording is discarded rather than transcribed after the exit.
+  useEffect(() => {
+    const capture = vocalCaptureRef;
+    return () => {
+      releaseMicrophone();
+      capture.current?.detachStream();
+      avatarRef.current?.stopSession();
+    };
+  }, [releaseMicrophone, vocalCaptureRef]);
+
   const submit = useCallback(async () => {
     if (!source.trim() || submitting) return;
     setSubmitting(true);
@@ -521,6 +585,11 @@ export default function TechnicalCodingSession({
               sendingChat={sendingChat}
               hintsUsed={hintsUsed}
               onSend={sendChat}
+              isRecording={isRecording}
+              isTranscribing={isTranscribing}
+              partialTranscript={partialTranscript}
+              avatarConnected={avatarConnected}
+              onToggleRecording={toggleRecording}
               mounted={false}
             />
           </div>
@@ -645,6 +714,11 @@ export default function TechnicalCodingSession({
             sendingChat={sendingChat}
             hintsUsed={hintsUsed}
             onSend={sendChat}
+            isRecording={isRecording}
+            isTranscribing={isTranscribing}
+            partialTranscript={partialTranscript}
+            avatarConnected={avatarConnected}
+            onToggleRecording={toggleRecording}
             mounted
           />
         </aside>
@@ -671,6 +745,11 @@ function InterviewerPanel({
   sendingChat,
   hintsUsed,
   onSend,
+  isRecording,
+  isTranscribing,
+  partialTranscript,
+  avatarConnected,
+  onToggleRecording,
   mounted,
 }: {
   avatarRef: React.Ref<React.ElementRef<typeof SessionAvatar>>;
@@ -684,6 +763,11 @@ function InterviewerPanel({
   sendingChat: boolean;
   hintsUsed: number;
   onSend: (content: string, requestHint?: boolean) => Promise<void>;
+  isRecording: boolean;
+  isTranscribing: boolean;
+  partialTranscript: string;
+  avatarConnected: boolean;
+  onToggleRecording: () => void;
   mounted: boolean;
 }) {
   return (
@@ -763,35 +847,56 @@ function InterviewerPanel({
               <p className="mt-0.5 whitespace-pre-wrap break-words text-white">{streamingReply}</p>
             </div>
           )}
+          {partialTranscript && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                You
+              </p>
+              <p className="mt-0.5 whitespace-pre-wrap break-words text-slate-400">
+                {partialTranscript}
+              </p>
+            </div>
+          )}
         </div>
 
-        <form
-          className="flex shrink-0 gap-2 border-t border-white/10 p-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void onSend(chatInput);
-          }}
-        >
-          <input
-            value={chatInput}
-            onChange={(event) => setChatInput(event.target.value)}
-            disabled={sendingChat}
-            maxLength={4000}
-            placeholder="Explain your approach…"
-            aria-label="Message the interviewer"
-            className="min-w-0 flex-1 rounded-md border border-white/20 bg-ink px-2.5 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-light-blue"
-          />
-          <Button
-            type="submit"
-            size="sm"
-            color="primary"
-            className="h-auto"
-            isLoading={sendingChat}
-            isDisabled={!chatInput.trim() || sendingChat}
+        <div className="shrink-0 space-y-2 border-t border-white/10 p-2">
+          <form
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void onSend(chatInput);
+            }}
           >
-            Send
-          </Button>
-        </form>
+            <input
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              disabled={sendingChat || isTranscribing}
+              maxLength={4000}
+              placeholder={
+                avatarConnected ? "Speak, or type your approach…" : "Connecting to your interviewer…"
+              }
+              aria-label="Message the interviewer"
+              className="min-w-0 flex-1 rounded-md border border-white/20 bg-ink px-2.5 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-light-blue disabled:opacity-60"
+            />
+            <Button
+              type="submit"
+              size="sm"
+              color="primary"
+              className="h-auto"
+              isLoading={sendingChat}
+              isDisabled={!chatInput.trim() || sendingChat || isTranscribing}
+            >
+              Send
+            </Button>
+          </form>
+          {/* The same tap-to-record control as every other live session. */}
+          <PushToTalkControl
+            isRecording={isRecording}
+            isTranscribing={isTranscribing}
+            isDisabled={sendingChat || isTranscribing || !avatarConnected}
+            onToggle={onToggleRecording}
+          />
+        </div>
       </section>
     </div>
   );
