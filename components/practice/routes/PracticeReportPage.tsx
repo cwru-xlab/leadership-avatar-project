@@ -362,6 +362,8 @@ export default function PracticeReportPage({
           metrics={report.metrics ?? null}
           moments={report.moments ?? null}
           showInterviewPaceTarget={report.input?.kind === "interview"}
+          reportId={report.id}
+          checkIn={report.checkIn}
         />
       ) : report?.status === "FAILED" ? (
         <StatusPanel

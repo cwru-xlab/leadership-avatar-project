@@ -41,6 +41,7 @@ import {
   type VocalTurnMetrics,
   type VocalCoverage,
   type VocalMetrics,
+  withoutStoredCheckIn,
 } from "./types";
 
 /** Hard cap on the serialized payload size.
@@ -463,11 +464,17 @@ export function parseMetricsPayload(value: unknown): {
  * the shared type. Keyed on `coverage` plus one required numeric field so a
  * garbage or hand-edited row degrades to null instead of crashing a
  * background evaluation job.
+ *
+ * Strips the student's check-in answers, which share the column (see
+ * `STORED_CHECK_IN_KEY`): the evaluator reads metrics through here, and the
+ * answers must never reach it.
  */
 export function asVisualMetrics(value: unknown): VisualMetrics | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const v = value as Partial<VisualMetrics>;
-  return typeof v.eye_contact_pct === "number" && v.coverage ? (value as VisualMetrics) : null;
+  return typeof v.eye_contact_pct === "number" && v.coverage
+    ? withoutStoredCheckIn(value as VisualMetrics)
+    : null;
 }
 
 /**
