@@ -19,10 +19,24 @@ async function technicalReport(page: Page): Promise<{ id: string; title: string 
   const res = await page.request.get("/api/practice/reports");
   expect(res.status()).toBe(200);
   const { reports } = (await res.json()) as {
-    reports: Array<{ id: string; typeSlug: string; status: string; input: { assignment?: { title?: string } } | null }>;
+    reports: Array<{
+      id: string;
+      typeSlug: string;
+      status: string;
+      metrics?: { cameraMode: string | null; visual: unknown } | null;
+      input: { assignment?: { title?: string } } | null;
+    }>;
   };
-  const report = reports.find((r) => r.typeSlug === "technical-coding" && r.status === "READY");
-  if (!report) throw new Error("Alice has no READY technical-coding report");
+  // Real coding sessions run camera-off and so have no Moments; the seeded
+  // fixture is the camera-on one this spec needs.
+  const report = reports.find(
+    (r) =>
+      r.typeSlug === "technical-coding" &&
+      r.status === "READY" &&
+      r.metrics?.cameraMode === "ON" &&
+      r.metrics.visual != null,
+  );
+  if (!report) throw new Error("Alice has no READY camera-on technical-coding report");
   return { id: report.id, title: report.input?.assignment?.title ?? "" };
 }
 
