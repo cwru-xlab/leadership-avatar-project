@@ -5,7 +5,7 @@
  * enter the paths page and then just pick a study plan to generate a path
  * from, if it hasn't already been done for that study plan."
  *
- * Header: a labelled plan selector ("Plan 1 of 3", every saved plan with its
+ * Header: a labeled plan selector ("Plan 1 of 3", every saved plan with its
  * progress ring or "no path yet"; a single plan is shown as a plain label
  * because there is nothing to switch to) and the goal rings. Below: the selected plan's path map
  * (`PathPanel`) with its single Continue button, or — for a plan without a

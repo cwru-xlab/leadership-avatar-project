@@ -136,7 +136,7 @@ export const POSTURE_BASELINE_WINDOW_S = 20;
  * ~1.5 Hz effective. Over the 20s window that is AT MOST ~30 pose ticks
  * total — 60 was structurally unreachable, so the posture baseline could
  * never establish and `posture_drift_mean`/`posture_drift_max_s` could
- * never be emitted for ANY session, regardless of behaviour. Confirmed
+ * never be emitted for ANY session, regardless of behavior. Confirmed
  * against a real still-session recording: `handSamples` (hands shares the
  * same 1/4 schedule slot) was 209 over a 140.1s session, 1.49/s, matching
  * the 1.5 Hz derivation; that session's `postureDriftSamples` was 0 and
@@ -167,10 +167,10 @@ export const POSTURE_BASELINE_MIN_SAMPLES = 15;
  * one.
  *
  * SET FROM TWO REAL SESSIONS (12-10 Task 3) — and NOT "TUNED" in the sense
- * the rest of this file uses that word. Every constant here labelled TUNED
+ * the rest of this file uses that word. Every constant here labeled TUNED
  * was placed against an observed DISTRIBUTION across five recorded sessions
  * (12-TUNING.md). This one is placed from the SEPARATION BETWEEN TWO
- * SESSIONS, which is a much weaker evidence base, and it is labelled that way
+ * SESSIONS, which is a much weaker evidence base, and it is labeled that way
  * on purpose. 12-09 set this value to 0.25 as a REASONED BOUND with no
  * readings at all, and the bound did not hold — the honest label matters.
  *
@@ -244,7 +244,7 @@ export const POSTURE_BASELINE_MIN_SAMPLES = 15;
  * first thing to collect before touching the value", and the follow-up should
  * not keep waiting for a reading that has already been taken.
  *
- * SESSION A (12-11 Task 2, fully in frame, well centred, 108.0s): 162 pose
+ * SESSION A (12-11 Task 2, fully in frame, well centered, 108.0s): 162 pose
  * ticks, both `shoulder_line` and `forward_head` declared measured, and all
  * 162 ticks (31 baseline + 131 post-baseline, every one of the 131 scored)
  * yielded at least one usable signal. Both signals therefore cleared 0.60 by
@@ -266,7 +266,7 @@ export const POSTURE_BASELINE_MIN_SAMPLES = 15;
  *
  * WHAT WOULD ACTUALLY NARROW IT: a session that is genuinely partial at
  * BETWEEN 43% and 75% in-frame — i.e. one whose verdict DIFFERS across the
- * band — together with the user's judgement on whether it ought to have been
+ * band — together with the user's judgment on whether it ought to have been
  * scored. Still not collected. Do not describe 0.60 as well-characterised. */
 export const POSTURE_COVERAGE_MIN_RATIO = 0.6;
 
@@ -335,7 +335,7 @@ export const HANDS_COVERAGE_MIN_RATIO = 0.25;
  * real sessions ever produced a `posture_drift_mean` at all (S3: 0.358 over
  * 78 post-baseline samples; S4: 0.424 over 351 samples — see 12-TUNING.md),
  * and NEITHER was a session the user described as deliberately slumping or
- * shifting posture; both were ordinary mixed-behaviour sessions. The
+ * shifting posture; both were ordinary mixed-behavior sessions. The
  * original 0.35 value sat BELOW both of those ordinary-session means,
  * which would read a normal, non-slumping session as "shifted from the
  * opening posture" more often than not. Raised to 0.5 — comfortably above
@@ -454,7 +454,7 @@ export const POSTURE_DRIFT_SUSTAINED_S = 8;
  * TUNED (12-08 Task 2) from a NARROW real-reading gap, stated plainly
  * rather than hidden behind a confident-looking number: S1 (a session
  * explicitly run as "hands in lap, minimal movement") measured 0/min;
- * S4 (the best real proxy for ordinary behaviour available — see
+ * S4 (the best real proxy for ordinary behavior available — see
  * 12-TUNING.md) measured 4/min and must NOT read as still. 2 sits at the
  * midpoint of that 0-to-4 gap. There is no session between 0 and 4/min to
  * narrow this further. */
@@ -464,7 +464,7 @@ export const GESTURE_RATE_STILL_MAX = 2;
  * "excessive" — the high end of the same curve, read by `bandGesturing`.
  *
  * TUNED (12-08 Task 2) from four real session-wide readings: S1 0/min
- * (still), S4 4/min (ordinary-behaviour proxy), S2 9/min (a session with a
+ * (still), S4 4/min (ordinary-behavior proxy), S2 9/min (a session with a
  * real sustained arm-waving excursion the user confirmed), S3 12.2/min (a
  * short, 73.5s session — under the plan's 3-4 minute floor, weighted
  * accordingly). The calibration rule this file's header already states —
@@ -476,7 +476,7 @@ export const GESTURE_RATE_STILL_MAX = 2;
  * `excessive_gesturing` bug fix in `visual-capture.ts`'s `windowTrips`,
  * now fixed to derive from this same number). Lowered to 20 — conservatively
  * above S3's 12.2 (the highest real session-wide reading, from a session
- * the user did not describe as exhibiting excessive behaviour), while
+ * the user did not describe as exhibiting excessive behavior), while
  * staying well clear of S1/S4/S2. No session in this dataset measured a
  * session-wide rate the user DID describe as excessive — S2's arm-waving
  * excursion is real and localised, not a high SESSION-WIDE average (9/min
@@ -527,7 +527,7 @@ export const GESTURE_WINDOW_STILL_PCT = 2;
  * size of that shift is unmeasured until real sessions are re-recorded. */
 export const GESTURE_AMPLITUDE_MIN = 0.08;
 
-/** Normalized-image-space radius around the face centre within which a hand
+/** Normalized-image-space radius around the face center within which a hand
  * landmark counts as "near the face" for the hands-near-face signal.
  *
  * NOT RE-TUNED (12-08 Task 2): no session dump captured the raw
@@ -550,7 +550,7 @@ export const HANDS_NEAR_FACE_RADIUS = 0.15;
  * above (REQ-50).
  *
  * TUNED (12-08 Task 2) from four real `hands_near_face_pct` readings: S1 0%
- * (still session), S4 26% (ordinary-behaviour proxy), S2 32% (a mixed
+ * (still session), S4 26% (ordinary-behavior proxy), S2 32% (a mixed
  * session), S3 71% (the ONLY session the user explicitly described as
  * deliberate face-touching — see 12-TUNING.md). The original 15 would have
  * read S4's ordinary 26% as "Frequent," which is not defensible without a
@@ -801,7 +801,7 @@ export const MIDDLE_FINGER_MAX_TICK_GAP_S = 2;
 /** Two runs closer than this are reported as one. UNTUNED. */
 export const MIDDLE_FINGER_MERGE_GAP_S = 5;
 
-// --- Hand to mouth. Ratios are nearest-fingertip-to-lip-centre distance over the
+// --- Hand to mouth. Ratios are nearest-fingertip-to-lip-center distance over the
 // distance between the outer eye corners (see the worker's face runner).
 
 /** A hand arrives at the mouth at or below this ratio. UNTUNED. Anatomically

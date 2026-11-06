@@ -1,7 +1,7 @@
 /**
  * Factual, explicitly-unscored outcome record for a difficult conversation.
  *
- * Visually distinct from score cards: no 1–5 scale, no bar, no colour that
+ * Visually distinct from score cards: no 1–5 scale, no bar, no color that
  * encodes good/bad. The caption is load-bearing — CONTEXT.md locks the
  * separation between approach scores and the factual result.
  */

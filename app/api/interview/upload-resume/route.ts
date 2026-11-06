@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
-import { documentProcessor } from "@/lib/rag/document-processor";
+import { documentProcessor, PdfPasswordError } from "@/lib/rag/document-processor";
 import { s3Storage } from "@/lib/s3-client";
 
 export const runtime = "nodejs";
@@ -42,9 +42,15 @@ export async function POST(request: NextRequest) {
       return response({ error: "A resume PDF must be provided" }, 400);
     }
 
-    if (file.type !== PDF_MIME_TYPE) {
+    // Some browsers send a real .pdf as application/octet-stream or with no
+    // type at all, so a .pdf name is enough here; the %PDF- check below is
+    // what actually decides.
+    if (file.type !== PDF_MIME_TYPE && !/\.pdf$/i.test(file.name)) {
       return response(
-        { error: "Only PDF resumes are supported", receivedType: file.type || "unknown" },
+        {
+          error: "Only PDF resumes are supported. Save or export your resume as a PDF, then upload it.",
+          receivedType: file.type || "unknown",
+        },
         400
       );
     }
@@ -71,13 +77,25 @@ export async function POST(request: NextRequest) {
         await documentProcessor.extractText(buffer, PDF_MIME_TYPE)
       );
     } catch (error) {
+      if (error instanceof PdfPasswordError) {
+        return response(
+          { error: "That PDF is password-protected. Save a copy without a password, then upload it." },
+          422
+        );
+      }
       console.error("Interview resume parsing failed:", error);
-      return response({ error: "We could not read text from that PDF" }, 422);
+      return response(
+        { error: "We could not read that PDF. It may be damaged. Export it again as a PDF, then upload it." },
+        422
+      );
     }
 
     if (!resumeText) {
       return response(
-        { error: "No readable text was found in that PDF. Upload a text-based resume PDF." },
+        {
+          error:
+            "No readable text was found in that PDF. It looks like a scan or photo. Export your resume from Word, Google Docs or Pages as a PDF, then upload it.",
+        },
         422
       );
     }

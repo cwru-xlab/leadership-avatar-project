@@ -206,7 +206,7 @@ export default function LoginPage() {
         </div>
       </section>
       {/* Brand panel: the dot grid is reserved for login and the kiosk. */}
-      {/* The column is centred both ways and capped at the showcase's widest
+      {/* The column is centered both ways and capped at the showcase's widest
           frame, so copy and screenshot share one left edge and the spare
           blue splits evenly around them. */}
       <section className="la-dot-grid relative order-1 flex flex-col px-6 py-8 text-white min-[900px]:order-2 min-[900px]:justify-center min-[900px]:overflow-hidden min-[900px]:px-14 min-[900px]:py-14">

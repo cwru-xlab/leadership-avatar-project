@@ -13,7 +13,7 @@
  * performer, declining a senior's request — and firm, uncomfortable
  * language is the POINT, not a defect. Only language aimed AT THE PERSON
  * counts as hostile: insults, contempt, threats against their standing.
- * Judgement of their WORK, PERFORMANCE, a DECISION, a POSITION, a
+ * Judgment of their WORK, PERFORMANCE, a DECISION, a POSITION, a
  * SITUATION or a RESULT is firm, not hostile, however harsh the adjective.
  * A detector that fires on the seeded "firing someone" conversation's
  * intended register is broken, not strict.
@@ -24,7 +24,7 @@
  * Phase 18's calibration policy applies verbatim (18-VALIDATION.md):
  * "Do not retune thresholds, weights, or cue acceleration without explicit
  * human calibration approval." Nothing in this module has been tuned
- * against a live session or a human-labelled transcript. The ONLY evidence
+ * against a live session or a human-labeled transcript. The ONLY evidence
  * behind every constant in this file is `scripts/verify-hostility-detector.ts`'s
  * fixture corpus — the false-positive corpus built from the seven seeded
  * scenarios' own register, the true-positive corpus of person-targeted
@@ -97,7 +97,7 @@ function normalizeForMatching(text: string): string {
   return working;
 }
 
-/** Splits on clause boundaries so a distant pronoun cannot be joined to a judgement about a position. */
+/** Splits on clause boundaries so a distant pronoun cannot be joined to a judgment about a position. */
 const CLAUSE_BOUNDARY = /[.!?;,]+|\band\b|\bbut\b/gi;
 
 function splitClauses(text: string): string[] {
@@ -115,7 +115,7 @@ function splitClauses(text: string): string[] {
 const SECOND_PERSON_PATTERN = /\b(you|your|you're|yourself)\b/i;
 
 /**
- * Judgement of WORK, PERFORMANCE, a DECISION, a POSITION, a SITUATION or a
+ * Judgment of WORK, PERFORMANCE, a DECISION, a POSITION, a SITUATION or a
  * RESULT is never hostile, even when harsh ("unacceptable", "final
  * warning", "this is a mess"). When an attack-adjacent clause's object is
  * one of these, the clause is firm, not hostile — corpus rows:
@@ -306,7 +306,7 @@ export function detectHostility(text: string): HostilityVerdict {
     if (
       INSULT_TERMS.test(clause) &&
       hasPersonTargeting(clause) &&
-      !positionObject // judgement of the position/decision/result is firm, not hostile
+      !positionObject // judgment of the position/decision/result is firm, not hostile
     ) {
       matched.add("insult");
     }

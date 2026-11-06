@@ -373,7 +373,7 @@ console.log("\n5b. STUDY PLANS + PATHS NAV (Phase 23)");
         issues.push(`no studentNavItems entry with href '${href}'`);
         continue;
       }
-      if (entry.label !== label) issues.push(`'${href}' is labelled '${entry.label}', expected '${label}'`);
+      if (entry.label !== label) issues.push(`'${href}' is labeled '${entry.label}', expected '${label}'`);
       if (!new RegExp(`\\b${entry.icon}\\b`).test(iconMapBlock)) {
         issues.push(`icon '${entry.icon}' for '${href}' is not a key in auth-navbar's iconMap block`);
       }
@@ -491,7 +491,7 @@ console.log("\n8. GROWTH FIELDS: sources, trend, drivers, recent growth");
   const dto = toMasteryDTO(result, { activityLinks: links });
   const a = dto.competencies.find((c) => c.competencyKey === KEY_A)!;
 
-  check("every competency carries 3 labelled sources", dto.competencies.every((c) => c.sources.length === 3 && c.sources.every((x) => x.label.length > 0)));
+  check("every competency carries 3 labeled sources", dto.competencies.every((c) => c.sources.length === 3 && c.sources.every((x) => x.label.length > 0)));
   check(
     "sources split live vs path (live | check, coached)",
     a.sources.map((x) => `${x.origin}:${x.group}`).join() === "live:live,check:path,coached:path"

@@ -485,7 +485,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
         </Button>
       </div>
 
-      {/* Post-create: practise immediately or publish deliberately */}
+      {/* Post-create: practice immediately or publish deliberately */}
       {justCreated && recordId && practiceHref && (
         <Card className="border border-level-4/40 bg-level-4/10 shadow-none">
           <CardBody className="gap-4 p-6">
@@ -497,8 +497,8 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
               </h3>
               <p className="text-sm text-muted mt-1">
                 {published
-                  ? "Other students can now find and practise it. You can unpublish it at any time."
-                  : "Practise it now, or publish it when you are ready. Nothing was published automatically."}
+                  ? "Other students can now find and practice it. You can unpublish it at any time."
+                  : "Practice it now, or publish it when you are ready. Nothing was published automatically."}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -507,7 +507,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
                 href={practiceHref}
                 color="primary"
               >
-                Practise it now
+                Practice it now
               </Button>
               {!published ? (
                 <Button
@@ -563,7 +563,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
               )}
               {practiceHref && (
                 <Button as={Link} href={practiceHref} variant="flat">
-                  Practise privately
+                  Practice privately
                 </Button>
               )}
             </div>
@@ -592,7 +592,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
               What to change: {publishPanel.fix}
             </p>
             <p className="text-sm text-muted">
-              Your scenario is saved, and you can still practise it yourself
+              Your scenario is saved, and you can still practice it yourself
               right now.
             </p>
             <div className="flex flex-wrap gap-3 pt-1">
@@ -610,7 +610,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
               </Button>
               {practiceHref && (
                 <Button as={Link} href={practiceHref} variant="flat">
-                  Practise it privately
+                  Practice it privately
                 </Button>
               )}
             </div>
@@ -644,7 +644,7 @@ export default function ConversationBuilder(props: ConversationBuilderProps) {
               </Button>
               {practiceHref && (
                 <Button as={Link} href={practiceHref} variant="flat">
-                  Practise privately
+                  Practice privately
                 </Button>
               )}
             </div>

@@ -1,5 +1,5 @@
 /**
- * Proves REQ-111's deterministic/model-graded split is behaviour, not
+ * Proves REQ-111's deterministic/model-graded split is behavior, not
  * convention: the three closed formats (MULTIPLE_CHOICE, FILL_IN_BLANK,
  * PICK_BETTER_RESPONSE) are graded by `gradeDeterministic`, a pure function
  * with no model call — the same answer always gets the same mark — and only
@@ -431,7 +431,7 @@ console.log("\n6. gradeRewriteWithModel — model-graded, injectable callModel, 
     JSON.stringify(oneResult)
   );
   check(
-    "normalizeRubricScore(1) itself is 0, confirming the imported function's floor behaviour",
+    "normalizeRubricScore(1) itself is 0, confirming the imported function's floor behavior",
     normalizeRubricScore(1) === 0
   );
 

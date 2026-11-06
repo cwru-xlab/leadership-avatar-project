@@ -46,7 +46,7 @@ export const VISUAL_POSTURE_FLAGS = [
 export type VisualPostureFlag = (typeof VISUAL_POSTURE_FLAGS)[number];
 
 /**
- * Behaviours this pipeline CANNOT measure, declared explicitly and in-band on
+ * Behaviors this pipeline CANNOT measure, declared explicitly and in-band on
  * every payload.
  *
  * This exists because an empty `posture_flags` array turned out to be
@@ -63,7 +63,7 @@ export type VisualPostureFlag = (typeof VISUAL_POSTURE_FLAGS)[number];
  * As of plan 12-08, this holds the two entries with genuinely NO producer
  * anywhere in this phase:
  *   - `background_environment`'s aesthetic half (judging a background as
- *     "unprofessional" is largely a judgement about someone's housing —
+ *     "unprofessional" is largely a judgment about someone's housing —
  *     permanently out of scope, see 12-CONTEXT.md's Deferred Ideas).
  *   - `fidgeting` (12-08 Task 1 checkpoint, retired after real sessions —
  *     RE-ADDED here, not merely left conditional, by deliberate user
@@ -74,9 +74,9 @@ export type VisualPostureFlag = (typeof VISUAL_POSTURE_FLAGS)[number];
  *     ~0.75/s. Real fidgeting is a small, FAST motion — materially above
  *     that ceiling — so the sampler was not measuring fidget frequency at
  *     all, it was aliasing it: the measured rate reflects the sample
- *     interval, not the behaviour. Lowering the gate further would not fix
+ *     interval, not the behavior. Lowering the gate further would not fix
  *     this — it would ship a noise detector wearing a fidget label on a
- *     signal shown to students about stimming-adjacent behaviour. See
+ *     signal shown to students about stimming-adjacent behavior. See
  *     `.planning/phases/12-embodied-visual-signals/deferred-items.md` for
  *     what a real fix would require (materially higher hands sample rate,
  *     which costs face/pose temporal resolution and needs its own
@@ -111,7 +111,7 @@ export const VISUAL_NOT_MEASURED = ["background_environment", "fidgeting"] as co
  * a session with obscene gestures was commended and a student eating through an
  * interview scored 5/5 on visual, since neither was in this list and nothing
  * told the evaluator they had never been looked at. Note what taking one OFF
- * this list means: the session's signal RAN, not that the behaviour did not
+ * this list means: the session's signal RAN, not that the behavior did not
  * occur. Hands can sit out of frame. The prompts' RULE ON CONDUCT forbids
  * commending an absence in either case.
  * `resolveNotMeasured` below decides, per session, whether each conditional
@@ -155,7 +155,7 @@ export const VISUAL_EPISODE_KINDS = [
   "off_camera",
   /** Face detected, but head pose outside the forward cone. */
   "gaze_away",
-  /** Face detected, but its centre outside the central region of frame. */
+  /** Face detected, but its center outside the central region of frame. */
   "off_center",
   /** More than one face in frame. */
   "multiple_faces",
@@ -174,7 +174,7 @@ export const VISUAL_EPISODE_KINDS = [
    * gesticulation rate, never folded into the gesture-rate curve above. */
   "hands_near_face",
   /** Sustained drift away from the student's OWN opening posture baseline.
-   * Baseline-relative by construction — never an absolute-posture judgement
+   * Baseline-relative by construction — never an absolute-posture judgment
    * against a fixed ideal. See `lib/metrics/body-thresholds.ts`. */
   "posture_drift",
 ] as const;
@@ -408,7 +408,7 @@ export interface VisualMetrics {
    * `lib/interview/prompts.ts`'s missing-data rule cares about.
    *
    * Spans the WHOLE session, deliberately: engagement is expected throughout,
-   * not only while the student holds the floor. Listening behaviour is ALSO
+   * not only while the student holds the floor. Listening behavior is ALSO
    * broken out separately as `attentiveness_pct` — the two are complementary,
    * not alternatives, and this one is the headline figure.
    */
@@ -427,13 +427,13 @@ export interface VisualMetrics {
   attentiveness_pct: number;
   /**
    * 0-100. Percentage of PROCESSED samples where a face was detected AND that
-   * face's bounding-box centre sat inside the central region of the frame.
+   * face's bounding-box center sat inside the central region of the frame.
    *
    * The denominator is PROCESSED samples, deliberately — NOT face-detected
    * samples. Dividing by face-detected samples (which this metric originally
    * did) made the value structurally incapable of falling for absence: a
-   * student detected 20% of the session but centred whenever visible scored
-   * 100%, and was reported back as "Consistently centred". Absence is poor
+   * student detected 20% of the session but centered whenever visible scored
+   * 100%, and was reported back as "Consistently centered". Absence is poor
    * performance, not missing data — the same principle `eye_contact_pct`
    * above already encodes and `lib/metrics/coverage.ts` is built on.
    */
@@ -490,7 +490,7 @@ export interface VisualMetrics {
   hands_near_face_pct?: number;
   /** 0-1. Session-wide mean of each post-baseline tick's drift away from the
    * session's own opening posture baseline — baseline-relative, never an
-   * absolute-posture judgement. See Pattern 3 in `12-RESEARCH.md`.
+   * absolute-posture judgment. See Pattern 3 in `12-RESEARCH.md`.
    *
    * NO LONGER SCORED (12-11 Task 3). This was the field `bandPostureDrift`
    * compared against `POSTURE_DRIFT_TRIP`, and it is the wrong statistic for

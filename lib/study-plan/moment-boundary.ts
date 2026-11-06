@@ -93,7 +93,7 @@ const PHONE_PATTERN = /\b(?:\+?\d[\d\-.\s()]{6,}\d)\b/g;
  * student's own name tokens — patterns it can recognize by shape or by an
  * exact name match it was explicitly given. It does NOT attempt general
  * named-entity recognition or any model-based PII detection: a model
- * judgement call inside a privacy guarantee is exactly the pattern
+ * judgment call inside a privacy guarantee is exactly the pattern
  * 21-CONTEXT.md's deterministic-over-model constraint rules out. The
  * residual risk this accepts — an arbitrary third party the student
  * happened to name aloud mid-session, which this redactor cannot

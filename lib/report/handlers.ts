@@ -142,7 +142,7 @@ export async function retryReportForUser(
 
 /**
  * Owner-scoped list. Always excludes `IN_PROGRESS` (abandoned sessions),
- * matching today's `/api/interview/reports` behaviour. Optional `types`
+ * matching today's `/api/interview/reports` behavior. Optional `types`
  * filters by `typeSlug`; when omitted, every type is returned.
  *
  * `app/reports/page.tsx` will pass the four interview preset slugs

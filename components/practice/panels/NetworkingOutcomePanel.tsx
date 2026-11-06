@@ -1,7 +1,7 @@
 /**
  * Ask / outcome / common-ground panel for a networking report.
  *
- * Visually distinct from score cards: no 1–5 scale, no colour that encodes
+ * Visually distinct from score cards: no 1–5 scale, no color that encodes
  * good/bad. `never-asked` is first-class feedback — same weight as agreed /
  * deflected / declined. An avatar early end is feedback, never a failure.
  *

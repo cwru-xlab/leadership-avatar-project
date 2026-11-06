@@ -132,7 +132,7 @@ export interface CoachTurnDeps {
   generate?: (system: string, history: Msg[]) => Promise<unknown>;
   grade?: Grader;
   classifyReply?: ReplyClassifier;
-  /** Diagnostics only (verifiers, evaluation scripts). Never affects behaviour. */
+  /** Diagnostics only (verifiers, evaluation scripts). Never affects behavior. */
   trace?: (event: CoachTraceEvent) => void;
 }
 
@@ -748,7 +748,7 @@ export async function coachTurn(
       out = {
         speech:
           "Thanks for sticking with it; we'll close this moment here." +
-          (takeaway ? ` Your one takeaway to practise: ${takeaway.name.toLowerCase()}. ${takeaway.reminder}` : ""),
+          (takeaway ? ` Your one takeaway to practice: ${takeaway.name.toLowerCase()}. ${takeaway.reminder}` : ""),
         move: "LEG_DONE",
         awaiting: "NONE",
         demonstration: null,

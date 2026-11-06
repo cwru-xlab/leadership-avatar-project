@@ -76,7 +76,7 @@ export interface RewriteWeakLinePayload {
   /** Phase 23 (K5): see PickBetterResponsePayload.contextLine. */
   contextLine?: string | null;
   /** Phase 23 (K2): the closed-library technique (coached/tips.ts) the
-   * rewrite practises. Absent on older rows. */
+   * rewrite practices. Absent on older rows. */
   techniqueId?: string | null;
 }
 

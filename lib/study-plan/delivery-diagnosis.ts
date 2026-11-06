@@ -20,7 +20,7 @@ export const WELL_PACED_MAX_WPM = 160;
 export const PAUSE_NATURAL_PER_MIN = 1;
 /** Matches `bandEyeContact`: Solid starts at 50%. */
 export const EYE_SOLID_PCT = 50;
-/** Matches `bandFraming`: Mostly centred starts at 65%. */
+/** Matches `bandFraming`: Mostly centered starts at 65%. */
 export const FRAME_MOSTLY_CENTRED_PCT = 65;
 /** Matches on-camera "Mostly present". */
 export const FACE_MOSTLY_PRESENT_PCT = 75;
@@ -176,11 +176,11 @@ function scoreTechnique(t: Technique, input: DiagnosisInput): { weakness: number
     case "delivery-recenter-frame": {
       if (!cameraOn || centered == null) return { weakness: 0, reason: "Camera was off, so framing was not measured.", ineligible: true };
       if (centered >= FRAME_MOSTLY_CENTRED_PCT) {
-        return { weakness: 0, reason: "Your framing is already mostly centred.", ineligible: true };
+        return { weakness: 0, reason: "Your framing is already mostly centered.", ineligible: true };
       }
       return {
         weakness: Math.min(1, (FRAME_MOSTLY_CENTRED_PCT - centered) / FRAME_MOSTLY_CENTRED_PCT),
-        reason: `Your framing was centred ${Math.round(centered)}% of the time.`,
+        reason: `Your framing was centered ${Math.round(centered)}% of the time.`,
         ineligible: false,
       };
     }
