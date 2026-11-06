@@ -242,7 +242,12 @@ role_context:
 ${roleContextJson}
 
 visual_metrics: ${metrics.visualMetrics ? JSON.stringify(metrics.visualMetrics) : "null"}
-vocal_metrics: ${metrics.vocalMetrics ? JSON.stringify(metrics.vocalMetrics) : "null"}`;
+vocal_metrics: ${metrics.vocalMetrics ? JSON.stringify(metrics.vocalMetrics) : "null"}${
+    // Problem interviews only; every other interview's message is unchanged.
+    typeof evaluationContext.problemBrief === "string" && evaluationContext.problemBrief
+      ? `\n\n${evaluationContext.problemBrief}`
+      : ""
+  }`;
 }
 
 type UserMessageContent =

@@ -22,6 +22,10 @@ import type { AttemptLanguage } from "@/lib/languages";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
 import type { DisengagementCause, DisengagementWeights } from "./disengagement";
+import type {
+  ProblemQuestion,
+  ProcessFramework,
+} from "@/lib/problem-interview/types";
 
 /** A single scored dimension on the report. */
 export interface RubricDimension {
@@ -208,6 +212,12 @@ export interface LiveSystemPromptExtra {
    */
   networkingPersona?: string | null;
   networkingDisplayName?: string | null;
+  /**
+   * Problem interviews only: the ONE question pinned on the report snapshot at
+   * session start, re-read from the server-only bank by the chat route, plus
+   * its framework. Session-constant — the same question every turn.
+   */
+  problem?: { question: ProblemQuestion; framework: ProcessFramework } | null;
 }
 
 /**
@@ -250,6 +260,29 @@ export interface InteractionPromptsConfig {
   buildTailFragment?: (config: ResolvedSessionConfig) => string;
 }
 
+/**
+ * What the setup wizard's briefing says about a problem interview. Tells the
+ * student what kind of interview it is — never the framework's steps.
+ */
+export interface ProblemInterviewBriefing {
+  headline: string;
+  points: string[];
+}
+
+/**
+ * Declared by problem-interview types (case interview, product management)
+ * built with `makeProblemInterviewTypeConfig`. Its presence is the ONE
+ * signal the engine, chat route, live shell and report read — nothing
+ * branches on a slug. The question BANK is deliberately not here: this
+ * record reaches the browser bundle through the registry, and the bank holds
+ * interviewer facts and strong-answer notes. Banks are registered in
+ * `lib/problem-interview/banks.server.ts`.
+ */
+export interface ProblemInterviewTypeSpec {
+  frameworks: ProcessFramework[];
+  briefing: ProblemInterviewBriefing;
+}
+
 /** A type's limits, stated to the model, not enforced as a hard cutoff
  * (matches the interview presets' existing `targetMinutes`/
  * `targetQuestionCount` semantics). `null` means the type declares no target
@@ -275,6 +308,8 @@ export interface InteractionTypeConfig {
   description: string;
   /** Rendering model. Omitted legacy types resolve to the conversation room. */
   sessionExperience?: "conversation" | "coding";
+  /** Problem interviews only. See `ProblemInterviewTypeSpec`. */
+  problemInterview?: ProblemInterviewTypeSpec;
   /** Additional scored dimensions beyond the four shared ones. Empty for
    * every built-in type today. */
   extraRubricDimensions: RubricDimension[];
