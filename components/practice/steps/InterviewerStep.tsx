@@ -5,9 +5,9 @@
  * `app/interview/[type]/page.tsx`. Fetches `/api/interview/interviewers`
  * and writes the chosen avatar into setup state owned by the page.
  *
- * CustomizePanel stays on the preset picker (`app/interview/page.tsx`) —
- * today's type-page wizard does not render it, so neither does this step
- * (REQ-69 invisible refactor).
+ * Customization lives on its own page before the wizard
+ * (`components/interview/InterviewCustomizePage.tsx`); this step does not
+ * render it (REQ-69 invisible refactor).
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";

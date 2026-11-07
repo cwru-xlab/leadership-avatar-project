@@ -387,7 +387,7 @@ console.log(
     "lib/networking/wizard-client.ts",
     "components/practice/steps/NetworkingPersonStep.tsx",
     // Phase 8 interview paste UI — same ephemeral contract, pre-Phase-16
-    "components/interview/CustomizePanel.tsx",
+    "components/interview/InterviewCustomizePage.tsx",
   ]);
 
   // Also allow verify/spike scripts — they are not product persistence.

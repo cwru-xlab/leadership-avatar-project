@@ -39,6 +39,12 @@ export interface InterviewType {
   caseBackground?: string;
   /** Picker-card display only — never interpolated into the prompt. */
   questionAreas?: string[];
+  /**
+   * `false` folds the preset out of the picker without retiring it: its slug
+   * still resolves, so old reports, "Practice again" and study-plan links keep
+   * working. Omitted means listed.
+   */
+  listed?: boolean;
 }
 
 /**
@@ -141,6 +147,9 @@ const EARLY_CAREER_INTERVIEW: InterviewType = {
   targetMinutes: 10,
   targetQuestionCount: 5,
   questionAreas: ["Your background", "Behavioral stories", "Motivation & fit"],
+  // Folded away from the picker 2026-11-06; the general interview at Beginner
+  // difficulty and Quick length covers the same ground.
+  listed: false,
 };
 
 export const INTERVIEW_TYPES: Record<string, InterviewType> = {
@@ -158,9 +167,14 @@ export function getInterviewType(slug: string | undefined | null): InterviewType
   return INTERVIEW_TYPES[slug.trim().toLowerCase()] ?? null;
 }
 
-/** For the launcher listing. */
+/** Every preset, listed or not — for lookups, validation and verify scripts. */
 export function listInterviewTypes(): InterviewType[] {
   return Object.values(INTERVIEW_TYPES);
+}
+
+/** Whether the picker offers this preset. Unlisted presets still resolve by slug. */
+export function isListedInterviewType(type: InterviewType): boolean {
+  return type.listed !== false;
 }
 
 /**
