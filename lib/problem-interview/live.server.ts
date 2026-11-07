@@ -7,8 +7,9 @@
  * (and its framework in the type) — otherwise the turn is refused rather
  * than silently degrading into a generic interview.
  *
- * Record: after the model's reply has streamed, its markers are reduced into
- * the stored state and the new events appended. Re-reads the row first so a
+ * Record: after the model's reply has streamed, its markers (plus any action
+ * `inferUnmarkedActions` conservatively recovers from a dropped marker) are
+ * reduced into the stored state and the new events appended. Re-reads the row first so a
  * slow turn can never overwrite a newer one's events with stale state.
  */
 
@@ -20,6 +21,7 @@ import type { ProblemQuestion, ProcessFramework } from "./types";
 import { findProblemQuestion } from "./banks.server";
 import {
   asProblemSessionSnapshot,
+  inferUnmarkedActions,
   reduceProblemTurn,
   toProblemLiveView,
   type ProblemLiveView,
@@ -68,11 +70,14 @@ export async function loadProblemTurnContext({
 
 export async function recordProblemTurn({
   context,
-  actions,
+  actions: markedActions,
+  replyText,
   turnIndex,
 }: {
   context: ProblemTurnContext;
   actions: ProblemTurnAction[];
+  /** The marker-free reply, for the dropped-marker fallback. */
+  replyText: string;
   turnIndex: number;
 }): Promise<ProblemLiveView> {
   const report = await prisma.interactionReport.findFirst({
@@ -81,7 +86,18 @@ export async function recordProblemTurn({
   });
   const raw = snapshotRecord(report?.inputSnapshot);
   const stored = asProblemSessionSnapshot(raw?.problem) ?? context.snapshot;
-  if (!raw || actions.length === 0) return toProblemLiveView(stored);
+  if (!raw) return toProblemLiveView(stored);
+  const actions = [
+    ...markedActions,
+    ...inferUnmarkedActions(
+      replyText,
+      markedActions,
+      stored.state,
+      context.question,
+      context.framework,
+    ),
+  ];
+  if (actions.length === 0) return toProblemLiveView(stored);
 
   const atSeconds = Math.max(
     0,

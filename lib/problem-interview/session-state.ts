@@ -175,7 +175,9 @@ export type ProblemTurnAction =
   | { kind: "follow_up" }
   | { kind: "closing" }
   | { kind: "nudge"; step: string }
-  | { kind: "exhibit"; exhibit: string };
+  | { kind: "exhibit"; exhibit: string }
+  /** Server-inferred only (never a model marker): the reply posed the problem. */
+  | { kind: "posed" };
 
 export interface ReduceProblemTurnInput {
   question: ProblemQuestion;
@@ -278,6 +280,8 @@ export function reduceProblemTurn(
   } else if (stageAction?.kind === "closing") {
     moveTo("closing");
   }
+
+  if (actions.some((action) => action.kind === "posed")) moveTo("problem");
 
   return { state, events };
 }
@@ -462,4 +466,94 @@ export function revealedExhibits(snapshot: ProblemSessionSnapshot): PublicExhibi
   return snapshot.events.flatMap((event) =>
     event.kind === "exhibit" ? [event.exhibit] : [],
   );
+}
+
+// ---------------------------------------------------------------------------
+// Conservative fallback for dropped markers
+// ---------------------------------------------------------------------------
+
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[^a-z0-9' ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function contentWords(text: string): string[] {
+  return normalize(text)
+    .split(" ")
+    .filter((word) => word.length > 3);
+}
+
+const SCREEN_PHRASE = /\b(on|to|onto) your screen\b|\bputting (up|together)?\s*(some|the|a|this)?\s*(data|numbers|table|chart|exhibit)/i;
+
+/**
+ * The model sometimes performs an action but drops its marker (a real-model
+ * study saw exhibit markers dropped 2/6 and nudge markers 3/6). This infers
+ * the missing action from the reply text — deliberately conservative, so a
+ * false positive is rarer than the miss it repairs:
+ *
+ *  - exhibit: the reply names a pending exhibit's title verbatim, OR says it
+ *    is putting something "on your screen" while exactly ONE exhibit is
+ *    still pending;
+ *  - nudge (problem stage only): the reply contains a not-yet-nudged step's
+ *    nudge text verbatim (case/punctuation-insensitive);
+ *  - posing the problem (opening/fit only): at least 70% of the prompt's
+ *    content words appear in the reply.
+ *
+ * Returns only actions the explicit markers did not already carry.
+ */
+export function inferUnmarkedActions(
+  reply: string,
+  explicit: ProblemTurnAction[],
+  state: ProblemInterviewState,
+  question: ProblemQuestion,
+  framework: ProcessFramework,
+): ProblemTurnAction[] {
+  const text = normalize(reply);
+  if (!text) return [];
+  const inferred: ProblemTurnAction[] = [];
+
+  const hasExhibit = explicit.some((action) => action.kind === "exhibit");
+  const pending = (question.exhibits ?? []).filter(
+    (exhibit) => !state.revealedExhibits.includes(exhibit.id),
+  );
+  if (!hasExhibit && pending.length > 0) {
+    const byTitle = pending.find((exhibit) => {
+      const title = normalize(exhibit.title);
+      return title.length >= 8 && text.includes(title);
+    });
+    if (byTitle) {
+      inferred.push({ kind: "exhibit", exhibit: byTitle.id });
+    } else if (pending.length === 1 && SCREEN_PHRASE.test(reply)) {
+      inferred.push({ kind: "exhibit", exhibit: pending[0]!.id });
+    }
+  }
+
+  const stageAfterPosing =
+    state.stage === "problem" || state.promptPosed || inferred.length > 0;
+  if (stageAfterPosing) {
+    const explicitNudges = new Set(
+      explicit.flatMap((action) => (action.kind === "nudge" ? [action.step] : [])),
+    );
+    for (const step of framework.steps) {
+      if (state.nudgedSteps.includes(step.key) || explicitNudges.has(step.key)) continue;
+      const nudge = normalize(step.nudge);
+      if (nudge.length >= 12 && text.includes(nudge)) {
+        inferred.push({ kind: "nudge", step: step.key });
+      }
+    }
+  }
+
+  if ((state.stage === "opening" || state.stage === "fit") && !state.promptPosed) {
+    const promptWords = [...new Set(contentWords(question.prompt))];
+    const replyWords = new Set(contentWords(reply));
+    const overlap = promptWords.filter((word) => replyWords.has(word)).length;
+    const posesProblem = promptWords.length >= 4 && overlap / promptWords.length >= 0.7;
+    if (posesProblem) inferred.push({ kind: "posed" });
+  }
+
+  return inferred;
 }

@@ -174,7 +174,7 @@ async function main() {
   check("fixture hidden from launcher", !listInterviewTypes().some((t) => t.slug === PROBLEM_FIXTURE_SLUG));
   check("fixture resolves as an interview", Boolean(getInterviewType(PROBLEM_FIXTURE_SLUG)));
   check("fixture bank is server-registered", getProblemBank(PROBLEM_FIXTURE_SLUG).length === 1);
-  check("classic consulting is still not a problem interview", !getEngineType("consulting")?.problemInterview);
+  check("fixture type is selected by its config flag", type?.problemInterview?.frameworks[0]?.key === PROBLEM_FIXTURE_FRAMEWORK.key);
 
   const resolved = resolveSessionConfig(PROBLEM_FIXTURE_SLUG);
   if (!resolved.ok) throw new Error(resolved.reason);
@@ -332,6 +332,48 @@ async function main() {
     const fresh = buildProblemSessionSnapshot(question, framework, "2026-11-06T00:00:00Z");
     check("live view hides prompt before it is posed", toProblemLiveView(fresh).question === null);
     check("live view shows prompt once posed (nudge self-heal)", toProblemLiveView(snapshot).question?.prompt === question.prompt);
+  }
+
+  // ---------------------------------------------------------------------------
+  console.log("\ndropped-marker fallback");
+  {
+    const { inferUnmarkedActions } = await import("../lib/problem-interview/session-state");
+    const posed = { ...initialProblemState(), stage: "problem" as const, promptPosed: true };
+    const fit = { ...initialProblemState(), stage: "fit" as const };
+    check(
+      "screen phrase + one pending exhibit → exhibit",
+      JSON.stringify(inferUnmarkedActions("I'm putting some numbers on your screen now.", [], posed, question, framework)) ===
+        JSON.stringify([{ kind: "exhibit", exhibit: "ex1" }]),
+    );
+    check(
+      "exhibit title verbatim → exhibit",
+      inferUnmarkedActions("Here are the monthly app sessions by cardholder age.", [], posed, question, framework).some((a) => a.kind === "exhibit"),
+    );
+    check(
+      "no inference when marker present",
+      inferUnmarkedActions("On your screen now.", [{ kind: "exhibit", exhibit: "ex1" }], posed, question, framework).length === 0,
+    );
+    check(
+      "no exhibit inference once revealed",
+      inferUnmarkedActions("On your screen now.", [], { ...posed, revealedExhibits: ["ex1"] }, question, framework).length === 0,
+    );
+    check(
+      "verbatim nudge text → nudge",
+      inferUnmarkedActions("Okay. Who do you see using this?", [], posed, question, framework).some((a) => a.kind === "nudge" && a.step === "identify_customer"),
+    );
+    check(
+      "nudge not inferred twice",
+      inferUnmarkedActions("Who do you see using this?", [], { ...posed, nudgedSteps: ["identify_customer"] }, question, framework).length === 0,
+    );
+    check(
+      "ordinary probing infers nothing",
+      inferUnmarkedActions("Take your time. What are you thinking about first?", [], posed, question, framework).length === 0,
+    );
+    const paraphrase = "Let's jump in. The city's public library wants to grow digital borrowing. How would you improve its mobile app?";
+    const inferredPose = inferUnmarkedActions(paraphrase, [{ kind: "follow_up" }], fit, question, framework);
+    check("paraphrased prompt during fit → posed", inferredPose.some((a) => a.kind === "posed"));
+    const afterPose = reduceProblemTurn(fit, [{ kind: "follow_up" }, ...inferredPose], ctx);
+    check("posed moves fit → problem", afterPose.state.stage === "problem" && afterPose.state.promptPosed);
   }
 
   // ---------------------------------------------------------------------------

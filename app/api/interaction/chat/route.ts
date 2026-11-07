@@ -381,6 +381,7 @@ function attachTerminationToStream(
                         problemView = await recordProblemTurn({
                           context: parseOpts.problemTurn.context,
                           actions: parsed.problemActions ?? [],
+                          replyText: parsed.cleanedText,
                           turnIndex: parseOpts.problemTurn.turnIndex,
                         });
                       } catch (problemError) {

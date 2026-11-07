@@ -113,14 +113,18 @@ evaluation step, so never grade, coach or teach during the interview.`,
      something not in your facts, say you don't have that data and invite them to make
      a reasonable assumption and state it.
    - Reveal each exhibit only when its reveal condition is met. When you reveal one,
-     say briefly that you are putting it on their screen, and do not read the whole
-     table aloud or interpret it for them.
+     say briefly that you are putting it on their screen. Never read its rows or
+     numbers aloud and never interpret it for them: the table is on their screen.
    - Push for numbers and math: when they estimate, ask them to put a number on it
      and walk you through the arithmetic. If they make an arithmetic slip, ask them
      to double-check that figure — do not correct it yourself.
-   - When the candidate skips a step of the method below and moves on, ask that
-     step's neutral nudge, close to verbatim, at most ONCE per step. A nudge is a
-     question, never a hint: never name the step, the method, or the answer.
+   - Nudges: ask a step's neutral nudge, close to verbatim, ONLY after the
+     candidate has clearly moved past that step without doing it (for example,
+     they start solving or give an answer without it), and at most ONCE per step.
+     NEVER nudge while the candidate is thinking, structuring, or asks for time
+     ("give me a second", "let me structure this", a pause, a partial thought):
+     give them the time ("Take your time.") and wait. A nudge is a question,
+     never a hint: never name the step, the method, or the answer.
    - If time is running short, or they have finished the analysis, ask for their
      final recommendation or summary if they have not given one.
 4. Candidate questions: ask whether they have questions for you; answer briefly
@@ -178,10 +182,14 @@ the very end of your reply; never mention or explain them.
                                        follow-up, answering a clarifying question,
                                        probing their work on the problem)
   <interview-turn kind="closing" />   for the closing turn
-- When the reply contains a step's neutral nudge, ALSO add, before the stage marker:
+- REQUIRED whenever the reply asks a step's neutral nudge — add, before the stage marker:
   <interview-turn kind="nudge" step="STEP_KEY" />
-- When the reply hands over an exhibit, ALSO add, before the stage marker:
+- REQUIRED whenever the reply hands over an exhibit — add, before the stage marker:
   <interview-turn kind="exhibit" exhibit="EXHIBIT_ID" />
+  The exhibit appears on the candidate's screen ONLY through this marker. Saying
+  "I'm putting it on your screen" without the marker shows them nothing.
+- REQUIRED when you pose the problem: that reply's stage marker is
+  <interview-turn kind="planned" />.
 Use only the exact step keys and exhibit ids given above.`,
 
     `## LANGUAGE
@@ -280,9 +288,25 @@ export function buildProblemProgressBlock(
       : state.stage === "closing" || remaining <= 1
         ? `<interview-turn kind="closing" /> when you close`
         : `<interview-turn kind="planned" /> if you move to the next stage, otherwise <interview-turn kind="follow_up" />`;
-  lines.push(
-    `Stage marker for this turn: ${marker}. Add a nudge or exhibit marker before it when this reply nudges a step or hands over an exhibit.`,
-  );
+  lines.push(`Stage marker for this turn: ${marker}.`);
+  if (state.stage === "fit" || state.stage === "opening") {
+    lines.push(
+      `If this reply poses the problem, its stage marker MUST be <interview-turn kind="planned" />.`,
+    );
+  }
+  if (pending.length) {
+    lines.push(
+      `If this reply hands over an exhibit, it MUST also carry ${pending
+        .map((exhibit) => `<interview-turn kind="exhibit" exhibit="${exhibit.id}" />`)
+        .join(" or ")} — without it nothing appears on their screen.`,
+    );
+  }
+  if (state.stage === "problem" && nudgeable.length) {
+    lines.push(
+      `If this reply asks a step's nudge, it MUST also carry <interview-turn kind="nudge" step="STEP_KEY" />. ` +
+        `Never nudge a candidate who is still thinking or asked for time.`,
+    );
+  }
 
   return lines.join("\n");
 }
@@ -326,10 +350,20 @@ from each, reference notes on a strong answer, the framework being graded, and
 interviewer_events recorded by the server.
 
 GRADING THE PROCESS
-- Grade every step of the named framework as one of: ${PROCESS_STEP_STATUSES.join(", ")}.
+For EACH step, find the evidence first, then decide — answer two questions in order:
+  1. Does the candidate's own evidence FULLY meet the step's "counts as hit"
+     criteria? If not, the step is "missed" (or "not_applicable", below) — even if
+     the interviewer nudged it. A nudge alone never makes a step "prompted", and a
+     one-line reply to a nudge that does not meet the criteria is "missed".
+  2. Only if it does: was the step nudged (interviewer_events) BEFORE that
+     evidence? Then "prompted"; otherwise "hit".
+- Before crediting any step that involves math or estimation, re-check the
+  candidate's arithmetic yourself. A material arithmetic error the candidate did
+  not catch means the criteria are not fully met.
+- Statuses: ${PROCESS_STEP_STATUSES.join(", ")}.
   - hit: the candidate did it unprompted. Quote their words.
-  - prompted: they did it only after the interviewer's nudge for that step.
-  - missed: they never did it, nudged or not.
+  - prompted: they fully met the criteria, but only after the interviewer's nudge.
+  - missed: they never fully met the criteria, nudged or not.
   - not_applicable: the session ended before the step could be reached through no
     fault of the candidate's process (for example, the interview ran out of time).
     Never use it to excuse a skipped step.
@@ -352,10 +386,12 @@ Also return an "outcome" object with exactly these keys:
 - "questionId": the question id from the problem_interview block, copied exactly.
 - "frameworkKey": the framework key from the problem_interview block, copied exactly.
 - "processSteps": a JSON-encoded STRING (not an array) holding one object per
-  framework step, in the framework's order:
-  [{"key": "step_key", "status": "hit" | "prompted" | "missed" | "not_applicable",
-    "evidenceQuote": "verbatim candidate words, or \\"\\" when missed",
+  framework step, in the framework's order, evidence BEFORE verdict inside each
+  object:
+  [{"key": "step_key",
+    "evidenceQuote": "verbatim candidate words, or \\"\\" when there is none",
     "timecodeSeconds": 123 | null,
+    "status": "hit" | "prompted" | "missed" | "not_applicable",
     "note": "One sentence of coaching for this step, addressed to the candidate as you."}]
 
 FRAMEWORKS THIS INTERVIEW TYPE USES
