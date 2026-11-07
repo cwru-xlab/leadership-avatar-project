@@ -19,10 +19,14 @@ import { CURATED_INDUSTRIES, CURATED_ROLES } from "@/lib/interview/customization
 
 const TYPE_LABELS: Record<string, string> = {
   general: "General interview",
-  technical: "Technical interview",
+  technical: "Engineering behavioral interview",
   "technical-coding": "Technical coding interview",
   consulting: "Consulting interview",
   "early-career": "Early-career interview",
+  "product-management": "Product management interview",
+  "data-analytics": "Data / product analytics interview",
+  finance: "Finance interview",
+  "system-design": "System design interview",
   "case-study": "Case study",
   "pitch-elevator": "Elevator pitch",
   // "pitch-deck" is deliberately NOT a literal here anymore — its title now
@@ -32,6 +36,8 @@ const TYPE_LABELS: Record<string, string> = {
   // reproduces "Investor pitch deck").
   "difficult-conversation": "Courageous conversation",
   networking: "Networking",
+  "clinical-communication": "Clinical communication",
+  "motivational-interviewing": "Motivational interviewing",
 };
 
 /**
@@ -144,6 +150,9 @@ const UNSPECIFIC_INTERVIEW_TARGETS = new Set([
   "a software engineering role",
   "a management consulting associate role",
   "an internship or entry-level rotational role",
+  "a product manager role",
+  "a data scientist (product analytics) role",
+  "an investment banking analyst role",
   "general / cross-industry",
   "technology",
   "management consulting",

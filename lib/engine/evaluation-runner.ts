@@ -42,6 +42,14 @@ import {
 import { asDisengagementDeclineRecord } from "@/lib/report/dto";
 import { asTechnicalEvidence } from "@/lib/technical-interview/evidence";
 import { recordLiveSessionContributions } from "@/lib/mastery/from-report";
+import { findProblemQuestion } from "@/lib/problem-interview/banks.server";
+import { buildProblemEvaluatorBrief } from "@/lib/problem-interview/prompts";
+import {
+  asProcessStepResults,
+  finalizeProblemOutcome,
+} from "@/lib/problem-interview/outcome";
+import { deriveProcessRigorScore } from "@/lib/problem-interview/types";
+import { asProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
 import type { InteractionLog, InteractionEvent } from "@/types";
 
 import { runEvaluation } from "./evaluation";
@@ -49,6 +57,7 @@ import { validateOutcome } from "./outcome";
 import { getEngineType } from "./registry";
 import { resolveSessionConfig } from "./resolve";
 import type {
+  SupplementaryAnalysisInput,
   EvaluatorImage,
   InstanceConfig,
   ResolvedSessionConfig,
@@ -376,8 +385,29 @@ function buildEvaluationContextForReport(
 
   if (snapshot?.kind === "interview") {
     const presetCustomization = config.customization;
+    // Problem interviews: the pinned question's private material (facts, key
+    // insights, strong-answer notes, framework criteria) and the server's
+    // nudge / exhibit record, appended to the evaluator's user message.
+    const problem = type.problemInterview
+      ? asProblemSessionSnapshot(snapshot.problem)
+      : null;
+    const problemBrief = problem
+      ? buildProblemEvaluatorBrief({
+          questionId: problem.questionId,
+          frameworkKey: problem.frameworkKey,
+          question: findProblemQuestion(config.typeSlug, problem.questionId),
+          publicTitle: problem.question.title,
+          publicPrompt: problem.question.prompt,
+          framework:
+            type.problemInterview!.frameworks.find(
+              (framework) => framework.key === problem.frameworkKey,
+            ) ?? null,
+          events: problem.events,
+        })
+      : null;
     return {
       kind: "interview",
+      ...(problemBrief ? { problemBrief } : {}),
       resumeText: snapshot.resumeText ?? "",
       customization: {
         industry:
@@ -508,6 +538,8 @@ export async function runAndPersistEvaluation({
     // ----- Transcript derivation (both legacy paths) -----
     let transcript = "";
     let turnCountUpdate: number | undefined;
+    let transcriptTurns: SupplementaryAnalysisInput["turns"] | null = null;
+    let transcriptStartedAt = 0;
 
     if (report.transcriptKey) {
       const interviewTranscript = await s3Storage.getInterviewTranscript(
@@ -526,6 +558,8 @@ export async function runAndPersistEvaluation({
         return;
       }
       transcript = formatTranscriptForEvaluator(interviewTranscript);
+      transcriptTurns = interviewTranscript.turns;
+      transcriptStartedAt = interviewTranscript.startedAt;
     } else if (report.interactionLogId && report.studentEmail) {
       const caseId =
         snapshot?.kind === "scenario" ? snapshot.caseId : null;
@@ -612,6 +646,38 @@ export async function runAndPersistEvaluation({
     // does not carry prompts; same adaptation as 13-05). Image-fetch failure
     // degrades to text-only evaluation; never fails the whole report.
     const typeRecord = getEngineType(resolved.config.typeSlug);
+
+    // Type-declared supplementary analysis (engine-owned structured result).
+    // Runs before the rubric evaluator so its note can ground the narrative.
+    // Failure degrades to "no analysis"; it never fails the report.
+    let supplementary: { key: string; value: unknown } | null = null;
+    if (typeRecord?.supplementaryAnalysis && transcriptTurns) {
+      try {
+        const produced = await typeRecord.supplementaryAnalysis.run({
+          config: resolved.config,
+          turns: transcriptTurns,
+          startedAt: transcriptStartedAt,
+        });
+        if (produced) {
+          supplementary = {
+            key: typeRecord.supplementaryAnalysis.outcomeKey,
+            value: produced.outcomeValue,
+          };
+          if (produced.evaluatorNote) {
+            const prior =
+              typeof evaluationContext.evaluatorBrief === "string"
+                ? evaluationContext.evaluatorBrief
+                : "";
+            evaluationContext.evaluatorBrief = `${prior}\n\nBehavior coding:\n${produced.evaluatorNote}`.trim();
+          }
+        }
+      } catch (analysisError) {
+        console.warn("Engine evaluation: supplementaryAnalysis failed; continuing without it", {
+          reportId,
+          error: analysisError instanceof Error ? analysisError.message : String(analysisError),
+        });
+      }
+    }
     let images: EvaluatorImage[] | undefined;
     if (typeRecord?.prompts.buildEvaluationImages) {
       try {
@@ -653,7 +719,22 @@ export async function runAndPersistEvaluation({
       // Invalid → persist null (13-07: never half-written). Do not overwrite a
       // non-null outcome the finish route already set unless the evaluator
       // produced one.
-      const produced = outcome.producedOutcome;
+      // Problem interviews: pin questionId/frameworkKey to the snapshot and
+      // reconcile step results with the server's nudge record before the one
+      // validator runs (evidence at/after a nudge can never stay "hit").
+      const problemSnapshot =
+        typeRecord?.problemInterview && snapshot?.kind === "interview"
+          ? asProblemSessionSnapshot(snapshot.problem)
+          : null;
+      const produced = problemSnapshot
+        ? finalizeProblemOutcome(
+            outcome.producedOutcome,
+            problemSnapshot,
+            typeRecord?.problemInterview?.frameworks.find(
+              (f) => f.key === problemSnapshot.frameworkKey,
+            ) ?? null,
+          )
+        : outcome.producedOutcome;
       const storedOutcome =
         report.outcome && typeof report.outcome === "object" && !Array.isArray(report.outcome)
           ? (report.outcome as Record<string, unknown>)
@@ -685,6 +766,16 @@ export async function runAndPersistEvaluation({
         outcomeToPersist = undefined;
       }
 
+      if (supplementary) {
+        const base =
+          validatedOutcome ??
+          (outcomeToPersist && outcomeToPersist !== Prisma.JsonNull
+            ? (outcomeToPersist as Record<string, unknown>)
+            : storedOutcome ?? {});
+        validatedOutcome = { ...base, [supplementary.key]: supplementary.value };
+        outcomeToPersist = validatedOutcome as unknown as Prisma.InputJsonValue;
+      }
+
       // Type-declared score cap (e.g. early-end discovery_tailoring ceiling).
       // Looked up on the type record — never via typeSlug branching.
       const scoresForPost = outcome.result.scores;
@@ -696,9 +787,23 @@ export async function runAndPersistEvaluation({
         : scoresForPost;
       // This cannot be left to a prompt: no managed deterministic executor is
       // configured, so the report may not claim a correctness score.
-      const finalScores = snapshot?.kind === "technical-coding"
+      const codingScores = snapshot?.kind === "technical-coding"
         ? { ...postProcessedScores, coding_correctness: null }
         : postProcessedScores;
+      // THE ONE DELIBERATE EXCEPTION to lib/report/dto.ts's "the outcome never
+      // writes a score" rule. For problem interviews, process_rigor is DEFINED
+      // by the step results (PROCESS_RIGOR_SCORING_GUIDE), and the evaluator
+      // demonstrably disagrees with its own steps (PM validity study), so the
+      // stored score is derived from the reconciled, validated steps. When
+      // the steps do not parse, the model's own value stands.
+      const problemSteps = problemSnapshot
+        ? asProcessStepResults(validatedOutcome?.processSteps)
+        : null;
+      const derivedRigor = problemSteps ? deriveProcessRigorScore(problemSteps) : null;
+      const finalScores =
+        derivedRigor !== null
+          ? { ...codingScores, process_rigor: derivedRigor }
+          : codingScores;
 
       await prisma.interactionReport.update({
         where: { id: reportId },

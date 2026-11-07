@@ -1,0 +1,23 @@
+{
+  "id": "b-feature-jumper-spotify",
+  "label": "(b) Jumps straight to listing features",
+  "questionId": "pm-improve-spotify",
+  "expect": {
+    "processRigorMax": 2,
+    "stepsMissed": ["identify_customer", "report_needs", "prioritize_needs"]
+  },
+  "turns": [
+    { "t": "0:04", "who": "Interviewer", "text": "Hi, thanks for joining. Why product management?" },
+    { "t": "0:12", "who": "Candidate", "text": "I've always been the person on my team with a lot of ideas for features, and I want a job where I get to decide what gets built." },
+    { "t": "0:55", "who": "Interviewer", "text": "Okay. Here's the product question. How would you improve Spotify?" },
+    { "t": "1:03", "who": "Candidate", "text": "Oh, I love Spotify, I use it every day, so I have a lot of ideas. First, I'd add a feature where you can see what your friends are listening to in real time, like a live feed, right on the home screen." },
+    { "t": "1:30", "who": "Candidate", "text": "Second, I'd add lyrics translation, so if you're listening to a song in Spanish you can see it in English. Third, a sleep timer that fades out slowly instead of cutting off. Fourth, better shuffle — everyone complains shuffle isn't really random." },
+    { "t": "2:05", "who": "Candidate", "text": "Fifth, I'd add an AI DJ that talks to you between songs and lets you ask for a vibe. And sixth, I think concert tickets should be bookable inside the app." },
+    { "t": "2:40", "who": "Interviewer", "text": "Which of those would you do?" },
+    { "t": "2:45", "who": "Candidate", "text": "Honestly, I'd do all of them, they're all pretty quick wins. But if I had to start, I'd probably do the friends feed because it's the coolest, and it would make the app more social." },
+    { "t": "3:10", "who": "Interviewer", "text": "Anything else you'd want to add?" },
+    { "t": "3:14", "who": "Candidate", "text": "Maybe dark mode improvements and a widget for the lock screen. I think that would make it a lot better overall." },
+    { "t": "3:40", "who": "Interviewer", "text": "Okay. Any questions for me?" },
+    { "t": "3:45", "who": "Candidate", "text": "No, I think I'm good. Thanks!" }
+  ]
+}

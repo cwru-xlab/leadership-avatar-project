@@ -1,0 +1,35 @@
+{
+  "id": "d-nudged-google-maps",
+  "label": "(d) Needs nudges on customer and prioritization",
+  "questionId": "pm-improve-google-maps",
+  "expect": {
+    "stepsPrompted": ["identify_customer", "prioritize_needs"],
+    "stepsHit": ["comprehend_situation", "list_solutions", "evaluate_tradeoffs", "summarize_recommendation"],
+    "processRigorMin": 2,
+    "processRigorMax": 3
+  },
+  "nudgesIssued": [
+    { "stepKey": "identify_customer", "t": "2:20" },
+    { "stepKey": "prioritize_needs", "t": "4:05" }
+  ],
+  "turns": [
+    { "t": "0:05", "who": "Interviewer", "text": "Hi, thanks for coming in. Tell me why you want to be a PM." },
+    { "t": "0:12", "who": "Candidate", "text": "I'm a software engineer and I've found myself caring more about which problem we're solving than about how we build it. I've started running our team's customer feedback reviews and I want to do that full time." },
+    { "t": "1:10", "who": "Interviewer", "text": "Makes sense. Okay — how would you improve Google Maps?" },
+    { "t": "1:18", "who": "Candidate", "text": "Let me start with the goal. Am I a PM on the Maps team, and is there a particular goal — more users, engagement, revenue?" },
+    { "t": "1:28", "who": "Interviewer", "text": "Assume you're a PM on the Maps team. Leadership cares about engagement beyond navigation — Maps being used when you're not driving." },
+    { "t": "1:40", "who": "Candidate", "text": "Okay, so engagement outside of driving. So the opportunity is in discovery and planning rather than turn-by-turn. I think the main thing to look at is how people decide where to go — right now you search, scroll through reviews, and bounce between Maps and other apps. I'd want to make that whole process smoother." },
+    { "t": "2:20", "who": "Interviewer", "text": "Who do you picture using this?" },
+    { "t": "2:24", "who": "Candidate", "text": "Good point. A few groups: locals looking for a new restaurant on a weeknight, tourists in an unfamiliar city, people planning a group outing with friends, and transit commuters. Given the goal is engagement outside driving, I'd focus on tourists — they open Maps many times a day, mostly on foot, and they have the most decisions to make about where to go." },
+    { "t": "3:05", "who": "Candidate", "text": "For tourists, the needs are: figuring out what's actually worth doing nearby given limited time, trusting reviews when they can't tell locals' opinions from other tourists', navigating transit in a language they don't speak, and knowing opening hours and crowds so they don't waste a trip. There's also planning a whole day so things are in a sensible order." },
+    { "t": "3:50", "who": "Candidate", "text": "So for solutions, I could do a day-planner that builds an itinerary, a 'locals' picks' filter on reviews, live crowd levels, and a translated transit mode..." },
+    { "t": "4:05", "who": "Interviewer", "text": "If you could only tackle one of those needs, which would it be?" },
+    { "t": "4:10", "who": "Candidate", "text": "Let me be more deliberate. I'd weigh how many tourists hit each need, how painful it is, and whether Maps is uniquely placed to solve it. Deciding what's worth doing with limited time affects nearly every tourist every day, it's painful because a wasted afternoon is costly on a short trip, and Maps has the place data, hours, and location to solve it better than a guidebook. Transit translation is painful but affects fewer people. So I'd prioritize deciding what's worth doing." },
+    { "t": "5:05", "who": "Candidate", "text": "Solutions for that need: one, an auto-built day plan from your saved places that orders them by geography and opening hours. Two, a 'locals love this' badge that weights reviews from people whose home city it is. Three, a 'nearby now' feed when you're walking, showing what's open and not crowded within ten minutes. Four, an option to share and co-edit a plan with your travel group." },
+    { "t": "6:00", "who": "Candidate", "text": "Comparing them on impact for tourists, effort, and risk: the day plan has the biggest impact on the core need but is the most complex — ordering stops well is a hard problem and a bad plan erodes trust. The locals badge is cheap and helps trust, but it requires knowing a reviewer's home city, which raises privacy concerns. The nearby-now feed is moderate effort and drives exactly the off-driving engagement we want, but risks feeling like ads if we fill it with promoted places. The shared plan is nice but serves a narrower group." },
+    { "t": "7:05", "who": "Candidate", "text": "So my recommendation: build the nearby-now feed first for tourists, because it directly targets the need of deciding what's worth doing, it moves engagement outside driving, and it's moderate effort. I'd keep promoted places clearly labeled and capped. Success would be sessions per day while on foot for travelers, and I'd watch the share of feed taps that lead to a visit as a quality check, with ad complaints as a counter-metric." },
+    { "t": "7:55", "who": "Interviewer", "text": "Thanks. Any questions for me?" },
+    { "t": "8:00", "who": "Candidate", "text": "How do you balance local-business ad revenue against keeping results trustworthy?" },
+    { "t": "8:20", "who": "Interviewer", "text": "It's a constant conversation. Thanks for your time." }
+  ]
+}

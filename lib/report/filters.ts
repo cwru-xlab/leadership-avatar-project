@@ -20,6 +20,10 @@ export const INTERVIEW_TYPE_SLUGS = new Set([
   "technical",
   "consulting",
   "early-career",
+  "product-management",
+  "data-analytics",
+  "finance",
+  "system-design",
 ]);
 
 export const TYPE_FILTERS = [
@@ -28,6 +32,8 @@ export const TYPE_FILTERS = [
   { id: "pitch", label: "Pitches" },
   { id: "difficult-conversation", label: "Courageous conversations" },
   { id: "networking", label: "Networking" },
+  { id: "clinical-communication", label: "Clinical communication" },
+  { id: "motivational-interviewing", label: "Motivational interviewing" },
   { id: "case-study", label: "Case studies" },
 ] as const;
 export type TypeFilter = (typeof TYPE_FILTERS)[number]["id"];

@@ -14,9 +14,11 @@ import {
   type InterviewProgress,
 } from "@/lib/interview/types";
 import { resolveSessionConfig } from "@/lib/engine/resolve";
+import { getEngineType } from "@/lib/engine/registry";
 import { buildTurnMessages } from "@/lib/engine/prompts";
 import {
   isInterviewIntegrityRequest,
+  isThinkingTimeRequest,
   parseEngineTurn,
 } from "@/lib/engine/turn-control";
 import {
@@ -51,6 +53,11 @@ import {
   technicalPolicyDirective,
 } from "@/lib/technical-interview/chat-policy";
 import type { TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
+import {
+  loadProblemTurnContext,
+  recordProblemTurn,
+  type ProblemTurnContext,
+} from "@/lib/problem-interview/live.server";
 
 export const maxDuration = 60;
 
@@ -247,6 +254,12 @@ function attachTerminationToStream(
     /** True once `forceWalkOutFarewell` verified and the directive was
      * actually injected into this turn's prompt. */
     walkOutFarewellVerified?: boolean;
+    /**
+     * Problem interviews: the loaded turn context. When present, the reply's
+     * markers are reduced into the server-owned state before the `end` frame
+     * goes out, and the public view rides on `metadata.problem`.
+     */
+    problemTurn?: { context: ProblemTurnContext; turnIndex: number };
   },
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
@@ -360,8 +373,29 @@ function attachTerminationToStream(
                       parseOpts.walkOutFarewellRequested === true &&
                       parseOpts.walkOutFarewellVerified !== true;
 
+                    // Problem interviews: record nudges / exhibit reveals /
+                    // stage moves server-side, then tell the client what is
+                    // now on screen. A failed write must not cost the turn.
+                    let problemView: unknown = undefined;
+                    if (parseOpts.problemTurn) {
+                      try {
+                        problemView = await recordProblemTurn({
+                          context: parseOpts.problemTurn.context,
+                          actions: parsed.problemActions ?? [],
+                          replyText: parsed.cleanedText,
+                          turnIndex: parseOpts.problemTurn.turnIndex,
+                        });
+                      } catch (problemError) {
+                        console.error(
+                          "problem interview turn record failed",
+                          problemError,
+                        );
+                      }
+                    }
+
                     event.metadata = {
                       ...(event.metadata ?? {}),
+                      ...(problemView ? { problem: problemView } : {}),
                       termination: parsed.termination,
                       disengagement,
                       disengagementCue: parsed.disengagementCue,
@@ -639,6 +673,7 @@ export async function POST(request: NextRequest) {
       walkOutProofContext?: { userId: string; reportId: string };
       walkOutFarewellRequested?: boolean;
       walkOutFarewellVerified?: boolean;
+      problemTurn?: { context: ProblemTurnContext; turnIndex: number };
     } | null = null;
 
     if (sessionConfig) {
@@ -739,6 +774,29 @@ export async function POST(request: NextRequest) {
       }
 
       interviewStyleTurnControl = isInterview;
+
+      // Problem interviews: the question pinned at session start, re-read
+      // from the owned report every turn (never from the browser), so the
+      // prompt prefix is byte-identical and the exhibits match the evaluator's.
+      let problemContext: ProblemTurnContext | null = null;
+      const problemSpec = getEngineType(sessionConfig.typeSlug)?.problemInterview;
+      if (problemSpec) {
+        problemContext =
+          currentUser && typeof rawReportId === "string"
+            ? await loadProblemTurnContext({
+                userId: currentUser.id,
+                reportId: rawReportId,
+                typeSlug: sessionConfig.typeSlug,
+                frameworks: problemSpec.frameworks,
+              })
+            : null;
+        if (!problemContext) {
+          return NextResponse.json(
+            { error: "This interview's problem is unavailable." },
+            { status: 409 },
+          );
+        }
+      }
 
       if (isInterview) {
         const hasUser = messages.some((m) => m.role === "user");
@@ -1031,6 +1089,13 @@ export async function POST(request: NextRequest) {
                 ? isInterviewIntegrityRequest(latestUser.content)
                 : false;
             })(),
+            candidateThinking: (() => {
+              const latestUser = [...messages]
+                .reverse()
+                .find((m) => m.role === "user");
+
+              return latestUser ? isThinkingTimeRequest(latestUser.content) : false;
+            })(),
           },
           // Non-interview types that declare a time budget / first-turn window
           // read these in buildTailBlock; interview types ignore them (timing
@@ -1058,6 +1123,15 @@ export async function POST(request: NextRequest) {
             ? { revealedSlides, slideCount: slideCountForTail }
             : {}),
           ...(technicalDirective ? { technicalDirective } : {}),
+          ...(problemContext
+            ? {
+                problem: {
+                  state: problemContext.snapshot.state,
+                  question: problemContext.question,
+                  framework: problemContext.framework,
+                },
+              }
+            : {}),
         },
         language: attemptLanguage,
         resumeText,
@@ -1069,6 +1143,9 @@ export async function POST(request: NextRequest) {
         networkingPersona: networkingPersonaText,
         networkingDisplayName,
         technicalAssignment,
+        problem: problemContext
+          ? { question: problemContext.question, framework: problemContext.framework }
+          : null,
       });
 
       fullMessages = built.messages;
@@ -1087,6 +1164,9 @@ export async function POST(request: NextRequest) {
           sessionConfig.timeBudget.totalSeconds,
         walkOutFarewellRequested: engineTurn?.forceWalkOutFarewell === true,
         walkOutFarewellVerified: forceWalkOutFarewell,
+        ...(problemContext
+          ? { problemTurn: { context: problemContext, turnIndex: assistantTurnCount } }
+          : {}),
         ...(walkOutReport
           ? {
               walkOutProofContext: {

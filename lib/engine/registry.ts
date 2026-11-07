@@ -42,12 +42,30 @@ import { PITCH_FUNDING_TYPE } from "../pitch/funding-type";
 import { PITCH_PRODUCT_TYPE } from "../pitch/product-type";
 import { PITCH_TALK_TYPE } from "../pitch/talk-type";
 import { PITCH_GENERAL_TYPE } from "../pitch/general-deck-type";
+import { makeProblemInterviewTypeConfig } from "../problem-interview/type-config";
+import { ANALYTICS_PROBLEM_INTERVIEW_INPUT } from "../analytics-interview/registration";
+import { FINANCE_PROBLEM_INTERVIEW_INPUT } from "../finance-interview/registration";
+import { SYSTEM_DESIGN_PROBLEM_INTERVIEW_INPUT } from "../system-design-interview/registration";
+import {
+  PROBLEM_FIXTURE_BASE,
+  PROBLEM_FIXTURE_ENABLED,
+  PROBLEM_FIXTURE_FRAMEWORK,
+} from "../problem-interview/fixtures/type";
 import { DIFFICULT_CONVERSATION_TYPE } from "../difficult-conversation/conversation-type";
+import {
+  CLINICAL_COMMUNICATION_TYPE,
+  MOTIVATIONAL_INTERVIEWING_TYPE,
+} from "../questioned-persona/persona-types";
 import {
   buildTechnicalCodingSystemPrompt,
   TECHNICAL_CODING_EVALUATOR_PROMPT,
   TECHNICAL_CODING_RUBRIC_EXTRAS,
 } from "../technical-interview/prompts";
+import { PRODUCT_MANAGEMENT_TYPE } from "../pm-interview/type";
+// Public parts only (frameworks, addendum, extras, briefing). The bank is
+// registered in lib/problem-interview/banks.server.ts — never here, because
+// this module is bundled for the browser.
+import { CONSULTING_PROBLEM_INTERVIEW_INPUT } from "../case-interview/registration";
 
 /**
  * Builds an interview preset's `InteractionTypeConfig` record. `base` is the
@@ -156,11 +174,20 @@ const GENERAL: InteractionTypeConfig = makeInterviewTypeConfig(
 const TECHNICAL: InteractionTypeConfig = makeInterviewTypeConfig(
   getInterviewType("technical")!,
 );
-const CONSULTING: InteractionTypeConfig = makeInterviewTypeConfig(
-  getInterviewType("consulting")!,
+// A problem interview (lib/case-interview). Old consulting reports carry no
+// problem snapshot and keep rendering as plain interview reports.
+const CONSULTING: InteractionTypeConfig = makeProblemInterviewTypeConfig(
+  CONSULTING_PROBLEM_INTERVIEW_INPUT,
 );
 const EARLY_CAREER: InteractionTypeConfig = makeInterviewTypeConfig(
   getInterviewType("early-career")!,
+);
+/**
+ * Finance (IB / PE / ER) — a problem interview. Its bank is server-only
+ * (lib/problem-interview/banks.server.ts), so no `bank` is passed here.
+ */
+const FINANCE: InteractionTypeConfig = makeProblemInterviewTypeConfig(
+  FINANCE_PROBLEM_INTERVIEW_INPUT,
 );
 
 /**
@@ -395,11 +422,21 @@ const NETWORKING: InteractionTypeConfig = {
   ],
 };
 
+// A problem-solving preset (lib/system-design-interview). Its question bank is
+// registered server-only in lib/problem-interview/banks.server.ts, never here.
+const SYSTEM_DESIGN = makeProblemInterviewTypeConfig(SYSTEM_DESIGN_PROBLEM_INTERVIEW_INPUT);
+
 export const ENGINE_TYPES: InteractionTypeConfig[] = [
   GENERAL,
   TECHNICAL,
   CONSULTING,
   EARLY_CAREER,
+  // A problem interview (lib/pm-interview), built by makeProblemInterviewTypeConfig.
+  PRODUCT_MANAGEMENT_TYPE,
+  // A problem interview (lib/analytics-interview); bank in banks.server.ts.
+  makeProblemInterviewTypeConfig(ANALYTICS_PROBLEM_INTERVIEW_INPUT),
+  FINANCE,
+  SYSTEM_DESIGN,
   CASE_STUDY,
   TECHNICAL_CODING,
   NETWORKING,
@@ -410,10 +447,22 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   PITCH_TALK_TYPE,
   PITCH_GENERAL_TYPE,
   DIFFICULT_CONVERSATION_TYPE,
+  CLINICAL_COMMUNICATION_TYPE,
+  MOTIVATIONAL_INTERVIEWING_TYPE,
 ];
 
 const ENGINE_TYPES_BY_SLUG: Record<string, InteractionTypeConfig> =
   Object.fromEntries(ENGINE_TYPES.map((type) => [type.slug, type]));
+
+// The problem-interview test fixture: resolvable by slug outside production
+// builds, never in `ENGINE_TYPES` (so no listing, coverage script or launcher
+// sees it). See lib/problem-interview/fixtures/type.ts.
+if (PROBLEM_FIXTURE_ENABLED) {
+  ENGINE_TYPES_BY_SLUG[PROBLEM_FIXTURE_BASE.slug] = makeProblemInterviewTypeConfig({
+    base: PROBLEM_FIXTURE_BASE,
+    frameworks: [PROBLEM_FIXTURE_FRAMEWORK],
+  });
+}
 
 /** Resolve a slug into its built-in TYPE record. Returns null on unknown. */
 export function getEngineType(

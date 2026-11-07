@@ -44,6 +44,12 @@ import {
 import { buildSlidesTailFragment } from "@/lib/pitch/slide-reveal";
 import type { TechnicalAssignmentPublic } from "@/lib/technical-interview/types";
 import { buildTechnicalCodingSystemPrompt } from "@/lib/technical-interview/prompts";
+import { buildProblemProgressBlock } from "@/lib/problem-interview/prompts";
+import type { ProblemInterviewState } from "@/lib/problem-interview/session-state";
+import type {
+  ProblemQuestion,
+  ProcessFramework,
+} from "@/lib/problem-interview/types";
 
 /** Byte-identical to the style guide in today's chat-route `else` branch. */
 export const CASE_STUDY_REPLY_STYLE_GUIDE = `## Reply Style
@@ -88,6 +94,11 @@ export interface AssembleSystemPromptOpts {
   networkingDisplayName?: string | null;
   /** Technical coding: persisted learner-visible assignment only. */
   technicalAssignment?: TechnicalAssignmentPublic | null;
+  /**
+   * Problem interviews: the question pinned on the report snapshot and its
+   * framework, loaded server-side. Session-constant.
+   */
+  problem?: { question: ProblemQuestion; framework: ProcessFramework } | null;
 }
 
 /** Per-turn state that may only enter the tail block, never the system prompt. */
@@ -117,6 +128,15 @@ export interface EngineTurnState {
   revealedSlides?: { index: number; text: string }[];
   /** Server-decided per-turn policy for technical-coding only. */
   technicalDirective?: string;
+  /**
+   * Problem interviews: the server-owned state read back from the report
+   * snapshot this turn. Replaces the five-stage interview progress block.
+   */
+  problem?: {
+    state: ProblemInterviewState;
+    question: ProblemQuestion;
+    framework: ProcessFramework;
+  };
   /** Total slides in the deck; pairs with `revealedSlides` for the fragment. */
   slideCount?: number;
   /**
@@ -260,6 +280,18 @@ export function assembleSystemPrompt(
 ): string {
   assertSessionConstantArgs(config, opts);
 
+  // Problem interviews are interview presets too (they resolve through
+  // getInterviewType), so this must run before the five-stage delegation.
+  const engineType = getEngineType(config.typeSlug);
+  if (engineType?.problemInterview) {
+    return engineType.prompts.liveSystemPrompt(config, {
+      resumeText: opts.resumeText,
+      jobDescriptionText: opts.jobDescriptionText,
+      language: opts.language,
+      problem: opts.problem ?? null,
+    });
+  }
+
   const interviewType = interviewTypeFromConfig(config);
 
   if (interviewType) {
@@ -377,8 +409,22 @@ export function buildTailBlock(
   const parts: string[] = [];
 
   const isInterview = Boolean(getInterviewType(config.typeSlug));
+  const isProblemInterview = Boolean(
+    getEngineType(config.typeSlug)?.problemInterview,
+  );
 
-  if (isInterview && turnState.progress && turnState.timing) {
+  if (isProblemInterview) {
+    if (turnState.problem && turnState.timing) {
+      parts.push(
+        buildProblemProgressBlock(
+          turnState.problem.state,
+          turnState.timing,
+          turnState.problem.question,
+          turnState.problem.framework,
+        ),
+      );
+    }
+  } else if (isInterview && turnState.progress && turnState.timing) {
     parts.push(buildProgressBlock(turnState.progress, turnState.timing));
   }
 
@@ -463,6 +509,7 @@ export interface BuildTurnMessagesInput {
   networkingPersona?: string | null;
   networkingDisplayName?: string | null;
   technicalAssignment?: TechnicalAssignmentPublic | null;
+  problem?: { question: ProblemQuestion; framework: ProcessFramework } | null;
 }
 
 /**
@@ -482,6 +529,7 @@ export function buildTurnMessages({
   networkingPersona,
   networkingDisplayName,
   technicalAssignment,
+  problem,
 }: BuildTurnMessagesInput): {
   systemPrompt: string;
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
@@ -496,6 +544,7 @@ export function buildTurnMessages({
     networkingPersona,
     networkingDisplayName,
     technicalAssignment,
+    problem,
   });
 
   const transcript = messages.map((message) => ({ ...message }));

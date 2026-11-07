@@ -1,0 +1,684 @@
+/**
+ * Proves the problem-interview engine against the test fixture
+ * (`lib/problem-interview/fixtures/`), with no network or database:
+ *
+ *   - marker parsing: nudge / exhibit / stage markers parsed and stripped,
+ *     truncated markers stripped, malformed flagged;
+ *   - progress tracking: stage moves, at-most-once nudges and reveals,
+ *     unknown ids dropped, self-heal into the problem stage;
+ *   - live prompt: session-constant system prompt (byte-identical across
+ *     turns; no facts leak into the tail), progress block contents;
+ *   - schema composition: process_rigor_score + outcome fields present,
+ *     visual/vocal still required, evaluator keeps the interview rules;
+ *   - outcome narrowing + ground truth: malformed → null, nudged hit →
+ *     prompted, ids pinned, process_rigor ceiling, sanitizer;
+ *   - question selection and the engine's parseEngineTurn branch.
+ *
+ * Run: npx tsx scripts/verify-problem-interview.ts
+ */
+
+export {};
+
+let failures = 0;
+
+function check(name: string, pass: boolean, detail?: string) {
+  if (pass) {
+    console.log(`  ok   ${name}`);
+  } else {
+    failures += 1;
+    console.log(`  FAIL ${name}${detail ? `\n         ${detail}` : ""}`);
+  }
+}
+
+async function main() {
+  const { parseProblemTurn, isThinkingTimeRequest } = await import("../lib/problem-interview/turn-control");
+  const {
+    reduceProblemTurn,
+    initialProblemState,
+    buildProblemSessionSnapshot,
+    asProblemSessionSnapshot,
+    toProblemLiveView,
+  } = await import("../lib/problem-interview/session-state");
+  const {
+    asProcessStepResults,
+    finalizeProblemOutcome,
+    buildProcessStepViews,
+  } = await import("../lib/problem-interview/outcome");
+  const { buildProblemProgressBlock } = await import("../lib/problem-interview/prompts");
+  const { selectProblemQuestion, getProblemBank } = await import(
+    "../lib/problem-interview/banks.server"
+  );
+  const { PROBLEM_FIXTURE_SLUG, PROBLEM_FIXTURE_FRAMEWORK } = await import(
+    "../lib/problem-interview/fixtures/type"
+  );
+  const { PROBLEM_FIXTURE_BANK } = await import("../lib/problem-interview/fixtures/bank");
+  const { deriveProcessRigorScore } = await import("../lib/problem-interview/types");
+  const processRigorCeiling = (steps: Parameters<typeof deriveProcessRigorScore>[0] | null) =>
+    steps ? deriveProcessRigorScore(steps) : null;
+  const { getEngineType, listEngineTypes } = await import("../lib/engine/registry");
+  const { resolveSessionConfig } = await import("../lib/engine/resolve");
+  const { buildRubricJsonSchema } = await import("../lib/engine/rubric");
+  const { buildTurnMessages } = await import("../lib/engine/prompts");
+  const { parseEngineTurn } = await import("../lib/engine/turn-control");
+  const { listInterviewTypes, getInterviewType } = await import("../lib/interview/types");
+  const { INTERVIEW_EVALUATOR_PROMPT } = await import("../lib/interview/prompts");
+  const { sanitizeOutcomeQuotes } = await import("../lib/report/quote-sanitizer");
+  const { resolveAttemptLanguage } = await import("../lib/languages");
+
+  const question = PROBLEM_FIXTURE_BANK[0]!;
+  const framework = PROBLEM_FIXTURE_FRAMEWORK;
+  const ctx = { question, framework, atSeconds: 100, turnIndex: 3 };
+
+  // ---------------------------------------------------------------------------
+  console.log("\nmarker parsing");
+  {
+    const reply =
+      "Sure — I'm putting that on your screen now. What stands out to you?\n" +
+      '<interview-turn kind="exhibit" exhibit="ex1" />\n<interview-turn kind="follow_up" />';
+    const parsed = parseProblemTurn(reply);
+    check("content has no marker", !/interview-turn/.test(parsed.content), parsed.content);
+    check(
+      "exhibit + follow_up actions parsed",
+      JSON.stringify(parsed.actions) ===
+        JSON.stringify([{ kind: "exhibit", exhibit: "ex1" }, { kind: "follow_up" }]),
+      JSON.stringify(parsed.actions),
+    );
+    check("well-formed reply not malformed", parsed.malformed === false);
+
+    const nudge = parseProblemTurn(
+      'Who do you see using this?\n<interview-turn kind="nudge" step="identify_customer" />\n<interview-turn kind="follow_up" />',
+    );
+    check(
+      "nudge action carries step",
+      nudge.actions.some((a) => a.kind === "nudge" && a.step === "identify_customer"),
+    );
+
+    const truncated = parseProblemTurn('What would success look like?\n<interview-turn kind="fol');
+    check("truncated marker stripped", truncated.content === "What would success look like?", truncated.content);
+    check("truncated reply flagged malformed", truncated.malformed);
+
+    const midText = parseProblemTurn(
+      'Here is the data <interview-turn kind="exhibit" exhibit="ex1" /> on screen.\n<interview-turn kind="planned" />',
+    );
+    check("mid-text marker stripped", !/interview-turn/.test(midText.content), midText.content);
+
+    const bogus = parseProblemTurn('Hello.\n<interview-turn kind="dance" />');
+    check("unknown kind flagged malformed and stripped", bogus.malformed && bogus.content === "Hello.");
+  }
+
+  // ---------------------------------------------------------------------------
+  console.log("\nprogress tracking");
+  {
+    let state = initialProblemState();
+    let r = reduceProblemTurn(state, [{ kind: "planned" }], ctx);
+    check("opening → fit on planned", r.state.stage === "fit");
+    state = r.state;
+    r = reduceProblemTurn(state, [{ kind: "follow_up" }], ctx);
+    check("fit follow-up counted", r.state.fitFollowUpsUsed === 1);
+    r = reduceProblemTurn(r.state, [{ kind: "follow_up" }], ctx);
+    check("fit follow-up capped at 1", r.state.fitFollowUpsUsed === 1);
+    r = reduceProblemTurn(r.state, [{ kind: "planned" }], ctx);
+    check("fit → problem on planned, prompt posed", r.state.stage === "problem" && r.state.promptPosed);
+    state = r.state;
+
+    r = reduceProblemTurn(state, [{ kind: "exhibit", exhibit: "ex1" }, { kind: "follow_up" }], ctx);
+    check("exhibit revealed", r.state.revealedExhibits.join() === "ex1");
+    check(
+      "exhibit event carries public data without keyInsight",
+      r.events.some(
+        (e) => e.kind === "exhibit" && e.exhibit.rows.length === 4 && !("keyInsight" in e.exhibit),
+      ),
+    );
+    check("follow_up does not move problem stage", r.state.stage === "problem");
+    const again = reduceProblemTurn(r.state, [{ kind: "exhibit", exhibit: "ex1" }], ctx);
+    check("exhibit revealed at most once", again.events.length === 0 && again.state.revealedExhibits.length === 1);
+    const unknownEx = reduceProblemTurn(r.state, [{ kind: "exhibit", exhibit: "ex9" }], ctx);
+    check("unknown exhibit dropped", unknownEx.events.length === 0);
+
+    let n = reduceProblemTurn(r.state, [{ kind: "nudge", step: "identify_customer" }], ctx);
+    check("nudge recorded", n.state.nudgedSteps.join() === "identify_customer" && n.events.length === 1);
+    n = reduceProblemTurn(n.state, [{ kind: "nudge", step: "identify_customer" }], ctx);
+    check("nudge at most once per step", n.events.length === 0);
+    const unknownStep = reduceProblemTurn(n.state, [{ kind: "nudge", step: "invent_a_step" }], ctx);
+    check("unknown step dropped", unknownStep.events.length === 0);
+
+    const healed = reduceProblemTurn(
+      { ...initialProblemState(), stage: "fit" },
+      [{ kind: "exhibit", exhibit: "ex1" }],
+      ctx,
+    );
+    check("exhibit during fit self-heals into problem", healed.state.stage === "problem" && healed.state.promptPosed);
+
+    const toQs = reduceProblemTurn(n.state, [{ kind: "planned" }], ctx);
+    check("problem → candidate_questions", toQs.state.stage === "candidate_questions");
+    const closed = reduceProblemTurn(toQs.state, [{ kind: "closing" }], ctx);
+    check("closing", closed.state.stage === "closing");
+    const back = reduceProblemTurn(closed.state, [{ kind: "planned" }], ctx);
+    check("stage never moves backwards", back.state.stage === "closing");
+
+    const timing = { elapsedMinutes: 12, targetMinutes: 15 };
+    const block = buildProblemProgressBlock(n.state, timing, question, framework);
+    check("progress block: stage", block.includes("Current stage: problem"));
+    check("progress block: revealed exhibit", /already on the candidate's screen: ex1/.test(block));
+    check("progress block: nudged step listed", /already nudged.*identify_customer/.test(block));
+    check("progress block: nudged step not re-offered", !/may still nudge[^\n]*identify_customer/.test(block));
+    check("progress block: time pressure asks for recommendation", /final recommendation/.test(block));
+    check("progress block: no interviewer facts", !block.includes(question.interviewerFacts[0]!));
+
+    // A candidate asking for thinking time must not be nudged. The live
+    // interviewer ignored that as wording in 6/6 case probe runs, so the server
+    // withholds the nudge texts instead — and the model is forbidden to write
+    // its own, which makes the nudge unreachable rather than discouraged.
+    const thinkingBlock = buildProblemProgressBlock(
+      n.state,
+      { ...timing, candidateThinking: true },
+      question,
+      framework,
+    );
+    check(
+      "progress block: thinking candidate gets no nudge list",
+      !/Nudges —/.test(thinkingBlock) &&
+        !framework.steps.some((s) => thinkingBlock.includes(`"${s.nudge}"`)),
+    );
+    check(
+      "progress block: thinking candidate is told to wait",
+      /asking for thinking time/.test(thinkingBlock) && /Take your time/.test(thinkingBlock),
+    );
+    check(
+      "progress block: a normal turn still offers the nudge list",
+      /Nudges —/.test(block),
+    );
+    check(
+      "progress block: thinking turn keeps stage and exhibit state",
+      thinkingBlock.includes("Current stage: problem") &&
+        /already on the candidate's screen: ex1/.test(thinkingBlock),
+    );
+
+    // The classifier decides when that happens; its PRECISION is the risk.
+    // A false positive silently removes a legitimate nudge for the whole turn.
+    const asksForTime = [
+      "give me a second to think",
+      "Give me a sec",
+      "um, give me one second, okay",
+      "let me structure this",
+      "let me think about that for a moment",
+      "Can I have a minute?",
+      "one sec",
+      "hold on",
+      "bear with me",
+      "I'm going to jot down a structure",
+      "still thinking",
+      "(pause)",
+      "",
+      "   ",
+      "uh",
+    ];
+    for (const message of asksForTime) {
+      check(
+        `thinking-time request: ${JSON.stringify(message)}`,
+        isThinkingTimeRequest(message),
+      );
+    }
+    const realAttempts = [
+      // Thinking OUT LOUD is an attempt — this is what we want graded.
+      "give me a second — so revenue is price times volume, and volume is falling in the north region",
+      "let me think out loud: the first driver is pricing, the second is mix, and the third is volume",
+      "I'd structure this as three buckets: cost, revenue and competition",
+      "What's the client's target margin?",
+      "So the answer is we should enter the market",
+      "Could I see the cost data?",
+      "My hypothesis is that the airline's fuel hedging is the problem, let me check the exhibit",
+      "I think we should take a minute to consider the competitive response before pricing, because the incumbent will react",
+    ];
+    for (const message of realAttempts) {
+      check(
+        `real attempt, not a time request: ${JSON.stringify(message.slice(0, 48))}`,
+        !isThinkingTimeRequest(message),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  console.log("\nregistration + live prompt");
+  const type = getEngineType(PROBLEM_FIXTURE_SLUG);
+  check("fixture type resolves by slug", Boolean(type?.problemInterview));
+  check("fixture hidden from ENGINE_TYPES", !listEngineTypes().some((t) => t.slug === PROBLEM_FIXTURE_SLUG));
+  check("fixture hidden from launcher", !listInterviewTypes().some((t) => t.slug === PROBLEM_FIXTURE_SLUG));
+  check("fixture resolves as an interview", Boolean(getInterviewType(PROBLEM_FIXTURE_SLUG)));
+  {
+    const { resolveInterviewType } = await import("../lib/interview/customization");
+    const short = resolveInterviewType(PROBLEM_FIXTURE_SLUG, { lengthSlug: "quick" } as never);
+    check("quick length never shrinks a problem interview", short?.targetMinutes === 15 && short?.targetQuestionCount === 1);
+    const long = resolveInterviewType(PROBLEM_FIXTURE_SLUG, { lengthSlug: "extended" } as never);
+    check("longer length still extends it", long?.targetMinutes === 30);
+    const general = resolveInterviewType("general", { lengthSlug: "quick" } as never);
+    check("behavioral presets keep the quick length", general?.targetMinutes === 10);
+  }
+  check("fixture bank is server-registered", getProblemBank(PROBLEM_FIXTURE_SLUG).length === 1);
+  check("fixture type is selected by its config flag", type?.problemInterview?.frameworks[0]?.key === PROBLEM_FIXTURE_FRAMEWORK.key);
+
+  const resolved = resolveSessionConfig(PROBLEM_FIXTURE_SLUG);
+  if (!resolved.ok) throw new Error(resolved.reason);
+  const config = resolved.config;
+  const language = resolveAttemptLanguage(undefined);
+  {
+    const turnA = buildTurnMessages({
+      config,
+      messages: [{ role: "user", content: "I'm ready." }],
+      turnState: {
+        problem: { state: initialProblemState(), question, framework },
+        timing: { elapsedMinutes: 0, targetMinutes: 15 },
+      },
+      language,
+      resumeText: "",
+      problem: { question, framework },
+    });
+    const turnB = buildTurnMessages({
+      config,
+      messages: [
+        { role: "user", content: "I'm ready." },
+        { role: "assistant", content: "Welcome." },
+        { role: "user", content: "Who uses the app?" },
+      ],
+      turnState: {
+        problem: {
+          state: { ...initialProblemState(), stage: "problem", promptPosed: true, revealedExhibits: ["ex1"] },
+          question,
+          framework,
+        },
+        timing: { elapsedMinutes: 6, targetMinutes: 15 },
+      },
+      language,
+      resumeText: "",
+      problem: { question, framework },
+    });
+    check("system prompt byte-identical across turns", turnA.systemPrompt === turnB.systemPrompt);
+    const sys = turnA.systemPrompt;
+    check("system prompt poses the question", sys.includes(question.prompt));
+    check("system prompt carries facts (ask-only)", sys.includes(question.interviewerFacts[0]!));
+    check("system prompt carries nudge text", sys.includes(framework.steps[1]!.nudge));
+    check("system prompt has exhibit marker grammar", sys.includes('kind="exhibit" exhibit="EXHIBIT_ID"'));
+    check("system prompt never leaks strongAnswerNotes", !sys.includes(question.strongAnswerNotes));
+    check("system prompt never leaks keyInsight", !sys.includes(question.exhibits![0]!.keyInsight));
+    check("no five-stage interview marker list", !sys.includes("behavioral planned question"));
+    const tail = turnB.messages.at(-1)!.content;
+    check("tail carries CASE PROGRESS", tail.includes("[CASE PROGRESS"));
+    check("tail does not carry the five-stage block", !tail.includes("[INTERVIEW PROGRESS"));
+
+    let threw = false;
+    try {
+      buildTurnMessages({
+        config,
+        messages: [{ role: "user", content: "hi" }],
+        turnState: {},
+        language,
+      });
+    } catch {
+      threw = true;
+    }
+    check("live prompt without a pinned question throws (no silent default)", threw);
+  }
+
+  // ---------------------------------------------------------------------------
+  console.log("\nengine parse branch");
+  {
+    const parsed = parseEngineTurn(
+      'Who do you see using this?\n<interview-turn kind="nudge" step="identify_customer" />\n<interview-turn kind="follow_up" />',
+      config,
+    );
+    check("parseEngineTurn strips problem markers", parsed.cleanedText === "Who do you see using this?");
+    check("parseEngineTurn returns problemActions", (parsed.problemActions ?? []).length === 2);
+    check("parseEngineTurn leaves interview progress null", parsed.progress === null);
+  }
+
+  // ---------------------------------------------------------------------------
+  console.log("\nschema composition");
+  {
+    const schema = buildRubricJsonSchema(config).schema;
+    const required = schema.required;
+    check("process_rigor_score required", required.includes("process_rigor_score"));
+    check("visual_score still required", required.includes("visual_score"));
+    check("vocal_score still required", required.includes("vocal_score"));
+    check("outcome required", required.includes("outcome"));
+    // Outcome-first: strict json_schema generates keys in schema order, so the
+    // outcome (step verdicts) must come before any *_score property. Every
+    // registered type is checked by scripts/verify-rubric-schema-order.ts;
+    // this covers the fixture type, which is deliberately not in ENGINE_TYPES.
+    const properties = Object.keys(schema.properties);
+    check("outcome is the FIRST property (problem interviews grade before scoring)", properties[0] === "outcome", properties.join(","));
+    check("outcome is the FIRST required entry", required[0] === "outcome", required.join(","));
+    const outcome = schema.properties.outcome as { required: string[] };
+    check(
+      "outcome fields questionId/frameworkKey/processSteps",
+      ["questionId", "frameworkKey", "processSteps"].every((k) => outcome.required.includes(k)),
+      JSON.stringify(outcome.required),
+    );
+    const evaluator = type!.prompts.evaluatorPrompt;
+    check("evaluator keeps the interview rules verbatim", evaluator.startsWith(INTERVIEW_EVALUATOR_PROMPT.trim()));
+    check("evaluator carries the scoring guide", evaluator.includes("process_rigor_score follows the step results"));
+    check("evaluator lists framework criteria", evaluator.includes(framework.steps[0]!.evidenceCriteria));
+    check("evaluator explains ground truth", /never be "hit"/.test(evaluator));
+  }
+
+  // ---------------------------------------------------------------------------
+  // The two rules the system-design validity study found are generic to every
+  // problem interview (docs/interviews/system-design-validity.md). They live
+  // in the SHARED addendum and must be stated exactly once in any one prompt:
+  // two slightly-different phrasings of the status rule is what flaked.
+  console.log("\nshared grading rules promoted from the system-design study");
+  {
+    const { buildProblemEvaluatorRules } = await import("../lib/problem-interview/prompts");
+    const shared = buildProblemEvaluatorRules([framework], []);
+    const { SD_EVALUATOR_ADDENDUM } = await import("../lib/system-design-interview/evaluator");
+    const sdEvaluator = getEngineType("system-design")!.prompts.evaluatorPrompt;
+    const count = (text: string, pattern: RegExp) => (text.match(pattern) ?? []).length;
+    const PREFIX_RULE = /STARTS with "Meets all criteria: yes\." or "Meets all criteria: no\."/g;
+    const QUOTE_RULE = /no double-quote character may appear INSIDE a value/g;
+
+    check("shared rules state the mechanical note prefix", count(shared, PREFIX_RULE) === 1);
+    check("shared rules make a 'no' verdict missed, nudge or not", /"No" means the step is "missed"/.test(shared));
+    check("shared rules require the status to agree with the note", /status must agree with the note/.test(shared));
+    check("shared rules ban nested double quotes in processSteps", count(shared, QUOTE_RULE) === 1);
+    check(
+      "shared rules keep 'only after' as a shortfall phrase",
+      /"only after"/.test(shared),
+    );
+    // f4359f6 tried a timing carve-out here and it regressed finance
+    // pitch-nudged 2/2 -> 0/2 and case retail-nudged 3/3 -> 0/3: the affected
+    // steps' evidenceCriteria bake ordering into the HIT TEST, so question 1
+    // answers "no" truthfully and the carve-out cannot fire. Reverted in
+    // e2a187f's follow-up; see docs/interviews/finance-validity.md.
+    check(
+      "shared rules do not claim timing is never a shortfall",
+      !/Timing alone is NOT a/.test(shared),
+    );
+    // The same run produced a back-dated timecode that defeated
+    // finalizeProblemOutcome's nudge reconciliation and inflated rigor to 5.
+    check(
+      "shared rules forbid moving a timecode earlier than its evidence line",
+      /Never move it earlier than that line/.test(shared),
+    );
+    // 9/21 PM and 4/27 case raw strings failed strict JSON.parse because the
+    // model delimited VALUES with single quotes; the repair then dropped every
+    // evidenceQuote in 2 case grades. 0/15 grades needed the repair after the
+    // delimiter wording landed - this half of f4359f6 is kept.
+    check(
+      "shared rules require double-quote delimiters inside processSteps",
+      /delimited by the DOUBLE-quote character/.test(shared),
+    );
+    check("shared rules no longer show an escaped empty quote as the example", !shared.includes('\\"\\"'));
+    check("shared rules say the outcome is written before the scores", /comes FIRST in the JSON you return/.test(shared));
+
+    check("system-design addendum does not restate the note prefix", !/Meets all criteria: yes\.' or/.test(SD_EVALUATOR_ADDENDUM));
+    check("system-design addendum does not restate the quote ban", count(SD_EVALUATOR_ADDENDUM, QUOTE_RULE) === 0);
+    check("the registered system-design prompt states each rule once", count(sdEvaluator, PREFIX_RULE) === 1 && count(sdEvaluator, QUOTE_RULE) === 1);
+    check(
+      "system-design addendum keeps its arithmetic band check",
+      SD_EVALUATOR_ADDENDUM.includes("band 150–1,400/s, candidate 4,600/s → OUTSIDE"),
+    );
+    check("system-design addendum keeps its hard caps tied to named steps", SD_EVALUATOR_ADDENDUM.includes("HARD CAPS"));
+    check(
+      "system-design addendum still anchors the band checks to the shared prefix",
+      SD_EVALUATOR_ADDENDUM.includes("right after 'Meets all criteria:'"),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  console.log("\noutcome narrowing + ground truth");
+  {
+    check("malformed string → null", asProcessStepResults("{not json") === null);
+    check("non-array → null", asProcessStepResults('{"key":"x"}') === null);
+    check("empty → null", asProcessStepResults("") === null);
+    check("bad rows dropped", asProcessStepResults('[{"key":"a","status":"great"},{"key":"b","status":"hit"}]')?.length === 1);
+    check("array accepted", asProcessStepResults([{ key: "a", status: "missed" }])?.[0]?.status === "missed");
+
+    let snapshot = buildProblemSessionSnapshot(question, framework, "2026-11-06T00:00:00Z");
+    const r = reduceProblemTurn(snapshot.state, [{ kind: "nudge", step: "identify_customer" }], ctx);
+    snapshot = { ...snapshot, state: r.state, events: r.events };
+
+    const produced = {
+      questionId: "made-up",
+      frameworkKey: "nope",
+      processSteps: JSON.stringify([
+        { key: "recommend", status: "hit", evidenceQuote: "I'd ship holds", timecodeSeconds: 600, note: "Good." },
+        { key: "identify_customer", status: "hit", evidenceQuote: "55+ readers", timecodeSeconds: 200, note: "n" },
+        { key: "clarify_goal", status: "hit", evidenceQuote: "double loans", timecodeSeconds: 90, note: "n" },
+        { key: "invented", status: "hit", evidenceQuote: "", timecodeSeconds: null, note: "" },
+        { key: "use_data", status: "missed", evidenceQuote: "", timecodeSeconds: null, note: "Ask for data." },
+      ]),
+    };
+    const final = finalizeProblemOutcome(produced, snapshot);
+    check("questionId pinned to snapshot", final.questionId === question.id);
+    check("frameworkKey pinned to snapshot", final.frameworkKey === framework.key);
+    const steps = asProcessStepResults(final.processSteps)!;
+    check("steps in framework order, unknown dropped", steps.map((s) => s.key).join() === "clarify_goal,identify_customer,use_data,recommend");
+    check("nudged hit → prompted", steps.find((s) => s.key === "identify_customer")?.status === "prompted");
+    check("un-nudged hit stays hit", steps.find((s) => s.key === "clarify_goal")?.status === "hit");
+
+    // Regression (live PM run c48214e8): the candidate asked a clarifying
+    // question at 0:08, the interviewer nudged the same step at 0:09 → the
+    // step was demoted to prompted. A step done BEFORE its nudge stays hit.
+    {
+      const pmLike = (() => {
+        let s = buildProblemSessionSnapshot(question, framework, "2026-11-07T00:00:00Z");
+        const a = reduceProblemTurn(s.state, [{ kind: "nudge", step: "clarify_goal" }], { ...ctx, atSeconds: 9, turnIndex: 5 });
+        s = { ...s, state: a.state, events: [...s.events, ...a.events] };
+        const b = reduceProblemTurn(s.state, [{ kind: "nudge", step: "identify_customer" }], { ...ctx, atSeconds: 10, turnIndex: 6 });
+        return { ...s, state: b.state, events: [...s.events, ...b.events] };
+      })();
+      const row = (key: string, status: string, quote: string, t: number | null) => ({ key, status, evidenceQuote: quote, timecodeSeconds: t, note: "n" });
+      const run = (rows: ReturnType<typeof row>[], def: typeof framework | null = null) =>
+        asProcessStepResults(finalizeProblemOutcome({ processSteps: JSON.stringify(rows) }, pmLike, def).processSteps)!;
+      const statusOf = (rows: ReturnType<typeof run>, key: string) => rows.find((s) => s.key === key)?.status;
+
+      const early = run([row("clarify_goal", "hit", "Quick clarifying question — is this for a specific platform or market?", 8)]);
+      check("regression: evidence before the nudge stays hit", statusOf(early, "clarify_goal") === "hit");
+      const promotedBack = run([row("clarify_goal", "prompted", "Quick clarifying question — which market?", 8)]);
+      check("regression: prompted with evidence before the nudge → hit", statusOf(promotedBack, "clarify_goal") === "hit");
+      const after = run([row("clarify_goal", "hit", "The goal is retention.", 30)]);
+      check("evidence after the nudge → prompted", statusOf(after, "clarify_goal") === "prompted");
+      const tie = run([row("clarify_goal", "hit", "The goal is retention.", 9)]);
+      check("evidence in the nudge's second counts as after → prompted", statusOf(tie, "clarify_goal") === "prompted");
+      const noTime = run([row("clarify_goal", "hit", "The goal is retention.", null)]);
+      check("no timecode on a nudged step → prompted (conservative)", statusOf(noTime, "clarify_goal") === "prompted");
+      const missedStays = run([row("clarify_goal", "missed", "", null)]);
+      check("missed is never promoted", statusOf(missedStays, "clarify_goal") === "missed");
+
+      // "for everyone" is a non-answer when the step declares it, before OR after the nudge.
+      const withTerms = {
+        ...framework,
+        steps: framework.steps.map((s) => (s.key === "identify_customer" ? { ...s, genericAnswerTerms: ["everyone", "all users"] } : s)),
+      };
+      const everyoneBefore = run([row("identify_customer", "hit", "Okay. I'd just build it for everyone.", 9)], withTerms);
+      check("regression: 'for everyone' before the nudge → missed", statusOf(everyoneBefore, "identify_customer") === "missed");
+      const everyoneAfter = run([row("identify_customer", "prompted", "For all users, really.", 40)], withTerms);
+      check("regression: 'all users' reply to the nudge → missed", statusOf(everyoneAfter, "identify_customer") === "missed");
+      const realChoice = run([row("identify_customer", "prompted", "Not everyone — I'd focus on commuters over parents because they wait daily.", 40)], withTerms);
+      check("a real segment choice mentioning 'everyone' stays prompted", statusOf(realChoice, "identify_customer") === "prompted");
+      const noDef = run([row("identify_customer", "prompted", "For everyone.", 40)]);
+      check("without the framework def, generic-answer rule does not fire", statusOf(noDef, "identify_customer") === "prompted");
+      const wrongFramework = run([row("identify_customer", "prompted", "For everyone.", 40)], { ...withTerms, key: "other" });
+      check("a def for another framework is ignored", statusOf(wrongFramework, "identify_customer") === "prompted");
+
+      const { buildProblemEvaluatorBrief } = await import("../lib/problem-interview/prompts");
+      const brief = buildProblemEvaluatorBrief({
+        questionId: question.id, frameworkKey: framework.key, question, publicTitle: question.title,
+        publicPrompt: question.prompt, framework, events: pmLike.events,
+      });
+      check("evaluator brief: nudge line allows earlier evidence to stay hit", /evidence before \[0:09\] can still be "hit"/.test(brief), brief);
+      check("evaluator brief: no blanket 'cannot be hit'", !/cannot be "hit"/.test(brief));
+    }
+
+    console.log("\ntolerant processSteps parse");
+    {
+      const good = '[{"key":"clarify_goal","status":"hit","evidenceQuote":"q","timecodeSeconds":5,"note":"n"}]';
+      check("code fence stripped", asProcessStepResults("```json\n" + good + "\n```")?.[0]?.status === "hit");
+      check("prose around the array", asProcessStepResults("Here you go: " + good + " Hope that helps.")?.length === 1);
+      check("trailing commas", asProcessStepResults('[{"key":"clarify_goal","status":"missed","evidenceQuote":"","timecodeSeconds":null,"note":"n",},]')?.[0]?.status === "missed");
+      check("one-key object wrapper", asProcessStepResults({ steps: JSON.parse(good) })?.[0]?.key === "clarify_goal");
+      check("string one-key object wrapper", asProcessStepResults(`{"steps": ${good}}`)?.[0]?.key === "clarify_goal");
+      const truncated = good.slice(0, -1) + ',{"key":"identify_customer","status":"mis';
+      check("truncated array keeps complete rows", asProcessStepResults(truncated)?.map((r) => r.key).join() === "clarify_goal");
+      const unescaped = '[{"key":"clarify_goal","evidenceQuote":"I said "who is it for" first","timecodeSeconds":12,"status":"hit","note":"Good "why" question."}]';
+      const rows = asProcessStepResults(unescaped);
+      check("unescaped inner quotes: fields read by name", rows?.[0]?.status === "hit" && rows[0].timecodeSeconds === 12 && rows[0].evidenceQuote.includes("who is it for"), JSON.stringify(rows));
+      check("pure garbage still null", asProcessStepResults("no json here at all") === null);
+      check("strict JSON unaffected", asProcessStepResults(good)?.[0]?.evidenceQuote === "q");
+      const fencedFinal = finalizeProblemOutcome({ processSteps: "```json\n" + good + "\n```" }, snapshot);
+      check("finalize re-encodes a repaired value as strict JSON", typeof fencedFinal.processSteps === "string" && JSON.parse(fencedFinal.processSteps as string)[0].key === "clarify_goal");
+
+      // The prompt's no-nested-double-quotes rule is belt-and-braces, NOT a
+      // licence to tighten the parser: both shapes (JSON-encoded string and a
+      // decoded array) still parse, with and without the grading prefix.
+      const prefixed = '[{"key":"clarify_goal","status":"hit","evidenceQuote":"double loans","timecodeSeconds":5,"note":"Meets all criteria: yes. You named the goal first."}]';
+      check("string shape with the grading prefix parses", asProcessStepResults(prefixed)?.[0]?.status === "hit");
+      check(
+        "array shape with the grading prefix parses",
+        asProcessStepResults([{ key: "clarify_goal", status: "missed", note: "Meets all criteria: no. Say the goal out loud first." }])?.[0]?.note.startsWith("Meets all criteria: no.") === true,
+      );
+      check(
+        "a prefixed note with nested quotes still survives the tolerant parse",
+        asProcessStepResults('[{"key":"clarify_goal","status":"hit","evidenceQuote":"I asked "what is the goal"","timecodeSeconds":5,"note":"Meets all criteria: yes. Good."}]')?.[0]?.status === "hit",
+      );
+    }
+    const malformed = finalizeProblemOutcome({ processSteps: "garbage" }, snapshot);
+    check("malformed processSteps removed, ids still pinned", !("processSteps" in malformed) && malformed.questionId === question.id);
+    check("null produced outcome still yields ids", finalizeProblemOutcome(null, snapshot).frameworkKey === framework.key);
+
+    check("derive: all hit → 5", processRigorCeiling(steps.map((s) => ({ ...s, status: "hit" as const }))) === 5);
+    check("derive: 1 prompted 1 missed → 3", processRigorCeiling(steps) === 3);
+    const st = (statuses: string[]) => statuses.map((status, i) => ({ key: `k${i}`, status: status as "hit", evidenceQuote: "", timecodeSeconds: null, note: "" }));
+    check("derive: 1 missed + 3 prompted → 2 (lower band)", processRigorCeiling(st(["missed", "prompted", "prompted", "prompted"])) === 2);
+    check("derive: 3 missed → 1", processRigorCeiling(st(["missed", "missed", "missed", "hit"])) === 1);
+    check("derive: n/a excluded", processRigorCeiling(st(["hit", "not_applicable"])) === 5);
+    check("derive: none → null", processRigorCeiling(null) === null);
+
+    check("factory declares no postProcessScores (rigor derived in the runner)", !type!.postProcessScores);
+    check("derive: unparseable steps → no score", processRigorCeiling(asProcessStepResults("not json")) === null);
+    check("derive: only n/a → null", processRigorCeiling(st(["not_applicable"])) === null);
+
+    const views = buildProcessStepViews(snapshot.framework, final.processSteps);
+    check("report views: one per framework step", views.length === framework.steps.length);
+    check("report views: malformed → all ungraded", buildProcessStepViews(snapshot.framework, 42).every((v) => v.result === null));
+
+    // `Meets all criteria: yes.|no.` is a grading mechanism; the student sees
+    // the status chip instead. Stripped in ONE shared helper used by every
+    // render path (buildProcessStepViews), and the stored outcome keeps it.
+    console.log("\nMeets-all-criteria prefix: stored raw, stripped for display");
+    {
+      const { stripStepNoteGradingPrefix } = await import("../lib/problem-interview/outcome");
+      check("strips a 'yes' prefix", stripStepNoteGradingPrefix("Meets all criteria: yes. You named the goal first.") === "You named the goal first.");
+      check("strips a 'no' prefix", stripStepNoteGradingPrefix("Meets all criteria: no. Say the goal out loud before solving.") === "Say the goal out loud before solving.");
+      check("case- and dash-insensitive", stripStepNoteGradingPrefix("meets all criteria — yes — Nice work.") === "Nice work.");
+      check("a note that is only the prefix becomes empty", stripStepNoteGradingPrefix("Meets all criteria: no.") === "");
+      check("an ordinary note is untouched", stripStepNoteGradingPrefix("Name the goal before solving.") === "Name the goal before solving.");
+      check("the phrase mid-sentence is untouched", stripStepNoteGradingPrefix("You asked whether it meets all criteria: yes, later.").startsWith("You asked"));
+
+      const prefixedSteps = JSON.stringify(
+        framework.steps.map((step) => ({
+          key: step.key,
+          status: "hit",
+          evidenceQuote: "q",
+          timecodeSeconds: 5,
+          note: `Meets all criteria: yes. Coaching for ${step.key}.`,
+        })),
+      );
+      const stored = finalizeProblemOutcome({ processSteps: prefixedSteps }, snapshot);
+      check(
+        "the stored outcome keeps the raw prefix",
+        asProcessStepResults(stored.processSteps)!.every((s) => s.note.startsWith("Meets all criteria: yes.")),
+      );
+      const rendered = buildProcessStepViews(snapshot.framework, stored.processSteps);
+      check(
+        "every render path gets the prefix stripped",
+        rendered.every((v) => v.result !== null && !/meets all criteria/i.test(v.result.note)),
+        JSON.stringify(rendered.map((v) => v.result?.note)),
+      );
+      check("and the coaching sentence survives", rendered[0]!.result!.note === `Coaching for ${framework.steps[0]!.key}.`);
+    }
+
+    const sanitized = sanitizeOutcomeQuotes({ processSteps: JSON.stringify([{ key: "a", status: "hit", evidenceQuote: "x".repeat(500) }]) });
+    check("sanitizer caps processSteps quotes", (asProcessStepResults(sanitized!.processSteps)?.[0]?.evidenceQuote.length ?? 999) <= 240);
+
+    const roundTrip = asProblemSessionSnapshot(JSON.parse(JSON.stringify(snapshot)));
+    check("snapshot round-trips through JSON", roundTrip?.state.nudgedSteps.join() === "identify_customer");
+    check("garbage snapshot → null", asProblemSessionSnapshot({ questionId: 1 }) === null);
+    const fresh = buildProblemSessionSnapshot(question, framework, "2026-11-06T00:00:00Z");
+    check("live view hides prompt before it is posed", toProblemLiveView(fresh).question === null);
+    check("live view shows prompt once posed (nudge self-heal)", toProblemLiveView(snapshot).question?.prompt === question.prompt);
+  }
+
+  // ---------------------------------------------------------------------------
+  console.log("\ndropped-marker fallback");
+  {
+    const { inferUnmarkedActions } = await import("../lib/problem-interview/session-state");
+    const posed = { ...initialProblemState(), stage: "problem" as const, promptPosed: true };
+    const fit = { ...initialProblemState(), stage: "fit" as const };
+    check(
+      "screen phrase + one pending exhibit → exhibit",
+      JSON.stringify(inferUnmarkedActions("I'm putting some numbers on your screen now.", [], posed, question, framework)) ===
+        JSON.stringify([{ kind: "exhibit", exhibit: "ex1" }]),
+    );
+    check(
+      "exhibit title verbatim → exhibit",
+      inferUnmarkedActions("Here are the monthly app sessions by cardholder age.", [], posed, question, framework).some((a) => a.kind === "exhibit"),
+    );
+    check(
+      "no inference when marker present",
+      inferUnmarkedActions("On your screen now.", [{ kind: "exhibit", exhibit: "ex1" }], posed, question, framework).length === 0,
+    );
+    check(
+      "no exhibit inference once revealed",
+      inferUnmarkedActions("On your screen now.", [], { ...posed, revealedExhibits: ["ex1"] }, question, framework).length === 0,
+    );
+    check(
+      "verbatim nudge text → nudge",
+      inferUnmarkedActions("Okay. Who do you see using this?", [], posed, question, framework).some((a) => a.kind === "nudge" && a.step === "identify_customer"),
+    );
+    check(
+      "nudge not inferred twice",
+      inferUnmarkedActions("Who do you see using this?", [], { ...posed, nudgedSteps: ["identify_customer"] }, question, framework).length === 0,
+    );
+    check(
+      "ordinary probing infers nothing",
+      inferUnmarkedActions("Take your time. What are you thinking about first?", [], posed, question, framework).length === 0,
+    );
+    const paraphrase = "Let's jump in. The city's public library wants to grow digital borrowing. How would you improve its mobile app?";
+    const inferredPose = inferUnmarkedActions(paraphrase, [{ kind: "follow_up" }], fit, question, framework);
+    check("paraphrased prompt during fit → posed", inferredPose.some((a) => a.kind === "posed"));
+    const afterPose = reduceProblemTurn(fit, [{ kind: "follow_up" }, ...inferredPose], ctx);
+    check("posed moves fit → problem", afterPose.state.stage === "problem" && afterPose.state.promptPosed);
+  }
+
+  // ---------------------------------------------------------------------------
+  console.log("\nquestion selection");
+  {
+    const picked = selectProblemQuestion(PROBLEM_FIXTURE_BANK, [framework], {}, () => 0);
+    check("selects a question with its framework", picked?.question.id === question.id && picked.framework.key === framework.key);
+    check("unmatched family filter falls back to bank", selectProblemQuestion(PROBLEM_FIXTURE_BANK, [framework], { family: "guesstimate" })?.question.id === question.id);
+    check("question whose framework is undeclared is unusable", selectProblemQuestion(PROBLEM_FIXTURE_BANK, []) === null);
+  }
+
+  console.log("\nquestion-type families (customize page) match the banks");
+  {
+    for (const slug of ["consulting", "product-management", "data-analytics", "finance", "system-design"]) {
+      const spec = getEngineType(slug)?.problemInterview;
+      const declared = (spec?.families ?? []).map((f) => f.key).sort();
+      const inBank = [...new Set(getProblemBank(slug).map((q) => q.family))].sort();
+      check(`${slug}: declared families = bank families`, declared.join() === inBank.join(), `declared=${declared} bank=${inBank}`);
+      check(`${slug}: every family label is short`, (spec?.families ?? []).every((f) => f.label.length <= 20));
+      for (const key of declared) {
+        const picked = selectProblemQuestion(getProblemBank(slug), spec!.frameworks, { family: key });
+        check(`${slug}: family "${key}" selects a question of that family`, picked?.question.family === key);
+      }
+    }
+  }
+
+  console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
+  process.exit(failures === 0 ? 0 : 1);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

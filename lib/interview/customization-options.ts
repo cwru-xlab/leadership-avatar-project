@@ -83,6 +83,28 @@ export const SESSION_LENGTH_PRESETS: SessionLengthPreset[] = [
 export const DEFAULT_SESSION_LENGTH_SLUG = "standard";
 
 /**
+ * The named length presets Customize offers for one interview type.
+ *
+ * Problem interviews (case, PM, analytics, finance, system design) hide
+ * lengths shorter than their own target, because one problem needs the full
+ * time. For a type whose target is longer than every preset (system-design,
+ * 35m vs Extended 30m) this is correctly EMPTY: the Customize page then shows
+ * only the "Interview default" tile, which carries the type's own target.
+ *
+ * Returning the longest preset as a floor here would be wrong — it would offer
+ * a 35-minute interview a 30-minute length, which is the very thing the filter
+ * exists to prevent.
+ */
+export function sessionLengthChoices(
+  targetMinutes: number,
+  isProblemInterview: boolean,
+): SessionLengthPreset[] {
+  return SESSION_LENGTH_PRESETS.filter(
+    (p) => !isProblemInterview || p.targetMinutes >= targetMinutes,
+  );
+}
+
+/**
  * Interviewer personality dials. `clause` is a short sentence fragment that
  * composes onto a preset's `interviewerPersona` string (never replaces it).
  * `neutral`'s clause is the empty string — it is the no-op default closest to

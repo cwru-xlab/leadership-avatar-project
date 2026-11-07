@@ -235,6 +235,12 @@ export interface InterviewTiming {
   elapsedMinutes: number;
   targetMinutes: number;
   redirectMetaRequest?: boolean;
+  /**
+   * The candidate's latest message only asks for thinking time. Problem
+   * interviews use it to withhold the nudge list for that turn (see
+   * `isThinkingTimeRequest`); the five-stage interview ignores it.
+   */
+  candidateThinking?: boolean;
 }
 
 /**

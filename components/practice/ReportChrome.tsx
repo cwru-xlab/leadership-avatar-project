@@ -32,6 +32,14 @@ import InRoleReactionPanel from "@/components/practice/report/InRoleReactionPane
 import NegotiationTriplePanel from "@/components/practice/report/NegotiationTriplePanel";
 import ListenerIdentityPanel from "@/components/practice/report/ListenerIdentityPanel";
 import PitchOutcomeBanner from "@/components/practice/report/PitchOutcomeBanner";
+import ProblemQuestionPanel from "@/components/practice/report/ProblemQuestionPanel";
+import ProcessStepsPanel from "@/components/practice/report/ProcessStepsPanel";
+import { getInterviewType } from "@/lib/interview/types";
+import {
+  PersonaChecklistPanel,
+  PersonaCountsPanel,
+  PersonaDisclaimerBanner,
+} from "@/components/practice/report/PersonaReportPanels";
 
 export type StalledAffordance = "retry" | "check-again";
 
@@ -68,6 +76,18 @@ const INTERVIEW_CHROME: ReportChrome = {
   guardsRepollAfter404: false,
   showsCustomizationStrip: true,
   checkInLead: "In a real interview",
+  // Problem interviews (consulting case, product management) only: both
+  // panels self-null without a problem snapshot, so the four classic
+  // presets — and consulting reports from before problem interviews — render
+  // exactly as they always have.
+  extras: {
+    above: (report) => (
+      <>
+        <ProblemQuestionPanel report={report} />
+        <ProcessStepsPanel report={report} />
+      </>
+    ),
+  },
 };
 
 /** Case-study — sourced from `app/case-play/[caseId]/report/[reportId]/page.tsx`. */
@@ -122,6 +142,35 @@ const TECHNICAL_CODING_CHROME: ReportChrome = {
   showsCustomizationStrip: false,
   checkInLead: "In a real interview",
 };
+
+/**
+ * Questioned-persona types (clinical communication, motivational
+ * interviewing) — difficult-conversation poll discipline; the practice-only
+ * disclaimer above the scores, the counts panel and the checklist below.
+ */
+function personaChrome(checkInLead: string): ReportChrome {
+  return {
+    pollIntervalMs: 2000,
+    giveUpAfterMs: 120_000,
+    stalledAffordance: "retry",
+    distinguishes401: true,
+    guardsRepollAfter404: false,
+    showsCustomizationStrip: false,
+    checkInLead,
+    extras: {
+      above: (report) => <PersonaDisclaimerBanner report={report} />,
+      below: (report) => (
+        <>
+          <PersonaCountsPanel report={report} />
+          <PersonaChecklistPanel report={report} />
+        </>
+      ),
+    },
+  };
+}
+
+const CLINICAL_COMMUNICATION_CHROME = personaChrome("In a real patient encounter");
+const MOTIVATIONAL_INTERVIEWING_CHROME = personaChrome("In a real counseling session");
 
 const NETWORKING_CHROME: ReportChrome = {
   pollIntervalMs: 2000,
@@ -218,6 +267,9 @@ const INTERVIEW_PRESET_SLUGS = new Set([
   "technical",
   "consulting",
   "early-career",
+  "product-management",
+  "finance",
+  "system-design",
 ]);
 
 /**
@@ -252,10 +304,15 @@ export function getReportChrome(
   if (slug === "case-study") return CASE_STUDY_CHROME;
   if (slug === "difficult-conversation") return DIFFICULT_CONVERSATION_CHROME;
   if (slug === "networking") return NETWORKING_CHROME;
+  if (slug === "clinical-communication") return CLINICAL_COMMUNICATION_CHROME;
+  if (slug === "motivational-interviewing") return MOTIVATIONAL_INTERVIEWING_CHROME;
   if (slug === "technical-coding") return TECHNICAL_CODING_CHROME;
   if (slug === "pitch-elevator") return PITCH_ELEVATOR_CHROME;
   if (isDeckModeSlug(slug)) return deckChromeFor(slug);
   if (INTERVIEW_PRESET_SLUGS.has(slug)) return INTERVIEW_CHROME;
+  // Any other interview preset (e.g. a newly registered problem interview
+  // such as product-management) shares the interview chrome.
+  if (getInterviewType(slug)) return INTERVIEW_CHROME;
 
   return null;
 }

@@ -112,7 +112,7 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
   const isPitch = isPitchElevator || isDeckMode;
   const isNetworking = engineType?.slug === "networking";
   const authoredInWizard = Boolean(engineType?.instance.authoredInWizard);
-  // Read-once-then-clear handoff from the picker (see app/interview/page.tsx),
+  // Read-once-then-clear handoff from the customize page (components/interview/InterviewCustomizePage.tsx),
   // guarded by a ref so React strict-mode's double-invoke of the mount effect
   // cannot read (and clear) the key twice. A parse failure is treated exactly
   // as absence — the wizard degrades to the preset's own defaults.
@@ -798,6 +798,9 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
 
             return {
               customization: storedCustomization,
+              ...(storedCustomization?.problemFamily
+                ? { problemFamily: storedCustomization.problemFamily }
+                : {}),
               interviewerAvatarId: selectedInterviewer?.avatarId,
               interviewerName:
                 storedCustomization?.personaDisplayName?.trim() ||
@@ -988,6 +991,7 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
                   industry={interviewType.defaultIndustry}
                   interviewerName={listenerDisplayName || "Your interviewer"}
                   nav={nav}
+                  problemBriefing={engineType.problemInterview?.briefing ?? null}
                   roleTitle={interviewType.defaultRoleTitle}
                 />
               );

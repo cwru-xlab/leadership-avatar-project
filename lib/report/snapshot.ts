@@ -10,6 +10,7 @@
  * columns.
  */
 
+import type { ProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
 import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
 import { isDeckModeSlug } from "@/lib/pitch/deck-modes";
 import type { TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
@@ -46,6 +47,14 @@ export interface InterviewInputSnapshot {
    */
   jobDescriptionId?: string | null;
   jobDescriptionText?: string | null;
+  /**
+   * Problem interviews only (consulting case, product management): the ONE
+   * question pinned at session start plus the server-recorded stage, nudges
+   * and exhibit reveals. OPTIONAL and not in `INTERVIEW_INPUT_KEYS`, for the
+   * same back-compat reason as the job-posting fields above. Stored JSON —
+   * always read it through `asProblemSessionSnapshot`.
+   */
+  problem?: ProblemSessionSnapshot;
 }
 
 /**
@@ -141,6 +150,14 @@ export interface DifficultConversationInputSnapshot {
   stakes: string;
   difficulty: "receptive" | "guarded" | "hostile";
   avatarId: string;
+  /**
+   * Questioned-persona sessions only (clinical communication, motivational
+   * interviewing). Absent on every courageous conversation. The persona card
+   * itself is never snapshotted — its hidden facts follow hiddenPosition's
+   * privacy rule.
+   */
+  personaStyle?: "clinical-communication" | "motivational-interviewing";
+  personaName?: string;
 }
 
 /**

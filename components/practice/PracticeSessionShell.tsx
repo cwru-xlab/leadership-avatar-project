@@ -66,6 +66,11 @@ import {
 } from "@/components/session/useVisualCapture";
 import type { CaseStudy, InteractionLog, StartAvatarRequest } from "@/types";
 import CaseStudySessionView from "@/components/practice/CaseStudySessionView";
+import CaseMaterialsPanel from "@/components/problem-interview/CaseMaterialsPanel";
+import type {
+  ProblemInterviewStage,
+  ProblemLiveView,
+} from "@/lib/problem-interview/session-state";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -85,7 +90,24 @@ type WalkOutMetadata = {
    * (proof missing/invalid, or an end-of-turn metadata computation failed).
    * See debug: elevator-walkout-dead-end. */
   walkOutFarewellDeclined?: boolean;
+  /** Problem interviews: server-owned stage, posed prompt, revealed exhibits. */
+  problem?: ProblemLiveView;
 };
+
+const PROBLEM_STAGE_LABELS: Record<ProblemInterviewStage, string> = {
+  opening: "Opening",
+  fit: "About you",
+  problem: "Problem",
+  candidate_questions: "Your questions",
+  closing: "Closing",
+};
+
+/** The three phases a candidate sees on the agenda, mapped from stages. */
+const PROBLEM_AGENDA: Array<{ label: string; stages: ProblemInterviewStage[] }> = [
+  { label: "About you", stages: ["opening", "fit"] },
+  { label: "The problem", stages: ["problem"] },
+  { label: "Your questions", stages: ["candidate_questions", "closing"] },
+];
 
 interface PracticeSessionShellProps {
   /**
@@ -284,6 +306,12 @@ function PracticeInterviewRoom({
   const checkpointing =
     getEngineType(sessionConfig.typeSlug)?.checkpointing ?? "none";
   const isInterviewSession = Boolean(getInterviewType(sessionConfig.typeSlug));
+  // Problem interviews (case / product): stage and materials come from the
+  // server in each turn's metadata; the five-stage `progress` is unused.
+  const isProblemInterview = Boolean(
+    getEngineType(sessionConfig.typeSlug)?.problemInterview
+  );
+  const [problemView, setProblemView] = useState<ProblemLiveView | null>(null);
   const targetQuestionCount =
     sessionConfig.limits.targetQuestionCount ??
     sessionConfig.customization?.targetQuestionCount ??
@@ -431,10 +459,12 @@ function PracticeInterviewRoom({
 
   const stageLabel = useMemo(
     () =>
-      progress.stage === "role_specific"
-        ? "Role focus"
-        : progress.stage.charAt(0).toUpperCase() + progress.stage.slice(1),
-    [progress.stage]
+      isProblemInterview
+        ? PROBLEM_STAGE_LABELS[problemView?.stage ?? "opening"]
+        : progress.stage === "role_specific"
+          ? "Role focus"
+          : progress.stage.charAt(0).toUpperCase() + progress.stage.slice(1),
+    [isProblemInterview, problemView?.stage, progress.stage]
   );
 
   const appendMessage = useCallback(
@@ -750,6 +780,9 @@ function PracticeInterviewRoom({
           walkOutProofRef.current = walkOutMetadata.walkOutProof;
         }
         appendMessage({ role: "assistant", content: parsedTurn.cleanedText });
+        if (walkOutMetadata?.problem) {
+          setProblemView(walkOutMetadata.problem);
+        }
         // This shell buffers transport streaming until the clean, marker-free
         // response can render. Clear the wait indicator at that visible handoff,
         // rather than at the first byte the learner cannot yet see.
@@ -1253,7 +1286,30 @@ function PracticeInterviewRoom({
           {/* Interview agenda (dev #55): interview types only — pitches,
               networking and difficult conversations have no question count
               or resume (UAT 2026-10-25). */}
-          {isInterviewSession ? (
+          {isProblemInterview ? (
+          <div className="border-y border-white/10 py-3" data-testid="problem-agenda">
+            <p className="text-[11px] font-semibold text-light-blue">
+              Practice flow
+            </p>
+            <p className="mt-1 hidden text-xs leading-5 text-light-blue sm:block">
+              A short question about you, then one problem you work through out loud. Ask for what you need.
+            </p>
+            <ol className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-light-blue">
+              {PROBLEM_AGENDA.map((phase) => {
+                const current = phase.stages.includes(problemView?.stage ?? "opening");
+                return (
+                  <li
+                    key={phase.label}
+                    aria-current={current ? "step" : undefined}
+                    className={current ? "font-semibold text-white" : undefined}
+                  >
+                    {phase.label}
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+          ) : isInterviewSession ? (
           <div className="border-y border-white/10 py-3">
             <p className="text-[11px] font-semibold text-light-blue">
               Practice flow
@@ -1267,6 +1323,8 @@ function PracticeInterviewRoom({
             </div>
           </div>
           ) : null}
+
+          {isProblemInterview ? <CaseMaterialsPanel view={problemView} /> : null}
 
           <div aria-live="polite" className="min-h-0 flex-1 space-y-5 overflow-y-auto py-6 pr-1">
             {!messages.length && !streamingText && (

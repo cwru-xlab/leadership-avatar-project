@@ -112,7 +112,7 @@ rule("roving tabindex plus an arrow-key handler", read("components/practice/step
   (s) => s.replace("onKeyDown={(event) => handleBandKeyDown(event, index)}", ""));
 
 console.log("\n11. D17-2 — the persona textarea has an accessible name");
-rule("CustomizePanel persona Textarea has aria-label", read("components/interview/CustomizePanel.tsx"),
+rule("Interview customize page persona Textarea has aria-label", read("components/interview/InterviewCustomizePage.tsx"),
   (s) => /aria-label="Description of who is interviewing you"/.test(s),
   (s) => s.replace('aria-label="Description of who is interviewing you"', ""));
 

@@ -14,6 +14,51 @@
  * or Postgres later touches exactly one function.
  */
 
+import {
+  FINANCE_INTERVIEW_SLUG,
+  FINANCE_INTERVIEWER_PERSONA,
+  FINANCE_PRESET_DESCRIPTION,
+  FINANCE_PRESET_LABEL,
+  FINANCE_QUESTION_AREAS,
+  FINANCE_TARGET_MINUTES,
+} from "../finance-interview/live";
+import {
+  PROBLEM_FIXTURE_BASE,
+  PROBLEM_FIXTURE_ENABLED,
+} from "@/lib/problem-interview/fixtures/type";
+import {
+  CASE_BACKGROUND,
+  CASE_DESCRIPTION,
+  CASE_INTERVIEWER_PERSONA,
+  CASE_QUESTION_AREAS,
+  CASE_TARGET_MINUTES,
+} from "../case-interview/live";
+import {
+  PM_INTERVIEW_SLUG,
+  PM_INTERVIEWER_PERSONA,
+  PM_PRESET_DESCRIPTION,
+  PM_PRESET_LABEL,
+  PM_QUESTION_AREAS,
+} from "../pm-interview/prompts";
+import {
+  ANALYTICS_BACKGROUND,
+  ANALYTICS_INTERVIEWER_PERSONA,
+  ANALYTICS_INTERVIEW_SLUG,
+  ANALYTICS_PRESET_DESCRIPTION,
+  ANALYTICS_PRESET_LABEL,
+  ANALYTICS_QUESTION_AREAS,
+  ANALYTICS_TARGET_MINUTES,
+} from "@/lib/analytics-interview/live";
+
+import {
+  SD_INTERVIEW_SLUG,
+  SD_INTERVIEWER_PERSONA,
+  SD_PRESET_DESCRIPTION,
+  SD_PRESET_LABEL,
+  SD_QUESTION_AREAS,
+  SD_TARGET_MINUTES,
+} from "../system-design-interview/live";
+
 export type InterviewDifficulty = "Beginner" | "Intermediate" | "Advanced";
 
 export interface InterviewType {
@@ -39,6 +84,12 @@ export interface InterviewType {
   caseBackground?: string;
   /** Picker-card display only — never interpolated into the prompt. */
   questionAreas?: string[];
+  /**
+   * `false` folds the preset out of the picker without retiring it: its slug
+   * still resolves, so old reports, "Practice again" and study-plan links keep
+   * working. Omitted means listed.
+   */
+  listed?: boolean;
 }
 
 /**
@@ -74,10 +125,10 @@ const GENERAL_INTERVIEW: InterviewType = {
  */
 const TECHNICAL_INTERVIEW: InterviewType = {
   slug: "technical",
-  label: "Technical / Engineering Interview",
+  label: "Engineering Behavioral Interview",
   description:
-    "A behavioral interview for engineering roles, with a focus on how you think " +
-    "through technical tradeoffs, not on quizzing you with trivia.",
+    "Behavioral questions for engineering roles: how you reason through technical " +
+    "tradeoffs. No live coding.",
   interviewerPersona:
     "a pragmatic senior engineering manager who cares more about how the candidate " +
     "thinks through tradeoffs than about quizzing them on trivia. You ask \"why that " +
@@ -95,29 +146,25 @@ const TECHNICAL_INTERVIEW: InterviewType = {
 };
 
 /**
- * Consulting / case-style interview. Persona is Socratic and composed, asking
- * the candidate to structure their thinking out loud rather than race to an
- * answer.
+ * Consulting case interview. Upgraded in place (2026-11-06): the slug stays
+ * "consulting" so reports from the earlier behavioral-style preset still
+ * resolve and render. The session is a real case interview (fit → one case →
+ * close); content, persona and copy live in `lib/case-interview/`.
+ * `targetQuestionCount` is 1: one problem (the problem-interview factory
+ * sets the same limit).
  */
 const CONSULTING_INTERVIEW: InterviewType = {
   slug: "consulting",
   label: "Consulting / Case-Style Interview",
-  description:
-    "A behavioral interview styled after a consulting-firm interview, emphasizing " +
-    "structured, Socratic thinking under the interviewer's questioning.",
-  interviewerPersona:
-    "a composed, Socratic consulting-firm interviewer who asks the candidate to " +
-    "structure their thinking out loud. You are patient but exacting, and you " +
-    "reward candidates who lay out a clear framework before diving into details",
+  description: CASE_DESCRIPTION,
+  interviewerPersona: CASE_INTERVIEWER_PERSONA,
   defaultRoleTitle: "a management consulting associate role",
   defaultIndustry: "management consulting",
   difficulty: "Advanced",
-  targetMinutes: 20,
-  targetQuestionCount: 9,
-  caseBackground:
-    "For the role-specific stage, pose a generic business situation and ask the " +
-    "candidate to structure how they would approach it.",
-  questionAreas: ["Your background", "Behavioral stories", "Structured problem solving"],
+  targetMinutes: CASE_TARGET_MINUTES,
+  targetQuestionCount: 1,
+  caseBackground: CASE_BACKGROUND,
+  questionAreas: [...CASE_QUESTION_AREAS],
 };
 
 /**
@@ -141,6 +188,94 @@ const EARLY_CAREER_INTERVIEW: InterviewType = {
   targetMinutes: 10,
   targetQuestionCount: 5,
   questionAreas: ["Your background", "Behavioral stories", "Motivation & fit"],
+  // Folded away from the picker 2026-11-06; the general interview at Beginner
+  // difficulty and Quick length covers the same ground.
+  listed: false,
+};
+
+/**
+ * Product-management interview. A problem-solving preset, not a behavioral
+ * one: a short fit question, then ONE deliberately abstract product problem
+ * (design, improvement, metrics, estimation or strategy) graded step by step
+ * against a named method such as CIRCLES. Copy and content live in
+ * `lib/pm-interview/`; the engine record is built in
+ * `lib/pm-interview/type.ts`. `targetQuestionCount` counts the fit question
+ * and the problem.
+ */
+const PRODUCT_MANAGEMENT_INTERVIEW: InterviewType = {
+  slug: PM_INTERVIEW_SLUG,
+  label: PM_PRESET_LABEL,
+  description: PM_PRESET_DESCRIPTION,
+  interviewerPersona: PM_INTERVIEWER_PERSONA,
+  defaultRoleTitle: "a product manager role",
+  defaultIndustry: "technology",
+  difficulty: "Advanced",
+  targetMinutes: 30,
+  targetQuestionCount: 2,
+  questionAreas: PM_QUESTION_AREAS,
+};
+
+/**
+ * Data / product-analytics interview. A problem interview (fit question, then
+ * ONE analytics problem — metric definition, experiment design or readout,
+ * metric diagnosis — graded step by step); the engine record is built by
+ * `makeProblemInterviewTypeConfig` in `lib/engine/registry.ts`. Copy lives in
+ * `lib/analytics-interview/live.ts`. `targetQuestionCount` is 1: one problem.
+ */
+const DATA_ANALYTICS_INTERVIEW: InterviewType = {
+  slug: ANALYTICS_INTERVIEW_SLUG,
+  label: ANALYTICS_PRESET_LABEL,
+  description: ANALYTICS_PRESET_DESCRIPTION,
+  interviewerPersona: ANALYTICS_INTERVIEWER_PERSONA,
+  defaultRoleTitle: "a data scientist (product analytics) role",
+  defaultIndustry: "consumer technology",
+  difficulty: "Advanced",
+  targetMinutes: ANALYTICS_TARGET_MINUTES,
+  targetQuestionCount: 1,
+  caseBackground: ANALYTICS_BACKGROUND,
+  questionAreas: [...ANALYTICS_QUESTION_AREAS],
+};
+
+/**
+ * Finance interview (investment banking / private equity / equity research).
+ * A problem-solving preset: a short fit question, then ONE technical
+ * walk-through, paper LBO, stock pitch or market / deal discussion, graded
+ * step by step with numbers checked against a tolerance band. Copy and
+ * content live in `lib/finance-interview/`; the engine record is built by
+ * `makeProblemInterviewTypeConfig` in `lib/engine/registry.ts`.
+ * `targetQuestionCount` is 1: one problem.
+ */
+const FINANCE_INTERVIEW: InterviewType = {
+  slug: FINANCE_INTERVIEW_SLUG,
+  label: FINANCE_PRESET_LABEL,
+  description: FINANCE_PRESET_DESCRIPTION,
+  interviewerPersona: FINANCE_INTERVIEWER_PERSONA,
+  defaultRoleTitle: "an investment banking analyst role",
+  defaultIndustry: "finance",
+  difficulty: "Advanced",
+  targetMinutes: FINANCE_TARGET_MINUTES,
+  targetQuestionCount: 1,
+  questionAreas: [...FINANCE_QUESTION_AREAS],
+};
+
+/**
+ * System-design interview. A problem-solving preset (verbal, no whiteboard):
+ * a short fit question, then ONE design, feature or incident problem graded
+ * step by step. Content lives in `lib/system-design-interview/`; the engine
+ * record is built from `lib/system-design-interview/registration.ts`.
+ * `targetQuestionCount` counts the fit question and the problem.
+ */
+const SYSTEM_DESIGN_INTERVIEW: InterviewType = {
+  slug: SD_INTERVIEW_SLUG,
+  label: SD_PRESET_LABEL,
+  description: SD_PRESET_DESCRIPTION,
+  interviewerPersona: SD_INTERVIEWER_PERSONA,
+  defaultRoleTitle: "a software engineering role",
+  defaultIndustry: "technology",
+  difficulty: "Intermediate",
+  targetMinutes: SD_TARGET_MINUTES,
+  targetQuestionCount: 2,
+  questionAreas: SD_QUESTION_AREAS,
 };
 
 export const INTERVIEW_TYPES: Record<string, InterviewType> = {
@@ -148,19 +283,39 @@ export const INTERVIEW_TYPES: Record<string, InterviewType> = {
   [TECHNICAL_INTERVIEW.slug]: TECHNICAL_INTERVIEW,
   [CONSULTING_INTERVIEW.slug]: CONSULTING_INTERVIEW,
   [EARLY_CAREER_INTERVIEW.slug]: EARLY_CAREER_INTERVIEW,
+  [PRODUCT_MANAGEMENT_INTERVIEW.slug]: PRODUCT_MANAGEMENT_INTERVIEW,
+  [DATA_ANALYTICS_INTERVIEW.slug]: DATA_ANALYTICS_INTERVIEW,
+  [FINANCE_INTERVIEW.slug]: FINANCE_INTERVIEW,
+  [SYSTEM_DESIGN_INTERVIEW.slug]: SYSTEM_DESIGN_INTERVIEW,
 };
 
 export const DEFAULT_INTERVIEW_TYPE = GENERAL_INTERVIEW;
 
+/**
+ * Resolvable by slug but never listed: the problem-interview engine's test
+ * fixture, outside production builds only (see
+ * `lib/problem-interview/fixtures/type.ts`). Kept out of `INTERVIEW_TYPES` so
+ * the launcher and every script that iterates the presets never see it.
+ */
+const HIDDEN_INTERVIEW_TYPES: Record<string, InterviewType> = PROBLEM_FIXTURE_ENABLED
+  ? { [PROBLEM_FIXTURE_BASE.slug]: PROBLEM_FIXTURE_BASE }
+  : {};
+
 /** Resolve a slug from a URL segment or request body. Returns null on unknown. */
 export function getInterviewType(slug: string | undefined | null): InterviewType | null {
   if (!slug) return null;
-  return INTERVIEW_TYPES[slug.trim().toLowerCase()] ?? null;
+  const key = slug.trim().toLowerCase();
+  return INTERVIEW_TYPES[key] ?? HIDDEN_INTERVIEW_TYPES[key] ?? null;
 }
 
-/** For the launcher listing. */
+/** Every preset, listed or not — for lookups, validation and verify scripts. */
 export function listInterviewTypes(): InterviewType[] {
   return Object.values(INTERVIEW_TYPES);
+}
+
+/** Whether the picker offers this preset. Unlisted presets still resolve by slug. */
+export function isListedInterviewType(type: InterviewType): boolean {
+  return type.listed !== false;
 }
 
 /**
