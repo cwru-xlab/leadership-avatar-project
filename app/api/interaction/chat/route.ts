@@ -695,7 +695,7 @@ export async function POST(request: NextRequest) {
           : typeof interviewInput?.resumeText === "string"
             ? interviewInput.resumeText
             : "";
-      const resumeText = rawResume.slice(0, MAX_RESUME_TEXT_LENGTH);
+      let resumeText = rawResume.slice(0, MAX_RESUME_TEXT_LENGTH);
       // Legacy fallback only. For a started, owned interview below, this is
       // replaced with the session snapshot so the prompt cannot vary by turn.
       let jobDescriptionText = (
@@ -723,6 +723,16 @@ export async function POST(request: NextRequest) {
         if (!report || snapshot?.kind !== "technical-coding") return NextResponse.json({ error: "Technical assignment is unavailable." }, { status: 409 });
         technicalAssignment = snapshot.assignment;
         technicalReportId = report.id;
+        // Prefer the authenticated, persisted setup inputs over anything the
+        // browser sent this turn, so the prompt prefix is genuinely
+        // session-constant and byte-identical for prefix caching. The posting
+        // is interviewer context only — it reaches the live prompt here and
+        // never the evaluator's context.
+        resumeText = (snapshot.resumeText ?? "").slice(0, MAX_RESUME_TEXT_LENGTH);
+        jobDescriptionText = (snapshot.jobDescriptionText ?? "").slice(
+          0,
+          MAX_JOB_DESCRIPTION_TEXT_LENGTH,
+        );
         const latestUser = messages[0];
         const prior = parseStoredTechnicalEvidence(report.technicalEvidence) ?? emptyTechnicalEvidence();
         const serverTranscript = [...prior.visibleTurns, latestUser];
