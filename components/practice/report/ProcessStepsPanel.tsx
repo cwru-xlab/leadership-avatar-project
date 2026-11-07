@@ -4,7 +4,9 @@
  * quote, its timecode, and one coaching note. The framework comes from the
  * report snapshot (pinned at session start); the results come from the
  * outcome's `processSteps`, narrowed defensively — a malformed value renders
- * every step as "Not graded", never throws.
+ * every step as "Not graded", never throws. Notes arrive display-ready from
+ * `buildProcessStepViews`, which strips the evaluator's internal
+ * `Meets all criteria: yes.|no.` grading prefix; do not re-derive them here.
  *
  * Self-nulls without a problem snapshot, so non-problem interview reports
  * (and old `consulting` reports) are unchanged.

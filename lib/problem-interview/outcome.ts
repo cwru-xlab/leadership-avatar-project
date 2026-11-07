@@ -282,14 +282,40 @@ export interface ProcessStepView {
   key: string;
   label: string;
   description: string;
-  /** Null when the evaluator returned no result for this step. */
+  /**
+   * Null when the evaluator returned no result for this step. `note` is
+   * display-ready: the grading prefix is already stripped (see
+   * `stripStepNoteGradingPrefix`), so it may be empty even when the step was
+   * graded.
+   */
   result: ProcessStepResult | null;
+}
+
+/**
+ * `Meets all criteria: yes.` / `Meets all criteria: no.` is a GRADING
+ * MECHANISM, not student-facing coaching. The shared problem-interview rules
+ * make every step note open with it so the status cannot drift from the note
+ * (docs/interviews/system-design-validity.md); the student has no use for it —
+ * the status chip beside the step already says Hit / Prompted / Missed, and
+ * "Meets all criteria: no." reads as a verdict restated in grader's voice.
+ *
+ * Strips the prefix for display only. The stored outcome keeps the raw note,
+ * which is what the grading studies and any later audit read.
+ */
+export function stripStepNoteGradingPrefix(note: string): string {
+  return note
+    .replace(/^\s*meets all criteria\s*[:—–-]?\s*(yes|no)\b\s*[.!,;:—–-]?\s*/i, "")
+    .trim();
 }
 
 /**
  * Join the snapshot's framework with the outcome's results for the report.
  * Steps keep framework order; a result for a key the framework does not
  * declare is dropped.
+ *
+ * This is the ONE place a render path gets its step notes from, so the
+ * grading-prefix strip lives here rather than in a panel — a second render
+ * surface cannot forget it.
  */
 export function buildProcessStepViews(
   framework: PublicProcessFramework,
@@ -297,10 +323,15 @@ export function buildProcessStepViews(
 ): ProcessStepView[] {
   const results = asProcessStepResults(outcomeProcessSteps) ?? [];
   const byKey = new Map(results.map((result) => [result.key, result]));
-  return framework.steps.map((step) => ({
-    key: step.key,
-    label: step.label,
-    description: step.description,
-    result: byKey.get(step.key) ?? null,
-  }));
+  return framework.steps.map((step) => {
+    const result = byKey.get(step.key) ?? null;
+    return {
+      key: step.key,
+      label: step.label,
+      description: step.description,
+      result: result
+        ? { ...result, note: stripStepNoteGradingPrefix(result.note) }
+        : null,
+    };
+  });
 }
