@@ -151,6 +151,8 @@ interface Graded {
    * render path strips it — so it is visible here.
    */
   prefixedNotes: number;
+  /** Prefix verdicts that were neither `yes` nor `no` (defect 2's invented verdict). */
+  otherVerdicts: string[];
   noteSaysNo: number;
   /** Steps whose note says "no" while the status is not missed/not_applicable. */
   prefixStatusConflicts: string[];
@@ -165,6 +167,8 @@ interface Graded {
 }
 
 const NOTE_PREFIX = /^\s*meets all criteria\s*[:\u2014\u2013-]?\s*(yes|no)\b/i;
+/** Any opening word after the prefix, so an invented verdict is visible too. */
+const NOTE_PREFIX_ANY = /^\s*meets all criteria\s*[:\u2014\u2013-]?\s*([a-z_]+)/i;
 
 async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
   const OpenAI = (await import("openai")).default;
@@ -237,6 +241,12 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
   const notes = (raw as Record<string, unknown>).rubric_notes ?? null;
   const verdicts = steps.map((st) => NOTE_PREFIX.exec(st.note ?? "")?.[1]?.toLowerCase() ?? null);
   const prefixedNotes = verdicts.filter((v) => v !== null).length;
+  const otherVerdicts = steps
+    .map((st) => {
+      const w = NOTE_PREFIX_ANY.exec(st.note ?? "")?.[1]?.toLowerCase();
+      return w && w !== "yes" && w !== "no" ? `${st.key}=${w}` : null;
+    })
+    .filter((x): x is string => x !== null);
   const noteSaysNo = verdicts.filter((v) => v === "no").length;
   const prefixStatusConflicts = steps
     .filter((st, i) => verdicts[i] === "no" && st.status !== "missed" && st.status !== "not_applicable")
@@ -253,6 +263,7 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
     notes,
     steps,
     prefixedNotes,
+    otherVerdicts,
     noteSaysNo,
     prefixStatusConflicts,
     nestedQuoteSteps,
@@ -285,6 +296,7 @@ async function main() {
               notes: null,
               steps: [],
               prefixedNotes: 0,
+              otherVerdicts: [],
               noteSaysNo: 0,
               prefixStatusConflicts: [],
               nestedQuoteSteps: [],
@@ -301,6 +313,16 @@ async function main() {
       console.log(
         `run ${run}  ${r.id.padEnd(16)} rigor ${sc("process_rigor")} (raw ${r.rawRigor ?? "–"}, band ${deriveProcessRigorScore(r.steps) ?? "–"})  quant ${sc("quantitative")}  synth ${sc("synthesis")}  content ${sc("content")}  behav ${sc("behavioral")}  steps ${r.steps.map((x) => ABBR[x.status] ?? "?").join("")}${r.nonVerbatim.length ? `  [non-verbatim: ${r.nonVerbatim.join(",")}]` : ""}  ${r.failures.length ? `FAIL: ${r.failures.join("; ")}` : "PASS"}`,
       );
+      // Verbatim stored notes: defect 1's signature is a note that says "no."
+      // on a step the nudge record makes "prompted".
+      console.log(
+        `         note prefix ${r.prefixedNotes}/${r.steps.length}; says-no ${r.noteSaysNo}` +
+          `${r.otherVerdicts.length ? `; OTHER-VERDICT ${r.otherVerdicts.join(",")}` : ""}` +
+          `${r.prefixStatusConflicts.length ? `; CONFLICT note-says-no but status ${r.prefixStatusConflicts.join(",")}` : ""}` +
+          `${r.nestedQuoteSteps.length ? `; NESTED-QUOTE ${r.nestedQuoteSteps.join(",")}` : ""}` +
+          `${r.stepsRepaired ? "; REPAIRED" : ""}${r.stepsMalformed ? "; MALFORMED" : ""}`,
+      );
+      for (const st of r.steps) console.log(`         note ${st.key} [${st.status}]: ${(st.note ?? "").replace(/\s+/g, " ")}`);
     }
     all.push(...results);
   }
@@ -332,6 +354,8 @@ async function main() {
   const repaired = all.filter((r) => r.stepsRepaired).map((r) => `${r.id} run ${r.run}`);
   const malformed = all.filter((r) => r.stepsMalformed).map((r) => `${r.id} run ${r.run}`);
   console.log(`'Meets all criteria:' prefix present in ${prefixed}/${slots} stored step notes (${saysNo} say no)`);
+  const other = all.flatMap((r) => r.otherVerdicts.map((v) => `${r.id} run ${r.run} ${v}`));
+  console.log(`Prefix verdicts other than yes./no.: ${other.length}${other.length ? ` — ${other.join("; ")}` : ""}`);
   console.log(`Notes saying no while the status is not missed: ${conflicts.length}${conflicts.length ? ` — ${conflicts.join("; ")}` : ""}`);
   console.log(`Steps still carrying a double-quote character: ${nested.length}${nested.length ? ` — ${nested.join("; ")}` : ""}`);
   console.log(`processSteps needing the deterministic repair: ${repaired.length}/${all.length}${repaired.length ? ` — ${repaired.join("; ")}` : ""}`);

@@ -100,7 +100,14 @@ const study = {
   noteSaysNo: 0,
   noteStatusConflicts: 0,
   nestedQuoteSteps: 0,
+  /** Prefix verdicts that were neither `yes` nor `no` (defect 2's invented verdict). */
+  otherVerdicts: [] as string[],
 };
+
+/** The opening word after the prefix, whatever it is, so an invented verdict shows. */
+function notePrefixWord(note: string | undefined): string | null {
+  return /^\s*meets all criteria\s*[:\u2014\u2013-]?\s*([a-z_]+)/i.exec(note ?? "")?.[1]?.toLowerCase() ?? null;
+}
 
 /** The verdict in a step note's mandated grading prefix, or null when absent. */
 function notePrefixVerdict(note: string | undefined): "yes" | "no" | null {
@@ -231,12 +238,20 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
     const saysNo = stepList.filter((s) => notePrefixVerdict(s.note) === "no");
     const conflicts = saysNo.filter((s) => s.status !== "missed" && s.status !== "not_applicable");
     const nested = stepList.filter((s) => `${s.evidenceQuote ?? ""}${s.note ?? ""}`.includes('"'));
+    const other = stepList
+      .map((s) => {
+        const w = notePrefixWord(s.note);
+        return w && w !== "yes" && w !== "no" ? `${fx.id} run ${run} ${s.key}=${w}` : null;
+      })
+      .filter((x): x is string => x !== null);
+    study.otherVerdicts.push(...other);
     study.notePrefixed += prefixed.length;
     study.noteSaysNo += saysNo.length;
     study.noteStatusConflicts += conflicts.length;
     study.nestedQuoteSteps += nested.length;
     console.log(
       `    info note prefix ${prefixed.length}/${stepList.length}; says-no [${saysNo.map((s) => s.key).join(",") || "none"}]` +
+        `${other.length ? `; OTHER-VERDICT ${other.map((o) => o.split(" ").pop()).join(",")}` : ""}` +
         `${conflicts.length ? `; CONFLICT note-says-no but status ${conflicts.map((s) => `${s.key}=${s.status}`).join(",")}` : ""}` +
         `${nested.length ? `; NESTED-QUOTE ${nested.map((s) => s.key).join(",")}` : ""}`,
     );
@@ -326,6 +341,10 @@ async function main() {
       `note grading prefix ${study.notePrefixed}/${study.noteSlots} step note(s) (${study.noteSaysNo} say no, ` +
       `${study.noteStatusConflicts} disagreeing with their status); nested double-quote in ${study.nestedQuoteSteps} step(s); ` +
       `model process_rigor disagrees with the band derived from its steps in ${study.rigorDisagreements}/${study.grades}`,
+  );
+  console.log(
+    `Prefix verdicts other than yes./no.: ${study.otherVerdicts.length}` +
+      `${study.otherVerdicts.length ? ` — ${study.otherVerdicts.join("; ")}` : ""}`,
   );
   if (knownGapMisses > 0) console.log(`\n${knownGapMisses} known-gap miss(es) (documented; not counted as failures)`);
   console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURE(S)`);
