@@ -49,10 +49,43 @@ test.describe("technical coding room", () => {
 
     // Editor and terminal are both reachable without scrolling the page.
     await page.setViewportSize({ width: 1440, height: 900 });
+    await page.waitForTimeout(400);
     await expect(page.locator(".cm-editor")).toBeInViewport();
     await expect(page.getByRole("button", { name: /^Terminal/ })).toBeInViewport();
     await expect(page.getByRole("button", { name: "Run" })).toBeInViewport();
     await expect(page.getByRole("button", { name: "Submit" })).toBeInViewport();
+
+    // `toBeInViewport` is an intersection check, so a shaved edge still passes
+    // it, and page-scroll math is absorbed by the app shell's overflow
+    // containers. Measure the room's own box instead: when the room forgets to
+    // opt into the full-screen layout it renders inside MainContent's padded
+    // max-width column, so its rect is inset from the viewport on every side
+    // and the bottom control row is clipped away.
+    const room = page.locator("main").filter({ has: page.locator(".cm-editor") }).first();
+    const box = await room.boundingBox();
+    expect(box, "the room has a measurable box").not.toBeNull();
+    const viewport = page.viewportSize()!;
+    expect(Math.round(box!.x), "room is flush to the left edge").toBeLessThanOrEqual(1);
+    expect(Math.round(box!.y), "room is flush to the top edge").toBeLessThanOrEqual(1);
+    expect(
+      Math.round(box!.width),
+      "room spans the full viewport width (no max-width column, no navbar)",
+    ).toBeGreaterThanOrEqual(viewport.width - 1);
+    expect(
+      Math.round(box!.y + box!.height),
+      "room's bottom edge is not pushed past the viewport",
+    ).toBeLessThanOrEqual(viewport.height + 1);
+
+    // The Run/Submit row is the part that actually disappeared: assert it sits
+    // wholly inside the viewport, not merely that it intersects it.
+    for (const name of ["Run", "Submit"]) {
+      const control = await page.getByRole("button", { name, exact: true }).boundingBox();
+      expect(control, `${name} has a box`).not.toBeNull();
+      expect(
+        Math.round(control!.y + control!.height),
+        `${name} is fully inside the viewport`,
+      ).toBeLessThanOrEqual(viewport.height);
+    }
   });
 
   test("runs candidate Python and reports per-test pass and fail", async ({ page }) => {
@@ -84,6 +117,43 @@ test.describe("technical coding room", () => {
     await page.keyboard.type("def broken(:\n  pass");
     await page.getByRole("button", { name: "Run" }).click();
     await expect(terminal).toContainText(/Error/i, { timeout: 60_000 });
+  });
+
+  test("each run replaces the previous terminal output", async ({ page }) => {
+    await signIn(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openRoom(page);
+
+    const terminal = page.locator('[aria-live="polite"]').filter({ hasText: /Ready\.|python/ });
+    const signature = await page.locator(".cm-content").innerText();
+    const entry = /def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/.exec(signature);
+    expect(entry, "starter code exposes a function signature").not.toBeNull();
+    const [, name, args] = entry!;
+
+    const write = async (body: string) => {
+      await page.locator(".cm-content").click();
+      await page.keyboard.press("ControlOrMeta+a");
+      await page.keyboard.type(body);
+    };
+
+    // A run that errors leaves a distinctive marker, so a second run that
+    // merely APPENDS would still show it.
+    await write("def broken(:\n  pass");
+    await page.getByRole("button", { name: "Run", exact: true }).click();
+    await expect(terminal).toContainText(/Error/i, { timeout: 120_000 });
+
+    await write(`def ${name}(${args}):\n    return "definitely-wrong"`);
+    await page.getByRole("button", { name: "Run", exact: true }).click();
+    await expect(terminal).toContainText(/visible tests passed/, { timeout: 60_000 });
+
+    // The earlier failure is gone, and exactly one command line is present.
+    await expect(terminal).not.toContainText(/SyntaxError/i);
+    const commands = await terminal.locator("text=/python -m pytest visible/").count();
+    expect(commands, "only the current run's command line is shown").toBe(1);
+
+    // And the newest output starts at the top of the scroller, not below it.
+    const scrollTop = await terminal.evaluate((node) => node.scrollTop);
+    expect(scrollTop, "terminal is scrolled to the newest output").toBeLessThanOrEqual(1);
   });
 
   test("uses the shared push-to-talk control and answers a typed turn", async ({ page }) => {
