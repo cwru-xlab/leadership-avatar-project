@@ -286,6 +286,20 @@ export interface ProblemInterviewBriefing {
 export interface ProblemInterviewTypeSpec {
   frameworks: ProcessFramework[];
   briefing: ProblemInterviewBriefing;
+  /**
+   * The question families the student may ask for on the customize page, in
+   * display order. Public labels only — the bank stays server-side; the
+   * bank verify scripts prove every family here has questions in the bank.
+   * Empty: no "Question type" choice is offered.
+   */
+  families: ProblemFamilyOption[];
+}
+
+/** One student-selectable question family (`ProblemQuestion.family`). */
+export interface ProblemFamilyOption {
+  key: string;
+  label: string;
+  hint?: string;
 }
 
 /** A type's limits, stated to the model, not enforced as a hard cutoff

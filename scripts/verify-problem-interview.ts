@@ -467,6 +467,21 @@ async function main() {
     check("question whose framework is undeclared is unusable", selectProblemQuestion(PROBLEM_FIXTURE_BANK, []) === null);
   }
 
+  console.log("\nquestion-type families (customize page) match the banks");
+  {
+    for (const slug of ["consulting", "product-management", "data-analytics", "finance"]) {
+      const spec = getEngineType(slug)?.problemInterview;
+      const declared = (spec?.families ?? []).map((f) => f.key).sort();
+      const inBank = [...new Set(getProblemBank(slug).map((q) => q.family))].sort();
+      check(`${slug}: declared families = bank families`, declared.join() === inBank.join(), `declared=${declared} bank=${inBank}`);
+      check(`${slug}: every family label is short`, (spec?.families ?? []).every((f) => f.label.length <= 20));
+      for (const key of declared) {
+        const picked = selectProblemQuestion(getProblemBank(slug), spec!.frameworks, { family: key });
+        check(`${slug}: family "${key}" selects a question of that family`, picked?.question.family === key);
+      }
+    }
+  }
+
   console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
   process.exit(failures === 0 ? 0 : 1);
 }

@@ -24,6 +24,7 @@
 
 import type {
   InteractionTypeConfig,
+  ProblemFamilyOption,
   ProblemInterviewBriefing,
   RubricDimension,
 } from "@/lib/engine/types";
@@ -62,6 +63,8 @@ export interface MakeProblemInterviewTypeConfigInput {
   rubricExtras?: RubricDimension[];
   /** Briefing-step copy. Defaults to a generic problem-interview briefing. */
   briefing?: ProblemInterviewBriefing;
+  /** Student-selectable question families (customize page). Defaults to none. */
+  families?: ProblemFamilyOption[];
 }
 
 export const DEFAULT_PROBLEM_BRIEFING: ProblemInterviewBriefing = {
@@ -81,6 +84,7 @@ export function makeProblemInterviewTypeConfig({
   evaluatorAddendum = "",
   rubricExtras = [],
   briefing = DEFAULT_PROBLEM_BRIEFING,
+  families = [],
 }: MakeProblemInterviewTypeConfigInput): InteractionTypeConfig {
   if (frameworks.length === 0) {
     throw new Error(`problem interview "${base.slug}" declares no frameworks`);
@@ -107,7 +111,7 @@ export function makeProblemInterviewTypeConfig({
     slug: base.slug,
     name: base.label,
     description: base.description,
-    problemInterview: { frameworks, briefing },
+    problemInterview: { frameworks, briefing, families },
     extraRubricDimensions,
     prompts: {
       liveSystemPrompt: (config, extra) => {

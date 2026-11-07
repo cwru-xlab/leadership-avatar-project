@@ -798,6 +798,9 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
 
             return {
               customization: storedCustomization,
+              ...(storedCustomization?.problemFamily
+                ? { problemFamily: storedCustomization.problemFamily }
+                : {}),
               interviewerAvatarId: selectedInterviewer?.avatarId,
               interviewerName:
                 storedCustomization?.personaDisplayName?.trim() ||
