@@ -119,12 +119,33 @@ test("industry-specific: every listed card opens, customizes and carries into se
     await page.keyboard.press("ArrowRight");
     await expect(difficulty.locator('[aria-checked="true"]')).toBeFocused();
 
-    // Problem interviews (case, PM, ...) hide lengths shorter than their own
-    // target: one problem needs the full time. Those pick Extended instead.
+    // Problem interviews hide lengths shorter than their own target: one
+    // problem needs the full time. Most pick Extended. system-design's target
+    // (35m) is longer than EVERY named preset, so its only tile is "Interview
+    // default", which carries the type's own target — asserted deterministically
+    // in scripts/verify-session-length-choices.ts. Derive the expectation from
+    // the tiles actually rendered instead of assuming Extended exists.
     const lengths = page.locator('[data-choice-group="length"]');
     const quick = lengths.getByRole("radio", { name: /Quick/ });
-    const expectedMinutes = (await quick.count()) > 0 ? "10 min" : "30 min";
-    await (expectedMinutes === "10 min" ? quick : lengths.getByRole("radio", { name: /Extended/ })).click();
+    const extended = lengths.getByRole("radio", { name: /Extended/ });
+    const interviewDefault = lengths.getByRole("radio", { name: /Interview default/ });
+    let chosen = quick;
+    let expectedMinutes = "10 min";
+    if ((await quick.count()) === 0) {
+      if ((await extended.count()) > 0) {
+        chosen = extended;
+        expectedMinutes = "30 min";
+      } else {
+        // Only the interview's own default is on offer; read its minutes from
+        // the tile hint (`~35 min`) so this keeps working if a target changes.
+        chosen = interviewDefault;
+        const hint = (await interviewDefault.textContent()) ?? "";
+        const match = hint.match(/~?(\d+)\s*min/);
+        expect(match, `no minutes in the Interview default tile: ${hint}`).not.toBeNull();
+        expectedMinutes = `${match![1]} min`;
+      }
+    }
+    await chosen.click();
     await page.getByRole("button", { name: "Continue to setup" }).click();
     await page.waitForURL((url) => url.pathname.startsWith("/practice/interviews/") && !url.pathname.includes("customize"), {
       timeout: 45_000,
