@@ -22,6 +22,14 @@ export const routes = {
   practice: () => "/practice",
   interviews: () => "/practice/interviews",
   interview: (type: string) => `/practice/interviews/${segment(interviewSegment(type))}`,
+  /** Second page of the interview picker: every specialized preset. */
+  industryInterviews: () => "/practice/interviews/industry-specific",
+  /**
+   * A preset's customization page, keyed by ENGINE slug (the handoff key is
+   * `interview:customization:{engine slug}`); Continue goes to `interview(type)`.
+   */
+  customizeInterview: (type: string) =>
+    `/practice/interviews/customize/${segment(type)}`,
   caseStudies: () => "/practice/case-studies",
   caseStudy: (caseId: string) => `/practice/case-studies/${segment(caseId)}`,
   newCaseStudy: () => "/practice/case-studies/new",

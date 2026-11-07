@@ -25,7 +25,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   {
     slug: "interviews",
     name: "Practice interviews",
-    description: "A behavioral interview built from your resume.",
+    description: "General or industry-specific, with a live interviewer.",
     icon: "Briefcase",
     estimatedMinutes: 20,
     route: routes.interviews(),
