@@ -263,6 +263,16 @@ export function finalizeProblemOutcome(
     }
     const nudge = nudgedAt.get(result.key);
     if (nudge === undefined) return result;
+    // KNOWN HOLE: the stamp decides hit vs prompted, so a model that wants to
+    // keep a "hit" can move it earlier. Case retail-nudged run 3 did exactly
+    // that under f4359f6's reverted carve-out: real quotes from lines at 146s
+    // and 174s stamped 26s and 54s, which walked past this check and inflated
+    // derived process_rigor to 5 against an expectation of <= 3. Closing it
+    // needs the TRANSCRIPT here, to locate the quoted words and use their
+    // line's time instead of the stamp; the snapshot carries only the
+    // question, framework, state and events, so that is a signature change
+    // across this function's callers. See the integrator TODO in
+    // docs/interviews/finance-validity.md.
     const before = result.timecodeSeconds !== null && result.timecodeSeconds < nudge;
     if (result.status === "hit" && !before) return { ...result, status: "prompted" };
     if (result.status === "prompted" && before) return { ...result, status: "hit" };

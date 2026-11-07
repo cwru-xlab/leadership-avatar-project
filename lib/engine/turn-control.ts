@@ -25,6 +25,7 @@ import {
   reduceInterviewProgress,
   type InterviewTurnAction,
 } from "@/lib/interview/turn-control";
+import { isThinkingTimeRequest } from "@/lib/problem-interview/turn-control";
 import {
   getInterviewType,
   initialProgress,
@@ -32,7 +33,7 @@ import {
 } from "@/lib/interview/types";
 
 /** Re-export so the chat route imports integrity checks from one engine module. */
-export { isInterviewIntegrityRequest };
+export { isInterviewIntegrityRequest, isThinkingTimeRequest };
 
 export interface ParseEngineTurnOptions {
   /** Prior progress; required to reduce interview stage state. */

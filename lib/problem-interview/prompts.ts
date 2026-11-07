@@ -225,6 +225,12 @@ export interface ProblemTiming {
   elapsedMinutes: number;
   targetMinutes: number;
   redirectMetaRequest?: boolean;
+  /**
+   * The candidate's latest message only asks for thinking time. Suppresses the
+   * nudge list for this turn (`isThinkingTimeRequest`): the model proved
+   * unwilling to honour "never nudge while they are thinking" as wording.
+   */
+  candidateThinking?: boolean;
 }
 
 const STAGE_GUIDANCE: Record<ProblemInterviewState["stage"], string> = {
@@ -302,7 +308,7 @@ export function buildProblemProgressBlock(
       `When you pose the problem, read this word for word, once, then stop: "${question.prompt}"`,
     );
   }
-  if (state.stage === "problem" && nudgeable.length) {
+  if (state.stage === "problem" && nudgeable.length && !timing.candidateThinking) {
     // The exact nudge texts, every turn: a nudge the model writes itself names
     // the step or drops its marker (the live probes' most frequent failure).
     lines.push(
@@ -314,6 +320,14 @@ export function buildProblemProgressBlock(
       ),
       `Otherwise do not redirect them at all. No coaching ("however feels natural", "no right answer", "let you drive"); ` +
         `if asked how to proceed say "It's your call." Never volunteer a fact, number or hint they did not ask for. Never restate the problem.`,
+    );
+  }
+  if (state.stage === "problem" && timing.candidateThinking) {
+    // No nudge list at all this turn (see isThinkingTimeRequest): the candidate
+    // asked for time, so there is nothing to redirect them to.
+    lines.push(
+      `The candidate is asking for thinking time, not answering. Say only "Take your time." and wait. ` +
+        `Do NOT nudge, do NOT ask a question, do NOT restate the problem, do NOT reveal a fact or exhibit.`,
     );
   }
 
@@ -415,18 +429,15 @@ For EACH step, find the evidence first, then decide — answer two questions in 
      criteria? Write that verdict down before anything else: the step's "note"
      STARTS with "Meets all criteria: yes." or "Meets all criteria: no.", judged
      on the candidate's own words ALONE, ignoring whether a nudge came first.
-     Those two are the ONLY permitted openings: never write any other word after
-     "Meets all criteria:" — not "prompted", not "partial". Whether a nudge came
-     first is decided in question 2, not here.
      "No" means the step is "missed" (or "not_applicable", below) — even if the
      interviewer nudged it. A nudge alone never makes a step "prompted", and a
      one-line reply to a nudge that does not meet the criteria is "missed".
      The status must agree with the note: if the note says any required element
-     was absent, thin or wrong ("did not", "no explicit", "partial", "stayed
-     general"), the status is "missed", nudged or not. Timing alone is NOT a
-     shortfall: "only after the nudge" says WHEN the candidate met the criteria,
-     not whether they met them, and question 2 below turns that into "prompted".
-     Never answer "no" for a step whose only defect is that it came after a nudge.
+     was absent or thin ("did not", "no explicit", "partial", "only after",
+     "stayed general"), the status is "missed", nudged or not.
+     "timecodeSeconds" is the stamp of the transcript line that holds the
+     evidence you quoted. Never move it earlier than that line to change what
+     question 2 decides.
   2. Only when that answer is "yes": compare the evidence's timecode with the
      step's nudge in interviewer_events. Nudge BEFORE the evidence →
      "prompted". Evidence before the nudge, or no nudge for that step → "hit".
