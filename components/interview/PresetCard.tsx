@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Briefcase, Check, Clock3, Cpu, GraduationCap, Lightbulb, type LucideIcon } from "lucide-react";
+import { Briefcase, Check, Clock3, Cpu, GraduationCap, Lightbulb, Network, type LucideIcon } from "lucide-react";
 import type { InterviewType } from "@/lib/interview/types";
 
 /** One picture per preset; an unknown slug falls back to the briefcase. */
@@ -10,6 +10,7 @@ const PRESET_ICONS: Record<string, LucideIcon> = {
   technical: Cpu,
   consulting: Lightbulb,
   "early-career": GraduationCap,
+  "system-design": Network,
 };
 
 /**
