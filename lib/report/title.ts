@@ -19,7 +19,7 @@ import { CURATED_INDUSTRIES, CURATED_ROLES } from "@/lib/interview/customization
 
 const TYPE_LABELS: Record<string, string> = {
   general: "General interview",
-  technical: "Technical interview",
+  technical: "Engineering behavioral interview",
   "technical-coding": "Technical coding interview",
   consulting: "Consulting interview",
   "early-career": "Early-career interview",
