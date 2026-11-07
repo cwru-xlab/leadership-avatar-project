@@ -25,6 +25,7 @@ const TYPE_LABELS: Record<string, string> = {
   "early-career": "Early-career interview",
   "product-management": "Product management interview",
   "data-analytics": "Data / product analytics interview",
+  finance: "Finance interview",
   "case-study": "Case study",
   "pitch-elevator": "Elevator pitch",
   // "pitch-deck" is deliberately NOT a literal here anymore — its title now
@@ -148,6 +149,7 @@ const UNSPECIFIC_INTERVIEW_TARGETS = new Set([
   "an internship or entry-level rotational role",
   "a product manager role",
   "a data scientist (product analytics) role",
+  "an investment banking analyst role",
   "general / cross-industry",
   "technology",
   "management consulting",

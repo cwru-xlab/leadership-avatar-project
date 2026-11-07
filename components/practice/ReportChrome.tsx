@@ -233,9 +233,8 @@ const INTERVIEW_PRESET_SLUGS = new Set([
   "technical",
   "consulting",
   "early-career",
-  // TODO(problem-engine): swap to the problem-interview chrome (Process Steps
-  // panel) once it exists; until then PM reports render like the presets.
   "product-management",
+  "finance",
 ]);
 
 /**

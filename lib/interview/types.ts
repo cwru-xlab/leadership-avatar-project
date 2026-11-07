@@ -15,6 +15,14 @@
  */
 
 import {
+  FINANCE_INTERVIEW_SLUG,
+  FINANCE_INTERVIEWER_PERSONA,
+  FINANCE_PRESET_DESCRIPTION,
+  FINANCE_PRESET_LABEL,
+  FINANCE_QUESTION_AREAS,
+  FINANCE_TARGET_MINUTES,
+} from "../finance-interview/live";
+import {
   PROBLEM_FIXTURE_BASE,
   PROBLEM_FIXTURE_ENABLED,
 } from "@/lib/problem-interview/fixtures/type";
@@ -219,6 +227,28 @@ const DATA_ANALYTICS_INTERVIEW: InterviewType = {
   questionAreas: [...ANALYTICS_QUESTION_AREAS],
 };
 
+/**
+ * Finance interview (investment banking / private equity / equity research).
+ * A problem-solving preset: a short fit question, then ONE technical
+ * walk-through, paper LBO, stock pitch or market / deal discussion, graded
+ * step by step with numbers checked against a tolerance band. Copy and
+ * content live in `lib/finance-interview/`; the engine record is built by
+ * `makeProblemInterviewTypeConfig` in `lib/engine/registry.ts`.
+ * `targetQuestionCount` is 1: one problem.
+ */
+const FINANCE_INTERVIEW: InterviewType = {
+  slug: FINANCE_INTERVIEW_SLUG,
+  label: FINANCE_PRESET_LABEL,
+  description: FINANCE_PRESET_DESCRIPTION,
+  interviewerPersona: FINANCE_INTERVIEWER_PERSONA,
+  defaultRoleTitle: "an investment banking analyst role",
+  defaultIndustry: "finance",
+  difficulty: "Advanced",
+  targetMinutes: FINANCE_TARGET_MINUTES,
+  targetQuestionCount: 1,
+  questionAreas: [...FINANCE_QUESTION_AREAS],
+};
+
 export const INTERVIEW_TYPES: Record<string, InterviewType> = {
   [GENERAL_INTERVIEW.slug]: GENERAL_INTERVIEW,
   [TECHNICAL_INTERVIEW.slug]: TECHNICAL_INTERVIEW,
@@ -226,6 +256,7 @@ export const INTERVIEW_TYPES: Record<string, InterviewType> = {
   [EARLY_CAREER_INTERVIEW.slug]: EARLY_CAREER_INTERVIEW,
   [PRODUCT_MANAGEMENT_INTERVIEW.slug]: PRODUCT_MANAGEMENT_INTERVIEW,
   [DATA_ANALYTICS_INTERVIEW.slug]: DATA_ANALYTICS_INTERVIEW,
+  [FINANCE_INTERVIEW.slug]: FINANCE_INTERVIEW,
 };
 
 export const DEFAULT_INTERVIEW_TYPE = GENERAL_INTERVIEW;
