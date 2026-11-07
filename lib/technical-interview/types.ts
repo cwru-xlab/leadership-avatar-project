@@ -30,6 +30,38 @@ export type TechnicalHintTier = 1 | 2 | 3;
 /** Human-readable name for prompts and UI chrome. */
 export const TECHNICAL_CODING_LANGUAGE_LABEL = "Python" as const;
 
+/** Problem families a candidate can ask for by name. */
+export const TECHNICAL_TOPICS = [
+  "arrays",
+  "strings",
+  "hashing",
+  "two-pointer",
+  "binary-search",
+  "stack-queue",
+  "trees",
+  "graphs",
+  "dynamic-programming",
+  "greedy",
+  "math",
+  "sorting",
+] as const;
+
+export type TechnicalTopic = (typeof TECHNICAL_TOPICS)[number];
+
+export const TECHNICAL_DIFFICULTIES = ["easy", "medium", "hard"] as const;
+
+export type TechnicalDifficulty = (typeof TECHNICAL_DIFFICULTIES)[number];
+
+export function isTechnicalTopic(value: unknown): value is TechnicalTopic {
+  return typeof value === "string" && (TECHNICAL_TOPICS as readonly string[]).includes(value);
+}
+
+export function isTechnicalDifficulty(value: unknown): value is TechnicalDifficulty {
+  return (
+    typeof value === "string" && (TECHNICAL_DIFFICULTIES as readonly string[]).includes(value)
+  );
+}
+
 export interface TechnicalExample {
   input: string;
   output: string;
@@ -55,6 +87,9 @@ export interface TechnicalAssignmentPublic {
   starterCode: string;
   publicTests: PublicTechnicalTest[];
   expectedComplexity: string;
+  /** Learner-visible: the candidate chose these, and the panel displays them. */
+  topics: readonly TechnicalTopic[];
+  difficulty: TechnicalDifficulty;
 }
 
 /** Server-only test payload. It is never included in a browser response. */
@@ -85,6 +120,15 @@ export interface TechnicalCodingInputSnapshot {
   language: TechnicalCodingLanguage;
   runtimePolicyVersion: string;
   selectedAt: string;
+  /**
+   * What the candidate asked for, which may be wider than what was served:
+   * selection falls back to a broader pool rather than failing, so the request
+   * is kept separately from `assignment.topics` / `assignment.difficulty`.
+   */
+  requested?: {
+    topics: readonly TechnicalTopic[];
+    difficulty: TechnicalDifficulty | null;
+  };
 }
 
 export function toPublicTechnicalAssignment(

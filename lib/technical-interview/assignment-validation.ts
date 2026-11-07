@@ -1,4 +1,8 @@
-import type { TechnicalAssignmentPrivate } from "./types";
+import {
+  isTechnicalDifficulty,
+  isTechnicalTopic,
+  type TechnicalAssignmentPrivate,
+} from "./types";
 
 export interface AssignmentCatalogValidation {
   ok: boolean;
@@ -6,14 +10,20 @@ export interface AssignmentCatalogValidation {
 }
 
 /** Pure structural validation used during CI before a catalog reaches sessions. */
+/** Enough problems that topic and difficulty filters still have something to pick. */
+export const MIN_CATALOG_SIZE = 20;
+
 export function validateTechnicalAssignmentCatalog(
   catalog: readonly TechnicalAssignmentPrivate[],
 ): AssignmentCatalogValidation {
   const errors: string[] = [];
   const ids = new Set<string>();
 
-  if (catalog.length !== 20) {
-    errors.push(`expected exactly 20 assignments, received ${catalog.length}`);
+  // A floor, not an exact count: the catalog grows, and pinning the number
+  // meant every import blocked on editing this file. The shape checks below
+  // are what actually protect a session.
+  if (catalog.length < MIN_CATALOG_SIZE) {
+    errors.push(`expected at least ${MIN_CATALOG_SIZE} assignments, received ${catalog.length}`);
   }
 
   for (const assignment of catalog) {
@@ -41,6 +51,30 @@ export function validateTechnicalAssignmentCatalog(
         errors.push(`${assignment.id}: test ids must be non-empty and unique`);
       }
       testIds.add(test.id);
+    }
+    // The browser harness calls `target(*test["input"])`, so `input` is the
+    // ARGUMENT LIST, not the first argument. Two entries shipped a bare
+    // operations list, which spread into one argument per operation and made
+    // the problem unsolvable. A non-array input is almost always that mistake.
+    for (const test of [...assignment.publicTestCases, ...assignment.hiddenTests]) {
+      if (!Array.isArray(test.input)) {
+        errors.push(
+          `${assignment.id}/${test.id}: test input must be the argument list (wrap it in an array)`,
+        );
+      }
+    }
+
+    if (assignment.topics.length === 0) {
+      errors.push(`${assignment.id}: needs at least one topic`);
+    }
+    for (const topic of assignment.topics) {
+      if (!isTechnicalTopic(topic)) errors.push(`${assignment.id}: unknown topic "${topic}"`);
+    }
+    if (new Set(assignment.topics).size !== assignment.topics.length) {
+      errors.push(`${assignment.id}: duplicate topic`);
+    }
+    if (!isTechnicalDifficulty(assignment.difficulty)) {
+      errors.push(`${assignment.id}: unknown difficulty "${assignment.difficulty}"`);
     }
     if (assignment.executionLimits.timeoutMs <= 0 || assignment.executionLimits.memoryMb <= 0 || assignment.executionLimits.maxOutputBytes <= 0) {
       errors.push(`${assignment.id}: execution limits must be positive`);
