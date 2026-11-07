@@ -36,6 +36,8 @@ const TYPE_LABELS: Record<string, string> = {
   // reproduces "Investor pitch deck").
   "difficult-conversation": "Courageous conversation",
   networking: "Networking",
+  "clinical-communication": "Clinical communication",
+  "motivational-interviewing": "Motivational interviewing",
 };
 
 /**

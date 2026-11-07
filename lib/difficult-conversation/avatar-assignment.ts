@@ -26,7 +26,12 @@ import {
   loadInterviewerCatalog,
   type InterviewerOption,
 } from "@/lib/interview/avatar-catalog";
-import { SEEDED_COUNTERPART_CAST } from "@/lib/difficult-conversation/seeded";
+import {
+  SEEDED_COUNTERPART_CAST,
+  type SeededCounterpartCast,
+} from "@/lib/difficult-conversation/seeded";
+
+type CastMap = Readonly<Record<string, SeededCounterpartCast>>;
 
 export interface SeededAvatarPair {
   avatarId: string;
@@ -54,8 +59,9 @@ function catalogIndex(conversationId: string, length: number): number {
 export function resolveSeededCounterpart(
   conversationId: string,
   catalog: readonly InterviewerOption[] | null,
+  castMap: CastMap = SEEDED_COUNTERPART_CAST,
 ): SeededAvatarPair | null {
-  const cast = SEEDED_COUNTERPART_CAST[conversationId];
+  const cast = castMap[conversationId];
   if (!cast) return null;
 
   const pinned = { avatarId: cast.avatarId, voiceId: cast.voiceId };
@@ -72,7 +78,7 @@ export function resolveSeededCounterpart(
     )
     .sort((a, b) => a.avatarId.localeCompare(b.avatarId));
   const castIds = new Set(
-    Object.values(SEEDED_COUNTERPART_CAST).map((c) => c.avatarId),
+    Object.values(castMap).map((c) => c.avatarId),
   );
   const uncast = stock.filter((option) => !castIds.has(option.avatarId));
   const pool = uncast.length ? uncast : stock;
@@ -93,12 +99,14 @@ export function resolveSeededCounterpart(
  */
 export async function assignSeededAvatar(
   conversationId: string,
+  castMap: CastMap = SEEDED_COUNTERPART_CAST,
 ): Promise<SeededAvatarPair> {
   const id = conversationId.trim();
   const catalog = await loadInterviewerCatalog();
   const pair = resolveSeededCounterpart(
     id,
     catalog.ok ? catalog.interviewers : null,
+    castMap,
   );
   if (!pair) {
     throw new Error(

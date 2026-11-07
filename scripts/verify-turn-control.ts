@@ -32,6 +32,7 @@ import {
 import { parseEngineTurn } from "../lib/engine/turn-control";
 import { resolveSessionConfig } from "../lib/engine/resolve";
 import { getEngineType, listEngineTypes } from "../lib/engine/registry";
+import { PERSONA_CASES } from "../lib/questioned-persona/cases";
 
 let failures = 0;
 
@@ -164,9 +165,17 @@ const LANGUAGE = resolveAttemptLanguage("en");
 // The five-stage behavioral presets only. Problem interviews (case, product
 // management) are interview presets too but run their own prompt, tail and
 // marker grammar; scripts/verify-problem-interview.ts covers them.
-const BEHAVIORAL_PRESET_SLUGS = Object.keys(INTERVIEW_TYPES).filter(
-  (slug) => !getEngineType(slug)?.problemInterview,
-);
+// Preset interview types: resolvable with NO instance. Both loops below call
+// resolveSessionConfig(slug) without one, so a type whose instance is required
+// does not belong here — it would report a resolve failure that says nothing
+// about turn control. The questioned-persona types (clinical-communication,
+// motivational-interviewing) are interview types that DO require an instance,
+// which is what made this list wrong; `instance.required` is the authority, so
+// the next instance-bearing interview type stays out on its own.
+const BEHAVIORAL_PRESET_SLUGS = Object.keys(INTERVIEW_TYPES).filter((slug) => {
+  const engineType = getEngineType(slug);
+  return !engineType?.problemInterview && !engineType?.instance.required;
+});
 const RESUME = "Jane Doe\nSoftware Engineer at Acme\nLed a team of 4.";
 
 console.log("\n6. assembleSystemPrompt == buildInterviewSystemPrompt (four presets)");
@@ -476,6 +485,33 @@ function syntheticInit(slug: string): Parameters<typeof resolveSessionConfig>[1]
         difficulty: "guarded",
         avatarId: "avatar-test",
         voiceId: "voice-test",
+      },
+    };
+  }
+  if (slug === "clinical-communication" || slug === "motivational-interviewing") {
+    // Questioned-persona types resolve through the difficult-conversation
+    // instance plus a personaCard, and the card is REQUIRED — without it these
+    // types reported a resolve failure that said nothing about turn control.
+    // Taken from the first seeded case of the style so the fixture tracks real
+    // data rather than a stub the product never sends.
+    const seeded = PERSONA_CASES.find((c) => c.personaCard.style === slug);
+    if (!seeded) throw new Error(`no seeded persona case for "${slug}"`);
+    return {
+      instance: {
+        kind: "difficult-conversation",
+        conversationId: seeded.id,
+        source: "seeded",
+        role: seeded.avatarRole,
+        studentRole: seeded.studentRole,
+        situation: seeded.situation,
+        sharedBackstory: seeded.sharedBackstory,
+        hiddenPosition: seeded.hiddenPosition,
+        studentObjective: seeded.studentObjective,
+        stakes: seeded.stakes,
+        difficulty: seeded.difficulty,
+        avatarId: "avatar-test",
+        voiceId: "voice-test",
+        personaCard: seeded.personaCard,
       },
     };
   }
