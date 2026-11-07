@@ -24,12 +24,19 @@ import { useLayout } from "@/lib/layout-context";
 import SessionAvatar, { useAvatarKeepAlive } from "@/components/session/SessionAvatar";
 import { PushToTalkControl, formatElapsed } from "@/components/session/SessionRoom";
 import { usePushToTalkRecorder } from "@/components/session/usePushToTalkRecorder";
+import {
+  useSyncVisualSpeaking,
+  useVisualCapture,
+} from "@/components/session/useVisualCapture";
+import { SelfViewThumbnail } from "@/components/session/SelfViewThumbnail";
+import { FaceDetectionBanner } from "@/components/session/FaceDetectionBanner";
 import TechnicalPythonEditor from "@/components/technical-interview/TechnicalPythonEditor";
 import {
   entryPointFromStarterCode,
   useVisibleTestRunner,
   type VisibleTestOutcome,
 } from "@/components/technical-interview/useVisibleTestRunner";
+import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 import type { StartAvatarRequest } from "@/types";
 import {
   MAX_TECHNICAL_HINTS,
@@ -50,9 +57,16 @@ type Turn = { role: "user" | "assistant"; content: string };
 export default function TechnicalCodingSession({
   reportId,
   avatarConfig,
+  cameraMode,
 }: {
   reportId: string;
   avatarConfig: StartAvatarRequest;
+  /**
+   * The camera mode the server RESOLVED at session start, not what the student
+   * asked for — `startSession` downgrades a request to "OFF" when video
+   * consent is missing, and this room must not capture against that decision.
+   */
+  cameraMode: CameraMode;
 }) {
   const { setFullScreen } = useLayout();
   const avatarRef = useRef<React.ElementRef<typeof SessionAvatar>>(null);
@@ -83,6 +97,23 @@ export default function TechnicalCodingSession({
   const { run: runPython, runtimeReady } = useVisibleTestRunner();
   useAvatarKeepAlive(avatarRef, avatarConnected);
 
+  /**
+   * The SAME visual-capture lifecycle every other live session uses
+   * (`components/session/useVisualCapture`), not a second implementation: it
+   * owns camera acquisition, MediaPipe face detection and the metrics stop.
+   * Everything below stays null for the whole session when `cameraMode` is
+   * "OFF", so a camera-off interview renders no self-view and no banner and
+   * never touches the camera.
+   */
+  const {
+    cameraStream,
+    faceMissing,
+    startVisualCapture,
+    stopVisualCapture,
+    releaseVisualCapture,
+    syncSpeaking,
+  } = useVisualCapture();
+
   // The room owns the whole viewport: it asks for `h-[100dvh]` below, so it has
   // to opt out of MainContent's padded, max-width column and out of the navbar
   // the same way every other immersive surface does. Without this the bottom
@@ -96,6 +127,24 @@ export default function TechnicalCodingSession({
     const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  /**
+   * The clock transcript turns and captured visual episodes are both stamped
+   * against, so an episode can be matched to the moment it happened. Set once
+   * on mount, beside the elapsed timer it shares an origin with.
+   */
+  const startedAtRef = useRef<number>(Date.now());
+
+  // Capture starts only AFTER the avatar has connected, never before: a
+  // camera-on session must not delay the avatar handshake, and MediaPipe's
+  // several-MB dynamic import would otherwise compete with the WebRTC setup.
+  // A vendor failure still counts as "the room is live", so a degraded-to-text
+  // interview is measured too.
+  useEffect(() => {
+    if (cameraMode !== "ON") return;
+    if (!avatarConnected && !avatarFailed) return;
+    startVisualCapture(() => startedAtRef.current);
+  }, [avatarConnected, avatarFailed, cameraMode, startVisualCapture]);
 
   useEffect(() => {
     let cancelled = false;
@@ -400,6 +449,10 @@ export default function TechnicalCodingSession({
     audioFileName: "technical-interview-answer.webm",
   });
 
+  // Keeps the visual engine's conversational window locked to the recorder,
+  // driven from the state rather than beside each setter — see the hook.
+  useSyncVisualSpeaking(syncSpeaking, isRecording);
+
   // Leaving the room releases the microphone and the provider session; an
   // unfinished recording is discarded rather than transcribed after the exit.
   useEffect(() => {
@@ -408,12 +461,27 @@ export default function TechnicalCodingSession({
       releaseMicrophone();
       capture.current?.detachStream();
       avatarRef.current?.stopSession();
+      // The camera LED going out is the part a student actually sees, so it
+      // must happen on every exit path, not only a clean submit.
+      releaseVisualCapture();
     };
-  }, [releaseMicrophone, vocalCaptureRef]);
+  }, [releaseMicrophone, releaseVisualCapture, vocalCaptureRef]);
 
   const submit = useCallback(async () => {
     if (!source.trim() || submitting) return;
     setSubmitting(true);
+    // Stop and drain BEFORE the finish fetch so the metrics ride in the same
+    // request — the engine parses metrics on the finish call and has no second
+    // chance at them. Neither call throws by its own contract; the defensive
+    // catch keeps an unexpected failure from losing the interview, at the cost
+    // of one unscored dimension.
+    const visual: VisualMetrics | null = await stopVisualCapture();
+    let vocal: VocalMetrics | null = null;
+    try {
+      vocal = (await vocalCaptureRef.current?.drain()) ?? null;
+    } catch {
+      vocal = null;
+    }
     try {
       const response = await fetch("/api/practice/session/finish", {
         method: "POST",
@@ -422,6 +490,10 @@ export default function TechnicalCodingSession({
           reportId,
           turns: [],
           progress: {},
+          // Without this the report records no camera mode and no vocal data,
+          // so Visual and Vocal resolve to INSUFFICIENT_DATA even when the
+          // candidate was on camera and talking for thirty minutes.
+          metrics: { cameraMode, visual, vocal },
           technicalCheckpoints: evidence(),
           finalSource: source,
         }),
@@ -434,7 +506,16 @@ export default function TechnicalCodingSession({
       ]);
       setSubmitting(false);
     }
-  }, [append, evidence, reportId, source, submitting]);
+  }, [
+    append,
+    cameraMode,
+    evidence,
+    reportId,
+    source,
+    stopVisualCapture,
+    submitting,
+    vocalCaptureRef,
+  ]);
 
   if (loadError) {
     return (
@@ -621,6 +702,7 @@ export default function TechnicalCodingSession({
               onAvatarFailed={() => setAvatarFailed(true)}
               onToggleRecording={toggleRecording}
               mounted={false}
+              cameraStream={cameraStream}
             />
           </div>
         </aside>
@@ -753,9 +835,13 @@ export default function TechnicalCodingSession({
             onAvatarFailed={() => setAvatarFailed(true)}
             onToggleRecording={toggleRecording}
             mounted
+            cameraStream={cameraStream}
           />
         </aside>
       </div>
+      {/* Always mounted so it folds away rather than disappearing. Only shown
+          for a camera-on session — an off session has no face to miss. */}
+      <FaceDetectionBanner visible={cameraMode === "ON" && faceMissing} />
     </main>
   );
 }
@@ -786,6 +872,7 @@ function InterviewerPanel({
   onAvatarFailed,
   onToggleRecording,
   mounted,
+  cameraStream,
 }: {
   avatarRef: React.Ref<React.ElementRef<typeof SessionAvatar>>;
   avatarConfig: StartAvatarRequest;
@@ -806,6 +893,8 @@ function InterviewerPanel({
   onAvatarFailed: () => void;
   onToggleRecording: () => void;
   mounted: boolean;
+  /** The student's own camera stream, or null when the session is camera-off. */
+  cameraStream: MediaStream | null;
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -826,6 +915,9 @@ function InterviewerPanel({
               // microphone and no explanation.
               onSessionTokenError={onAvatarFailed}
             />
+            {/* Anchored inside the avatar panel, the usual video-call
+                convention. Renders nothing at all when the stream is null. */}
+            <SelfViewThumbnail stream={cameraStream} />
             {avatarFailed && (
               <div
                 role="status"
