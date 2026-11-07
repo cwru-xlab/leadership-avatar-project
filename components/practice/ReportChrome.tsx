@@ -233,6 +233,7 @@ const INTERVIEW_PRESET_SLUGS = new Set([
   "technical",
   "consulting",
   "early-career",
+  "finance",
 ]);
 
 /**
