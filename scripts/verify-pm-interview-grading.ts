@@ -11,6 +11,11 @@
  * (what the live markers would have logged); the produced outcome then goes
  * through the runner's `finalizeProblemOutcome` before steps are checked.
  *
+ * The schema order is the engine's: `buildRubricJsonSchema` emits `outcome`
+ * before the `*_score` properties for every problem interview (asserted by
+ * scripts/verify-rubric-schema-order.ts), so there is no script-local
+ * reordering to opt into here.
+ *
  * Run:   npx tsx scripts/verify-pm-interview-grading.ts [--runs=3] [--only=a-strong]
  * Needs: OPENAI_API_KEY (.env.local). Exit code non-zero on any failed check.
  */
@@ -23,13 +28,6 @@ loadEnv({ path: ".env.local" });
 loadEnv();
 
 import { runEvaluation } from "../lib/engine/evaluation";
-import {
-  buildRubricJsonSchema,
-  parseOutcomeFields,
-  parseRubricScores,
-} from "../lib/engine/rubric";
-import type { ResolvedSessionConfig } from "../lib/engine/types";
-import { REPORT_SPELLING_RULE } from "../lib/report/structured";
 import { getEngineType } from "../lib/engine/registry";
 import { resolveFromTypeConfig } from "../lib/engine/resolve";
 import { getPmFramework } from "../lib/pm-interview/frameworks";
@@ -71,51 +69,6 @@ interface Fixture {
 const args = process.argv.slice(2);
 const runs = Number(args.find((a) => a.startsWith("--runs="))?.split("=")[1] ?? "1");
 const only = args.find((a) => a.startsWith("--only="))?.split("=")[1];
-/**
- * --outcome-first: EXPERIMENT. Same model, prompt and schema as runEvaluation,
- * but the strict schema lists `outcome` (with processSteps) BEFORE the score
- * properties, so the model writes its step verdicts before it commits to
- * process_rigor_score. Calls OpenAI directly because the schema order is
- * fixed inside lib/engine/rubric.ts.
- */
-const outcomeFirst = args.includes("--outcome-first");
-
-async function evaluateOutcomeFirst(
-  config: ResolvedSessionConfig,
-  evaluatorPrompt: string,
-  transcript: string,
-  problemBrief: string,
-): Promise<{ scores: Record<string, number | null>; outcome: Record<string, unknown> | null; model: string }> {
-  const OpenAI = (await import("openai")).default;
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 60_000 });
-  const schema = buildRubricJsonSchema(config);
-  const { outcome, ...rest } = schema.schema.properties;
-  const reordered = {
-    ...schema,
-    schema: {
-      ...schema.schema,
-      required: ["outcome", ...schema.schema.required.filter((k) => k !== "outcome")],
-      properties: { outcome, ...rest },
-    },
-  };
-  const model = process.env.INTERVIEW_EVAL_MODEL || "gpt-4.1";
-  const user = `full_transcript:\n${transcript}\n\nresume_text:\n(No resume was provided.)\n\nrole_context:\n${JSON.stringify({ role_title: "", industry: "", difficulty: "" })}\n\nvisual_metrics: null\nvocal_metrics: null\n\n${problemBrief}`;
-  const completion = await openai.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: `${evaluatorPrompt}\n\n${REPORT_SPELLING_RULE}` },
-      { role: "user", content: user },
-    ],
-    max_tokens: 4000,
-    response_format: { type: "json_schema", json_schema: reordered },
-  });
-  const parsed = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as unknown;
-  return {
-    scores: parseRubricScores(parsed, config),
-    outcome: parseOutcomeFields(parsed, config),
-    model: `${model} (outcome-first)`,
-  };
-}
 
 const FIXTURE_DIR = join(__dirname, "fixtures", "pm-interview");
 const fixtures: Fixture[] = readdirSync(FIXTURE_DIR)
@@ -197,29 +150,19 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
     const transcript = fx.turns
       .map((t) => `[${t.t}] ${t.who}: ${t.text}`)
       .join("\n\n");
-    let scores: Record<string, number | null>;
-    let outcome: Record<string, unknown>;
-    let modelLabel: string;
-    if (outcomeFirst) {
-      const r = await evaluateOutcomeFirst(resolved.config, type.prompts.evaluatorPrompt, transcript, problemBrief);
-      scores = r.scores;
-      outcome = r.outcome ?? {};
-      modelLabel = r.model;
-    } else {
-      const result = await runEvaluation({
-        config: resolved.config,
-        transcript,
-        evaluationContext: { kind: "interview", customization: resolved.config.customization, problemBrief },
-        metricsOutcome: { visualMetrics: null, vocalMetrics: null },
-      });
-      if (!result.ok) {
-        check(`${fx.id} run ${run}: evaluation ok`, false, result.reason);
-        return null;
-      }
-      scores = result.result.scores;
-      outcome = result.producedOutcome ?? {};
-      modelLabel = result.model;
+    const result = await runEvaluation({
+      config: resolved.config,
+      transcript,
+      evaluationContext: { kind: "interview", customization: resolved.config.customization, problemBrief },
+      metricsOutcome: { visualMetrics: null, vocalMetrics: null },
+    });
+    if (!result.ok) {
+      check(`${fx.id} run ${run}: evaluation ok`, false, result.reason);
+      return null;
     }
+    const scores = result.result.scores;
+    let outcome: Record<string, unknown> = result.producedOutcome ?? {};
+    const modelLabel = result.model;
     const rawQuestionId = outcome.questionId;
     outcome = finalizeProblemOutcome(outcome, snapshot);
     const steps = parseSteps(outcome.processSteps);
@@ -261,9 +204,8 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
       : missed === 1 || prompted === 2 ? 3
       : prompted === 1 ? 4
       : 5;
-    // INFORMATIONAL, not a failure: across runs the model's own
-    // process_rigor_score often disagrees with the band its step results
-    // imply (the score is emitted before the outcome). The report should use
+    // INFORMATIONAL, not a failure: the model's own process_rigor_score can
+    // still disagree with the band its step results imply. The report uses
     // the band derived from the steps — see the validity doc. Assertions on
     // process rigor below therefore use `band`.
     console.log(
