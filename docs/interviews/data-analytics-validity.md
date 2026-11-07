@@ -7,6 +7,10 @@ bank is server-only and is registered in `lib/problem-interview/banks.server.ts`
 Study dates: 2026-11-06 to 2026-11-07. Evaluator model: `gpt-4.1` (`INTERVIEW_EVAL_MODEL` default).
 Live model: `gpt-4.1`.
 
+The grading study was re-measured on **2026-11-07 at commit `dbd25ce`** (engine outcome-first schema
+order + the shared `Meets all criteria` and no-nested-quotes rules). Earlier numbers are kept and
+labelled as the previous configuration; see §3.
+
 ## 1. What the interview is
 
 A product-analytics data-science interview runs about 30 minutes. It has three parts:
@@ -88,7 +92,9 @@ The assertions use the **derived** `process_rigor`, which is the value the repor
 | srm-misread | reads +3 pp, calls 48,600 vs 50,000 "noise" even after the trust nudge, ships | check_validity and read_primary **missed** (not prompted); rigor ≤ 2; stat ≤ 2; biz ≤ 2 |
 | srm-strong | catches the SRM, locates Android, rerun | all steps hit; rigor 5; stat ≥ 4; biz ≥ 4 |
 
-### Final results (final prompt, 2 runs × 6 transcripts, gpt-4.1)
+### Results — PREVIOUS configuration (2026-11-06: score-first schema, no shared note-prefix rule)
+
+Kept for comparison with the 2026-11-07 re-measurement below. Do not read these as current.
 
 | Golden | rigor (derived) | statistical | business | step patterns | pass |
 |---|---|---|---|---|---|
@@ -109,6 +115,59 @@ marked `check_validity` as `prompted`, even though its own note said the candida
 dismissed the imbalance. That step's status is the only thing that run got wrong. The derived rigor
 (1), statistical score (1) and business score (2) were still correct.
 
+### Results — CURRENT configuration (2026-11-07, commit `dbd25ce`)
+
+Configuration being measured, versus the previous block above:
+1. **Engine outcome-first** — `buildRubricJsonSchema` now emits the `outcome` object BEFORE the
+   `*_score` properties for all five problem interviews. OpenAI strict `json_schema` generates keys in
+   schema order, so the model decides the step verdicts first and scores from them.
+2. **Two shared grading rules**, previously only in the system-design evaluator, now live in the
+   shared problem addendum (`lib/problem-interview/prompts.ts`) and so reached analytics for the first
+   time: (a) every step `note` must START with `Meets all criteria: yes.` / `no.`, judged on the
+   candidate's own words alone, and the status must agree with the note; (b) never use the
+   double-quote character inside `evidenceQuote` or `note`.
+
+Same command as the previous block (`--runs 2`, 6 transcripts, `gpt-4.1`), so the comparison is
+apples-to-apples. The `Meets all criteria:` prefix is stripped at render time by
+`stripStepNoteGradingPrefix`; the figures below read the STORED raw notes.
+
+| Golden | rigor (derived) | raw model rigor | statistical | business | step patterns | pass | previous |
+|---|---|---|---|---|---|---|---|
+| checkout-strong | 5–5 | 5, 5 | 5–5 | 5–5 | HHHHH | 2/2 | 2/2 |
+| dau-skips-steps | 1–1 | 1, 1 | 1–2 | 2–2 | MMMMMM | 2/2 | 2/2 |
+| push-stats-wrong | 2–2 | 2, 2 | 1–1 | 2–2 | HHHMM | 2/2 | 2/2 |
+| marketplace-nudged | 3–3 | 4, 3 | 5–5 | 3–3 | HHHPP | 2/2 | 2/2 |
+| srm-misread | 1–1 | 1, 1 | 1–1 | 2–2 | MMMM | 2/2 | 2/2 |
+| srm-strong | 5–5 | 5, 5 | 5–5 | 5–5 | HHHH | 2/2 | 2/2 |
+
+**Current: 12/12 pass, versus 12/12 previously.** On the headline pass count outcome-first is
+**neutral** for analytics — the study was already saturated at 12/12, so there was no headroom. Two
+secondary measures did move, both in the right direction:
+
+- **The `srm-misread` residual did not recur.** `check_validity` came back `missed` in both runs
+  (previous configuration: it drifted to `prompted` in 1 of 5 final-prompt grades, and about 2 of 7
+  across rounds 3–5). Both notes are explicit about why, e.g. run 2: *"Meets all criteria: no. You
+  were directly asked about trust in the numbers at [2:40] (after the nudge), and you acknowledged
+  the sample size gap but described it as 'just noise' — a material statistical …"*. Two runs cannot
+  prove a 1-in-5 residual is gone; it is recorded as **not observed in 2 of 2**, not as fixed.
+- **Raw-vs-derived `process_rigor` disagreement fell to 1 of 12** (previous configuration: 2 of 12).
+  The single disagreement was `marketplace-nudged` run 1, raw 4 vs. derived 3. Deriving the value in
+  code is still load-bearing.
+
+Measured on the raw grading output, across all 12 grades / 58 step objects:
+
+| Measure | Result |
+|---|---|
+| Step notes starting with `Meets all criteria: yes.`/`no.` | **58 / 58** |
+| `processSteps` that failed to parse (report loses every step) | **0 / 12** |
+| `processSteps` needing the tolerant repair in `finalizeProblemOutcome` | 1 / 12 (`dau-skips-steps` run 1, `da-diag-dau-drop`; repaired to all 6 steps, graded correctly) |
+| Step strings containing a double-quote character | **0 / 58** |
+| Non-verbatim evidence quotes | 1 (`srm-strong`, `check_guardrails_segments`, run 1) |
+
+The prefix is therefore reaching analytics as intended, and the no-nested-quotes rule is holding: no
+grade was lost to malformed JSON. Candidate quotes inside notes now use single quotes
+(`'close enough'`, `'just noise'`), which is exactly what the rule asks for.
+
 ### What the study changed (iteration log)
 
 | Round | Result | Change |
@@ -117,7 +176,8 @@ dismissed the imbalance. That step's status is the only thing that run got wrong
 | 2 (2 runs, 2 goldens) | marketplace 2/2; srm-misread 0/2: read_primary_result = hit for "definitely significant" with no interval | Changed `read_primary_result` criteria: "it's significant" without SE/CI/p does not count, and neither does reading a lift at face value under an unresolved SRM or peeking. |
 | 3 (2 runs, all 6) | 11/12. srm-misread check_validity = prompted once | Added an explicit Q1 example to the addendum: calling a beyond-chance imbalance "noise" is not a trust check, and is missed even after a nudge. |
 | 4 (3 runs, 2 goldens) | 5/6. Same residual, once | none |
-| 5 (2 runs, all 6), final | 12/12 | none |
+| 5 (2 runs, all 6), final before `dbd25ce` | 12/12 | none |
+| 6 (2 runs, all 6), 2026-11-07, `dbd25ce` | 12/12 | No analytics-content change. Engine outcome-first schema order; the `Meets all criteria` prefix and no-nested-quotes rules moved into the SHARED addendum. Pass count unchanged (already saturated); the `srm-misread` `check_validity` residual did not recur, and raw-vs-derived rigor disagreement fell 2/12 → 1/12 |
 
 The techniques carried over from the consulting study (`docs/interviews/case-interview-validity.md`)
 all held here:
@@ -132,11 +192,26 @@ assertions use the derived value.
 
 ### Residual risk
 
-A nudged step that gets a *wrong* answer is sometimes labelled `prompted` instead of `missed`, about
+(Previous configuration, 2026-11-06.) A nudged step that gets a *wrong* answer is sometimes labelled `prompted` instead of `missed`, about
 2 of 7 srm-misread grades across rounds 3–5 (1 of 5 with the final prompt). The derived rigor barely moves (one missed step becomes
 a prompted one), and the statistical and business scores stay correct. An engine-side rule could
 close this, but it would need the note-vs-status consistency to be machine-checkable, which it isn't
 today.
+
+**2026-11-07 update.** The shared `Meets all criteria:` rule makes note-vs-status consistency an
+explicit instruction, and the residual did **not** recur in 2 of 2 `srm-misread` runs. That is not
+enough evidence to call a ~1-in-5 flake fixed, so it stays on the list as a residual to keep
+watching; re-measure it on the next round rather than assuming it is closed.
+
+**New residual (2026-11-07), shared-file origin, not analytics-specific.** The shared addendum offers
+the model only `yes` / `no` for the note prefix, but the step vocabulary has four statuses. On the
+finance study one note came back `Meets all criteria: prompted.` (see
+`docs/interviews/finance-validity.md`). `stripStepNoteGradingPrefix` only strips `yes`/`no`, so such a
+note would render the grading prefix to the student. Zero of 58 analytics step notes hit this, but the
+prompt is shared, so analytics is exposed to the same wording. The fix belongs in
+`lib/problem-interview/prompts.ts` and is serialized across all five types by the orchestrator; the
+proposed wording is recorded in the finance doc.
+
 
 ## 4. Live-interviewer probes
 
@@ -158,10 +233,26 @@ plus `buildProblemProgressBlock`, parsed with `parseProblemTurn`.
 - **Fix:** the analytics persona now says the table only appears when the marker is there, and that
   every reply ends with its markers, including the nudge marker.
 - **Round 2 (2 runs):** 14 of 14 passed.
+- **Round 3 (2 runs), 2026-11-07, commit `dbd25ce`:** **14 of 14 passed**, matching round 2. The live
+  persona is unchanged by `dbd25ce` (the commit touches the evaluator schema order and the shared
+  evaluator addendum, not the live prompt), so this is a no-regression confirmation rather than a new
+  result. Both P2 probes carried the `ex1` exhibit marker and read no exhibit values aloud; both P3
+  runs emitted the `clarify_change` nudge marker with the same neutral wording ("Before we go looking
+  for causes, what exactly changed?") and no banned words; P4 gave the 20% baseline and nothing else;
+  P5 did not correct the wrong 500/arm figure and never revealed 9,600. No markers were dropped in
+  either run.
 
 Observed in P5: the interviewer asked the candidate to "double-check that sample size, given the
 baseline, the minimum effect worth shipping and standard thresholds". This is within the engine's
 "ask them to double-check" rule, but it is on the edge of a hint. See the integrator notes.
+
+**2026-11-07:** the same edge persists and got slightly sharper. Run 2's P5 reply was "Could you
+double-check how you calculated the sample size needed to detect a 2 percentage point lift with 80%
+power and 5% significance? Walk me through your math." That names the power and significance
+thresholds back to the candidate. It passes the probe's leak check (it reveals neither 9,600 nor
+"too small"), but it hands over two of the three inputs to the formula the candidate is being graded
+on. Recorded as a residual on the live prompt, not loosened in the probe.
+
 
 ## 5. Sources
 

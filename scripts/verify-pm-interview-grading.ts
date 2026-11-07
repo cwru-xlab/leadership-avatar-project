@@ -80,6 +80,33 @@ const fixtures: Fixture[] = readdirSync(FIXTURE_DIR)
 let failures = 0;
 let knownGapMisses = 0;
 let currentKnownGap: string | undefined;
+
+/**
+ * Counters for the 2026-11-07 re-measurement (see
+ * docs/interviews/pm-interview-validity.md). The shared problem addendum now
+ * makes every step note open with `Meets all criteria: yes.|no.` and forbids
+ * the double-quote character inside the `processSteps` string; the stored
+ * outcome keeps the prefix (only the render path strips it), so it is visible
+ * here. `rigorDisagreements` keeps measuring why the report derives
+ * `process_rigor` in code instead of trusting the model's number.
+ */
+const study = {
+  grades: 0,
+  malformedSteps: 0,
+  repairedSteps: 0,
+  rigorDisagreements: 0,
+  noteSlots: 0,
+  notePrefixed: 0,
+  noteSaysNo: 0,
+  noteStatusConflicts: 0,
+  nestedQuoteSteps: 0,
+};
+
+/** The verdict in a step note's mandated grading prefix, or null when absent. */
+function notePrefixVerdict(note: string | undefined): "yes" | "no" | null {
+  const m = /^\s*meets all criteria\s*[:\u2014\u2013-]?\s*(yes|no)\b/i.exec(note ?? "");
+  return m ? (m[1]!.toLowerCase() as "yes" | "no") : null;
+}
 function check(name: string, pass: boolean, detail?: string) {
   if (pass) console.log(`    ok   ${name}`);
   else if (currentKnownGap) {
@@ -164,6 +191,22 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
     let outcome: Record<string, unknown> = result.producedOutcome ?? {};
     const modelLabel = result.model;
     const rawQuestionId = outcome.questionId;
+    // The engine repairs a `processSteps` string that does not parse strictly
+    // (`parseProcessStepsValue`). Record WHETHER and WHY, so the addendum's
+    // no-nested-double-quotes rule is measured against what actually breaks
+    // the parse rather than against the repaired result.
+    const modelSteps = outcome.processSteps;
+    if (typeof modelSteps === "string" && modelSteps.trim()) {
+      try {
+        JSON.parse(modelSteps);
+      } catch (err) {
+        study.repairedSteps += 1;
+        const pos = Number(/position (\d+)/.exec(String(err))?.[1] ?? NaN);
+        console.log(`    info processSteps needed the engine repair — ${String(err).slice(0, 140)}`);
+        if (Number.isFinite(pos))
+          console.log(`      at: ...${modelSteps.slice(Math.max(0, pos - 140), pos + 60).replace(/\n/g, " ")}...`);
+      }
+    }
     outcome = finalizeProblemOutcome(outcome, snapshot);
     const steps = parseSteps(outcome.processSteps);
     console.log(`\n  ${fx.label}  [run ${run}, ${modelLabel}]`);
@@ -179,6 +222,25 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
       evidence[s.key] = s.evidenceQuote;
     }
     const why = (k: string) => `${byKey[k]} — evidence: "${(evidence[k] ?? "").slice(0, 160)}"`;
+
+    study.grades += 1;
+    if (steps === null) study.malformedSteps += 1;
+    const stepList = steps ?? [];
+    study.noteSlots += stepList.length;
+    const prefixed = stepList.filter((s) => notePrefixVerdict(s.note) !== null);
+    const saysNo = stepList.filter((s) => notePrefixVerdict(s.note) === "no");
+    const conflicts = saysNo.filter((s) => s.status !== "missed" && s.status !== "not_applicable");
+    const nested = stepList.filter((s) => `${s.evidenceQuote ?? ""}${s.note ?? ""}`.includes('"'));
+    study.notePrefixed += prefixed.length;
+    study.noteSaysNo += saysNo.length;
+    study.noteStatusConflicts += conflicts.length;
+    study.nestedQuoteSteps += nested.length;
+    console.log(
+      `    info note prefix ${prefixed.length}/${stepList.length}; says-no [${saysNo.map((s) => s.key).join(",") || "none"}]` +
+        `${conflicts.length ? `; CONFLICT note-says-no but status ${conflicts.map((s) => `${s.key}=${s.status}`).join(",")}` : ""}` +
+        `${nested.length ? `; NESTED-QUOTE ${nested.map((s) => s.key).join(",")}` : ""}`,
+    );
+    for (const s of stepList) console.log(`      note ${s.key}: ${s.note.replace(/\s+/g, " ").slice(0, 110)}`);
     check(
       "one result per framework step",
       framework.steps.every((s) => s.key in byKey),
@@ -211,6 +273,7 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
     console.log(
       `    info process_rigor model=${pr} derived-from-steps=${band} (${missed} missed, ${prompted} prompted)${pr === band ? "" : "  <-- model disagrees with its own steps"}`,
     );
+    if (pr !== band) study.rigorDisagreements += 1;
 
     const e = fx.expect;
     if (e.processRigorMin !== undefined)
@@ -257,6 +320,13 @@ async function main() {
     );
     console.log(`  ${fx.id.padEnd(34)} ${cells.join("  ")}`);
   }
+  console.log(
+    `\nStudy counters: ${study.grades} grade(s); processSteps malformed ${study.malformedSteps}/${study.grades}; ` +
+      `processSteps needing the engine repair ${study.repairedSteps}/${study.grades}; ` +
+      `note grading prefix ${study.notePrefixed}/${study.noteSlots} step note(s) (${study.noteSaysNo} say no, ` +
+      `${study.noteStatusConflicts} disagreeing with their status); nested double-quote in ${study.nestedQuoteSteps} step(s); ` +
+      `model process_rigor disagrees with the band derived from its steps in ${study.rigorDisagreements}/${study.grades}`,
+  );
   if (knownGapMisses > 0) console.log(`\n${knownGapMisses} known-gap miss(es) (documented; not counted as failures)`);
   console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURE(S)`);
   process.exit(failures === 0 ? 0 : 1);
