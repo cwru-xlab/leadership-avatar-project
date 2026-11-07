@@ -13,11 +13,15 @@
 import { randomInt } from "node:crypto";
 
 import type { ProblemQuestion, ProcessFramework } from "./types";
+import { FINANCE_BANK } from "@/lib/finance-interview/questions";
+import { FINANCE_INTERVIEW_SLUG } from "@/lib/finance-interview/live";
+
 import { getFactoryBank } from "./bank-registry";
 import { PROBLEM_FIXTURE_BANK } from "./fixtures/bank";
 import { PROBLEM_FIXTURE_ENABLED, PROBLEM_FIXTURE_SLUG } from "./fixtures/type";
 
 const PROBLEM_BANKS: Record<string, readonly ProblemQuestion[]> = {
+  [FINANCE_INTERVIEW_SLUG]: FINANCE_BANK,
   ...(PROBLEM_FIXTURE_ENABLED ? { [PROBLEM_FIXTURE_SLUG]: PROBLEM_FIXTURE_BANK } : {}),
 };
 

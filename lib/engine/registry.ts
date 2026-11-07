@@ -43,6 +43,7 @@ import { PITCH_PRODUCT_TYPE } from "../pitch/product-type";
 import { PITCH_TALK_TYPE } from "../pitch/talk-type";
 import { PITCH_GENERAL_TYPE } from "../pitch/general-deck-type";
 import { makeProblemInterviewTypeConfig } from "../problem-interview/type-config";
+import { FINANCE_PROBLEM_INTERVIEW_INPUT } from "../finance-interview/registration";
 import {
   PROBLEM_FIXTURE_BASE,
   PROBLEM_FIXTURE_ENABLED,
@@ -167,6 +168,13 @@ const CONSULTING: InteractionTypeConfig = makeInterviewTypeConfig(
 );
 const EARLY_CAREER: InteractionTypeConfig = makeInterviewTypeConfig(
   getInterviewType("early-career")!,
+);
+/**
+ * Finance (IB / PE / ER) — a problem interview. Its bank is server-only
+ * (lib/problem-interview/banks.server.ts), so no `bank` is passed here.
+ */
+const FINANCE: InteractionTypeConfig = makeProblemInterviewTypeConfig(
+  FINANCE_PROBLEM_INTERVIEW_INPUT,
 );
 
 /**
@@ -406,6 +414,7 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   TECHNICAL,
   CONSULTING,
   EARLY_CAREER,
+  FINANCE,
   CASE_STUDY,
   TECHNICAL_CODING,
   NETWORKING,
