@@ -415,12 +415,18 @@ For EACH step, find the evidence first, then decide — answer two questions in 
      criteria? Write that verdict down before anything else: the step's "note"
      STARTS with "Meets all criteria: yes." or "Meets all criteria: no.", judged
      on the candidate's own words ALONE, ignoring whether a nudge came first.
+     Those two are the ONLY permitted openings: never write any other word after
+     "Meets all criteria:" — not "prompted", not "partial". Whether a nudge came
+     first is decided in question 2, not here.
      "No" means the step is "missed" (or "not_applicable", below) — even if the
      interviewer nudged it. A nudge alone never makes a step "prompted", and a
      one-line reply to a nudge that does not meet the criteria is "missed".
      The status must agree with the note: if the note says any required element
-     was absent or thin ("did not", "no explicit", "partial", "only after",
-     "stayed general"), the status is "missed", nudged or not.
+     was absent, thin or wrong ("did not", "no explicit", "partial", "stayed
+     general"), the status is "missed", nudged or not. Timing alone is NOT a
+     shortfall: "only after the nudge" says WHEN the candidate met the criteria,
+     not whether they met them, and question 2 below turns that into "prompted".
+     Never answer "no" for a step whose only defect is that it came after a nudge.
   2. Only when that answer is "yes": compare the evidence's timecode with the
      step's nudge in interviewer_events. Nudge BEFORE the evidence →
      "prompted". Evidence before the nudge, or no nudge for that step → "hit".
@@ -466,11 +472,13 @@ Also return an "outcome" object with exactly these keys:
     "timecodeSeconds": 123 | null,
     "status": "hit" | "prompted" | "missed" | "not_applicable",
     "note": "Meets all criteria: yes. Then one sentence of coaching for this step, addressed to the candidate as you."}]
-  That value is a JSON string INSIDE JSON, so never use the double-quote
-  character inside "evidenceQuote" or "note" — quote the candidate with single
-  quotes ('like this'), and shorten the quote rather than nesting one. A single
-  nested double quote invalidates the whole array and the report loses every
-  step.
+  That value is a JSON string INSIDE JSON. Every key and every value in it must
+  be delimited by the DOUBLE-quote character, exactly as in the shape above, and
+  no double-quote character may appear INSIDE a value: when you quote the
+  candidate, put single quotes ('like this') around their words inside the
+  value, and shorten the quote rather than nesting a double quote. A value
+  delimited by single quotes, or a single nested double quote, invalidates the
+  whole array and the report loses the step evidence.
 
 FRAMEWORKS THIS INTERVIEW TYPE USES
 ${frameworks.map(describeFramework).join("\n\n")}
