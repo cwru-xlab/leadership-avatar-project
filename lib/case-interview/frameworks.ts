@@ -93,7 +93,8 @@ export const CASE_BUSINESS_FRAMEWORK: ProcessFramework = {
       evidenceCriteria:
         "The candidate requests or uses the relevant data, reads the exhibit's key point correctly, performs the needed calculation aloud with " +
         "correct or near-correct arithmetic (small rounding is fine), and states the 'so what' of the result for the question. " +
-        "Getting the main calculation materially wrong without correcting it, or reading numbers aloud without drawing any implication, is NOT a hit.",
+        "Recompute the candidate's key calculations: getting one materially wrong (more than ~10% off, or an order of magnitude) without correcting it, " +
+        "or reading numbers aloud without drawing any implication, is NOT a hit.",
       nudge: "What does that tell you?",
     },
     {
@@ -156,8 +157,9 @@ export const CASE_GUESSTIMATE_FRAMEWORK: ProcessFramework = {
       description:
         "Do the arithmetic step by step out loud, rounding sensibly, so the interviewer can follow it.",
       evidenceCriteria:
-        "The candidate narrates the arithmetic step by step and the arithmetic is correct given their own assumptions " +
-        "(order-of-magnitude or multiplication errors that are not caught are NOT a hit).",
+        "The candidate narrates the arithmetic step by step AND every multiplication/division is correct given their own assumptions. " +
+        "Recompute each one: if any result is off by more than ~10% (e.g. 1.2 million × 6 stated as 72 million) and the candidate does not fix it, " +
+        "this step is missed, however clearly it was narrated.",
       nudge: "Can you walk me through how you got there?",
     },
     {

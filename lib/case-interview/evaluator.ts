@@ -79,6 +79,9 @@ in order, answer two questions:
       transcript as an interviewer question that opens the door to that step
       (e.g. "How are you thinking about tackling this?" before any structure
       was given). If YES the step is "prompted", otherwise "hit".
+A nudge in interviewer_events only rules out "hit". It never makes a step
+"prompted" by itself: after a nudge the step is "prompted" ONLY if the reply
+meets the full criteria, otherwise it is "missed".
 Judge each step on the candidate's best evidence in the right phase: an early
 half-attempt followed, before any nudge for that step, by a full version is a
 hit. Order matters: clarifying questions or a structure that only appear
