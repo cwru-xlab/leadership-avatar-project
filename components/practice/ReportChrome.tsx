@@ -32,6 +32,11 @@ import InRoleReactionPanel from "@/components/practice/report/InRoleReactionPane
 import NegotiationTriplePanel from "@/components/practice/report/NegotiationTriplePanel";
 import ListenerIdentityPanel from "@/components/practice/report/ListenerIdentityPanel";
 import PitchOutcomeBanner from "@/components/practice/report/PitchOutcomeBanner";
+import {
+  PersonaChecklistPanel,
+  PersonaCountsPanel,
+  PersonaDisclaimerBanner,
+} from "@/components/practice/report/PersonaReportPanels";
 
 export type StalledAffordance = "retry" | "check-again";
 
@@ -122,6 +127,35 @@ const TECHNICAL_CODING_CHROME: ReportChrome = {
   showsCustomizationStrip: false,
   checkInLead: "In a real interview",
 };
+
+/**
+ * Questioned-persona types (clinical communication, motivational
+ * interviewing) — difficult-conversation poll discipline; the practice-only
+ * disclaimer above the scores, the counts panel and the checklist below.
+ */
+function personaChrome(checkInLead: string): ReportChrome {
+  return {
+    pollIntervalMs: 2000,
+    giveUpAfterMs: 120_000,
+    stalledAffordance: "retry",
+    distinguishes401: true,
+    guardsRepollAfter404: false,
+    showsCustomizationStrip: false,
+    checkInLead,
+    extras: {
+      above: (report) => <PersonaDisclaimerBanner report={report} />,
+      below: (report) => (
+        <>
+          <PersonaCountsPanel report={report} />
+          <PersonaChecklistPanel report={report} />
+        </>
+      ),
+    },
+  };
+}
+
+const CLINICAL_COMMUNICATION_CHROME = personaChrome("In a real patient encounter");
+const MOTIVATIONAL_INTERVIEWING_CHROME = personaChrome("In a real counseling session");
 
 const NETWORKING_CHROME: ReportChrome = {
   pollIntervalMs: 2000,
@@ -252,6 +286,8 @@ export function getReportChrome(
   if (slug === "case-study") return CASE_STUDY_CHROME;
   if (slug === "difficult-conversation") return DIFFICULT_CONVERSATION_CHROME;
   if (slug === "networking") return NETWORKING_CHROME;
+  if (slug === "clinical-communication") return CLINICAL_COMMUNICATION_CHROME;
+  if (slug === "motivational-interviewing") return MOTIVATIONAL_INTERVIEWING_CHROME;
   if (slug === "technical-coding") return TECHNICAL_CODING_CHROME;
   if (slug === "pitch-elevator") return PITCH_ELEVATOR_CHROME;
   if (isDeckModeSlug(slug)) return deckChromeFor(slug);

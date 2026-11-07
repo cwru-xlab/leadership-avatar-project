@@ -21,6 +21,8 @@ export const routes = {
   deckPitches: () => "/practice/pitches/deck",
   deckPitch: (mode: string) => `/practice/pitches/deck/${segment(mode)}`,
   networking: () => "/practice/networking",
+  clinicalCommunication: () => "/practice/clinical-communication",
+  motivationalInterviewing: () => "/practice/motivational-interviewing",
   /** Resolve engine slugs used by plans into canonical browser paths. */
   practiceType: (type: string, instanceId?: string) => {
     const id = instanceId ? segment(instanceId) : null;
@@ -41,6 +43,9 @@ export const routes = {
         return `/practice/pitches/deck/${segment(type)}`;
       case "networking":
         return "/practice/networking";
+      case "clinical-communication":
+      case "motivational-interviewing":
+        return id ? `/practice/${type}/${id}` : `/practice/${type}`;
       default:
         return `/practice/interviews/${segment(type)}`;
     }
