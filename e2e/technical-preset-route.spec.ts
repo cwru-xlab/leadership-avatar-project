@@ -17,14 +17,13 @@ test("picker starts the behavioral technical preset with Customize settings", as
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page);
-  await page.goto("/practice/interviews");
+  await page.goto("/practice/interviews/industry-specific");
 
-  await page.getByRole("button", { name: /Engineering Behavioral Interview/ }).click();
-  await page.getByRole("button", { name: /Customize/ }).click();
-  await page.getByRole("button", { name: /Session length/ }).click();
-  await page.getByRole("option", { name: /Extended/ }).click();
+  await page.getByRole("link", { name: "Set up Engineering Behavioral" }).click();
+  await page.waitForURL("**/practice/interviews/customize/technical");
+  await page.locator('[data-choice-group="length"]').getByRole("radio", { name: /Extended/ }).click();
   await page.screenshot({ path: `${SHOTS}/picker-customized.png`, fullPage: true });
-  await page.getByRole("button", { name: "Start interview" }).click();
+  await page.getByRole("button", { name: "Continue to setup" }).click();
 
   await page.waitForURL("**/practice/interviews/technical-behavioral", { timeout: 45_000 });
   await expect(page.getByRole("heading", { name: "Engineering Behavioral Interview" })).toBeVisible({ timeout: 45_000 });
