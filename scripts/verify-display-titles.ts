@@ -55,7 +55,7 @@ check("stored server default is replaced", displayReportTitle({ title: "General 
 check("stored client default is replaced", displayReportTitle({ title: "Interview · with Karen Liu", typeSlug: "general", input: interview({ interviewerName: "Karen Liu" }) }), "General interview with Karen Liu");
 check("a student's own title is kept", displayReportTitle({ title: "Round two with Karen", typeSlug: "general", input: interview({ interviewerName: "Karen Liu" }) }), "Round two with Karen");
 check("an edited default is kept", displayReportTitle({ title: "Interview · with Karen Liu, second try", typeSlug: "general", input: interview({ interviewerName: "Karen Liu" }) }), "Interview · with Karen Liu, second try");
-check("legacy row with no snapshot", displayReportTitle({ title: null, typeSlug: "technical", input: null }), "Technical interview");
+check("legacy row with no snapshot", displayReportTitle({ title: null, typeSlug: "technical", input: null }), "Engineering behavioral interview");
 check("over-long subject stays in budget", words(deriveReportTitle("difficult-conversation", { kind: "difficult-conversation", conversationTitle: "You are meeting Sam, a warehouse shift lead, to tell him he is being terminated" } as InputSnapshot)) <= 8, true);
 
 const sameDay = disambiguateTitles([

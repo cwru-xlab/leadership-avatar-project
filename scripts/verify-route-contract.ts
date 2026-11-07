@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { routes } from "../lib/routes";
+import { interviewSlugFromSegment, routes } from "../lib/routes";
 
 const root = path.resolve(__dirname, "..");
 const read = (file: string) => readFileSync(path.join(root, file), "utf8");
@@ -34,11 +34,19 @@ async function main() {
   assert(!redirects.some((item: { source: string }) => item.source === "/practice/technical-coding"), "Standalone technical-coding route must not redirect");
   assert(read("app/practice/interviews/technical/page.tsx").includes("TechnicalCodingPracticePage"), "Canonical technical route must launch coding");
   assert(read("app/practice/[type]/page.tsx").includes("type === \"technical-coding\") notFound()"), "Dynamic route must not catch the internal coding slug");
+  // Report slugs never change; only the public path of the behavioral `technical` preset does.
+  assert.equal(routes.interview("technical-coding"), "/practice/interviews/technical", "Coding interview owns /practice/interviews/technical");
+  assert.equal(routes.interview("technical"), "/practice/interviews/technical-behavioral", "Behavioral technical preset has its own URL");
+  assert.equal(routes.practiceType("technical"), routes.interview("technical"), "Plan links use the interview mapping");
+  assert.equal(routes.practiceType("technical-coding"), routes.interview("technical-coding"), "Plan links use the interview mapping");
+  assert.equal(routes.interview("general"), "/practice/interviews/general", "Unmapped presets keep slug URLs");
+  assert.equal(interviewSlugFromSegment("technical-behavioral"), "technical", "[type] resolves the behavioral segment to the technical preset");
+  assert.equal(interviewSlugFromSegment("consulting"), "consulting", "[type] passes other segments through");
   expectRedirect("/practice/consulting", "/practice/interviews/consulting");
   expectRedirect("/practice/early-career", "/practice/interviews/early-career");
   expectRedirect("/practice/:type/report/:reportId", "/reports/:reportId");
   assert(!redirects.some((item: { source: string }) => item.source === "/"), "The admin root must not redirect");
-  for (const canonical of [routes.practice(), routes.interviews(), routes.interview("general"), routes.caseStudies(), routes.caseStudy("case-1"), routes.networking(), routes.pitches(), routes.elevatorPitch(), routes.deckPitch("pitch-deck"), routes.reports(), routes.report("report-1")]) {
+  for (const canonical of [routes.practice(), routes.interviews(), routes.interview("general"), routes.interview("technical"), routes.caseStudies(), routes.caseStudy("case-1"), routes.networking(), routes.pitches(), routes.elevatorPitch(), routes.deckPitch("pitch-deck"), routes.reports(), routes.report("report-1")]) {
     assert(!redirects.some((item: { source: string }) => item.source === canonical), `Canonical helper output is redirected: ${canonical}`);
   }
   console.log(`Route contract verified (${requiredPaths.length} canonical route files, ${redirects.length} redirects).`);
