@@ -49,7 +49,7 @@ const TAGLINES: Record<string, string> = {
   consulting: "Structure a business problem out loud.",
   "product-management": "One product problem, worked step by step.",
   "data-analytics": "Turn a messy question into an analysis plan.",
-  finance: "Technical finance questions and your market view.",
+  finance: "IB, PE or research: technicals, a paper LBO, or your market view.",
   "system-design": "Design a system and defend the tradeoffs.",
   "technical-coding": "Solve one Python problem while you explain.",
 };
@@ -67,9 +67,18 @@ export function interviewTagline(type: Pick<InterviewType, "slug" | "description
   return TAGLINES[type.slug] ?? firstSentence(type.description);
 }
 
-/** "Consulting / Case-Style Interview" reads as "Consulting / Case-Style" on a page of interviews. */
+/**
+ * "Consulting / Case-Style Interview" reads as "Consulting / Case-Style" on a
+ * page of interviews; a trailing parenthetical goes too ("Finance Interview
+ * (IB / PE / Research)" → "Finance") — the card's tagline carries that detail.
+ */
 export function shortInterviewLabel(label: string): string {
-  return label.replace(/\s+interview$/i, "").trim() || label;
+  return (
+    label
+      .replace(/\s*\([^)]*\)\s*$/, "")
+      .replace(/\s+interview$/i, "")
+      .trim() || label
+  );
 }
 
 export interface SpecializedInterview {

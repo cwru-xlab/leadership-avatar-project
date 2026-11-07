@@ -267,6 +267,11 @@ export interface InteractionPromptsConfig {
 export interface ProblemInterviewBriefing {
   headline: string;
   points: string[];
+  /**
+   * Optional longer explanation, hidden behind a "More about this interview"
+   * disclosure (progressive disclosure: headline + points stay short).
+   */
+  more?: string;
 }
 
 /**
