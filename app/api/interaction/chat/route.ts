@@ -18,6 +18,7 @@ import { getEngineType } from "@/lib/engine/registry";
 import { buildTurnMessages } from "@/lib/engine/prompts";
 import {
   isInterviewIntegrityRequest,
+  isThinkingTimeRequest,
   parseEngineTurn,
 } from "@/lib/engine/turn-control";
 import {
@@ -1087,6 +1088,13 @@ export async function POST(request: NextRequest) {
               return latestUser
                 ? isInterviewIntegrityRequest(latestUser.content)
                 : false;
+            })(),
+            candidateThinking: (() => {
+              const latestUser = [...messages]
+                .reverse()
+                .find((m) => m.role === "user");
+
+              return latestUser ? isThinkingTimeRequest(latestUser.content) : false;
             })(),
           },
           // Non-interview types that declare a time budget / first-turn window
