@@ -7,9 +7,13 @@
  */
 
 export const TECHNICAL_CODING_LANGUAGE = "python" as const;
-export const TECHNICAL_RUNTIME_POLICY_VERSION = "python-3.12-stdlib-v1" as const;
+export const TECHNICAL_RUNTIME_POLICY_VERSION =
+  "python-3.12-stdlib-v1" as const;
 
 export type TechnicalCodingLanguage = typeof TECHNICAL_CODING_LANGUAGE;
+
+/** Human-readable name for prompts and UI chrome. */
+export const TECHNICAL_CODING_LANGUAGE_LABEL = "Python" as const;
 
 export interface TechnicalExample {
   input: string;
@@ -79,5 +83,6 @@ export function toPublicTechnicalAssignment(
     executionLimits: _executionLimits,
     ...publicAssignment
   } = assignment;
+
   return publicAssignment;
 }
