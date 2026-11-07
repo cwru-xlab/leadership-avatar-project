@@ -27,8 +27,11 @@ export const PM_TYPE_INPUT: MakeProblemInterviewTypeConfigInput = {
   frameworks: Object.values(PM_FRAMEWORKS),
   evaluatorAddendum: PM_EVALUATOR_ADDENDUM,
   rubricExtras: PM_RUBRIC_EXTRAS,
-  // The engine briefing is { headline, points }; PM_BRIEFING.more has no slot.
-  briefing: { headline: PM_BRIEFING.headline, points: [...PM_BRIEFING.bullets] },
+  briefing: {
+    headline: PM_BRIEFING.headline,
+    points: [...PM_BRIEFING.bullets],
+    more: PM_BRIEFING.more,
+  },
 };
 
 export const PRODUCT_MANAGEMENT_TYPE: InteractionTypeConfig =

@@ -218,8 +218,15 @@ console.log("\n3. No per-networking surface");
 {
   const forbiddenGlobs: Array<{ label: string; test: (relPath: string) => boolean }> = [
     {
-      label: "app/practice/networking*/page.tsx",
-      test: (p) => /^app\/practice\/networking[^/]*\/page\.tsx$/.test(p),
+      // The unified practice URLs (09dda6e) give every type a one-line route
+      // that renders the generic PracticeTypePage; only a page with its own
+      // networking UI is a per-networking surface.
+      label: "app/practice/networking*/page.tsx (other than the generic PracticeTypePage route)",
+      test: (p) =>
+        /^app\/practice\/networking[^/]*\/page\.tsx$/.test(p) &&
+        !/^import PracticeTypePage from "@\/components\/practice\/routes\/PracticeTypePage";\s*export default function \w+\(\) \{ return <PracticeTypePage typeSlug="networking" \/>; \}\s*$/.test(
+          readFileSync(abs(...p.split("/")), "utf8"),
+        ),
     },
     {
       label: "lib/*/networking-evaluation*",
@@ -514,8 +521,12 @@ console.log("\n7. No type-slug branching in the engine (networking)");
     )
     .map(({ file }) => file);
 
+  // The [type] page's setup body moved into the shared PracticeTypePage route
+  // component when practice URLs were unified (every /practice/<x> route
+  // renders it), so that component is the one type-aware wizard surface.
   const permittedTsx = new Set([
     "app/practice/[type]/page.tsx",
+    "components/practice/routes/PracticeTypePage.tsx",
     "components/practice/ReportChrome.tsx",
   ]);
   const unexpectedTsx = typeAwareTsx.filter((f) => !permittedTsx.has(f));

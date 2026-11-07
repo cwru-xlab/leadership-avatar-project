@@ -98,6 +98,14 @@ export default function InterviewBackgroundReminderStep({
                   <li key={point}>{point}</li>
                 ))}
               </ul>
+              {problemBriefing.more ? (
+                <details className="mt-2" data-testid="problem-briefing-more">
+                  <summary className="cursor-pointer rounded font-medium text-link outline-none focus-visible:ring-2 focus-visible:ring-link">
+                    More about this interview
+                  </summary>
+                  <p className="mt-1 text-muted">{problemBriefing.more}</p>
+                </details>
+              ) : null}
             </div>
           </aside>
         ) : null}
