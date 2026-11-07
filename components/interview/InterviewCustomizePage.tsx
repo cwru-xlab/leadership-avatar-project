@@ -86,7 +86,7 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
 
   const options: Record<Field, ChoiceTile[]> = useMemo(() => {
     const withPreset = (tiles: ChoiceTile[], isCurated: boolean, hint: string) =>
-      isCurated ? tiles : [{ value: PRESET, title: "As this interview sets it", hint }, ...tiles];
+      isCurated ? tiles : [{ value: PRESET, title: "Interview default", hint }, ...tiles];
     return {
       industry: withPreset(
         CURATED_INDUSTRIES.map((o) => ({ value: o.slug, title: o.label })),
@@ -347,16 +347,16 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
           The job
         </h2>
         <ChoiceTiles
-          columns="grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3"
           label="Role"
+          layout="wrap"
           name="role"
           options={options.role}
           value={values.role}
           onChange={(value) => setField("role", value)}
         />
         <ChoiceTiles
-          columns="grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3"
           label="Industry"
+          layout="wrap"
           name="industry"
           options={options.industry}
           value={values.industry}
@@ -386,11 +386,11 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
         />
       </section>
 
-      <div className="sticky bottom-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-white/95 px-4 py-3 backdrop-blur-sm sm:mx-0 sm:rounded-lg sm:border sm:px-5">
-        <p className="min-w-0 flex-1 basis-56 text-[13px] leading-5 text-muted">
+      <div className="sticky bottom-0 z-20 -mx-4 flex items-center justify-between gap-3 border-t border-line bg-white px-4 py-3 sm:mx-0 sm:rounded-lg sm:border sm:px-5">
+        <p className="hidden min-w-0 flex-1 text-[13px] leading-5 text-muted sm:block">
           Next: pick your interviewer and, if you like, add a resume and job posting.
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center justify-end gap-2 sm:flex-none">
           {changed && (
             <Button
               className="h-11 font-semibold text-link"
@@ -402,7 +402,7 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
             </Button>
           )}
           <Button
-            className="h-11 rounded-lg bg-cwru-blue px-5 font-semibold text-white"
+            className="h-11 flex-1 rounded-lg bg-cwru-blue px-5 font-semibold text-white sm:flex-none"
             endContent={<ArrowRight aria-hidden size={16} strokeWidth={2.5} />}
             onPress={continueToSetup}
           >

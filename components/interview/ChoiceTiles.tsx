@@ -23,6 +23,7 @@ export default function ChoiceTiles({
   onChange,
   disabled = false,
   columns = "grid-cols-1 sm:grid-cols-3",
+  layout = "grid",
   name,
 }: {
   label: string;
@@ -32,6 +33,8 @@ export default function ChoiceTiles({
   onChange: (value: string) => void;
   disabled?: boolean;
   columns?: string;
+  /** `wrap`: compact tiles that flow in rows, for long lists (roles, industries). */
+  layout?: "grid" | "wrap";
   /** Stable hook for tests: `data-choice-group`. */
   name: string;
 }) {
@@ -73,7 +76,7 @@ export default function ChoiceTiles({
         aria-describedby={description ? descriptionId : undefined}
         aria-disabled={disabled || undefined}
         aria-labelledby={labelId}
-        className={`grid gap-2 ${columns}`}
+        className={layout === "wrap" ? "flex flex-wrap gap-2" : `grid gap-2 ${columns}`}
         data-choice-group={name}
         role="radiogroup"
       >
@@ -86,7 +89,7 @@ export default function ChoiceTiles({
                 refs.current[index] = node;
               }}
               aria-checked={selected}
-              className={`flex min-h-11 items-start justify-between gap-2 rounded-lg px-3.5 py-2.5 text-left transition-colors duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${
+              className={`flex min-h-11 justify-between gap-2 rounded-lg px-3.5 py-2.5 text-left ${layout === "wrap" ? "items-center" : "items-start"} transition-colors duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${
                 selected
                   ? "border-2 border-true-blue bg-light-blue/32 px-[13px] py-[9px]"
                   : "border border-line bg-white hover:border-true-blue/50"
@@ -98,7 +101,7 @@ export default function ChoiceTiles({
               onClick={() => onChange(option.value)}
               onKeyDown={(event) => onKeyDown(event, index)}
             >
-              <span className="flex min-w-0 flex-col gap-0.5">
+              <span className={`flex min-w-0 gap-x-1.5 gap-y-0.5 ${layout === "wrap" ? "flex-wrap items-baseline" : "flex-col"}`}>
                 <span className="text-[14px] font-semibold leading-5 text-ink">{option.title}</span>
                 {option.hint && (
                   <span className="text-[13px] leading-5 text-muted">{option.hint}</span>
