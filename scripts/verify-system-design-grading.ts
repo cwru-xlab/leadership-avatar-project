@@ -54,18 +54,16 @@ const resolved = resolveFromTypeConfig(typeConfig, {});
 if (!resolved.ok) throw new Error(resolved.reason);
 const config = resolved.config;
 /**
- * --outcome-first: reorder the schema so `outcome` (the step verdicts) is
- * generated BEFORE the scores. Strict json_schema emits keys in schema order,
- * and the stock order (scores → … → outcome) makes the model commit to scores
- * before it has judged a single step. Engine proposal; see the validity doc.
+ * The engine's own schema order, with no script-local reordering:
+ * `buildRubricJsonSchema` now emits `outcome` BEFORE the `*_score` properties
+ * for every problem interview, which is the configuration this study measured
+ * at 14/14 (docs/interviews/system-design-validity.md). The old
+ * `--outcome-first` flag reordered the schema here; it would now be a no-op
+ * that misreports what ran, so it is gone.
+ * `scripts/verify-rubric-schema-order.ts` asserts the order deterministically.
  */
-const OUTCOME_FIRST = args.includes("--outcome-first");
-const schema = (() => {
-  const base = buildRubricJsonSchema(config) as { schema: { properties: Record<string, unknown>; required?: string[] } };
-  if (!OUTCOME_FIRST) return base;
-  const { outcome, ...rest } = base.schema.properties;
-  return { ...base, schema: { ...base.schema, properties: { outcome, ...rest } } };
-})() as ReturnType<typeof buildRubricJsonSchema>;
+const schema = buildRubricJsonSchema(config);
+const SCHEMA_ORDER = Object.keys(schema.schema.properties)[0] === "outcome" ? "outcome-first" : "scores-first";
 const SYSTEM = `${typeConfig.prompts.evaluatorPrompt}\n\n${REPORT_SPELLING_RULE}`;
 
 function events(g: GoldenTranscript): ProblemInterviewEvent[] {
@@ -202,7 +200,7 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
 const ABBR: Record<string, string> = { hit: "H", prompted: "P", missed: "M", not_applicable: "-" };
 
 async function main() {
-  console.log(`model ${MODEL}; schema order ${OUTCOME_FIRST ? "outcome-first" : "stock"}; ${GOLDENS.length} transcripts × ${RUNS} run(s)\n`);
+  console.log(`model ${MODEL}; schema order ${SCHEMA_ORDER} (from the engine's buildRubricJsonSchema, not a script flag); ${GOLDENS.length} transcripts × ${RUNS} run(s)\n`);
   const all: Graded[] = [];
   for (let run = 1; run <= RUNS; run++) {
     const results: Graded[] = [];

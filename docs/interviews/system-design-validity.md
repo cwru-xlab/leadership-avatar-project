@@ -131,7 +131,7 @@ There are seven. All are the URL shortener except the last.
 
 ### Results (gpt-4.1, 2 runs each, 2026-11-07)
 
-**Final configuration, with the outcome generated before the scores (`--outcome-first`): 14/14 pass.**
+**Final configuration, with the outcome generated before the scores: 14/14 pass.** Measured with the study's `--outcome-first` flag; that flag is gone, because `buildRubricJsonSchema` now emits this order for every problem interview and the script logs the engine's own order instead.
 
 | Golden | Run 1: rigor / quant / trade / depth, steps | Run 2 |
 |---|---|---|
@@ -146,7 +146,7 @@ There are seven. All are the URL shortener except the last.
 - The model's own process_rigor disagreed with the value derived from its steps in **6/14** grades. Deriving the score is necessary.
 - Non-verbatim evidence quotes: 0.
 
-**Stock schema order (scores generated before the outcome): 11/14 pass.**
+**Stock schema order (scores generated before the outcome): 11/14 pass.** No longer reachable from the script — it is the pre-change engine order, kept here as the recorded comparison.
 
 | Golden | Run 1 | Run 2 |
 |---|---|---|
@@ -158,13 +158,15 @@ There are seven. All are the URL shortener except the last.
 
 ### What the study changed
 
-The fixes are in `lib/system-design-interview/evaluator.ts`:
+The type-specific fixes are in `lib/system-design-interview/evaluator.ts`; fixes 2 and 3 turned out to be generic to every problem interview and now live in the shared addendum in `lib/problem-interview/prompts.ts` (`PROBLEM INTERVIEW — ADDITIONAL RULES`), stated once, with the SD addendum keeping only what is system-design specific.
 
-1. **Arithmetic first, compared against the bands.** The model recomputed 40M ÷ 86,400 ≈ 463 correctly, then still called 4,600 "within 3×". It now writes `band 150–1,400/s, candidate 4,600/s → OUTSIDE` for each key figure. It is told that 10× is always outside the band and is never excused as a "rounding slip".
-2. **A mechanical status rule.** Each note starts with `Meets all criteria: yes|no`, judged on the candidate's words alone. "No" means missed, even after a nudge. The model had been reading "prompted" as "said something after a nudge" while its own note said "partial".
-3. **No double quotes inside processSteps strings.** Before this rule, 3/14 outcome-first grades returned invalid JSON in `processSteps` because quotes were nested inside the JSON-encoded string, and the report would have lost every step.
-4. **Hard caps tied to named steps** (see the rubric table above). Without them, url-no-math scored quant 4–5 with no math at all.
-5. **Generate the outcome before the scores (engine change).** This made the remaining difference: in stock order, url-slip failed 2/2 even with fixes 1–4. With strict `json_schema`, keys are generated in schema order, and the stock order emits all `*_score` fields before `outcome.processSteps`. The model commits to scores, then rationalizes the steps to match them.
+1. **Arithmetic first, compared against the bands.** The model recomputed 40M ÷ 86,400 ≈ 463 correctly, then still called 4,600 "within 3×". It now writes `band 150–1,400/s, candidate 4,600/s → OUTSIDE` for each key figure. It is told that 10× is always outside the band and is never excused as a "rounding slip". System-design specific (it names `estimate_scale` and the reference bands); stays in `evaluator.ts`.
+2. **A mechanical status rule.** Each note starts with `Meets all criteria: yes|no`, judged on the candidate's words alone. "No" means missed, even after a nudge. The model had been reading "prompted" as "said something after a nudge" while its own note said "partial". **Now shared** — every problem interview gets it.
+3. **No double quotes inside processSteps strings.** Before this rule, 3/14 outcome-first grades returned invalid JSON in `processSteps` because quotes were nested inside the JSON-encoded string, and the report would have lost every step. **Now shared** — the `OUTCOME` section of the shared addendum states it.
+4. **Hard caps tied to named steps** (see the rubric table above). Without them, url-no-math scored quant 4–5 with no math at all. System-design specific; stays in `evaluator.ts`.
+5. **Generate the outcome before the scores (engine change).** This made the remaining difference: in stock order, url-slip failed 2/2 even with fixes 1–4. With strict `json_schema`, keys are generated in schema order, and the stock order emits all `*_score` fields before `outcome.processSteps`. The model commits to scores, then rationalizes the steps to match them. **Landed in the engine** for every problem interview — see Integrator TODO 1.
+
+The `Meets all criteria:` prefix is a grading mechanism, not coaching: the report strips it at render time in `stripStepNoteGradingPrefix`, called from `buildProcessStepViews` (the one join every render path uses). The stored outcome keeps the raw note.
 
 ## Live-prompt probe
 
@@ -190,10 +192,10 @@ The fixes are in `lib/system-design-interview/evaluator.ts`:
 
 ## Integrator TODOs
 
-1. **Engine: generate the outcome before the scores in the rubric JSON schema** for problem interviews (`buildRubricJsonSchema`). The evidence is the stock vs `--outcome-first` comparison above (11/14 vs 14/14). This likely helps case, PM, finance and analytics too.
-2. **Engine (optional):** make `processSteps` a structured array in the schema instead of a JSON string inside JSON, so nested quotes cannot corrupt it.
+1. ~~**Engine: generate the outcome before the scores in the rubric JSON schema** for problem interviews (`buildRubricJsonSchema`).~~ **Done** (`loop/case-pm-integration`, this commit): `buildRubricJsonSchema` emits `outcome` as the first property and the first `required` entry for every problem interview — consulting, product-management, data-analytics, finance and system-design. Every other type keeps `outcome` last, byte-identical. `scripts/verify-rubric-schema-order.ts` proves both against `scripts/fixtures/rubric-schema-order.json` (per-type property order, `required` order and a SHA-256 of the pre-change bytes); for a problem interview it moves `outcome` back to last and requires the digest to match, so the change is provably a pure reorder. The evidence is the stock vs outcome-first comparison above (11/14 vs 14/14). Still unmeasured for case, PM, finance and analytics — the grading-study workers own that.
+2. **Engine (optional):** make `processSteps` a structured array in the schema instead of a JSON string inside JSON, so nested quotes cannot corrupt it. Open. The prompt-level no-double-quotes rule (study fix 3) is now in the shared addendum, and `lib/problem-interview/outcome.ts`'s tolerant parse still reads fields by name when a quote slips through, so this is a hardening, not a fix.
 3. **Engine (optional):** an exhibit-title match in `inferUnmarkedActions` could also require a "screen" phrase.
 4. **Engine (optional):** the factory has no `postProcessScores` hook. The extra-dimension caps above are prompt-only. A deterministic cap, such as quant ≤ 2 when the step tagged as estimation is missed, would need one.
-5. **Mastery:** map `technical_depth` and `tradeoff_reasoning` (and the existing `quantitative` and `process_rigor`) in `lib/mastery/competencies.ts`.
-6. **Picker:** `loop/interview-picker` already has the `system-design` icon (`Network`) and tagline. The `PresetCard` icon on this branch can be dropped if the picker replaces it.
+5. ~~**Mastery:** map `technical_depth` and `tradeoff_reasoning` (and the existing `quantitative` and `process_rigor`) in `lib/mastery/competencies.ts`.~~ **Done** in merge b168d09: both are grouped under `credibility_of_the_case`.
+6. ~~**Picker:** `loop/interview-picker` already has the `system-design` icon (`Network`) and tagline. The `PresetCard` icon on this branch can be dropped if the picker replaces it.~~ **Done** in merge b168d09: `components/interview/interviewPicker.ts` carries the `Network` icon and tagline, and `PresetCard.tsx` stayed deleted.
 7. **Whiteboard:** deferred. When it exists, the `high_level_design` criteria should accept a diagram plus narration.
