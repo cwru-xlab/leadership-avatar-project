@@ -20,6 +20,7 @@ import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { StreamingAvatarSessionState } from "@/components/HeyGenAvatar/logic";
+import { useLayout } from "@/lib/layout-context";
 import SessionAvatar, { useAvatarKeepAlive } from "@/components/session/SessionAvatar";
 import { PushToTalkControl, formatElapsed } from "@/components/session/SessionRoom";
 import { usePushToTalkRecorder } from "@/components/session/usePushToTalkRecorder";
@@ -51,9 +52,11 @@ export default function TechnicalCodingSession({
   reportId: string;
   avatarConfig: StartAvatarRequest;
 }) {
+  const { setFullScreen } = useLayout();
   const avatarRef = useRef<React.ElementRef<typeof SessionAvatar>>(null);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
   const [snapshot, setSnapshot] = useState<TechnicalCodingInputSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -77,6 +80,15 @@ export default function TechnicalCodingSession({
 
   const { run: runPython, runtimeReady } = useVisibleTestRunner();
   useAvatarKeepAlive(avatarRef, avatarConnected);
+
+  // The room owns the whole viewport: it asks for `h-[100dvh]` below, so it has
+  // to opt out of MainContent's padded, max-width column and out of the navbar
+  // the same way every other immersive surface does. Without this the bottom
+  // edge (terminal border, Run/Submit row) is pushed outside the visible box.
+  useEffect(() => {
+    setFullScreen(true);
+    return () => setFullScreen(false);
+  }, [setFullScreen]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
@@ -179,12 +191,20 @@ export default function TechnicalCodingSession({
     [],
   );
 
+  // Each run replaces the previous output rather than stacking under it. The
+  // terminal is a fixed-height scroller, so appending meant the newest result
+  // landed below the fold and the candidate had to scroll to find it.
+  const resetTerminal = useCallback((lines: TerminalLine[]) => {
+    setTerminalLines(lines.slice(-200));
+    if (terminalRef.current) terminalRef.current.scrollTop = 0;
+  }, []);
+
   const runVisibleTests = useCallback(async () => {
     if (!snapshot || runningTests) return;
     const tests = snapshot.assignment.publicTests;
     setRunningTests(true);
     setTerminalOpen(true);
-    append([
+    resetTerminal([
       {
         kind: "command",
         text: `python -m pytest visible  (${tests.length} test${tests.length === 1 ? "" : "s"})`,
@@ -248,7 +268,7 @@ export default function TechnicalCodingSession({
     }
     setRunningTests(false);
     editorRef.current?.view?.focus();
-  }, [append, entryPoint, runPython, runningTests, runtimeReady, snapshot, source]);
+  }, [append, entryPoint, resetTerminal, runPython, runningTests, runtimeReady, snapshot, source]);
 
   const evidence = useCallback(
     () => ({ version: 1 as const, checkpoints: [{ source }] }),
@@ -664,6 +684,7 @@ export default function TechnicalCodingSession({
             </div>
             {terminalOpen && (
               <div
+                ref={terminalRef}
                 className="h-40 overflow-y-auto border-t border-white/10 px-4 py-2.5 font-mono text-xs leading-5"
                 aria-live="polite"
               >
