@@ -65,7 +65,9 @@ graded_framework, in order, answer two questions:
       one-line reply does not meet the criteria, even when it answers a nudge:
       naming a metric is not defining it, saying "I'd check power" is not
       sizing the test, "maybe it's a bug" is not checking data integrity, and
-      guessing a cause is not segmenting.
+      guessing a cause is not segmenting, and looking at a split and calling
+      a beyond-chance imbalance "noise" is not a trust check — even right
+      after a nudge, that step is "missed", never "prompted".
   Q2. If YES: did the interviewer nudge that step BEFORE the first such
       evidence? Nudges are listed in interviewer_events and also show in the
       transcript as an interviewer question that opens the door to the step
@@ -114,11 +116,14 @@ arithmetic on any exhibit; if the question had no numbers and the candidate did
 no math, judge the precision of the definition.
 
 BUSINESS JUDGMENT (business_judgment_score)
-FIRST look at what came right before the candidate's final decision or
-recommendation. If it was the interviewer asking for one ("So what would you
-tell the team?", "Where does that leave you?", or any nudge for the last
-method step), business_judgment_score is AT MOST 3, however polished the
-answer. Then:
+FIRST apply the cap. The last step of each framework is the decision:
+validate_and_commit (metric definition), decision_rule (experiment design),
+recommend_decision (readout), recommend_and_size (diagnosis). If
+interviewer_events lists a nudge for that step, OR the turn right before the
+candidate's final decision was the interviewer asking for one ("So what would
+you tell the team?", "Where does that leave you?", "Which one would you put in
+front of the team?"), business_judgment_score is AT MOST 3 — however good the
+answer that followed. State the cap in rubric_notes when you apply it. Then:
 5: an unprompted, clear decision (ship / don't / rerun / fix / which metric),
 backed by the decisive facts, with the guardrail or tradeoff that shaped it
 and the impact sized in users, orders or dollars. 4: clear decision with
