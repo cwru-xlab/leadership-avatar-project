@@ -117,14 +117,19 @@ test("industry-specific: every listed card opens, customizes and carries into se
     await page.keyboard.press("ArrowRight");
     await expect(difficulty.locator('[aria-checked="true"]')).toBeFocused();
 
-    await page.locator('[data-choice-group="length"]').getByRole("radio", { name: /Quick/ }).click();
+    // Problem interviews (case, PM, ...) hide lengths shorter than their own
+    // target: one problem needs the full time. Those pick Extended instead.
+    const lengths = page.locator('[data-choice-group="length"]');
+    const quick = lengths.getByRole("radio", { name: /Quick/ });
+    const expectedMinutes = (await quick.count()) > 0 ? "10 min" : "30 min";
+    await (expectedMinutes === "10 min" ? quick : lengths.getByRole("radio", { name: /Extended/ })).click();
     await page.getByRole("button", { name: "Continue to setup" }).click();
     await page.waitForURL((url) => url.pathname.startsWith("/practice/interviews/") && !url.pathname.includes("customize"), {
       timeout: 45_000,
     });
     const stored = await page.evaluate((slug) => sessionStorage.getItem(`interview:customization:${slug}`), key);
     expect(stored).toBeNull(); // read once and cleared by the wizard
-    await expect(page.getByText("10 min", { exact: true })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByText(expectedMinutes, { exact: true })).toBeVisible({ timeout: 45_000 });
   }
 });
 
