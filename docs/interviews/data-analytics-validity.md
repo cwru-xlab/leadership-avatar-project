@@ -213,6 +213,54 @@ prompt is shared, so analytics is exposed to the same wording. The fix belongs i
 proposed wording is recorded in the finance doc.
 
 
+### Confirmation run, 2026-11-07, commit `f4359f6` — held at 2/2, no regression
+
+`f4359f6` reworded the shared addendum's step-1 timing rule, named the only two permitted note
+openings, and distinguished the double-quote DELIMITER (required) from a double quote inside a value
+(forbidden). Re-measured on `marketplace-nudged` only — the golden the reworded rules bite on
+(`--only marketplace-nudged --runs 2`, 2 grades):
+
+| Golden | Run | Steps | rigor (raw) | stat | biz | Result | Pre-fix |
+|---|---|---|---|---|---|---|---|
+| `marketplace-nudged` | 1 | `HHHPP` | 3 (raw 3) | 5 | 3 | PASS | 2/2 |
+| `marketplace-nudged` | 2 | `HHHPP` | 3 (raw 4) | 5 | 3 | PASS | — |
+
+**No regression: 2/2, `HHHPP` in both runs**, with `guardrails_and_gaming` and
+`validate_and_commit` correctly `prompted` against the nudges at 5:00 and 5:50.
+
+**Counters over the 2 grades (10 step slots):**
+
+| Counter | This run |
+|---|---|
+| `Meets all criteria:` prefix with a `yes.`/`no.` verdict | 8/10 (**0** say `no.`) |
+| Prefix verdict other than `yes.`/`no.` | **2/10** — run 1 `guardrails_and_gaming=prompted`, `validate_and_commit=prompted` |
+| Notes saying `no` while the status is not `missed` | 0/10 |
+| Steps carrying a double-quote character | 0/10 |
+| `processSteps` needing the deterministic repair | 0/2 |
+| `processSteps` unrecoverable | 0/2 |
+| Raw `process_rigor` != derived-from-steps | 1/2 (run 2, raw 4 vs derived 3 — contained by deriving in code) |
+
+**The new-residual note above is now MEASURED on analytics, and it is NOT closed.** The previous entry
+recorded zero of 58 analytics notes hitting the invented `Meets all criteria: prompted.` prefix and
+noted analytics was merely *exposed* to the shared wording. On this run it fired: **2 of 10** step
+notes opened `Meets all criteria: prompted.` — both of run 1's `prompted` steps, i.e. exactly the
+steps the status rule governs. `stripStepNoteGradingPrefix` strips only `yes`/`no`, so both would have
+rendered the grading prefix to the student.
+
+So `f4359f6`'s attempt to close this by naming the only two permitted openings did not work on
+analytics. The small denominator cuts both ways: 2 grades is not a rate, but the two notes are a
+positive observation of the defect, which is stronger evidence than the previous zero-of-58 absence.
+Keep it on the list as an open residual and re-measure on the next full round.
+
+Run 2's notes are the shape the reworded rule intended — `Meets all criteria: yes.` on a `prompted`
+step, with the timing explained in prose (*"After the nudge, you named several relevant guardrail
+metrics…"*). The model is therefore inconsistent run to run rather than uniformly wrong. Analytics
+step criteria do not spell out an ordering ("unprompted", "before any analysis"), which is why
+analytics avoided the status regression that hit finance and case; see
+`docs/interviews/finance-validity.md` and `docs/interviews/case-interview-validity.md`. No shared
+file was edited in this run.
+
+
 ## 4. Live-interviewer probes
 
 `scripts/verify-analytics-interview-live.ts` plays scripted candidate turns against the real live

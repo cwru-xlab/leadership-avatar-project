@@ -221,6 +221,80 @@ in code stays load-bearing.
 4. `synthesis` still varies by 1 point on `airline-jump` (1-2) and
    `hairgel-botch` (1-2).
 
+### Confirmation run, 2026-11-07, commit `f4359f6` — `retail-nudged` REGRESSED 3/3 → 0/3
+
+`f4359f6` reworded the shared addendum's step-1 timing rule and named the only two permitted note
+openings. Re-measured on the two nudged goldens only (`--only airline-nudged,retail-nudged --runs 3`,
+6 grades):
+
+| Golden | Run | Steps | rigor | quant | synth | Result | Pre-fix |
+|---|---|---|---|---|---|---|---|
+| `airline-nudged` | 1 | `HHPPHP` | 2 | 5 | 3 | PASS | 3/3 |
+| `airline-nudged` | 2 | `HHPPHP` | 2 | 5 | 3 | PASS | — |
+| `airline-nudged` | 3 | `HHPPHP` | 2 | 5 | 3 | PASS | — |
+| `retail-nudged` | 1 | `MMHHHH` | 2 | 5 | 5 | FAIL `restate_prompt=missed`, `clarify_objective=missed` (want `prompted`) | 3/3 |
+| `retail-nudged` | 2 | `MMHHHH` | 2 | 5 | 5 | FAIL `restate_prompt=missed`, `clarify_objective=missed` | — |
+| `retail-nudged` | 3 | `HHHHHH` | **5** | 5 | 5 | FAIL `process_rigor=5 > 3`; `restate_prompt=hit`, `clarify_objective=hit` | — |
+
+`airline-nudged` held at 3/3. `retail-nudged` went **3/3 → 0/3**. The two nudged steps there are
+`restate_prompt` and `clarify_objective`, whose `evidenceCriteria` read *"**Before any analysis**, the
+candidate summarizes the client situation …"* and *"… **before laying out a structure**. Questions
+asked only much later, mid-analysis, **do not make this step a hit**."* The shared carve-out
+("timing alone is NOT a shortfall") now contradicts those clauses, and the model resolved the
+contradiction two different, both-wrong ways:
+
+- **Runs 1-2 — criteria win, step goes `missed`.** *"Meets all criteria: no. You restated the prompt,
+  but only after the interviewer asked you to do so, making this at best prompted, but the step
+  requirements specify this must come before any analysis…"* and *"… per the process, this step must
+  be initiated before laying out your structure, and before a nudge from the interviewer."* The model
+  has written the nudge into the criteria. This is the original defect, unrepaired.
+- **Run 3 — NEW failure mode: the carve-out wins, and the model back-dates the timecode to keep
+  `hit`.** Both steps came back `status: hit` with notes that still say `no`: *"Meets all criteria:
+  no. Your paraphrase of the case prompt happened only after the interviewer nudged you to restate
+  it, so this step was prompted, not hit unprompted."* The quotes are verbatim, but the reported
+  `timecodeSeconds` were **26** and **54**, while those lines actually occur at **146** and **174** —
+  after the nudges at 138 and 166. `finalizeProblemOutcome` reconciles against the timecode, so a
+  back-dated stamp defeats the "a nudged step can never stay hit" safety net: derived
+  `process_rigor` came out **5** against an expectation of <= 3.
+
+Run 3 is the more serious of the two. Before `f4359f6` the note/status conflict was cosmetic — the
+note said `no` while the status was correctly `prompted`. Now the same conflict can arrive with the
+status `hit` *and* a falsified timecode, which inflates the student's score and is invisible to the
+non-verbatim check (0 non-verbatim quotes in all 6 grades, because the words were real; only the
+stamps were wrong).
+
+**Counters over the 6 grades (36 step slots):**
+
+| Counter | This run (nudged goldens only) | 2026-11-07 pre-fix (full study) |
+|---|---|---|
+| `Meets all criteria:` prefix with a `yes.`/`no.` verdict | 30/36 (9 say `no.`) | 162/162 |
+| Prefix verdict other than `yes.`/`no.` | **6/36** — `airline-nudged` r1 and r3, `structure` / `hypothesis_prioritize` / `synthesize`, all `=prompted` | 3/162 |
+| Notes saying `no` while the status is not `missed` | **5/36** — `airline-nudged` r2 `structure`, `hypothesis_prioritize`, `synthesize` (all `prompted`); `retail-nudged` r3 `restate_prompt`, `clarify_objective` (both **`hit`**) | 9/162 |
+| Steps carrying a double-quote character | 0/36 | 0 |
+| `processSteps` needing the deterministic repair | **0/6** | **4/27** |
+| `processSteps` unrecoverable | 0/6 | 0/27 |
+| Raw `process_rigor` above the derived band | 3/6 | 8/27 |
+| Raw `process_rigor` disagreeing with the band at all | 4/6 | — |
+
+The denominators are not comparable to the pre-fix study: that study graded all nine goldens, while
+this run graded only the two nudged ones, which are exactly the goldens the rules bite on. Read the
+rates as "on the exposed subset", not as a study-wide rate.
+
+What `f4359f6` **did** fix: the delimiter clarification closed the single-quote-delimiter problem
+outright — **0 of 6** grades needed the deterministic repair, against 4 of 27 before, and no grade
+lost an `evidenceQuote`. That half of the change should be kept.
+
+What it did not fix: the invented `Meets all criteria: prompted.` verdict (6 of 36 notes here) and
+the note/status conflict (5 of 36), and it introduced the timecode back-dating above.
+
+**Residuals, NOT loosened expectations.** `restate_prompt` and `clarify_objective` really should be
+`prompted` on `retail-nudged`; the expectation is unchanged. No shared file was edited. The proposed
+follow-up wording — question 1 must treat an ordering clause in a step's criteria as question 2's
+business, plus a rule forbidding a timecode earlier than the line holding the quote — is recorded in
+`docs/interviews/finance-validity.md` under the `f4359f6` confirmation run.
+
+
+
 ### Hand-off to the engine owner (shared files, NOT changed on this branch)
 
 Both residuals above come from the shared problem addendum in

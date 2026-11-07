@@ -285,6 +285,48 @@ What the newly shared rules did, measured on the stored (unstripped) notes:
 4. (g)'s sanity-check-vs-sensitivity gap did not fire in 3 of 3 runs but stays
    marked `knownGap` on that evidence alone.
 
+### Confirmation run, 2026-11-07, commit `f4359f6` — held at 3/3, and residual 2 is CLOSED
+
+`f4359f6` reworded the shared addendum's step-1 timing rule, named the only two permitted note
+openings, and distinguished the double-quote DELIMITER (required) from a double quote inside a value
+(forbidden). Re-measured on fixture (d) only — the one fixture with nudges, and so the only one the
+reworded rules bite on (`--runs=3 --only=d`, 3 grades):
+
+| Fixture | Run | Steps | `process_rigor` model(derived) | product_sense | analytical_judgment | Result | Pre-fix |
+|---|---|---|---|---|---|---|---|
+| (d) `d-nudged-google-maps` | 1 | `identify_customer`, `prioritize_needs` = `prompted`; other five `hit` | 3(3) | 5 | 5 | PASS | 3/3 |
+| (d) | 2 | same | 3(3) | 5 | 5 | PASS | — |
+| (d) | 3 | same | 3(3) | 5 | 5 | PASS | — |
+
+**No regression: 3/3, same two steps `prompted`, same derived rigor 3, in all three runs.** PM is the
+cleanest of the four types on this run.
+
+**Counters over the 3 grades (21 step slots):**
+
+| Counter | This run | Pre-fix (2026-11-07, `dbd25ce`) |
+|---|---|---|
+| `Meets all criteria:` prefix present | 21/21 (**0** say `no.`) | — |
+| Prefix verdict other than `yes.`/`no.` | **0/21** | — |
+| Notes saying `no` while the status is not `missed` | **0/21** | — |
+| Steps carrying a double-quote character | 0/21 | — |
+| `processSteps` needing the engine's deterministic repair | **0/3** | **9/21** |
+| `processSteps` malformed | 0/3 | 0/21 |
+| Model `process_rigor` disagreeing with the band from its own steps | **0/3** | 6/21 |
+
+**Residual 2 is closed on the evidence available.** The single-quote-delimiter problem went from 9 of
+21 grades to **0 of 3**. The denominator is small — 3 grades, not 21 — so this is "closed on fixture
+(d)", not a study-wide re-measurement; the next full round should confirm it across all seven
+fixtures. No `evidenceQuote` was lost in any of the 3 grades.
+
+Notably, the two `prompted` steps' notes now open `Meets all criteria: yes.` and explain the timing in
+prose (*"You gave explicit criteria and clear prioritization, but only after being nudged"*), which is
+exactly the behaviour the reworded rule was aiming for. That is the shape the finance and case studies
+did **not** get: on those types the nudged steps' `evidenceCriteria` spell out an ordering
+("before any analysis", "UNPROMPTED"), which re-creates the contradiction the carve-out removed. PM's
+step criteria do not, which is why PM is clean here. See
+`docs/interviews/finance-validity.md` and `docs/interviews/case-interview-validity.md` for the
+regressions and the proposed follow-up wording; no shared file was edited in this run.
+
 ### Hand-off to the engine owner (shared file, NOT changed on this branch)
 
 Residual 2 traces to the shared problem addendum in

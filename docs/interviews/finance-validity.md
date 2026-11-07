@@ -301,6 +301,102 @@ out-of-vocabulary prefix that `stripStepNoteGradingPrefix` cannot strip. Both ar
 problem interview, which is why they belong in the shared addendum and are not patched into the
 finance addendum.
 
+### Confirmation run, 2026-11-07, commit `f4359f6` — the fix did NOT repair this, and it REGRESSED `pitch-nudged`
+
+`f4359f6` applied the shared wording proposed above. Re-measured on the two nudged goldens only
+(`--only lbo-nudged,pitch-nudged --runs 2`, 4 grades, 15 OpenAI calls across all four types):
+
+| Golden | Run | Steps | rigor | tech | comm | Result | Pre-fix |
+|---|---|---|---|---|---|---|---|
+| `lbo-nudged` | 1 | `MHHHHP` | 3 | 5 | 3 | FAIL `confirm_inputs=missed` (want `prompted`) | 1/2 |
+| `lbo-nudged` | 2 | `MHHHHP` | 3 | 5 | 5 | FAIL `commercial_judgment=5 > 3`; `confirm_inputs=missed` | — |
+| `pitch-nudged` | 1 | `MHHHHP` | 3 | 5 | 3 | FAIL `call_and_target=missed` (want `prompted`) | 2/2 |
+| `pitch-nudged` | 2 | `MHHHHP` | 3 | 5 | 3 | FAIL `call_and_target=missed` (want `prompted`) | — |
+
+`lbo-nudged` 1/2 → **0/2**. `pitch-nudged` 2/2 → **0/2** — a NEW failure, on a golden that passed
+before the fix. Both goldens now fail on the *same* shape as the original defect: the first step of
+the framework comes back `missed` where the nudge record makes it `prompted`.
+
+Verbatim `confirm_inputs` notes, both runs:
+
+- Run 1: *"Meets all criteria: no. You began with calculations before checking the key inputs, then
+  confirmed the exit multiple and asked for the unspecified details only after the interviewer
+  nudged you. Try to check assumptions before starting your math."*
+- Run 2: *"Meets all criteria: no. The candidate began plugging numbers before pausing to check for
+  missing inputs, and only confirmed the key assumptions after the interviewer nudged. For full
+  credit, inputs must be confirmed before any calculation."*
+
+**Why the carve-out did not fire: the step's own `evidenceCriteria` makes ordering a CRITERION, not
+just timing.** The carve-out says "only after the nudge" describes WHEN, not WHETHER. But
+`confirm_inputs` reads *"**Before the first calculation**, the candidate restates the key terms AND
+asks about at least one input … Starting the math straight away with no check is NOT a hit"*, and
+`call_and_target` reads *"In the first part of the pitch, **UNPROMPTED** … A call that only appears
+at the end, **or only after the interviewer asks** what they would do, is NOT a hit"*. On this
+transcript the candidate genuinely did start the math first, so question 1 is answered truthfully
+with `no` against the criteria as written — the shared carve-out and the step criteria now
+contradict each other, and the step criteria win because they are the thing question 1 points at.
+Note run 2's own words: *"For full credit, inputs must be confirmed before any calculation."*
+
+This is not a finance-content defect either: the same shape appears on `case-retail-nudged`
+(`restate_prompt`, `clarify_objective` — both criteria say "before any analysis" / "before laying
+out a structure"). See `docs/interviews/case-interview-validity.md` for the case half, including a
+second, worse resolution of the same contradiction.
+
+**Counters over the 4 grades (24 step slots):**
+
+| Counter | This run | Earlier |
+|---|---|---|
+| `Meets all criteria:` prefix present | 24/24 (4 say `no.`) | 104/104 |
+| Prefix verdict other than `yes.`/`no.` | **2/24** — `lbo-nudged` r1 `drivers_sanity=prompted`, `pitch-nudged` r1 `risks_mitigants=prompted` | 2 observed in the `dbd25ce` round |
+| Notes saying `no` while the status is not `missed` | 0/24 | — |
+| Steps carrying a double-quote character | 0/24 | 0/104 |
+| `processSteps` needing the deterministic repair | **0/4** | — |
+| `processSteps` unrecoverable | 0/4 | 0/18 |
+| Raw vs derived `process_rigor` disagreement | 1/4 | — |
+
+So `f4359f6`'s delimiter half works (0/4 needed the repair, no double-quote characters), but its
+*named-openings* half did **not** close the invented verdict: `Meets all criteria: prompted.` still
+appeared in 2 of 24 notes, and `stripStepNoteGradingPrefix` still cannot strip it.
+
+**Residual, NOT a loosened expectation.** `confirm_inputs` really should be `prompted` on this
+transcript and `call_and_target` really should be `prompted` on `pitch-nudged`; neither expectation
+has been changed. The remaining contradiction is between the shared addendum and the per-type step
+`evidenceCriteria`, so it cannot be fixed in the shared file alone — see the note below. No shared
+file was edited in this run.
+
+#### Follow-up for the engine owner (NOT applied)
+
+The shared carve-out cannot win against a step criterion that spells out "unprompted" / "before any
+calculation", because question 1 is defined as a test *against those criteria*. Two options, neither
+applied:
+
+1. **Preferred — teach question 1 to read an ordering clause as question 2's business.** In
+   `lib/problem-interview/prompts.ts`, after "Never answer "no" for a step whose only defect is that
+   it came after a nudge." add: *"This applies even when the step's own "counts as hit" criteria
+   state an ordering ("before any analysis", "before the first calculation", "UNPROMPTED", "not
+   after the interviewer asks"). Read such a clause as question 2's test, not question 1's: for
+   question 1, ask only whether the candidate ever supplied every required element. If they did,
+   answer "yes." and let question 2 downgrade the step to "prompted"."*
+2. Alternative — strip the ordering clauses out of every per-type `evidenceCriteria` and let the
+   nudge record carry ordering alone. Larger, touches all five types' content, and loses the "a bare
+   okay is not a hit" guidance that those clauses also carry.
+
+Option 1 is one addition to a file that was already being edited; option 2 is a content migration.
+Either way the `processSteps` note-opening rule needs a third pass, since naming the two permitted
+openings did not stop `Meets all criteria: prompted.`
+
+3. **Also needed — a timecode-honesty rule.** The case confirmation run found a worse resolution of
+   the same contradiction: the model kept `status: hit` on a nudged step and **back-dated
+   `timecodeSeconds`** to before the nudge (26 and 54 against actual 146 and 174), which defeats
+   `finalizeProblemOutcome`'s "a nudged step can never stay hit" reconciliation and inflated derived
+   `process_rigor` to 5 against an expectation of <= 3. Proposed addition to the Timecodes line:
+   *"timecodeSeconds must be the stamp of the transcript line that literally contains the
+   evidenceQuote. Never report an earlier time than that line, and never pick the time you think the
+   candidate should have done the step."* Details and the verbatim notes are in
+   `docs/interviews/case-interview-validity.md` under the same commit.
+
+
+
 ### Iteration log (same 9 transcripts)
 
 | Round | Change | Pass |

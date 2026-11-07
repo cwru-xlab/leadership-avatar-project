@@ -27,7 +27,7 @@ import { FINANCE_INTERVIEW_SLUG } from "../lib/finance-interview/live";
 import { formatTranscriptForEvaluator, type InterviewTranscript } from "../lib/interview/transcript";
 import { initialProgress } from "../lib/interview/types";
 import { findProblemQuestion } from "../lib/problem-interview/banks.server";
-import { asProcessStepResults, finalizeProblemOutcome } from "../lib/problem-interview/outcome";
+import { asProcessStepResults, finalizeProblemOutcome, parseProcessStepsValue } from "../lib/problem-interview/outcome";
 import { buildProblemEvaluatorBrief } from "../lib/problem-interview/prompts";
 import {
   buildProblemSessionSnapshot,
@@ -138,9 +138,30 @@ interface Graded {
   rawRigor: number | null;
   nonVerbatim: string[];
   steps: ProcessStepResult[];
+  /**
+   * Instrumentation for the 2026-11-07 re-measurement of the two grading
+   * rules the shared problem addendum carries (f4359f6). The STORED note keeps
+   * the `Meets all criteria: yes.|no.` prefix — only the render path strips
+   * it — so it is visible here. Mirrors the case/PM scripts' counters.
+   */
+  prefixedNotes: number;
+  /** Prefix verdicts that were neither `yes` nor `no` (the invented verdict). */
+  otherVerdicts: string[];
+  noteSaysNo: number;
+  /** Steps whose note says "no" while the status is not missed/not_applicable. */
+  prefixStatusConflicts: string[];
+  /** Steps that still carry a raw double-quote in evidenceQuote or note. */
+  nestedQuoteSteps: string[];
+  /** The model's own processSteps string did not parse strictly. */
+  stepsRepaired: boolean;
+  /** Not even the deterministic repair parsed it. */
+  stepsMalformed: boolean;
   failures: string[];
   notes: unknown;
 }
+
+/** Any opening word after the mandated prefix, so an invented verdict shows up. */
+const NOTE_PREFIX = /^\s*meets all criteria\s*[:\u2014\u2013-]?\s*([a-z_]+)/i;
 
 async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
   const OpenAI = (await import("openai")).default;
@@ -157,7 +178,23 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
   });
   const raw = JSON.parse(completion.choices[0]!.message.content!) as unknown;
   const validated = validateEvaluationResult(raw, config, { hasVisualMetrics: false, hasVocalMetrics: false }, { kind: "interview" });
-  const finalized = finalizeProblemOutcome(parseOutcomeFields(raw, config), snapshot);
+  const produced = parseOutcomeFields(raw, config) ?? {};
+  // Did the MODEL's own string parse, or did the engine's deterministic repair
+  // rescue it? `finalizeProblemOutcome` re-stringifies, so read this first.
+  const modelSteps = produced.processSteps;
+  let stepsRepaired = false;
+  let stepsMalformed = false;
+  if (typeof modelSteps === "string" && modelSteps.trim()) {
+    try {
+      JSON.parse(modelSteps);
+    } catch (err) {
+      const repaired = parseProcessStepsValue(modelSteps);
+      stepsRepaired = repaired !== null;
+      stepsMalformed = repaired === null;
+      console.log(`    info ${g.id} run ${run}: processSteps needed the engine repair — ${String(err).slice(0, 140)}`);
+    }
+  }
+  const finalized = finalizeProblemOutcome(produced, snapshot);
   const steps = asProcessStepResults(finalized.processSteps) ?? [];
   const failures: string[] = [];
   if (steps.length === 0) failures.push("processSteps missing or malformed");
@@ -190,7 +227,35 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
   const nonVerbatim = steps
     .filter((st) => st.status !== "missed" && st.evidenceQuote && !text.includes(norm(st.evidenceQuote).slice(0, 30)))
     .map((st) => st.key);
-  return { id: g.id, run, scores, rawRigor, nonVerbatim, steps, failures, notes: (raw as Record<string, unknown>).rubric_notes ?? null };
+  const verdicts = steps.map((st) => NOTE_PREFIX.exec(st.note ?? "")?.[1]?.toLowerCase() ?? null);
+  const prefixedNotes = verdicts.filter((v) => v !== null).length;
+  const otherVerdicts = steps
+    .map((st, i) => (verdicts[i] && verdicts[i] !== "yes" && verdicts[i] !== "no" ? `${st.key}=${verdicts[i]}` : null))
+    .filter((x): x is string => x !== null);
+  const noteSaysNo = verdicts.filter((v) => v === "no").length;
+  const prefixStatusConflicts = steps
+    .filter((st, i) => verdicts[i] === "no" && st.status !== "missed" && st.status !== "not_applicable")
+    .map((st) => `${st.key}=${st.status}`);
+  const nestedQuoteSteps = steps
+    .filter((st) => `${st.evidenceQuote ?? ""}${st.note ?? ""}`.includes('"'))
+    .map((st) => st.key);
+  return {
+    id: g.id,
+    run,
+    scores,
+    rawRigor,
+    nonVerbatim,
+    steps,
+    prefixedNotes,
+    otherVerdicts,
+    noteSaysNo,
+    prefixStatusConflicts,
+    nestedQuoteSteps,
+    stepsRepaired,
+    stepsMalformed,
+    failures,
+    notes: (raw as Record<string, unknown>).rubric_notes ?? null,
+  };
 }
 
 const ABBR: Record<string, string> = { hit: "H", prompted: "P", missed: "M", not_applicable: "-" };
@@ -201,7 +266,7 @@ async function main() {
   for (let run = 1; run <= RUNS; run++) {
     const results = await Promise.all(
       GOLDENS.map((g) =>
-        grade(g, run).catch((err) => ({ id: g.id, run, scores: {}, rawRigor: null, nonVerbatim: [], steps: [], failures: [`error: ${String(err)}`], notes: null }) as Graded),
+        grade(g, run).catch((err) => ({ id: g.id, run, scores: {}, rawRigor: null, nonVerbatim: [], steps: [], prefixedNotes: 0, otherVerdicts: [], noteSaysNo: 0, prefixStatusConflicts: [], nestedQuoteSteps: [], stepsRepaired: false, stepsMalformed: false, failures: [`error: ${String(err)}`], notes: null }) as Graded),
       ),
     );
     for (const r of results) {
@@ -209,6 +274,16 @@ async function main() {
       console.log(
         `run ${run}  ${r.id.padEnd(14)} rigor ${sc("process_rigor")} (raw ${r.rawRigor ?? "–"})  tech ${sc("technical_accuracy")}  comm ${sc("commercial_judgment")}  content ${sc("content")}  behav ${sc("behavioral")}  steps ${r.steps.map((x) => ABBR[x.status] ?? "?").join("")}${r.nonVerbatim.length ? `  [non-verbatim: ${r.nonVerbatim.join(",")}]` : ""}  ${r.failures.length ? `FAIL: ${r.failures.join("; ")}` : "PASS"}`,
       );
+      // The stored notes verbatim: defect 1's signature is a note that says
+      // "no." on a step the nudge record makes "prompted".
+      console.log(
+        `         note prefix ${r.prefixedNotes}/${r.steps.length}; says-no ${r.noteSaysNo}` +
+          `${r.otherVerdicts.length ? `; OTHER-VERDICT ${r.otherVerdicts.join(",")}` : ""}` +
+          `${r.prefixStatusConflicts.length ? `; CONFLICT note-says-no but status ${r.prefixStatusConflicts.join(",")}` : ""}` +
+          `${r.nestedQuoteSteps.length ? `; NESTED-QUOTE ${r.nestedQuoteSteps.join(",")}` : ""}` +
+          `${r.stepsRepaired ? "; REPAIRED" : ""}${r.stepsMalformed ? "; MALFORMED" : ""}`,
+      );
+      for (const st of r.steps) console.log(`         note ${st.key} [${st.status}]: ${(st.note ?? "").replace(/\s+/g, " ")}`);
     }
     all.push(...results);
   }
@@ -227,6 +302,23 @@ async function main() {
   const rawDisagree = all.filter((r) => r.rawRigor !== null && r.rawRigor !== r.scores.process_rigor).length;
   console.log(`\nModel's raw process_rigor disagreed with the derived value: ${rawDisagree}/${all.length}`);
   console.log(`Non-verbatim evidence quotes: ${all.reduce((n, r) => n + r.nonVerbatim.length, 0)}`);
+
+  // The two grading rules the shared problem addendum carries (6cc4258, fixed
+  // in f4359f6) — same counters as the case and PM studies.
+  const slots = all.reduce((n, r) => n + r.steps.length, 0);
+  const prefixed = all.reduce((n, r) => n + r.prefixedNotes, 0);
+  const saysNo = all.reduce((n, r) => n + r.noteSaysNo, 0);
+  const other = all.flatMap((r) => r.otherVerdicts.map((v) => `${r.id} run ${r.run} ${v}`));
+  const conflicts = all.flatMap((r) => r.prefixStatusConflicts.map((c) => `${r.id} run ${r.run} ${c}`));
+  const nested = all.flatMap((r) => r.nestedQuoteSteps.map((k) => `${r.id} run ${r.run} ${k}`));
+  const repaired = all.filter((r) => r.stepsRepaired).map((r) => `${r.id} run ${r.run}`);
+  const malformed = all.filter((r) => r.stepsMalformed).map((r) => `${r.id} run ${r.run}`);
+  console.log(`'Meets all criteria:' prefix present in ${prefixed}/${slots} stored step notes (${saysNo} say no)`);
+  console.log(`Prefix verdicts other than yes./no.: ${other.length}${other.length ? ` — ${other.join("; ")}` : ""}`);
+  console.log(`Notes saying no while the status is not missed: ${conflicts.length}${conflicts.length ? ` — ${conflicts.join("; ")}` : ""}`);
+  console.log(`Steps still carrying a double-quote character: ${nested.length}${nested.length ? ` — ${nested.join("; ")}` : ""}`);
+  console.log(`processSteps needing the deterministic repair: ${repaired.length}/${all.length}${repaired.length ? ` — ${repaired.join("; ")}` : ""}`);
+  console.log(`processSteps unrecoverable: ${malformed.length}/${all.length}${malformed.length ? ` — ${malformed.join("; ")}` : ""}`);
   if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify(all, null, 2));
   const failed = all.filter((r) => r.failures.length > 0);
   console.log(`\n${failed.length === 0 ? "ALL PASS" : `${failed.length} FAILING GRADE(S) of ${all.length}`}\n`);
