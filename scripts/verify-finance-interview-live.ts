@@ -23,7 +23,7 @@ import { FINANCE_INTERVIEW_SLUG } from "../lib/finance-interview/live";
 import { getFinanceFramework } from "../lib/finance-interview/frameworks";
 import { getFinanceQuestion } from "../lib/finance-interview/questions";
 import { buildProblemInterviewSystemPrompt, buildProblemProgressBlock } from "../lib/problem-interview/prompts";
-import { initialProblemState } from "../lib/problem-interview/session-state";
+import { inferUnmarkedActions, initialProblemState } from "../lib/problem-interview/session-state";
 import { parseProblemTurn } from "../lib/problem-interview/turn-control";
 
 const RUNS = Number(process.argv[process.argv.indexOf("--runs") + 1] || 1) || 1;
@@ -135,8 +135,14 @@ async function main() {
           ],
         });
         const parsed = parseProblemTurn(completion.choices[0]?.message?.content ?? "");
-        const actions = parsed.actions as Action[];
-        return { probe, spoken: parsed.content, actions, problems: probe.check(parsed.content, actions), soft: probe.observe?.(parsed.content, actions) ?? [] };
+        // Check what the SERVER would record: explicit markers plus the
+        // conservative verbatim fallback the live route also applies
+        // (`recordProblemTurn`). A dropped marker the fallback rescues is
+        // reported as an observation, not a failure.
+        const inferred = inferUnmarkedActions(parsed.content, parsed.actions, state, question, framework) as Action[];
+        const actions = [...(parsed.actions as Action[]), ...inferred];
+        const rescued = inferred.map((a) => `marker dropped, recorded by verbatim fallback: ${JSON.stringify(a)}`);
+        return { probe, spoken: parsed.content, actions, problems: probe.check(parsed.content, actions), soft: [...rescued, ...(probe.observe?.(parsed.content, actions) ?? [])] };
       }),
     );
     for (const r of results) {

@@ -56,7 +56,7 @@ export function buildProblemInterviewSystemPrompt(
 
   const factsBlock = question.interviewerFacts.length
     ? question.interviewerFacts.map((fact) => `- ${fact}`).join("\n")
-    : "- (No extra facts. If asked, invite a reasonable assumption.)";
+    : "- (No extra facts. If asked, invite them to pick a reasonable figure.)";
 
   const exhibitsBlock = exhibits.length
     ? exhibits
@@ -106,25 +106,36 @@ evaluation step, so never grade, coach or teach during the interview.`,
    questions at the end. Then ask ONE fit question (why this role, or a short
    "tell me about yourself"), grounded in the resume when there is one.
 2. Fit: at most ONE follow-up on the fit answer, then move on. Keep this stage short.
-3. Problem: pose the problem below, close to verbatim. Then let the candidate drive.
+3. Problem: pose the problem by reading its Prompt below WORD FOR WORD — do not
+   paraphrase, shorten, reorder or add to it. You may add only: "Take your time, and
+   talk me through your thinking." Pose it ONCE; never restate it later. Then let the
+   candidate drive.
    - Answer clarifying questions ONLY when asked, and only from the interviewer facts
-     below. Give a fact only when the question actually asks for it.
+     below. Give a fact only when the question actually asks for it, in one sentence,
+     and never add a second fact, a number, or a suggestion in the same reply.
    - NEVER volunteer numbers, hints, a structure, or the next step. If asked for
-     something not in your facts, say you don't have that data and invite them to make
-     a reasonable assumption and state it.
+     something not in your facts, say you don't have that data and invite them to pick
+     a reasonable figure and say what it is.
    - Reveal each exhibit only when its reveal condition is met. When you reveal one,
      say briefly that you are putting it on their screen. Never read its rows or
      numbers aloud and never interpret it for them: the table is on their screen.
    - Push for numbers and math: when they estimate, ask them to put a number on it
      and walk you through the arithmetic. If they make an arithmetic slip, ask them
      to double-check that figure — do not correct it yourself.
-   - Nudges: ask a step's neutral nudge, close to verbatim, ONLY after the
+   - Nudges: ask a step's neutral nudge EXACTLY as written below, ONLY after the
      candidate has clearly moved past that step without doing it (for example,
      they start solving or give an answer without it), and at most ONCE per step.
      NEVER nudge while the candidate is thinking, structuring, or asks for time
      ("give me a second", "let me structure this", a pause, a partial thought):
      give them the time ("Take your time.") and wait. A nudge is a question,
-     never a hint: never name the step, the method, or the answer.
+     never a hint: never name the step, the method, or the answer. Never write
+     your own nudge: if you are asking anything that redirects them to a skipped
+     step, use that step's exact nudge text and its nudge marker.
+   - Never coach or reassure about method. Do NOT say things like "approach it
+     however feels natural", "interpret it however you like", "there's no right
+     answer", "I'll let you drive the structure", "feel free to structure it any
+     way", or "you might want to consider". When the candidate asks how to proceed,
+     say only: "It's your call." When they ask for time, say only: "Take your time."
    - If time is running short, or they have finished the analysis, ask for their
      final recommendation or summary if they have not given one.
 4. Candidate questions: ask whether they have questions for you; answer briefly
@@ -154,7 +165,11 @@ ${stepsBlock}`,
 - Ask at most ONE candidate-facing question in each reply.
 - You may acknowledge an answer in one short declarative sentence first. Do not
   restate, summarize, or praise the candidate's answer.
-- Keep your turns short — 1 to 3 sentences — so the candidate does the work.`,
+- Keep your turns short — 1 to 3 sentences — so the candidate does the work.
+- Never use these words when probing or nudging: "clarify", "clarifying", "step",
+  "assumption", "assumptions", "framework", "structure", "segment", "prioritize",
+  "hypothesis", "MECE".
+  They name the method. (Posing the problem may still invite questions.)`,
 
     `## STAYING IN CHARACTER
 - Maintain the persona and tone described above throughout.
@@ -280,31 +295,55 @@ export function buildProblemProgressBlock(
     );
   }
 
-  // Restate the expected stage marker every turn — markers are stripped from
-  // history, so this is the only in-context reminder the model gets.
+  if ((state.stage === "opening" || state.stage === "fit") && !state.promptPosed) {
+    // Restated here because a paraphrased problem was the most common live
+    // flake: the model "summarized" the prompt from the system message.
+    lines.push(
+      `When you pose the problem, read this word for word, once, then stop: "${question.prompt}"`,
+    );
+  }
+  if (state.stage === "problem" && nudgeable.length) {
+    // The exact nudge texts, every turn: a nudge the model writes itself names
+    // the step or drops its marker (the live probes' most frequent failure).
+    lines.push(
+      `Nudges — ONLY if the candidate has clearly moved past that step without doing it (never while they are thinking). ` +
+        `Use the exact words and the marker; never write your own nudge, never name the step:`,
+      ...nudgeable.map(
+        (step) => `- "${step.nudge}" → <interview-turn kind="nudge" step="${step.key}" />`,
+      ),
+      `Otherwise do not redirect them at all. No coaching ("however feels natural", "no right answer", "let you drive"); ` +
+        `if asked how to proceed say "It's your call." Never volunteer a fact, number or hint they did not ask for. Never restate the problem.`,
+    );
+  }
+
+  // Markers LAST — markers are stripped from history, so this is the only
+  // in-context reminder the model gets, and a reminder buried above the
+  // nudge list was dropped whole (no stage marker either) in live probes.
   const marker =
     state.stage === "opening"
       ? `<interview-turn kind="planned" /> (you are asking the fit question)`
       : state.stage === "closing" || remaining <= 1
         ? `<interview-turn kind="closing" /> when you close`
         : `<interview-turn kind="planned" /> if you move to the next stage, otherwise <interview-turn kind="follow_up" />`;
-  lines.push(`Stage marker for this turn: ${marker}.`);
+  lines.push(
+    `MARKERS — REQUIRED on their own lines at the very end of EVERY reply, never spoken:`,
+    `- Stage marker for this turn: ${marker}.`,
+  );
   if (state.stage === "fit" || state.stage === "opening") {
     lines.push(
-      `If this reply poses the problem, its stage marker MUST be <interview-turn kind="planned" />.`,
+      `- If this reply poses the problem, its stage marker MUST be <interview-turn kind="planned" />.`,
     );
   }
   if (pending.length) {
     lines.push(
-      `If this reply hands over an exhibit, it MUST also carry ${pending
+      `- If this reply hands over an exhibit (or says it is putting one on their screen), it MUST also carry ${pending
         .map((exhibit) => `<interview-turn kind="exhibit" exhibit="${exhibit.id}" />`)
         .join(" or ")} — without it nothing appears on their screen.`,
     );
   }
   if (state.stage === "problem" && nudgeable.length) {
     lines.push(
-      `If this reply asks a step's nudge, it MUST also carry <interview-turn kind="nudge" step="STEP_KEY" />. ` +
-        `Never nudge a candidate who is still thinking or asked for time.`,
+      `- If this reply asks any nudge above, it MUST also carry that nudge's marker.`,
     );
   }
 
@@ -355,8 +394,13 @@ For EACH step, find the evidence first, then decide — answer two questions in 
      criteria? If not, the step is "missed" (or "not_applicable", below) — even if
      the interviewer nudged it. A nudge alone never makes a step "prompted", and a
      one-line reply to a nudge that does not meet the criteria is "missed".
-  2. Only if it does: was the step nudged (interviewer_events) BEFORE that
-     evidence? Then "prompted"; otherwise "hit".
+  2. Only if it does: compare the evidence's timecode with the step's nudge in
+     interviewer_events. Nudge BEFORE the evidence → "prompted". Evidence before
+     the nudge, or no nudge for that step → "hit". A nudge that came after the
+     candidate had already done the step does not take the hit away.
+- A generic non-answer never meets the criteria, before or after a nudge: "for
+  everyone", "all users", "it depends", "those features together", restating the
+  prompt, or repeating an earlier answer. Grade it "missed".
 - Before crediting any step that involves math or estimation, re-check the
   candidate's arithmetic yourself. A material arithmetic error the candidate did
   not catch means the criteria are not fully met.
@@ -367,8 +411,9 @@ For EACH step, find the evidence first, then decide — answer two questions in 
   - not_applicable: the session ended before the step could be reached through no
     fault of the candidate's process (for example, the interview ran out of time).
     Never use it to excuse a skipped step.
-- interviewer_events is GROUND TRUTH. A step the server recorded as nudged can
-  never be "hit": it is "prompted" if the candidate then did it, otherwise "missed".
+- interviewer_events is GROUND TRUTH for what was nudged and when. Evidence at or
+  after a step's nudge can never be "hit": it is "prompted" if it fully meets the
+  criteria, otherwise "missed". Evidence that came before the nudge keeps "hit".
   An exhibit recorded as revealed was on the candidate's screen from that time on.
 - The reference notes are a reference, not an answer key: a well-reasoned different
   conclusion can still score well on content. Judge the reasoning and the math.
@@ -438,7 +483,7 @@ export function buildProblemEvaluatorBrief({
     ? events.map((event) => {
         const at = `[${formatClock(event.atSeconds)}]`;
         if (event.kind === "nudge") {
-          return `- ${at} the interviewer nudged step "${event.step}" — that step cannot be "hit".`;
+          return `- ${at} the interviewer nudged step "${event.step}" — evidence for it from ${at} on is at best "prompted"; evidence before ${at} can still be "hit".`;
         }
         if (event.kind === "exhibit") {
           return `- ${at} the interviewer revealed exhibit "${event.exhibitId}" on screen.`;
