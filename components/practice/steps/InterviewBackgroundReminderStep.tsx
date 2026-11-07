@@ -8,7 +8,8 @@
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
 import { Button } from "@heroui/button";
-import { ArrowRight, BriefcaseBusiness, Image, UserRound } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, Image, Lightbulb, UserRound } from "lucide-react";
+import type { ProblemInterviewBriefing } from "@/lib/engine/types";
 
 export interface InterviewBackgroundReminderStepProps {
   nav: SetupStepNav;
@@ -16,6 +17,12 @@ export interface InterviewBackgroundReminderStepProps {
   industry: string;
   interviewerName: string;
   hasResume: boolean;
+  /**
+   * Problem interviews only: what kind of interview this is. Never lists the
+   * graded framework's steps — knowing them would turn the process grade
+   * into a recitation check.
+   */
+  problemBriefing?: ProblemInterviewBriefing | null;
 }
 
 export default function InterviewBackgroundReminderStep({
@@ -24,6 +31,7 @@ export default function InterviewBackgroundReminderStep({
   industry,
   interviewerName,
   hasResume,
+  problemBriefing = null,
 }: InterviewBackgroundReminderStepProps) {
   return (
     <section
@@ -73,6 +81,26 @@ export default function InterviewBackgroundReminderStep({
             </p>
           </div>
         </dl>
+
+        {problemBriefing ? (
+          <aside
+            className="mt-5 flex gap-3 rounded-xl border border-line bg-canvas px-4 py-3 text-sm leading-6 text-ink"
+            aria-labelledby="problem-interview-briefing"
+            data-testid="problem-briefing"
+          >
+            <Lightbulb className="mt-0.5 shrink-0 text-link" size={18} aria-hidden="true" />
+            <div>
+              <h3 id="problem-interview-briefing" className="font-semibold text-ink">
+                {problemBriefing.headline}
+              </h3>
+              <ul className="mt-1 list-disc pl-5">
+                {problemBriefing.points.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            </div>
+          </aside>
+        ) : null}
 
         <p className="mt-5 rounded-xl bg-level-4/10 px-4 py-3 text-sm leading-6 text-level-4">
           {hasResume

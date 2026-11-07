@@ -14,6 +14,10 @@ import type { ResolvedSessionConfig } from "./types";
 
 import { parseDisengagementCue, type DisengagementCue } from "./disengagement";
 import { parseTerminationMarker, resolveTermination } from "./termination";
+import { getEngineType } from "./registry";
+
+import { parseProblemTurn } from "@/lib/problem-interview/turn-control";
+import type { ProblemTurnAction } from "@/lib/problem-interview/session-state";
 
 import {
   isInterviewIntegrityRequest,
@@ -59,6 +63,12 @@ export interface ParsedEngineTurn {
   termination: { reason: string } | null;
   /** Parsed model self-report; never independently accepts an avatar end. */
   disengagementCue: DisengagementCue | null;
+  /**
+   * Problem interviews only: every parsed controller action (stage, nudge,
+   * exhibit). The chat route reduces these into the server-owned state; the
+   * client only needs `cleanedText`. Absent for every other type.
+   */
+  problemActions?: ProblemTurnAction[];
 }
 
 /**
@@ -95,6 +105,22 @@ export function parseEngineTurn(
     if (resolved.ok) {
       termination = { reason: resolved.recordedReason };
     }
+  }
+
+  // Problem interviews: their own grammar (several markers per reply, nudge
+  // and exhibit kinds). Progress is server-owned for them, so none is reduced
+  // here — `progress` stays null and the client keeps its untouched value.
+  if (getEngineType(config.typeSlug)?.problemInterview) {
+    const parsed = parseProblemTurn(afterTermination);
+    return {
+      cleanedText: parsed.content,
+      progress: null,
+      action: null,
+      malformed: parsed.malformed,
+      termination,
+      disengagementCue,
+      problemActions: parsed.actions,
+    };
   }
 
   const interviewBase = getInterviewType(config.typeSlug);

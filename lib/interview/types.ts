@@ -14,6 +14,11 @@
  * or Postgres later touches exactly one function.
  */
 
+import {
+  PROBLEM_FIXTURE_BASE,
+  PROBLEM_FIXTURE_ENABLED,
+} from "@/lib/problem-interview/fixtures/type";
+
 export type InterviewDifficulty = "Beginner" | "Intermediate" | "Advanced";
 
 export interface InterviewType {
@@ -152,10 +157,21 @@ export const INTERVIEW_TYPES: Record<string, InterviewType> = {
 
 export const DEFAULT_INTERVIEW_TYPE = GENERAL_INTERVIEW;
 
+/**
+ * Resolvable by slug but never listed: the problem-interview engine's test
+ * fixture, outside production builds only (see
+ * `lib/problem-interview/fixtures/type.ts`). Kept out of `INTERVIEW_TYPES` so
+ * the launcher and every script that iterates the presets never see it.
+ */
+const HIDDEN_INTERVIEW_TYPES: Record<string, InterviewType> = PROBLEM_FIXTURE_ENABLED
+  ? { [PROBLEM_FIXTURE_BASE.slug]: PROBLEM_FIXTURE_BASE }
+  : {};
+
 /** Resolve a slug from a URL segment or request body. Returns null on unknown. */
 export function getInterviewType(slug: string | undefined | null): InterviewType | null {
   if (!slug) return null;
-  return INTERVIEW_TYPES[slug.trim().toLowerCase()] ?? null;
+  const key = slug.trim().toLowerCase();
+  return INTERVIEW_TYPES[key] ?? HIDDEN_INTERVIEW_TYPES[key] ?? null;
 }
 
 /** For the launcher listing. */

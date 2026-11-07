@@ -42,6 +42,12 @@ import { PITCH_FUNDING_TYPE } from "../pitch/funding-type";
 import { PITCH_PRODUCT_TYPE } from "../pitch/product-type";
 import { PITCH_TALK_TYPE } from "../pitch/talk-type";
 import { PITCH_GENERAL_TYPE } from "../pitch/general-deck-type";
+import { makeProblemInterviewTypeConfig } from "../problem-interview/type-config";
+import {
+  PROBLEM_FIXTURE_BASE,
+  PROBLEM_FIXTURE_ENABLED,
+  PROBLEM_FIXTURE_FRAMEWORK,
+} from "../problem-interview/fixtures/type";
 import { DIFFICULT_CONVERSATION_TYPE } from "../difficult-conversation/conversation-type";
 import {
   buildTechnicalCodingSystemPrompt,
@@ -414,6 +420,16 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
 
 const ENGINE_TYPES_BY_SLUG: Record<string, InteractionTypeConfig> =
   Object.fromEntries(ENGINE_TYPES.map((type) => [type.slug, type]));
+
+// The problem-interview test fixture: resolvable by slug outside production
+// builds, never in `ENGINE_TYPES` (so no listing, coverage script or launcher
+// sees it). See lib/problem-interview/fixtures/type.ts.
+if (PROBLEM_FIXTURE_ENABLED) {
+  ENGINE_TYPES_BY_SLUG[PROBLEM_FIXTURE_BASE.slug] = makeProblemInterviewTypeConfig({
+    base: PROBLEM_FIXTURE_BASE,
+    frameworks: [PROBLEM_FIXTURE_FRAMEWORK],
+  });
+}
 
 /** Resolve a slug into its built-in TYPE record. Returns null on unknown. */
 export function getEngineType(
