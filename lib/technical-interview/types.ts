@@ -129,6 +129,23 @@ export interface TechnicalCodingInputSnapshot {
     topics: readonly TechnicalTopic[];
     difficulty: TechnicalDifficulty | null;
   };
+  /**
+   * The setup-wizard inputs, all OPTIONAL and deliberately NOT added to
+   * `TECHNICAL_CODING_INPUT_KEYS` in `lib/report/snapshot.ts`. That array
+   * feeds `hasAllKeys`, which requires every listed key to be present on the
+   * raw JSON — adding these would make every coding report written before the
+   * wizard existed fail to narrow, silently breaking its report page and
+   * evaluation. Do not "tidy" them into that list.
+   *
+   * `jobDescriptionText` is interviewer context only: the live prompt reads
+   * it, the evaluator must not.
+   */
+  interviewerAvatarId?: string | null;
+  interviewerName?: string | null;
+  resumeId?: string | null;
+  resumeText?: string | null;
+  jobDescriptionId?: string | null;
+  jobDescriptionText?: string | null;
 }
 
 export function toPublicTechnicalAssignment(

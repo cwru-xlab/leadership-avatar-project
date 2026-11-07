@@ -517,8 +517,39 @@ export async function startSession({
       return { ok: false, status: 500, error: "Technical practice is unavailable." };
     }
     const selected = selection.assignment;
+    // Same validation shape the interview branch below uses: a server-issued
+    // UUID or null (a pasted posting legitimately has no id), and a truncated
+    // string. The posting is interviewer context only — it is snapshotted so
+    // the chat route can re-read it per turn, and is NOT part of the
+    // evaluation context the coding evaluator builds.
+    const resumeId =
+      typeof rawResumeId === "string" && UUID_V4_REGEX.test(rawResumeId) ? rawResumeId : null;
+    const resumeText =
+      typeof rawResumeText === "string" ? truncate(rawResumeText, MAX_RESUME_TEXT_LENGTH) : null;
+    const jobDescriptionId =
+      typeof rawJobDescriptionId === "string" && UUID_V4_REGEX.test(rawJobDescriptionId)
+        ? rawJobDescriptionId
+        : null;
+    const jobDescriptionText =
+      typeof rawJobDescriptionText === "string"
+        ? truncate(rawJobDescriptionText, MAX_RESUME_TEXT_LENGTH)
+        : null;
     const inputSnapshot: TechnicalCodingInputSnapshot = {
       kind: "technical-coding",
+      // The coding page used to drop these on the floor, so the room showed a
+      // generic interviewer and the prompt had no candidate background.
+      interviewerAvatarId:
+        typeof rawInterviewerAvatarId === "string"
+          ? truncate(rawInterviewerAvatarId, MAX_NAME_LENGTH)
+          : null,
+      interviewerName:
+        typeof rawInterviewerName === "string"
+          ? truncate(rawInterviewerName, MAX_NAME_LENGTH)
+          : null,
+      resumeId,
+      resumeText,
+      jobDescriptionId,
+      jobDescriptionText,
       assignmentId: selected.id,
       assignmentVersion: selected.version,
       assignmentHash: selected.contentHash,
