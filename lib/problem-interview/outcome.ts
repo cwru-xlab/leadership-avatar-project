@@ -303,8 +303,14 @@ export interface ProcessStepView {
  * which is what the grading studies and any later audit read.
  */
 export function stripStepNoteGradingPrefix(note: string): string {
+  // The verdict token is deliberately ANY single word, not just yes|no. The
+  // 2026-11-07 finance/analytics study measured 2 notes in 128 opening with an
+  // invented third value ("Meets all criteria: prompted."), which a yes|no
+  // pattern leaves in place — so the grader's voice reached the student on
+  // exactly the steps the rule was least sure about. Anchoring on the literal
+  // phrase keeps this safe: only the one word that follows it is dropped.
   return note
-    .replace(/^\s*meets all criteria\s*[:—–-]?\s*(yes|no)\b\s*[.!,;:—–-]?\s*/i, "")
+    .replace(/^\s*meets all criteria\s*[:—–-]?\s*([a-z][a-z/_]*)\b\s*[.!,;:—–-]?\s*/i, "")
     .trim();
 }
 

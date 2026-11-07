@@ -301,12 +301,33 @@ async function main() {
     const sdEvaluator = getEngineType("system-design")!.prompts.evaluatorPrompt;
     const count = (text: string, pattern: RegExp) => (text.match(pattern) ?? []).length;
     const PREFIX_RULE = /STARTS with "Meets all criteria: yes\." or "Meets all criteria: no\."/g;
-    const QUOTE_RULE = /never use the double-quote/g;
+    const QUOTE_RULE = /no double-quote character may appear INSIDE a value/g;
 
     check("shared rules state the mechanical note prefix", count(shared, PREFIX_RULE) === 1);
     check("shared rules make a 'no' verdict missed, nudge or not", /"No" means the step is "missed"/.test(shared));
     check("shared rules require the status to agree with the note", /status must agree with the note/.test(shared));
     check("shared rules ban nested double quotes in processSteps", count(shared, QUOTE_RULE) === 1);
+    // The 2026-11-07 finance study lost `lbo-nudged` because "only after" sat in
+    // the shortfall list that mandates "missed", while "prompted" is DEFINED as
+    // meeting the criteria only after a nudge: a legitimately prompted step had
+    // no truthful prefix. Timing must stay out of question 1.
+    check(
+      "shared rules do not treat 'only after' as a shortfall",
+      !/"only after"/.test(shared) && /Timing alone is NOT a\s+shortfall/.test(shared),
+    );
+    // 3 of 162 notes in the same study opened "Meets all criteria: prompted.",
+    // an invented third verdict the render-time strip could not remove.
+    check(
+      "shared rules permit only the yes./no. openings",
+      /ONLY permitted openings/.test(shared) && /not "prompted", not "partial"/.test(shared),
+    );
+    // 9/21 PM and 4/27 case raw strings failed strict JSON.parse because the
+    // model delimited VALUES with single quotes; the repair then dropped every
+    // evidenceQuote in 2 case grades.
+    check(
+      "shared rules require double-quote delimiters inside processSteps",
+      /delimited by the DOUBLE-quote character/.test(shared),
+    );
     check("shared rules no longer show an escaped empty quote as the example", !shared.includes('\\"\\"'));
     check("shared rules say the outcome is written before the scores", /comes FIRST in the JSON you return/.test(shared));
 
