@@ -114,7 +114,10 @@ export interface Competency {
  *    narrative/structural landing rather than delivery or pressure-handling.
  *    The problem interviews' `process_rigor` (working a problem in an order
  *    that builds) and `synthesis` (consulting: landing a top-down answer)
- *    are the same judgment applied to a case or product problem.
+ *    are the same judgment applied to a case or product problem. The coding
+ *    room's `coding_quality` (readable, well-organized code) and
+ *    `technical_communication` (explaining the approach in order) judge the
+ *    same landing for a solution.
  * 3. concision_and_focus — saying it tightly: `concision` (elevator) and
  *    `deck_text_density` (deck family) are both a density/economy judgment,
  *    one spoken and one written.
@@ -136,7 +139,10 @@ export interface Competency {
  *    artifact itself is credible and in sync with the spoken case.
  *    Consulting `quantitative` (sound math, sanity-checked numbers) and PM
  *    `analytical_judgment` (metrics, numbers, honest tradeoffs) judge whether
- *    the analysis behind a recommendation holds up.
+ *    the analysis behind a recommendation holds up, as do analytics
+ *    `statistical_reasoning` / `business_judgment`, finance
+ *    `technical_accuracy` / `commercial_judgment`, and the coding room's
+ *    `coding_correctness` (does the solution actually work).
  * 7. outcome_achievement — whether the student got what they came for:
  *    `objective_achieved` (difficult conversation) and `goal-progress`
  *    (networking) are both an explicit "did the approach move the stated
@@ -162,6 +168,8 @@ export const COMPETENCIES: readonly Competency[] = [
       "audience_takeaway_clarity",
       "process_rigor",
       "synthesis",
+      "coding_quality",
+      "technical_communication",
     ],
     order: 2,
   },
@@ -204,6 +212,11 @@ export const COMPETENCIES: readonly Competency[] = [
       "slide_speech_correlation",
       "quantitative",
       "analytical_judgment",
+      "statistical_reasoning",
+      "business_judgment",
+      "technical_accuracy",
+      "commercial_judgment",
+      "coding_correctness",
     ],
     order: 6,
   },
