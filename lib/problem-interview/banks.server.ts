@@ -16,8 +16,13 @@ import type { ProblemQuestion, ProcessFramework } from "./types";
 import { getFactoryBank } from "./bank-registry";
 import { PROBLEM_FIXTURE_BANK } from "./fixtures/bank";
 import { PROBLEM_FIXTURE_ENABLED, PROBLEM_FIXTURE_SLUG } from "./fixtures/type";
+import { CASE_BANK } from "@/lib/case-interview/cases";
+import { PM_QUESTION_BANK } from "@/lib/pm-interview/questions";
+import { PM_INTERVIEW_SLUG } from "@/lib/pm-interview/prompts";
 
 const PROBLEM_BANKS: Record<string, readonly ProblemQuestion[]> = {
+  consulting: CASE_BANK,
+  [PM_INTERVIEW_SLUG]: PM_QUESTION_BANK,
   ...(PROBLEM_FIXTURE_ENABLED ? { [PROBLEM_FIXTURE_SLUG]: PROBLEM_FIXTURE_BANK } : {}),
 };
 

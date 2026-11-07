@@ -1,21 +1,12 @@
 /**
- * The upgraded `consulting` preset's input to the problem-interview type
- * factory, in the signature of `makeProblemInterviewTypeConfig` on branch
- * loop/problem-engine (commit c3365be):
- *   { base, frameworks, evaluatorAddendum?, rubricExtras?, briefing? }
+ * The `consulting` preset's input to `makeProblemInterviewTypeConfig`
+ * ({ base, frameworks, evaluatorAddendum?, rubricExtras?, briefing? }),
+ * registered in lib/engine/registry.ts.
  *
- * TODO(integrator): the factory is not on this branch. After merging
- * loop/problem-engine:
- *   1. lib/engine/registry.ts — replace
- *        const CONSULTING = makeInterviewTypeConfig(getInterviewType("consulting")!);
- *      with
- *        const CONSULTING = makeProblemInterviewTypeConfig(CONSULTING_PROBLEM_INTERVIEW_INPUT);
- *      (slug stays "consulting"; old reports keep resolving).
- *   2. lib/problem-interview/banks.server.ts — add
- *        consulting: CASE_BANK   (import from "@/lib/case-interview/cases")
- *      to PROBLEM_BANKS. The bank is SERVER-ONLY: never import
- *      lib/case-interview/cases.ts from this file or anything the registry
- *      imports, or interviewer facts and benchmark answers reach the browser.
+ * The bank (`CASE_BANK` in ./cases.ts) is SERVER-ONLY and registered in
+ * lib/problem-interview/banks.server.ts. Never import ./cases.ts from this
+ * file or anything the registry imports, or interviewer facts and benchmark
+ * answers reach the browser.
  *
  * This module is safe for the registry to import: frameworks, the addendum,
  * the extras and the briefing are all meant to be public.

@@ -5,10 +5,9 @@
  * without naming it, hands over an exhibit only when a breakdown is asked
  * for, and refuses to coach.
  *
- * TODO(problem-engine): this drives the INTERIM live prompt in
- * lib/pm-interview/interim-config.ts. Once the engine's builder lands, swap
- * `buildProblemLivePrompt` for the engine's assembled system prompt — the
- * probes and assertions are the data the builder must satisfy.
+ * Drives the engine's real live prompt, assembled the way the chat route
+ * does: the registry type's `liveSystemPrompt` (system) plus
+ * `buildProblemProgressBlock` appended to the latest candidate message.
  *
  * Run: npx tsx scripts/verify-pm-interview-live-prompt.ts
  */
@@ -18,9 +17,13 @@ import { config as loadEnv } from "dotenv";
 loadEnv({ path: ".env.local" });
 loadEnv();
 
-import { buildProblemLivePrompt } from "../lib/pm-interview/interim-config";
-import { PM_TYPE_INPUT } from "../lib/pm-interview/type";
+import { getEngineType } from "../lib/engine/registry";
+import { resolveFromTypeConfig } from "../lib/engine/resolve";
+import { getPmFramework } from "../lib/pm-interview/frameworks";
+import { PM_INTERVIEW_SLUG } from "../lib/pm-interview/prompts";
 import { getPmQuestion } from "../lib/pm-interview/questions";
+import { buildProblemProgressBlock } from "../lib/problem-interview/prompts";
+import type { ProblemInterviewState } from "../lib/problem-interview/session-state";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -36,15 +39,44 @@ function check(name: string, pass: boolean, detail?: string) {
 /** Words a neutral interviewer must never say while nudging or replying. */
 const COACHING = /\b(circles?|framework|identify the customer|user segments?|prioriti[sz]e|great structure|good structure|you should|try to|remember to)\b/i;
 
-async function reply(questionId: string, history: Msg[]): Promise<string> {
+const PM_TYPE = getEngineType(PM_INTERVIEW_SLUG)!;
+
+/**
+ * `stage` is the server's stage for the turn being answered: the fit probe
+ * runs in "fit" (follow-up unused, then used); every other probe is mid-problem.
+ */
+async function reply(
+  questionId: string,
+  history: Msg[],
+  opts: { stage?: ProblemInterviewState["stage"]; fitFollowUpsUsed?: number; revealed?: string[] } = {},
+): Promise<string> {
   const question = getPmQuestion(questionId)!;
+  const framework = getPmFramework(question.frameworkKey)!;
+  const resolved = resolveFromTypeConfig(PM_TYPE, {});
+  if (!resolved.ok) throw new Error(resolved.reason);
+  const system = PM_TYPE.prompts.liveSystemPrompt(resolved.config, { problem: { question, framework } });
+  const stage = opts.stage ?? "problem";
+  const state: ProblemInterviewState = {
+    stage,
+    fitFollowUpsUsed: opts.fitFollowUpsUsed ?? 1,
+    promptPosed: stage !== "opening" && stage !== "fit",
+    revealedExhibits: opts.revealed ?? [],
+    nudgedSteps: [],
+  };
+  const progress = buildProblemProgressBlock(
+    state,
+    { elapsedMinutes: stage === "fit" ? 3 : 8, targetMinutes: PM_TYPE.limits.targetMinutes ?? 30 },
+    question,
+    framework,
+  );
+  const last = history.length - 1;
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 60_000 });
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1",
     messages: [
-      { role: "system", content: buildProblemLivePrompt(PM_TYPE_INPUT, question) },
-      ...history,
+      { role: "system", content: system },
+      ...history.map((m, i) => (i === last ? { ...m, content: `${m.content}\n\n${progress}` } : m)),
     ],
     max_tokens: 400,
   });
@@ -60,14 +92,14 @@ const FIT: Msg[] = [
 async function probePosesPrompt() {
   console.log("\n  1. Poses the abstract prompt without adding hints");
   // The fit stage allows one follow-up; answer it if asked, then expect the problem.
-  let text = await reply("pm-design-alarm-clock-deaf", FIT);
+  let text = await reply("pm-design-alarm-clock-deaf", FIT, { stage: "fit", fitFollowUpsUsed: 0 });
   if (!/alarm clock/i.test(text)) {
     console.log(`    (fit follow-up: ${text.replace(/\n/g, " ").slice(0, 160)})`);
     text = await reply("pm-design-alarm-clock-deaf", [
       ...FIT,
       { role: "assistant", content: text },
       { role: "user", content: "Probably Google Maps — it quietly solves a hard problem for billions of people every day." },
-    ]);
+    ], { stage: "fit", fitFollowUpsUsed: 1 });
   }
   console.log(`    reply: ${text.replace(/\n/g, " ").slice(0, 240)}`);
   check("contains the prompt", /alarm clock for the deaf/i.test(text));
@@ -144,7 +176,7 @@ async function main() {
     console.error("OPENAI_API_KEY is required");
     process.exit(2);
   }
-  console.log("PM interview live-prompt sanity (interim prompt, gpt-4.1)");
+  console.log("PM interview live-prompt sanity (engine prompt, gpt-4.1)");
   await probePosesPrompt();
   await probeNudge();
   await probeExhibit();

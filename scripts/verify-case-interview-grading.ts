@@ -12,13 +12,11 @@
  *   nudged → nudged steps marked prompted, never hit
  * Quantitative is graded against each case's TOLERANCE band, not exact match.
  *
- * ENGINE MODE (preferred): when lib/problem-interview/type-config.ts exists
- * (after merging loop/problem-engine), the type config is the REAL
- * `makeProblemInterviewTypeConfig(CONSULTING_PROBLEM_INTERVIEW_INPUT)` (or the
- * registry's record, if already registered), the brief is the REAL
- * `buildProblemEvaluatorBrief` with the nudges as server events, and scores
- * go through the type's real `postProcessScores`.
- * MIRROR MODE (fallback): scripts/fixtures/case-interview/factory-mirror.ts.
+ * The type config is the registry's real `consulting` record (built by
+ * `makeProblemInterviewTypeConfig`), the brief is the real
+ * `buildProblemEvaluatorBrief` with the nudges as server events, and the
+ * outcome/score pass is the evaluation runner's: `finalizeProblemOutcome`
+ * (nudged steps can never stay hit) then `deriveProcessRigorScore`.
  *
  * Run:  npx tsx --env-file=.env.local scripts/verify-case-interview-grading.ts [--runs 3] [--only airline-strong,retail-nudged] [--json out.json]
  * Exits 1 when any expectation fails in any run.
@@ -27,7 +25,6 @@
 import { writeFileSync } from "node:fs";
 
 import { getCase } from "../lib/case-interview/cases";
-import { CONSULTING_PROBLEM_INTERVIEW_INPUT } from "../lib/case-interview/registration";
 import { getEngineType } from "../lib/engine/registry";
 import type { InteractionTypeConfig } from "../lib/engine/types";
 import { getCaseFramework } from "../lib/case-interview/frameworks";
@@ -37,15 +34,12 @@ import { buildRubricJsonSchema, parseOutcomeFields } from "../lib/engine/rubric"
 import { formatTranscriptForEvaluator, type InterviewTranscript } from "../lib/interview/transcript";
 import { initialProgress } from "../lib/interview/types";
 import { REPORT_SPELLING_RULE } from "../lib/report/structured";
-import type { ProcessStepResult } from "../lib/problem-interview/types";
+import { deriveProcessRigorScore, type ProcessStepResult } from "../lib/problem-interview/types";
+import { buildProblemEvaluatorBrief } from "../lib/problem-interview/prompts";
+import { finalizeProblemOutcome } from "../lib/problem-interview/outcome";
+import { buildProblemSessionSnapshot } from "../lib/problem-interview/session-state";
 
 import { AIRLINE_GOLDENS } from "./fixtures/case-interview/airline";
-import {
-  capProcessRigor,
-  mirrorConsultingTypeConfig,
-  mirrorEvaluatorBrief,
-  processRigorCeiling,
-} from "./fixtures/case-interview/factory-mirror";
 import { HAIRGEL_GOLDENS } from "./fixtures/case-interview/hair-gel";
 import { RETAIL_GOLDENS } from "./fixtures/case-interview/retail";
 import type { GoldenTranscript } from "./fixtures/case-interview/types";
@@ -64,42 +58,9 @@ const GOLDENS: GoldenTranscript[] = [...AIRLINE_GOLDENS, ...RETAIL_GOLDENS, ...H
   (g) => !ONLY || ONLY.includes(g.id),
 );
 
-/** Loaded by path so this file type-checks on a branch without the engine. */
-async function tryImport<T>(path: string): Promise<T | null> {
-  try {
-    return (await import(path)) as T;
-  } catch {
-    return null;
-  }
-}
-
-type BriefFn = (input: {
-  questionId: string;
-  frameworkKey: string;
-  question: unknown;
-  publicTitle: string;
-  publicPrompt: string;
-  framework: unknown;
-  events: unknown[];
-}) => string;
-
-let MODE: "engine" | "mirror" = "mirror";
-let typeConfig: InteractionTypeConfig = mirrorConsultingTypeConfig();
-let engineBrief: BriefFn | null = null;
-
-async function loadEngine() {
-  const factory = await tryImport<{ makeProblemInterviewTypeConfig: (i: unknown) => InteractionTypeConfig }>(
-    "../lib/problem-interview/type-config",
-  );
-  const prompts = await tryImport<{ buildProblemEvaluatorBrief: BriefFn }>("../lib/problem-interview/prompts");
-  if (!factory || !prompts) return;
-  MODE = "engine";
-  const registered = getEngineType("consulting") as (InteractionTypeConfig & { problemInterview?: unknown }) | null;
-  typeConfig = registered?.problemInterview
-    ? registered
-    : factory.makeProblemInterviewTypeConfig(CONSULTING_PROBLEM_INTERVIEW_INPUT);
-  engineBrief = prompts.buildProblemEvaluatorBrief;
-}
+const MODE = "engine";
+const typeConfig = getEngineType("consulting") as InteractionTypeConfig;
+if (!typeConfig?.problemInterview) throw new Error("consulting is not registered as a problem interview");
 
 let config: ReturnType<typeof resolveConfig>;
 let schema: ReturnType<typeof buildRubricJsonSchema>;
@@ -114,24 +75,28 @@ function resolveConfig() {
 function briefFor(g: GoldenTranscript): string {
   const q = getCase(g.caseId)!;
   const fw = getCaseFramework(q.frameworkKey)!;
-  if (engineBrief) {
-    return engineBrief({
-      questionId: q.id,
-      frameworkKey: fw.key,
-      question: q,
-      publicTitle: q.title,
-      publicPrompt: q.prompt,
-      framework: fw,
-      events: g.nudgesIssued.map((n, i) => ({ kind: "nudge", step: n.stepKey, atSeconds: n.atSeconds, turnIndex: i })),
-    });
-  }
-  return mirrorEvaluatorBrief(q, fw, g.nudgesIssued);
+  return buildProblemEvaluatorBrief({
+    questionId: q.id,
+    frameworkKey: fw.key,
+    question: q,
+    publicTitle: q.title,
+    publicPrompt: q.prompt,
+    framework: fw,
+    events: g.nudgesIssued.map((n, i) => ({ kind: "nudge", step: n.stepKey, atSeconds: n.atSeconds, turnIndex: i })),
+  });
 }
 
-function postProcess(scores: Record<string, number | null>, outcome: Record<string, unknown> | null) {
-  return typeConfig.postProcessScores
-    ? typeConfig.postProcessScores(scores, { terminationReason: null, outcome })
-    : capProcessRigor(scores, outcome);
+/** The evaluation runner's pass: reconcile steps with the nudge record, then derive process_rigor. */
+function finalize(g: GoldenTranscript, outcome: Record<string, unknown>) {
+  const q = getCase(g.caseId)!;
+  const snapshot = buildProblemSessionSnapshot(q, getCaseFramework(q.frameworkKey)!, new Date(0).toISOString());
+  snapshot.events = g.nudgesIssued.map((n, i) => ({ kind: "nudge" as const, step: n.stepKey, atSeconds: n.atSeconds, turnIndex: i }));
+  return finalizeProblemOutcome(outcome, snapshot);
+}
+
+function postProcess(scores: Record<string, number | null>, steps: ProcessStepResult[]) {
+  const derived = deriveProcessRigorScore(steps);
+  return derived === null ? scores : { ...scores, process_rigor: derived };
 }
 
 function transcriptText(g: GoldenTranscript): string {
@@ -198,7 +163,7 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
   });
   const raw = JSON.parse(completion.choices[0]!.message.content!) as unknown;
   const validated = validateEvaluationResult(raw, config, { hasVisualMetrics: false, hasVocalMetrics: false }, { kind: "interview" });
-  const outcome = parseOutcomeFields(raw, config) ?? {};
+  const outcome = finalize(g, parseOutcomeFields(raw, config) ?? {});
   let steps: ProcessStepResult[] = [];
   const failures: string[] = [];
   try {
@@ -207,7 +172,7 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
     failures.push("processSteps is not valid JSON");
   }
   const rawRigor = validated.scores.process_rigor ?? null;
-  const scores = postProcess(validated.scores, outcome);
+  const scores = postProcess(validated.scores, steps);
   const e = g.expect;
   const s = (k: string) => scores[k] ?? null;
   const fw = getCaseFramework(getCase(g.caseId)!.frameworkKey)!;
@@ -242,7 +207,6 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
 const ABBR: Record<string, string> = { hit: "H", prompted: "P", missed: "M", not_applicable: "-" };
 
 async function main() {
-  await loadEngine();
   config = resolveConfig();
   schema = buildRubricJsonSchema(config);
   SYSTEM = `${typeConfig.prompts.evaluatorPrompt}\n\n${REPORT_SPELLING_RULE}`;
@@ -257,7 +221,7 @@ async function main() {
     for (const r of results) {
       const sc = (k: string) => String(r.scores[k] ?? "–");
       console.log(
-        `run ${run}  ${r.id.padEnd(16)} rigor ${sc("process_rigor")} (raw ${r.rawRigor ?? "–"}, band ${processRigorCeiling(r.steps) ?? "–"})  quant ${sc("quantitative")}  synth ${sc("synthesis")}  content ${sc("content")}  behav ${sc("behavioral")}  steps ${r.steps.map((x) => ABBR[x.status] ?? "?").join("")}${r.nonVerbatim.length ? `  [non-verbatim: ${r.nonVerbatim.join(",")}]` : ""}  ${r.failures.length ? `FAIL: ${r.failures.join("; ")}` : "PASS"}`,
+        `run ${run}  ${r.id.padEnd(16)} rigor ${sc("process_rigor")} (raw ${r.rawRigor ?? "–"}, band ${deriveProcessRigorScore(r.steps) ?? "–"})  quant ${sc("quantitative")}  synth ${sc("synthesis")}  content ${sc("content")}  behav ${sc("behavioral")}  steps ${r.steps.map((x) => ABBR[x.status] ?? "?").join("")}${r.nonVerbatim.length ? `  [non-verbatim: ${r.nonVerbatim.join(",")}]` : ""}  ${r.failures.length ? `FAIL: ${r.failures.join("; ")}` : "PASS"}`,
       );
     }
     all.push(...results);
@@ -274,7 +238,7 @@ async function main() {
     console.log(`  ${g.id.padEnd(16)} rigor ${span("process_rigor")}  quant ${span("quantitative")}  synth ${span("synthesis")}  step patterns: ${[...stepVariants].join(" / ")}`);
   }
 
-  const rawOver = all.filter((r) => r.rawRigor !== null && r.rawRigor > (processRigorCeiling(r.steps) ?? 5)).length;
+  const rawOver = all.filter((r) => r.rawRigor !== null && r.rawRigor > (deriveProcessRigorScore(r.steps) ?? 5)).length;
   const nv = all.reduce((n, r) => n + r.nonVerbatim.length, 0);
   console.log(`\nRaw process_rigor above its guide band (fixed by the cap): ${rawOver}/${all.length}`);
   console.log(`Non-verbatim evidence quotes: ${nv}`);

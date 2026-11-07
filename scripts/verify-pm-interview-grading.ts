@@ -3,13 +3,11 @@
  * evaluator and asserts the report says what a FAANG PM interviewer would.
  *
  * Path: the app's own `runEvaluation` (same model, same OpenAI call, same
- * strict json_schema from `buildRubricJsonSchema`), against the
- * `product-management` type record re-registered per question with
- * `registerEngineTypeForTests`, so the evaluator prompt carries that
- * question's framework and notes. The record comes from
- * `makeInterimProblemInterviewTypeConfig`, the local mirror of the engine's
- * `makeProblemInterviewTypeConfig` (TODO(problem-engine): switch to the real
- * factory once it lands; the assertions below should not change).
+ * strict json_schema from `buildRubricJsonSchema`), against the registry's
+ * `product-management` record (built by `makeProblemInterviewTypeConfig`),
+ * with the question's private brief from `buildProblemEvaluatorBrief` passed
+ * as `evaluationContext.problemBrief` — exactly what the evaluation runner
+ * does. Fixtures carry no server nudge record, so `events` is empty.
  *
  * Run:   npx tsx scripts/verify-pm-interview-grading.ts [--runs=3] [--only=a-strong]
  * Needs: OPENAI_API_KEY (.env.local). Exit code non-zero on any failed check.
@@ -30,11 +28,12 @@ import {
 } from "../lib/engine/rubric";
 import type { ResolvedSessionConfig } from "../lib/engine/types";
 import { REPORT_SPELLING_RULE } from "../lib/report/structured";
-import { registerEngineTypeForTests } from "../lib/engine/registry";
+import { getEngineType } from "../lib/engine/registry";
 import { resolveFromTypeConfig } from "../lib/engine/resolve";
-import { makeInterimProblemInterviewTypeConfig } from "../lib/pm-interview/interim-config";
-import { PM_TYPE_INPUT } from "../lib/pm-interview/type";
+import { getPmFramework } from "../lib/pm-interview/frameworks";
+import { PM_INTERVIEW_SLUG } from "../lib/pm-interview/prompts";
 import { getPmQuestion } from "../lib/pm-interview/questions";
+import { buildProblemEvaluatorBrief } from "../lib/problem-interview/prompts";
 import {
   PROCESS_STEP_STATUSES,
   type ProcessStepResult,
@@ -79,6 +78,7 @@ async function evaluateOutcomeFirst(
   config: ResolvedSessionConfig,
   evaluatorPrompt: string,
   transcript: string,
+  problemBrief: string,
 ): Promise<{ scores: Record<string, number | null>; outcome: Record<string, unknown> | null; model: string }> {
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 60_000 });
@@ -93,7 +93,7 @@ async function evaluateOutcomeFirst(
     },
   };
   const model = process.env.INTERVIEW_EVAL_MODEL || "gpt-4.1";
-  const user = `full_transcript:\n${transcript}\n\nresume_text:\n(No resume was provided.)\n\nrole_context:\n${JSON.stringify({ role_title: "", industry: "", difficulty: "" })}\n\nvisual_metrics: null\nvocal_metrics: null`;
+  const user = `full_transcript:\n${transcript}\n\nresume_text:\n(No resume was provided.)\n\nrole_context:\n${JSON.stringify({ role_title: "", industry: "", difficulty: "" })}\n\nvisual_metrics: null\nvocal_metrics: null\n\n${problemBrief}`;
   const completion = await openai.chat.completions.create({
     model,
     messages: [
@@ -162,9 +162,18 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
     check(`${fx.id}: question exists`, false, fx.questionId);
     return null;
   }
-  const type = makeInterimProblemInterviewTypeConfig(PM_TYPE_INPUT, question.id);
-  const unregister = registerEngineTypeForTests(type);
-  try {
+  const type = getEngineType(PM_INTERVIEW_SLUG)!;
+  const framework = getPmFramework(question.frameworkKey)!;
+  const problemBrief = buildProblemEvaluatorBrief({
+    questionId: question.id,
+    frameworkKey: framework.key,
+    question,
+    publicTitle: question.title,
+    publicPrompt: question.prompt,
+    framework,
+    events: [],
+  });
+  {
     const resolved = resolveFromTypeConfig(type, {});
     if (!resolved.ok) {
       check(`${fx.id}: resolves`, false, resolved.reason);
@@ -177,7 +186,7 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
     let outcome: Record<string, unknown>;
     let modelLabel: string;
     if (outcomeFirst) {
-      const r = await evaluateOutcomeFirst(resolved.config, type.prompts.evaluatorPrompt, transcript);
+      const r = await evaluateOutcomeFirst(resolved.config, type.prompts.evaluatorPrompt, transcript, problemBrief);
       scores = r.scores;
       outcome = r.outcome ?? {};
       modelLabel = r.model;
@@ -185,7 +194,7 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
       const result = await runEvaluation({
         config: resolved.config,
         transcript,
-        evaluationContext: { kind: "interview", customization: resolved.config.customization },
+        evaluationContext: { kind: "interview", customization: resolved.config.customization, problemBrief },
         metricsOutcome: { visualMetrics: null, vocalMetrics: null },
       });
       if (!result.ok) {
@@ -203,7 +212,6 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
     if (fx.knownGap) console.log(`    (known gap: ${fx.knownGap})`);
     check("outcome.questionId matches", outcome.questionId === question.id, String(outcome.questionId));
     check("processSteps parses", steps !== null, String(outcome.processSteps).slice(0, 200));
-    const framework = PM_TYPE_INPUT.frameworks[question.frameworkKey]!;
     const byKey: Record<string, string> = {};
     const evidence: Record<string, string> = {};
     for (const s of steps ?? []) {
@@ -267,8 +275,6 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
       scores: { process_rigor: pr, band, product_sense: ps, analytical_judgment: aj, content: scores.content ?? null },
       steps: byKey,
     };
-  } finally {
-    unregister();
   }
 }
 
