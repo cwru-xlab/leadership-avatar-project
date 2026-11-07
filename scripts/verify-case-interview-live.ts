@@ -120,6 +120,7 @@ async function main() {
   }>("../lib/problem-interview/prompts");
   const turnControl = await tryImport<{
     parseProblemTurn: (r: string) => { content: string; actions: { kind: string; step?: string; exhibit?: string }[] };
+    isThinkingTimeRequest: (message: string) => boolean;
   }>("../lib/problem-interview/turn-control");
   if (!prompts || !turnControl) {
     console.log("SKIPPED: engine live prompt builder (lib/problem-interview/prompts.ts) not on this branch.");
@@ -149,11 +150,27 @@ async function main() {
           revealedExhibits: probe.revealed ?? [],
           nudgedSteps: [],
         };
-        const progress = prompts.buildProblemProgressBlock(state, { elapsedMinutes: 5, targetMinutes: base.targetMinutes }, question, framework);
         const history = [
           { role: "assistant" as const, content: `Thanks. Let's turn to the case. ${question.prompt}` },
           ...probe.turns,
         ];
+        // Mirror app/api/interaction/chat/route.ts: the route classifies the
+        // LATEST candidate message and withholds the nudge list when it is only
+        // an ask for thinking time. Building the block without this made the
+        // probe measure a prompt the production path never sends.
+        const latestCandidate = [...history].reverse().find((t) => t.role === "user");
+        const progress = prompts.buildProblemProgressBlock(
+          state,
+          {
+            elapsedMinutes: 5,
+            targetMinutes: base.targetMinutes,
+            candidateThinking: latestCandidate
+              ? turnControl.isThinkingTimeRequest(latestCandidate.content)
+              : false,
+          },
+          question,
+          framework,
+        );
         const last = history.length - 1;
         const messages = [
           { role: "system" as const, content: system },

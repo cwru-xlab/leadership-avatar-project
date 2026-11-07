@@ -31,7 +31,7 @@ function check(name: string, pass: boolean, detail?: string) {
 }
 
 async function main() {
-  const { parseProblemTurn } = await import("../lib/problem-interview/turn-control");
+  const { parseProblemTurn, isThinkingTimeRequest } = await import("../lib/problem-interview/turn-control");
   const {
     reduceProblemTurn,
     initialProblemState,
@@ -164,6 +164,78 @@ async function main() {
     check("progress block: nudged step not re-offered", !/may still nudge[^\n]*identify_customer/.test(block));
     check("progress block: time pressure asks for recommendation", /final recommendation/.test(block));
     check("progress block: no interviewer facts", !block.includes(question.interviewerFacts[0]!));
+
+    // A candidate asking for thinking time must not be nudged. The live
+    // interviewer ignored that as wording in 6/6 case probe runs, so the server
+    // withholds the nudge texts instead — and the model is forbidden to write
+    // its own, which makes the nudge unreachable rather than discouraged.
+    const thinkingBlock = buildProblemProgressBlock(
+      n.state,
+      { ...timing, candidateThinking: true },
+      question,
+      framework,
+    );
+    check(
+      "progress block: thinking candidate gets no nudge list",
+      !/Nudges —/.test(thinkingBlock) &&
+        !framework.steps.some((s) => thinkingBlock.includes(`"${s.nudge}"`)),
+    );
+    check(
+      "progress block: thinking candidate is told to wait",
+      /asking for thinking time/.test(thinkingBlock) && /Take your time/.test(thinkingBlock),
+    );
+    check(
+      "progress block: a normal turn still offers the nudge list",
+      /Nudges —/.test(block),
+    );
+    check(
+      "progress block: thinking turn keeps stage and exhibit state",
+      thinkingBlock.includes("Current stage: problem") &&
+        /already on the candidate's screen: ex1/.test(thinkingBlock),
+    );
+
+    // The classifier decides when that happens; its PRECISION is the risk.
+    // A false positive silently removes a legitimate nudge for the whole turn.
+    const asksForTime = [
+      "give me a second to think",
+      "Give me a sec",
+      "um, give me one second, okay",
+      "let me structure this",
+      "let me think about that for a moment",
+      "Can I have a minute?",
+      "one sec",
+      "hold on",
+      "bear with me",
+      "I'm going to jot down a structure",
+      "still thinking",
+      "(pause)",
+      "",
+      "   ",
+      "uh",
+    ];
+    for (const message of asksForTime) {
+      check(
+        `thinking-time request: ${JSON.stringify(message)}`,
+        isThinkingTimeRequest(message),
+      );
+    }
+    const realAttempts = [
+      // Thinking OUT LOUD is an attempt — this is what we want graded.
+      "give me a second — so revenue is price times volume, and volume is falling in the north region",
+      "let me think out loud: the first driver is pricing, the second is mix, and the third is volume",
+      "I'd structure this as three buckets: cost, revenue and competition",
+      "What's the client's target margin?",
+      "So the answer is we should enter the market",
+      "Could I see the cost data?",
+      "My hypothesis is that the airline's fuel hedging is the problem, let me check the exhibit",
+      "I think we should take a minute to consider the competitive response before pricing, because the incumbent will react",
+    ];
+    for (const message of realAttempts) {
+      check(
+        `real attempt, not a time request: ${JSON.stringify(message.slice(0, 48))}`,
+        !isThinkingTimeRequest(message),
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -307,23 +379,29 @@ async function main() {
     check("shared rules make a 'no' verdict missed, nudge or not", /"No" means the step is "missed"/.test(shared));
     check("shared rules require the status to agree with the note", /status must agree with the note/.test(shared));
     check("shared rules ban nested double quotes in processSteps", count(shared, QUOTE_RULE) === 1);
-    // The 2026-11-07 finance study lost `lbo-nudged` because "only after" sat in
-    // the shortfall list that mandates "missed", while "prompted" is DEFINED as
-    // meeting the criteria only after a nudge: a legitimately prompted step had
-    // no truthful prefix. Timing must stay out of question 1.
     check(
-      "shared rules do not treat 'only after' as a shortfall",
-      !/"only after"/.test(shared) && /Timing alone is NOT a\s+shortfall/.test(shared),
+      "shared rules keep 'only after' as a shortfall phrase",
+      /"only after"/.test(shared),
     );
-    // 3 of 162 notes in the same study opened "Meets all criteria: prompted.",
-    // an invented third verdict the render-time strip could not remove.
+    // f4359f6 tried a timing carve-out here and it regressed finance
+    // pitch-nudged 2/2 -> 0/2 and case retail-nudged 3/3 -> 0/3: the affected
+    // steps' evidenceCriteria bake ordering into the HIT TEST, so question 1
+    // answers "no" truthfully and the carve-out cannot fire. Reverted in
+    // e2a187f's follow-up; see docs/interviews/finance-validity.md.
     check(
-      "shared rules permit only the yes./no. openings",
-      /ONLY permitted openings/.test(shared) && /not "prompted", not "partial"/.test(shared),
+      "shared rules do not claim timing is never a shortfall",
+      !/Timing alone is NOT a/.test(shared),
+    );
+    // The same run produced a back-dated timecode that defeated
+    // finalizeProblemOutcome's nudge reconciliation and inflated rigor to 5.
+    check(
+      "shared rules forbid moving a timecode earlier than its evidence line",
+      /Never move it earlier than that line/.test(shared),
     );
     // 9/21 PM and 4/27 case raw strings failed strict JSON.parse because the
     // model delimited VALUES with single quotes; the repair then dropped every
-    // evidenceQuote in 2 case grades.
+    // evidenceQuote in 2 case grades. 0/15 grades needed the repair after the
+    // delimiter wording landed - this half of f4359f6 is kept.
     check(
       "shared rules require double-quote delimiters inside processSteps",
       /delimited by the DOUBLE-quote character/.test(shared),
