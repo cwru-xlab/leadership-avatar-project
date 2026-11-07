@@ -46,6 +46,7 @@ import {
   INTERVIEW_DIFFICULTIES,
   PERSONALITY_DIALS,
   SESSION_LENGTH_PRESETS,
+  sessionLengthChoices,
 } from "@/lib/interview/customization-options";
 import { DEFAULT_INTERVIEW_TYPE, getInterviewType, isListedInterviewType } from "@/lib/interview/types";
 import { routes } from "@/lib/routes";
@@ -124,9 +125,11 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
       ),
       difficulty: INTERVIEW_DIFFICULTIES.map((d) => ({ value: d, title: d, hint: DIFFICULTY_HINTS[d] })),
       length: withPreset(
-        SESSION_LENGTH_PRESETS.filter(
-          (p) => !isProblemInterview || p.targetMinutes >= preset.targetMinutes,
-        ).map((p) => ({
+        // Problem interviews hide lengths shorter than their own target: one
+        // problem needs the full time. For system-design (35m) this is empty,
+        // and withPreset's "Interview default" tile (carrying the type's own
+        // target) is correctly the only choice. See sessionLengthChoices.
+        sessionLengthChoices(preset.targetMinutes, isProblemInterview).map((p) => ({
           value: p.slug,
           title: p.label.replace(/\s*\(.*\)$/, ""),
           hint: lengthHint(p.targetMinutes, p.targetQuestionCount),
