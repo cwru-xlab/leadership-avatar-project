@@ -16,6 +16,7 @@ import type { ProcessStepResult } from "@/lib/problem-interview/types";
 
 import {
   CODE_DEFINITIONS,
+  cleanEvidenceQuote,
   codesForStyle,
   countCodes,
   deriveMetrics,
@@ -220,7 +221,7 @@ ${steps}
 
 For each step return:
 - status: "hit" if the ${who} clearly did it (credit substance, not wording — a step done well without naming it is a hit); "missed" if not; "not_applicable" ONLY if the encounter ended before the step could reasonably arise through no fault of the student (e.g. a closing step when the transcript stops mid-history). Never use not_applicable to excuse a skipped step.
-- evidenceQuote: the ${who}'s EXACT words (copy verbatim, a phrase or sentence, from one [S#] line) that show the step; "" when missed.
+- evidenceQuote: for a hit, COPY AND PASTE a span of characters from ONE [S#] line, exactly as it appears. Do not paraphrase, do not stitch two lines together, do not tidy the grammar, do not add or remove words, and do not wrap it in quotation marks. It is checked character by character against the transcript and a quote that is not found is discarded, which leaves the step with no evidence. If no single [S#] line contains words that show the step, the step is "missed", not a hit with an approximate quote. Use "" when missed.
 - note: one sentence of specific coaching for this step, written to the student ("you").
 
 Hidden facts: elicited = true only if the persona actually disclosed the fact in the transcript. evidenceQuote = the ${who}'s exact question or statement that drew it out; "" if not elicited.
@@ -321,8 +322,9 @@ export async function judgeChecklist(
 // ---------------------------------------------------------------------------
 
 function verified(quote: string, utterances: StudentUtterance[]): { quote: string; at: number | null } {
-  const hit = quote.trim() ? locateQuote(quote, utterances) : null;
-  return hit ? { quote: quote.trim(), at: hit.timecodeSeconds } : { quote: "", at: null };
+  const cleaned = cleanEvidenceQuote(quote);
+  const hit = cleaned ? locateQuote(cleaned, utterances) : null;
+  return hit ? { quote: cleaned, at: hit.timecodeSeconds } : { quote: "", at: null };
 }
 
 export function assembleAnalysis(opts: {

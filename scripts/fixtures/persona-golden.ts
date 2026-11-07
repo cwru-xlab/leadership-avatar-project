@@ -25,8 +25,37 @@ export interface GoldenTranscript {
   expectSteps: Record<string, "hit" | "missed">;
   /** Hidden facts whose elicitation must match on every run. */
   expectFacts: Record<string, boolean>;
-  /** MI only: expected range of the MITI global scores (inclusive). */
+  /**
+   * Inclusive score bands for this style's EXTRA rubric dimensions (the four
+   * MITI globals, or the four Calgary-Cambridge encounter dimensions). The
+   * shared four are not asserted: a typed transcript has no visual or vocal
+   * signal, and content/behavioral are not what this study measures.
+   */
   expectGlobals?: Record<string, [number, number]>;
+  /**
+   * Inclusive bands for individual CODE COUNTS, compared against the counts
+   * `countCodes` derives from the LIVE tagger's per-utterance codes. These
+   * are what make the study a test of the derivation rather than of the hand
+   * coding: a human count and a model count of the same transcript must land
+   * in the same neighborhood.
+   */
+  expectCounts?: Record<string, [number, number]>;
+  /**
+   * Inclusive bands for a SUM of codes. MITI 4.2.1 deliberately collapsed
+   * Question into a single code because the open/closed boundary was the
+   * least reliable judgment in MITI 3 (`MITI3_OQ_SOURCE` in coding.ts says so
+   * on the report itself). Where a golden's point is the question LOAD rather
+   * than its shape, assert the sum, which is reliable, instead of pretending
+   * the split is.
+   */
+  expectCountSums?: Array<{ label: string; codes: string[]; band: [number, number] }>;
+  /**
+   * Bands the DERIVED metrics must land in, given the live counts. This is
+   * the direct test of the seam: the band is a function of the arithmetic, so
+   * a golden whose hand counts sit just under a threshold must not come back
+   * in the band above it.
+   */
+  expectMetricBands?: Record<string, "below" | "fair" | "good">;
 }
 
 export const GOLDEN: GoldenTranscript[] = [
@@ -82,6 +111,20 @@ export const GOLDEN: GoldenTranscript[] = [
       close_safety_net: "hit",
     },
     expectFacts: { exertional_trigger: true, family_history: true, stopped_bp_meds: true, smoking: true },
+    expectGlobals: {
+      opening_agenda: [4, 5],
+      information_gathering: [4, 5],
+      empathy: [4, 5],
+      explanation_planning: [4, 5],
+    },
+    expectCounts: {
+      open_question: [5, 9],
+      empathy_statement: [2, 5],
+      teach_back: [1, 2],
+      jargon: [0, 0],
+      premature_reassurance: [0, 0],
+      leading_question: [0, 1],
+    },
   },
   {
     id: "cc-closed-heavy",
@@ -122,6 +165,65 @@ export const GOLDEN: GoldenTranscript[] = [
       teach_back: "missed",
     },
     expectFacts: { family_history: true, smoking: true },
+    expectGlobals: {
+      opening_agenda: [1, 2],
+      information_gathering: [1, 3],
+      empathy: [1, 2],
+      explanation_planning: [1, 2],
+    },
+    expectCounts: {
+      open_question: [0, 1],
+      closed_question: [8, 11],
+      empathy_statement: [0, 0],
+      teach_back: [0, 0],
+      jargon: [1, 2],
+      premature_reassurance: [1, 1],
+    },
+  },
+  {
+    id: "cc-leading-stacked",
+    caseId: "cc-fatigue-primary-care",
+    description:
+      "Leading and stacked questions throughout: the student supplies the answers, so the patient agrees with whatever is suggested and the hidden facts never come out.",
+    lines: [
+      { s: "Hi, you're here about being tired, right? Nothing else going on?", codes: ["closed_question", "leading_question", "stacked_question"] },
+      { p: "Yeah, just worn out. Months now." },
+      { s: "You're probably just not sleeping enough, are you?", codes: ["closed_question", "leading_question"] },
+      { p: "I guess not. I'm up at five for the kids." },
+      { s: "And you're eating okay, and drinking enough water?", codes: ["closed_question", "stacked_question"] },
+      { p: "Sure." },
+      { s: "No weight loss, no fevers, no night sweats, nothing like that?", codes: ["closed_question", "stacked_question", "leading_question"] },
+      { p: "No. Well, my clothes are looser, but I've been trying." },
+      { s: "Right, so that's intentional. You don't feel depressed or anything, do you?", codes: ["closed_question", "leading_question"] },
+      { p: "No, I'm fine. I'm just... not really myself lately." },
+      { s: "You're not on any medications and you have no family history of anything, correct?", codes: ["closed_question", "leading_question", "stacked_question"] },
+      { p: "Right. I can't exactly tell my new boss I'm too tired to keep up." },
+      { s: "Honestly this sounds like plain old burnout. Nothing to worry about.", codes: ["information_giving", "premature_reassurance"] },
+      { p: "Okay. So nothing to do?" },
+      { s: "Get more sleep and we'll check a CBC and TSH just in case. Any questions?", codes: ["information_giving", "jargon", "closed_question"] },
+      { p: "I guess not." },
+    ],
+    expectSteps: {
+      open_agenda: "missed",
+      elicit_ice: "missed",
+      respond_to_cues: "missed",
+      summarize: "missed",
+      teach_back: "missed",
+    },
+    expectFacts: { heavy_periods: false, diet: false, low_mood: false },
+    expectGlobals: {
+      opening_agenda: [1, 2],
+      information_gathering: [1, 2],
+      empathy: [1, 2],
+      explanation_planning: [1, 2],
+    },
+    expectCounts: {
+      leading_question: [3, 6],
+      stacked_question: [2, 4],
+      open_question: [0, 0],
+      empathy_statement: [0, 0],
+      premature_reassurance: [1, 1],
+    },
   },
   {
     id: "cc-misses-ice-cues",
@@ -157,6 +259,18 @@ export const GOLDEN: GoldenTranscript[] = [
       teach_back: "missed",
     },
     expectFacts: { painkiller_use: true, grinding: true, childhood_trauma: false },
+    expectGlobals: {
+      opening_agenda: [2, 4],
+      information_gathering: [2, 3],
+      empathy: [1, 2],
+      explanation_planning: [1, 2],
+    },
+    expectCounts: {
+      open_question: [1, 2],
+      jargon: [2, 3],
+      empathy_statement: [0, 0],
+      teach_back: [0, 0],
+    },
   },
   {
     id: "mi-strong",
@@ -206,6 +320,14 @@ export const GOLDEN: GoldenTranscript[] = [
       partnership: [4, 5],
       empathy: [4, 5],
     },
+    expectCounts: {
+      complex_reflection: [5, 8],
+      affirm: [1, 3],
+      emphasizing_autonomy: [1, 2],
+      seeking_collaboration: [1, 3],
+      persuade: [0, 0],
+      confront: [0, 0],
+    },
   },
   {
     id: "mi-closed-heavy",
@@ -238,6 +360,13 @@ export const GOLDEN: GoldenTranscript[] = [
     },
     expectFacts: { failed_patches: true, husband_smokes: true, granddaughter_asthma: false },
     expectGlobals: { cultivating_change_talk: [1, 2], partnership: [1, 3] },
+    expectCounts: {
+      closed_question: [7, 10],
+      open_question: [0, 0],
+      complex_reflection: [0, 1],
+      affirm: [0, 0],
+      emphasizing_autonomy: [0, 0],
+    },
   },
   {
     id: "mi-righting-reflex",
@@ -272,6 +401,91 @@ export const GOLDEN: GoldenTranscript[] = [
       softening_sustain_talk: [1, 2],
       partnership: [1, 2],
       empathy: [1, 2],
+    },
+    expectCounts: {
+      confront: [3, 5],
+      persuade: [3, 5],
+      complex_reflection: [0, 0],
+      simple_reflection: [0, 0],
+      affirm: [0, 0],
+      emphasizing_autonomy: [0, 0],
+      persuade_with_permission: [0, 0],
+    },
+  },
+  {
+    id: "mi-derived-counts",
+    caseId: "mi-job-training-social-work",
+    description:
+      "Deliberately mixed: nine reflections of which only three are complex, plus seven questions. The ratios are only right if they are computed - a model asked for them tends to round the reflection-to-question ratio up and the complex share to about half.",
+    lines: [
+      { s: "Thanks for coming in, Andre. What would be most useful to talk about today?", codes: ["open_question", "seeking_collaboration"] },
+      { p: "Yeah, I got the letter about the program. I don't know, man." },
+      { s: "You got the letter and you're not sure.", codes: ["simple_reflection"] },
+      { p: "Six months, mornings, across town. The bus takes an hour." },
+      { s: "An hour each way is a real cost, not a detail.", codes: ["complex_reflection"] },
+      { p: "Right. And my benefit's gone in four months either way." },
+      { s: "Your benefit runs out in four months.", codes: ["simple_reflection"] },
+      { p: "Four months. So the clock's going either way." },
+      { s: "The clock is going either way.", codes: ["simple_reflection"] },
+      { p: "I tried school before. It didn't work out. I'm not really a school guy, you know?" },
+      { s: "So it's not the work you're unsure about — it's the classroom, and what it cost you last time.", codes: ["complex_reflection"] },
+      { p: "...Yeah. I dropped out of community college after one semester. Reading's always been hard for me. I don't want to be the slow one again." },
+      { s: "What's something you've taught yourself since then?", codes: ["open_question"] },
+      { p: "I rewired my grandmother's porch light off a video. Worked first time." },
+      { s: "You rewired it off a video.", codes: ["simple_reflection"] },
+      { p: "It's not that hard if you go slow." },
+      { s: "Is that the kind of thing the electrician track does?", codes: ["closed_question"] },
+      { p: "I mean, yeah. That's the whole job." },
+      { s: "Did the letter say how much of it is classroom?", codes: ["closed_question"] },
+      { p: "I didn't really read it that close." },
+      { s: "You didn't read it that close.", codes: ["simple_reflection"] },
+      { p: "There's a lot of paper in my life right now." },
+      { s: "So you're a man who learns by doing it with his hands being asked to decide from a piece of paper.", codes: ["complex_reflection"] },
+      { p: "Hah. I hadn't put it that way, but yeah." },
+      { s: "What would you want for Kiara out of all this?", codes: ["open_question"] },
+      { p: "She asked me why I don't go to work like her mom does. I want her to be proud of me." },
+      { s: "You want Kiara to be proud of you.", codes: ["simple_reflection"] },
+      { p: "That's it, really." },
+      { s: "Would it be okay if I told you how the program splits shop time and classroom time?", codes: ["closed_question", "seeking_collaboration"] },
+      { p: "Sure." },
+      { s: "Four mornings are in the shop and one is classroom, and there's a reading tutor on site. Whether that changes anything is entirely your call.", codes: ["giving_information", "emphasizing_autonomy"] },
+      { p: "One morning of class. That's... different from what I pictured." },
+      { s: "What would you want to know next?", codes: ["open_question"] },
+      { p: "Whether the tutor thing is private. I'm not doing it in front of everybody." },
+    ],
+    expectSteps: {
+      ask_permission: "hit",
+      explore_ambivalence: "hit",
+      emphasize_autonomy: "hit",
+    },
+    expectFacts: { reading_struggles: true, daughter_motivation: true, fixes_things: true },
+    // Deliberately wide: this golden exists to test the ARITHMETIC, not the
+    // globals. A mostly-simple-reflection session should not score at the top.
+    expectGlobals: { partnership: [3, 5], empathy: [3, 5] },
+    expectCounts: {
+      simple_reflection: [4, 8],
+      complex_reflection: [2, 4],
+      persuade: [0, 0],
+      confront: [0, 0],
+    },
+    // The open/closed split is MITI 3 territory and the model and the author
+    // disagree on two of these seven by design (see expectCountSums above).
+    // What the golden asserts is the question LOAD and the reflection mix,
+    // which is what both derived MI metrics are built from.
+    expectCountSums: [
+      { label: "questions", codes: ["open_question", "closed_question"], band: [5, 8] },
+      { label: "reflections", codes: ["simple_reflection", "complex_reflection"], band: [8, 10] },
+    ],
+    /**
+     * The point of this golden: by hand the ratios are R:Q = 9:7 = 1.29 (FAIR,
+     * not good) and the complex share is 3/9 = 33% (BELOW the 40% fair line).
+     * Both sit just under a threshold, which is exactly where a model asked to
+     * report an aggregate rounds itself into the next band. The study asserts
+     * the DERIVED values land in the band the counts imply.
+     */
+    expectMetricBands: {
+      reflection_to_question: "fair",
+      percent_complex_reflections: "below",
     },
   },
 ];
