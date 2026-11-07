@@ -67,6 +67,16 @@ export const CIRCLE_FRAMEWORK: ProcessFramework = {
       evidenceCriteria:
         "The candidate names two or more concrete user segments (by behavior, context or need, not just demographics) AND picks one to focus on with a stated reason (size, pain, strategic fit). A single generic persona ('busy professionals', 'everyone') without a choice does not count as hit.",
       nudge: "Who do you picture using this?",
+      genericAnswerTerms: [
+        "everyone",
+        "everybody",
+        "anyone",
+        "anybody",
+        "all users",
+        "all customers",
+        "all people",
+        "the general public",
+      ],
     },
     {
       key: "report_needs",

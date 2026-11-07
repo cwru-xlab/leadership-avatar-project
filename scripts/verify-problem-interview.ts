@@ -312,6 +312,79 @@ async function main() {
     check("steps in framework order, unknown dropped", steps.map((s) => s.key).join() === "clarify_goal,identify_customer,use_data,recommend");
     check("nudged hit → prompted", steps.find((s) => s.key === "identify_customer")?.status === "prompted");
     check("un-nudged hit stays hit", steps.find((s) => s.key === "clarify_goal")?.status === "hit");
+
+    // Regression (live PM run c48214e8): the candidate asked a clarifying
+    // question at 0:08, the interviewer nudged the same step at 0:09 → the
+    // step was demoted to prompted. A step done BEFORE its nudge stays hit.
+    {
+      const pmLike = (() => {
+        let s = buildProblemSessionSnapshot(question, framework, "2026-11-07T00:00:00Z");
+        const a = reduceProblemTurn(s.state, [{ kind: "nudge", step: "clarify_goal" }], { ...ctx, atSeconds: 9, turnIndex: 5 });
+        s = { ...s, state: a.state, events: [...s.events, ...a.events] };
+        const b = reduceProblemTurn(s.state, [{ kind: "nudge", step: "identify_customer" }], { ...ctx, atSeconds: 10, turnIndex: 6 });
+        return { ...s, state: b.state, events: [...s.events, ...b.events] };
+      })();
+      const row = (key: string, status: string, quote: string, t: number | null) => ({ key, status, evidenceQuote: quote, timecodeSeconds: t, note: "n" });
+      const run = (rows: ReturnType<typeof row>[], def: typeof framework | null = null) =>
+        asProcessStepResults(finalizeProblemOutcome({ processSteps: JSON.stringify(rows) }, pmLike, def).processSteps)!;
+      const statusOf = (rows: ReturnType<typeof run>, key: string) => rows.find((s) => s.key === key)?.status;
+
+      const early = run([row("clarify_goal", "hit", "Quick clarifying question — is this for a specific platform or market?", 8)]);
+      check("regression: evidence before the nudge stays hit", statusOf(early, "clarify_goal") === "hit");
+      const promotedBack = run([row("clarify_goal", "prompted", "Quick clarifying question — which market?", 8)]);
+      check("regression: prompted with evidence before the nudge → hit", statusOf(promotedBack, "clarify_goal") === "hit");
+      const after = run([row("clarify_goal", "hit", "The goal is retention.", 30)]);
+      check("evidence after the nudge → prompted", statusOf(after, "clarify_goal") === "prompted");
+      const tie = run([row("clarify_goal", "hit", "The goal is retention.", 9)]);
+      check("evidence in the nudge's second counts as after → prompted", statusOf(tie, "clarify_goal") === "prompted");
+      const noTime = run([row("clarify_goal", "hit", "The goal is retention.", null)]);
+      check("no timecode on a nudged step → prompted (conservative)", statusOf(noTime, "clarify_goal") === "prompted");
+      const missedStays = run([row("clarify_goal", "missed", "", null)]);
+      check("missed is never promoted", statusOf(missedStays, "clarify_goal") === "missed");
+
+      // "for everyone" is a non-answer when the step declares it, before OR after the nudge.
+      const withTerms = {
+        ...framework,
+        steps: framework.steps.map((s) => (s.key === "identify_customer" ? { ...s, genericAnswerTerms: ["everyone", "all users"] } : s)),
+      };
+      const everyoneBefore = run([row("identify_customer", "hit", "Okay. I'd just build it for everyone.", 9)], withTerms);
+      check("regression: 'for everyone' before the nudge → missed", statusOf(everyoneBefore, "identify_customer") === "missed");
+      const everyoneAfter = run([row("identify_customer", "prompted", "For all users, really.", 40)], withTerms);
+      check("regression: 'all users' reply to the nudge → missed", statusOf(everyoneAfter, "identify_customer") === "missed");
+      const realChoice = run([row("identify_customer", "prompted", "Not everyone — I'd focus on commuters over parents because they wait daily.", 40)], withTerms);
+      check("a real segment choice mentioning 'everyone' stays prompted", statusOf(realChoice, "identify_customer") === "prompted");
+      const noDef = run([row("identify_customer", "prompted", "For everyone.", 40)]);
+      check("without the framework def, generic-answer rule does not fire", statusOf(noDef, "identify_customer") === "prompted");
+      const wrongFramework = run([row("identify_customer", "prompted", "For everyone.", 40)], { ...withTerms, key: "other" });
+      check("a def for another framework is ignored", statusOf(wrongFramework, "identify_customer") === "prompted");
+
+      const { buildProblemEvaluatorBrief } = await import("../lib/problem-interview/prompts");
+      const brief = buildProblemEvaluatorBrief({
+        questionId: question.id, frameworkKey: framework.key, question, publicTitle: question.title,
+        publicPrompt: question.prompt, framework, events: pmLike.events,
+      });
+      check("evaluator brief: nudge line allows earlier evidence to stay hit", /evidence before \[0:09\] can still be "hit"/.test(brief), brief);
+      check("evaluator brief: no blanket 'cannot be hit'", !/cannot be "hit"/.test(brief));
+    }
+
+    console.log("\ntolerant processSteps parse");
+    {
+      const good = '[{"key":"clarify_goal","status":"hit","evidenceQuote":"q","timecodeSeconds":5,"note":"n"}]';
+      check("code fence stripped", asProcessStepResults("```json\n" + good + "\n```")?.[0]?.status === "hit");
+      check("prose around the array", asProcessStepResults("Here you go: " + good + " Hope that helps.")?.length === 1);
+      check("trailing commas", asProcessStepResults('[{"key":"clarify_goal","status":"missed","evidenceQuote":"","timecodeSeconds":null,"note":"n",},]')?.[0]?.status === "missed");
+      check("one-key object wrapper", asProcessStepResults({ steps: JSON.parse(good) })?.[0]?.key === "clarify_goal");
+      check("string one-key object wrapper", asProcessStepResults(`{"steps": ${good}}`)?.[0]?.key === "clarify_goal");
+      const truncated = good.slice(0, -1) + ',{"key":"identify_customer","status":"mis';
+      check("truncated array keeps complete rows", asProcessStepResults(truncated)?.map((r) => r.key).join() === "clarify_goal");
+      const unescaped = '[{"key":"clarify_goal","evidenceQuote":"I said "who is it for" first","timecodeSeconds":12,"status":"hit","note":"Good "why" question."}]';
+      const rows = asProcessStepResults(unescaped);
+      check("unescaped inner quotes: fields read by name", rows?.[0]?.status === "hit" && rows[0].timecodeSeconds === 12 && rows[0].evidenceQuote.includes("who is it for"), JSON.stringify(rows));
+      check("pure garbage still null", asProcessStepResults("no json here at all") === null);
+      check("strict JSON unaffected", asProcessStepResults(good)?.[0]?.evidenceQuote === "q");
+      const fencedFinal = finalizeProblemOutcome({ processSteps: "```json\n" + good + "\n```" }, snapshot);
+      check("finalize re-encodes a repaired value as strict JSON", typeof fencedFinal.processSteps === "string" && JSON.parse(fencedFinal.processSteps as string)[0].key === "clarify_goal");
+    }
     const malformed = finalizeProblemOutcome({ processSteps: "garbage" }, snapshot);
     check("malformed processSteps removed, ids still pinned", !("processSteps" in malformed) && malformed.questionId === question.id);
     check("null produced outcome still yields ids", finalizeProblemOutcome(null, snapshot).frameworkKey === framework.key);

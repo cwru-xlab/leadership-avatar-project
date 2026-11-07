@@ -684,13 +684,19 @@ export async function runAndPersistEvaluation({
       // produced one.
       // Problem interviews: pin questionId/frameworkKey to the snapshot and
       // reconcile step results with the server's nudge record before the one
-      // validator runs (a nudged step can never stay "hit").
+      // validator runs (evidence at/after a nudge can never stay "hit").
       const problemSnapshot =
         typeRecord?.problemInterview && snapshot?.kind === "interview"
           ? asProblemSessionSnapshot(snapshot.problem)
           : null;
       const produced = problemSnapshot
-        ? finalizeProblemOutcome(outcome.producedOutcome, problemSnapshot)
+        ? finalizeProblemOutcome(
+            outcome.producedOutcome,
+            problemSnapshot,
+            typeRecord?.problemInterview?.frameworks.find(
+              (f) => f.key === problemSnapshot.frameworkKey,
+            ) ?? null,
+          )
         : outcome.producedOutcome;
       const storedOutcome =
         report.outcome && typeof report.outcome === "object" && !Array.isArray(report.outcome)
