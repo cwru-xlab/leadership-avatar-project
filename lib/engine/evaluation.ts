@@ -232,7 +232,16 @@ function buildUserMessage(
         : "",
   });
 
-  return `full_transcript:
+  // A type that needs case facts in front of the grader supplies them as
+  // `evaluatorBrief`. Absent for every pre-existing type, so their user
+  // message stays byte-identical.
+  const brief =
+    typeof evaluationContext.evaluatorBrief === "string" &&
+    evaluationContext.evaluatorBrief.trim()
+      ? `case_context:\n${evaluationContext.evaluatorBrief.trim()}\n\n`
+      : "";
+
+  return `${brief}full_transcript:
 ${transcript}
 
 resume_text:
