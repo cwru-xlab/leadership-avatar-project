@@ -13,6 +13,7 @@
 import { randomInt } from "node:crypto";
 
 import type { ProblemQuestion, ProcessFramework } from "./types";
+import { getFactoryBank } from "./bank-registry";
 import { PROBLEM_FIXTURE_BANK } from "./fixtures/bank";
 import { PROBLEM_FIXTURE_ENABLED, PROBLEM_FIXTURE_SLUG } from "./fixtures/type";
 
@@ -21,7 +22,8 @@ const PROBLEM_BANKS: Record<string, readonly ProblemQuestion[]> = {
 };
 
 export function getProblemBank(slug: string): readonly ProblemQuestion[] {
-  return PROBLEM_BANKS[slug.trim().toLowerCase()] ?? [];
+  const key = slug.trim().toLowerCase();
+  return PROBLEM_BANKS[key] ?? getFactoryBank(key) ?? [];
 }
 
 export function findProblemQuestion(

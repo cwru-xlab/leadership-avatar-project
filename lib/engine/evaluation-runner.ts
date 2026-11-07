@@ -44,7 +44,11 @@ import { asTechnicalEvidence } from "@/lib/technical-interview/evidence";
 import { recordLiveSessionContributions } from "@/lib/mastery/from-report";
 import { findProblemQuestion } from "@/lib/problem-interview/banks.server";
 import { buildProblemEvaluatorBrief } from "@/lib/problem-interview/prompts";
-import { finalizeProblemOutcome } from "@/lib/problem-interview/outcome";
+import {
+  asProcessStepResults,
+  finalizeProblemOutcome,
+} from "@/lib/problem-interview/outcome";
+import { deriveProcessRigorScore } from "@/lib/problem-interview/types";
 import { asProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
 import type { InteractionLog, InteractionEvent } from "@/types";
 
@@ -730,9 +734,23 @@ export async function runAndPersistEvaluation({
         : scoresForPost;
       // This cannot be left to a prompt: no managed deterministic executor is
       // configured, so the report may not claim a correctness score.
-      const finalScores = snapshot?.kind === "technical-coding"
+      const codingScores = snapshot?.kind === "technical-coding"
         ? { ...postProcessedScores, coding_correctness: null }
         : postProcessedScores;
+      // THE ONE DELIBERATE EXCEPTION to lib/report/dto.ts's "the outcome never
+      // writes a score" rule. For problem interviews, process_rigor is DEFINED
+      // by the step results (PROCESS_RIGOR_SCORING_GUIDE), and the evaluator
+      // demonstrably disagrees with its own steps (PM validity study), so the
+      // stored score is derived from the reconciled, validated steps. When
+      // the steps do not parse, the model's own value stands.
+      const problemSteps = problemSnapshot
+        ? asProcessStepResults(validatedOutcome?.processSteps)
+        : null;
+      const derivedRigor = problemSteps ? deriveProcessRigorScore(problemSteps) : null;
+      const finalScores =
+        derivedRigor !== null
+          ? { ...codingScores, process_rigor: derivedRigor }
+          : codingScores;
 
       await prisma.interactionReport.update({
         where: { id: reportId },
