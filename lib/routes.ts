@@ -5,6 +5,13 @@ export const routes = {
   practice: () => "/practice",
   interviews: () => "/practice/interviews",
   interview: (type: string) => `/practice/interviews/${segment(type)}`,
+  /** Second page of the interview picker: every specialized preset. */
+  industryInterviews: () => "/practice/interviews/industry-specific",
+  /** A preset's customization page; Continue hands off to `interview(type)`. */
+  customizeInterview: (type: string) =>
+    `/practice/interviews/customize/${segment(type)}`,
+  /** The live coding room (engine slug `technical-coding`, never a public URL). */
+  codingInterview: () => "/practice/interviews/technical",
   caseStudies: () => "/practice/case-studies",
   caseStudy: (caseId: string) => `/practice/case-studies/${segment(caseId)}`,
   newCaseStudy: () => "/practice/case-studies/new",
