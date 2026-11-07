@@ -370,6 +370,23 @@ function describeFramework(framework: ProcessFramework): string {
  * Everything in the base prompt (visual/vocal handling, missing-data rules,
  * source attribution, output keys) still applies; this only ADDS the process
  * grading, the extra score(s) and the outcome object.
+ *
+ * Two of the rules below came from the system-design grading validity study
+ * (docs/interviews/system-design-validity.md) and are generic to EVERY
+ * problem interview, so they live here and not in a type addendum:
+ *
+ *   - each step's `note` starts with `Meets all criteria: yes.` or
+ *     `Meets all criteria: no.`, judged on the candidate's own words alone,
+ *     and "no" means `missed` even after a nudge. Without it the model read
+ *     "prompted" as "said something after a nudge" while its own note said
+ *     "partial";
+ *   - no double-quote character inside the `processSteps` strings. Before
+ *     this rule 3/14 grades returned JSON that was corrupt inside the
+ *     JSON-encoded string, which costs the report every step.
+ *
+ * Each rule is stated ONCE. A type addendum must not restate them in its own
+ * words: duplicated, slightly-different phrasings of the status rule are what
+ * the study saw flake.
  */
 export function buildProblemEvaluatorRules(
   frameworks: ProcessFramework[],
@@ -390,15 +407,25 @@ from each, reference notes on a strong answer, the framework being graded, and
 interviewer_events recorded by the server.
 
 GRADING THE PROCESS
+The "outcome" object below comes FIRST in the JSON you return: decide every
+step from the candidate's own evidence, then score from those verdicts — never
+the other way round.
 For EACH step, find the evidence first, then decide — answer two questions in order:
   1. Does the candidate's own evidence FULLY meet the step's "counts as hit"
-     criteria? If not, the step is "missed" (or "not_applicable", below) — even if
-     the interviewer nudged it. A nudge alone never makes a step "prompted", and a
+     criteria? Write that verdict down before anything else: the step's "note"
+     STARTS with "Meets all criteria: yes." or "Meets all criteria: no.", judged
+     on the candidate's own words ALONE, ignoring whether a nudge came first.
+     "No" means the step is "missed" (or "not_applicable", below) — even if the
+     interviewer nudged it. A nudge alone never makes a step "prompted", and a
      one-line reply to a nudge that does not meet the criteria is "missed".
-  2. Only if it does: compare the evidence's timecode with the step's nudge in
-     interviewer_events. Nudge BEFORE the evidence → "prompted". Evidence before
-     the nudge, or no nudge for that step → "hit". A nudge that came after the
-     candidate had already done the step does not take the hit away.
+     The status must agree with the note: if the note says any required element
+     was absent or thin ("did not", "no explicit", "partial", "only after",
+     "stayed general"), the status is "missed", nudged or not.
+  2. Only when that answer is "yes": compare the evidence's timecode with the
+     step's nudge in interviewer_events. Nudge BEFORE the evidence →
+     "prompted". Evidence before the nudge, or no nudge for that step → "hit".
+     A nudge that came after the candidate had already done the step does not
+     take the hit away.
 - A generic non-answer never meets the criteria, before or after a nudge: "for
   everyone", "all users", "it depends", "those features together", restating the
   prompt, or repeating an earlier answer. Grade it "missed".
@@ -435,10 +462,15 @@ Also return an "outcome" object with exactly these keys:
   framework step, in the framework's order, evidence BEFORE verdict inside each
   object:
   [{"key": "step_key",
-    "evidenceQuote": "verbatim candidate words, or \\"\\" when there is none",
+    "evidenceQuote": "verbatim candidate words, left empty when there is none",
     "timecodeSeconds": 123 | null,
     "status": "hit" | "prompted" | "missed" | "not_applicable",
-    "note": "One sentence of coaching for this step, addressed to the candidate as you."}]
+    "note": "Meets all criteria: yes. Then one sentence of coaching for this step, addressed to the candidate as you."}]
+  That value is a JSON string INSIDE JSON, so never use the double-quote
+  character inside "evidenceQuote" or "note" — quote the candidate with single
+  quotes ('like this'), and shorten the quote rather than nesting one. A single
+  nested double quote invalidates the whole array and the report loses every
+  step.
 
 FRAMEWORKS THIS INTERVIEW TYPE USES
 ${frameworks.map(describeFramework).join("\n\n")}

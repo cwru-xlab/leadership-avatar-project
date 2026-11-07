@@ -268,6 +268,13 @@ async function main() {
     check("visual_score still required", required.includes("visual_score"));
     check("vocal_score still required", required.includes("vocal_score"));
     check("outcome required", required.includes("outcome"));
+    // Outcome-first: strict json_schema generates keys in schema order, so the
+    // outcome (step verdicts) must come before any *_score property. Every
+    // registered type is checked by scripts/verify-rubric-schema-order.ts;
+    // this covers the fixture type, which is deliberately not in ENGINE_TYPES.
+    const properties = Object.keys(schema.properties);
+    check("outcome is the FIRST property (problem interviews grade before scoring)", properties[0] === "outcome", properties.join(","));
+    check("outcome is the FIRST required entry", required[0] === "outcome", required.join(","));
     const outcome = schema.properties.outcome as { required: string[] };
     check(
       "outcome fields questionId/frameworkKey/processSteps",
@@ -279,6 +286,42 @@ async function main() {
     check("evaluator carries the scoring guide", evaluator.includes("process_rigor_score follows the step results"));
     check("evaluator lists framework criteria", evaluator.includes(framework.steps[0]!.evidenceCriteria));
     check("evaluator explains ground truth", /never be "hit"/.test(evaluator));
+  }
+
+  // ---------------------------------------------------------------------------
+  // The two rules the system-design validity study found are generic to every
+  // problem interview (docs/interviews/system-design-validity.md). They live
+  // in the SHARED addendum and must be stated exactly once in any one prompt:
+  // two slightly-different phrasings of the status rule is what flaked.
+  console.log("\nshared grading rules promoted from the system-design study");
+  {
+    const { buildProblemEvaluatorRules } = await import("../lib/problem-interview/prompts");
+    const shared = buildProblemEvaluatorRules([framework], []);
+    const { SD_EVALUATOR_ADDENDUM } = await import("../lib/system-design-interview/evaluator");
+    const sdEvaluator = getEngineType("system-design")!.prompts.evaluatorPrompt;
+    const count = (text: string, pattern: RegExp) => (text.match(pattern) ?? []).length;
+    const PREFIX_RULE = /STARTS with "Meets all criteria: yes\." or "Meets all criteria: no\."/g;
+    const QUOTE_RULE = /never use the double-quote/g;
+
+    check("shared rules state the mechanical note prefix", count(shared, PREFIX_RULE) === 1);
+    check("shared rules make a 'no' verdict missed, nudge or not", /"No" means the step is "missed"/.test(shared));
+    check("shared rules require the status to agree with the note", /status must agree with the note/.test(shared));
+    check("shared rules ban nested double quotes in processSteps", count(shared, QUOTE_RULE) === 1);
+    check("shared rules no longer show an escaped empty quote as the example", !shared.includes('\\"\\"'));
+    check("shared rules say the outcome is written before the scores", /comes FIRST in the JSON you return/.test(shared));
+
+    check("system-design addendum does not restate the note prefix", !/Meets all criteria: yes\.' or/.test(SD_EVALUATOR_ADDENDUM));
+    check("system-design addendum does not restate the quote ban", count(SD_EVALUATOR_ADDENDUM, QUOTE_RULE) === 0);
+    check("the registered system-design prompt states each rule once", count(sdEvaluator, PREFIX_RULE) === 1 && count(sdEvaluator, QUOTE_RULE) === 1);
+    check(
+      "system-design addendum keeps its arithmetic band check",
+      SD_EVALUATOR_ADDENDUM.includes("band 150–1,400/s, candidate 4,600/s → OUTSIDE"),
+    );
+    check("system-design addendum keeps its hard caps tied to named steps", SD_EVALUATOR_ADDENDUM.includes("HARD CAPS"));
+    check(
+      "system-design addendum still anchors the band checks to the shared prefix",
+      SD_EVALUATOR_ADDENDUM.includes("right after 'Meets all criteria:'"),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -384,6 +427,20 @@ async function main() {
       check("strict JSON unaffected", asProcessStepResults(good)?.[0]?.evidenceQuote === "q");
       const fencedFinal = finalizeProblemOutcome({ processSteps: "```json\n" + good + "\n```" }, snapshot);
       check("finalize re-encodes a repaired value as strict JSON", typeof fencedFinal.processSteps === "string" && JSON.parse(fencedFinal.processSteps as string)[0].key === "clarify_goal");
+
+      // The prompt's no-nested-double-quotes rule is belt-and-braces, NOT a
+      // licence to tighten the parser: both shapes (JSON-encoded string and a
+      // decoded array) still parse, with and without the grading prefix.
+      const prefixed = '[{"key":"clarify_goal","status":"hit","evidenceQuote":"double loans","timecodeSeconds":5,"note":"Meets all criteria: yes. You named the goal first."}]';
+      check("string shape with the grading prefix parses", asProcessStepResults(prefixed)?.[0]?.status === "hit");
+      check(
+        "array shape with the grading prefix parses",
+        asProcessStepResults([{ key: "clarify_goal", status: "missed", note: "Meets all criteria: no. Say the goal out loud first." }])?.[0]?.note.startsWith("Meets all criteria: no.") === true,
+      );
+      check(
+        "a prefixed note with nested quotes still survives the tolerant parse",
+        asProcessStepResults('[{"key":"clarify_goal","status":"hit","evidenceQuote":"I asked "what is the goal"","timecodeSeconds":5,"note":"Meets all criteria: yes. Good."}]')?.[0]?.status === "hit",
+      );
     }
     const malformed = finalizeProblemOutcome({ processSteps: "garbage" }, snapshot);
     check("malformed processSteps removed, ids still pinned", !("processSteps" in malformed) && malformed.questionId === question.id);
@@ -404,6 +461,42 @@ async function main() {
     const views = buildProcessStepViews(snapshot.framework, final.processSteps);
     check("report views: one per framework step", views.length === framework.steps.length);
     check("report views: malformed → all ungraded", buildProcessStepViews(snapshot.framework, 42).every((v) => v.result === null));
+
+    // `Meets all criteria: yes.|no.` is a grading mechanism; the student sees
+    // the status chip instead. Stripped in ONE shared helper used by every
+    // render path (buildProcessStepViews), and the stored outcome keeps it.
+    console.log("\nMeets-all-criteria prefix: stored raw, stripped for display");
+    {
+      const { stripStepNoteGradingPrefix } = await import("../lib/problem-interview/outcome");
+      check("strips a 'yes' prefix", stripStepNoteGradingPrefix("Meets all criteria: yes. You named the goal first.") === "You named the goal first.");
+      check("strips a 'no' prefix", stripStepNoteGradingPrefix("Meets all criteria: no. Say the goal out loud before solving.") === "Say the goal out loud before solving.");
+      check("case- and dash-insensitive", stripStepNoteGradingPrefix("meets all criteria — yes — Nice work.") === "Nice work.");
+      check("a note that is only the prefix becomes empty", stripStepNoteGradingPrefix("Meets all criteria: no.") === "");
+      check("an ordinary note is untouched", stripStepNoteGradingPrefix("Name the goal before solving.") === "Name the goal before solving.");
+      check("the phrase mid-sentence is untouched", stripStepNoteGradingPrefix("You asked whether it meets all criteria: yes, later.").startsWith("You asked"));
+
+      const prefixedSteps = JSON.stringify(
+        framework.steps.map((step) => ({
+          key: step.key,
+          status: "hit",
+          evidenceQuote: "q",
+          timecodeSeconds: 5,
+          note: `Meets all criteria: yes. Coaching for ${step.key}.`,
+        })),
+      );
+      const stored = finalizeProblemOutcome({ processSteps: prefixedSteps }, snapshot);
+      check(
+        "the stored outcome keeps the raw prefix",
+        asProcessStepResults(stored.processSteps)!.every((s) => s.note.startsWith("Meets all criteria: yes.")),
+      );
+      const rendered = buildProcessStepViews(snapshot.framework, stored.processSteps);
+      check(
+        "every render path gets the prefix stripped",
+        rendered.every((v) => v.result !== null && !/meets all criteria/i.test(v.result.note)),
+        JSON.stringify(rendered.map((v) => v.result?.note)),
+      );
+      check("and the coaching sentence survives", rendered[0]!.result!.note === `Coaching for ${framework.steps[0]!.key}.`);
+    }
 
     const sanitized = sanitizeOutcomeQuotes({ processSteps: JSON.stringify([{ key: "a", status: "hit", evidenceQuote: "x".repeat(500) }]) });
     check("sanitizer caps processSteps quotes", (asProcessStepResults(sanitized!.processSteps)?.[0]?.evidenceQuote.length ?? 999) <= 240);

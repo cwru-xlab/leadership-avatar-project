@@ -6,10 +6,13 @@
  * trade-off reasoning, scalability, technical depth, communication, and
  * driving the conversation (Xu Vol. 1 ch. 3; Hello Interview's leveling
  * notes; Meta and Google candidate guides). The engine's shared problem rules
- * already cover step statuses, the evidence-first procedure, arithmetic
- * re-checks, and the outcome format; `process_rigor` is derived from the
- * step results by the engine, so nothing here keys a dimension
- * `process_rigor`.
+ * already cover step statuses, the evidence-first procedure, the mechanical
+ * `Meets all criteria: yes.|no.` note prefix, the no-nested-double-quotes
+ * rule for `processSteps`, arithmetic re-checks and the outcome format — this
+ * addendum must never restate any of them in its own words (two phrasings of
+ * the status rule is what the validity study saw flake). `process_rigor` is
+ * derived from the step results by the engine, so nothing here keys a
+ * dimension `process_rigor`.
  */
 
 /**
@@ -81,24 +84,6 @@ If ANY key figure the candidate relied on is OUTSIDE and uncorrected, the
 answer to 'Meets all criteria' is 'no' and quantitative_score is at most 2.
 
 DECIDING EACH STEP
-Decide every step BEFORE any score, writing each processSteps object with its
-keys in this order so the verdict follows the evidence:
-{"key","evidenceQuote","note","status","timecodeSeconds"}.
-processSteps is a JSON string INSIDE JSON: inside evidenceQuote and note
-never use the double-quote character — use single quotes ('like this') — so
-the encoded string stays valid.
-Every note STARTS with 'Meets all criteria: yes.' or 'Meets all criteria:
-no.' judged on the candidate's words ALONE, ignoring whether a nudge came
-first. Then the status is mechanical:
-  "no"  → "missed" (nudged or not — a nudge never upgrades a thin answer);
-  "yes" and the step was nudged before that evidence → "prompted";
-  "yes" and not nudged → "hit".
-"prompted" does NOT mean "the candidate said something after a nudge".
-The note says whether the evidence FULLY meets the step's criteria; the status
-must agree with the note. If your note says ANY required element is absent or
-thin ("did not", "no explicit", "partial", "stayed high level", "without
-costs", "no weighing"), the status is "missed" — whether or not a nudge came
-first. "prompted" means the post-nudge reply met EVERY part of the criteria.
 - ORDER MATTERS for the first step: requirements or scope questions asked only
   AFTER the candidate has proposed components, services or databases do not
   make clarify_requirements / clarify_scope a hit — that is "missed" unless a
@@ -114,16 +99,12 @@ first. "prompted" means the post-nudge reply met EVERY part of the criteria.
 - A TRADEOFF names what is GIVEN UP. "We'll add a cache to make it fast" is
   not a tradeoff; "a cache cuts read latency but serves data up to a minute
   stale, which is fine for links because they never change" is.
-- For estimate_scale, re-compute every figure the candidate states from the
-  numbers they used and compare with the TOLERANCE bands in reference_notes.
-  An uncorrected order-of-magnitude slip (e.g. dividing by 86,400 and getting
-  4,600 instead of ~460) means the step is NOT met, however fluent the
-  narration. Quoting the exhibit's daily numbers back is not an estimate.
+- For estimate_scale, apply ARITHMETIC FIRST above. Quoting the exhibit's
+  daily numbers back is not an estimate.
 - For incidents: mitigate_first needs a service-restoring action (roll back,
   flag off, drain, shed load) proposed BEFORE or alongside root-causing;
   "find the bug, fix it and deploy" is not mitigation. A root cause that
   contradicts an exhibit on screen is "missed".
-Count prompted and missed steps first, then apply the process_rigor guide.
 
 TECHNICAL DEPTH (technical_depth_score)
 5: concrete APIs/schemas/keys/algorithms that would work at the stated scale,
