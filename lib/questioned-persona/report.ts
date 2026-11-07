@@ -57,7 +57,7 @@ export function mitiSummaryGlobals(scores: Record<string, number | null> | null 
     {
       key: "relational",
       label: "Relational global",
-      value: avg(s("partnership"), s("empathy")),
+      value: avg(s("partnership"), s("empathy_mi")),
       fair: 3.5,
       good: 4,
       formula: "(Partnership + Empathy) / 2",

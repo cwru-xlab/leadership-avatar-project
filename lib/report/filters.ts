@@ -141,11 +141,37 @@ export const NO_FILTERS: ReportFilters = {
   sort: "newest",
 };
 
+/**
+ * Slugs that file under the "Interviews" TAB on My Reports.
+ *
+ * Deliberately separate from `STUDY_PLAN_SOURCE_TYPE_SLUGS`, which answers a
+ * different question ("may a study plan be built from this?"). The two used to
+ * be the same set plus a `technical-coding` special case, which only worked
+ * while every study-plan source happened to be an interview. Once clinical
+ * communication and motivational interviewing became study-plan sources
+ * (2026-11-07) they would have started appearing under Interviews as well as
+ * under their own tabs, silently duplicating rows across tabs.
+ *
+ * So: tab membership is declared here, eligibility is declared in
+ * lib/study-plan/plan-source-types.ts, and neither is derived from the other.
+ */
+const INTERVIEW_TAB_SLUGS: ReadonlySet<string> = new Set([
+  "general",
+  "technical",
+  "technical-coding",
+  "consulting",
+  "early-career",
+  "product-management",
+  "data-analytics",
+  "finance",
+  "system-design",
+]);
+
 export function matchesTypeFilter(typeSlug: string, filter: TypeFilter): boolean {
   if (filter === "all") return true;
-  // The coding interview files under Interviews too; it stays out of
-  // INTERVIEW_TYPE_SLUGS because study plans don't read it yet.
-  if (filter === "interview") return INTERVIEW_TYPE_SLUGS.has(typeSlug) || typeSlug === "technical-coding";
+  // The questioned-persona types are study-plan sources but are NOT interviews
+  // — each has its own tab below, so they must not also answer to this one.
+  if (filter === "interview") return INTERVIEW_TAB_SLUGS.has(typeSlug);
   // All five deck modes (19-01's DECK_MODES table) land under the existing
   // Pitches tab alongside the elevator pitch — no new filter tab is added.
   if (filter === "pitch")

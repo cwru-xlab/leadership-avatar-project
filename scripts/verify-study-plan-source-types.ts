@@ -31,7 +31,8 @@ import {
   STUDY_PLAN_SOURCE_TYPE_SLUG_SET,
   isStudyPlanSourceType,
 } from "../lib/study-plan/plan-source-types";
-import { INTERVIEW_TYPE_SLUGS } from "../lib/report/filters";
+import { INTERVIEW_TYPE_SLUGS, matchesTypeFilter, TYPE_FILTERS } from "../lib/report/filters";
+import { STUDY_PLAN_SYSTEM_PROMPT, buildSystemPrompt } from "../lib/study-plan/generate";
 
 const ROOT = process.cwd();
 let checks = 0;
@@ -76,15 +77,18 @@ console.log("\n1. ONE list — both consumers import it, neither re-declares it"
     ),
   );
 
-  // The defect was a second LITERAL list. A literal is what to look for:
-  // both files legitimately mention the identifier.
-  const literalListPattern = /(?:new Set\(\s*\[|=\s*\[)\s*\n?\s*["']general["']/;
+  // The defect was a second copy of the ELIGIBILITY list. Look for a literal
+  // list bound to an eligibility-sounding name, not for any literal list at
+  // all: lib/report/filters.ts legitimately declares INTERVIEW_TAB_SLUGS,
+  // which answers the different "which tab?" question (section 6).
+  const literalListPattern =
+    /(?:INTERVIEW_TYPE_SLUGS|STUDY_PLAN_SOURCE_TYPE_SLUGS?)[^=\n]*=\s*(?:new Set\(\s*)?\[/;
   check(
-    `${GENERATE_ROUTE} declares no literal slug list of its own`,
+    `${GENERATE_ROUTE} declares no literal eligibility list of its own`,
     !literalListPattern.test(generateSrc),
   );
   check(
-    `${FILTERS} declares no literal slug list of its own`,
+    `${FILTERS} declares no literal eligibility list of its own`,
     !literalListPattern.test(filtersSrc),
   );
 
@@ -92,7 +96,12 @@ console.log("\n1. ONE list — both consumers import it, neither re-declares it"
   // catch, so the two passes above are not vacuous.
   check(
     "bite-proof: the literal-list pattern DOES match a re-declared copy",
-    literalListPattern.test('export const X = new Set([\n  "general",\n  "technical",\n]);'),
+    literalListPattern.test('export const INTERVIEW_TYPE_SLUGS = new Set([\n  "general",\n]);') &&
+      literalListPattern.test('const STUDY_PLAN_SOURCE_TYPE_SLUGS = [\n  "general",\n];'),
+  );
+  check(
+    "bite-proof: the pattern does NOT fire on the legitimate tab list",
+    !literalListPattern.test('const INTERVIEW_TAB_SLUGS: ReadonlySet<string> = new Set([\n  "general",\n]);'),
   );
 
   // The two exported shapes must agree, member for member.
@@ -278,6 +287,162 @@ console.log("\n5. The path route's resolver takes source types and prefers them"
     "the derived list is de-duplicated and sorted (stable destination)",
     /\[\.\.\.new Set\(rows\.map\(\(r\) => r\.typeSlug\)\)\]\.sort\(\)/.test(src),
   );
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n6. Tab membership and plan eligibility are SEPARATE questions");
+// ---------------------------------------------------------------------------
+{
+  // These were briefly the same set plus a special case. Once the persona
+  // types became plan sources, reusing the eligibility set for the Interviews
+  // TAB would have shown them under Interviews AND under their own tab.
+  for (const slug of ["clinical-communication", "motivational-interviewing"]) {
+    check(`${slug} is a study-plan source`, isStudyPlanSourceType(slug));
+    check(
+      `${slug} does NOT answer to the Interviews tab (it has its own)`,
+      !matchesTypeFilter(slug, "interview"),
+    );
+    const ownTab = TYPE_FILTERS.some((f) => f.id === slug);
+    check(`${slug} has its own tab`, ownTab);
+    if (ownTab) {
+      check(
+        `${slug} matches its own tab`,
+        matchesTypeFilter(slug, slug as Parameters<typeof matchesTypeFilter>[1]),
+      );
+    }
+  }
+
+  // technical-coding files under Interviews AND is now a plan source.
+  check("technical-coding is a study-plan source", isStudyPlanSourceType("technical-coding"));
+  check("technical-coding files under the Interviews tab", matchesTypeFilter("technical-coding", "interview"));
+
+  // No row may answer to two tabs — that was the hazard being guarded.
+  const realTabs = TYPE_FILTERS.filter((f) => f.id !== "all").map((f) => f.id);
+  const doubleCounted = ENGINE_TYPES.map((t) => t.slug)
+    .map((slug) => ({ slug, tabs: realTabs.filter((f) => matchesTypeFilter(slug, f)) }))
+    .filter((r) => r.tabs.length > 1);
+  check("no engine type answers to more than one tab", doubleCounted.length === 0, doubleCounted);
+
+  // Inverted: the old rule WOULD have double-counted, proving the check bites.
+  const oldInterviewRule = (slug: string) => isStudyPlanSourceType(slug) || slug === "technical-coding";
+  const wouldDouble = ["clinical-communication", "motivational-interviewing"].filter(
+    (slug) => oldInterviewRule(slug) && realTabs.some((f) => f !== "interview" && matchesTypeFilter(slug, f)),
+  );
+  check(
+    "bite-proof: the OLD interview rule would have double-counted the persona types",
+    wouldDouble.length === 2,
+    wouldDouble,
+  );
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n7. The plan prompt is not hard-framed as interview prep");
+// ---------------------------------------------------------------------------
+{
+  check(
+    "base prompt does not claim to create interview-practice plans",
+    !STUDY_PLAN_SYSTEM_PROMPT.includes("interview-practice study plans"),
+  );
+  // "interview" must survive in the title FILLER ban, which is the opposite
+  // of framing the plan as interview-only. Guard the distinction explicitly.
+  check(
+    'the title filler ban still names "interview skills"',
+    STUDY_PLAN_SYSTEM_PROMPT.includes('"interview skills"'),
+  );
+
+  check("no source labels appends nothing", buildSystemPrompt([]) === STUDY_PLAN_SYSTEM_PROMPT);
+  check("blank/whitespace labels append nothing", buildSystemPrompt(["", "  "]) === STUDY_PLAN_SYSTEM_PROMPT);
+
+  const one = buildSystemPrompt(["Finance interview"]);
+  check("one label is named", one.includes("your Finance interview practice".replace("your ", "")));
+  check("one label adds no stray conjunction", !one.includes("and Finance interview"));
+
+  const two = buildSystemPrompt(["Clinical communication", "Finance interview"]);
+  check(
+    "two labels are joined with 'and'",
+    two.includes("Clinical communication and Finance interview"),
+  );
+
+  const three = buildSystemPrompt(["A", "B", "C"]);
+  check("three labels use commas then 'and'", three.includes("A, B and C"));
+
+  check(
+    "duplicate labels are collapsed",
+    buildSystemPrompt(["Finance interview", "Finance interview"]) === buildSystemPrompt(["Finance interview"]),
+  );
+
+  // The voice contract must survive the reframe — these are the exact strings
+  // verify-study-plan-first-person.ts and verify-study-plan-prompt.ts pin.
+  for (const required of [
+    "Address the learner as “you.”",
+    "“I would recommend focusing on…”",
+    "You might try...",
+    "self-paced",
+  ]) {
+    check(`reframed prompt keeps the voice contract: ${required}`, STUDY_PLAN_SYSTEM_PROMPT.includes(required));
+  }
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n8. Competency reachability — recorded, not aspirational");
+// ---------------------------------------------------------------------------
+{
+  /**
+   * Which competencies a study plan can target FROM ITS OWN EVIDENCE, given
+   * the current allowlist. This is the measurement behind the Phase-audit
+   * finding, kept executable so it cannot rot into a stale comment.
+   *
+   * Three competencies are deliberately NOT reachable: every dimension that
+   * evidences them is owned exclusively by the pitch, networking or
+   * difficult-conversation families —
+   *   concision_and_focus              <- concision (pitch-elevator),
+   *                                       deck_text_density (deck modes)
+   *   holding_position_under_pressure  <- holding_the_line (difficult-conv.),
+   *                                       objection_handling, negotiation
+   *   outcome_achievement              <- objective_achieved (difficult-conv.),
+   *                                       goal-progress (networking)
+   * Opening the allowlist to interview-shaped types could not change that, and
+   * opening it to those families is a separate product decision (it would mean
+   * telling an interview student to go do a pitch). They remain targetable
+   * from GLOBAL mastery, which is ungated — this is only about a plan's own
+   * source evidence.
+   */
+  const UNREACHABLE = [
+    "concision_and_focus",
+    "holding_position_under_pressure",
+    "outcome_achievement",
+  ] as const;
+
+  const sharedKeys: readonly string[] = SHARED_RUBRIC_DIMENSION_KEYS;
+  const reachable = (competencyKey: CompetencyKey) => {
+    const competency = COMPETENCIES.find((c) => c.key === competencyKey)!;
+    return STUDY_PLAN_SOURCE_TYPE_SLUGS.some((slug) => {
+      const type = getEngineType(slug);
+      if (!type) return false;
+      const keys = [...sharedKeys, ...type.extraRubricDimensions.map((d) => d.key)];
+      return competency.dimensionKeys.some((k) => keys.includes(k));
+    });
+  };
+
+  for (const competency of COMPETENCIES) {
+    const expected = !UNREACHABLE.includes(competency.key as (typeof UNREACHABLE)[number]);
+    check(
+      `${competency.key}: reachable from an eligible source = ${expected}`,
+      reachable(competency.key) === expected,
+    );
+  }
+
+  // Every dimension of an unreachable competency must be owned ONLY by
+  // non-eligible types. If that stops being true the list above is stale.
+  for (const key of UNREACHABLE) {
+    const competency = COMPETENCIES.find((c) => c.key === key)!;
+    const eligibleOwners = competency.dimensionKeys.flatMap((dim) =>
+      ENGINE_TYPES.filter(
+        (t) => t.extraRubricDimensions.some((d) => d.key === dim) && isStudyPlanSourceType(t.slug),
+      ).map((t) => t.slug),
+    );
+    check(`${key}: no eligible type owns any of its dimensions`, eligibleOwners.length === 0, eligibleOwners);
+  }
 }
 
 console.log(`\n${checks} checks run, ${failures} failed.`);

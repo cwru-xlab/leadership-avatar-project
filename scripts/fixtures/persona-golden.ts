@@ -114,7 +114,7 @@ export const GOLDEN: GoldenTranscript[] = [
     expectGlobals: {
       opening_agenda: [4, 5],
       information_gathering: [4, 5],
-      empathy: [4, 5],
+      empathy_clinical: [4, 5],
       explanation_planning: [4, 5],
     },
     expectCounts: {
@@ -168,7 +168,7 @@ export const GOLDEN: GoldenTranscript[] = [
     expectGlobals: {
       opening_agenda: [1, 2],
       information_gathering: [1, 3],
-      empathy: [1, 2],
+      empathy_clinical: [1, 2],
       explanation_planning: [1, 2],
     },
     expectCounts: {
@@ -214,7 +214,7 @@ export const GOLDEN: GoldenTranscript[] = [
     expectGlobals: {
       opening_agenda: [1, 2],
       information_gathering: [1, 2],
-      empathy: [1, 2],
+      empathy_clinical: [1, 2],
       explanation_planning: [1, 2],
     },
     expectCounts: {
@@ -262,7 +262,7 @@ export const GOLDEN: GoldenTranscript[] = [
     expectGlobals: {
       opening_agenda: [2, 4],
       information_gathering: [2, 3],
-      empathy: [1, 2],
+      empathy_clinical: [1, 2],
       explanation_planning: [1, 2],
     },
     expectCounts: {
@@ -318,7 +318,7 @@ export const GOLDEN: GoldenTranscript[] = [
       cultivating_change_talk: [4, 5],
       softening_sustain_talk: [4, 5],
       partnership: [4, 5],
-      empathy: [4, 5],
+      empathy_mi: [4, 5],
     },
     expectCounts: {
       complex_reflection: [5, 8],
@@ -400,7 +400,7 @@ export const GOLDEN: GoldenTranscript[] = [
       cultivating_change_talk: [1, 2],
       softening_sustain_talk: [1, 2],
       partnership: [1, 2],
-      empathy: [1, 2],
+      empathy_mi: [1, 2],
     },
     expectCounts: {
       confront: [3, 5],
@@ -461,7 +461,7 @@ export const GOLDEN: GoldenTranscript[] = [
     expectFacts: { reading_struggles: true, daughter_motivation: true, fixes_things: true },
     // Deliberately wide: this golden exists to test the ARITHMETIC, not the
     // globals. A mostly-simple-reflection session should not score at the top.
-    expectGlobals: { partnership: [3, 5], empathy: [3, 5] },
+    expectGlobals: { partnership: [3, 5], empathy_mi: [3, 5] },
     expectCounts: {
       simple_reflection: [4, 8],
       complex_reflection: [2, 4],

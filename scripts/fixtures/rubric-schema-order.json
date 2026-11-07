@@ -1,5 +1,5 @@
 {
-  "recordedFrom": "lib/engine/rubric.ts with outcome LAST for every type (pre-outcome-first, b168d09)",
+  "recordedFrom": "lib/engine/rubric.ts with outcome LAST for every type (pre-outcome-first, b168d09). AMENDED 2026-11-07: clinical-communication and motivational-interviewing were re-taken when their shared `empathy` dimension split into `empathy_clinical` and `empathy_mi` (a deliberate rename, not a reorder). Their digests therefore date from that split rather than from b168d09; the diff that re-took them changed only those two property names and the two digests, and difficult-conversation's `empathy_score` was left untouched. Every other type's bytes are still b168d09's.",
   "note": "digest = sha256 of JSON.stringify(buildRubricJsonSchema(config)) with outcome last. Instances come from instanceFor() in scripts/verify-rubric-schema-order.ts.",
   "types": {
     "general": {
@@ -666,7 +666,7 @@
         "behavioral_score",
         "opening_agenda_score",
         "information_gathering_score",
-        "empathy_score",
+        "empathy_clinical_score",
         "explanation_planning_score",
         "overall_summary",
         "strengths",
@@ -682,7 +682,7 @@
         "behavioral_score",
         "opening_agenda_score",
         "information_gathering_score",
-        "empathy_score",
+        "empathy_clinical_score",
         "explanation_planning_score",
         "overall_summary",
         "strengths",
@@ -691,7 +691,7 @@
         "rubric_notes",
         "practice_next"
       ],
-      "digest": "8528871f7ed022139298ded150a9abb2b695ce9ba0e3704833d87fbcbb1a2b39"
+      "digest": "061a0ca69e9fc2eb76aa62ba285230b26a6eeedff18d5da1b68bc94b29be0c0b"
     },
     "motivational-interviewing": {
       "problemInterview": false,
@@ -704,7 +704,7 @@
         "cultivating_change_talk_score",
         "softening_sustain_talk_score",
         "partnership_score",
-        "empathy_score",
+        "empathy_mi_score",
         "overall_summary",
         "strengths",
         "growth_areas",
@@ -720,7 +720,7 @@
         "cultivating_change_talk_score",
         "softening_sustain_talk_score",
         "partnership_score",
-        "empathy_score",
+        "empathy_mi_score",
         "overall_summary",
         "strengths",
         "growth_areas",
@@ -728,7 +728,7 @@
         "rubric_notes",
         "practice_next"
       ],
-      "digest": "0ff49677f0eac88e939b0bc5bd4827030949a1e75e7f1f604184d374922e10e1"
+      "digest": "2d0a06d11af8013c04dafb4762cf3826c319af49d214532285b2e6127a7ba4fd"
     }
   }
 }

@@ -14,6 +14,7 @@ import {
   type AnonymousBehavioralReport,
 } from "@/lib/study-plan/generate";
 import { STUDY_PLAN_SOURCE_TYPE_SLUGS } from "@/lib/study-plan/plan-source-types";
+import { typeLabelForReport } from "@/lib/report/title";
 
 /**
  * Study-plan-eligible typeSlugs. Re-exported under the original local name so
@@ -70,6 +71,14 @@ export interface SelectedReportRow {
   id: string;
   scores: unknown;
   reportMarkdown: string | null;
+  /**
+   * Used ONLY to name the practice types in the system prompt (so a plan
+   * built from a non-interview session is not framed as interview prep). It
+   * is deliberately NOT part of `AnonymousBehavioralReport` — the model's
+   * per-report payload stays the same four anonymous fields, which
+   * `scripts/verify-study-plan-selection.ts` asserts.
+   */
+  typeSlug: string;
 }
 
 export type ReportSelectionOutcome =
@@ -139,6 +148,7 @@ export async function selectReportsForPlan(
         id: true,
         scores: true,
         reportMarkdown: true,
+        typeSlug: true,
       },
     });
 
@@ -183,6 +193,7 @@ export async function selectReportsForPlan(
         id: true,
         scores: true,
         reportMarkdown: true,
+        typeSlug: true,
       },
     });
     eligibleRows = rows.reverse();
@@ -259,7 +270,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await generateStudyPlan(reports);
+    // Name the practice types the signals came from, so the plan is framed as
+    // the kind of session the student actually did rather than as interview
+    // prep by default. Labels only — no per-report slug reaches the model's
+    // anonymous payload. Sorted for a stable prompt.
+    const sourceTypeLabels = [...new Set(eligibleRows.map((row) => row.typeSlug))]
+      .sort()
+      .map(typeLabelForReport);
+
+    const result = await generateStudyPlan(reports, sourceTypeLabels);
     if (!result.ok) {
       console.error("Study-plan generation failed", {
         model: result.model,

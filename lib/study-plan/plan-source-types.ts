@@ -53,6 +53,20 @@ export const STUDY_PLAN_SOURCE_TYPE_SLUGS = [
   "data-analytics",
   "finance",
   "system-design",
+  // OPENED 2026-11-07. All three are interview-shaped one-on-one sessions
+  // scored on the shared four plus their own dimensions, so the competency
+  // roll-up and the coached/drill machinery already handle them. Known
+  // degradations, both named above and neither a break:
+  //   - prefillFromSnapshot returns { kind: "none" } for these, so the
+  //     prove-it step opens the wizard with a brief but no pre-seeded setup;
+  //   - buildDrillSessionContexts only tailors `kind === "interview"`
+  //     snapshots, so drill briefs use the generic scenario template.
+  // The persona types' `empathy` dimension was split into `empathy_clinical`
+  // and `empathy_mi` in the same change, so a plan built from them no longer
+  // pools three different empathy constructs into one mastery number.
+  "technical-coding",
+  "clinical-communication",
+  "motivational-interviewing",
 ] as const;
 
 export type StudyPlanSourceTypeSlug = (typeof STUDY_PLAN_SOURCE_TYPE_SLUGS)[number];
