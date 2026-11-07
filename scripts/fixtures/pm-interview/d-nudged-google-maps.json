@@ -8,6 +8,10 @@
     "processRigorMin": 2,
     "processRigorMax": 3
   },
+  "nudgesIssued": [
+    { "stepKey": "identify_customer", "t": "2:20" },
+    { "stepKey": "prioritize_needs", "t": "4:05" }
+  ],
   "turns": [
     { "t": "0:05", "who": "Interviewer", "text": "Hi, thanks for coming in. Tell me why you want to be a PM." },
     { "t": "0:12", "who": "Candidate", "text": "I'm a software engineer and I've found myself caring more about which problem we're solving than about how we build it. I've started running our team's customer feedback reviews and I want to do that full time." },

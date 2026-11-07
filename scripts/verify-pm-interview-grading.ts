@@ -7,7 +7,9 @@
  * `product-management` record (built by `makeProblemInterviewTypeConfig`),
  * with the question's private brief from `buildProblemEvaluatorBrief` passed
  * as `evaluationContext.problemBrief` — exactly what the evaluation runner
- * does. Fixtures carry no server nudge record, so `events` is empty.
+ * does. A fixture's `nudgesIssued` stands in for the server's nudge record
+ * (what the live markers would have logged); the produced outcome then goes
+ * through the runner's `finalizeProblemOutcome` before steps are checked.
  *
  * Run:   npx tsx scripts/verify-pm-interview-grading.ts [--runs=3] [--only=a-strong]
  * Needs: OPENAI_API_KEY (.env.local). Exit code non-zero on any failed check.
@@ -34,6 +36,8 @@ import { getPmFramework } from "../lib/pm-interview/frameworks";
 import { PM_INTERVIEW_SLUG } from "../lib/pm-interview/prompts";
 import { getPmQuestion } from "../lib/pm-interview/questions";
 import { buildProblemEvaluatorBrief } from "../lib/problem-interview/prompts";
+import { finalizeProblemOutcome } from "../lib/problem-interview/outcome";
+import { buildProblemSessionSnapshot } from "../lib/problem-interview/session-state";
 import {
   PROCESS_STEP_STATUSES,
   type ProcessStepResult,
@@ -60,6 +64,8 @@ interface Fixture {
     analyticalJudgmentMax?: number;
   };
   turns: Array<{ t: string; who: "Interviewer" | "Candidate"; text: string }>;
+  /** The server's nudge record for this session (step key + transcript time). */
+  nudgesIssued?: Array<{ stepKey: string; t: string }>;
 }
 
 const args = process.argv.slice(2);
@@ -164,6 +170,15 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
   }
   const type = getEngineType(PM_INTERVIEW_SLUG)!;
   const framework = getPmFramework(question.frameworkKey)!;
+  const toSeconds = (t: string) => t.split(":").reduce((acc, part) => acc * 60 + Number(part), 0);
+  const events = (fx.nudgesIssued ?? []).map((n, i) => ({
+    kind: "nudge" as const,
+    step: n.stepKey,
+    atSeconds: toSeconds(n.t),
+    turnIndex: i,
+  }));
+  const snapshot = buildProblemSessionSnapshot(question, framework, new Date(0).toISOString());
+  snapshot.events = events;
   const problemBrief = buildProblemEvaluatorBrief({
     questionId: question.id,
     frameworkKey: framework.key,
@@ -171,7 +186,7 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
     publicTitle: question.title,
     publicPrompt: question.prompt,
     framework,
-    events: [],
+    events,
   });
   {
     const resolved = resolveFromTypeConfig(type, {});
@@ -205,12 +220,14 @@ async function gradeOnce(fx: Fixture, run: number): Promise<RunRow | null> {
       outcome = result.producedOutcome ?? {};
       modelLabel = result.model;
     }
+    const rawQuestionId = outcome.questionId;
+    outcome = finalizeProblemOutcome(outcome, snapshot);
     const steps = parseSteps(outcome.processSteps);
     console.log(`\n  ${fx.label}  [run ${run}, ${modelLabel}]`);
     // Synchronous from here to the return, so concurrent fixtures don't interleave.
     currentKnownGap = fx.knownGap;
     if (fx.knownGap) console.log(`    (known gap: ${fx.knownGap})`);
-    check("outcome.questionId matches", outcome.questionId === question.id, String(outcome.questionId));
+    check("outcome.questionId matches", rawQuestionId === question.id, String(rawQuestionId));
     check("processSteps parses", steps !== null, String(outcome.processSteps).slice(0, 200));
     const byKey: Record<string, string> = {};
     const evidence: Record<string, string> = {};
