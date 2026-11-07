@@ -23,7 +23,11 @@ import { getPmFramework } from "../lib/pm-interview/frameworks";
 import { PM_INTERVIEW_SLUG } from "../lib/pm-interview/prompts";
 import { getPmQuestion } from "../lib/pm-interview/questions";
 import { buildProblemProgressBlock } from "../lib/problem-interview/prompts";
-import type { ProblemInterviewState } from "../lib/problem-interview/session-state";
+import {
+  inferUnmarkedActions,
+  type ProblemInterviewState,
+} from "../lib/problem-interview/session-state";
+import { parseProblemTurn } from "../lib/problem-interview/turn-control";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -120,7 +124,24 @@ async function probeNudge() {
   ];
   const text = await reply("pm-design-alarm-clock-deaf", history);
   console.log(`    reply: ${text.replace(/\n/g, " ").slice(0, 240)}`);
-  check("emits a nudge marker", /<interview-turn kind="nudge" step="[a-z_]+"\s*\/>/.test(text), text);
+  // What the chat route records: explicit markers, plus the verbatim-nudge
+  // fallback (inferUnmarkedActions) when the model says a nudge unmarked.
+  const question = getPmQuestion("pm-design-alarm-clock-deaf")!;
+  const parsed = parseProblemTurn(text);
+  const inferred = inferUnmarkedActions(
+    parsed.content,
+    parsed.actions,
+    { stage: "problem", fitFollowUpsUsed: 1, promptPosed: true, revealedExhibits: [], nudgedSteps: [] },
+    question,
+    getPmFramework(question.frameworkKey)!,
+  );
+  const marked = parsed.actions.some((a) => a.kind === "nudge");
+  const recorded = marked || inferred.some((a) => a.kind === "nudge");
+  check(
+    `nudge recorded by the session (${marked ? "marker" : "verbatim fallback"})`,
+    recorded,
+    text,
+  );
   const spoken = text.replace(/<interview-turn[^>]*\/>/g, "");
   check("spoken nudge does not name the step or framework", !COACHING.test(spoken), spoken);
   check("asks exactly one question", (spoken.match(/\?/g) ?? []).length === 1, spoken);

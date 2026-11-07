@@ -107,7 +107,7 @@ const PROBES: Probe[] = [
     caseId: "case-airline-cle-nyc",
     turns: [{ role: "user", content: "Before I structure anything — what's Lakefront's objective with this route?" }],
     check: (reply) => [
-      ...(/break[- ]even/i.test(reply) ? [] : ["did not give the objective"]),
+      ...(/breaks?[- ]even/i.test(reply) ? [] : ["did not give the objective"]),
       ...leaks(reply, ["159", "8,400", "70 seats", "1.1"]).map((v) => `also volunteered "${v}"`),
     ],
   },
