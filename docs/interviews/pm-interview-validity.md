@@ -103,6 +103,17 @@ record), three runs each, no camera or mic metrics.
 | (f) metric drop, strong | food-delivery drop | clarify, journey, diagnose, summarize hit; process ≥ 4 |
 | (g) estimation, no sanity check | Gmail storage | sanity_check missed; process ≤ 3 (known gap, see below) |
 
+### Previous configuration — score-first schema, with the script's own bypass (recorded before 2026-11-07)
+
+Everything from here to the live-prompt finding is the earlier measurement, kept
+unedited for comparison. It was taken BEFORE `buildRubricJsonSchema` moved the
+`outcome` object ahead of the `*_score` properties, before the shared problem
+addendum gained the `Meets all criteria:` and no-nested-double-quotes rules, and
+while `scripts/verify-pm-interview-grading.ts` still had its own
+`evaluateOutcomeFirst` path that called OpenAI directly to reorder the schema.
+Its `--outcome-first` numbers therefore came from that bypass, not from the
+engine. The re-measurement is the section after Finding 3.
+
 ### Results (final run, 3 runs per fixture)
 
 Scores are `model process_rigor (process_rigor derived from the steps) / product_sense / analytical_judgment`, one cell per run. Step results are per run.
@@ -169,6 +180,145 @@ Android"), which does the candidate's analysis for them. Making the marker the
 mandatory first token of a nudge reply, and limiting the spoken exhibit line to
 its title, fixed both. `scripts/verify-pm-interview-live-prompt.ts` passed 3 of
 3 runs after the change.
+
+## Re-measurement, 2026-11-07 — outcome-first engine schema plus the shared grading rules (commit dbd25ce)
+
+Configuration: branch `loop/case-pm-integration` at `dbd25ce`, same model
+(`gpt-4.1`), same seven fixtures, same run count as the previous configuration:
+`npx tsx --env-file=.env.local scripts/verify-pm-interview-grading.ts --runs=3`
+= 21 grades. Four things are different:
+
+1. `buildRubricJsonSchema` (`lib/engine/rubric.ts`) emits `outcome` BEFORE the
+   `*_score` properties for every problem interview, so Finding 1's suspected
+   cause is now gone from the engine itself rather than worked around in a
+   script.
+2. The script's own `evaluateOutcomeFirst` path has been REMOVED. Every grade in
+   this run goes through the app's real `runEvaluation`, so this is the first
+   measurement of PM through the genuine engine path; the previous
+   `--outcome-first` numbers are not directly comparable to it.
+3. The shared problem addendum (`lib/problem-interview/prompts.ts`) now requires
+   every step `note` to START with `Meets all criteria: yes.` or
+   `Meets all criteria: no.`, judged on the candidate's own words alone, with
+   the status agreeing with it — and bans the double-quote character inside
+   `evidenceQuote` and `note`.
+4. The grading prefix is stripped at RENDER time only
+   (`stripStepNoteGradingPrefix`); the stored outcome keeps the raw note, which
+   is what the counts below read.
+
+Cells are `model process_rigor (derived from the steps) / product_sense /
+analytical_judgment`, one per run.
+
+| Fixture | Run 1 | Run 2 | Run 3 | Step verdicts | Pass (previous) |
+|---|---|---|---|---|---|
+| (a) strong | 5 (5) / 5 / 5 | 5 (5) / 5 / 5 | 5 (5) / 5 / 5 | all 7 hit, 3/3 runs | 3/3 (3/3) |
+| (b) jumps to features | 1 (1) / 1 / 1 | 1 (1) / 2 / 2 | 1 (1) / 2 / 2 | 6 missed (only list_solutions hit), 3/3 | 3/3 (3/3) |
+| (c) generic persona | 2 (1) / 3 / 2 | 2 (1) / 3 / 2 | 2 (1) / 3 / 2 | identify_customer, evaluate_tradeoffs, summarize_recommendation missed, 3/3 | 3/3 (3/3) |
+| (d) needs nudges | 3 (3) / 5 / 5 | 3 (3) / 5 / 5 | 3 (3) / 5 / 5 | identify_customer + prioritize_needs prompted, rest hit, 3/3 | 3/3 (3/3) |
+| (e) drop, no segmenting | 3 (3) / 3 / **3** | 2 (2) / 3 / 2 | 2 (1) / 3 / 2 | diagnose_root_cause missed 3/3 | **2/3 (3/3)** |
+| (f) drop, strong | 5 (5) / 5 / 5 | 5 (5) / 5 / 5 | 5 (5) / 5 / 5 | all 6 hit, 3/3 | 3/3 (3/3) |
+| (g) estimation, no sanity check | 4 (3) / 4 / 4 | 3 (3) / 4 / 4 | 4 (3) / 4 / 4 | sanity_check **missed 3/3** | known gap, 3/3 on the assertions (2/3) |
+
+**20 of 21 grades met every expectation, the same count as the previous
+configuration — but a different grade fails.** Previously the one grade that did
+not was (g) run 1, whose two missed checks were reported as known-gap rather
+than as failures (exit code ALL PASS, 2 known-gap misses). This run has 1 hard
+failure ((e) run 1) and 0 known-gap misses. One run regressed and one known gap
+did not fire, so the headline count is flat:
+
+- **(e) run 1 failed `analytical_judgment <= 2` with a 3.** The step verdict was
+  right in all 3 runs — `diagnose_root_cause` missed, never segmented — and the
+  derived `process_rigor` stayed within the expectation; only the judgment
+  dimension drifted up once. Re-checked twice with `--only=e- --runs=2`: it
+  returned 3 again in one run and 2 in the other, so the 3 reproduces at roughly
+  1 run in 3. Recorded as a residual. The expectation is NOT loosened: a
+  candidate who never segments the data should not clear 2 on analytical
+  judgment.
+- **(g)'s `sanity_check` behaved better, not worse: missed in 3 of 3 runs,
+  against missed in 2 of 3 and wrongly credited in 1 of 3.** The note shows the
+  model making exactly the distinction the gap was about: "Meets all criteria:
+  no. You did sensitivity analysis on key assumptions (attachment share/size),
+  but did not c[ompare]...". The known gap did not fire at all in this run.
+  3 of 3 is too small to call the gap closed, so it stays marked `knownGap`.
+
+**Verdict: outcome-first plus the shared rules is neutral-to-positive for PM —
+20/21 against 20/21, with (g)'s known gap not firing at all (sanity_check
+correctly missed 3/3 against 2/3) and the one new failure being a
+judgment-dimension drift on (e), not a process verdict.** Every step verdict in all 21 grades matched the previous
+configuration.
+
+What the newly shared rules did, measured on the stored (unstripped) notes:
+
+- **The `Meets all criteria:` prefix did appear, in 138 of 138 step notes,**
+  all of them with the mandated `yes.` / `no.` verdict; 36 said `no.`. (The case
+  study on the same commit saw 3 notes invent `Meets all criteria: prompted.`;
+  no PM note did.)
+- **The status-must-agree-with-the-note rule changed no verdict: 0 of 138 notes
+  said `no.` while the status was not `missed`.** Where it mattered it helped —
+  every `no.` note in (b), (c), (e) and (g) sat on a `missed` step.
+- **`processSteps` parsed in 21 of 21 grades, against 1 unparseable in 21
+  before.** But the model's RAW string still failed a strict `JSON.parse` in 9
+  of 21 grades and was rescued by the engine's deterministic repair
+  (`parseProcessStepsValue`). No stored step contains a double-quote character
+  (0 of 138), so the ban itself is obeyed; the parse diagnostic added to the
+  script shows the actual cause is the model using single quotes as the JSON
+  string DELIMITER — `"evidenceQuote": 'Before I ...'` — an over-reading of the
+  rule's "quote the candidate with single quotes". The same defect lost all six
+  evidence quotes in 2 of 27 grades in the case study, so it is not cosmetic.
+  Residual; the wording lives in a shared file and was not changed here.
+- **Finding 1 survives the engine change. The model's `process_rigor_score`
+  still disagreed with the band its own steps imply in 6 of 21 grades** — (c) in
+  3 of 3 (scored 2, band 1), (g) in 2 of 3 (scored 4, band 3), (e) in 1 of 3
+  (scored 2, band 1) — always too high. Putting `outcome` first in the real
+  engine schema reduced it (the previous configuration saw it on (c), (d) and
+  (e) in every run, and (d) now agrees in 3 of 3) but did not remove it, so
+  deriving `process_rigor` from the parsed steps stays the right call.
+
+### Residuals after the 2026-11-07 run
+
+1. (e) `analytical_judgment` reaches 3 in about 1 run in 3 even though the
+   diagnosis is correctly marked missed. Reproduced on re-check. Expectation
+   kept at <= 2.
+2. The raw `processSteps` string needs the engine's deterministic repair in 9 of
+   21 grades because the model delimits values with single quotes. Shared-file
+   wording; see the hand-off below.
+3. Raw `process_rigor` above the derived band in 6 of 21 grades.
+4. (g)'s sanity-check-vs-sensitivity gap did not fire in 3 of 3 runs but stays
+   marked `knownGap` on that evidence alone.
+
+### Hand-off to the engine owner (shared file, NOT changed on this branch)
+
+Residual 2 traces to the shared problem addendum in
+`lib/problem-interview/prompts.ts`, serialized across all five problem types, so
+this wording is proposed and not applied. Replace "That value is a JSON string
+INSIDE JSON, so never use the double-quote character inside "evidenceQuote" or
+"note" — quote the candidate with single quotes ('like this'), and shorten the
+quote rather than nesting one." with: "That value is a JSON string INSIDE JSON.
+Every key and every value in it must be delimited by the double-quote character,
+exactly as in the shape above, and no double-quote character may appear INSIDE a
+value: when you quote the candidate, put single quotes ('like this') around
+their words inside the value, and shorten the quote rather than nesting a double
+quote. A value delimited by single quotes, or a single nested double quote,
+invalidates the whole array and the report loses the step evidence."
+
+### Live-prompt probe re-run, 2026-11-07
+
+`npx tsx --env-file=.env.local scripts/verify-pm-interview-live-prompt.ts`, 3
+runs, the run count the recorded baseline used. The baseline above (3 of 3 after
+the marker change) is not edited; this is the new reading.
+
+| Probe | 2026-11-07 result | Previously recorded |
+|---|---|---|
+| 1. Poses the abstract prompt without hints | 3/3 pass: posed "Design an alarm clock for the deaf" with no coaching and no interviewer facts | pass 3/3 |
+| 2. Neutral nudge when the candidate jumps to features | 3/3 recorded a nudge and 3/3 spoke it neutrally with exactly one question — but by the explicit `nudge` marker in only 1 of 3 runs; the other 2 relied on the `inferUnmarkedActions` verbatim fallback | pass 3/3 after the marker change was made mandatory |
+| 3. Exhibit only when a breakdown is asked for | 3/3 gave no exhibit on a clarifying question and leaked nothing unasked; 3/3 revealed `ex1` with the marker. **1 of 3 read the whole exhibit table out loud** (iOS/Android/Web rows, -29.5%), doing the candidate's analysis for them | pass 3/3; the read-out was the defect the marker/one-line rule had fixed |
+| 4. Declines to coach mid-problem | 3/3 answered "It's your call." and gave no method advice | pass 3/3 |
+
+2 of 3 whole-script runs passed. Two live-prompt behaviours regressed against
+the recorded baseline: the mandatory-first-token `nudge` marker was absent in 2
+of 3 runs (the session still recorded the nudge only because of the verbatim
+fallback), and the exhibit read-out reappeared in 1 of 3. Both belong to the
+shared `lib/problem-interview/prompts.ts` live prompt, which this branch does
+not change; recorded here for the engine owner rather than fixed.
 
 ## Remaining gaps
 

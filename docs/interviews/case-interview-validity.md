@@ -68,6 +68,15 @@ Retrieved 2026-11-06. Code comments cite the same list (`lib/case-interview/sour
 - 3 cases: airline (business), retailer (business), hair gel (guesstimate).
 - 4 variants: **strong** (every step, modeled on the firms' good-answer walk-throughs), **jump** (straight to an answer), **botch** (good structure, wrong math, no final answer), **nudged** (interviewer nudges recorded as server events).
 
+### Previous configuration — score-first schema (recorded 2026-11-06)
+
+The numbers in this subsection, in the iteration log and in the residual-variance
+list below are the earlier measurement, kept for comparison. They were taken
+BEFORE `buildRubricJsonSchema` moved the `outcome` object ahead of the `*_score`
+properties and before the shared problem addendum gained the
+`Meets all criteria:` and no-nested-quotes rules. Nothing in them has been
+edited; the re-measurement is the section after them.
+
 The final numbers below are from **engine mode**. That means a scratch merge of this branch with `loop/problem-engine` at `c3365be`, with `consulting` registered through the real `makeProblemInterviewTypeConfig`, the real `buildProblemEvaluatorBrief` and the real `postProcessScores`. `process_rigor` is the value after the code ceiling from the step results, as the PM study recommended.
 
 Step pattern key: H = hit, P = prompted, M = missed, in framework order.
@@ -111,6 +120,128 @@ Step pattern key: H = hit, P = prompted, M = missed, in framework order.
 - **airline-botch synthesis:** scored 2 or 3. The candidate does conclude "very achievable" from the wrong math, so 3 is arguable.
 - **Evidence quotes:** 1 of 27 grades had a quote that was not verbatim (in `state_assumptions`).
 
+### Re-measurement, 2026-11-07 — outcome-first schema plus the shared grading rules (commit dbd25ce)
+
+Configuration: branch `loop/case-pm-integration` at `dbd25ce`. Three things
+changed together and this run measures all three at once:
+
+1. `buildRubricJsonSchema` (`lib/engine/rubric.ts`) emits the `outcome` object
+   BEFORE the `*_score` properties for every problem interview, so the model
+   writes the step verdicts first and scores from them. Non-problem types are
+   unchanged (`scripts/verify-rubric-schema-order.ts`).
+2. The shared problem addendum (`lib/problem-interview/prompts.ts`) now carries
+   two rules that used to live only in the system-design evaluator, so they
+   reach the case for the first time: every step `note` must START with
+   `Meets all criteria: yes.` or `Meets all criteria: no.`, judged on the
+   candidate's own words alone and with the status agreeing with it; and the
+   double-quote character is banned inside `evidenceQuote` and `note`.
+3. The grading prefix is stripped at RENDER time only
+   (`stripStepNoteGradingPrefix` in `lib/problem-interview/outcome.ts`). The
+   stored outcome keeps the raw note, which is what the counts below read.
+
+Same script, same model (`gpt-4.1`), same goldens and the same run count as the
+previous configuration: 9 transcripts x 3 runs = 27 grades, from
+`npx tsx --env-file=.env.local scripts/verify-case-interview-grading.ts --runs 3`.
+
+`process_rigor` is shown as `derived (raw)`: the value the report keeps, with
+the model's own number in brackets.
+
+| Transcript | Expectation | process_rigor run 1 / 2 / 3 | quantitative | synthesis | Step pattern(s) | Pass (previous) |
+|---|---|---|---|---|---|---|
+| airline-strong | rigor >= 4, all hit | 5 (5) / 5 (5) / 5 (5) | 5, 5, 5 | 5, 5, 5 | HHHHHH x3 | 3/3 (3/3) |
+| airline-jump | rigor <= 2; clarify, structure, analysis missed | 1 (1) / 1 (1) / 1 (1) | 1, 1, 1 | 2, 1, 2 | MMMMMM x3 | **3/3 (2/3)** |
+| airline-botch | quant <= 2; synthesize missed; structure hit | 2 (2) / 2 (3) / 2 (2) | 1, 1, 1 | 2, 2, 2 | HHHHMM x3 | 3/3 (3/3) |
+| airline-nudged | structure, hypothesis, synthesize prompted; rigor <= 3; synth <= 3 | 2 (3) / 2 (3) / 2 (3) | 5, 5, 5 | 3, 3, 3 | HHPPHP x3 | 3/3 (3/3) |
+| retail-strong | rigor >= 4, all hit | 5 (5) / 5 (5) / 5 (5) | 5, 5, 5 | 5, 5, 5 | HHHHHH x3 | 3/3 (3/3) |
+| retail-nudged | restate, clarify prompted; rest hit | 3 (3) / 3 (4) / 3 (3) | 5, 5, 5 | 5, 5, 5 | PPHHHH x3 | 3/3 (3/3) |
+| hairgel-strong | rigor >= 4, all hit | 5 (5) / 5 (5) / 5 (5) | 5, 5, 5 | 5, 5, 5 | HHHHHH x3 | 3/3 (3/3) |
+| hairgel-jump | rigor <= 2; scope, structure, sanity missed | 1 (1) / 1 (1) / 1 (1) | 1, 1, 1 | 2, 2, 2 | MMMMMH x3 | 3/3 (3/3) |
+| hairgel-botch | quant <= 2; calculation, sanity, answer missed | 1 (2) / 1 (2) / 1 (2) | 1, 1, 1 | 2, 1, 2 | HHHMMM x3 | 3/3 (3/3) |
+
+**27/27 grades pass, against 26/27 in the previous configuration.** The one
+recorded failure is gone: `airline-jump` returned the expected all-missed
+`MMMMMM` in 3 of 3 runs, where the score-first schema had returned `MPPMMP`
+once. Derived `process_rigor` again did not vary across runs for any
+transcript; `quantitative` did not vary at all; `synthesis` varied by 1 point on
+`airline-jump` and `hairgel-botch`.
+
+**Verdict: outcome-first helped — 27/27 against 26/27 — and it removed the one
+step-pattern flake, with no expectation loosened.**
+
+What the two newly shared rules did, measured on the stored (unstripped) notes:
+
+- **The `Meets all criteria:` prefix did appear.** The phrase opened 162 of 162
+  step notes. 159 of 162 used the mandated `yes.` / `no.` verdict, 57 of them
+  saying `no.`.
+- **Three notes invented a third verdict word.** `airline-nudged` run 1 wrote
+  `Meets all criteria: prompted.` on `structure`, `hypothesis_prioritize` and
+  `synthesize`. A spot re-check of that one golden
+  (`--only airline-nudged --runs 1`, a 4th run of it) reproduced it on the same
+  three steps (3 of 6 notes). `stripStepNoteGradingPrefix` only strips `yes` /
+  `no`, so `Meets all criteria: prompted.` reaches the student's report
+  verbatim. Residual; the wording is in a shared file and was not changed here.
+- **The status-must-agree-with-the-note rule changed no verdict.** 9 of 162
+  notes said `no.` while the status stayed `prompted` (`airline-nudged` runs 2
+  and 3, `retail-nudged` runs 1 and 3). In each one the status was right and the
+  note was wrong: the model folded "only after a nudge" into question 1 instead
+  of judging the candidate's words alone. Derived `process_rigor`, the step
+  patterns and every expectation were unaffected.
+- **No stored step carried a double-quote character: 0 of 162.** The model's raw
+  `processSteps` string nonetheless failed a strict `JSON.parse` in 4 of 27
+  grades and was rescued by the engine's deterministic repair
+  (`parseProcessStepsValue`); nothing was unrecoverable, so 0 of 27 grades lost
+  their steps. In 2 of those 4 (`hairgel-strong` run 2, `airline-nudged` run 3)
+  the repair's last-resort row reader could not read the values and dropped
+  every `evidenceQuote`: 12 of 162 non-missed steps came back with an empty
+  quote, so the report would show those steps with a verdict and no evidence.
+  The cause, captured by the PM study's parse diagnostic on the same commit, is
+  the model using single quotes as the JSON string DELIMITER
+  (`"evidenceQuote": 'Before I ...'`) — an over-reading of the shared rule's
+  "quote the candidate with single quotes".
+- **Non-verbatim evidence quotes: 0 of 162 steps** (previously 1 of 27 grades).
+
+**Raw vs derived `process_rigor` still disagrees, and more often than before: 8
+of 27 grades** (previously 5 of 27), every time with the raw score ABOVE the
+band its own steps imply — `airline-nudged` 3 runs (raw 3 against 2),
+`hairgel-botch` 3 runs (raw 2 against 1), `airline-botch` run 2 (raw 3 against
+2), `retail-nudged` run 2 (raw 4 against 3). Putting `outcome` first did not
+make the model read its score off its own verdicts, so deriving `process_rigor`
+in code stays load-bearing.
+
+### Residuals after the 2026-11-07 run
+
+1. `Meets all criteria: prompted.` as the prefix verdict: 3 of 162 notes,
+   reproduced on re-check, and not stripped before the student sees it. Needs a
+   shared-file wording change (see the hand-off note); not applied here.
+2. The raw `processSteps` string needed the deterministic repair in 4 of 27
+   grades, and 2 of those lost all six evidence quotes. Shared-file wording
+   change; not applied here.
+3. Raw `process_rigor` above the derived band in 8 of 27 grades. Contained in
+   code by deriving the score from the steps; recorded, not fixed.
+4. `synthesis` still varies by 1 point on `airline-jump` (1-2) and
+   `hairgel-botch` (1-2).
+
+### Hand-off to the engine owner (shared files, NOT changed on this branch)
+
+Both residuals above come from the shared problem addendum in
+`lib/problem-interview/prompts.ts`, which is serialized across all five problem
+types, so the wording below is proposed and not applied.
+
+1. After "judged on the candidate's own words ALONE, ignoring whether a nudge
+   came first." add: "Those two are the ONLY permitted openings: never write any
+   other word after 'Meets all criteria:' — not 'prompted', not 'partial'.
+   Whether a nudge came first is decided in question 2, not here."
+2. Replace "That value is a JSON string INSIDE JSON, so never use the
+   double-quote character inside "evidenceQuote" or "note" — quote the
+   candidate with single quotes ('like this'), and shorten the quote rather than
+   nesting one." with: "That value is a JSON string INSIDE JSON. Every key and
+   every value in it must be delimited by the double-quote character, exactly as
+   in the shape above, and no double-quote character may appear INSIDE a value:
+   when you quote the candidate, put single quotes ('like this') around their
+   words inside the value, and shorten the quote rather than nesting a double
+   quote. A value delimited by single quotes, or a single nested double quote,
+   invalidates the whole array and the report loses the step evidence."
+
 ## Live probes
 
 `scripts/verify-case-interview-live.ts` uses the real `gpt-4.1` with the engine's real `buildProblemInterviewSystemPrompt`, `buildProblemProgressBlock` and `parseProblemTurn` on bank cases. Results are 2 batches × 3 runs = 6 runs per probe.
@@ -123,6 +254,25 @@ Step pattern key: H = hit, P = prompted, M = missed, in framework order.
 | P4 fact only when asked | 6/6 gave the objective and nothing else. Several replies tacked on "anything else you'd want to know about the client?". That is the clarify nudge, given unprompted and without a marker |
 
 These are engine prompt issues. The PM study saw the same marker dropping, and the engine worker is making the marker wording firmer. Rerun this script after that change.
+
+### Live probes re-run, 2026-11-07 (commit dbd25ce, after the fac1cff persona hardening)
+
+`npx tsx --env-file=.env.local scripts/verify-case-interview-live.ts --runs 3`,
+run as 2 batches x 3 runs = 6 runs per probe, the same shape as the recorded
+measurement above. The table above is NOT edited; this is the new reading.
+
+| Probe | 2026-11-07 result | Previously recorded |
+|---|---|---|
+| P1 airline / hair gel: no numbers volunteered when the candidate pauses | 12/12 volunteered no number and revealed no exhibit. The premature nudge is unchanged: 6/6 airline runs nudged `restate_prompt` the moment the candidate said "give me a second to think", and 6/6 hair-gel runs nudged `clarify_scope` the same way. The spoken line now opens with "Take your time." first, but the nudge marker is still emitted, so the candidate still loses the `hit` | 12/12 never volunteered a number; premature `restate_prompt` nudge in 5/6 airline runs |
+| P2 cost exhibit on request | 6/6 put the route economics on screen in words and read no value aloud. The `ex2` marker was dropped in 1/6 (batch 2, run 2) | marker dropped in 2/6 |
+| P3 neutral nudge after jumping to an answer | 6/6 neutral wording, and the nudge marker was present in 6/6 | marker dropped in 3/6 |
+| P4 fact only when asked | 6/6 gave the objective and nothing else; no run tacked on an unmarked clarify nudge | 6/6; several tacked on "anything else you'd want to know about the client?" |
+
+29 of 30 probe runs passed; the single failure is the dropped `ex2` marker.
+Marker reliability improved — 1 dropped marker in 12 marker-bearing runs,
+against 5 of 12 before. Premature nudging did not improve and is now visible on
+the guesstimate framework too. Both live-prompt behaviours belong to the shared
+`lib/problem-interview/prompts.ts`, which this branch does not change.
 
 ## Remaining gaps
 
