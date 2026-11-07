@@ -42,6 +42,14 @@ import {
 import { asDisengagementDeclineRecord } from "@/lib/report/dto";
 import { asTechnicalEvidence } from "@/lib/technical-interview/evidence";
 import { recordLiveSessionContributions } from "@/lib/mastery/from-report";
+import { findProblemQuestion } from "@/lib/problem-interview/banks.server";
+import { buildProblemEvaluatorBrief } from "@/lib/problem-interview/prompts";
+import {
+  asProcessStepResults,
+  finalizeProblemOutcome,
+} from "@/lib/problem-interview/outcome";
+import { deriveProcessRigorScore } from "@/lib/problem-interview/types";
+import { asProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
 import type { InteractionLog, InteractionEvent } from "@/types";
 
 import { runEvaluation } from "./evaluation";
@@ -376,8 +384,29 @@ function buildEvaluationContextForReport(
 
   if (snapshot?.kind === "interview") {
     const presetCustomization = config.customization;
+    // Problem interviews: the pinned question's private material (facts, key
+    // insights, strong-answer notes, framework criteria) and the server's
+    // nudge / exhibit record, appended to the evaluator's user message.
+    const problem = type.problemInterview
+      ? asProblemSessionSnapshot(snapshot.problem)
+      : null;
+    const problemBrief = problem
+      ? buildProblemEvaluatorBrief({
+          questionId: problem.questionId,
+          frameworkKey: problem.frameworkKey,
+          question: findProblemQuestion(config.typeSlug, problem.questionId),
+          publicTitle: problem.question.title,
+          publicPrompt: problem.question.prompt,
+          framework:
+            type.problemInterview!.frameworks.find(
+              (framework) => framework.key === problem.frameworkKey,
+            ) ?? null,
+          events: problem.events,
+        })
+      : null;
     return {
       kind: "interview",
+      ...(problemBrief ? { problemBrief } : {}),
       resumeText: snapshot.resumeText ?? "",
       customization: {
         industry:
@@ -653,7 +682,16 @@ export async function runAndPersistEvaluation({
       // Invalid → persist null (13-07: never half-written). Do not overwrite a
       // non-null outcome the finish route already set unless the evaluator
       // produced one.
-      const produced = outcome.producedOutcome;
+      // Problem interviews: pin questionId/frameworkKey to the snapshot and
+      // reconcile step results with the server's nudge record before the one
+      // validator runs (a nudged step can never stay "hit").
+      const problemSnapshot =
+        typeRecord?.problemInterview && snapshot?.kind === "interview"
+          ? asProblemSessionSnapshot(snapshot.problem)
+          : null;
+      const produced = problemSnapshot
+        ? finalizeProblemOutcome(outcome.producedOutcome, problemSnapshot)
+        : outcome.producedOutcome;
       const storedOutcome =
         report.outcome && typeof report.outcome === "object" && !Array.isArray(report.outcome)
           ? (report.outcome as Record<string, unknown>)
@@ -696,9 +734,23 @@ export async function runAndPersistEvaluation({
         : scoresForPost;
       // This cannot be left to a prompt: no managed deterministic executor is
       // configured, so the report may not claim a correctness score.
-      const finalScores = snapshot?.kind === "technical-coding"
+      const codingScores = snapshot?.kind === "technical-coding"
         ? { ...postProcessedScores, coding_correctness: null }
         : postProcessedScores;
+      // THE ONE DELIBERATE EXCEPTION to lib/report/dto.ts's "the outcome never
+      // writes a score" rule. For problem interviews, process_rigor is DEFINED
+      // by the step results (PROCESS_RIGOR_SCORING_GUIDE), and the evaluator
+      // demonstrably disagrees with its own steps (PM validity study), so the
+      // stored score is derived from the reconciled, validated steps. When
+      // the steps do not parse, the model's own value stands.
+      const problemSteps = problemSnapshot
+        ? asProcessStepResults(validatedOutcome?.processSteps)
+        : null;
+      const derivedRigor = problemSteps ? deriveProcessRigorScore(problemSteps) : null;
+      const finalScores =
+        derivedRigor !== null
+          ? { ...codingScores, process_rigor: derivedRigor }
+          : codingScores;
 
       await prisma.interactionReport.update({
         where: { id: reportId },

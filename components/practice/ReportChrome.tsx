@@ -32,6 +32,9 @@ import InRoleReactionPanel from "@/components/practice/report/InRoleReactionPane
 import NegotiationTriplePanel from "@/components/practice/report/NegotiationTriplePanel";
 import ListenerIdentityPanel from "@/components/practice/report/ListenerIdentityPanel";
 import PitchOutcomeBanner from "@/components/practice/report/PitchOutcomeBanner";
+import ProblemQuestionPanel from "@/components/practice/report/ProblemQuestionPanel";
+import ProcessStepsPanel from "@/components/practice/report/ProcessStepsPanel";
+import { getInterviewType } from "@/lib/interview/types";
 
 export type StalledAffordance = "retry" | "check-again";
 
@@ -68,6 +71,18 @@ const INTERVIEW_CHROME: ReportChrome = {
   guardsRepollAfter404: false,
   showsCustomizationStrip: true,
   checkInLead: "In a real interview",
+  // Problem interviews (consulting case, product management) only: both
+  // panels self-null without a problem snapshot, so the four classic
+  // presets — and consulting reports from before problem interviews — render
+  // exactly as they always have.
+  extras: {
+    above: (report) => (
+      <>
+        <ProblemQuestionPanel report={report} />
+        <ProcessStepsPanel report={report} />
+      </>
+    ),
+  },
 };
 
 /** Case-study — sourced from `app/case-play/[caseId]/report/[reportId]/page.tsx`. */
@@ -256,6 +271,9 @@ export function getReportChrome(
   if (slug === "pitch-elevator") return PITCH_ELEVATOR_CHROME;
   if (isDeckModeSlug(slug)) return deckChromeFor(slug);
   if (INTERVIEW_PRESET_SLUGS.has(slug)) return INTERVIEW_CHROME;
+  // Any other interview preset (e.g. a newly registered problem interview
+  // such as product-management) shares the interview chrome.
+  if (getInterviewType(slug)) return INTERVIEW_CHROME;
 
   return null;
 }

@@ -31,7 +31,7 @@ import {
 } from "../lib/engine/prompts";
 import { parseEngineTurn } from "../lib/engine/turn-control";
 import { resolveSessionConfig } from "../lib/engine/resolve";
-import { listEngineTypes } from "../lib/engine/registry";
+import { getEngineType, listEngineTypes } from "../lib/engine/registry";
 
 let failures = 0;
 
@@ -161,10 +161,16 @@ function checkString(name: string, actual: string, expected: string) {
 }
 
 const LANGUAGE = resolveAttemptLanguage("en");
+// The five-stage behavioral presets only. Problem interviews (case, product
+// management) are interview presets too but run their own prompt, tail and
+// marker grammar; scripts/verify-problem-interview.ts covers them.
+const BEHAVIORAL_PRESET_SLUGS = Object.keys(INTERVIEW_TYPES).filter(
+  (slug) => !getEngineType(slug)?.problemInterview,
+);
 const RESUME = "Jane Doe\nSoftware Engineer at Acme\nLed a team of 4.";
 
 console.log("\n6. assembleSystemPrompt == buildInterviewSystemPrompt (four presets)");
-for (const slug of Object.keys(INTERVIEW_TYPES)) {
+for (const slug of BEHAVIORAL_PRESET_SLUGS) {
   const interviewType = getInterviewType(slug)!;
   const resolved = resolveSessionConfig(slug);
   if (!resolved.ok) {
@@ -241,7 +247,7 @@ console.log("\n8. buildTailBlock == buildProgressBlock (interview) / empty (case
   };
   const legacyTail = buildProgressBlock(progress, timing);
 
-  for (const slug of Object.keys(INTERVIEW_TYPES)) {
+  for (const slug of BEHAVIORAL_PRESET_SLUGS) {
     const resolved = resolveSessionConfig(slug);
     if (!resolved.ok) {
       failures += 1;

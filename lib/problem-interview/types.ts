@@ -163,6 +163,30 @@ Use the LOWER score when two bands apply. Do not raise it for a good final answe
 `.trim();
 
 /**
+ * `PROCESS_RIGOR_SCORING_GUIDE`'s bands, in code. The evaluator is given the
+ * guide, but a validity study (3 runs × 7 PM fixtures, gpt-4.1) found its
+ * `process_rigor_score` disagreeing with its OWN step results in every run
+ * for several fixtures — so for problem interviews the stored score is
+ * derived from the steps (see `lib/engine/evaluation-runner.ts`).
+ *
+ * Counts applicable steps only (`not_applicable` ignored); the lower band
+ * wins when two apply. The guide's "jumped straight to an answer" clause
+ * already lands in band 1 or 2 through the missed-step counts. Null when
+ * there are no applicable steps.
+ */
+export function deriveProcessRigorScore(steps: ProcessStepResult[]): number | null {
+  const applicable = steps.filter((step) => step.status !== "not_applicable");
+  if (applicable.length === 0) return null;
+  const prompted = applicable.filter((step) => step.status === "prompted").length;
+  const missed = applicable.filter((step) => step.status === "missed").length;
+  if (missed >= 3) return 1;
+  if (missed === 2 || prompted >= 3) return 2;
+  if (missed === 1 || prompted === 2) return 3;
+  if (prompted === 1) return 4;
+  return 5;
+}
+
+/**
  * Live turn-control markers added for problem interviews, on top of the
  * existing `<interview-turn kind=... />` grammar:
  *
