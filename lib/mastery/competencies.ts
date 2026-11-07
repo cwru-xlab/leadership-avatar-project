@@ -141,8 +141,10 @@ export interface Competency {
  *    `analytical_judgment` (metrics, numbers, honest tradeoffs) judge whether
  *    the analysis behind a recommendation holds up, as do analytics
  *    `statistical_reasoning` / `business_judgment`, finance
- *    `technical_accuracy` / `commercial_judgment`, and the coding room's
- *    `coding_correctness` (does the solution actually work).
+ *    `technical_accuracy` / `commercial_judgment`, the coding room's
+ *    `coding_correctness` (does the solution actually work), and system
+ *    design's `technical_depth` (would the design actually work at scale) and
+ *    `tradeoff_reasoning` (are the costs of each choice named and weighed).
  * 7. outcome_achievement — whether the student got what they came for:
  *    `objective_achieved` (difficult conversation) and `goal-progress`
  *    (networking) are both an explicit "did the approach move the stated
@@ -217,6 +219,8 @@ export const COMPETENCIES: readonly Competency[] = [
       "technical_accuracy",
       "commercial_judgment",
       "coding_correctness",
+      "technical_depth",
+      "tradeoff_reasoning",
     ],
     order: 6,
   },

@@ -24,12 +24,15 @@ import { PROBLEM_FIXTURE_ENABLED, PROBLEM_FIXTURE_SLUG } from "./fixtures/type";
 import { CASE_BANK } from "@/lib/case-interview/cases";
 import { PM_QUESTION_BANK } from "@/lib/pm-interview/questions";
 import { PM_INTERVIEW_SLUG } from "@/lib/pm-interview/prompts";
+import { SD_BANK } from "@/lib/system-design-interview/questions";
+import { SD_INTERVIEW_SLUG } from "@/lib/system-design-interview/live";
 
 const PROBLEM_BANKS: Record<string, readonly ProblemQuestion[]> = {
   consulting: CASE_BANK,
   [PM_INTERVIEW_SLUG]: PM_QUESTION_BANK,
   [ANALYTICS_INTERVIEW_SLUG]: ANALYTICS_BANK,
   [FINANCE_INTERVIEW_SLUG]: FINANCE_BANK,
+  [SD_INTERVIEW_SLUG]: SD_BANK,
   ...(PROBLEM_FIXTURE_ENABLED ? { [PROBLEM_FIXTURE_SLUG]: PROBLEM_FIXTURE_BANK } : {}),
 };
 

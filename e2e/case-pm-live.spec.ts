@@ -230,6 +230,7 @@ test("industry-specific picker lists every specialized interview as a card", asy
     ["product-management", "~30 min"],
     ["data-analytics", "~30 min"],
     ["finance", "~25 min"],
+    ["system-design", "~35 min"],
     ["technical-coding", "~30 min"],
   ];
   const keys = await page.locator("[data-interview]").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("data-interview")));
@@ -237,9 +238,14 @@ test("industry-specific picker lists every specialized interview as a card", asy
   for (const [key, minutes] of cards) {
     await expect(page.locator(`[data-interview="${key}"]`)).toContainText(minutes);
   }
+  // The app shell scrolls an inner column, so a full-page capture stops at
+  // the viewport: size the viewport to the list so every card is in the shot.
+  const fitHeight = () => page.evaluate(() => Math.ceil(document.querySelector('[aria-label="Industry-specific interviews"]')!.getBoundingClientRect().bottom + 48));
+  await page.setViewportSize({ width: 1440, height: Math.max(900, await fitHeight()) });
   await shot(page, "picker-industry-1440", true);
   await page.setViewportSize({ width: 375, height: 812 });
   const pageScrolls = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   expect(pageScrolls).toBe(false);
+  await page.setViewportSize({ width: 375, height: Math.max(812, await fitHeight()) });
   await shot(page, "picker-industry-375", true);
 });

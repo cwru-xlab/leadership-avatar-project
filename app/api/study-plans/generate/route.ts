@@ -23,6 +23,7 @@ const INTERVIEW_TYPE_SLUGS = [
   "product-management",
   "data-analytics",
   "finance",
+  "system-design",
 ] as const;
 
 export const runtime = "nodejs";
