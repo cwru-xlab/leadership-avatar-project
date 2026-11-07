@@ -22,6 +22,7 @@ export const INTERVIEW_TYPE_SLUGS = new Set([
   "early-career",
   "product-management",
   "data-analytics",
+  "finance",
 ]);
 
 export const TYPE_FILTERS = [
