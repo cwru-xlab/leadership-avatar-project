@@ -15,7 +15,7 @@
  */
 
 import { getInterviewType } from "./types";
-import { getEngineType } from "@/lib/engine/registry";
+import { isProblemInterviewSlug } from "@/lib/problem-interview/problem-slugs";
 import type { InterviewType, InterviewDifficulty } from "./types";
 import {
   CURATED_INDUSTRIES,
@@ -100,7 +100,7 @@ export function resolveInterviewType(
   // below the preset's target, and the question count stays the preset's
   // (one problem). Longer presets still extend it. The Customize panel hides
   // the shorter options; this is the server-side guarantee.
-  const isProblemInterview = Boolean(getEngineType(base.slug)?.problemInterview);
+  const isProblemInterview = isProblemInterviewSlug(base.slug);
   const targetMinutes = lengthMatch
     ? isProblemInterview
       ? Math.max(lengthMatch.targetMinutes, base.targetMinutes)
