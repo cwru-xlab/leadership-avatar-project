@@ -133,7 +133,7 @@ export const EXPERIMENT_READOUT_FRAMEWORK: ProcessFramework = {
       label: "Check the test is trustworthy",
       description: "Before reading any lift, confirm the split, exposure, duration and logging are sound.",
       evidenceCriteria:
-        "BEFORE drawing a conclusion from the lift, the candidate checks at least one trust condition against the data: the sample-ratio (actual vs. designed split), whether it ran the planned duration / full weeks, exposure or logging problems, or whether the test was stopped early. Asking 'was it set up correctly?' without checking anything does not count.",
+        "BEFORE drawing a conclusion from the lift, the candidate checks at least one trust condition against the data: the sample-ratio (actual vs. designed split), whether it ran the planned duration / full weeks, exposure or logging problems, or whether the test was stopped early — AND reaches the right conclusion from it. Looking at an imbalanced split and calling it 'close enough' or 'just noise' when it is far beyond chance is NOT a check: that step is missed. Asking 'was it set up correctly?' without checking anything does not count.",
       nudge: "Before we talk about the lift — how much do you trust these numbers?",
     },
     {
@@ -141,7 +141,7 @@ export const EXPERIMENT_READOUT_FRAMEWORK: ProcessFramework = {
       label: "Read the primary result correctly",
       description: "Effect size with its uncertainty, statistical vs. practical significance.",
       evidenceCriteria:
-        "The candidate states the primary metric's effect size (absolute or relative) together with its uncertainty (confidence interval, standard error or p-value) interpreted CORRECTLY — e.g. not 'p = 0.03 means a 97% chance it works' — and judges whether the effect is practically meaningful, not only significant.",
+        "The candidate states the primary metric's effect size (absolute or relative) together with its uncertainty (confidence interval, standard error or p-value) interpreted CORRECTLY — e.g. not 'p = 0.03 means a 97% chance it works' — and judges whether the effect is practically meaningful, not only significant. Asserting 'it's significant' with no interval, standard error or p-value does not count, and neither does reading the lift at face value while the data on screen shows an unresolved trust problem (a sample ratio mismatch, a test stopped at the first significant peek).",
       nudge: "What does the main result tell you, and how sure are you of it?",
     },
     {
