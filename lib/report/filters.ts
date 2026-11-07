@@ -20,6 +20,7 @@ export const INTERVIEW_TYPE_SLUGS = new Set([
   "technical",
   "consulting",
   "early-career",
+  "system-design",
 ]);
 
 export const TYPE_FILTERS = [

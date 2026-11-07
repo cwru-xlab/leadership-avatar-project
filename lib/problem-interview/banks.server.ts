@@ -16,8 +16,11 @@ import type { ProblemQuestion, ProcessFramework } from "./types";
 import { getFactoryBank } from "./bank-registry";
 import { PROBLEM_FIXTURE_BANK } from "./fixtures/bank";
 import { PROBLEM_FIXTURE_ENABLED, PROBLEM_FIXTURE_SLUG } from "./fixtures/type";
+import { SD_BANK } from "@/lib/system-design-interview/questions";
+import { SD_INTERVIEW_SLUG } from "@/lib/system-design-interview/live";
 
 const PROBLEM_BANKS: Record<string, readonly ProblemQuestion[]> = {
+  [SD_INTERVIEW_SLUG]: SD_BANK,
   ...(PROBLEM_FIXTURE_ENABLED ? { [PROBLEM_FIXTURE_SLUG]: PROBLEM_FIXTURE_BANK } : {}),
 };
 

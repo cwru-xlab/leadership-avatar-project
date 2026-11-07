@@ -19,6 +19,15 @@ import {
   PROBLEM_FIXTURE_ENABLED,
 } from "@/lib/problem-interview/fixtures/type";
 
+import {
+  SD_INTERVIEW_SLUG,
+  SD_INTERVIEWER_PERSONA,
+  SD_PRESET_DESCRIPTION,
+  SD_PRESET_LABEL,
+  SD_QUESTION_AREAS,
+  SD_TARGET_MINUTES,
+} from "../system-design-interview/live";
+
 export type InterviewDifficulty = "Beginner" | "Intermediate" | "Advanced";
 
 export interface InterviewType {
@@ -148,11 +157,32 @@ const EARLY_CAREER_INTERVIEW: InterviewType = {
   questionAreas: ["Your background", "Behavioral stories", "Motivation & fit"],
 };
 
+/**
+ * System-design interview. A problem-solving preset (verbal, no whiteboard):
+ * a short fit question, then ONE design, feature or incident problem graded
+ * step by step. Content lives in `lib/system-design-interview/`; the engine
+ * record is built from `lib/system-design-interview/registration.ts`.
+ * `targetQuestionCount` counts the fit question and the problem.
+ */
+const SYSTEM_DESIGN_INTERVIEW: InterviewType = {
+  slug: SD_INTERVIEW_SLUG,
+  label: SD_PRESET_LABEL,
+  description: SD_PRESET_DESCRIPTION,
+  interviewerPersona: SD_INTERVIEWER_PERSONA,
+  defaultRoleTitle: "a software engineering role",
+  defaultIndustry: "technology",
+  difficulty: "Intermediate",
+  targetMinutes: SD_TARGET_MINUTES,
+  targetQuestionCount: 2,
+  questionAreas: SD_QUESTION_AREAS,
+};
+
 export const INTERVIEW_TYPES: Record<string, InterviewType> = {
   [GENERAL_INTERVIEW.slug]: GENERAL_INTERVIEW,
   [TECHNICAL_INTERVIEW.slug]: TECHNICAL_INTERVIEW,
   [CONSULTING_INTERVIEW.slug]: CONSULTING_INTERVIEW,
   [EARLY_CAREER_INTERVIEW.slug]: EARLY_CAREER_INTERVIEW,
+  [SYSTEM_DESIGN_INTERVIEW.slug]: SYSTEM_DESIGN_INTERVIEW,
 };
 
 export const DEFAULT_INTERVIEW_TYPE = GENERAL_INTERVIEW;

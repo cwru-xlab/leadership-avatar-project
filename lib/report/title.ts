@@ -23,6 +23,7 @@ const TYPE_LABELS: Record<string, string> = {
   "technical-coding": "Technical coding interview",
   consulting: "Consulting interview",
   "early-career": "Early-career interview",
+  "system-design": "System design interview",
   "case-study": "Case study",
   "pitch-elevator": "Elevator pitch",
   // "pitch-deck" is deliberately NOT a literal here anymore — its title now
