@@ -469,7 +469,7 @@ async function main() {
 
   console.log("\nquestion-type families (customize page) match the banks");
   {
-    for (const slug of ["consulting", "product-management", "data-analytics", "finance"]) {
+    for (const slug of ["consulting", "product-management", "data-analytics", "finance", "system-design"]) {
       const spec = getEngineType(slug)?.problemInterview;
       const declared = (spec?.families ?? []).map((f) => f.key).sort();
       const inBank = [...new Set(getProblemBank(slug).map((q) => q.family))].sort();

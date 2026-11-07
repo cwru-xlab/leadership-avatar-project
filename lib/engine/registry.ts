@@ -45,6 +45,7 @@ import { PITCH_GENERAL_TYPE } from "../pitch/general-deck-type";
 import { makeProblemInterviewTypeConfig } from "../problem-interview/type-config";
 import { ANALYTICS_PROBLEM_INTERVIEW_INPUT } from "../analytics-interview/registration";
 import { FINANCE_PROBLEM_INTERVIEW_INPUT } from "../finance-interview/registration";
+import { SYSTEM_DESIGN_PROBLEM_INTERVIEW_INPUT } from "../system-design-interview/registration";
 import {
   PROBLEM_FIXTURE_BASE,
   PROBLEM_FIXTURE_ENABLED,
@@ -417,6 +418,10 @@ const NETWORKING: InteractionTypeConfig = {
   ],
 };
 
+// A problem-solving preset (lib/system-design-interview). Its question bank is
+// registered server-only in lib/problem-interview/banks.server.ts, never here.
+const SYSTEM_DESIGN = makeProblemInterviewTypeConfig(SYSTEM_DESIGN_PROBLEM_INTERVIEW_INPUT);
+
 export const ENGINE_TYPES: InteractionTypeConfig[] = [
   GENERAL,
   TECHNICAL,
@@ -427,6 +432,7 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   // A problem interview (lib/analytics-interview); bank in banks.server.ts.
   makeProblemInterviewTypeConfig(ANALYTICS_PROBLEM_INTERVIEW_INPUT),
   FINANCE,
+  SYSTEM_DESIGN,
   CASE_STUDY,
   TECHNICAL_CODING,
   NETWORKING,
