@@ -93,7 +93,7 @@ check("in report/study-plan interview slugs", INTERVIEW_TYPE_SLUGS.has(PM_INTERV
 check("has a report type label", typeLabelForReport(PM_INTERVIEW_SLUG) === "Product management interview");
 const root = join(__dirname, "..");
 for (const [file, needle] of [
-  ["components/interview/PresetCard.tsx", `"${PM_INTERVIEW_SLUG}": Shapes`],
+  ["components/interview/interviewPicker.ts", `"${PM_INTERVIEW_SLUG}": PackageSearch`],
   ["components/practice/ReportChrome.tsx", `"${PM_INTERVIEW_SLUG}",`],
   ["app/api/study-plans/generate/route.ts", `"${PM_INTERVIEW_SLUG}",`],
 ] as const) {
