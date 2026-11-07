@@ -129,9 +129,11 @@ There are seven. All are the URL shortener except the last.
 | url-slip | reports 4,600 writes/s (10× high) and builds on it | estimate missed; quant ≤ 2; rigor ≤ 3 |
 | incident-checkout | strong, but mitigation needed a nudge | mitigate prompted, others hit; rigor = 4; quant ≥ 4 |
 
-### Results (gpt-4.1, 2 runs each, 2026-11-07)
+### Results — PREVIOUS CONFIGURATION (gpt-4.1, 2 runs each, 2026-11-07, before 6cc4258)
 
-**Final configuration, with the outcome generated before the scores: 14/14 pass.** Measured with the study's `--outcome-first` flag; that flag is gone, because `buildRubricJsonSchema` now emits this order for every problem interview and the script logs the engine's own order instead.
+These two tables are the **previous** configuration: the status-prefix rule and the no-nested-quotes rule were still stated in system-design's own words in `lib/system-design-interview/evaluator.ts`, immediately beside `ARITHMETIC FIRST`. They were promoted to the shared addendum in 6cc4258 and re-worded in f4359f6; the re-measurement of that configuration is the next section. Both tables are kept unchanged as the recorded comparison.
+
+**Previous configuration, with the outcome generated before the scores: 14/14 pass.** Measured with the study's `--outcome-first` flag; that flag is gone, because `buildRubricJsonSchema` now emits this order for every problem interview and the script logs the engine's own order instead.
 
 | Golden | Run 1: rigor / quant / trade / depth, steps | Run 2 |
 |---|---|---|
@@ -146,7 +148,7 @@ There are seven. All are the URL shortener except the last.
 - The model's own process_rigor disagreed with the value derived from its steps in **6/14** grades. Deriving the score is necessary.
 - Non-verbatim evidence quotes: 0.
 
-**Stock schema order (scores generated before the outcome): 11/14 pass.** No longer reachable from the script — it is the pre-change engine order, kept here as the recorded comparison.
+**Stock schema order (scores generated before the outcome): 11/14 pass.** Also the previous configuration. No longer reachable from the script — it is the pre-change engine order, kept here as the recorded comparison.
 
 | Golden | Run 1 | Run 2 |
 |---|---|---|
@@ -156,11 +158,70 @@ There are seven. All are the URL shortener except the last.
 
 - The model's own rigor disagreed with the derived value in 5/14 grades.
 
+### Re-measurement 2026-11-07 — de-duplicated shared wording (commit f4359f6): 12/14 pass
+
+Configuration measured, all of it the real production path:
+
+- **Outcome-first at the engine level.** `buildRubricJsonSchema` itself emits `outcome` as the first property *and* the first `required` entry for `system-design`; the study logged `schema order outcome-first` with no script flag. Property order measured: `outcome, visual_score, vocal_score, content_score, behavioral_score, process_rigor_score, technical_depth_score, tradeoff_reasoning_score, quantitative_score, overall_summary, strengths, growth_areas, category_notes, rubric_notes, practice_next`, and `required` in the same order — i.e. the same order the removed `--outcome-first` flag produced, so the comparison with the previous configuration is on schema order alone.
+- **Both grading rules now shared.** The `Meets all criteria: yes.|no.` note prefix and the `processSteps` delimiter rule live once, in `buildProblemEvaluatorRules` (`lib/problem-interview/prompts.ts`); `SD_EVALUATOR_ADDENDUM` no longer restates either. In the assembled 45,848-character evaluator prompt the shared prefix rule appears at offset 25,447 and system-design's `right after 'Meets all criteria:'` anchor at offset 40,320 — the anchor still follows the rule it refers to, and `Meets all criteria` appears only in the shared rule plus system-design's references to it.
+- **Timing carve-out (f4359f6).** "only after" is no longer a phrase that forces `missed`; the shared text now says timing alone is not a shortfall and routes it to question 2 (`prompted`).
+- **Delimiter fix (f4359f6).** The rule now distinguishes the required double-quote *delimiter* from a forbidden *nested* double quote, instead of reading as a licence to swap delimiters.
+
+| Golden | Run 1: rigor / quant / trade / depth, steps | Run 2 | Previous configuration (both runs) |
+|---|---|---|---|
+| url-strong | 5 / 5 / 5 / 5 HHHHHHH — PASS | 5 / 5 / 5 / 5 HHHHHHH — PASS | 5 / 5 / 5 / 5 HHHHHHH |
+| url-boxes | 1 / 1 / 1 / 1 MMMMMMM — PASS | 1 / 1 / 1 / 2 MMMMMMM — PASS | 1 / 1 / 1 / 1 MMMMMMM |
+| url-no-math | 3 / 2 / 5 / 5 HMHHHHH — PASS | 3 / 2 / 5 / 5 HMHHHHH — PASS | 3 / 2 / 5 / 5 HMHHHHH |
+| url-handwave | 1 / 5 / 2 / 3 HHHHMMM — PASS | 1 / 5 / 2 / 2 HHHHMMM — PASS | 1 / 5 / 2 / 3 HHHHMMM |
+| url-nudged | 2 / 5 / 5 / 5 PPHHHHP — PASS | 2 / 5 / 5 / 5 PPHHHHP — PASS | 2 / 5 / 5 / 5 PPHHHHP |
+| url-slip | 5 / 4 / 5 / 5 HHHHHHH — **FAIL** | 5 / 2 / 5 / 4 HHHHHHH — **FAIL** | 3 / 2 / 5 / 5 HMHHHHH |
+| incident-checkout | 4 / 5 / 4 / 5 HPHHHH — PASS | 4 / 5 / 5 / 5 HPHHHH — PASS | 4 / 5 / 4 / 5 HPHHHH |
+
+- The model's own `process_rigor` disagreed with the derived value in **5/14** grades (previous configuration: 6/14): url-handwave 2→1 twice, url-nudged 4→2 and 3→2, url-slip 3→5 once. Deriving the score is still necessary.
+- Non-verbatim evidence quotes: **0**.
+- **The nudge goldens held.** url-nudged kept `PPHHHHP` with derived rigor 2 and incident-checkout kept `HPHHHH` with derived rigor 4, in both runs. All eight prompted steps (3 + 1, twice) opened `Meets all criteria: yes.` and were graded `prompted`, not `missed` — the f4359f6 timing carve-out holds on this type. Example, incident-checkout run 1 `mitigate_first`: "Meets all criteria: yes. You proposed a concrete, reversible mitigation (turn off the feature flag, or rollback), acknowledged risk, and prioritized restoring service ahead of further root cause work, but responded after an explicit prompt."
+- **The shared rules reach the model.** Across the 96 step notes in the 14 grades, **96/96** opened with `Meets all criteria:` and **0** opened with an invented third word (the case study saw `Meets all criteria: prompted.` 3 times in 162).
+- **No JSON damage at all.** 14/14 grades returned a `processSteps` string that passed strict `JSON.parse` and `asProcessStepResults`, with the full framework step list and no repair; **0** of the 96 step objects carried a double-quote character inside any value, and 12 notes used single quotes around the candidate's words, which is exactly the substitution the rule asks for. No step lost its `evidenceQuote`. The previous configuration's history of 3/14 corrupt grades did not recur.
+- Soft observation, not a failure: the engine logged `Engine evaluator body-signal wording violation stripped { strippedCount: 1 }` on 6 of the 14 grades (visual and vocal metrics are null in the study).
+
+**The regression: url-slip, 2/2, and it is not the carve-out.** `estimate_scale` was graded `hit` instead of `missed` in both runs, so the derived rigor went to 5 (expected ≤ 3) and in run 1 `quantitative` went to 4 (expected ≤ 2). The model performed the band check correctly and its own note contradicts the verdict it opened with:
+
+- Run 1: "Meets all criteria: **yes**. Writes: strong band 300–700/s, candidate 4,600/s → OUTSIDE; Reads: strong band 8,000–17,000/s, candidate 115,000/s → OUTSIDE; Storage: strong band 25–55 TB, candidate 36.5 TB → INSIDE. The arithmetic is sound but the candidate used a 10× higher write rate … this is a minor slip."
+- Run 2: "Meets all criteria: **yes**. Writes: band 150–1,400/s, candidate 4,600/s → OUTSIDE (10× over). Reads: band 4,000–35,000/s, candidate 115,000–350,000/s → OUTSIDE … The mismatch on writes/reads is an uncorrected order-of-magnitude error, outside tolerance band."
+
+So `ARITHMETIC FIRST` is being executed — the bands and the OUTSIDE verdicts are right, and run 2 even names the order-of-magnitude error — yet the note still opens `yes`, and run 1 excuses the slip as "minor", which `ARITHMETIC FIRST` explicitly forbids. Note what this means: the rule it needs is **already in `evaluator.ts` and unchanged** ("If ANY key figure the candidate relied on is OUTSIDE and uncorrected, the answer to 'Meets all criteria' is 'no' and quantitative_score is at most 2", plus "makes the estimation step 'missed'"). The model wrote the OUTSIDE verdicts and then did not apply it. Two things the failure is **not**:
+
+- not the f4359f6 timing carve-out: url-slip records **no nudges at all**, so "only after the nudge" cannot apply to any of its steps, and the carve-out's own target goldens (url-nudged, incident-checkout) passed 2/2;
+- not the delimiter rule: every grade in this study parsed.
+
+What is left is the de-duplication itself, and this is a **hypothesis, not a measured cause** — it was not isolated, and it cannot be diffed from inside this worktree:
+
+- `ARITHMETIC FIRST` tells the model to write the band table "right after 'Meets all criteria:'", i.e. it emits the `yes|no` token *before* the comparison that decides it. With strict `json_schema` the note is generated left to right, so the verdict is committed first. That was equally true at 14/14, so it is a standing weakness the previous configuration tolerated rather than the delta.
+- What changed around it is that the status rule used to be stated a second time, in system-design's own words, immediately adjacent to `ARITHMETIC FIRST`; it is now stated once, ~15,000 characters earlier in the assembled prompt (offset 25,447 vs the SD anchor at 40,320). Proximity, not content, is the plausible delta.
+- f4359f6 also added leniency wording to the shared rule — "Timing alone is NOT a shortfall", "Never answer 'no' for a step whose only defect is that it came after a nudge" — and its list of phrases that force `missed` ("did not", "no explicit", "partial", "stayed general") does not contain the word the model actually writes here, which is "OUTSIDE". Both push the `yes|no` token toward `yes` in a borderline case.
+
+**Proposed fix, not implemented and not measured.** It belongs in `lib/system-design-interview/evaluator.ts` (system-design specific: it only binds this type's own `OUTSIDE` token and this type's named excuses to the shared verdict, and restates no shared rule). Append to `ARITHMETIC FIRST`:
+
+> Decide the band comparison BEFORE you write the note's first word. The word
+> 'OUTSIDE' anywhere in the estimate_scale note is incompatible with 'Meets all
+> criteria: yes.': if any key figure is OUTSIDE and uncorrected, that note opens
+> 'Meets all criteria: no.' and the step is "missed". "Minor", "a slip", "the
+> arithmetic is sound" and "the design that follows is fine" are not exceptions.
+
+Until that is measured, system-design stands at **12/14** on this configuration, with the failure confined to the order-of-magnitude golden.
+
+### Live-prompt probe, re-measured 2026-11-07 (commit f4359f6): 10/10 pass
+
+`scripts/verify-system-design-live.ts --runs 2`. All five probes passed in both runs; markers repaired by the verbatim fallback: **0** (the previous configuration needed 1 repair on P3). Soft observations printed, neither flagged by the probe:
+
+- P2, run 2 again carried the known residual, in a new form: "I'm putting the product team's usage forecast for year one on your screen. This covers the key numbers you'll want, and you should plan for five years at that rate." The second sentence is a mild sizing hint and re-states the five-year retention fact unasked. The probe's P2 leak list only covers the exhibit's own figures, so it does not catch this. Same class as the recorded "use these to size load and storage".
+- P3 produced the verbatim `clarify_requirements` nudge with an explicit marker in both runs, so the fallback was not exercised this time.
+
 ### What the study changed
 
 The type-specific fixes are in `lib/system-design-interview/evaluator.ts`; fixes 2 and 3 turned out to be generic to every problem interview and now live in the shared addendum in `lib/problem-interview/prompts.ts` (`PROBLEM INTERVIEW — ADDITIONAL RULES`), stated once, with the SD addendum keeping only what is system-design specific.
 
-1. **Arithmetic first, compared against the bands.** The model recomputed 40M ÷ 86,400 ≈ 463 correctly, then still called 4,600 "within 3×". It now writes `band 150–1,400/s, candidate 4,600/s → OUTSIDE` for each key figure. It is told that 10× is always outside the band and is never excused as a "rounding slip". System-design specific (it names `estimate_scale` and the reference bands); stays in `evaluator.ts`.
+1. **Arithmetic first, compared against the bands.** The model recomputed 40M ÷ 86,400 ≈ 463 correctly, then still called 4,600 "within 3×". It now writes `band 150–1,400/s, candidate 4,600/s → OUTSIDE` for each key figure. It is told that 10× is always outside the band and is never excused as a "rounding slip". System-design specific (it names `estimate_scale` and the reference bands); stays in `evaluator.ts`. **2026-11-07:** this section is still executed correctly — url-slip's notes carry the right bands and the right OUTSIDE verdicts in both runs — but the model then opened the note `Meets all criteria: yes.` anyway; see the re-measurement section for the 2/2 url-slip failure and the proposed wording.
 2. **A mechanical status rule.** Each note starts with `Meets all criteria: yes|no`, judged on the candidate's words alone. "No" means missed, even after a nudge. The model had been reading "prompted" as "said something after a nudge" while its own note said "partial". **Now shared** — every problem interview gets it.
 3. **No double quotes inside processSteps strings.** Before this rule, 3/14 outcome-first grades returned invalid JSON in `processSteps` because quotes were nested inside the JSON-encoded string, and the report would have lost every step. **Now shared** — the `OUTCOME` section of the shared addendum states it.
 4. **Hard caps tied to named steps** (see the rubric table above). Without them, url-no-math scored quant 4–5 with no math at all. System-design specific; stays in `evaluator.ts`.
@@ -172,7 +233,7 @@ The `Meets all criteria:` prefix is a grading mechanism, not coaching: the repor
 
 `scripts/verify-system-design-live.ts` uses the real `buildProblemInterviewSystemPrompt` and `buildProblemProgressBlock` with gpt-4.1. It parses each reply with `parseProblemTurn` and applies the engine's `inferUnmarkedActions` fallback, as the chat route does.
 
-**Final result: 10/10 probe runs pass (5 probes × 2).**
+**Previous configuration: 10/10 probe runs pass (5 probes × 2).** Re-measured at 10/10 on 2026-11-07 — see the re-measurement section above for that run's soft observations.
 
 | Probe | Result |
 |---|---|
@@ -194,6 +255,22 @@ The `Meets all criteria:` prefix is a grading mechanism, not coaching: the repor
 
 1. ~~**Engine: generate the outcome before the scores in the rubric JSON schema** for problem interviews (`buildRubricJsonSchema`).~~ **Done** (`loop/case-pm-integration`, this commit): `buildRubricJsonSchema` emits `outcome` as the first property and the first `required` entry for every problem interview — consulting, product-management, data-analytics, finance and system-design. Every other type keeps `outcome` last, byte-identical. `scripts/verify-rubric-schema-order.ts` proves both against `scripts/fixtures/rubric-schema-order.json` (per-type property order, `required` order and a SHA-256 of the pre-change bytes); for a problem interview it moves `outcome` back to last and requires the digest to match, so the change is provably a pure reorder. The evidence is the stock vs outcome-first comparison above (11/14 vs 14/14). Still unmeasured for case, PM, finance and analytics — the grading-study workers own that.
 2. **Engine (optional):** make `processSteps` a structured array in the schema instead of a JSON string inside JSON, so nested quotes cannot corrupt it. Open. The prompt-level no-double-quotes rule (study fix 3) is now in the shared addendum, and `lib/problem-interview/outcome.ts`'s tolerant parse still reads fields by name when a quote slips through, so this is a hardening, not a fix.
+
+   **Accumulated evidence as of 2026-11-07 (four interview types). Recommendation: do it.** Not implemented here; this is the evidence, not the change.
+
+   For:
+   - The defect is recurrent, cross-type, and each recurrence is a *different* failure mode of the same root cause — a JSON string inside JSON whose delimiters the model chooses. System-design's own history: 3/14 outcome-first grades returned corrupt `processSteps` before any quote rule existed. After the rule moved to the shared addendum, product-management saw 9/21 and case 4/27 grades fail strict `JSON.parse` because the model read "no double quotes" as a licence to delimit values with single quotes instead. In 2 of those case grades the repair path dropped **every** `evidenceQuote`, which is the report's only verbatim link back to what the candidate said.
+   - The cost of each recurrence is the whole step array, not one field: a step list that fails to parse loses the process section of the report.
+   - The fix is purely prompt wording, so every recurrence is paid for in real grading runs and is only visible by measuring. f4359f6 is the second corrective pass on this one rule (promote, then re-word), and the wording now has to carry a distinction the schema could enforce for free: required double-quote *delimiter* vs forbidden *nested* double quote.
+   - A structured array makes the whole class unreachable: the model emits JSON values, the API's strict `json_schema` escapes them, and no prompt sentence is load-bearing. The per-step `note`, `evidenceQuote` and `status` fields are already a fixed shape, so the schema is mechanical to write.
+   - It would also let the `status` enum be enforced by the schema rather than by `asProcessStepResults`.
+
+   Against:
+   - On this type, at this commit, the rule now works: **14/14** grades parsed, **0/96** step values carried a double-quote character, and 12 notes used the single-quote substitution the rule asks for. System-design has no live instance of the defect to fix.
+   - It is a cross-type schema change in `lib/engine/rubric.ts`, so it has to be re-measured on all five problem interviews, and the `scripts/verify-rubric-schema-order.ts` digest fixture has to be regenerated — which removes the "provably a pure reorder" evidence TODO 1 rests on.
+   - The tolerant parse in `lib/problem-interview/outcome.ts` already recovers the common case, so this is hardening.
+
+   Net: the evidence has shifted from "optional hardening" to "the cheapest remaining fix for a defect that has now cost four types and two prompt revisions". The per-type wording cost keeps recurring; the schema change is paid once. Sequence it after the remaining grading studies land, so the re-measurement is a single pass rather than per type.
 3. **Engine (optional):** an exhibit-title match in `inferUnmarkedActions` could also require a "screen" phrase.
 4. **Engine (optional):** the factory has no `postProcessScores` hook. The extra-dimension caps above are prompt-only. A deterministic cap, such as quant ≤ 2 when the step tagged as estimation is missed, would need one.
 5. ~~**Mastery:** map `technical_depth` and `tradeoff_reasoning` (and the existing `quantitative` and `process_rigor`) in `lib/mastery/competencies.ts`.~~ **Done** in merge b168d09: both are grouped under `credibility_of_the_case`.

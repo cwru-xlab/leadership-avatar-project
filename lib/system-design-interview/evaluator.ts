@@ -82,6 +82,12 @@ inside only if it lies between the band's two numbers. A figure off by 10× or
 more is an order-of-magnitude error: always OUTSIDE (10× is far beyond 3×).
 If ANY key figure the candidate relied on is OUTSIDE and uncorrected, the
 answer to 'Meets all criteria' is 'no' and quantitative_score is at most 2.
+Work that band comparison out BEFORE you write the note's first word: the
+verdict follows from the table, never the other way round. The word 'OUTSIDE'
+anywhere in an estimate_scale note is incompatible with an opening of 'Meets
+all criteria: yes.' — if any key figure is OUTSIDE and uncorrected, that note
+opens with the 'no' verdict and the step is "missed". "Minor", "a slip", "the
+arithmetic is sound" and "the design that follows is fine" are not exceptions.
 
 DECIDING EACH STEP
 - ORDER MATTERS for the first step: requirements or scope questions asked only
