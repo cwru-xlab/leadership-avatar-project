@@ -21,4 +21,10 @@ export const ANALYTICS_PROBLEM_INTERVIEW_INPUT = {
   evaluatorAddendum: ANALYTICS_EVALUATOR_ADDENDUM,
   rubricExtras: ANALYTICS_RUBRIC_EXTRAS.map((dim) => ({ ...dim })),
   briefing: ANALYTICS_BRIEFING,
+  families: [
+    { key: "metric-definition", label: "Metric definition", hint: "Choose what to measure." },
+    { key: "metric-diagnosis", label: "Metric diagnosis", hint: "Find why a number moved." },
+    { key: "experiment-design", label: "Experiment design", hint: "Plan an A/B test." },
+    { key: "experiment-readout", label: "Experiment readout", hint: "Call a test's result." },
+  ],
 };

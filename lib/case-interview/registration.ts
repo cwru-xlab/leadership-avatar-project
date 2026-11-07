@@ -24,4 +24,9 @@ export const CONSULTING_PROBLEM_INTERVIEW_INPUT = {
   evaluatorAddendum: CASE_EVALUATOR_ADDENDUM,
   rubricExtras: CASE_RUBRIC_EXTRAS.map((dim) => ({ ...dim })),
   briefing: CASE_BRIEFING,
+  families: [
+    { key: "business-scenario", label: "Business case", hint: "Profitability, entry, growth." },
+    { key: "guesstimate", label: "Estimation", hint: "Size a market out loud." },
+    { key: "brainteaser", label: "Brainteaser", hint: "A short logic puzzle." },
+  ],
 };

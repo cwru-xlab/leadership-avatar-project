@@ -42,6 +42,12 @@ export interface InterviewCustomizationInput {
    * avatar's name instead (REQ-22: the interviewer plays the named person).
    */
   personaDisplayName?: string;
+  /**
+   * Problem interviews only: the question family chosen on the customize page
+   * (a `ProblemQuestion.family` key). Absent = random. Sent to session start
+   * as the top-level `problemFamily`; never read by `resolveInterviewType`.
+   */
+  problemFamily?: string;
 }
 
 /**

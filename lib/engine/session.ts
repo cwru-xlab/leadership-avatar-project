@@ -591,10 +591,15 @@ export async function startSession({
         getProblemBank(type.slug),
         type.problemInterview.frameworks,
         {
+          // Top-level param first; the customize handoff's copy covers the
+          // live shell's fallback start, which only resends `customization`.
           family:
             typeof rawProblemFamily === "string" && rawProblemFamily.trim()
               ? rawProblemFamily.trim()
-              : null,
+              : typeof customization?.problemFamily === "string" &&
+                  customization.problemFamily.trim()
+                ? customization.problemFamily.trim()
+                : null,
         },
       );
       if (!selected) {

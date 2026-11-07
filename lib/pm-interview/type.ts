@@ -32,6 +32,13 @@ export const PM_TYPE_INPUT: MakeProblemInterviewTypeConfigInput = {
     points: [...PM_BRIEFING.bullets],
     more: PM_BRIEFING.more,
   },
+  families: [
+    { key: "product-design", label: "Product design", hint: "Design something new." },
+    { key: "product-improvement", label: "Improvement", hint: "Make a product better." },
+    { key: "metrics-execution", label: "Metrics", hint: "Define or diagnose a metric." },
+    { key: "estimation", label: "Estimation", hint: "Size it out loud." },
+    { key: "strategy", label: "Strategy", hint: "Where to play, how to win." },
+  ],
 };
 
 export const PRODUCT_MANAGEMENT_TYPE: InteractionTypeConfig =

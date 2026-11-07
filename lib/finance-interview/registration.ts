@@ -23,4 +23,10 @@ export const FINANCE_PROBLEM_INTERVIEW_INPUT: MakeProblemInterviewTypeConfigInpu
   evaluatorAddendum: FINANCE_EVALUATOR_ADDENDUM,
   rubricExtras: FINANCE_RUBRIC_EXTRAS.map((dim) => ({ ...dim })),
   briefing: FINANCE_BRIEFING,
+  families: [
+    { key: "technical-walkthrough", label: "Technicals", hint: "Accounting and valuation." },
+    { key: "paper-lbo", label: "Paper LBO", hint: "Returns math by hand." },
+    { key: "stock-pitch", label: "Stock pitch", hint: "Pitch a long or short." },
+    { key: "market-deal", label: "Market or deal", hint: "Discuss a market or deal." },
+  ],
 };

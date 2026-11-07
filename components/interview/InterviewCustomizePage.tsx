@@ -20,6 +20,12 @@
  * The slug choices are mirrored into the query string (replaceState) so
  * returning with Back from the setup wizard restores them. The distilled
  * persona is not put in the URL.
+ *
+ * Problem interviews (consulting, PM, analytics, finance) also offer a
+ * "Question type": the type's public `problemInterview.families` (never the
+ * bank). "Surprise me" (random) is the default and sends nothing; a chosen
+ * family travels in the handoff as `problemFamily` and reaches session start
+ * as the top-level `problemFamily` param.
  */
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -49,7 +55,9 @@ const MAX_PROFILE_TEXT_LENGTH = 4000;
 /** "" in any field means "the preset's own value" — used when no curated option matches it. */
 const PRESET = "";
 
-type Field = "industry" | "role" | "difficulty" | "length" | "interviewer";
+type Field = "family" | "industry" | "role" | "difficulty" | "length" | "interviewer";
+/** The question-type value for "Surprise me": no family preference. */
+const RANDOM_FAMILY = "";
 type Values = Record<Field, string>;
 
 const PERSONALITY_HINTS: Record<string, string> = {
@@ -73,7 +81,9 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
   // Problem interviews (consulting case, product management): one problem
   // needs the full time, so lengths below the preset's own target are hidden
   // (resolveInterviewType also clamps server-side) and no question count shows.
-  const isProblemInterview = Boolean(getEngineType(preset.slug)?.problemInterview);
+  const problemSpec = getEngineType(preset.slug)?.problemInterview;
+  const isProblemInterview = Boolean(problemSpec);
+  const families = problemSpec?.families ?? [];
   const lengthHint = (minutes: number, questions: number) =>
     isProblemInterview ? `~${minutes} min` : `~${minutes} min · ${questions} questions`;
 
@@ -82,6 +92,7 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
   );
   const defaults: Values = useMemo(
     () => ({
+      family: RANDOM_FAMILY,
       industry: CURATED_INDUSTRIES.find((o) => o.promptValue === preset.defaultIndustry)?.slug ?? PRESET,
       role: CURATED_ROLES.find((o) => o.promptValue === preset.defaultRoleTitle)?.slug ?? PRESET,
       difficulty: preset.difficulty,
@@ -95,6 +106,12 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
     const withPreset = (tiles: ChoiceTile[], isCurated: boolean, hint: string) =>
       isCurated ? tiles : [{ value: PRESET, title: "Interview default", hint }, ...tiles];
     return {
+      family: families.length
+        ? [
+            { value: RANDOM_FAMILY, title: "Surprise me", hint: "A random question type." },
+            ...families.map((f) => ({ value: f.key, title: f.label, hint: f.hint })),
+          ]
+        : [],
       industry: withPreset(
         CURATED_INDUSTRIES.map((o) => ({ value: o.slug, title: o.label })),
         defaults.industry !== PRESET,
@@ -119,7 +136,7 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
       ),
       interviewer: PERSONALITY_DIALS.map((p) => ({ value: p.slug, title: p.label, hint: PERSONALITY_HINTS[p.slug] })),
     };
-  }, [defaults, preset]);
+  }, [defaults, preset, families]);
 
   const [values, setValues] = useState<Values>(defaults);
   const [profileText, setProfileText] = useState("");
@@ -210,6 +227,7 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
           personalitySlug: values.interviewer || undefined,
           distilledPersona: distilledPersona || undefined,
           personaDisplayName: personaDisplayName || undefined,
+          ...(values.family !== RANDOM_FAMILY ? { problemFamily: values.family } : {}),
         };
         sessionStorage.setItem(key, JSON.stringify(input));
       } else {
@@ -266,6 +284,22 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
           )}
         </div>
       </details>
+
+      {options.family.length > 0 && (
+        <section aria-labelledby="customize-problem" className="flex flex-col gap-5 rounded-lg border border-line bg-white p-5 sm:p-6">
+          <h2 className="font-display text-[22px] font-medium leading-tight text-cwru-blue" id="customize-problem">
+            The problem
+          </h2>
+          <ChoiceTiles
+            columns="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+            label="Question type"
+            name="family"
+            options={options.family}
+            value={values.family}
+            onChange={(value) => setField("family", value)}
+          />
+        </section>
+      )}
 
       <section aria-labelledby="customize-interviewer" className="flex flex-col gap-5 rounded-lg border border-line bg-white p-5 sm:p-6">
         <h2 className="font-display text-[22px] font-medium leading-tight text-cwru-blue" id="customize-interviewer">
