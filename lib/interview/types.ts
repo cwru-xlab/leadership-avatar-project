@@ -80,10 +80,10 @@ const GENERAL_INTERVIEW: InterviewType = {
  */
 const TECHNICAL_INTERVIEW: InterviewType = {
   slug: "technical",
-  label: "Technical / Engineering Interview",
+  label: "Engineering Behavioral Interview",
   description:
-    "A behavioral interview for engineering roles, with a focus on how you think " +
-    "through technical tradeoffs, not on quizzing you with trivia.",
+    "Behavioral questions for engineering roles: how you reason through technical " +
+    "tradeoffs. No live coding.",
   interviewerPersona:
     "a pragmatic senior engineering manager who cares more about how the candidate " +
     "thinks through tradeoffs than about quizzing them on trivia. You ask \"why that " +

@@ -97,7 +97,7 @@ const CODING_INTERVIEW: SpecializedInterview = {
   minutes: 30,
   level: "Python",
   areas: ["Clarify the problem", "Explain your approach", "Code and test"],
-  href: routes.codingInterview(),
+  href: routes.interview("technical-coding"),
   customizable: false,
 };
 
