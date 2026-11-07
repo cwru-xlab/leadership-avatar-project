@@ -55,6 +55,10 @@ import {
   TECHNICAL_CODING_RUBRIC_EXTRAS,
 } from "../technical-interview/prompts";
 import { PRODUCT_MANAGEMENT_TYPE } from "../pm-interview/type";
+// Public parts only (frameworks, addendum, extras, briefing). The bank is
+// registered in lib/problem-interview/banks.server.ts — never here, because
+// this module is bundled for the browser.
+import { CONSULTING_PROBLEM_INTERVIEW_INPUT } from "../case-interview/registration";
 
 /**
  * Builds an interview preset's `InteractionTypeConfig` record. `base` is the
@@ -163,8 +167,10 @@ const GENERAL: InteractionTypeConfig = makeInterviewTypeConfig(
 const TECHNICAL: InteractionTypeConfig = makeInterviewTypeConfig(
   getInterviewType("technical")!,
 );
-const CONSULTING: InteractionTypeConfig = makeInterviewTypeConfig(
-  getInterviewType("consulting")!,
+// A problem interview (lib/case-interview). Old consulting reports carry no
+// problem snapshot and keep rendering as plain interview reports.
+const CONSULTING: InteractionTypeConfig = makeProblemInterviewTypeConfig(
+  CONSULTING_PROBLEM_INTERVIEW_INPUT,
 );
 const EARLY_CAREER: InteractionTypeConfig = makeInterviewTypeConfig(
   getInterviewType("early-career")!,
@@ -407,7 +413,7 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   TECHNICAL,
   CONSULTING,
   EARLY_CAREER,
-  // A problem-solving preset (lib/pm-interview), not makeInterviewTypeConfig.
+  // A problem interview (lib/pm-interview), built by makeProblemInterviewTypeConfig.
   PRODUCT_MANAGEMENT_TYPE,
   CASE_STUDY,
   TECHNICAL_CODING,

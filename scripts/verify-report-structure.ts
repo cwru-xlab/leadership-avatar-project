@@ -764,7 +764,8 @@ console.log("\n7. Type-derived rubric schema (13-05)");
   }
 
   // 6.2 — deep equality with today's hardcoded schemas (regression until 13-13).
-  for (const slug of ["general", "technical", "consulting", "early-career"]) {
+  // `consulting` is a problem interview now (lib/case-interview): see 6.2b.
+  for (const slug of ["general", "technical", "early-career"]) {
     const resolved = resolveSessionConfig(slug, {});
     if (!resolved.ok) {
       failures += 1;
@@ -776,6 +777,46 @@ console.log("\n7. Type-derived rubric schema (13-05)");
       deepEqual(buildRubricJsonSchema(resolved.config), EVALUATION_JSON_SCHEMA),
       true,
     );
+  }
+  // 6.2b — consulting is a problem interview: the legacy schema is a strict
+  // subset of its schema, plus process_rigor / quantitative / synthesis and
+  // the problem outcome (question, framework, process steps).
+  {
+    const resolved = resolveSessionConfig("consulting", {});
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve consulting: ${resolved.reason}`);
+    } else {
+      const schema = buildRubricJsonSchema(resolved.config);
+      const legacy = EVALUATION_JSON_SCHEMA.schema;
+      const props = schema.schema.properties as Record<string, unknown>;
+      const legacyProps = legacy.properties as Record<string, unknown>;
+      check(
+        `"consulting" schema keeps every legacy property unchanged`,
+        Object.keys(legacyProps).every((key) => deepEqual(props[key], legacyProps[key])),
+        true,
+      );
+      check(
+        `"consulting" schema keeps every legacy required key`,
+        legacy.required.every((key: string) => schema.schema.required.includes(key)),
+        true,
+      );
+      check(
+        `"consulting" schema adds the problem-interview scores`,
+        ["process_rigor_score", "quantitative_score", "synthesis_score"].map((key) =>
+          schema.schema.required.includes(key),
+        ),
+        [true, true, true],
+      );
+      check(
+        `"consulting" schema adds the problem outcome`,
+        ["questionId", "frameworkKey", "processSteps"].map(
+          (key) =>
+            !!(props.outcome as { properties?: Record<string, unknown> } | undefined)?.properties?.[key],
+        ),
+        [true, true, true],
+      );
+    }
   }
   {
     const resolved = resolveSessionConfig("case-study", {
@@ -886,7 +927,8 @@ console.log("\n7. Type-derived rubric schema (13-05)");
 console.log("\n8. Outcome / images / early-end cap (14-04)");
 {
   // 7.1 — Phase 13 types remain deeply equal to the frozen snapshots.
-  for (const slug of ["general", "technical", "consulting", "early-career"]) {
+  // `consulting` left this list when it became a problem interview (6.2b).
+  for (const slug of ["general", "technical", "early-career"]) {
     const resolved = resolveSessionConfig(slug, {});
     if (!resolved.ok) {
       failures += 1;

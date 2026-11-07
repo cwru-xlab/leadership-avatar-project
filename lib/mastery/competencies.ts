@@ -112,6 +112,9 @@ export interface Competency {
  *    builds: the shared `content` score, `clarity` (difficult-conversation),
  *    `deck_structure` and `audience_takeaway_clarity` (talk) all judge
  *    narrative/structural landing rather than delivery or pressure-handling.
+ *    The problem interviews' `process_rigor` (working a problem in an order
+ *    that builds) and `synthesis` (consulting: landing a top-down answer)
+ *    are the same judgment applied to a case or product problem.
  * 3. concision_and_focus — saying it tightly: `concision` (elevator) and
  *    `deck_text_density` (deck family) are both a density/economy judgment,
  *    one spoken and one written.
@@ -119,7 +122,9 @@ export interface Competency {
  *    to them: the shared `behavioral` score, `empathy` (difficult
  *    conversation), `rapport` + `self-introduction` (networking) and
  *    `discovery_tailoring` (elevator) all judge responsiveness to the other
- *    party rather than the content of the student's own case.
+ *    party rather than the content of the student's own case. PM
+ *    `product_sense` (user empathy, needs grounded in a real user) is the
+ *    same attunement aimed at the product's user.
  * 5. holding_position_under_pressure — keeping the ask/position intact when
  *    pushed: `holding_the_line` (difficult conversation), `objection_handling`
  *    (product pitch), `negotiation` (investor deck) are all the same skill —
@@ -129,6 +134,9 @@ export interface Competency {
  *    financial case's internal consistency; `deck_visual_quality` +
  *    `slide_speech_correlation` (deck family) judge whether the supporting
  *    artifact itself is credible and in sync with the spoken case.
+ *    Consulting `quantitative` (sound math, sanity-checked numbers) and PM
+ *    `analytical_judgment` (metrics, numbers, honest tradeoffs) judge whether
+ *    the analysis behind a recommendation holds up.
  * 7. outcome_achievement — whether the student got what they came for:
  *    `objective_achieved` (difficult conversation) and `goal-progress`
  *    (networking) are both an explicit "did the approach move the stated
@@ -152,6 +160,8 @@ export const COMPETENCIES: readonly Competency[] = [
       "clarity",
       "deck_structure",
       "audience_takeaway_clarity",
+      "process_rigor",
+      "synthesis",
     ],
     order: 2,
   },
@@ -172,6 +182,7 @@ export const COMPETENCIES: readonly Competency[] = [
       "rapport",
       "discovery_tailoring",
       "self-introduction",
+      "product_sense",
     ],
     order: 4,
   },
@@ -191,6 +202,8 @@ export const COMPETENCIES: readonly Competency[] = [
       "ask_feasibility",
       "deck_visual_quality",
       "slide_speech_correlation",
+      "quantitative",
+      "analytical_judgment",
     ],
     order: 6,
   },
