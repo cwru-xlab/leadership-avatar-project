@@ -107,7 +107,7 @@ const PROBES: Probe[] = [
     questionId: "da-ab-one-page-checkout",
     turns: [{ role: "user", content: "What share of users who reach the cart buy today?" }],
     check: (spoken) => [
-      ...(/20\s?%|20 percent|one in five/i.test(spoken) ? [] : ["did not give the baseline"]),
+      ...(/20\s?%|20 percent|twenty percent|one in five/i.test(spoken) ? [] : ["did not give the baseline"]),
       ...leaks(spoken, ["50,000", "1 percentage", "one percentage", "5%", "80%", "$60", "promo"]).map((v) => `also volunteered "${v}"`),
     ],
   },
