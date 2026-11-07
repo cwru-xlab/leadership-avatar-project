@@ -194,17 +194,28 @@ test("product management: CIRCLES graded, an incomplete process is not all hits"
   await reportShots(page, "pm");
 });
 
-test("industry-specific picker lists consulting (25 min) and product management as cards", async ({ page }) => {
+test("industry-specific picker lists every specialized interview as a card", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page);
   await page.goto("/practice/interviews/industry-specific");
   const list = page.getByRole("list", { name: "Industry-specific interviews" });
-  const consulting = list.getByRole("listitem").filter({ hasText: /Consulting/ });
-  const pm = list.getByRole("listitem").filter({ hasText: /Product Management/i });
-  await expect(consulting).toHaveCount(1);
-  await expect(consulting).toContainText("~25 min");
-  await expect(pm).toHaveCount(1);
-  await expect(pm).toContainText("One product problem, worked step by step.");
-  console.log(`pm card: ${(await pm.innerText()).replace(/\s+/g, " ")}`);
+  await expect(list).toBeVisible({ timeout: 45_000 });
+  const cards: Array<[string, string]> = [
+    ["technical", "~20 min"],
+    ["consulting", "~25 min"],
+    ["product-management", "~30 min"],
+    ["data-analytics", "~30 min"],
+    ["finance", "~25 min"],
+    ["technical-coding", "~30 min"],
+  ];
+  const keys = await page.locator("[data-interview]").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("data-interview")));
+  expect(keys).toEqual(cards.map(([key]) => key));
+  for (const [key, minutes] of cards) {
+    await expect(page.locator(`[data-interview="${key}"]`)).toContainText(minutes);
+  }
   await shot(page, "picker-industry-1440", true);
+  await page.setViewportSize({ width: 375, height: 812 });
+  const pageScrolls = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  expect(pageScrolls).toBe(false);
+  await shot(page, "picker-industry-375", true);
 });
