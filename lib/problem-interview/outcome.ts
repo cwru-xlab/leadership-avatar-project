@@ -11,6 +11,7 @@ import {
   PROBLEM_OUTCOME_FIELD_KEYS,
   PROCESS_STEP_STATUSES,
   type ProcessStepResult,
+  type ProcessFramework,
   type ProcessStepStatus,
 } from "./types";
 import type {
@@ -29,20 +30,97 @@ function isStatus(value: unknown): value is ProcessStepStatus {
 }
 
 /**
- * Narrow `outcome.processSteps` — a JSON-encoded `ProcessStepResult[]`, or (if
- * a future writer stores it decoded) an array. Rows that are not results are
- * dropped; an empty or unparseable value is null.
+ * Deterministic repairs for the ways a model mangles a JSON-encoded array,
+ * tried in order: a markdown code fence or prose around it, trailing commas,
+ * smart quotes used as JSON quotes, and finally an array cut off mid-object
+ * (keep the complete objects). Never a re-ask — the result must be
+ * reproducible from the stored text alone.
  */
-export function asProcessStepResults(value: unknown): ProcessStepResult[] | null {
-  let raw: unknown = value;
-  if (typeof raw === "string") {
-    const trimmed = raw.trim();
-    if (!trimmed) return null;
+function repairStepsJson(text: string): unknown {
+  let body = text.trim();
+  const fence = body.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) body = fence[1]!.trim();
+  const start = body.indexOf("[");
+  if (start !== -1) body = body.slice(start);
+  const end = body.lastIndexOf("]");
+  const closed = end !== -1 ? body.slice(0, end + 1) : body;
+  const noTrailing = (t: string) => t.replace(/,\s*([\]}])/g, "$1");
+  const straight = (t: string) => t.replace(/[\u201C\u201D]/g, '"');
+  const lastObject = body.lastIndexOf("}");
+  const attempts = [
+    closed,
+    noTrailing(closed),
+    noTrailing(straight(closed)),
+    ...(lastObject !== -1 ? [noTrailing(`${body.slice(0, lastObject + 1)}]`)] : []),
+  ];
+  for (const attempt of attempts) {
     try {
-      raw = JSON.parse(trimmed);
+      return JSON.parse(attempt);
+    } catch {
+      // next repair
+    }
+  }
+  // Last resort for unescaped quotes inside a quote/note: read each row's
+  // fields by name. Only rows with a readable key AND status survive.
+  const rows = body
+    .split(/(?=\{\s*"key"\s*:)/)
+    .flatMap((chunk) => {
+      const key = chunk.match(/^\{\s*"key"\s*:\s*"([a-z0-9_]+)"/i)?.[1];
+      const status = chunk.match(/"status"\s*:\s*"(hit|prompted|missed|not_applicable)"/)?.[1];
+      if (!key || !status) return [];
+      const timecode = chunk.match(/"timecodeSeconds"\s*:\s*(\d+(?:\.\d+)?)/)?.[1];
+      const field = (name: string) =>
+        chunk.match(new RegExp(`"${name}"\\s*:\\s*"([\\s\\S]*?)"\\s*(?:,\\s*"[a-zA-Z]+"\\s*:|\\})`))?.[1] ?? "";
+      return [
+        {
+          key,
+          status,
+          evidenceQuote: field("evidenceQuote"),
+          timecodeSeconds: timecode === undefined ? null : Number(timecode),
+          note: field("note"),
+        },
+      ];
+    });
+  if (rows.length > 0) return rows;
+  throw new Error("processSteps: no deterministic repair parsed");
+}
+
+export interface ParsedProcessSteps {
+  value: unknown;
+  /** True when the strict parse failed and a repair was needed. */
+  repaired: boolean;
+}
+
+/** Strict JSON first, then the deterministic repairs. Null when neither parses. */
+export function parseProcessStepsValue(value: unknown): ParsedProcessSteps | null {
+  if (typeof value !== "string") return { value, repaired: false };
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    return { value: JSON.parse(trimmed), repaired: false };
+  } catch {
+    try {
+      return { value: repairStepsJson(trimmed), repaired: true };
     } catch {
       return null;
     }
+  }
+}
+
+/**
+ * Narrow `outcome.processSteps` — a JSON-encoded `ProcessStepResult[]`, or (if
+ * a future writer stores it decoded) an array. Tolerates a fenced / prose-
+ * wrapped / trailing-comma string and an array wrapped in a one-key object
+ * (see `repairStepsJson`). Rows that are not results are dropped; an empty or
+ * unparseable value is null.
+ */
+export function asProcessStepResults(value: unknown): ProcessStepResult[] | null {
+  const parsed = parseProcessStepsValue(value);
+  if (!parsed) return null;
+  let raw: unknown = parsed.value;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const arrays = Object.values(raw as Record<string, unknown>).filter(Array.isArray);
+    if (arrays.length === 1) raw = arrays[0];
   }
   if (!Array.isArray(raw)) return null;
 
@@ -74,12 +152,62 @@ export function asProcessStepResults(value: unknown): ProcessStepResult[] | null
 }
 
 /**
+ * Words that, in a quote, show the candidate actually narrowed or chose —
+ * "everyone except…", "I'd focus on commuters". A generic-answer term next to
+ * one of these is part of a real answer, not a non-answer.
+ */
+const CHOICE_SIGNAL =
+  /\b(focus|segment|segments|prioriti[sz]e|target|start with|pick|choose|narrow|specifically|except|rather than|instead of)\b/i;
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * True when `quote` rests on one of the step's generic-answer terms
+ * ("everyone", "all users") without any sign of a choice. Deterministic and
+ * deliberately narrow: only steps that declare `genericAnswerTerms` use it.
+ */
+export function isGenericNonAnswer(quote: string, terms: readonly string[] | undefined): boolean {
+  if (!terms?.length || !quote.trim()) return false;
+  if (CHOICE_SIGNAL.test(quote)) return false;
+  return terms.some((term) =>
+    new RegExp(`(?<!\\bnot\\s)\\b${escapeRegExp(term)}\\b`, "i").test(quote),
+  );
+}
+
+/**
+ * The earliest time each step was nudged, from the server's event trail.
+ * A step listed in `state.nudgedSteps` with no event (an older snapshot) maps
+ * to 0, i.e. "nudged before anything" — the conservative reading.
+ */
+function nudgeTimes(snapshot: ProblemSessionSnapshot): Map<string, number> {
+  const at = new Map<string, number>();
+  for (const event of snapshot.events) {
+    if (event.kind !== "nudge") continue;
+    const prior = at.get(event.step);
+    if (prior === undefined || event.atSeconds < prior) at.set(event.step, event.atSeconds);
+  }
+  for (const step of snapshot.state.nudgedSteps) {
+    if (!at.has(step)) at.set(step, 0);
+  }
+  return at;
+}
+
+/**
  * Reconcile the evaluator's produced outcome with what the server knows:
  *  - `questionId` / `frameworkKey` always come from the snapshot (the model is
  *    asked to copy them, but the snapshot is the authority);
- *  - `processSteps` keeps only the framework's own steps, in its order, and a
- *    step the server recorded as nudged can never stay `hit` — it becomes
- *    `prompted` (the contract's definition).
+ *  - `processSteps` keeps only the framework's own steps, in its order;
+ *  - nudge ordering: a step the server recorded as nudged can only be `hit`
+ *    when its evidence came BEFORE the nudge. Evidence at or after the nudge
+ *    (or with no timecode) is at best `prompted`; a `prompted` whose evidence
+ *    demonstrably predates the nudge is restored to `hit`. Nudge `atSeconds`
+ *    is taken when the nudging reply finished, so an answer TO the nudge
+ *    always lands at or after it — a tie counts as "after";
+ *  - generic non-answers: when `frameworkDef` declares `genericAnswerTerms`
+ *    for a step, a hit/prompted resting on one ("I'd build it for everyone")
+ *    is `missed`.
  *
  * Returns a new produced-outcome object, still shaped as the type's declared
  * scalar fields so `validateOutcome` accepts it.
@@ -87,22 +215,39 @@ export function asProcessStepResults(value: unknown): ProcessStepResult[] | null
 export function finalizeProblemOutcome(
   produced: Record<string, unknown> | null,
   snapshot: ProblemSessionSnapshot,
+  frameworkDef?: ProcessFramework | null,
 ): Record<string, unknown> {
   const next: Record<string, unknown> = { ...(produced ?? {}) };
   next[PROBLEM_OUTCOME_FIELD_KEYS.questionId] = snapshot.questionId;
   next[PROBLEM_OUTCOME_FIELD_KEYS.frameworkKey] = snapshot.frameworkKey;
 
-  const results = asProcessStepResults(next[PROBLEM_OUTCOME_FIELD_KEYS.processSteps]);
+  const rawSteps = next[PROBLEM_OUTCOME_FIELD_KEYS.processSteps];
+  const results = asProcessStepResults(rawSteps);
   if (!results) {
+    if (rawSteps !== undefined && rawSteps !== null && rawSteps !== "") {
+      console.warn("Problem interview: processSteps unparseable; dropped", {
+        questionId: snapshot.questionId,
+        sample: String(typeof rawSteps === "string" ? rawSteps : JSON.stringify(rawSteps)).slice(0, 200),
+      });
+    }
     // Leave a malformed value out entirely rather than persisting garbage.
     delete next[PROBLEM_OUTCOME_FIELD_KEYS.processSteps];
     return next;
   }
 
-  const nudged = new Set(snapshot.state.nudgedSteps);
-  for (const event of snapshot.events) {
-    if (event.kind === "nudge") nudged.add(event.step);
+  if (parseProcessStepsValue(rawSteps)?.repaired) {
+    console.warn("Problem interview: processSteps needed a tolerant parse", {
+      questionId: snapshot.questionId,
+    });
   }
+
+  const nudgedAt = nudgeTimes(snapshot);
+  const defsByKey = new Map(
+    (frameworkDef?.key === snapshot.frameworkKey ? frameworkDef.steps : []).map((step) => [
+      step.key,
+      step,
+    ]),
+  );
   const byKey = new Map(results.map((result) => [result.key, result]));
   const ordered = snapshot.framework.steps.length
     ? snapshot.framework.steps.flatMap((step) => {
@@ -111,11 +256,18 @@ export function finalizeProblemOutcome(
       })
     : results;
 
-  const reconciled = ordered.map((result) =>
-    result.status === "hit" && nudged.has(result.key)
-      ? { ...result, status: "prompted" as const }
-      : result,
-  );
+  const reconciled = ordered.map((result): ProcessStepResult => {
+    if (result.status !== "hit" && result.status !== "prompted") return result;
+    if (isGenericNonAnswer(result.evidenceQuote, defsByKey.get(result.key)?.genericAnswerTerms)) {
+      return { ...result, status: "missed" };
+    }
+    const nudge = nudgedAt.get(result.key);
+    if (nudge === undefined) return result;
+    const before = result.timecodeSeconds !== null && result.timecodeSeconds < nudge;
+    if (result.status === "hit" && !before) return { ...result, status: "prompted" };
+    if (result.status === "prompted" && before) return { ...result, status: "hit" };
+    return result;
+  });
 
   if (reconciled.length > 0) {
     next[PROBLEM_OUTCOME_FIELD_KEYS.processSteps] = JSON.stringify(reconciled);

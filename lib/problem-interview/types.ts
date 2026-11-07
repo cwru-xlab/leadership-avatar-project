@@ -55,6 +55,13 @@ export interface ProcessStepDef {
    * customer").
    */
   nudge: string;
+  /**
+   * Optional: terms that, as the substance of a quote, are a non-answer for
+   * this step (e.g. "everyone" for identifying a customer). A hit/prompted
+   * whose evidence rests on one, with no sign of a choice, is reconciled to
+   * `missed` server-side (`finalizeProblemOutcome`).
+   */
+  genericAnswerTerms?: string[];
 }
 
 export interface ProcessFramework {
