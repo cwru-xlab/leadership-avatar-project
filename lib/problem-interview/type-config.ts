@@ -39,6 +39,7 @@ import {
   type ProcessFramework,
 } from "./types";
 import { registerFactoryBank } from "./bank-registry";
+import { markProblemInterviewSlug } from "./problem-slugs";
 import {
   buildProblemEvaluatorRules,
   buildProblemInterviewSystemPrompt,
@@ -85,6 +86,7 @@ export function makeProblemInterviewTypeConfig({
     throw new Error(`problem interview "${base.slug}" declares no frameworks`);
   }
   if (bank) registerFactoryBank(base.slug, bank);
+  markProblemInterviewSlug(base.slug);
   const extraRubricDimensions: RubricDimension[] = [
     { ...PROCESS_RIGOR_DIMENSION },
     ...rubricExtras.filter((dim) => dim.key !== PROCESS_RIGOR_DIMENSION.key),

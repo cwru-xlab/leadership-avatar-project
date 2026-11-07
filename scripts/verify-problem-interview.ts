@@ -173,6 +173,15 @@ async function main() {
   check("fixture hidden from ENGINE_TYPES", !listEngineTypes().some((t) => t.slug === PROBLEM_FIXTURE_SLUG));
   check("fixture hidden from launcher", !listInterviewTypes().some((t) => t.slug === PROBLEM_FIXTURE_SLUG));
   check("fixture resolves as an interview", Boolean(getInterviewType(PROBLEM_FIXTURE_SLUG)));
+  {
+    const { resolveInterviewType } = await import("../lib/interview/customization");
+    const short = resolveInterviewType(PROBLEM_FIXTURE_SLUG, { lengthSlug: "quick" } as never);
+    check("quick length never shrinks a problem interview", short?.targetMinutes === 15 && short?.targetQuestionCount === 1);
+    const long = resolveInterviewType(PROBLEM_FIXTURE_SLUG, { lengthSlug: "extended" } as never);
+    check("longer length still extends it", long?.targetMinutes === 30);
+    const general = resolveInterviewType("general", { lengthSlug: "quick" } as never);
+    check("behavioral presets keep the quick length", general?.targetMinutes === 10);
+  }
   check("fixture bank is server-registered", getProblemBank(PROBLEM_FIXTURE_SLUG).length === 1);
   check("fixture type is selected by its config flag", type?.problemInterview?.frameworks[0]?.key === PROBLEM_FIXTURE_FRAMEWORK.key);
 
