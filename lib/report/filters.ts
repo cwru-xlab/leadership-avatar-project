@@ -13,18 +13,19 @@ import { resolveElevatorListener } from "@/lib/pitch/elevator-personas";
 import type { ReportDTO } from "@/lib/report/dto";
 import { isDeckModeSlug } from "@/lib/pitch/deck-modes";
 import { displayReportTitle, typeLabelForReport } from "@/lib/report/title";
+import { STUDY_PLAN_SOURCE_TYPE_SLUG_SET } from "@/lib/study-plan/plan-source-types";
 
-/** Study-plan generation still uses interview feedback only. */
-export const INTERVIEW_TYPE_SLUGS = new Set([
-  "general",
-  "technical",
-  "consulting",
-  "early-career",
-  "product-management",
-  "data-analytics",
-  "finance",
-  "system-design",
-]);
+/**
+ * Study-plan-eligible typeSlugs, as a Set for per-row membership tests.
+ *
+ * Re-exported under this name because `components/study-plan/StudyPlanGenerator.tsx`
+ * and `scripts/verify-pm-interview-bank.ts` already import it from here. The
+ * LIST itself is owned by `lib/study-plan/plan-source-types.ts`, which
+ * `app/api/study-plans/generate/route.ts` reads too — so the picker's notion
+ * of "eligible" and the generator's SQL filter are now the same array by
+ * construction rather than by two people remembering to edit both.
+ */
+export const INTERVIEW_TYPE_SLUGS = STUDY_PLAN_SOURCE_TYPE_SLUG_SET;
 
 export const TYPE_FILTERS = [
   { id: "all", label: "All" },

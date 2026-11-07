@@ -13,18 +13,17 @@ import {
   generateStudyPlan,
   type AnonymousBehavioralReport,
 } from "@/lib/study-plan/generate";
+import { STUDY_PLAN_SOURCE_TYPE_SLUGS } from "@/lib/study-plan/plan-source-types";
 
-/** Interview practice typeSlugs — study plans synthesize interview feedback only. */
-const INTERVIEW_TYPE_SLUGS = [
-  "general",
-  "technical",
-  "consulting",
-  "early-career",
-  "product-management",
-  "data-analytics",
-  "finance",
-  "system-design",
-] as const;
+/**
+ * Study-plan-eligible typeSlugs. Re-exported under the original local name so
+ * the three `typeSlug: { in: ... }` filters below read unchanged, but the LIST
+ * now lives in `lib/study-plan/plan-source-types.ts` — the same array
+ * `lib/report/filters.ts` reads, so the generator and the picker can no longer
+ * disagree about what is eligible. See that module for why membership is a
+ * product decision rather than a mechanical one.
+ */
+const INTERVIEW_TYPE_SLUGS = STUDY_PLAN_SOURCE_TYPE_SLUGS;
 
 export const runtime = "nodejs";
 export const maxDuration = 60;

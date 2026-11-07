@@ -136,11 +136,16 @@ console.log("\n2. REGISTRY GUARD — coached mode is not, and has never become, 
 
   // The authoritative declared count lives in
   // scripts/verify-knowledge-check-surface.ts's EXPECTED_ENGINE_TYPES_COUNT
-  // (13, as of 2026-10-20, per 21-COACHED-ENGINE-DECISION.md's own
-  // investigation). This assertion is the one that fails the moment someone
-  // registers a coached-practice type — the exact alternative Task 1's
-  // document rejected.
-  const EXPECTED_ENGINE_TYPES_COUNT = 13;
+  // (per 21-COACHED-ENGINE-DECISION.md's own investigation). This assertion is
+  // the one that fails the moment someone registers a coached-practice type —
+  // the exact alternative Task 1's document rejected.
+  //
+  // BUMPED 13 -> 20 (2026-11-07), in the lockstep this message asks for; the
+  // sibling const in verify-knowledge-check-surface.ts carries the full list
+  // of the seven types that landed without a bump. None of them is a coached
+  // type, which is what this check actually exists to catch — verified by the
+  // two "coach" assertions directly above, which still pass.
+  const EXPECTED_ENGINE_TYPES_COUNT = 20;
   check(
     `ENGINE_TYPES.length is unchanged at ${EXPECTED_ENGINE_TYPES_COUNT} (bump deliberately, in lockstep with verify-knowledge-check-surface.ts, if it ever grows for a real reason)`,
     ENGINE_TYPES.length === EXPECTED_ENGINE_TYPES_COUNT,

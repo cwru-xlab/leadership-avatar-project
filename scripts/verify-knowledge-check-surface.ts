@@ -425,11 +425,19 @@ console.log("\n2b. ENGINE_TYPES.length has not silently grown around this guard"
   // effect). Per this plan's fallback instruction, the expected count is
   // therefore a LOCAL const here, duplicated from today's actual count rather
   // than read from an existing export. Documented in 21-06-SUMMARY.md: this
-  // number (13, as of 2026-10-20) will need a deliberate bump whenever a
-  // sixteenth-and-beyond engine type lands; its purpose is only to make a
-  // silent, automated widening of ENGINE_TYPES visible in THIS file's diff,
-  // not to duplicate the authoritative count Phase 13 already owns.
-  const EXPECTED_ENGINE_TYPES_COUNT = 13;
+  // number will need a deliberate bump whenever a new engine type lands; its
+  // purpose is only to make a silent, automated widening of ENGINE_TYPES
+  // visible in THIS file's diff, not to duplicate the authoritative count
+  // Phase 13 already owns.
+  //
+  // BUMPED 13 -> 20 (2026-11-07). The guard had been failing, which means it
+  // had stopped guarding: seven types landed after 2026-10-20 without the
+  // bump (product-management, data-analytics, finance, system-design,
+  // technical-coding, clinical-communication, motivational-interviewing). The
+  // whole point of this const is that the bump is a reviewed act, so it is
+  // recorded here rather than silently corrected. If it is red again, do the
+  // same thing: confirm the new types are intended, then bump and say which.
+  const EXPECTED_ENGINE_TYPES_COUNT = 20;
   check(
     `ENGINE_TYPES.length is ${EXPECTED_ENGINE_TYPES_COUNT} (bump this const deliberately if it grows)`,
     ENGINE_TYPES.length === EXPECTED_ENGINE_TYPES_COUNT,
