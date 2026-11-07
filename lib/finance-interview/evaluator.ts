@@ -76,9 +76,24 @@ stated, or a price target stated only at the very end after the interviewer
 asked for a call.
 
 RE-CHECK THE ARITHMETIC — DO NOT TRUST THE NARRATION
-For every number the candidate states, recompute it yourself from the numbers
-they used and from the exhibits and facts. Write the check in the step's
-note (e.g. "8 × 50 = 400 ✓; 500 / 200 = 2.5× ✓"). Then:
+You write the scores BEFORE the outcome, so do this audit FIRST, before any
+score: list to yourself every number the candidate states and recompute each
+one from the numbers they used and from the exhibits and facts — EVERY
+intermediate figure, one by one, not just the totals. In a multi-year
+projection check each year's figure separately (e.g. 70 × 0.75 = 52.5, not
+50); a total that comes out right from wrong components is two cancelling
+errors, not correct math. Write the checks in the step's note (e.g.
+"8 × 50 = 400 ✓; 500 / 200 = 2.5× ✓; year 2: 62 × 0.75 = 46.5, said 45 ✗").
+Rounding vs. error: rounding is announced or goes to a convenient number
+("call it 45", "roughly 1,200"). A figure stated as the result of a
+calculation that is simply wrong (62 × 0.75 = "45"; it is 46.5) is an
+ARITHMETIC ERROR, not rounding, even when it is small. Any uncorrected
+intermediate arithmetic error caps technical_accuracy_score at 3, even if
+the final answer lands inside the band.
+An IRR "method" names an anchor — "2x in five years is about 15%, 3x about
+25%", the rule of 72 / 115, or compounding a rate. "2.9x, so somewhere
+around 24%" with no anchor is a number with no method.
+Then:
 - A key figure outside the TOLERANCE band in reference_notes, left
   uncorrected, makes the step that produced it MISSED, however confident the
   delivery.
@@ -95,6 +110,11 @@ Write each processSteps object with its keys in THIS order, so the verdict
 follows the evidence: {"key","evidenceQuote","note","status","timecodeSeconds"}.
 The note says whether the evidence FULLY meets the criteria (with the
 arithmetic check where there is math); the status must agree with the note.
+If your note mentions ANY uncorrected error, omission or shortfall — "did
+not", "omitted", "slip", "not correct", "outside the band", "no rule of
+thumb", "rounded" for a figure that was simply miscalculated — the status is
+NOT "hit": it is "missed" (or "prompted" only if a nudge came first and the
+reply then fully met the criteria).
 Count prompted and missed steps first, then apply the process_rigor guide.
 
 TECHNICAL ACCURACY (technical_accuracy_score)
@@ -104,6 +124,10 @@ Grade against the TOLERANCE band in reference_notes, never exact match:
      rate), concepts explained correctly.
   4: inside the strong band with the method shown, one small slip that does
      not change the answer, or a concept explained loosely.
+  Before choosing 4 or 5, confirm your audit found ZERO uncorrected
+  intermediate errors and a stated method for every estimate (e.g. an IRR
+  anchor). One uncorrected wrong intermediate figure, however small, or one
+  estimate with no method, means the score is at most 3.
   3: inside the acceptable band; OR inside the strong band but SLOPPY — an
      uncorrected intermediate arithmetic error that happens not to move the
      final answer much, two errors that cancel, a final number given with no
@@ -117,12 +141,16 @@ For a candidate-choice stock pitch or deal, judge accuracy on finance concepts
 and internal arithmetic only.
 
 COMMERCIAL JUDGMENT (commercial_judgment_score)
-FIRST look at what came right before the candidate's final view (do the deal
-or not; buy or short and the target; good or bad deal; the "so what" of a
-technical). If it was the interviewer asking for it ("Would you do the
-deal?", "So what would you do with the stock?", "So where do you come
-out?", or a nudge for the call or takeaway step), commercial_judgment_score is
-AT MOST 3, however good the answer. Then:
+FIRST find where the candidate's final view (do the deal or not; buy or
+short and the target; good or bad deal; the "so what" of a technical) FIRST
+appears. If it first appears in a reply to an interviewer question that came
+after the candidate had stopped — "Would you do the deal?", "So what would
+you do with the stock?", "So where do you come out?", or ANY nudge recorded
+in interviewer_events for the step that holds the view (drivers_sanity in a
+paper LBO, call_and_target in a stock pitch, takeaway in a deal discussion,
+explain_why in a technical) — then commercial_judgment_score is AT MOST 3,
+however good the answer. A view that had to be drawn out is a 3 at best.
+Then:
   5: an unprompted, clear view tied to the numbers (e.g. "24% clears a 20%
      hurdle, so yes — but it relies on 50% EBITDA growth"), the main value
      drivers named, at least one specific risk and what would change the

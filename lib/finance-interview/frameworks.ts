@@ -133,7 +133,7 @@ export const FINANCE_PAPER_LBO_FRAMEWORK: ProcessFramework = {
         "Project EBITDA to exit and the free cash flow (after interest, taxes, capex, working capital) that pays down debt.",
       evidenceCriteria:
         "The candidate projects EBITDA through the hold and derives free cash flow by subtracting interest, taxes and capex (and working capital when given), " +
-        "then sums it into the debt paydown — with the cumulative figure inside the tolerance band. Assuming a paydown figure with no derivation, " +
+        "then sums it into the debt paydown — with EACH year's figure computed correctly and the cumulative figure inside the tolerance band. Assuming a paydown figure with no derivation, " +
         "or leaving out interest or taxes when the case has them, is NOT a hit.",
       nudge: "How much of the debt is still there when you sell?",
     },

@@ -110,7 +110,7 @@ const TECH_EV_BRIDGE: ProblemQuestion = {
         ["Cash and equivalents", "$250M"],
         ["LTM EBITDA", "$250M"],
       ],
-      revealWhen: "right after posing the question, or as soon as the candidate asks for the company's numbers",
+      revealWhen: "right after posing the question, or as soon as the candidate asks for the company's numbers. Say only that it is on their screen; never read its figures aloud.",
       keyInsight:
         "Equity value = $40 × 50M = $2,000M. EV = 2,000 + 600 debt + 100 preferred + 50 NCI − 250 cash = $2,500M. EV/EBITDA = 10.0×. " +
         "Preferred and NCI are added because EBITDA includes the earnings that belong to them.",
@@ -179,7 +179,7 @@ const TECH_COMPS: ProblemQuestion = {
         ["Peer C", "10.5×"],
         ["Peer D", "11.5×"],
       ],
-      revealWhen: "when the candidate asks for comparable companies, peer multiples, or the numbers to value it",
+      revealWhen: "when the candidate asks for comparable companies, peer multiples, or the numbers to value it. Say only that it is on their screen; never read its figures aloud.",
       keyInsight:
         "Median and mean are both 10.0× (range 8.5–11.5×). 10.0 × $120M = $1,200M EV; less $300M net debt = $900M equity; ÷ 45M = $20 per share. " +
         "The 8.5–11.5× range gives EV $1,020–1,380M.",
@@ -227,7 +227,7 @@ const LBO_QUICK: ProblemQuestion = {
         ["Exit multiple", "8.0×"],
         ["Holding period", "5 years"],
       ],
-      revealWhen: "immediately after you pose the problem — the candidate needs the deal terms to start",
+      revealWhen: "immediately after you pose the problem — the candidate needs the deal terms to start. Say only that it is on their screen; never read its figures aloud.",
       keyInsight:
         "Purchase price $400M; debt $200M; equity $200M. Exit EV 8 × 75 = $600M; debt left 200 − 100 = $100M; exit equity $500M. MOIC 2.5×; IRR ≈ 20%.",
     },
@@ -272,7 +272,7 @@ const LBO_STANDARD: ProblemQuestion = {
         ["Exit multiple", "10.0×"],
         ["Holding period", "5 years"],
       ],
-      revealWhen: "immediately after you pose the problem — the candidate needs the deal terms to start",
+      revealWhen: "immediately after you pose the problem — the candidate needs the deal terms to start. Say only that it is on their screen; never read its figures aloud.",
       keyInsight:
         "Entry EV $1,000M; debt $600M; equity $400M. Annual interest 8% × 600 = $48M on the starting balance.",
     },
@@ -289,7 +289,7 @@ const LBO_STANDARD: ProblemQuestion = {
         ["Year 4", 140],
         ["Year 5", 150],
       ],
-      revealWhen: "when the candidate asks how EBITDA grows, for projections, or reaches the cash-flow part of the LBO",
+      revealWhen: "when the candidate asks how EBITDA grows, for projections, or reaches the cash-flow part of the LBO. Say only that it is on their screen; never read its figures aloud.",
       keyInsight:
         "FCF = (EBITDA − D&A 10 − interest 48) × 75% (capex = D&A): 39, 46.5, 54, 61.5, 69 → cumulative $270M paydown. Exit EBITDA $150M.",
     },
@@ -335,7 +335,7 @@ const LBO_ADVANCED: ProblemQuestion = {
         ["Exit multiple (base case)", "10.0×"],
         ["Holding period", "4 years"],
       ],
-      revealWhen: "immediately after you pose the problem — the candidate needs the deal terms to start",
+      revealWhen: "immediately after you pose the problem — the candidate needs the deal terms to start. Say only that it is on their screen; never read its figures aloud.",
       keyInsight:
         "Entry EV $2,400M; debt $1,000M; equity $1,400M before fees, $1,440M with fees. Year-4 EBITDA ≈ $243M. Exit at 10× ≈ $2,431M.",
     },
@@ -435,7 +435,7 @@ const PITCH_TEAR_SHEET: ProblemQuestion = {
         ["Revenue growth, last year", "5%"],
         ["Inventory growth, last year", "30%"],
       ],
-      revealWhen: "immediately after you pose the problem — the candidate needs the summary to start",
+      revealWhen: "immediately after you pose the problem — the candidate needs the summary to start. Say only that it is on their screen; never read its figures aloud.",
       keyInsight:
         "Trades at 16× vs. peers 18× on $3.00 consensus. Inventory growing 6× faster than sales is the bear flag. The investor-day DTC target is not in consensus.",
     },
@@ -482,7 +482,7 @@ const DEAL_ACCRETION: ProblemQuestion = {
         ["Net income", "$250M", "$60M"],
         ["Purchase price (equity value)", "—", "$900M"],
       ],
-      revealWhen: "immediately after you pose the problem — the candidate needs the figures to start",
+      revealWhen: "immediately after you pose the problem — the candidate needs the figures to start. Say only that it is on their screen; never read its figures aloud.",
       keyInsight:
         "Northgate EPS $2.50, P/E 20× (earnings yield 5%). Pillar bought at 15× (yield 6.7%). After-tax cost of debt 4.5%. Both financing options are accretive.",
     },
