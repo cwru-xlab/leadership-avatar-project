@@ -306,7 +306,8 @@ export function buildProblemProgressBlock(
     // The exact nudge texts, every turn: a nudge the model writes itself names
     // the step or drops its marker (the live probes' most frequent failure).
     lines.push(
-      `Nudges — ONLY if the candidate has clearly moved past that step without doing it (never while they are thinking). ` +
+      `Nudges — ONLY if the candidate has clearly moved past that step without doing it (never while they are thinking, ` +
+        `and never for a step they already did earlier, even briefly — re-read the conversation first). ` +
         `Use the exact words and the marker; never write your own nudge, never name the step:`,
       ...nudgeable.map(
         (step) => `- "${step.nudge}" → <interview-turn kind="nudge" step="${step.key}" />`,
