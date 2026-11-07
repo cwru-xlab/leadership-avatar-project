@@ -1,13 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 
+import { getProblemBank } from "../lib/problem-interview/banks.server";
+
 /**
  * Consulting case + product-management interviews, end to end, REAL APIs:
  * live avatar, live interviewer model, live evaluator. Typed answers only.
  *
- * One session each. The session-start request is steered to a question
- * family (business-scenario cases carry data exhibits; product-design uses
- * CIRCLES) — the API accepts `problemFamily`, the wizard has no picker yet.
+ * One session each, steered to a question family through the customize
+ * page's "Question type" choice (business-scenario cases carry data
+ * exhibits; product-design uses CIRCLES). The spec asserts the start request
+ * carried that `problemFamily` and that the posed problem is from it.
  *
  * Consulting: problem posed, clarifying question, ask for data → an exhibit
  * is on screen; report shows Process steps.
@@ -19,7 +22,8 @@ import { mkdirSync } from "node:fs";
  * Run: E2E_BASE_URL=http://localhost:3100 npx playwright test e2e/case-pm-live.spec.ts
  */
 
-const SHOTS = "test-results/case-pm-live";
+// Not test-results/: Playwright empties it at the start of every run.
+const SHOTS = "screenshots/case-pm-live";
 const STUDENT = { email: "student@case.edu", password: "student123" };
 
 test.use({
@@ -57,13 +61,20 @@ async function answer(page: Page, text: string) {
   return reply;
 }
 
-/** Wizard → camera off → live room, with the start request steered to `family`. */
-async function launch(page: Page, slug: string, family: string, briefingHeadline: string) {
+/**
+ * Customize page (pick the question type) → wizard → camera off → live room.
+ * Returns the session-start body the browser sent.
+ */
+async function launch(page: Page, slug: string, familyLabel: RegExp, briefingHeadline: string) {
+  let startBody: Record<string, unknown> = {};
   await page.route("**/api/practice/session/start", async (route) => {
-    const body = JSON.parse(route.request().postData() ?? "{}") as Record<string, unknown>;
-    await route.continue({ postData: JSON.stringify({ ...body, problemFamily: family }) });
+    startBody = JSON.parse(route.request().postData() ?? "{}") as Record<string, unknown>;
+    await route.continue();
   });
-  await page.goto(`/practice/interviews/${slug}`);
+  await page.goto(`/practice/interviews/customize/${slug}`);
+  await page.locator('[data-choice-group="family"]').getByRole("radio", { name: familyLabel }).click();
+  await page.getByRole("button", { name: "Continue to setup" }).click();
+  await page.waitForURL(`**/practice/interviews/${slug}`, { timeout: 45_000 });
   await page.locator("button[aria-pressed]").first().click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: "Skip for now" }).click();
@@ -73,6 +84,15 @@ async function launch(page: Page, slug: string, family: string, briefingHeadline
   await page.getByRole("button", { name: /Camera off/ }).click();
   await expect(page.getByTestId("problem-agenda")).toBeVisible({ timeout: 60_000 });
   await expect(page.locator("article.max-w-\\[94\\%\\]").first()).toBeVisible({ timeout: 120_000 });
+  return startBody;
+}
+
+/** The posed problem (Case materials text) is one of `family`'s bank questions. */
+function expectPosedFromFamily(slug: string, family: string, posed: string) {
+  const norm = (t: string) => t.replace(/\s+/g, " ").trim();
+  const match = getProblemBank(slug).find((q) => norm(posed).includes(norm(q.prompt).slice(0, 80)));
+  expect(match, `posed problem not found in the ${slug} bank`).toBeTruthy();
+  expect(match!.family).toBe(family);
 }
 
 /** Fit answers until the problem appears in Case materials. */
@@ -127,13 +147,15 @@ test("consulting case: data exhibit on screen, process steps on the report", asy
   test.setTimeout(12 * 60_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page);
-  await launch(page, "consulting", "business-scenario", "A real case interview");
+  const start = await launch(page, "consulting", /Business case/, "A real case interview");
+  expect(start.problemFamily).toBe("business-scenario");
 
   const posed = await untilPosed(
     page,
     "I spent three years in operations at a regional manufacturer, where I built the cost model we used to decide which product lines to keep. I want consulting because I like structuring messy business problems with numbers.",
   );
   console.log(`case posed: ${posed.replace(/\s+/g, " ")}`);
+  expectPosedFromFamily("consulting", "business-scenario", posed);
 
   await answer(page, "Before I structure anything — what is the client's objective here, and is there a time frame or a target number they need to hit?");
   await answer(
@@ -167,13 +189,15 @@ test("product management: CIRCLES graded, an incomplete process is not all hits"
   test.setTimeout(12 * 60_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page);
-  await launch(page, "product-management", "product-design", "One open product problem");
+  const start = await launch(page, "product-management", /Product design/, "One open product problem");
+  expect(start.problemFamily).toBe("product-design");
 
   const posed = await untilPosed(
     page,
     "I've been a data analyst on a growth team for two years. I want to be a PM because I want to own what we build, not just measure it. A product I admire is Google Maps.",
   );
   console.log(`pm posed: ${posed.replace(/\s+/g, " ")}`);
+  expectPosedFromFamily("product-management", "product-design", posed);
 
   await answer(page, "Quick clarifying question — is this for a specific platform or market?");
   // Deliberately incomplete: no user segment, no needs, no prioritisation.

@@ -2,7 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 
 // Interview picker: entry (general vs industry-specific) → specialized list →
 // customization page → setup wizard. Early-career is folded away but resolves.
-const SHOTS = "test-results/interview-picker";
+// Screenshots go to screenshots/ (repo root), NOT test-results/: Playwright
+// empties test-results/ at the start of every run.
+const SHOTS = "screenshots/interview-picker";
 const STUDENT = { email: "student@case.edu", password: "student123" };
 
 async function signIn(page: Page) {
@@ -142,4 +144,83 @@ test("early-career is folded away but its URL still loads", async ({ page }) => 
   await page.goto("/practice/interviews/early-career");
   await expect(page.getByRole("heading", { name: "Early-Career / Internship Interview" })).toBeVisible({ timeout: 45_000 });
   await page.screenshot({ path: `${SHOTS}/early-career-still-loads.png`, fullPage: true });
+});
+
+/**
+ * Walk the setup wizard to the camera step and capture the session-start
+ * body WITHOUT starting a session (the request is aborted: no report row,
+ * no avatar, no model calls).
+ */
+async function captureStartBody(page: Page): Promise<Record<string, unknown>> {
+  let body: Record<string, unknown> | null = null;
+  await page.route("**/api/practice/session/start", async (route) => {
+    body = JSON.parse(route.request().postData() ?? "{}") as Record<string, unknown>;
+    await route.abort();
+  });
+  await page.locator("button[aria-pressed]").first().click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.getByRole("button", { name: /Continue to camera setup/ }).click();
+  await page.getByRole("button", { name: /Camera off/ }).click();
+  await expect.poll(() => body !== null, { timeout: 30_000 }).toBe(true);
+  return body!;
+}
+
+test("question type: Surprise me is the default and sends no family", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page);
+  await page.goto("/practice/interviews/customize/consulting");
+  const group = page.locator('[data-choice-group="family"]');
+  await expect(group).toBeVisible({ timeout: 45_000 });
+  const tiles = await group.getByRole("radio").allInnerTexts();
+  expect(tiles[0]).toContain("Surprise me");
+  expect(tiles.join(" ")).toMatch(/Business case[\s\S]*Estimation[\s\S]*Brainteaser/);
+  await expect(group.getByRole("radio", { name: /Surprise me/ })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("button", { name: "Continue to setup" }).click();
+  await page.waitForURL("**/practice/interviews/consulting", { timeout: 45_000 });
+  const body = await captureStartBody(page);
+  expect(body.problemFamily).toBeUndefined();
+  expect((body.customization as Record<string, unknown> | undefined)?.problemFamily).toBeUndefined();
+});
+
+test("question type: a chosen family persists in the URL and reaches session start", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page);
+  await page.goto("/practice/interviews/customize/product-management");
+  const group = page.locator('[data-choice-group="family"]');
+  await expect(group).toBeVisible({ timeout: 45_000 });
+  await group.getByRole("radio", { name: /Metrics/ }).click();
+  await expect(page).toHaveURL(/family=metrics-execution/);
+  await page.locator('[aria-labelledby="customize-problem"]').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${SHOTS}/customize-question-type-1440.png` });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.locator('[aria-labelledby="customize-problem"]').scrollIntoViewIfNeeded();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  await page.screenshot({ path: `${SHOTS}/customize-question-type-375.png` });
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  // Back from the wizard restores the choice from the query string.
+  await page.getByRole("button", { name: "Continue to setup" }).click();
+  await page.waitForURL("**/practice/interviews/product-management", { timeout: 45_000 });
+  await page.goBack();
+  await page.waitForURL(/customize\/product-management\?family=metrics-execution/);
+  await expect(group.getByRole("radio", { name: /Metrics/ })).toHaveAttribute("aria-checked", "true", { timeout: 45_000 });
+
+  await page.getByRole("button", { name: "Continue to setup" }).click();
+  await page.waitForURL("**/practice/interviews/product-management", { timeout: 45_000 });
+  const body = await captureStartBody(page);
+  expect(body.problemFamily).toBe("metrics-execution");
+});
+
+test("question type: not offered on non-problem interviews", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page);
+  await page.goto("/practice/interviews/customize/general");
+  await expect(page.getByRole("heading", { name: "Your interviewer" })).toBeVisible({ timeout: 45_000 });
+  await expect(page.locator('[data-choice-group="family"]')).toHaveCount(0);
 });
