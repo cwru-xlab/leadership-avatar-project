@@ -51,6 +51,8 @@ import {
 } from "@/lib/report/title";
 import { resolveDifficultConversationInstance } from "@/lib/difficult-conversation/resolve-instance";
 import { findSeededConversation } from "@/lib/difficult-conversation/seeded";
+import { findPersonaCase } from "@/lib/questioned-persona/cases";
+import { isPersonaStyle } from "@/lib/questioned-persona/types";
 import {
   drawElevatorListener,
   toElevatorListenerStart,
@@ -352,6 +354,12 @@ function difficultConversationSnapshotFromInstance(
     stakes: instance.stakes,
     difficulty: instance.difficulty,
     avatarId: instance.avatarId,
+    ...(instance.personaCard
+      ? {
+          personaStyle: instance.personaCard.style,
+          personaName: instance.personaCard.personaName,
+        }
+      : {}),
   };
 }
 
@@ -712,7 +720,11 @@ export async function startSession({
 
   // ---- difficult-conversation: seeded-first resolve → Prisma snapshot
   //      (no InteractionLog). Must run before the case-study fallthrough. ----
-  if (type.slug === "difficult-conversation") {
+  // Questioned-persona types (clinical communication, motivational
+  // interviewing) extend this engine: same resolver, same snapshot, plus a
+  // persona card. The style on the card must match the type being started,
+  // so a courageous-conversation id never starts as a patient and vice versa.
+  if (type.slug === "difficult-conversation" || isPersonaStyle(type.slug)) {
     const conversationId =
       typeof instanceId === "string" && instanceId.trim()
         ? instanceId.trim()
@@ -725,12 +737,16 @@ export async function startSession({
     if (!dcInstance) {
       return { ok: false, status: 404, error: "Conversation not found" };
     }
+    if ((dcInstance.personaCard?.style ?? "difficult-conversation") !== type.slug) {
+      return { ok: false, status: 404, error: "Conversation not found" };
+    }
 
     if (isDifficultyBand(rawDifficulty)) {
       dcInstance = { ...dcInstance, difficulty: rawDifficulty };
     }
 
-    const seeded = findSeededConversation(conversationId);
+    const seeded =
+      findSeededConversation(conversationId) ?? findPersonaCase(conversationId);
     let conversationTitle = seeded?.title ?? "";
     if (!conversationTitle) {
       const situation = dcInstance.situation;

@@ -68,6 +68,24 @@ export const INTERACTION_TYPES: InteractionType[] = [
     route: routes.networking(),
     availability: "live",
   },
+  {
+    slug: "clinical-communication",
+    name: "Clinical communication",
+    description: "Take a history from a patient who holds things back.",
+    icon: "Stethoscope",
+    estimatedMinutes: 12,
+    route: routes.clinicalCommunication(),
+    availability: "live",
+  },
+  {
+    slug: "motivational-interviewing",
+    name: "Motivational interviewing",
+    description: "Counsel a client who is of two minds about a change.",
+    icon: "HeartHandshake",
+    estimatedMinutes: 15,
+    route: routes.motivationalInterviewing(),
+    availability: "live",
+  },
 ];
 
 /**

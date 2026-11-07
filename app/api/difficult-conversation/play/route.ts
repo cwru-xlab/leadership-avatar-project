@@ -13,6 +13,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { resolveDifficultConversationInstance } from "@/lib/difficult-conversation/resolve-instance";
 import { findSeededConversation } from "@/lib/difficult-conversation/seeded";
+import { findPersonaCase } from "@/lib/questioned-persona/cases";
 import { loadDifficultConversationForPlay } from "@/lib/difficult-conversation/store";
 
 export const runtime = "nodejs";
@@ -41,8 +42,16 @@ export async function GET(request: NextRequest) {
     if (!instance) {
       return response({ error: "Conversation not found" }, 404);
     }
+    // Questioned-persona cases (patients, clients) share this resolver. The
+    // page names the type it serves; a mismatch is not found, so a patient
+    // never loads as a courageous conversation or vice versa.
+    const requestedType =
+      request.nextUrl.searchParams.get("type")?.trim() || "difficult-conversation";
+    if ((instance.personaCard?.style ?? "difficult-conversation") !== requestedType) {
+      return response({ error: "Conversation not found" }, 404);
+    }
 
-    const seeded = findSeededConversation(id);
+    const seeded = findSeededConversation(id) ?? findPersonaCase(id);
     let title = seeded?.title ?? "";
     // Only the owner of an authored record may edit it. The page uses this to
     // offer an edit link when a legacy record was saved without an avatar.
@@ -53,6 +62,11 @@ export async function GET(request: NextRequest) {
       canEdit = Boolean(authored?.ownerId) && authored?.ownerId === currentUser.id;
     }
 
+    // The whole instance (persona card included) goes to the browser and is
+    // resent on every chat turn, which is how the LIVE prompt gets it — the
+    // same client-held pattern `hiddenPosition` and case-study's
+    // `additionalInfo` already use. See the `personaCard` doc comment in
+    // `lib/engine/types.ts` for what that does and does not guarantee.
     return response({ instance, title, canEdit }, 200);
   } catch (error) {
     console.error("Difficult-conversation play load failed:", error);

@@ -9,6 +9,8 @@ import {
   Presentation,
   MessageCircleWarning,
   Users,
+  Stethoscope,
+  HeartHandshake,
 } from "lucide-react";
 
 import type { InteractionType } from "@/lib/interactions";
@@ -24,6 +26,8 @@ const iconMap = {
   Presentation,
   MessageCircleWarning,
   Users,
+  Stethoscope,
+  HeartHandshake,
 } as const;
 
 interface InteractionTileProps {
