@@ -139,7 +139,7 @@ export const GOLDEN: GoldenTranscript[] = [
       { s: "Do you have any medical conditions or allergies?", codes: ["closed_question"] },
       { p: "No." },
       { s: "Do you grind your teeth at night?", codes: ["closed_question"] },
-      { p: "My partner says I do. Work's been really stressful." },
+      { p: "My partner says I grind them, yeah. Work has been really stressful since the promotion." },
       { s: "How much is it hurting on a scale of 0 to 10?", codes: ["closed_question"] },
       { p: "Like a seven. How much is all this going to run me, anyway?" },
       { s: "We'll go over fees at the front desk. So it sounds like you've got a cracked lower molar with possible pulpal involvement, probably from bruxism.", codes: ["information_giving", "jargon"] },
