@@ -48,7 +48,7 @@ export default function InterviewEntryPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <section
           aria-labelledby="general-interview-heading"
-          className="flex flex-col gap-5 rounded-lg border-2 border-true-blue bg-white p-6"
+          className="flex flex-col gap-5 rounded-lg border border-line bg-white p-6"
         >
           <div className="flex flex-col gap-2">
             <h2
