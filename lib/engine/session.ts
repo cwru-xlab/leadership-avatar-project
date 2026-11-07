@@ -69,6 +69,10 @@ import {
   TECHNICAL_ASSIGNMENTS,
 } from "@/lib/technical-interview/assignments.server";
 import {
+  normalizeTechnicalSelectionRequest,
+  selectTechnicalAssignment,
+} from "@/lib/technical-interview/selection";
+import {
   TECHNICAL_CODING_LANGUAGE,
   TECHNICAL_RUNTIME_POLICY_VERSION,
   toPublicTechnicalAssignment,
@@ -383,6 +387,7 @@ export async function startSession({
   cameraModeRequest,
   interviewerAvatarId: rawInterviewerAvatarId,
   interviewerName: rawInterviewerName,
+  technicalSelection,
   resumeId: rawResumeId,
   resumeText: rawResumeText,
   jobDescriptionId: rawJobDescriptionId,
@@ -403,6 +408,12 @@ export async function startSession({
   cameraModeRequest?: unknown;
   interviewerAvatarId?: unknown;
   interviewerName?: unknown;
+  /**
+   * Technical coding only: `{ topics, difficulty, biasTopics }` as the student
+   * asked for it. Validated by `normalizeTechnicalSelectionRequest`, which
+   * drops anything it does not recognize.
+   */
+  technicalSelection?: unknown;
   resumeId?: unknown;
   resumeText?: unknown;
   /** Attached job posting (quick task 003) — interview types only. */
@@ -495,11 +506,17 @@ export async function startSession({
   if (type.slug === "technical-coding") {
     const resolved = resolveSessionConfig(typeSlug);
     if (!resolved.ok) return { ok: false, status: 400, error: resolved.reason };
-    const selected = TECHNICAL_ASSIGNMENTS[randomInt(TECHNICAL_ASSIGNMENTS.length)];
-    if (!selected) {
+    const selectionRequest = normalizeTechnicalSelectionRequest(technicalSelection);
+    const selection = selectTechnicalAssignment(
+      TECHNICAL_ASSIGNMENTS,
+      selectionRequest,
+      randomInt,
+    );
+    if (!selection) {
       console.error("Technical coding catalog is empty");
       return { ok: false, status: 500, error: "Technical practice is unavailable." };
     }
+    const selected = selection.assignment;
     const inputSnapshot: TechnicalCodingInputSnapshot = {
       kind: "technical-coding",
       assignmentId: selected.id,
@@ -509,6 +526,10 @@ export async function startSession({
       language: TECHNICAL_CODING_LANGUAGE,
       runtimePolicyVersion: TECHNICAL_RUNTIME_POLICY_VERSION,
       selectedAt: new Date().toISOString(),
+      requested: {
+        topics: selectionRequest.topics ?? [],
+        difficulty: selectionRequest.difficulty ?? null,
+      },
     };
     const timeBudgetSeconds = resolvePersistedBudget(
       resolved.config.timeBudget,
@@ -531,6 +552,13 @@ export async function startSession({
       reportId: report.id,
       assignmentId: selected.id,
       assignmentVersion: selected.version,
+      topics: selected.topics,
+      difficulty: selected.difficulty,
+      // `widened` means the request matched nothing and a looser pool was
+      // used; worth seeing in logs, since it points at a catalog gap.
+      selectionBasis: selection.basis,
+      selectionWidened: selection.widened,
+      selectionPoolSize: selection.poolSize,
     });
     return { ok: true, reportId: report.id, cameraMode, timeBudgetSeconds };
   }
