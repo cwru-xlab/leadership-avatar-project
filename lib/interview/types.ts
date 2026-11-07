@@ -25,6 +25,13 @@ import {
   CASE_QUESTION_AREAS,
   CASE_TARGET_MINUTES,
 } from "../case-interview/live";
+import {
+  PM_INTERVIEW_SLUG,
+  PM_INTERVIEWER_PERSONA,
+  PM_PRESET_DESCRIPTION,
+  PM_PRESET_LABEL,
+  PM_QUESTION_AREAS,
+} from "../pm-interview/prompts";
 
 export type InterviewDifficulty = "Beginner" | "Intermediate" | "Advanced";
 
@@ -151,11 +158,34 @@ const EARLY_CAREER_INTERVIEW: InterviewType = {
   questionAreas: ["Your background", "Behavioral stories", "Motivation & fit"],
 };
 
+/**
+ * Product-management interview. A problem-solving preset, not a behavioral
+ * one: a short fit question, then ONE deliberately abstract product problem
+ * (design, improvement, metrics, estimation or strategy) graded step by step
+ * against a named method such as CIRCLES. Copy and content live in
+ * `lib/pm-interview/`; the engine record is built in
+ * `lib/pm-interview/type.ts`. `targetQuestionCount` counts the fit question
+ * and the problem.
+ */
+const PRODUCT_MANAGEMENT_INTERVIEW: InterviewType = {
+  slug: PM_INTERVIEW_SLUG,
+  label: PM_PRESET_LABEL,
+  description: PM_PRESET_DESCRIPTION,
+  interviewerPersona: PM_INTERVIEWER_PERSONA,
+  defaultRoleTitle: "a product manager role",
+  defaultIndustry: "technology",
+  difficulty: "Advanced",
+  targetMinutes: 30,
+  targetQuestionCount: 2,
+  questionAreas: PM_QUESTION_AREAS,
+};
+
 export const INTERVIEW_TYPES: Record<string, InterviewType> = {
   [GENERAL_INTERVIEW.slug]: GENERAL_INTERVIEW,
   [TECHNICAL_INTERVIEW.slug]: TECHNICAL_INTERVIEW,
   [CONSULTING_INTERVIEW.slug]: CONSULTING_INTERVIEW,
   [EARLY_CAREER_INTERVIEW.slug]: EARLY_CAREER_INTERVIEW,
+  [PRODUCT_MANAGEMENT_INTERVIEW.slug]: PRODUCT_MANAGEMENT_INTERVIEW,
 };
 
 export const DEFAULT_INTERVIEW_TYPE = GENERAL_INTERVIEW;

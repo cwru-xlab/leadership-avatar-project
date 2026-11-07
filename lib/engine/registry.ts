@@ -54,6 +54,7 @@ import {
   TECHNICAL_CODING_EVALUATOR_PROMPT,
   TECHNICAL_CODING_RUBRIC_EXTRAS,
 } from "../technical-interview/prompts";
+import { PRODUCT_MANAGEMENT_TYPE } from "../pm-interview/type";
 
 /**
  * Builds an interview preset's `InteractionTypeConfig` record. `base` is the
@@ -406,6 +407,8 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   TECHNICAL,
   CONSULTING,
   EARLY_CAREER,
+  // A problem-solving preset (lib/pm-interview), not makeInterviewTypeConfig.
+  PRODUCT_MANAGEMENT_TYPE,
   CASE_STUDY,
   TECHNICAL_CODING,
   NETWORKING,

@@ -1,0 +1,33 @@
+{
+  "id": "f-metric-drop-strong",
+  "label": "(f) Metric drop, strong — segments, uses the exhibit, decides",
+  "questionId": "pm-metrics-food-delivery-drop",
+  "expect": {
+    "stepsHit": ["clarify_product_goal", "map_user_journey", "diagnose_root_cause", "summarize_decision"],
+    "processRigorMin": 4
+  },
+  "turns": [
+    { "t": "0:05", "who": "Interviewer", "text": "Hi, thanks for joining. What draws you to product management?" },
+    { "t": "0:12", "who": "Candidate", "text": "I've been a data analyst for a marketplace for three years. I love the investigation part, but I want to be the one who decides what to do with the answer." },
+    { "t": "1:00", "who": "Interviewer", "text": "Great. You're the PM for a food delivery app. Orders this week are down 12% compared to last week. What's going on?" },
+    { "t": "1:10", "who": "Candidate", "text": "Let me make sure I understand the product and the metric. The app connects customers with restaurants and couriers, and the business earns a take on each order, so completed orders are close to our north star — they reflect value delivered to all three sides. Is this completed orders, and has anything changed in how we define or log it?" },
+    { "t": "1:28", "who": "Interviewer", "text": "Completed orders. The definition and the tracking pipeline haven't changed." },
+    { "t": "1:36", "who": "Candidate", "text": "Good, so the data looks real. Is there anything seasonal — was last week a holiday or a promo week we're comparing against?" },
+    { "t": "1:44", "who": "Interviewer", "text": "Last week was a normal week — no holiday, no big weather event, no promotion ending." },
+    { "t": "1:52", "who": "Candidate", "text": "Okay. Let me lay out the journey so I can locate the drop: a customer opens the app, browses, picks a restaurant, adds to cart, goes through checkout and payment, and then the restaurant and courier fulfill it. Orders equal sessions times conversion through those steps, minus cancellations. I'll think about internal causes — a release, an experiment, a pricing change, an outage — and external ones — competitors, weather, holidays. Any competitor activity?" },
+    { "t": "2:30", "who": "Interviewer", "text": "No competitor launched a promotion that we know of." },
+    { "t": "2:35", "who": "Candidate", "text": "Then before I hypothesize, I'd like to segment. Can I see orders broken down by platform — iOS, Android, web — and ideally by region and new versus returning customers?" },
+    { "t": "2:45", "who": "Interviewer", "text": "Here's completed orders by platform for this week versus last week." },
+    { "t": "2:50", "who": "Candidate", "text": "So iOS went from 420 to 416 thousand, about flat, web from 200 to 196, also about flat, and Android from 380 to 268 thousand, down almost 30%. Android accounts for 112 of the 120 thousand lost orders. That points to something Android-specific and internal rather than demand. Was there an Android release?" },
+    { "t": "3:20", "who": "Interviewer", "text": "Android app version 7.4 rolled out to 100% of Android users last Tuesday. iOS and web had no release." },
+    { "t": "3:30", "who": "Candidate", "text": "That lines up. Where in the Android funnel is it — are sessions down or is conversion down?" },
+    { "t": "3:38", "who": "Interviewer", "text": "App sessions on Android are flat week over week, but checkout conversion fell from about 12% to about 8.5%." },
+    { "t": "3:48", "who": "Candidate", "text": "So people are arriving and building carts but failing at checkout. My top hypothesis is that 7.4 broke something in payment; second would be a UI change that hides the checkout button or changes fees display. I'd check payment errors by method first since that's quickest to confirm." },
+    { "t": "4:10", "who": "Interviewer", "text": "Payment failures on Android rose sharply, almost all on Google Pay." },
+    { "t": "4:18", "who": "Candidate", "text": "Then that's the cause. In terms of tradeoffs, a rollback is fastest but may also revert other fixes in 7.4, so I'd weigh rolling back versus a hotfix that disables the broken Google Pay path and defaults people to card — the hotfix keeps the release but adds friction for Google Pay users. Given we're losing roughly 110 thousand orders a week, speed matters more." },
+    { "t": "4:55", "who": "Candidate", "text": "So my decision: today, ship a server-side flag to route Android Google Pay users to card checkout, start the 7.4 hotfix, and message users whose payment failed with a credit. Then add checkout-conversion by platform and version as a release guardrail so a drop like this alerts us within hours, not a week. If conversion doesn't recover after the flag, I'd roll back 7.4 entirely." },
+    { "t": "5:40", "who": "Interviewer", "text": "Thanks. Any questions for me?" },
+    { "t": "5:44", "who": "Candidate", "text": "How does your team run release monitoring today?" },
+    { "t": "5:55", "who": "Interviewer", "text": "Mostly dashboards; we're working on alerts. Thanks for your time." }
+  ]
+}
