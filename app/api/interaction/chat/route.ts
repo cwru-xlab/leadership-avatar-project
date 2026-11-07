@@ -51,8 +51,13 @@ import {
   categorizeTechnicalChatRequest,
   technicalHintRequestKey,
   technicalPolicyDirective,
+  TECHNICAL_HINT_EXHAUSTED_REPLY,
 } from "@/lib/technical-interview/chat-policy";
-import type { TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
+import {
+  MAX_TECHNICAL_HINTS,
+  type TechnicalCodingInputSnapshot,
+  type TechnicalHintTier,
+} from "@/lib/technical-interview/types";
 import {
   loadProblemTurnContext,
   recordProblemTurn,
@@ -729,10 +734,10 @@ export async function POST(request: NextRequest) {
             technicalStaticReply = existing.hintText;
           } else {
             const hintCount = await prisma.technicalInterviewHint.count({ where: { reportId: report.id } });
-            if (hintCount >= 2) {
-              technicalStaticReply = "You have used both available hints. I can clarify the published problem statement, but I cannot provide a solution.";
+            if (hintCount >= MAX_TECHNICAL_HINTS) {
+              technicalStaticReply = TECHNICAL_HINT_EXHAUSTED_REPLY;
             } else {
-              const tier = (hintCount + 1) as 1 | 2;
+              const tier = (hintCount + 1) as TechnicalHintTier;
               const text = buildTechnicalHint(snapshot.assignment, tier);
               try {
                 const hint = await prisma.technicalInterviewHint.create({ data: { reportId: report.id, requestKey, tier, hintText: text } });

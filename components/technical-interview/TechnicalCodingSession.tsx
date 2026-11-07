@@ -31,10 +31,12 @@ import {
   type VisibleTestOutcome,
 } from "@/components/technical-interview/useVisibleTestRunner";
 import type { StartAvatarRequest } from "@/types";
-import type { TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
+import {
+  MAX_TECHNICAL_HINTS,
+  type TechnicalCodingInputSnapshot,
+} from "@/lib/technical-interview/types";
 import type { ReportDTO } from "@/lib/report/dto";
 
-const MAX_HINTS = 2;
 const TARGET_SECONDS = 30 * 60;
 
 type TerminalLine = {
@@ -121,7 +123,7 @@ export default function TechnicalCodingSession({
           return;
         }
         setSnapshot(input);
-        setHintsUsed(Math.max(0, Math.min(MAX_HINTS, data.technicalHintCount ?? 0)));
+        setHintsUsed(Math.max(0, Math.min(MAX_TECHNICAL_HINTS, data.technicalHintCount ?? 0)));
         try {
           const saved = window.localStorage.getItem(`technical-coding:${reportId}:source`);
           setSource(saved || input.assignment.starterCode);
@@ -335,7 +337,7 @@ export default function TechnicalCodingSession({
           setTurns((prior) => [...prior, { role: "assistant", content: reply }]);
           setStreamingReply("");
           if (!avatarFailedRef.current) avatarRef.current?.speak(reply);
-          if (requestHint) setHintsUsed((value) => Math.min(MAX_HINTS, value + 1));
+          if (requestHint) setHintsUsed((value) => Math.min(MAX_TECHNICAL_HINTS, value + 1));
           void checkpoint();
         }
       } catch {
@@ -852,11 +854,11 @@ function InterviewerPanel({
             size="sm"
             variant="flat"
             className="h-7 min-w-0 px-2 text-xs text-white"
-            isDisabled={sendingChat || hintsUsed >= MAX_HINTS}
+            isDisabled={sendingChat || hintsUsed >= MAX_TECHNICAL_HINTS}
             startContent={<Lightbulb size={13} />}
             onPress={() => void onSend("Could I have a hint?", true)}
           >
-            Hint {hintsUsed}/{MAX_HINTS}
+            Hint {hintsUsed}/{MAX_TECHNICAL_HINTS}
           </Button>
         </div>
 

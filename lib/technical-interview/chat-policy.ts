@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 
-import type { TechnicalAssignmentPublic } from "./types";
+import {
+  MAX_TECHNICAL_HINTS,
+  type TechnicalAssignmentPublic,
+  type TechnicalHintTier,
+} from "./types";
 
 /** Closed, server-decided categories for technical chat turns. */
 export type TechnicalChatRequestCategory =
@@ -11,7 +15,7 @@ export type TechnicalChatRequestCategory =
 
 export interface TechnicalHintRecord {
   requestKey: string;
-  tier: 1 | 2;
+  tier: TechnicalHintTier;
   text: string;
   issuedAt: string;
 }
@@ -44,14 +48,22 @@ export function technicalHintRequestKey(content: string, clientKey: unknown): st
  */
 export function buildTechnicalHint(
   assignment: Pick<TechnicalAssignmentPublic, "title" | "constraints" | "expectedComplexity">,
-  tier: 1 | 2,
+  tier: TechnicalHintTier,
 ): string {
+  const of = `of ${MAX_TECHNICAL_HINTS}`;
   if (tier === 1) {
-    return `Hint 1 of 2: For “${assignment.title},” restate the input/output contract in your own words, then name one boundary case from the stated constraints before choosing an approach.`;
+    return `Hint 1 ${of}: For “${assignment.title},” restate the input/output contract in your own words, then name one boundary case from the stated constraints before choosing an approach.`;
   }
   const boundary = assignment.constraints[0] || "the stated constraints";
-  return `Hint 2 of 2: Check that your proposed approach can satisfy the published target (${assignment.expectedComplexity}) while handling ${boundary.toLowerCase()}—explain why before changing code.`;
+  if (tier === 2) {
+    return `Hint 2 ${of}: Check that your proposed approach can satisfy the published target (${assignment.expectedComplexity}) while handling ${boundary.toLowerCase()}—explain why before changing code.`;
+  }
+  return `Hint 3 ${of}: Walk your current code against the smallest input that still exercises the main path, then against ${boundary.toLowerCase()}. Say what you expect at each step before you run it, and name the first place your expectation and the code disagree.`;
 }
+
+/** Spoken when a candidate asks for a hint after the last tier is spent. */
+export const TECHNICAL_HINT_EXHAUSTED_REPLY =
+  `That’s all ${MAX_TECHNICAL_HINTS} hints — I don’t have any more for this problem. I can still clarify the published problem statement, but from here the reasoning has to be yours. Talk me through where you are stuck and what you have ruled out.`;
 
 export function technicalPolicyDirective(category: TechnicalChatRequestCategory): string {
   const common = "Use only the learner-visible problem statement, constraints, examples, starter signature, and published complexity target. Never provide code, pseudocode, an algorithm, a data structure recommendation, solution steps, or any private implementation, test, or scoring information.";

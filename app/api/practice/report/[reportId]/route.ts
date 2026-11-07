@@ -13,11 +13,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { getReportForUser } from "@/lib/report/handlers";
 import { prisma } from "@/lib/prisma";
+import { MAX_TECHNICAL_HINTS } from "@/lib/technical-interview/types";
 
 export const runtime = "nodejs";
 
-/** Server-owned hint ceiling; mirrors the chat route's allocation gate. */
-const MAX_TECHNICAL_HINTS = 2;
 
 function response(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, {

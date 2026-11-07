@@ -12,6 +12,21 @@ export const TECHNICAL_RUNTIME_POLICY_VERSION =
 
 export type TechnicalCodingLanguage = typeof TECHNICAL_CODING_LANGUAGE;
 
+/**
+ * The server-owned hint ceiling: three tiers, one per stage of implementation.
+ *
+ * It lives in this learner-safe module rather than next to the hint builder,
+ * because the browser renders "Hint n/MAX" from it and `chat-policy.ts` pulls
+ * in `node:crypto`. The chat route gates allocation on it and the report route
+ * clamps its reported count to it, so the number has exactly one definition.
+ *
+ * `tier` is a plain `Int` column with a `@@unique([reportId, tier])`
+ * constraint, so changing this ceiling needs no migration.
+ */
+export const MAX_TECHNICAL_HINTS = 3;
+
+export type TechnicalHintTier = 1 | 2 | 3;
+
 /** Human-readable name for prompts and UI chrome. */
 export const TECHNICAL_CODING_LANGUAGE_LABEL = "Python" as const;
 

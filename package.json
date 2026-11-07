@@ -21,6 +21,7 @@
     "verify:route-contract": "tsx scripts/verify-route-contract.ts",
     "verify:technical-execution": "tsx scripts/verify-technical-execution-contract.ts",
     "verify:technical-evidence": "tsx scripts/verify-technical-evidence.ts",
+    "verify:technical-hints": "tsx scripts/verify-technical-hint-policy.ts",
     "verify:rubric-schema-order": "tsx scripts/verify-rubric-schema-order.ts"
   },
   "prisma": {
