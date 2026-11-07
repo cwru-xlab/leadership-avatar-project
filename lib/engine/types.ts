@@ -21,6 +21,7 @@
 import type { AttemptLanguage } from "@/lib/languages";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
+import type { PersonaCard } from "@/lib/questioned-persona/types";
 import type { DisengagementCause, DisengagementWeights } from "./disengagement";
 
 /** A single scored dimension on the report. */
@@ -331,6 +332,23 @@ export interface InteractionTypeConfig {
    * introduce a score where the model returned null, and must never lower a
    * dimension it was not asked to cap — plan 14-04's verification asserts both.
    */
+  /**
+   * Optional second evaluator pass that produces ENGINE-OWNED structured
+   * analysis (e.g. per-utterance behavior coding with counts derived in
+   * code). The runner calls it before the rubric evaluator, stores
+   * `outcomeValue` at `outcome[outcomeKey]` (merged after outcome
+   * validation, the same way `disengagementDecline` is), and appends
+   * `evaluatorNote` to the rubric evaluator's context so narrative and
+   * counts agree. A failure here never fails the report: the analysis is
+   * simply absent.
+   */
+  supplementaryAnalysis?: {
+    outcomeKey: string;
+    run: (input: SupplementaryAnalysisInput) => Promise<{
+      outcomeValue: unknown;
+      evaluatorNote?: string;
+    } | null>;
+  };
   postProcessScores?: (
     scores: ScoreMap,
     ctx: {
@@ -338,6 +356,14 @@ export interface InteractionTypeConfig {
       outcome: Record<string, unknown> | null;
     },
   ) => ScoreMap;
+}
+
+/** What a type's `supplementaryAnalysis` pass receives. */
+export interface SupplementaryAnalysisInput {
+  config: ResolvedSessionConfig;
+  /** The stored turns in order; timestamps are client epoch ms. */
+  turns: Array<{ role: "user" | "assistant"; content: string; timestamp: number }>;
+  startedAt: number;
 }
 
 /**
@@ -387,6 +413,24 @@ export interface DifficultConversationInstance {
   avatarId: string;
   /** Always set together with `avatarId`, never cross-paired (CaseAvatar precedent). */
   voiceId: string;
+  /**
+   * Questioned-persona cases only (`lib/questioned-persona/`): the student
+   * interviews or counsels this persona, who holds facts revealed only to
+   * the right question. Absent for every courageous conversation.
+   *
+   * Privacy follows `hiddenPosition` exactly: it reaches the LIVE PROMPT
+   * and the EVALUATOR, and it is excluded from the student BRIEFING
+   * (`ConversationBriefingFields` has no key for it) and from the REPORT
+   * INPUT SNAPSHOT (`DifficultConversationInputSnapshot` records only
+   * `personaStyle` / `personaName`). Like `hiddenPosition` it does ride the
+   * `/api/difficult-conversation/play` response, because the browser resends
+   * the instance on every chat turn — no surface renders it.
+   *
+   * The post-session REPORT does name which hidden facts the student drew
+   * out; that is the debrief, and it comes from the engine-owned
+   * `personaAnalysis` the supplementary pass wrote, never from this field.
+   */
+  personaCard?: PersonaCard;
 }
 
 /**
