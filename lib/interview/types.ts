@@ -18,6 +18,15 @@ import {
   PROBLEM_FIXTURE_BASE,
   PROBLEM_FIXTURE_ENABLED,
 } from "@/lib/problem-interview/fixtures/type";
+import {
+  ANALYTICS_BACKGROUND,
+  ANALYTICS_INTERVIEWER_PERSONA,
+  ANALYTICS_INTERVIEW_SLUG,
+  ANALYTICS_PRESET_DESCRIPTION,
+  ANALYTICS_PRESET_LABEL,
+  ANALYTICS_QUESTION_AREAS,
+  ANALYTICS_TARGET_MINUTES,
+} from "@/lib/analytics-interview/live";
 
 export type InterviewDifficulty = "Beginner" | "Intermediate" | "Advanced";
 
@@ -148,11 +157,33 @@ const EARLY_CAREER_INTERVIEW: InterviewType = {
   questionAreas: ["Your background", "Behavioral stories", "Motivation & fit"],
 };
 
+/**
+ * Data / product-analytics interview. A problem interview (fit question, then
+ * ONE analytics problem — metric definition, experiment design or readout,
+ * metric diagnosis — graded step by step); the engine record is built by
+ * `makeProblemInterviewTypeConfig` in `lib/engine/registry.ts`. Copy lives in
+ * `lib/analytics-interview/live.ts`. `targetQuestionCount` is 1: one problem.
+ */
+const DATA_ANALYTICS_INTERVIEW: InterviewType = {
+  slug: ANALYTICS_INTERVIEW_SLUG,
+  label: ANALYTICS_PRESET_LABEL,
+  description: ANALYTICS_PRESET_DESCRIPTION,
+  interviewerPersona: ANALYTICS_INTERVIEWER_PERSONA,
+  defaultRoleTitle: "a data scientist (product analytics) role",
+  defaultIndustry: "consumer technology",
+  difficulty: "Advanced",
+  targetMinutes: ANALYTICS_TARGET_MINUTES,
+  targetQuestionCount: 1,
+  caseBackground: ANALYTICS_BACKGROUND,
+  questionAreas: [...ANALYTICS_QUESTION_AREAS],
+};
+
 export const INTERVIEW_TYPES: Record<string, InterviewType> = {
   [GENERAL_INTERVIEW.slug]: GENERAL_INTERVIEW,
   [TECHNICAL_INTERVIEW.slug]: TECHNICAL_INTERVIEW,
   [CONSULTING_INTERVIEW.slug]: CONSULTING_INTERVIEW,
   [EARLY_CAREER_INTERVIEW.slug]: EARLY_CAREER_INTERVIEW,
+  [DATA_ANALYTICS_INTERVIEW.slug]: DATA_ANALYTICS_INTERVIEW,
 };
 
 export const DEFAULT_INTERVIEW_TYPE = GENERAL_INTERVIEW;

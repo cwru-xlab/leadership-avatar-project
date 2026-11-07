@@ -43,6 +43,7 @@ import { PITCH_PRODUCT_TYPE } from "../pitch/product-type";
 import { PITCH_TALK_TYPE } from "../pitch/talk-type";
 import { PITCH_GENERAL_TYPE } from "../pitch/general-deck-type";
 import { makeProblemInterviewTypeConfig } from "../problem-interview/type-config";
+import { ANALYTICS_PROBLEM_INTERVIEW_INPUT } from "../analytics-interview/registration";
 import {
   PROBLEM_FIXTURE_BASE,
   PROBLEM_FIXTURE_ENABLED,
@@ -406,6 +407,8 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   TECHNICAL,
   CONSULTING,
   EARLY_CAREER,
+  // A problem interview (lib/analytics-interview); bank in banks.server.ts.
+  makeProblemInterviewTypeConfig(ANALYTICS_PROBLEM_INTERVIEW_INPUT),
   CASE_STUDY,
   TECHNICAL_CODING,
   NETWORKING,
