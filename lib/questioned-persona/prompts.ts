@@ -131,7 +131,13 @@ const SHARED_WORDING = `## Wording
 - Call it "the encounter" (clinical) or "the session" (counseling) — never "the interview" or "the interviewer". Refer to the other person as "the patient" or "the client" or by name.
 - Describe only what the transcript shows. Messages may have been typed, so do not claim a tone of voice.
 - This is communication-skills practice. Do NOT comment on medical correctness, diagnosis or treatment choices, and do not give clinical advice in the report.
-- A "behavior coding" block may be appended to the context below. Its counts were computed in code from per-utterance coding: cite them, never recount or contradict them.`;
+- A "behavior coding" block may be appended to the context below. Its counts were computed in code from per-utterance coding: cite them, never recount or contradict them.
+
+## JSON output rules — a violation corrupts the report
+- NEVER use a double quote character anywhere inside any string value. To quote the student's words, use single quotes: the student asked 'what brings you in today'. A double quote inside a JSON string breaks parsing.
+- Every entry in rubric_notes MUST begin with exactly one of these two sentences, then the reason: Meets all criteria: yes. / Meets all criteria: no.
+- Judge that sentence on the student's OWN WORDS in the transcript alone. A no means they did not do it — including when they only did it after the patient or client had already raised the thing unprompted. Do not give credit for something the transcript does not show.
+- rubric_notes must contain one entry per scored dimension, with item set to the dimension label.`;
 
 export const CLINICAL_EVALUATOR_PROMPT = `You are grading a CLINICAL COMMUNICATION practice encounter. A health-professions student (medicine, nursing, PA, dental or pharmacy) took a history from a standardized patient who held some facts back until asked well. You grade COMMUNICATION, not clinical reasoning.
 

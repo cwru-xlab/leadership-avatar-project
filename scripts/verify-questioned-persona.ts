@@ -44,6 +44,7 @@ import {
 } from "../lib/questioned-persona/frameworks";
 import {
   CODE_DEFINITIONS,
+  cleanEvidenceQuote,
   codesForStyle,
   countCodes,
   deriveMetrics,
@@ -975,8 +976,52 @@ console.log("\n8. Counts are arithmetic over the stored tags, never asked of the
     }
     for (const key of Object.keys(g.expectGlobals ?? {})) {
       check(
-        `golden ${g.id}: expectGlobals key "${key}" is a real MI rubric dimension`,
-        style === "motivational-interviewing" && MI_DIMENSIONS.includes(key),
+        `golden ${g.id}: expectGlobals key "${key}" is a real extra rubric dimension`,
+        (style === "motivational-interviewing" ? MI_DIMENSIONS : CLINICAL_DIMENSIONS).includes(key),
+      );
+    }
+    for (const key of Object.keys(g.expectCounts ?? {})) {
+      check(
+        `golden ${g.id}: expectCounts key "${key}" is a real ${style} code`,
+        (codesForStyle(style) as readonly string[]).includes(key),
+      );
+    }
+    {
+      const metricKeys = new Set(
+        deriveMetrics(style, countCodes(style, tagged)).map((m) => m.key),
+      );
+      for (const key of Object.keys(g.expectMetricBands ?? {})) {
+        check(`golden ${g.id}: expectMetricBands key "${key}" is a real derived metric`, metricKeys.has(key));
+      }
+    }
+    // A hand count must itself satisfy the golden's own count bands, or the
+    // band is wrong rather than the model.
+    for (const [code, [lo, hi]] of Object.entries(g.expectCounts ?? {})) {
+      const v = counts[code] ?? 0;
+      check(
+        `golden ${g.id}: the HAND count of ${code} (${v}) is inside its own band ${lo}-${hi}`,
+        v >= lo && v <= hi,
+      );
+    }
+    for (const sum of g.expectCountSums ?? []) {
+      for (const code of sum.codes) {
+        check(
+          `golden ${g.id}: expectCountSums "${sum.label}" names the real ${style} code ${code}`,
+          (codesForStyle(style) as readonly string[]).includes(code),
+        );
+      }
+      const v = sum.codes.reduce((n, c) => n + (counts[c] ?? 0), 0);
+      check(
+        `golden ${g.id}: the HAND sum of ${sum.label} (${v}) is inside its own band ${sum.band[0]}-${sum.band[1]}`,
+        v >= sum.band[0] && v <= sum.band[1],
+      );
+    }
+    for (const [key, want] of Object.entries(g.expectMetricBands ?? {})) {
+      const metric = deriveMetrics(style, counts).find((m) => m.key === key)!;
+      check(
+        `golden ${g.id}: the HAND counts put ${key} in band "${want}"`,
+        metric.band === want,
+        `band=${metric.band} value=${metric.value}`,
       );
     }
     // Every expected-elicited fact must actually be disclosed in the
@@ -1016,6 +1061,29 @@ console.log("\n8. Counts are arithmetic over the stored tags, never asked of the
     locateQuote("What brings you in TODAY?", sample) !== null,
   );
   check("an invented quote locates nothing", locateQuote("I think it is your heart", sample) === null);
+  // The judge is SHOWN "[S0] Clinician: ..." lines and told to copy a span
+  // from one, so it sometimes copies the label with it. That is compliance,
+  // not a hallucination, and must not cost the student their evidence.
+  check(
+    "a quote copied with its [S#] label still locates",
+    locateQuote("[S0] Clinician: What brings you in today?", sample) !== null,
+  );
+  check(
+    "a quote copied with only the speaker label still locates",
+    locateQuote("Clinician: What brings you in today?", sample) !== null,
+  );
+  check(
+    "a quote the model wrapped in quotation marks still locates",
+    locateQuote('"What brings you in today?"', sample) !== null,
+  );
+  check(
+    "stripping the label does not let a persona line through as student evidence",
+    locateQuote("[S0] Patient: Hello.", sample) === null,
+  );
+  check(
+    "cleanEvidenceQuote removes the label from the STORED quote, not just the match",
+    cleanEvidenceQuote("[S4] Counselor: So you smoke a pack a day.") === "So you smoke a pack a day.",
+  );
 
   // Defensive narrowing: a malformed stored analysis renders as absent.
   const good: PersonaAnalysis = {

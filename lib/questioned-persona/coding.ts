@@ -23,7 +23,7 @@ export const CODE_DEFINITIONS: Record<PersonaStyle, Record<string, string>> = {
     closed_question:
       "A question answerable with yes/no, a number, or a single fact (Do you…? When did…? How many…? Is it sharp?).",
     leading_question:
-      "A question that presumes or suggests the answer (You don't smoke, do you? It's not too bad, right?). Code it IN ADDITION to closed_question.",
+      "A question that presumes or suggests its own answer. Code it IN ADDITION to the question type. Leading forms include: a tag question appended to a statement (…, right? …, correct? …, do you? …, don't you? …, isn't it? …, aren't you?); a negatively framed screen that invites agreement (You don't smoke, do you? No chest pain, nothing like that? Nothing else going on?); a question that states the answer and asks for confirmation (So that's intentional? You're probably just not sleeping enough?); and a question that supplies the diagnosis or cause the patient should agree with. If the patient could answer it by only saying 'right' or 'no' without adding anything, and the clinician already implied which one, it is leading.",
     stacked_question:
       "Two or more different questions asked in one turn before the patient can answer. Code once per utterance, in addition to the question type of the questions.",
     reflection:
@@ -61,11 +61,11 @@ export const CODE_DEFINITIONS: Record<PersonaStyle, Record<string, string>> = {
     giving_information:
       "MITI Giving Information: provides information, feedback or explanation without persuading.",
     persuade:
-      "MITI Persuade: tries to change the client's opinion or behavior through logic, argument, warnings, advice or self-disclosure WITHOUT permission (You really should cut back. Drinking like that will hurt your grades.).",
+      "MITI Persuade: tries to change the client's opinion or behavior through logic, argument, warnings, advice, a directive, or self-disclosure WITHOUT asking permission. Persuade includes: naming a consequence of not changing (People who skip rehab are more likely to have another heart attack.); an unsolicited suggestion or solution (You could carpool.); appealing to someone else's feelings as a reason (Your wife is worried sick. You should think about her.); and any 'you need to' or 'you should'. Code persuade once per utterance no matter how many arguments it contains.",
     persuade_with_permission:
       "MITI Persuade with Permission: the same advice or concern but after asking permission or with explicit emphasis on choice (Would it be okay if I shared a concern? … You may or may not agree.).",
     confront:
-      "MITI Confront: disagrees, argues, corrects, shames, blames, criticizes, labels, moralizes or questions the client's honesty (You're in denial. That's not really true, is it? Come on, you know that's an excuse.).",
+      "MITI Confront: disagrees, argues, corrects, shames, blames, criticizes, labels, moralizes or questions the client's honesty. Confront includes: directly contradicting what the client just said (That's just not true. Feeling fine doesn't mean your heart is fine.); a rhetorical or scare question that is really an accusation or a warning (Do you want to have another heart attack? You know that's not okay, right?); and telling the client their reason is an excuse or denial. Confront is about the counselor's STANCE toward the client, so an utterance that both contradicts the client AND argues for the change gets BOTH confront and persuade.",
   },
 };
 
@@ -272,6 +272,21 @@ function normalizeForMatch(text: string): string {
 }
 
 /**
+ * The judge is shown `[S4] Clinician: …` lines (see `labelledTranscript`) and
+ * told to copy a span from one of them, so it sometimes copies the label too.
+ * That is compliant behavior, not a hallucination: strip the label before
+ * matching rather than discarding real evidence.
+ */
+export function cleanEvidenceQuote(quote: string): string {
+  return quote
+    .trim()
+    .replace(/^["“]|["”]$/g, "")
+    .replace(/^\[S\d+\]\s*/i, "")
+    .replace(/^(clinician|counselor|patient|client|student)\s*:\s*/i, "")
+    .trim();
+}
+
+/**
  * Evidence must be the student's own words. Returns the utterance a quote
  * came from, or null when the quote is not verbatim (after whitespace,
  * punctuation and case normalization) in any student utterance.
@@ -280,7 +295,7 @@ export function locateQuote(
   quote: string,
   utterances: StudentUtterance[],
 ): StudentUtterance | null {
-  const q = normalizeForMatch(quote);
+  const q = normalizeForMatch(cleanEvidenceQuote(quote));
   if (q.length < 3) return null;
   return utterances.find((u) => normalizeForMatch(u.text).includes(q)) ?? null;
 }
