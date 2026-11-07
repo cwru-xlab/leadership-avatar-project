@@ -125,30 +125,6 @@ export function finalizeProblemOutcome(
   return next;
 }
 
-/**
- * The highest `process_rigor` score the step results allow, per
- * `PROCESS_RIGOR_SCORING_GUIDE` (lower band wins). Counts applicable steps
- * only. Null when there are no results to judge.
- *
- * The guide's "jumped straight to an answer" clause is a judgment about the
- * transcript and stays with the evaluator; this only enforces the countable
- * part.
- */
-export function processRigorCeiling(results: ProcessStepResult[] | null): number | null {
-  if (!results || results.length === 0) return null;
-  const applicable = results.filter((result) => result.status !== "not_applicable");
-  if (applicable.length === 0) return null;
-  const prompted = applicable.filter((result) => result.status === "prompted").length;
-  const missed = applicable.filter((result) => result.status === "missed").length;
-
-  let ceiling = 5;
-  if (prompted === 1) ceiling = Math.min(ceiling, 4);
-  if (prompted === 2 || missed === 1) ceiling = Math.min(ceiling, 3);
-  if (missed === 2 || prompted >= 3) ceiling = Math.min(ceiling, 2);
-  if (missed >= 3) ceiling = Math.min(ceiling, 1);
-  return ceiling;
-}
-
 /** One framework step as the report renders it. */
 export interface ProcessStepView {
   key: string;

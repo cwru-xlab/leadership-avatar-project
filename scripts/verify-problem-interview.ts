@@ -17,6 +17,8 @@
  * Run: npx tsx scripts/verify-problem-interview.ts
  */
 
+export {};
+
 let failures = 0;
 
 function check(name: string, pass: boolean, detail?: string) {
@@ -40,7 +42,6 @@ async function main() {
   const {
     asProcessStepResults,
     finalizeProblemOutcome,
-    processRigorCeiling,
     buildProcessStepViews,
   } = await import("../lib/problem-interview/outcome");
   const { buildProblemProgressBlock } = await import("../lib/problem-interview/prompts");
@@ -51,6 +52,9 @@ async function main() {
     "../lib/problem-interview/fixtures/type"
   );
   const { PROBLEM_FIXTURE_BANK } = await import("../lib/problem-interview/fixtures/bank");
+  const { deriveProcessRigorScore } = await import("../lib/problem-interview/types");
+  const processRigorCeiling = (steps: Parameters<typeof deriveProcessRigorScore>[0] | null) =>
+    steps ? deriveProcessRigorScore(steps) : null;
   const { getEngineType, listEngineTypes } = await import("../lib/engine/registry");
   const { resolveSessionConfig } = await import("../lib/engine/resolve");
   const { buildRubricJsonSchema } = await import("../lib/engine/rubric");
@@ -303,21 +307,17 @@ async function main() {
     check("malformed processSteps removed, ids still pinned", !("processSteps" in malformed) && malformed.questionId === question.id);
     check("null produced outcome still yields ids", finalizeProblemOutcome(null, snapshot).frameworkKey === framework.key);
 
-    check("ceiling: all hit → 5", processRigorCeiling(steps.map((s) => ({ ...s, status: "hit" as const }))) === 5);
-    check("ceiling: 1 prompted 1 missed → 3", processRigorCeiling(steps) === 3);
+    check("derive: all hit → 5", processRigorCeiling(steps.map((s) => ({ ...s, status: "hit" as const }))) === 5);
+    check("derive: 1 prompted 1 missed → 3", processRigorCeiling(steps) === 3);
     const st = (statuses: string[]) => statuses.map((status, i) => ({ key: `k${i}`, status: status as "hit", evidenceQuote: "", timecodeSeconds: null, note: "" }));
-    check("ceiling: 1 missed + 3 prompted → 2 (lower band)", processRigorCeiling(st(["missed", "prompted", "prompted", "prompted"])) === 2);
-    check("ceiling: 3 missed → 1", processRigorCeiling(st(["missed", "missed", "missed", "hit"])) === 1);
-    check("ceiling: n/a excluded", processRigorCeiling(st(["hit", "not_applicable"])) === 5);
-    check("ceiling: none → null", processRigorCeiling(null) === null);
+    check("derive: 1 missed + 3 prompted → 2 (lower band)", processRigorCeiling(st(["missed", "prompted", "prompted", "prompted"])) === 2);
+    check("derive: 3 missed → 1", processRigorCeiling(st(["missed", "missed", "missed", "hit"])) === 1);
+    check("derive: n/a excluded", processRigorCeiling(st(["hit", "not_applicable"])) === 5);
+    check("derive: none → null", processRigorCeiling(null) === null);
 
-    const post = type!.postProcessScores!;
-    const capped = post({ process_rigor: 5, content: 5 }, { terminationReason: null, outcome: final });
-    check("postProcessScores caps process_rigor to ceiling", capped.process_rigor === 3 && capped.content === 5);
-    const nullStays = post({ process_rigor: null }, { terminationReason: null, outcome: final });
-    check("postProcessScores never introduces a score", nullStays.process_rigor === null);
-    const lower = post({ process_rigor: 2 }, { terminationReason: null, outcome: final });
-    check("postProcessScores never raises", lower.process_rigor === 2);
+    check("factory declares no postProcessScores (rigor derived in the runner)", !type!.postProcessScores);
+    check("derive: unparseable steps → no score", processRigorCeiling(asProcessStepResults("not json")) === null);
+    check("derive: only n/a → null", processRigorCeiling(st(["not_applicable"])) === null);
 
     const views = buildProcessStepViews(snapshot.framework, final.processSteps);
     check("report views: one per framework step", views.length === framework.steps.length);

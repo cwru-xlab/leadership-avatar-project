@@ -18,6 +18,7 @@ import {
   DEFAULT_SESSION_LENGTH_SLUG,
   DEFAULT_PERSONALITY_SLUG,
 } from "@/lib/interview/customization-options";
+import { getEngineType } from "@/lib/engine/registry";
 
 const MAX_PROFILE_TEXT_LENGTH = 4000;
 
@@ -66,11 +67,22 @@ export default function CustomizePanel({
     () => matchRoleSlug(interviewType.defaultRoleTitle),
     [interviewType]
   );
+  // Problem interviews: lengths below the preset's own target are hidden (one
+  // problem needs the full time; resolveInterviewType also clamps server-side),
+  // and with no exact match the default is "use preset default", not Standard.
+  const isProblemInterview = Boolean(getEngineType(interviewType.slug)?.problemInterview);
+  const lengthOptions = useMemo(
+    () =>
+      isProblemInterview
+        ? SESSION_LENGTH_PRESETS.filter((p) => p.targetMinutes >= interviewType.targetMinutes)
+        : SESSION_LENGTH_PRESETS,
+    [isProblemInterview, interviewType]
+  );
   const defaultLengthSlug = useMemo(
     () =>
       matchLengthSlug(interviewType.targetMinutes, interviewType.targetQuestionCount) ??
-      DEFAULT_SESSION_LENGTH_SLUG,
-    [interviewType]
+      (isProblemInterview ? undefined : DEFAULT_SESSION_LENGTH_SLUG),
+    [interviewType, isProblemInterview]
   );
 
   const [industrySlug, setIndustrySlug] = useState<string | undefined>(defaultIndustrySlug);
@@ -240,9 +252,11 @@ export default function CustomizePanel({
                 setLengthSlug(selected);
               }}
             >
-              {SESSION_LENGTH_PRESETS.map((option) => (
+              {lengthOptions.map((option) => (
                 <SelectItem key={option.slug}>
-                  {`${option.label} · ~${option.targetMinutes} min · ${option.targetQuestionCount} questions`}
+                  {isProblemInterview
+                    ? `${option.label} · ~${option.targetMinutes} min`
+                    : `${option.label} · ~${option.targetMinutes} min · ${option.targetQuestionCount} questions`}
                 </SelectItem>
               ))}
             </Select>

@@ -10,9 +10,12 @@
  *   2. `lib/engine/registry.ts` — `makeProblemInterviewTypeConfig({ base,
  *      frameworks, evaluatorAddendum, rubricExtras, briefing })` in
  *      `ENGINE_TYPES` (replacing `makeInterviewTypeConfig` for that slug).
- *   3. `lib/problem-interview/banks.server.ts` — the slug's `ProblemQuestion[]`
- *      in `PROBLEM_BANKS`. Server-only: the bank carries interviewer facts and
- *      strong-answer notes, and the registry above is bundled for the browser.
+ *   3. The slug's `ProblemQuestion[]` — preferably in
+ *      `lib/problem-interview/banks.server.ts`'s `PROBLEM_BANKS` (server-only:
+ *      the bank carries interviewer facts and strong-answer notes, and the
+ *      registry above is bundled for the browser). Passing `bank` to the
+ *      factory also works and keeps the content branches' call shape, at the
+ *      cost of shipping the bank in client JS.
  *
  * Everything else (question selection, live prompt, markers, exhibit card,
  * evaluator composition, report panels) is generic machinery keyed off the
@@ -32,9 +35,10 @@ import { resolveAttemptLanguage } from "@/lib/languages";
 import {
   PROBLEM_OUTCOME_FIELD_KEYS,
   PROCESS_RIGOR_DIMENSION,
+  type ProblemQuestion,
   type ProcessFramework,
 } from "./types";
-import { asProcessStepResults, processRigorCeiling } from "./outcome";
+import { registerFactoryBank } from "./bank-registry";
 import {
   buildProblemEvaluatorRules,
   buildProblemInterviewSystemPrompt,
@@ -43,6 +47,12 @@ import {
 export interface MakeProblemInterviewTypeConfigInput {
   /** The slug's `INTERVIEW_TYPES` record. Its slug becomes the engine slug. */
   base: InterviewType;
+  /**
+   * The question bank. Optional: prefer registering it in
+   * `banks.server.ts` (server-only, takes precedence) — a bank passed here
+   * is reachable from the browser bundle. See `./bank-registry.ts`.
+   */
+  bank?: readonly ProblemQuestion[];
   /** Every framework a question in this type's bank may name. */
   frameworks: ProcessFramework[];
   /** Type-specific evaluator guidance, appended after the shared rules. */
@@ -65,6 +75,7 @@ export const DEFAULT_PROBLEM_BRIEFING: ProblemInterviewBriefing = {
 
 export function makeProblemInterviewTypeConfig({
   base,
+  bank,
   frameworks,
   evaluatorAddendum = "",
   rubricExtras = [],
@@ -73,6 +84,7 @@ export function makeProblemInterviewTypeConfig({
   if (frameworks.length === 0) {
     throw new Error(`problem interview "${base.slug}" declares no frameworks`);
   }
+  if (bank) registerFactoryBank(base.slug, bank);
   const extraRubricDimensions: RubricDimension[] = [
     { ...PROCESS_RIGOR_DIMENSION },
     ...rubricExtras.filter((dim) => dim.key !== PROCESS_RIGOR_DIMENSION.key),
@@ -174,17 +186,5 @@ export function makeProblemInterviewTypeConfig({
         customComponent: "InterviewBackgroundReminderStep",
       },
     ],
-    // The scoring guide bounds process_rigor by the step results. The model
-    // is told so; this makes it hold even when the model disagrees. Only ever
-    // lowers process_rigor, never introduces a score the model left null.
-    postProcessScores: (scores, { outcome }) => {
-      const current = scores[PROCESS_RIGOR_DIMENSION.key];
-      if (typeof current !== "number") return scores;
-      const ceiling = processRigorCeiling(
-        asProcessStepResults(outcome?.[PROBLEM_OUTCOME_FIELD_KEYS.processSteps]),
-      );
-      if (ceiling === null || current <= ceiling) return scores;
-      return { ...scores, [PROCESS_RIGOR_DIMENSION.key]: ceiling };
-    },
   };
 }
