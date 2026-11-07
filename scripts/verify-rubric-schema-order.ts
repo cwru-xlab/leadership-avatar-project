@@ -40,6 +40,7 @@ import { buildRubricJsonSchema, type RubricJsonSchema } from "../lib/engine/rubr
 import type { InstanceConfig } from "../lib/engine/types";
 import { isProblemInterviewSlug } from "../lib/problem-interview/problem-slugs";
 import { PROBLEM_OUTCOME_FIELD_KEYS } from "../lib/problem-interview/types";
+import { PERSONA_CASES } from "../lib/questioned-persona/cases";
 
 const SNAPSHOT_PATH = join(__dirname, "fixtures", "rubric-schema-order.json");
 
@@ -154,6 +155,32 @@ function instanceFor(slug: string): InstanceConfig {
         avatarId: "avatar-test",
         voiceId: "voice-test",
       };
+    case "clinical-communication":
+    case "motivational-interviewing": {
+      // Questioned-persona types resolve through the difficult-conversation
+      // instance plus a personaCard. The card is taken from the first seeded
+      // case of that style rather than hand-written here: the rubric is built
+      // from the card, so a hand-rolled stub would digest a prompt the product
+      // never sends, and the digest should move if the seeded card moves.
+      const seeded = PERSONA_CASES.find((c) => c.personaCard.style === slug);
+      if (!seeded) throw new Error(`no seeded persona case for "${slug}"`);
+      return {
+        kind: "difficult-conversation",
+        conversationId: seeded.id,
+        source: "seeded",
+        role: seeded.avatarRole,
+        studentRole: seeded.studentRole,
+        situation: seeded.situation,
+        sharedBackstory: seeded.sharedBackstory,
+        hiddenPosition: seeded.hiddenPosition,
+        studentObjective: seeded.studentObjective,
+        stakes: seeded.stakes,
+        difficulty: seeded.difficulty,
+        avatarId: "avatar-test",
+        voiceId: "voice-test",
+        personaCard: seeded.personaCard,
+      };
+    }
     default:
       return { kind: "none" };
   }

@@ -27,6 +27,8 @@ const requiredNamed = [
   "difficult-conversation",
   "networking",
   "pitch-elevator",
+  "clinical-communication",
+  "motivational-interviewing",
 ] as const;
 
 for (const slug of requiredNamed) {

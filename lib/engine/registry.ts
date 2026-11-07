@@ -53,6 +53,10 @@ import {
 } from "../problem-interview/fixtures/type";
 import { DIFFICULT_CONVERSATION_TYPE } from "../difficult-conversation/conversation-type";
 import {
+  CLINICAL_COMMUNICATION_TYPE,
+  MOTIVATIONAL_INTERVIEWING_TYPE,
+} from "../questioned-persona/persona-types";
+import {
   buildTechnicalCodingSystemPrompt,
   TECHNICAL_CODING_EVALUATOR_PROMPT,
   TECHNICAL_CODING_RUBRIC_EXTRAS,
@@ -443,6 +447,8 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   PITCH_TALK_TYPE,
   PITCH_GENERAL_TYPE,
   DIFFICULT_CONVERSATION_TYPE,
+  CLINICAL_COMMUNICATION_TYPE,
+  MOTIVATIONAL_INTERVIEWING_TYPE,
 ];
 
 const ENGINE_TYPES_BY_SLUG: Record<string, InteractionTypeConfig> =

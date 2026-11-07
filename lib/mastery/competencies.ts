@@ -172,6 +172,9 @@ export const COMPETENCIES: readonly Competency[] = [
       "synthesis",
       "coding_quality",
       "technical_communication",
+      // questioned persona (clinical communication)
+      "opening_agenda",
+      "explanation_planning",
     ],
     order: 2,
   },
@@ -193,6 +196,11 @@ export const COMPETENCIES: readonly Competency[] = [
       "discovery_tailoring",
       "self-introduction",
       "product_sense",
+      // questioned persona: clinical history-taking and the MITI globals
+      "information_gathering",
+      "cultivating_change_talk",
+      "softening_sustain_talk",
+      "partnership",
     ],
     order: 4,
   },

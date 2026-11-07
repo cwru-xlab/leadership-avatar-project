@@ -428,10 +428,63 @@ console.log("\n11. UAT 2026-10-25 — auto-finish survives Strict Mode; the reco
 
 console.log("\n12. UAT 2026-10-25 — non-interview sessions are not labeled interviews (D17-1, agenda)");
 {
+  // The D17-1 guarantee is that a NON-interview session gets neither the
+  // "Interview" label nor an agenda block. The original form of this check
+  // pinned the exact source shape `{isInterviewSession ? (<div ...`, which
+  // broke when the problem-interview agenda was added ahead of it and turned
+  // the `if` into an `else-if` chain. The behaviour was unchanged, so the
+  // check was testing the shape, not the promise. It now tests the promise:
+  // every agenda arm is gated, and the chain falls through to null.
   const headerOk = (src: string) =>
-    /\{isInterviewSession \? "Interview" : "Conversation"\} with \{interviewerName\}/.test(src) &&
-    /\{isInterviewSession \? \(\s*<div className="border-y border-white\/10 py-3">/.test(src);
-  check(headerOk(shell), "session header and interview agenda block are interview-only");
+    /\{isInterviewSession \? "Interview" : "Conversation"\} with \{interviewerName\}/.test(src);
+  const agendaGated = (src: string) => {
+    // Each agenda block must be reached only through an interview gate, and
+    // the chain must end in `: null` so an unmatched type renders nothing.
+    // Anchored on the FIRST `) : null}` after the chain opens: allowing
+    // `[\s\S]*?` to run to any later `: null` let a mutated fallback still
+    // match, so the bite-proof case below did not bite.
+    const start = src.indexOf("{isProblemInterview ? (");
+    if (start === -1) return false;
+    // The interview arm must be gated, not a bare fallback.
+    const gate = src.indexOf(") : isInterviewSession ? (", start);
+    if (gate === -1) return false;
+    // The chain must terminate in `: null` at the END of the interview arm.
+    // Scanning for the first `) : null}` anywhere after `start` was too loose:
+    // replacing this chain's terminator simply found a later one further down
+    // the file, so an ungated fallback still passed. Anchor on the first
+    // terminator after the interview gate and require nothing but the arm's
+    // own markup in between (no further ternary opening).
+    const end = src.indexOf(") : null}", gate);
+    if (end === -1) return false;
+    const chain = src.slice(start, end + ") : null}".length);
+    const GATE = ") : isInterviewSession ? (";
+    // Slice AFTER the gate marker: starting at `gate` included the gate's own
+    // `? (`, which my own nested-arm rule then flagged as a nested ternary.
+    const interviewArm = src.slice(gate + GATE.length, end);
+    // A nested JSX ternary arm (`? (` followed by a tag) inside the interview
+    // arm would mean the terminator belongs to a DIFFERENT ternary. Inline
+    // string ternaries like `{resumeFileName ? "a" : "b"}` are fine and do
+    // appear here, so only an element-opening arm disqualifies.
+    if (/\?\s*\(\s*</.test(interviewArm)) return false;
+    // Guard the subset the chain relies on: a problem interview is always an
+    // interview type (asserted in verify-turn-control / the engine registry),
+    // so neither arm can render for a pitch, networking or DC session.
+    return /data-testid="problem-agenda"/.test(chain) && /Practice flow/.test(chain);
+  };
+  check(headerOk(shell), "session header is interview-only");
+  check(agendaGated(shell), "both agenda blocks are gated and the chain ends in null");
+  // Mutate the agenda chain's OWN terminator. `replace` with a string hits the
+  // first occurrence in the file, which sits above this chain, so a naive
+  // mutation left the chain intact and the check could never bite.
+  const chainStart = shell.indexOf("{isProblemInterview ? (");
+  const chainEnd = shell.indexOf(") : null}", chainStart);
+  const ungated =
+    shell.slice(0, chainEnd) + ") : <div>always</div>}" + shell.slice(chainEnd + ") : null}".length);
+  check(!agendaGated(ungated), "bite-proof: an ungated fallback agenda is caught");
+  check(
+    !agendaGated(shell.replace(") : isInterviewSession ? (", ") : (")),
+    "bite-proof: dropping the interview gate is caught",
+  );
   check(!headerOk(shell.replace('{isInterviewSession ? "Interview" : "Conversation"} with', "Interview with")), "bite-proof: a hard-coded 'Interview with' is caught");
 }
 

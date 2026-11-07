@@ -150,6 +150,14 @@ export interface DifficultConversationInputSnapshot {
   stakes: string;
   difficulty: "receptive" | "guarded" | "hostile";
   avatarId: string;
+  /**
+   * Questioned-persona sessions only (clinical communication, motivational
+   * interviewing). Absent on every courageous conversation. The persona card
+   * itself is never snapshotted — its hidden facts follow hiddenPosition's
+   * privacy rule.
+   */
+  personaStyle?: "clinical-communication" | "motivational-interviewing";
+  personaName?: string;
 }
 
 /**

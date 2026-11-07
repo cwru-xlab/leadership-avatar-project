@@ -57,6 +57,7 @@ import { validateOutcome } from "./outcome";
 import { getEngineType } from "./registry";
 import { resolveSessionConfig } from "./resolve";
 import type {
+  SupplementaryAnalysisInput,
   EvaluatorImage,
   InstanceConfig,
   ResolvedSessionConfig,
@@ -537,6 +538,8 @@ export async function runAndPersistEvaluation({
     // ----- Transcript derivation (both legacy paths) -----
     let transcript = "";
     let turnCountUpdate: number | undefined;
+    let transcriptTurns: SupplementaryAnalysisInput["turns"] | null = null;
+    let transcriptStartedAt = 0;
 
     if (report.transcriptKey) {
       const interviewTranscript = await s3Storage.getInterviewTranscript(
@@ -555,6 +558,8 @@ export async function runAndPersistEvaluation({
         return;
       }
       transcript = formatTranscriptForEvaluator(interviewTranscript);
+      transcriptTurns = interviewTranscript.turns;
+      transcriptStartedAt = interviewTranscript.startedAt;
     } else if (report.interactionLogId && report.studentEmail) {
       const caseId =
         snapshot?.kind === "scenario" ? snapshot.caseId : null;
@@ -641,6 +646,38 @@ export async function runAndPersistEvaluation({
     // does not carry prompts; same adaptation as 13-05). Image-fetch failure
     // degrades to text-only evaluation; never fails the whole report.
     const typeRecord = getEngineType(resolved.config.typeSlug);
+
+    // Type-declared supplementary analysis (engine-owned structured result).
+    // Runs before the rubric evaluator so its note can ground the narrative.
+    // Failure degrades to "no analysis"; it never fails the report.
+    let supplementary: { key: string; value: unknown } | null = null;
+    if (typeRecord?.supplementaryAnalysis && transcriptTurns) {
+      try {
+        const produced = await typeRecord.supplementaryAnalysis.run({
+          config: resolved.config,
+          turns: transcriptTurns,
+          startedAt: transcriptStartedAt,
+        });
+        if (produced) {
+          supplementary = {
+            key: typeRecord.supplementaryAnalysis.outcomeKey,
+            value: produced.outcomeValue,
+          };
+          if (produced.evaluatorNote) {
+            const prior =
+              typeof evaluationContext.evaluatorBrief === "string"
+                ? evaluationContext.evaluatorBrief
+                : "";
+            evaluationContext.evaluatorBrief = `${prior}\n\nBehavior coding:\n${produced.evaluatorNote}`.trim();
+          }
+        }
+      } catch (analysisError) {
+        console.warn("Engine evaluation: supplementaryAnalysis failed; continuing without it", {
+          reportId,
+          error: analysisError instanceof Error ? analysisError.message : String(analysisError),
+        });
+      }
+    }
     let images: EvaluatorImage[] | undefined;
     if (typeRecord?.prompts.buildEvaluationImages) {
       try {
@@ -727,6 +764,16 @@ export async function runAndPersistEvaluation({
         // Evaluator produced nothing and finish left nothing — leave as-is
         // (undefined skips the column update).
         outcomeToPersist = undefined;
+      }
+
+      if (supplementary) {
+        const base =
+          validatedOutcome ??
+          (outcomeToPersist && outcomeToPersist !== Prisma.JsonNull
+            ? (outcomeToPersist as Record<string, unknown>)
+            : storedOutcome ?? {});
+        validatedOutcome = { ...base, [supplementary.key]: supplementary.value };
+        outcomeToPersist = validatedOutcome as unknown as Prisma.InputJsonValue;
       }
 
       // Type-declared score cap (e.g. early-end discovery_tailoring ceiling).

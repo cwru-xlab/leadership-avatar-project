@@ -655,6 +655,80 @@
         "outcome"
       ],
       "digest": "3a3c40ac32d40ab21ce2925a38d1cd3755970e316316b297bf8dcfb0e8836722"
+    },
+    "clinical-communication": {
+      "problemInterview": false,
+      "name": "interview_evaluation",
+      "properties": [
+        "visual_score",
+        "vocal_score",
+        "content_score",
+        "behavioral_score",
+        "opening_agenda_score",
+        "information_gathering_score",
+        "empathy_score",
+        "explanation_planning_score",
+        "overall_summary",
+        "strengths",
+        "growth_areas",
+        "category_notes",
+        "rubric_notes",
+        "practice_next"
+      ],
+      "required": [
+        "visual_score",
+        "vocal_score",
+        "content_score",
+        "behavioral_score",
+        "opening_agenda_score",
+        "information_gathering_score",
+        "empathy_score",
+        "explanation_planning_score",
+        "overall_summary",
+        "strengths",
+        "growth_areas",
+        "category_notes",
+        "rubric_notes",
+        "practice_next"
+      ],
+      "digest": "8528871f7ed022139298ded150a9abb2b695ce9ba0e3704833d87fbcbb1a2b39"
+    },
+    "motivational-interviewing": {
+      "problemInterview": false,
+      "name": "interview_evaluation",
+      "properties": [
+        "visual_score",
+        "vocal_score",
+        "content_score",
+        "behavioral_score",
+        "cultivating_change_talk_score",
+        "softening_sustain_talk_score",
+        "partnership_score",
+        "empathy_score",
+        "overall_summary",
+        "strengths",
+        "growth_areas",
+        "category_notes",
+        "rubric_notes",
+        "practice_next"
+      ],
+      "required": [
+        "visual_score",
+        "vocal_score",
+        "content_score",
+        "behavioral_score",
+        "cultivating_change_talk_score",
+        "softening_sustain_talk_score",
+        "partnership_score",
+        "empathy_score",
+        "overall_summary",
+        "strengths",
+        "growth_areas",
+        "category_notes",
+        "rubric_notes",
+        "practice_next"
+      ],
+      "digest": "0ff49677f0eac88e939b0bc5bd4827030949a1e75e7f1f604184d374922e10e1"
     }
   }
 }
