@@ -15,6 +15,7 @@
  */
 
 import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { loadPdfjs } from "@/lib/pdfjs-node";
 import { join } from "path";
 
 /** Slide image long-edge target (px). */
@@ -161,7 +162,7 @@ async function renderPageToPng(
  * Does not throw — bad pages become blank PNGs with `renderFailed: true`.
  */
 export async function rasterizePdf(buffer: Buffer): Promise<RasterizedSlide[]> {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const pdfjs = await loadPdfjs();
   // Copy — pdfjs may transfer/detach the underlying ArrayBuffer.
   const data = new Uint8Array(buffer);
 

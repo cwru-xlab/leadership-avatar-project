@@ -9,6 +9,7 @@
  * pdfjs-dist as well, and pdf2json is no longer a dependency.
  */
 
+import { loadPdfjs } from "@/lib/pdfjs-node";
 import { normalizeDeckWhitespace } from "./pptx-extract";
 
 /**
@@ -18,7 +19,7 @@ import { normalizeDeckWhitespace } from "./pptx-extract";
  */
 export async function extractPerPageText(buffer: Buffer): Promise<string[]> {
   try {
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const pdfjs = await loadPdfjs();
     // Copy — pdfjs may transfer/detach the underlying ArrayBuffer.
     const data = new Uint8Array(buffer);
     const loadingTask = pdfjs.getDocument({
