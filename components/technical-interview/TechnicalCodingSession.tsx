@@ -30,7 +30,7 @@ import {
 } from "@/components/session/useVisualCapture";
 import { SelfViewThumbnail } from "@/components/session/SelfViewThumbnail";
 import { FaceDetectionBanner } from "@/components/session/FaceDetectionBanner";
-import TechnicalPythonEditor from "@/components/technical-interview/TechnicalPythonEditor";
+import TechnicalCodeEditor from "@/components/technical-interview/TechnicalCodeEditor";
 import {
   entryPointFromStarterCode,
   useVisibleTestRunner,
@@ -95,7 +95,7 @@ export default function TechnicalCodingSession({
   const avatarFailedRef = useRef(false);
   avatarFailedRef.current = avatarFailed;
 
-  const { run: runPython, runtimeReady } = useVisibleTestRunner();
+  const { run: runVisibleTestsInWorker, runtimeReady } = useVisibleTestRunner();
   useAvatarKeepAlive(avatarRef, avatarConnected);
 
   /**
@@ -266,11 +266,11 @@ export default function TechnicalCodingSession({
     resetTerminal([
       {
         kind: "command",
-        text: `python -m pytest visible  (${tests.length} test${tests.length === 1 ? "" : "s"})`,
+        text: `${snapshot.language === "javascript" ? "node visible-tests" : "python -m pytest visible"}  (${tests.length} test${tests.length === 1 ? "" : "s"})`,
       },
-      ...(runtimeReady
-        ? []
-        : [{ kind: "info" as const, text: "Starting the Python runtime (first run only)…" }]),
+      ...(snapshot.language === "python" && !runtimeReady
+        ? [{ kind: "info" as const, text: "Starting the Python runtime (first run only)…" }]
+        : []),
     ]);
 
     if (!entryPoint) {
@@ -284,7 +284,7 @@ export default function TechnicalCodingSession({
       return;
     }
 
-    const outcome = await runPython(source, snapshot.language, entryPoint, tests);
+    const outcome = await runVisibleTestsInWorker(source, snapshot.language, entryPoint, tests);
 
     if (outcome.status === "failed") {
       append([{ kind: "error", text: outcome.message }]);
@@ -327,7 +327,16 @@ export default function TechnicalCodingSession({
     }
     setRunningTests(false);
     editorRef.current?.view?.focus();
-  }, [append, entryPoint, resetTerminal, runPython, runningTests, runtimeReady, snapshot, source]);
+  }, [
+    append,
+    entryPoint,
+    resetTerminal,
+    runVisibleTestsInWorker,
+    runningTests,
+    runtimeReady,
+    snapshot,
+    source,
+  ]);
 
   const evidence = useCallback(
     () => ({ version: 1 as const, checkpoints: [{ source }] }),
@@ -736,7 +745,7 @@ export default function TechnicalCodingSession({
             <span className="hidden sm:inline">⌘/Ctrl + Enter runs visible tests</span>
           </div>
           <div className="flex min-h-[320px] flex-1 flex-col overflow-hidden lg:min-h-0">
-            <TechnicalPythonEditor
+            <TechnicalCodeEditor
               ref={editorRef}
               value={source}
               language={snapshot.language}
@@ -746,8 +755,9 @@ export default function TechnicalCodingSession({
             />
           </div>
           <p id="editor-help" className="sr-only">
-            Python editor with line numbers and syntax highlighting. Press Control or Command Enter
-            to run visible tests. Tab and Shift Tab adjust indentation.
+            {TECHNICAL_CODING_LANGUAGE_LABEL[snapshot.language]} editor with line numbers and syntax
+            highlighting. Press Control or Command Enter to run visible tests. Tab and Shift Tab adjust
+            indentation.
           </p>
 
           <section className="shrink-0 border-t border-white/10 bg-[#050a12] text-canvas">
@@ -797,8 +807,7 @@ export default function TechnicalCodingSession({
               >
                 {terminalLines.length === 0 ? (
                   <p className="text-slate-500">
-                    Ready. Run the visible tests to check your work — Python runs locally in this
-                    tab.
+                    Ready. Run the visible tests to check your work — {TECHNICAL_CODING_LANGUAGE_LABEL[snapshot.language]} runs locally in this tab.
                   </p>
                 ) : (
                   terminalLines.map((line, index) => (

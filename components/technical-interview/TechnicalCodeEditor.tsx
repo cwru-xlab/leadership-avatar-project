@@ -8,7 +8,7 @@ import type { TechnicalCodingLanguage } from "@/lib/technical-interview/types";
 import { keymap } from "@codemirror/view";
 import { forwardRef, useCallback, useMemo, useRef } from "react";
 
-interface TechnicalPythonEditorProps {
+interface TechnicalCodeEditorProps {
   value: string;
   language: TechnicalCodingLanguage;
   onChange: (value: string) => void;
@@ -16,7 +16,7 @@ interface TechnicalPythonEditorProps {
   isRunning: boolean;
 }
 
-const TechnicalPythonEditor = forwardRef<ReactCodeMirrorRef, TechnicalPythonEditorProps>(function TechnicalPythonEditor(
+const TechnicalCodeEditor = forwardRef<ReactCodeMirrorRef, TechnicalCodeEditorProps>(function TechnicalCodeEditor(
   { value, language, onChange, onRunVisibleTests, isRunning },
   ref,
 ) {
@@ -64,6 +64,6 @@ const TechnicalPythonEditor = forwardRef<ReactCodeMirrorRef, TechnicalPythonEdit
   );
 });
 
-TechnicalPythonEditor.displayName = "TechnicalPythonEditor";
+TechnicalCodeEditor.displayName = "TechnicalCodeEditor";
 
-export default TechnicalPythonEditor;
+export default TechnicalCodeEditor;
