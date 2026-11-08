@@ -1535,9 +1535,17 @@ function PracticeInterviewRoom({
             </>
           )}
           {answerControlsSupplement}
-          <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-light-blue">
-            <FileText size={13} /> Your resume is used only to personalize this practice interview.
-          </p>
+          {/* Only where a resume is actually in play. `PracticeTypePage` passes
+              `resumeText=""` for pitches and networking, and the instance
+              launcher (courageous conversations) passes none at all, so this
+              ran as a false privacy claim about a file those sessions never
+              collected — the same families the agenda above is gated away from
+              (UAT 2026-10-25). */}
+          {resumeText.trim() ? (
+            <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-light-blue">
+              <FileText size={13} /> Your resume is used only to personalize this practice interview.
+            </p>
+          ) : null}
         </div>
       </SessionSidePane>
 
