@@ -241,6 +241,19 @@ test.describe("technical coding room", () => {
     expect(apiFailures, "the interviewer turn must not fail").toEqual([]);
   });
 
+  test("serves the staged authored hint ladder and stops at its final stage", async ({ page }) => {
+    await signIn(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openRoom(page);
+
+    const transcript = page.locator('[aria-label="Interviewer conversation"]:visible');
+    for (const tier of [1, 2, 3]) {
+      await page.getByRole("button", { name: `Hint ${tier - 1}/3`, exact: true }).click();
+      await expect(transcript).toContainText(`Hint ${tier} of 3:`, { timeout: 45_000 });
+    }
+    await expect(page.getByRole("button", { name: "Hint 3/3", exact: true })).toBeDisabled();
+  });
+
   test("a failed avatar connection degrades to text instead of stranding the room", async ({
     page,
   }) => {
