@@ -1441,7 +1441,11 @@ export async function finishSession({
     try {
       transcriptKey = await s3Storage.saveInterviewTranscript(userId, report.id, transcript);
     } catch (error) {
-      console.error("Engine coding finish: transcript save failed", error);
+      console.error("Engine coding finish: transcript save failed", {
+        userId,
+        reportId: report.id,
+        error,
+      });
       return { ok: false, status: 502, error: "We could not save your coding interview. Please try again." };
     }
 
@@ -1512,7 +1516,11 @@ export async function finishSession({
         transcript,
       );
     } catch (error) {
-      console.error("Engine interview finish: transcript save failed", error);
+      console.error("Engine interview finish: transcript save failed", {
+        userId,
+        reportId: report.id,
+        error,
+      });
       return {
         ok: false,
         status: 502,
@@ -1591,7 +1599,11 @@ export async function finishSession({
   try {
     await s3Storage.saveInteractionLog(log);
   } catch (error) {
-    console.error("Engine scenario finish: interaction log save failed", error);
+    console.error("Engine scenario finish: interaction log save failed", {
+      userId,
+      reportId: report.id,
+      error,
+    });
     return {
       ok: false,
       status: 502,
