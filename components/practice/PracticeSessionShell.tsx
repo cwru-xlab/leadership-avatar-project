@@ -109,6 +109,16 @@ const PROBLEM_AGENDA: Array<{ label: string; stages: ProblemInterviewStage[] }> 
   { label: "Your questions", stages: ["candidate_questions", "closing"] },
 ];
 
+// Pitch flow. Two phases because the shell only knows two: `openingTurnPhase`
+// is "pitching" until a turn clears the pitch-scale floor, then "followups"
+// for the rest of the session. Deliberately not a third "closing" step — the
+// shell has no signal for one, and a step that never lights up is worse than
+// a step that is absent.
+const PITCH_FLOW: Array<{ label: string; phase: "pitching" | "followups" }> = [
+  { label: "Your pitch", phase: "pitching" },
+  { label: "Their questions", phase: "followups" },
+];
+
 interface PracticeSessionShellProps {
   /**
    * Resolved TYPE+INSTANCE config for this session. The shell never
@@ -1388,6 +1398,47 @@ function PracticeInterviewRoom({
               <span>{resumeFileName ? "Resume in context" : "Behavioral focus"}</span>
             </div>
           </div>
+          ) : null}
+
+          {/* Pitch flow (UAT 2026-10-25, D17-1 revisited). That UAT decided
+              "the interview agenda block renders for interview types only"
+              (032ae988) — a judgement about THAT block, whose question count
+              and resume chip are meaningless outside an interview. It did not
+              decide a pitch may never answer "where am I?".
+
+              A SIBLING of the agenda chain above, never a third arm inside it:
+              `verify-disengagement-walkout-shell.ts` §12 proves D17-1 by
+              requiring the interview arm to contain no element-opening ternary,
+              so an arm added there would make the guard's own bite-proof stop
+              biting while still reading as gated.
+
+              Gated on the timing callback, not on a slug: `PracticeTypePage`
+              passes `onOpeningTurnTimingChange` only for pitch-elevator, which
+              is the only type whose pitch window is wired and verified. The
+              phase state itself advances in every session (every send calls
+              `markOpeningTurnDelivered`), so a slug list here would be a second
+              source of truth free to drift from the page's `isPitchElevator` —
+              and re-deriving it would show this rail in interviews. */}
+          {onOpeningTurnTimingChange ? (
+            <div className="border-y border-white/10 py-3" data-testid="pitch-flow">
+              <p className="text-[11px] font-semibold text-light-blue">
+                Practice flow
+              </p>
+              <ol className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-light-blue">
+                {PITCH_FLOW.map((phase) => {
+                  const current = phase.phase === openingTurnPhase;
+                  return (
+                    <li
+                      key={phase.label}
+                      aria-current={current ? "step" : undefined}
+                      className={current ? "font-semibold text-white" : undefined}
+                    >
+                      {phase.label}
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
           ) : null}
 
           {isProblemInterview ? (

@@ -626,5 +626,68 @@ console.log("\n8. All ENGINE_TYPES schemas are valid (visual_score + vocal_score
   }
 }
 
+// ---------------------------------------------------------------------------
+// The pitch flow rail. Verified live (pitch-elevator): starts on "Your pitch",
+// an 8-word discovery turn does NOT advance it, a 140-word pitch does, and it
+// is absent from the raw HTML of a general interview.
+//
+// Guarded here because the rail is a SIBLING of the interview agenda chain,
+// deliberately: `verify-disengagement-walkout-shell.ts` §12 proves D17-1 by
+// requiring the interview arm to carry no element-opening ternary, so a third
+// arm added inside that chain would read as gated while silently stopping that
+// guard's bite-proof from biting. Nothing else asserts the rail stays outside.
+{
+  const shell = readFileSync(
+    resolve(__dirname, "..", "components", "practice", "PracticeSessionShell.tsx"),
+    "utf8",
+  );
+
+  check(
+    "the pitch flow rail exists",
+    /data-testid="pitch-flow"/.test(shell),
+  );
+
+  // Gated on the timing callback the page passes only for pitch-elevator —
+  // never re-derived from a slug here, which would be a second source of truth
+  // free to drift from `PracticeTypePage`'s `isPitchElevator`.
+  const railStart = shell.indexOf("{onOpeningTurnTimingChange ? (");
+  check(
+    "the rail is gated on onOpeningTurnTimingChange, not a slug",
+    railStart !== -1 &&
+      railStart < shell.indexOf('data-testid="pitch-flow"'),
+  );
+
+  // It must sit OUTSIDE the agenda chain: the chain's terminator has to come
+  // before the rail opens, or the rail is inside an arm of it.
+  const chainStart = shell.indexOf("{isProblemInterview ? (");
+  const chainEnd = shell.indexOf(") : null}", chainStart);
+  check(
+    "the rail sits outside the interview agenda chain",
+    chainStart !== -1 && chainEnd !== -1 && railStart > chainEnd,
+    `chainEnd=${chainEnd} railStart=${railStart}`,
+  );
+
+  // Bite proof: the same assertion must reject the rail moved inside the
+  // chain's interview arm, which is the mistake this check exists to stop.
+  const nested =
+    shell.slice(0, chainEnd) +
+    '{onOpeningTurnTimingChange ? (<div data-testid="pitch-flow" />) : null}' +
+    shell.slice(chainEnd);
+  const nestedRail = nested.indexOf("{onOpeningTurnTimingChange ? (");
+  check(
+    "bite-proof: the rail nested inside the agenda chain is caught",
+    !(nestedRail > nested.indexOf(") : null}", nested.indexOf("{isProblemInterview ? ("))),
+  );
+
+  // Every labelled step must be reachable: a step whose phase the shell can
+  // never produce would render a rail that never lights up.
+  const phases = [...shell.matchAll(/phase:\s*"(pitching|followups)"\s*}/g)].map((m) => m[1]);
+  check(
+    "both pitch phases are represented in the rail",
+    phases.includes("pitching") && phases.includes("followups"),
+    `phases=[${phases.join(", ")}]`,
+  );
+}
+
 console.log("\nverify-pitch-surface-count: ALL CHECKS PASSED\n");
 process.exit(0);
