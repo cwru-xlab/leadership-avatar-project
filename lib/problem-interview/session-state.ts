@@ -525,6 +525,37 @@ function contentWords(text: string): string[] {
     .filter((word) => word.length > 3);
 }
 
+/**
+ * Share of a prompt's content words that must reappear in a turn before that
+ * turn counts as having said the prompt. One constant for both callers below,
+ * so the "has it been posed?" inference and the "is it on screen twice?"
+ * question can never answer differently about the same turn.
+ */
+const PROMPT_OVERLAP = 0.7;
+
+/**
+ * Whether `text` says substantially what `prompt` says.
+ *
+ * WHY THIS IS PUBLIC. The interviewer is told to read the problem out loud
+ * verbatim (`prompts.ts`: "read this word for word, once, then stop"), and
+ * the same prompt is also published to the live view for the Case materials
+ * card. Measured in a live session, that put the whole case on screen TWICE
+ * in adjacent blocks — about 120px of a 900px rail spent on words the student
+ * was already reading in the transcript. The card can stand down while the
+ * turn still carries the text, which needs this comparison in the UI.
+ *
+ * Word overlap, not substring: the model reads the prompt closely but not
+ * always character-for-character, and a near-verbatim reading is still a
+ * duplicate to the eye.
+ */
+export function turnSaysPrompt(prompt: string, text: string): boolean {
+  const promptWords = [...new Set(contentWords(prompt))];
+  if (promptWords.length < 4) return false;
+  const textWords = new Set(contentWords(text));
+  const overlap = promptWords.filter((word) => textWords.has(word)).length;
+  return overlap / promptWords.length >= PROMPT_OVERLAP;
+}
+
 const SCREEN_PHRASE = /\b(on|to|onto) your screen\b|\bputting (up|together)?\s*(some|the|a|this)?\s*(data|numbers|table|chart|exhibit)/i;
 
 /**
@@ -586,11 +617,9 @@ export function inferUnmarkedActions(
   }
 
   if ((state.stage === "opening" || state.stage === "fit") && !state.promptPosed) {
-    const promptWords = [...new Set(contentWords(question.prompt))];
-    const replyWords = new Set(contentWords(reply));
-    const overlap = promptWords.filter((word) => replyWords.has(word)).length;
-    const posesProblem = promptWords.length >= 4 && overlap / promptWords.length >= 0.7;
-    if (posesProblem) inferred.push({ kind: "posed" });
+    // Same comparison the UI uses to spot a duplicate on screen, via one
+    // shared threshold — see `turnSaysPrompt`.
+    if (turnSaysPrompt(question.prompt, reply)) inferred.push({ kind: "posed" });
   }
 
   return inferred;

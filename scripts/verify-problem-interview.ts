@@ -850,6 +850,35 @@ async function main() {
   }
 
   // ---------------------------------------------------------------------------
+  // The card in the rail collapses while the interviewer is still reading the
+  // problem out loud, so the case is not on screen twice (measured: ~120px of
+  // a 900px rail). The UI and the dropped-marker `posed` inference now share
+  // ONE comparison, so they cannot disagree about whether a turn said the
+  // prompt — the card would otherwise hide text the state machine thinks was
+  // never read, or stay open over a verbatim reading.
+  console.log("\nprompt duplication (shared with the posed inference)");
+  {
+    const { turnSaysPrompt, inferUnmarkedActions } = await import("../lib/problem-interview/session-state");
+    const fit = { ...initialProblemState(), stage: "fit" as const };
+    check("verbatim reading is a duplicate", turnSaysPrompt(question.prompt, `Here it is: ${question.prompt}`));
+    const paraphrase = "Let's jump in. The city's public library wants to grow digital borrowing. How would you improve its mobile app?";
+    check("near-verbatim reading is a duplicate", turnSaysPrompt(question.prompt, paraphrase));
+    check("ordinary probing is not", !turnSaysPrompt(question.prompt, "Take your time. What are you thinking about first?"));
+    check("an unrelated turn is not", !turnSaysPrompt(question.prompt, "Thanks for joining today. Tell me about your interest in this role."));
+    check("a trivial prompt never counts", !turnSaysPrompt("Go on", "Go on"));
+    // ONE THRESHOLD, both callers: every turn the inference calls "posed"
+    // must also read as a duplicate to the card, and vice versa.
+    for (const turn of [`Here it is: ${question.prompt}`, paraphrase, "Take your time. What are you thinking about first?"]) {
+      const posedByInference = inferUnmarkedActions(turn, [{ kind: "follow_up" }], fit, question, framework)
+        .some((a) => a.kind === "posed");
+      check(
+        `card and inference agree: ${turn.slice(0, 34)}…`,
+        posedByInference === turnSaysPrompt(question.prompt, turn),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   console.log("\nquestion selection");
   {
     const picked = selectProblemQuestion(PROBLEM_FIXTURE_BANK, [framework], {}, () => 0);
