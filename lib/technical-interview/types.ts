@@ -7,10 +7,18 @@
  */
 
 export const TECHNICAL_CODING_LANGUAGE = "python" as const;
-export const TECHNICAL_RUNTIME_POLICY_VERSION =
-  "python-3.12-stdlib-v1" as const;
+export const TECHNICAL_CODING_LANGUAGES = ["python", "javascript"] as const;
+export type TechnicalCodingLanguage = (typeof TECHNICAL_CODING_LANGUAGES)[number];
 
-export type TechnicalCodingLanguage = typeof TECHNICAL_CODING_LANGUAGE;
+export const TECHNICAL_RUNTIME_POLICY_VERSION = "browser-wasm-runtime-v2" as const;
+export const TECHNICAL_CODING_LANGUAGE_LABEL: Record<TechnicalCodingLanguage, string> = {
+  python: "Python",
+  javascript: "JavaScript",
+};
+
+export function isTechnicalCodingLanguage(value: unknown): value is TechnicalCodingLanguage {
+  return typeof value === "string" && (TECHNICAL_CODING_LANGUAGES as readonly string[]).includes(value);
+}
 
 /**
  * The server-owned hint ceiling: three tiers, one per stage of implementation.
@@ -26,9 +34,6 @@ export type TechnicalCodingLanguage = typeof TECHNICAL_CODING_LANGUAGE;
 export const MAX_TECHNICAL_HINTS = 3;
 
 export type TechnicalHintTier = 1 | 2 | 3;
-
-/** Human-readable name for prompts and UI chrome. */
-export const TECHNICAL_CODING_LANGUAGE_LABEL = "Python" as const;
 
 /** Problem families a candidate can ask for by name. */
 export const TECHNICAL_TOPICS = [
@@ -84,7 +89,10 @@ export interface TechnicalAssignmentPublic {
   statement: string;
   constraints: string[];
   examples: TechnicalExample[];
+  /** Python compatibility field for historical snapshots. */
   starterCode: string;
+  /** Starter signature for each enabled browser-only runtime. */
+  starterCodeByLanguage: Readonly<Record<TechnicalCodingLanguage, string>>;
   publicTests: PublicTechnicalTest[];
   expectedComplexity: string;
   /** Learner-visible: the candidate chose these, and the panel displays them. */

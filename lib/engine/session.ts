@@ -75,6 +75,7 @@ import {
 import {
   TECHNICAL_CODING_LANGUAGE,
   TECHNICAL_RUNTIME_POLICY_VERSION,
+  isTechnicalCodingLanguage,
   toPublicTechnicalAssignment,
   type TechnicalCodingInputSnapshot,
 } from "@/lib/technical-interview/types";
@@ -534,6 +535,9 @@ export async function startSession({
       typeof rawJobDescriptionText === "string"
         ? truncate(rawJobDescriptionText, MAX_RESUME_TEXT_LENGTH)
         : null;
+    const technicalLanguage = isTechnicalCodingLanguage(language)
+      ? language
+      : TECHNICAL_CODING_LANGUAGE;
     const inputSnapshot: TechnicalCodingInputSnapshot = {
       kind: "technical-coding",
       // The coding page used to drop these on the floor, so the room showed a
@@ -554,7 +558,7 @@ export async function startSession({
       assignmentVersion: selected.version,
       assignmentHash: selected.contentHash,
       assignment: toPublicTechnicalAssignment(selected),
-      language: TECHNICAL_CODING_LANGUAGE,
+      language: technicalLanguage,
       runtimePolicyVersion: TECHNICAL_RUNTIME_POLICY_VERSION,
       selectedAt: new Date().toISOString(),
       requested: {

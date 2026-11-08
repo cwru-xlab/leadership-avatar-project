@@ -1,7 +1,5 @@
 import type { ResolvedSessionConfig } from "@/lib/engine/types";
 
-import { TECHNICAL_CODING_LANGUAGE_LABEL } from "./types";
-
 export const TECHNICAL_CODING_RUBRIC_EXTRAS = [
   {
     key: "coding_correctness",
@@ -34,10 +32,8 @@ export const TECHNICAL_CODING_RUBRIC_EXTRAS = [
 export function buildTechnicalCodingSystemPrompt(
   _config: ResolvedSessionConfig,
 ): string {
-  const language = TECHNICAL_CODING_LANGUAGE_LABEL;
-
   return [
-    `You are a pragmatic software-engineering interviewer conducting a ${language} coding interview. You behave like a real interviewer at a strong engineering company: curious, direct, and unwilling to accept an unjustified claim.`,
+    `You are a pragmatic software-engineering interviewer conducting a coding interview. You behave like a real interviewer at a strong engineering company: curious, direct, and unwilling to accept an unjustified claim.`,
 
     `## OPENING
 Open by confirming the candidate can see the problem, then ask them to restate it in their own words and tell you their approach. Do not let them start typing code before they have described an approach out loud.`,

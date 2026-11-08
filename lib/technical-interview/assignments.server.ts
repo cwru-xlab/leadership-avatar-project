@@ -85,6 +85,12 @@ const HINTS: Readonly<Record<string, readonly [string, string, string]>> = {
   "median-of-two-sorted": ["Start by defining what must be true of the values on the left and right sides of a valid median split.", "Use the fact that both inputs are ordered to adjust a split based on only its boundary values.", "Choose partitions whose left side has the required total size and whose largest left boundary does not exceed either right boundary."],
 };
 
+function javascriptStarterFromPython(starterCode: string): string {
+  const match = /^\s*def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/m.exec(starterCode);
+  if (!match) throw new Error("Technical starter code must declare a Python function");
+  return `function ${match[1]}(${match[2]}) {\n  // Write your solution here.\n}\n`;
+}
+
 function make(id: string, title: string, statement: string, starterCode: string, expectedComplexity: string, publicCases: Pair[], hiddenCases: Pair[], referenceSolution: string): TechnicalAssignmentPrivate {
   const testCases = (rows: Pair[], scope: string): TechnicalTestCase[] => rows.map(([input, expected], index) => ({ id: `${scope}-${index + 1}`, input, expected }));
   const publicTestCases = testCases(publicCases, "public");
@@ -92,7 +98,7 @@ function make(id: string, title: string, statement: string, starterCode: string,
   const hintLadder = HINTS[id];
   if (!tags) throw new Error(`Technical assignment "${id}" has no topic/difficulty tag`);
   if (!hintLadder) throw new Error(`Technical assignment "${id}" has no hint ladder`);
-  return { id, version: "1", topics: tags.topics, difficulty: tags.difficulty, contentHash: createHash("sha256").update(JSON.stringify({ id, title, statement, starterCode, expectedComplexity, topics: tags.topics, difficulty: tags.difficulty, hintLadder })).digest("hex"), title, statement, constraints: ["Use the documented function signature.", "Handle stated boundary cases."], examples: [{ input: "See visible tests.", output: "See expected result." }], starterCode, expectedComplexity, publicTests: publicTestCases.map(({ id, input, expected }, index) => ({ id, label: `Visible test ${index + 1}`, input, expected })), referenceSolution, hintLadder, publicTestCases, hiddenTests: testCases(hiddenCases, "hidden"), rubricAnchors: ANCHORS, executionLimits: { ...LIMITS } };
+  return { id, version: "1", topics: tags.topics, difficulty: tags.difficulty, contentHash: createHash("sha256").update(JSON.stringify({ id, title, statement, starterCode, expectedComplexity, topics: tags.topics, difficulty: tags.difficulty, hintLadder })).digest("hex"), title, statement, constraints: ["Use the documented function signature.", "Handle stated boundary cases."], examples: [{ input: "See visible tests.", output: "See expected result." }], starterCode, starterCodeByLanguage: { python: starterCode, javascript: javascriptStarterFromPython(starterCode) }, expectedComplexity, publicTests: publicTestCases.map(({ id, input, expected }, index) => ({ id, label: `Visible test ${index + 1}`, input, expected })), referenceSolution, hintLadder, publicTestCases, hiddenTests: testCases(hiddenCases, "hidden"), rubricAnchors: ANCHORS, executionLimits: { ...LIMITS } };
 }
 
 /** Original prompts, reference code and private tests. Never import in client code. */
