@@ -17,9 +17,58 @@ async function signIn(page: Page) {
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
 }
 
-async function openRoom(page: Page) {
+/**
+ * Walks the setup wizard the coding room now runs: focus, interviewer, resume,
+ * posting, camera. `focus` and the two document steps are optional, so the
+ * default path skips them — this is the fastest route to the room, and it also
+ * proves "no preference" still yields a problem rather than an empty pool.
+ */
+async function openRoom(
+  page: Page,
+  options: { topics?: string[]; difficulty?: string; camera?: "ON" | "OFF" } = {},
+) {
   await page.goto("/practice/interviews/technical");
-  await page.getByRole("button", { name: /Begin coding session/i }).click();
+
+  // Focus step: optional, so only touched when the test asks for a filter.
+  await expect(page.getByRole("heading", { name: /want to practise/i })).toBeVisible({
+    timeout: 30_000,
+  });
+  for (const topic of options.topics ?? []) {
+    await page.getByRole("checkbox", { name: topic, exact: true }).click();
+  }
+  if (options.difficulty) {
+    await page.getByRole("radio", { name: options.difficulty, exact: true }).click();
+  }
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+
+  // Interviewer is the one REQUIRED step: pick the first avatar offered.
+  await expect(page.getByRole("heading", { name: /interviewer/i })).toBeVisible({
+    timeout: 30_000,
+  });
+  // The roster selects its first interviewer as soon as it loads. Assert that
+  // default and continue; cards are named by voice/persona, not "Select".
+  await expect(page.getByRole("button", { pressed: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+
+  // Resume and posting are optional — skip both.
+  for (let step = 0; step < 2; step += 1) {
+    await page.getByRole("button", { name: /Skip for now/i }).first().click();
+  }
+
+  // The shared camera consent gate, which this room now uses like every
+  // other type instead of silently forcing OFF.
+  await expect(page.getByRole("button", { name: /Begin coding session/i })).toBeVisible({
+    timeout: 30_000,
+  });
+  if (options.camera === "ON") {
+    await page.getByRole("button", { name: /camera on/i }).first().click();
+    await page.getByRole("button", { name: /Begin coding session/i }).click();
+  } else {
+    // Choosing OFF is itself the explicit launch action in the shared consent
+    // component; do not click the CTA a second time after the route changes.
+    await page.getByRole("button", { name: /^Camera off/ }).click();
+  }
+
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 45_000 });
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
 }
