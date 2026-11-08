@@ -49,15 +49,13 @@ import {
 import {
   buildTechnicalHint,
   categorizeTechnicalChatRequest,
+  selectTechnicalHintTier,
   technicalHintRequestKey,
   technicalPolicyDirective,
   TECHNICAL_HINT_EXHAUSTED_REPLY,
 } from "@/lib/technical-interview/chat-policy";
-import {
-  MAX_TECHNICAL_HINTS,
-  type TechnicalCodingInputSnapshot,
-  type TechnicalHintTier,
-} from "@/lib/technical-interview/types";
+import { type TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
+import { getTechnicalAssignment } from "@/lib/technical-interview/assignments.server";
 import {
   loadProblemTurnContext,
   recordProblemTurn,
@@ -743,20 +741,51 @@ export async function POST(request: NextRequest) {
           if (existing) {
             technicalStaticReply = existing.hintText;
           } else {
-            const hintCount = await prisma.technicalInterviewHint.count({ where: { reportId: report.id } });
-            if (hintCount >= MAX_TECHNICAL_HINTS) {
-              technicalStaticReply = TECHNICAL_HINT_EXHAUSTED_REPLY;
-            } else {
-              const tier = (hintCount + 1) as TechnicalHintTier;
-              const text = buildTechnicalHint(snapshot.assignment, tier);
+            // The private catalogue, not the learner-visible snapshot, owns
+            // authored hint text. Pin it to the snapshot identity so a future
+            // catalogue edit cannot change hints for an in-progress report.
+            const privateAssignment = getTechnicalAssignment(snapshot.assignmentId);
+            if (
+              !privateAssignment ||
+              privateAssignment.version !== snapshot.assignmentVersion ||
+              privateAssignment.contentHash !== snapshot.assignmentHash
+            ) {
+              return NextResponse.json({ error: "Technical assignment is unavailable." }, { status: 409 });
+            }
+
+            // A unique (reportId, tier) constraint can race when two distinct
+            // browser requests arrive together. Re-read the issued tiers once
+            // after a collision; identical retries still replay by request key.
+            for (let attempt = 0; attempt < 2 && !technicalStaticReply; attempt += 1) {
+              const issued = await prisma.technicalInterviewHint.findMany({
+                where: { reportId: report.id },
+                select: { tier: true },
+              });
+              const tier = selectTechnicalHintTier(
+                privateAssignment,
+                prior.checkpoints,
+                issued.map((hint) => hint.tier),
+              );
+              if (!tier) {
+                technicalStaticReply = TECHNICAL_HINT_EXHAUSTED_REPLY;
+                break;
+              }
               try {
-                const hint = await prisma.technicalInterviewHint.create({ data: { reportId: report.id, requestKey, tier, hintText: text } });
+                const hint = await prisma.technicalInterviewHint.create({
+                  data: {
+                    reportId: report.id,
+                    requestKey,
+                    tier,
+                    hintText: buildTechnicalHint(privateAssignment, tier),
+                  },
+                });
                 technicalStaticReply = hint.hintText;
               } catch {
                 const replay = await prisma.technicalInterviewHint.findUnique({ where: { reportId_requestKey: { reportId: report.id, requestKey } } });
-                technicalStaticReply = replay?.hintText ?? "A hint request is already being processed. Please try again.";
+                if (replay) technicalStaticReply = replay.hintText;
               }
             }
+            technicalStaticReply ??= "A hint request is already being processed. Please try again.";
           }
         } else if (category === "solution_request") {
           technicalStaticReply = "I can’t provide a solution or pseudocode. Talk me through the contract, boundary cases, and the tradeoffs you are considering.";

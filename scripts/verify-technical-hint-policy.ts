@@ -17,12 +17,17 @@ import {
   TECHNICAL_HINT_EXHAUSTED_REPLY,
   buildTechnicalHint,
   categorizeTechnicalChatRequest,
+  inferTechnicalHintTier,
+  selectTechnicalHintTier,
 } from "../lib/technical-interview/chat-policy";
 
 const assignment = {
-  title: "Merge Overlapping Windows",
-  constraints: ["1 <= n <= 10^5", "Intervals may be unsorted"],
-  expectedComplexity: "O(n log n) time, O(n) space",
+  starterCode: "def merge_overlapping_windows(windows):\n    pass\n",
+  hintLadder: [
+    "State what ordering would let you compare each window to one active result.",
+    "Explain when a new window extends the active result versus beginning another one.",
+    "Maintain one active result and finalize it only when the next window cannot overlap it.",
+  ] as const,
 };
 
 assert.equal(
@@ -50,22 +55,41 @@ for (const [index, hint] of hints.entries()) {
   );
 }
 
-// Hints cite only learner-visible fields. They must never name the thing that
-// solves the problem, nor reference private catalog data.
-const BANNED =
-  /(reference solution|hidden test|hidden input|rubric|threshold|use a (hash|heap|stack|queue|trie)|binary search|dynamic programming|memoiz|two pointer|sort the intervals)/i;
+// Hints are authored, problem-specific coaching—not generated from private
+// tests, solutions, rubric anchors, or evaluator thresholds.
+const BANNED = /(reference solution|hidden test|hidden input|rubric|threshold)/i;
 for (const [index, hint] of hints.entries()) {
-  assert(
-    !BANNED.test(hint),
-    `Tier ${index + 1} hint must not name an approach or private data`,
-  );
+  assert(!BANNED.test(hint), `Tier ${index + 1} hint must not leak private data`);
 }
 
-// The published complexity target is learner-visible, so quoting it is fine;
-// the title and constraints are too.
-assert(
-  hints[1].includes(assignment.expectedComplexity),
-  "Tier 2 should hold the candidate against the published target",
+// Checkpoint evidence advances the candidate through the ladder without
+// spending a redundant earlier hint. A request after the final inferred stage
+// has no eligible tier even if fewer than three rows were issued.
+assert.equal(inferTechnicalHintTier(assignment, []), 1);
+assert.equal(
+  inferTechnicalHintTier(assignment, [{ source: "def merge_overlapping_windows(windows):\n    return []\n" }]),
+  2,
+);
+assert.equal(
+  inferTechnicalHintTier(assignment, [{ source: "def merge_overlapping_windows(windows):\n    for window in windows:\n        return []\n" }]),
+  3,
+);
+assert.equal(selectTechnicalHintTier(assignment, [], []), 1);
+assert.equal(
+  selectTechnicalHintTier(
+    assignment,
+    [{ source: "def merge_overlapping_windows(windows):\n    for window in windows:\n        return []\n" }],
+    [],
+  ),
+  3,
+);
+assert.equal(
+  selectTechnicalHintTier(
+    assignment,
+    [{ source: "def merge_overlapping_windows(windows):\n    for window in windows:\n        return []\n" }],
+    [3],
+  ),
+  null,
 );
 
 // Exhaustion refuses, names the count, and still offers clarification.
@@ -87,6 +111,11 @@ assert.equal(
   categorizeTechnicalChatRequest("Can I get a hint?"),
   "hint_request",
   "A direct hint request must be categorized as one",
+);
+assert.equal(
+  categorizeTechnicalChatRequest("Could you clarify the input and give me a hint?"),
+  "hint_request",
+  "A mixed clarification/hint request must not bypass the hint ledger",
 );
 assert.equal(
   categorizeTechnicalChatRequest("Just write the code for me"),

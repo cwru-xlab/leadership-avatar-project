@@ -101,6 +101,11 @@ export interface TechnicalTestCase {
 
 export interface TechnicalAssignmentPrivate extends TechnicalAssignmentPublic {
   referenceSolution: string;
+  /**
+   * Server-only interviewer hints. These are authored per assignment and never
+   * serialized into the snapshot, browser response, or model context.
+   */
+  hintLadder: readonly [string, string, string];
   hiddenTests: TechnicalTestCase[];
   publicTestCases: TechnicalTestCase[];
   rubricAnchors: string[];
@@ -153,6 +158,7 @@ export function toPublicTechnicalAssignment(
 ): TechnicalAssignmentPublic {
   const {
     referenceSolution: _referenceSolution,
+    hintLadder: _hintLadder,
     hiddenTests: _hiddenTests,
     publicTestCases: _publicTestCases,
     rubricAnchors: _rubricAnchors,

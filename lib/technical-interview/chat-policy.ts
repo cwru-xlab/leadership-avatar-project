@@ -2,9 +2,10 @@ import { createHash } from "node:crypto";
 
 import {
   MAX_TECHNICAL_HINTS,
-  type TechnicalAssignmentPublic,
+  type TechnicalAssignmentPrivate,
   type TechnicalHintTier,
 } from "./types";
+import type { TechnicalSourceCheckpoint } from "./evidence";
 
 /** Closed, server-decided categories for technical chat turns. */
 export type TechnicalChatRequestCategory =
@@ -28,9 +29,11 @@ export function categorizeTechnicalChatRequest(content: string): TechnicalChatRe
   // A direct visible-contract question may contain words such as “answer”; it
   // must not be mistaken for a solution request. This classifier selects a
   // reply style only—the server's static refusals remain the policy boundary.
-  if (CLARIFICATION_WORDS.test(content)) return "clarification";
   if (SOLUTION_WORDS.test(content)) return "solution_request";
+  // Mixed requests such as “can you clarify — could I get a hint?” consume a
+  // hint. Checking this before clarification prevents bypassing the ledger.
   if (HINT_WORDS.test(content)) return "hint_request";
+  if (CLARIFICATION_WORDS.test(content)) return "clarification";
   return "interview_response";
 }
 
@@ -43,22 +46,53 @@ export function technicalHintRequestKey(content: string, clientKey: unknown): st
 }
 
 /**
- * Hints deliberately cite only learner-visible fields. They name a review task,
- * never an algorithm, data structure, solution step, or pseudocode.
+ * Converts server-owned source checkpoints into a conservative implementation
+ * stage. This is deliberately a one-way nudge: uncertainty returns an earlier
+ * hint, while clear code structure skips a hint the candidate has outgrown.
  */
+export function inferTechnicalHintTier(
+  assignment: Pick<TechnicalAssignmentPrivate, "starterCode">,
+  checkpoints: readonly TechnicalSourceCheckpoint[],
+): TechnicalHintTier {
+  const source = checkpoints.at(-1)?.source ?? assignment.starterCode;
+  const body = source
+    .replace(/^[ \t]*def\s+[A-Za-z_]\w*\s*\([^)]*\)\s*:\s*$/m, "")
+    .replace(/#[^\n]*/g, "")
+    .replace(/\bpass\b/g, "")
+    .trim();
+
+  if (!body) return 1;
+  // A concrete result indicates the candidate has selected a direction.
+  if (!/\b(return|yield)\b/.test(body)) return 1;
+  // Branching/iteration indicates they are implementing and benefit most from
+  // an invariant/debugging nudge rather than restating the approach.
+  if (/\b(for|while|if|elif|else|try|except)\b/.test(body)) return 3;
+  return 2;
+}
+
+/**
+ * Allocate the next unissued authored hint at or beyond the inferred stage.
+ * We never go backwards: a candidate who has already implemented the earlier
+ * idea should not spend an interaction on a redundant nudge.
+ */
+export function selectTechnicalHintTier(
+  assignment: Pick<TechnicalAssignmentPrivate, "starterCode">,
+  checkpoints: readonly TechnicalSourceCheckpoint[],
+  issuedTiers: readonly number[],
+): TechnicalHintTier | null {
+  const minimum = inferTechnicalHintTier(assignment, checkpoints);
+  for (let tier = minimum; tier <= MAX_TECHNICAL_HINTS; tier += 1) {
+    if (!issuedTiers.includes(tier)) return tier as TechnicalHintTier;
+  }
+  return null;
+}
+
+/** The text itself is private catalogue data; only the numbered response is sent. */
 export function buildTechnicalHint(
-  assignment: Pick<TechnicalAssignmentPublic, "title" | "constraints" | "expectedComplexity">,
+  assignment: Pick<TechnicalAssignmentPrivate, "hintLadder">,
   tier: TechnicalHintTier,
 ): string {
-  const of = `of ${MAX_TECHNICAL_HINTS}`;
-  if (tier === 1) {
-    return `Hint 1 ${of}: For “${assignment.title},” restate the input/output contract in your own words, then name one boundary case from the stated constraints before choosing an approach.`;
-  }
-  const boundary = assignment.constraints[0] || "the stated constraints";
-  if (tier === 2) {
-    return `Hint 2 ${of}: Check that your proposed approach can satisfy the published target (${assignment.expectedComplexity}) while handling ${boundary.toLowerCase()}—explain why before changing code.`;
-  }
-  return `Hint 3 ${of}: Walk your current code against the smallest input that still exercises the main path, then against ${boundary.toLowerCase()}. Say what you expect at each step before you run it, and name the first place your expectation and the code disagree.`;
+  return `Hint ${tier} of ${MAX_TECHNICAL_HINTS}: ${assignment.hintLadder[tier - 1]}`;
 }
 
 /** Spoken when a candidate asks for a hint after the last tier is spent. */

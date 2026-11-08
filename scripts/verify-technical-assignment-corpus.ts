@@ -13,7 +13,7 @@ if (!validation.ok) {
 
 for (const assignment of TECHNICAL_ASSIGNMENTS) {
   const publicAssignment = toPublicTechnicalAssignment(assignment);
-  for (const forbidden of ["referenceSolution", "hiddenTests", "publicTestCases", "rubricAnchors", "executionLimits"]) {
+  for (const forbidden of ["referenceSolution", "hintLadder", "hiddenTests", "publicTestCases", "rubricAnchors", "executionLimits"]) {
     if (forbidden in publicAssignment) {
       throw new Error(`${assignment.id}: learner-safe assignment leaks ${forbidden}`);
     }

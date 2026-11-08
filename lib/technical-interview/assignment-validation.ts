@@ -39,6 +39,13 @@ export function validateTechnicalAssignmentCatalog(
     if (!assignment.statement.trim() || !assignment.starterCode.trim()) {
       errors.push(`${assignment.id}: statement and starter code are required`);
     }
+    if (
+      assignment.hintLadder.length !== 3 ||
+      assignment.hintLadder.some((hint) => hint.trim().length < 24) ||
+      new Set(assignment.hintLadder).size !== assignment.hintLadder.length
+    ) {
+      errors.push(`${assignment.id}: needs three distinct substantive authored hints`);
+    }
     if (assignment.publicTestCases.length === 0 || assignment.hiddenTests.length === 0) {
       errors.push(`${assignment.id}: needs public and hidden tests`);
     }
