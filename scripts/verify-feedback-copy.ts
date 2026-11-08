@@ -57,6 +57,30 @@ check(
     reportPage.includes('showInterviewPaceTarget={report.input?.kind === "interview"}'),
 );
 
+/**
+ * SUGGESTIONS ARE OFFERED, NEVER ISSUED.
+ *
+ * Both growth-area suggestion sites — the expanded row and the Takeaways
+ * column — must open with "Consider trying this", not the bare imperative
+ * "Try this". The report is advice a student may decline, and the shorter form
+ * reads as an instruction; this is the same autonomy-supportive rule the
+ * generator prompts already enforce on the suggestion TEXT
+ * (`lib/interview/prompts.ts`, `lib/study-plan/generate.ts`, which name
+ * "Try this" explicitly as a directive to avoid). The LABEL in front of that
+ * text has to hold the same line or the prompt rule is undone at render.
+ *
+ * Guarded at source because `verify-report-structure.ts`'s own
+ * "collaborative display terminology" check reads only the composed MARKDOWN
+ * (`lib/report/structured.ts`), so it passes while the on-screen component
+ * says something else — which is exactly how the Takeaways column was
+ * shortened to "Try this:" without any check failing.
+ */
+check(
+  "both growth suggestion sites offer rather than instruct",
+  reportBody.split("Consider trying this").length - 1 === 2 &&
+    !reportBody.includes("Try this"),
+);
+
 const practicePage = source("app/practice/[type]/page.tsx");
 check("only the interview composition mounts pace guidance", practicePage.includes("isInterview ? <InterviewPaceGuidance variant=\"setup\" /> : undefined") && practicePage.includes("isInterview ? <InterviewPaceGuidance variant=\"live\" /> : undefined"));
 

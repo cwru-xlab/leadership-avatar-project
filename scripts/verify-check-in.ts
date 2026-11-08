@@ -7,6 +7,9 @@
  * Run: npx tsx scripts/verify-check-in.ts
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 
 import { getReportChrome } from "../components/practice/ReportChrome";
 import { asVisualMetrics } from "../lib/metrics/ingest";
@@ -57,17 +60,138 @@ function check(name: string, fn: () => void) {
   console.log(`ok  ${name}`);
 }
 
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const source = (path: string) => readFileSync(resolve(root, path), "utf8");
+
 check("every flag is asked, in catalog order, on the report's clock", () => {
   const questions = eligibleCheckIns("ON", base);
-  assert.deepEqual(questions.map((q) => q.id), [...CHECK_IN_FLAG_IDS]);
+  // `mouth_movement` stands down whenever `hand_at_mouth` speaks: one question
+  // per hypothesis. The fixture trips both, so four of the five ids appear.
+  assert.deepEqual(questions.map((q) => q.id), ["hand_at_mouth", "hand_shape", "another_person", "phone"]);
   for (const q of questions) console.log(`      ${q.id}: ${q.question}`);
   assert.equal(
     questions[0].question,
-    "We noticed your hand at your mouth repeatedly from 2:08 to 3:38. Were you eating or drinking?",
+    "We noticed your hand at your mouth repeatedly from 2:08 to 3:38, and a cup, bottle or food in frame. Was there food or a drink on camera?",
   );
-  assert.match(questions[1].question, /speaking from 2:13 to 3:43 and from 5:08 to 5:28\./);
-  assert.match(questions[2].question, / at 5:08\. Was that intentional\?$/);
-  assert.match(questions[4].question, /^We noticed a phone visible in frame from 1:20 to 2:00\./);
+  assert.match(questions[1].question, / at 5:08\. Was that intentional\?$/);
+  assert.match(questions[3].question, /^We noticed a phone visible in frame from 1:20 to 2:00\./);
+});
+
+check("no report ever asks about eating twice", () => {
+  // The fixture trips BOTH eating signals with food in frame — the case that
+  // used to produce two questions about one hypothesis.
+  const eating = eligibleCheckIns("ON", base).filter(
+    (q) => q.id === "hand_at_mouth" || q.id === "mouth_movement",
+  );
+  assert.equal(eating.length, 1);
+  assert.equal(eating[0].id, "hand_at_mouth");
+  // With only the mouth signal tripped, that flag asks in its own right.
+  const mouthOnly: VisualMetrics = {
+    ...base,
+    observations: {
+      ...base.observations!,
+      episodes: base.observations!.episodes.filter((e) => e.kind !== "hand_at_mouth_repeated"),
+    },
+  };
+  const ids = eligibleCheckIns("ON", mouthOnly).map((q) => q.id);
+  assert.ok(ids.includes("mouth_movement"));
+  assert.ok(!ids.includes("hand_at_mouth"));
+});
+
+check("eating is never asked without a cup, bottle or food also seen", () => {
+  // The measured false positive: both signals fire, no food or drink in frame.
+  for (const seconds of [0, undefined]) {
+    const observations = { ...base.observations!, food_or_drink_visible_seconds: seconds };
+    if (seconds === undefined) delete observations.food_or_drink_visible_seconds;
+    const ids = eligibleCheckIns("ON", { ...base, observations }).map((q) => q.id);
+    assert.ok(!ids.includes("hand_at_mouth"), `food=${seconds}`);
+    assert.ok(!ids.includes("mouth_movement"), `food=${seconds}`);
+    // The unrelated flags are untouched by the eating gate.
+    assert.ok(ids.includes("phone") && ids.includes("hand_shape"));
+  }
+});
+
+check("a few arrivals at the mouth are not asked about", () => {
+  const few = { ...base, observations: { ...base.observations!, hand_at_mouth_events: 3 } };
+  const ids = eligibleCheckIns("ON", few).map((q) => q.id);
+  // Below the check-in's own minimum the hand question stands down — and the
+  // mouth question then speaks, since the hypothesis is no longer covered.
+  assert.ok(!ids.includes("hand_at_mouth"));
+  assert.ok(ids.includes("mouth_movement"));
+  // The report row itself is unaffected: the detector still reported it.
+  assert.ok(visualObservationRows(few).some((r) => r.label === "Hand at mouth"));
+});
+
+check("one answer settles both eating rows", () => {
+  // `hand_at_mouth` is the only eating question asked, so answering it "no"
+  // must hide the mouth-movement row too or that row would outlive its answer.
+  const { visual } = applyCheckInHiding(base, {
+    hand_at_mouth: { answer: "no", at: new Date().toISOString() },
+  });
+  const kinds = (visual.observations?.episodes ?? []).map((e) => e.kind);
+  assert.ok(!kinds.includes("hand_at_mouth_repeated"));
+  assert.ok(!kinds.includes("mouth_movement_silent"));
+});
+
+check("a retired question is withdrawn, never reported as a failed save", () => {
+  // THE REGRESSION. A report page rendered before a tuning threshold moved
+  // asks a question eligibility no longer returns; the save is refused. The
+  // student did nothing wrong and cannot retry, so the question must be
+  // dropped rather than shown in red. Verified at each of the three seams.
+  const handlers = source("lib/report/handlers.ts");
+  // 1. The handler separates withdrawal from rejection.
+  assert.match(handlers, /retired: true/);
+  assert.match(handlers, /no longer applies to this report/);
+  // The old developer-voiced copy blamed the question while still showing it.
+  assert.ok(!/doesn't apply to this report/.test(handlers));
+
+  // 2. The route forwards the distinction; a bare error would look like any
+  //    other save failure to the client.
+  assert.match(source("app/api/practice/report/[reportId]/check-in/route.ts"), /retired/);
+
+  // 3. The banner drops the question and does NOT set the error line.
+  const banner = source("components/report/CheckInBanner.tsx");
+  const branch = banner.slice(banner.indexOf("if (data.retired)"));
+  assert.ok(branch.startsWith("if (data.retired)"), "the banner must handle a retired save");
+  const body = branch.slice(0, branch.indexOf("setError"));
+  assert.match(body, /setRetired/);
+  // An empty list must render nothing rather than thank the student for
+  // answering questions that no longer exist.
+  assert.match(banner, /if \(questions\.length === 0\) return null;/);
+});
+
+check("input validation still guards the endpoint, so retired means retired", () => {
+  // The retired path is only safe to treat as benign because a flag id that
+  // isn't ours never reaches it: `parseCheckInInput` rejects it first. If that
+  // stopped holding, garbage would be silently swallowed as "withdrawn".
+  for (const bad of [{ flag: "yawning", answer: "yes" }, { flag: "__proto__", answer: "yes" }]) {
+    assert.equal(parseCheckInInput(bad), null, JSON.stringify(bad));
+  }
+  assert.deepEqual(parseCheckInInput({ flag: "hand_at_mouth", answer: "no" }), {
+    flag: "hand_at_mouth",
+    answer: "no",
+  });
+});
+
+check("the eating gate is what retires a question mid-session", () => {
+  // The concrete case seen in the wild: the page asked `hand_at_mouth`, the
+  // report has no food or drink in frame, so eligibility now withholds it.
+  const observations = { ...base.observations! };
+  delete observations.food_or_drink_visible_seconds;
+  const ids = eligibleCheckIns("ON", { ...base, observations }).map((q) => q.id);
+  assert.ok(!ids.includes("hand_at_mouth"));
+  // Still a real flag id, which is precisely why it must not 400.
+  assert.ok(CHECK_IN_FLAG_IDS.includes("hand_at_mouth"));
+});
+
+check("no question asserts what the student was doing", () => {
+  // The module's WORDING RULES: describe what the camera saw, then ask about
+  // the observation. "Were you eating" names a cause as fact.
+  for (const q of eligibleCheckIns("ON", base)) {
+    assert.ok(!/were you eating/i.test(q.question), q.question);
+    assert.ok(q.question.startsWith("We noticed "), q.question);
+    assert.ok(q.question.trimEnd().endsWith("?"), q.question);
+  }
 });
 
 check("camera off, legacy (no visual) and nothing flagged ask nothing", () => {

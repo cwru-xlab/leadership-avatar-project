@@ -39,6 +39,7 @@ import {
   MIDDLE_FINGER_MAX_TICK_GAP_S,
   MIDDLE_FINGER_MERGE_GAP_S,
   MOUTH_MOVEMENT_SPEECH_GRACE_S,
+  MOUTH_MOVEMENT_SPEECH_LEAD_S,
 } from "@/lib/metrics/body-thresholds";
 
 /** The shape shared by MediaPipe's image and world landmarks, narrowed to what
@@ -390,11 +391,24 @@ export function createHeldPoseTracker() {
 export interface MouthMovementState {
   lastJaw: number | null;
   lastSpeakingS: number | null;
+  /**
+   * Deltas measured but not yet committed, newest last. A delta leaves here
+   * only once no speech onset can still claim it — see `stepMouthMovement`.
+   * Bounded by `MOUTH_MOVEMENT_SPEECH_LEAD_S` times the face rate (~5 entries
+   * at 3 Hz), not by session length.
+   */
+  pending: ReadonlyArray<{ delta: number; tS: number }>;
+}
+
+/** A fresh state. Prefer this over writing the literal at each call site, so
+ * adding a field cannot leave one of them behind. */
+export function createMouthMovementState(): MouthMovementState {
+  return { lastJaw: null, lastSpeakingS: null, pending: [] };
 }
 
 /**
- * One face tick. Returns the absolute jaw change since the previous eligible
- * tick, or null when this tick cannot contribute.
+ * One face tick. Returns the absolute jaw changes that are now FINAL, which is
+ * usually none and never more than the buffer holds.
  *
  * ENERGY ONLY, NEVER A RHYTHM. Face runs at 3 Hz, so nothing above 1.5 Hz can be
  * resolved, and chewing sits right at that limit. Reading a chewing rate off this
@@ -403,28 +417,81 @@ export interface MouthMovementState {
  * period: it only says the jaw kept changing position while the student was not
  * speaking, whatever the reason.
  *
- * The grace period drops the tail of a spoken turn, since the mouth is still
- * closing after push-to-talk releases. Speech begun before the button is pressed
- * cannot be excluded this way and will read as movement.
+ * SPEECH IS EXCLUDED FROM BOTH EDGES, which is why a delta cannot be returned
+ * the moment it is measured. The trailing edge is causal and cheap: a tick
+ * within `MOUTH_MOVEMENT_SPEECH_GRACE_S` after the button releases is dropped
+ * as the mouth still closing. The LEADING edge cannot be: at the tick itself
+ * nothing knows whether the student is about to press the button. So deltas
+ * wait in `pending` until they are older than `MOUTH_MOVEMENT_SPEECH_LEAD_S`,
+ * and a speech onset discards those still inside that window — a student who
+ * was already talking when they reached for the button.
+ *
+ * Call `flushMouthMovement` at session end, or the final silent stretch is
+ * lost: those deltas never had a speech onset to clear them.
+ *
+ * The caller therefore attributes a delta to the episode window open when it
+ * is COMMITTED, up to the lead later than when it occurred. Deliberate: the
+ * alternative is adding to a closed window. At 5 s windows and a 1.5 s lead,
+ * it can shift a reported boundary by one window at most, on a descriptive
+ * row quoted to the nearest second.
  */
 export function stepMouthMovement(
   state: MouthMovementState,
   jaw: number | null,
   speakingNow: boolean,
   tS: number
-): { state: MouthMovementState; delta: number | null } {
+): { state: MouthMovementState; deltas: number[] } {
+  // Speech onset (or continuing speech). Deltas still pending split by age:
+  // those within `MOUTH_MOVEMENT_SPEECH_LEAD_S` of this press are the tail of
+  // a mouth that was already talking and are DISCARDED; anything older than
+  // the lead was genuine silent movement and is committed. Discarding the
+  // whole buffer instead would over-suppress whenever ticks are sparse enough
+  // that a safe delta had no later silent tick to commit it.
   if (speakingNow) {
-    return { state: { lastJaw: null, lastSpeakingS: tS }, delta: null };
+    const safe = state.pending.filter((p) => tS - p.tS >= MOUTH_MOVEMENT_SPEECH_LEAD_S);
+    return {
+      state: { lastJaw: null, lastSpeakingS: tS, pending: [] },
+      deltas: safe.map((p) => p.delta),
+    };
   }
+
+  let next: MouthMovementState;
   if (
     jaw === null ||
     (state.lastSpeakingS !== null &&
       tS - state.lastSpeakingS < MOUTH_MOVEMENT_SPEECH_GRACE_S)
   ) {
-    return { state: { ...state, lastJaw: null }, delta: null };
+    next = { ...state, lastJaw: null };
+  } else if (state.lastJaw === null) {
+    next = { ...state, lastJaw: jaw };
+  } else {
+    next = {
+      ...state,
+      lastJaw: jaw,
+      pending: [...state.pending, { delta: Math.abs(jaw - state.lastJaw), tS }],
+    };
   }
+
+  // Commit whatever is now beyond the reach of a future button press.
+  const ripe = next.pending.filter((p) => tS - p.tS >= MOUTH_MOVEMENT_SPEECH_LEAD_S);
+  if (ripe.length === 0) return { state: next, deltas: [] };
   return {
-    state: { ...state, lastJaw: jaw },
-    delta: state.lastJaw === null ? null : Math.abs(jaw - state.lastJaw),
+    state: { ...next, pending: next.pending.slice(ripe.length) },
+    deltas: ripe.map((p) => p.delta),
+  };
+}
+
+/**
+ * The deltas still pending at session end, which are final because no speech
+ * onset ever arrived to claim them. Leaves the state empty so a second call
+ * cannot double-count.
+ */
+export function flushMouthMovement(
+  state: MouthMovementState
+): { state: MouthMovementState; deltas: number[] } {
+  if (state.pending.length === 0) return { state, deltas: [] };
+  return {
+    state: { ...state, pending: [] },
+    deltas: state.pending.map((p) => p.delta),
   };
 }

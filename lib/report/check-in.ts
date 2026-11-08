@@ -17,7 +17,24 @@
  * WORDING RULES, binding on every entry below: describe what the camera saw
  * and when, then ask. Never name a cause as fact, never accuse, coach in the
  * second person. "Something else" always lists the innocent explanations the
- * detector cannot tell apart from the flagged one.
+ * detector cannot tell apart from the flagged one. Ask about the OBSERVATION,
+ * not the act — "Was there food or a drink on camera?", never "Were you
+ * eating?": the camera saw an object and some motion, and the difference is
+ * the whole distance between a question and an accusation.
+ *
+ * CORROBORATE BEFORE ASKING. A question costs the student attention and
+ * implies the detector has a case, so a flag built on geometry alone waits for
+ * an independent witness: both eating questions require the object model to
+ * have ALSO seen a cup, bottle or food (`hasFoodOrDrink`). Measured on this
+ * project's own reports, the uncorroborated version asked about eating on 5 of
+ * the 8 sessions recorded since the signals shipped, and the two genuine
+ * firings had zero seconds of food or drink in frame. A detector may describe
+ * what it saw on the report; it must clear a higher bar to interrupt.
+ *
+ * ONE QUESTION PER HYPOTHESIS. `hand_at_mouth` and `mouth_movement` both test
+ * "was this student eating", so only one of them ever asks — see their `when`
+ * functions. Two questions about one hypothesis read as an accusation being
+ * pressed rather than a check.
  *
  * ADDING A FLAG (notes reading, lying down, camera motion, yawning...): add an
  * id to `CHECK_IN_FLAG_IDS` and one entry to `CHECK_IN_FLAGS`. Detection,
@@ -71,6 +88,25 @@ export const CHECK_IN_ANSWER_LABELS: Record<CheckInAnswer, string> = {
  */
 export const PHONE_CHECK_IN_MIN_SECONDS = 10;
 
+/**
+ * Arrivals at the mouth before the check-in will ASK, against the three
+ * (`HAND_AT_MOUTH_REPEAT_MIN_EVENTS`) that put the row on the report. Double
+ * the detector's own "repeated" minimum, on the same precedent as
+ * `PHONE_CHECK_IN_MIN_SECONDS`: the Observations row states what was seen, but
+ * interrupting the student deserves more than the weakest trip the detector
+ * can produce.
+ *
+ * HONEST LIMIT: this gate alone would NOT have suppressed the false positives
+ * that prompted it — two real sessions measured 6 and 7 arrivals and neither
+ * involved eating. `hasFoodOrDrink` is what suppresses those. This only stops
+ * a bare three-arrival trip from costing the student a question.
+ *
+ * It reads `hand_at_mouth_events`, the count of ALL arrivals in the session
+ * rather than just those inside a reported run, because that is the only count
+ * stored. The run itself is still required, via `descriptiveWhen`.
+ */
+export const HAND_AT_MOUTH_CHECK_IN_MIN_EVENTS = 6;
+
 export interface CheckInOption {
   id: string;
   label: string;
@@ -115,11 +151,64 @@ export const DEFAULT_CHECK_IN_LEAD: CheckInLead = "In the real conversation";
 
 const OTHER_REASON: CheckInOption = { id: "other", label: "Another reason" };
 
+/**
+ * Whether a cup, bottle or food was ALSO seen this session.
+ *
+ * WHY BOTH EATING QUESTIONS REQUIRE IT. `hand_at_mouth_repeated` and
+ * `mouth_movement_silent` are geometry: a fingertip near the lips, and a jaw
+ * that kept moving. `VisualDescriptiveObservations` already states the limit
+ * ("Not 'eating': sipping water, medical eating needs, tics and thinking
+ * habits all read the same"), and `visualObservationRows` already refuses to
+ * show the cup row without one of these two signals. The object model is the
+ * one independent witness to actual food or drink, and nothing consulted it
+ * before asking the student whether they had been eating.
+ *
+ * Measured across this project's own stored reports: of the sessions that
+ * asked, the two genuine ones recorded ZERO seconds of food or drink in
+ * frame, and only the seeded fixture had any. That is the whole false-positive
+ * rate this gate removes.
+ *
+ * ABSENT IS NOT ZERO, and neither asks: 0 is the object model reporting it saw
+ * none, absent is the model never having run (see the field's own comment in
+ * `types.ts`). Neither corroborates, and an uncorroborated guess is what put
+ * this question on nearly every report.
+ */
+function hasFoodOrDrink(v: VisualMetrics): boolean {
+  const seconds = v.observations?.food_or_drink_visible_seconds;
+  return typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0;
+}
+
+/**
+ * The hand-at-mouth question's own eligibility, named so `mouth_movement` can
+ * stand down whenever this one speaks. Not a method on `CHECK_IN_FLAGS`, which
+ * would have to reference itself mid-initialiser.
+ */
+function handAtMouthWhen(v: VisualMetrics): string | null {
+  if (!hasFoodOrDrink(v)) return null;
+  const events = v.observations?.hand_at_mouth_events;
+  if (typeof events !== "number" || events < HAND_AT_MOUTH_CHECK_IN_MIN_EVENTS) {
+    return null;
+  }
+  return descriptiveWhen(v, "hand_at_mouth_repeated");
+}
+
 export const CHECK_IN_FLAGS: Record<CheckInFlagId, CheckInFlagDefinition> = {
   hand_at_mouth: {
     id: "hand_at_mouth",
-    when: (v) => descriptiveWhen(v, "hand_at_mouth_repeated"),
-    question: (when) => `We noticed your hand at your mouth repeatedly ${when}. Were you eating or drinking?`,
+    // THE ONE EATING QUESTION whenever the hand signal fired, whether or not
+    // the mouth signal did. Both rest on the same hypothesis, the student can
+    // only answer it once, and being asked about eating twice in one report is
+    // most of what made this check-in read as an accusation. `mouth_movement`
+    // stands down whenever this entry speaks, so `hides` covers BOTH kinds —
+    // one answer now settles both rows.
+    when: handAtMouthWhen,
+    // Describes the two things the camera saw, then asks about the OBSERVATION
+    // rather than the act, as `phone` does ("Was there a phone in view?").
+    // The old wording named eating as the hypothesis and demoted water, a
+    // medical need, a habit and a mask to "Something else", which this
+    // module's own WORDING RULES forbid: never name a cause as fact.
+    question: (when) =>
+      `We noticed your hand at your mouth repeatedly ${when}, and a cup, bottle or food in frame. Was there food or a drink on camera?`,
     yesCoaching:
       (lead) => `${lead}, finish eating before you join and keep food off camera. A quick sip of water is fine.`,
     otherOptions: [
@@ -129,13 +218,20 @@ export const CHECK_IN_FLAGS: Record<CheckInFlagId, CheckInFlagDefinition> = {
       { id: "mask", label: "Wearing a mask" },
       OTHER_REASON,
     ],
-    hides: { descriptiveKinds: ["hand_at_mouth_repeated"] },
+    hides: { descriptiveKinds: ["hand_at_mouth_repeated", "mouth_movement_silent"] },
   },
   mouth_movement: {
     id: "mouth_movement",
-    when: (v) => descriptiveWhen(v, "mouth_movement_silent"),
+    // Asks ONLY when the hand question did not, so no report ever carries two
+    // questions about eating. Kept as its own flag id rather than folded into
+    // the entry above so answers stored before the merge still parse and still
+    // hide their row.
+    when: (v) =>
+      hasFoodOrDrink(v) && handAtMouthWhen(v) === null
+        ? descriptiveWhen(v, "mouth_movement_silent")
+        : null,
     question: (when) =>
-      `We noticed your mouth moving while you weren't speaking ${when}. Were you eating or chewing something?`,
+      `We noticed your mouth moving while you weren't speaking ${when}, and a cup, bottle or food in frame. Was there food or a drink on camera?`,
     yesCoaching: (lead) => `${lead}, finish eating and set gum aside before you join.`,
     otherOptions: [
       { id: "thinking", label: "Thinking or mouthing words" },

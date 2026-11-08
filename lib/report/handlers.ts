@@ -195,6 +195,13 @@ export async function listPlannedReportIds(userId: string): Promise<string[]> {
 
 export type SaveCheckInResult =
   | { ok: true; checkIn: CheckInAnswers }
+  /**
+   * The flag was well-formed, but this report no longer asks it. Nothing was
+   * stored and there is nothing for the student to fix or retry. Kept as its
+   * own member so the client can DROP the question instead of reporting a
+   * failed save (see the eligibility check in `saveCheckInForUser`).
+   */
+  | { ok: false; status: number; error: string; retired: true }
   | ReportHandlerError;
 
 /** Attempts before a write that keeps losing a concurrent-update race gives up. */
@@ -205,7 +212,9 @@ const CHECK_IN_WRITE_ATTEMPTS = 3;
  *
  * Malformed id, missing row and not-owned are the same 404 as the read. The
  * flag must be one this report actually asks about, recomputed here from the
- * stored metrics rather than trusted from the client.
+ * stored metrics rather than trusted from the client. A flag that is valid
+ * but no longer asked comes back as `retired` rather than an error, because
+ * the student did nothing wrong and has nothing to retry.
  *
  * The answer is merged under `STORED_CHECK_IN_KEY` on `visualMetrics`; every
  * other key in that JSON is written back exactly as read. Nothing here
@@ -244,8 +253,21 @@ export async function saveCheckInForUser(
 
     const stored = row.visualMetrics;
     const visual = asVisualMetrics(stored);
+    // RETIRED, NOT REJECTED. `parseCheckInInput` has already established that
+    // the flag is one of this module's own ids, so reaching here means the
+    // page asked a question that eligibility no longer returns: it rendered
+    // before a threshold moved, and every tuning pass recorded in
+    // `12-TUNING.md` can move one. The question has been withdrawn, so the
+    // student has nothing to fix and nothing to retry — the client is told to
+    // drop it rather than shown a red error it cannot clear. A 400 here would
+    // be a dead end on a question the student never chose to see.
     if (!eligibleCheckIns(row.cameraMode, visual).some((question) => question.id === input.flag)) {
-      return { ok: false, status: 400, error: "That question doesn't apply to this report." };
+      return {
+        ok: false,
+        status: 409,
+        error: "That question no longer applies to this report.",
+        retired: true,
+      };
     }
 
     const raw = stored as Record<string, unknown>;
