@@ -1,5 +1,6 @@
 import { TECHNICAL_ASSIGNMENTS } from "../lib/technical-interview/assignments.server";
 import { validateTechnicalAssignmentCatalog } from "../lib/technical-interview/assignment-validation";
+import { asInputSnapshot } from "../lib/report/snapshot";
 import {
   TECHNICAL_DIFFICULTIES,
   TECHNICAL_TOPICS,
@@ -13,11 +14,48 @@ if (!validation.ok) {
 
 for (const assignment of TECHNICAL_ASSIGNMENTS) {
   const publicAssignment = toPublicTechnicalAssignment(assignment);
-  for (const forbidden of ["referenceSolution", "hintLadder", "hiddenTests", "publicTestCases", "rubricAnchors", "executionLimits"]) {
+  for (const forbidden of [
+    "referenceSolution",
+    "hintLadder",
+    "hiddenTests",
+    "publicTestCases",
+    "rubricAnchors",
+    "executionLimits",
+  ]) {
     if (forbidden in publicAssignment) {
       throw new Error(`${assignment.id}: learner-safe assignment leaks ${forbidden}`);
     }
   }
+
+  const pythonSignature = /^\s*def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/m.exec(
+    publicAssignment.starterCode,
+  );
+  const javaScriptSignature = /^\s*function\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/m.exec(
+    publicAssignment.starterCodeByLanguage.javascript,
+  );
+  if (
+    !pythonSignature ||
+    !javaScriptSignature ||
+    pythonSignature[1] !== javaScriptSignature[1] ||
+    pythonSignature[2] !== javaScriptSignature[2]
+  ) {
+    throw new Error(`${assignment.id}: JavaScript starter must preserve the Python entry signature`);
+  }
+}
+
+const sample = toPublicTechnicalAssignment(TECHNICAL_ASSIGNMENTS[0]);
+const javascriptSnapshot = asInputSnapshot({
+  kind: "technical-coding",
+  assignmentId: sample.id,
+  assignmentVersion: sample.version,
+  assignmentHash: sample.contentHash,
+  assignment: sample,
+  language: "javascript",
+  runtimePolicyVersion: "browser-wasm-runtime-v2",
+  selectedAt: new Date().toISOString(),
+});
+if (javascriptSnapshot?.kind !== "technical-coding" || javascriptSnapshot.language !== "javascript") {
+  throw new Error("A JavaScript technical-coding snapshot must remain readable in reports");
 }
 
 // Topic and difficulty are only useful if a filter can still find something.

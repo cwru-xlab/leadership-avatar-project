@@ -25,7 +25,12 @@ async function signIn(page: Page) {
  */
 async function openRoom(
   page: Page,
-  options: { topics?: string[]; difficulty?: string; camera?: "ON" | "OFF" } = {},
+  options: {
+    topics?: string[];
+    difficulty?: string;
+    language?: "Python" | "JavaScript";
+    camera?: "ON" | "OFF";
+  } = {},
 ) {
   await page.goto("/practice/interviews/technical");
 
@@ -38,6 +43,9 @@ async function openRoom(
   }
   if (options.difficulty) {
     await page.getByRole("radio", { name: options.difficulty, exact: true }).click();
+  }
+  if (options.language) {
+    await page.getByRole("radio", { name: options.language, exact: true }).click();
   }
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
@@ -166,6 +174,25 @@ test.describe("technical coding room", () => {
     await page.keyboard.type("def broken(:\n  pass");
     await page.getByRole("button", { name: "Run" }).click();
     await expect(terminal).toContainText(/Error/i, { timeout: 60_000 });
+  });
+
+  test("runs JavaScript in the browser worker", async ({ page }) => {
+    await signIn(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openRoom(page, { language: "JavaScript" });
+
+    await expect(page.getByText("JavaScript", { exact: true })).toBeVisible();
+    const signature = await page.locator(".cm-content").innerText();
+    const entry = /function\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/.exec(signature);
+    expect(entry, "JavaScript starter code exposes a function signature").not.toBeNull();
+    const [, name, args] = entry!;
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.type(`function ${name}(${args}) { return "definitely-wrong"; }`);
+    await page.getByRole("button", { name: "Run", exact: true }).click();
+    await expect(page.locator('[aria-live="polite"]')).toContainText(/0\/\d+ visible tests passed/, {
+      timeout: 30_000,
+    });
   });
 
   test("each run replaces the previous terminal output", async ({ page }) => {
