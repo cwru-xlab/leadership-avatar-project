@@ -438,7 +438,9 @@ console.log("\n5. No type-slug branching in the engine (pitch)");
     "components/practice/report/",
   ];
   const permittedExact = new Set([
-    "app/practice/[type]/page.tsx",
+    // The wizard composition moved here; `app/practice/[type]/page.tsx` is now
+    // an 11-line wrapper that re-exports it.
+    "components/practice/routes/PracticeTypePage.tsx",
     "components/practice/ReportChrome.tsx",
     // Reports list groups the two pitch slugs under one filter tab — not a
     // second session/report surface. Parallel to networking/dc filter ids.
@@ -446,6 +448,10 @@ console.log("\n5. No type-slug branching in the engine (pitch)");
     // Entry picker: two cards that route into the shared `[type]` wizard.
     // Navigation only — it owns no session or report surface of its own.
     "app/practice/pitches/page.tsx",
+    // Canonical named route for the elevator pitch. A one-line wrapper that
+    // pins `typeSlug="pitch-elevator"` onto the shared launcher; it owns no
+    // session or report surface of its own.
+    "app/practice/pitches/elevator/page.tsx",
   ]);
 
   const unexpectedTsx = typeAwareTsx.filter(

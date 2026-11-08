@@ -21,7 +21,8 @@
     "verify:route-contract": "tsx scripts/verify-route-contract.ts",
     "verify:technical-execution": "tsx scripts/verify-technical-execution-contract.ts",
     "verify:technical-evidence": "tsx scripts/verify-technical-evidence.ts",
-    "verify:rubric-schema-order": "tsx scripts/verify-rubric-schema-order.ts"
+    "verify:rubric-schema-order": "tsx scripts/verify-rubric-schema-order.ts",
+    "verify:guard-targets": "tsx scripts/verify-guard-targets.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

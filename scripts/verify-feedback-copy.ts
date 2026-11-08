@@ -26,10 +26,11 @@ console.log("\n=== verify-feedback-copy ===\n");
 for (const path of [
   "lib/interactions/index.ts",
   "app/conversations/page.tsx",
-  "app/reports/page.tsx",
   "lib/report/title.ts",
   "lib/difficult-conversation/conversation-type.ts",
-  "app/practice/[type]/[instanceId]/page.tsx",
+  // The practice launcher moved out of `app/practice/[type]/[instanceId]/page.tsx`,
+  // which is now a two-line wrapper around this component.
+  "components/practice/routes/PracticeInstancePage.tsx",
 ]) {
   const text = source(path);
   check(
@@ -37,6 +38,18 @@ for (const path of [
     text.toLowerCase().includes("courageous conversation"),
   );
 }
+
+/**
+ * The reports list must not carry its own copy of the label. It renders titles
+ * through `lib/report/title.ts` (guarded above), so asserting a literal string
+ * here would reward exactly the drift we want to prevent: a page that
+ * hardcodes "Courageous Conversation" instead of asking the shared module.
+ */
+check(
+  "the reports list delegates its type label instead of hardcoding one",
+  source("app/reports/page.tsx").includes("typeLabelForReport") &&
+    !source("app/reports/page.tsx").toLowerCase().includes("difficult conversation"),
+);
 
 const guidance = source("components/practice/InterviewPaceGuidance.tsx");
 check("pace guidance states the existing 100–159 WPM range", guidance.includes("100–159 words per minute"));
@@ -49,7 +62,7 @@ check(
 );
 
 const reportBody = source("components/report/ReportBody.tsx");
-const reportPage = source("app/practice/[type]/report/[reportId]/page.tsx");
+const reportPage = source("components/practice/routes/PracticeReportPage.tsx");
 check(
   "interview reports display assessed pace with the 100–159 WPM target",
   reportBody.includes("Assessed pace:") &&
@@ -81,7 +94,7 @@ check(
     !reportBody.includes("Try this"),
 );
 
-const practicePage = source("app/practice/[type]/page.tsx");
+const practicePage = source("components/practice/routes/PracticeTypePage.tsx");
 check("only the interview composition mounts pace guidance", practicePage.includes("isInterview ? <InterviewPaceGuidance variant=\"setup\" /> : undefined") && practicePage.includes("isInterview ? <InterviewPaceGuidance variant=\"live\" /> : undefined"));
 
 const setupWizard = source("components/practice/SetupWizard.tsx");

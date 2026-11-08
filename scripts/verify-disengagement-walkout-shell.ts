@@ -24,7 +24,10 @@ const shell = read("components/practice/PracticeSessionShell.tsx");
 const chatRoute = read("app/api/interaction/chat/route.ts");
 const finishRoute = read("app/api/practice/session/finish/route.ts");
 const session = read("lib/engine/session.ts");
-const pitchPage = read("app/practice/[type]/page.tsx");
+// The practice launchers moved into `components/practice/routes/*`; the
+// `app/practice/**` files are now two-line wrappers that re-export them.
+const pitchPage = read("components/practice/routes/PracticeTypePage.tsx");
+const dcLauncherEarly = read("components/practice/routes/PracticeInstancePage.tsx");
 const prompts = read("lib/engine/prompts.ts");
 
 check(
@@ -86,12 +89,20 @@ check(
 check(
   /autoFinishOnAvatarEnd=\{isPitch\}/.test(pitchPage) &&
     /reportId/.test(pitchPage),
-  "both pitch launchers opt into auto-finish with a report binding",
+  "the type launcher opts into auto-finish with a report binding",
 );
 check(
   /buildWalkOutFragment/.test(prompts) &&
     /buildTailBlock/.test(prompts),
   "private walk-out guidance stays in the per-turn tail block",
+);
+// The instance launcher (courageous conversations) is the second auto-finish
+// caller. It was never actually inspected here — the check above was named for
+// "both" launchers while reading only one file — so assert it explicitly.
+check(
+  /autoFinishOnAvatarEnd/.test(dcLauncherEarly) &&
+    /reportId|defaultReportTitle/.test(dcLauncherEarly),
+  "the instance launcher opts into auto-finish with a report binding",
 );
 
 const visibleMeterTerms = [
@@ -239,7 +250,7 @@ check(
 console.log("\n8. Phase 20 — type weights, derived reason, in-character exit");
 
 const safetyPanel = read("components/practice/panels/SessionSafetyPanel.tsx");
-const dcLauncher = read("app/practice/[type]/[instanceId]/page.tsx");
+const dcLauncher = dcLauncherEarly;
 const dcPrompts = read("lib/difficult-conversation/conversation-prompts.ts");
 
 // (a) Both server callers compute with the type's own weight profile. Without
