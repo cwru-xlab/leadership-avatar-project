@@ -35,6 +35,7 @@ import TechnicalCodingSession from "@/components/technical-interview/TechnicalCo
 import { getEngineType } from "@/lib/engine/registry";
 import type { CameraMode } from "@/lib/metrics/types";
 import type {
+  TechnicalCodingLanguage,
   TechnicalDifficulty,
   TechnicalTopic,
 } from "@/lib/technical-interview/types";
@@ -46,6 +47,7 @@ export default function TechnicalCodingPracticePage() {
   const [interviewer, setInterviewer] = useState<InterviewerOption | null>(null);
   const [topics, setTopics] = useState<readonly TechnicalTopic[]>([]);
   const [difficulty, setDifficulty] = useState<TechnicalDifficulty | null>(null);
+  const [language, setLanguage] = useState<TechnicalCodingLanguage>("python");
   const [resumeId, setResumeId] = useState<string | null>(null);
   const [resumeText, setResumeText] = useState("");
   const [resumeFileName, setResumeFileName] = useState<string | undefined>();
@@ -72,8 +74,9 @@ export default function TechnicalCodingPracticePage() {
       // drops anything it does not recognize. Empty means "no preference",
       // which selection reads as the whole catalog rather than an empty pool.
       technicalSelection: { topics, difficulty },
+      language,
     }),
-    [difficulty, interviewer, jobDescriptionId, jobDescriptionText, resumeId, resumeText, topics],
+    [difficulty, interviewer, jobDescriptionId, jobDescriptionText, language, resumeId, resumeText, topics],
   );
 
   if (reportId && interviewer) {
@@ -121,6 +124,8 @@ export default function TechnicalCodingPracticePage() {
                 nav={nav}
                 topics={topics}
                 difficulty={difficulty}
+                language={language}
+                onLanguageChange={setLanguage}
                 onTopicsChange={setTopics}
                 onDifficultyChange={setDifficulty}
               />

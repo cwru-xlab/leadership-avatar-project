@@ -20,8 +20,11 @@
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
 import {
+  TECHNICAL_CODING_LANGUAGES,
+  TECHNICAL_CODING_LANGUAGE_LABEL,
   TECHNICAL_DIFFICULTIES,
   TECHNICAL_TOPICS,
+  type TechnicalCodingLanguage,
   type TechnicalDifficulty,
   type TechnicalTopic,
 } from "@/lib/technical-interview/types";
@@ -67,6 +70,8 @@ export interface TechnicalFocusStepProps {
   /** Wizard-owned so the choice survives back/forward. */
   topics: readonly TechnicalTopic[];
   difficulty: TechnicalDifficulty | null;
+  language: TechnicalCodingLanguage;
+  onLanguageChange: (next: TechnicalCodingLanguage) => void;
   onTopicsChange: (next: TechnicalTopic[]) => void;
   onDifficultyChange: (next: TechnicalDifficulty | null) => void;
 }
@@ -75,6 +80,8 @@ export default function TechnicalFocusStep({
   nav,
   topics,
   difficulty,
+  language,
+  onLanguageChange,
   onTopicsChange,
   onDifficultyChange,
 }: TechnicalFocusStepProps) {
@@ -201,6 +208,24 @@ export default function TechnicalFocusStep({
               </button>
             );
           })}
+        </div>
+      </fieldset>
+
+      <fieldset className="mt-8">
+        <legend className="mb-3 text-sm font-semibold text-ink">Language</legend>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Coding language">
+          {TECHNICAL_CODING_LANGUAGES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={language === option}
+              onClick={() => onLanguageChange(option)}
+              className={`rounded-full border px-4 py-2 text-sm ${language === option ? "border-true-blue bg-light-blue/22 text-ink" : "border-line bg-white text-muted"}`}
+            >
+              {TECHNICAL_CODING_LANGUAGE_LABEL[option]}
+            </button>
+          ))}
         </div>
       </fieldset>
 
