@@ -133,7 +133,7 @@ async function main() {
         fitFollowUpsUsed: 1,
         promptPosed: true,
         revealedExhibits: probe.revealed ?? [],
-        nudgedSteps: [],
+        nudgedSteps: [], lastNudgedTurnIndex: null,
       };
       const progress = buildProblemProgressBlock(state, { elapsedMinutes: 6, targetMinutes: base.targetMinutes }, question, framework);
       const history = [{ role: "assistant" as const, content: `Thanks. Let's turn to the problem. ${question.prompt}` }, ...probe.turns];

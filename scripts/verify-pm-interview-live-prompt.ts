@@ -65,7 +65,7 @@ async function reply(
     fitFollowUpsUsed: opts.fitFollowUpsUsed ?? 1,
     promptPosed: stage !== "opening" && stage !== "fit",
     revealedExhibits: opts.revealed ?? [],
-    nudgedSteps: [],
+    nudgedSteps: [], lastNudgedTurnIndex: null,
   };
   const progress = buildProblemProgressBlock(
     state,
@@ -131,7 +131,7 @@ async function probeNudge() {
   const inferred = inferUnmarkedActions(
     parsed.content,
     parsed.actions,
-    { stage: "problem", fitFollowUpsUsed: 1, promptPosed: true, revealedExhibits: [], nudgedSteps: [] },
+    { stage: "problem", fitFollowUpsUsed: 1, promptPosed: true, revealedExhibits: [], nudgedSteps: [], lastNudgedTurnIndex: null },
     question,
     getPmFramework(question.frameworkKey)!,
   );

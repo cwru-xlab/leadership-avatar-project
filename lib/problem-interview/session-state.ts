@@ -48,7 +48,36 @@ export interface ProblemInterviewState {
   revealedExhibits: string[];
   /** Framework step keys the interviewer has nudged (at most once each). */
   nudgedSteps: string[];
+  /**
+   * `turnIndex` of the most recent turn that nudged, or null if none has.
+   *
+   * Exists to space nudges OUT, which `nudgedSteps` cannot do: that list only
+   * stops the SAME step being nudged twice, so an interviewer could still fire
+   * three different steps on three consecutive turns. A real PM estimation
+   * session did exactly that — "What exactly are we counting here?", then
+   * "How are you going to break that down?", then "Where does that number
+   * come from?" — because `buildProblemProgressBlock` offered every
+   * un-nudged step's text on every turn and the candidate's answers did not
+   * tick the rubric's boxes fast enough.
+   *
+   * Read by `buildProblemProgressBlock` to withhold the nudge list for
+   * `NUDGE_COOLDOWN_TURNS` after a nudge. Recording is NOT gated on it: if
+   * the model nudges anyway, that is still ground truth the evaluator must
+   * see, so `reduceProblemTurn` records it and merely restarts the cooldown.
+   */
+  lastNudgedTurnIndex: number | null;
 }
+
+/**
+ * How many assistant turns must pass after a nudge before the nudge list is
+ * offered again. 1 = never two nudge-eligible turns back to back, which is
+ * the observed defect; the candidate gets at least one turn to respond to a
+ * redirect before being redirected again.
+ *
+ * Deliberately not tunable per type: the defect is a property of the prompt
+ * assembly, not of a particular framework.
+ */
+export const NUDGE_COOLDOWN_TURNS = 1;
 
 /** An exhibit as the candidate sees it: no reveal rule, no key insight. */
 export type PublicExhibit = Pick<
@@ -107,6 +136,7 @@ export function initialProblemState(): ProblemInterviewState {
     promptPosed: false,
     revealedExhibits: [],
     nudgedSteps: [],
+    lastNudgedTurnIndex: null,
   };
 }
 
@@ -245,6 +275,10 @@ export function reduceProblemTurn(
       }
       moveTo("problem");
       state.nudgedSteps.push(action.step);
+      // Always recorded, even if this turn should not have nudged: a nudge the
+      // model fired anyway is ground truth the evaluator grades against, and
+      // suppressing the record would hide it. Recording restarts the cooldown.
+      state.lastNudgedTurnIndex = turnIndex;
       events.push({ kind: "nudge", step: action.step, atSeconds, turnIndex });
     } else if (action.kind === "exhibit") {
       const exhibit = exhibitsById.get(action.exhibit);
@@ -368,6 +402,10 @@ function asState(value: unknown): ProblemInterviewState {
     promptPosed: v.promptPosed === true,
     revealedExhibits: stringArray(v.revealedExhibits),
     nudgedSteps: stringArray(v.nudgedSteps),
+    // Sessions that started before this field existed have no value. null
+    // (not 0) is the honest reading: 0 would claim a nudge happened on turn 0
+    // and suppress the next turn's list for no reason.
+    lastNudgedTurnIndex: finiteNumber(v.lastNudgedTurnIndex),
   };
 }
 
