@@ -858,24 +858,36 @@ void verifyDeckImages().then(() => {
           proposedSeconds: 600,
         };
       }
-      if (typeSlug === "difficult-conversation") {
-        return {
-          kind: "difficult-conversation",
-          conversationId: "v",
-          source: "seeded",
-          role: "R",
-          studentRole: "S",
-          situation: "sit",
-          sharedBackstory: "shared",
-          hiddenPosition: "hidden",
-          studentObjective: "obj",
-          stakes: "stakes",
-          difficulty: "guarded",
-          avatarId: "a",
-          voiceId: "v",
-        };
-      }
-      return { kind: "none" };
+      /**
+       * Fallback for any instance-requiring type without a bespoke branch.
+       *
+       * Reaching here means `type.instance.required` was true (checked at the
+       * top) and no earlier branch claimed the slug, so returning
+       * `{ kind: "none" }` would guarantee a `resolves ok` failure. That is
+       * what happened when the two questioned-persona types
+       * (clinical-communication, motivational-interviewing) landed: they take
+       * the difficult-conversation instance shape, fell through to "none", and
+       * the resulting red read as a product bug rather than a fixture gap.
+       *
+       * Defaulting instead of returning "none" means the next
+       * instance-requiring type resolves too, and if it genuinely needs a
+       * different shape the failure names that type specifically.
+       */
+      return {
+        kind: "difficult-conversation",
+        conversationId: "v",
+        source: "seeded",
+        role: "R",
+        studentRole: "S",
+        situation: "sit",
+        sharedBackstory: "shared",
+        hiddenPosition: "hidden",
+        studentObjective: "obj",
+        stakes: "stakes",
+        difficulty: "guarded",
+        avatarId: "a",
+        voiceId: "v",
+      };
     }
 
     for (const type of ENGINE_TYPES) {

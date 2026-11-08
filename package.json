@@ -22,7 +22,9 @@
     "verify:technical-execution": "tsx scripts/verify-technical-execution-contract.ts",
     "verify:technical-evidence": "tsx scripts/verify-technical-evidence.ts",
     "verify:rubric-schema-order": "tsx scripts/verify-rubric-schema-order.ts",
-    "verify:guard-targets": "tsx scripts/verify-guard-targets.ts"
+    "verify:guard-targets": "tsx scripts/verify-guard-targets.ts",
+    "verify:all": "tsx scripts/run-verify-all.ts",
+    "verify:fast": "tsx scripts/run-verify-all.ts --fast"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

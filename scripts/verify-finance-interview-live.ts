@@ -17,6 +17,19 @@
  * Run: npx tsx --env-file=.env.local scripts/verify-finance-interview-live.ts [--runs 2]
  */
 
+import { config as loadEnv } from "dotenv";
+
+// Load .env.local BEFORE the lib imports below: they construct the OpenAI
+// client at module scope, so a key set afterwards arrives too late.
+loadEnv({ path: ".env.local" });
+loadEnv();
+
+import { requireEnv } from "./guard-env";
+
+// This guard makes real model calls. Without a key it died on an OpenAI
+// "Missing credentials" stack trace, indistinguishable from a regression.
+requireEnv(__filename.split("/").pop()!.replace(/\.ts$/, ""), ["OPENAI_API_KEY"]);
+
 import { getInterviewType } from "../lib/interview/types";
 import { resolveAttemptLanguage } from "../lib/languages";
 import { FINANCE_INTERVIEW_SLUG } from "../lib/finance-interview/live";

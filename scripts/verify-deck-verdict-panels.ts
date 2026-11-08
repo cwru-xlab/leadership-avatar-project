@@ -436,15 +436,18 @@ console.log("\n9. NegotiationTriplePanel text appears only for pitch-deck");
 
 console.log("\n10. The shared report page carries no deck-mode slug literal");
 {
+  // The report composition moved into components/practice/routes/*;
+  // app/practice/[type]/report/[reportId]/page.tsx is now a 3-line wrapper.
+  // Both checks below are NEGATIVE, so reading the wrapper made them pass
+  // unconditionally — green while protecting nothing. The real page is clean,
+  // so repointing keeps them green and gives them teeth.
   const reportPagePath = path.join(
     __dirname,
     "..",
-    "app",
+    "components",
     "practice",
-    "[type]",
-    "report",
-    "[reportId]",
-    "page.tsx",
+    "routes",
+    "PracticeReportPage.tsx",
   );
   const source = fs.readFileSync(reportPagePath, "utf8");
   const slugLiteralPattern = /"pitch-(deck|funding|product|talk|general)"/;

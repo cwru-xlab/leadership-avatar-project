@@ -24,6 +24,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 import { DECK_REJECTIONS, MAX_DECK_SIZE_BYTES } from "../lib/deck/types";
+import { requireServer } from "./guard-env";
 
 /** Mirrors PPTX_CONVERT_FAILURES in app/api/practice/deck/upload/route.ts — do not import the route under tsx. */
 const PPTX_CONVERT_FAILURES = {
@@ -294,6 +295,11 @@ trailer<< /Root 1 0 R /Encrypt 2 0 R >>
 async function main() {
   console.log("=== verify-deck-routes (14-07) ===");
   console.log(`Base URL: ${BASE_URL}`);
+
+  // This guard is an end-to-end proof against a live `next dev`. Without one it
+  // used to die on `TypeError: fetch failed`, which reads as a regression; it
+  // now skips loudly so a missing dev server is never mistaken for a defect.
+  await requireServer("verify-deck-routes", BASE_URL);
 
   let ownerCookie = "";
   let otherCookie = "";

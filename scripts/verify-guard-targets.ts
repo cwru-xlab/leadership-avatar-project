@@ -134,6 +134,50 @@ function arrayFedReadTargets(src: string): string[] {
   return out;
 }
 
+/**
+ * Path built from segment arrays rather than a single literal, e.g.
+ *   fs.readFileSync(path.join(ROOT, "app", "practice", "[type]", "page.tsx"))
+ *   for (const page of [["app","practice","[type]","page.tsx"]]) ...
+ *
+ * `verify-prove-it.ts` used both forms and so escaped the literal-path scan
+ * entirely: five of its checks were reading 2-11 line wrappers. Joining the
+ * segments reconstructs the path the reader will actually open.
+ *
+ * Existence checks are excluded. `fs.existsSync(path.join(ROOT, "app", ...))`
+ * is asserting that a ROUTE exists (or, in the inverted-assertion idiom, that a
+ * deliberately-wrong path does not) — the wrapper is the correct target there,
+ * and flagging it produced four false positives on the first run.
+ */
+function segmentJoinedReadTargets(src: string): string[] {
+  const out: string[] = [];
+  // A run of >= 2 quoted segments, the last ending in .ts/.tsx, rooted at a
+  // known source directory.
+  const runRe =
+    /["'](app|components|lib)["']\s*,\s*((?:["'][^"']+["']\s*,\s*)*["'][^"']+\.tsx?["'])/g;
+
+  for (const m of src.matchAll(runRe)) {
+    // Look back far enough to see `existsSync(path.join(` before the segments.
+    // Must tolerate newlines: the idiom is frequently formatted as
+    //   const x = fs.existsSync(
+    //     path.join(ROOT, "app", ...),
+    //   );
+    const before = src.slice(Math.max(0, m.index! - 120), m.index!);
+
+    if (/existsSync\s*\(\s*(?:[\w.]*\.)?join\s*\(\s*[\w.]*\s*,?\s*$/.test(before)) {
+      continue;
+    }
+
+    const segments = [
+      m[1]!,
+      ...[...m[2]!.matchAll(/["']([^"']+)["']/g)].map((s) => s[1]!),
+    ];
+
+    out.push(segments.join("/"));
+  }
+
+  return out;
+}
+
 interface Finding {
   script: string;
   target: string;
@@ -170,6 +214,10 @@ for (const script of scripts) {
 
   for (const target of arrayFedReadTargets(src)) {
     if (!targets.has(target)) targets.set(target, "path list -> reader");
+  }
+
+  for (const target of segmentJoinedReadTargets(src)) {
+    if (!targets.has(target)) targets.set(target, "path.join segments");
   }
 
   for (const [target, via] of targets) {
