@@ -527,8 +527,23 @@ export default function TechnicalCodingSession({
           finalSource: source,
         }),
       });
-      if (!response.ok && response.status !== 409) throw new Error("submit failed");
-      window.location.assign(`/reports/${reportId}`);
+      if (response.ok || response.status === 409) {
+        window.location.assign(`/reports/${reportId}`);
+        return;
+      }
+
+      const body = (await response.json().catch(() => ({}))) as { error?: unknown; code?: unknown };
+      append([
+        {
+          kind: "error",
+          text:
+            typeof body.error === "string"
+              ? body.error
+              : "Unable to submit yet. Your code is saved; try again.",
+          detail: typeof body.code === "string" ? `Code: ${body.code}` : undefined,
+        },
+      ]);
+      setSubmitting(false);
     } catch {
       append([
         { kind: "error", text: "Unable to submit yet. Your code is saved; try again." },
