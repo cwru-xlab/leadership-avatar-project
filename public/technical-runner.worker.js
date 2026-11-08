@@ -84,11 +84,48 @@ function truncate(value, limit) {
   return text.length > limit ? `${text.slice(0, limit)}…` : text;
 }
 
+function runJavaScript(source, entry, tests) {
+  let target;
+  try {
+    // Candidate code is intentionally evaluated only inside this disposable
+    // browser worker. `entry` is derived from trusted starter code, never a
+    // browser-provided expression.
+    target = new Function(`${source}\nreturn typeof ${entry} === "function" ? ${entry} : null;`)();
+  } catch (error) {
+    return {
+      status: "failed",
+      errorCategory: error instanceof SyntaxError ? "syntax_error" : "runtime_error",
+      message: truncate(String(error), MAX_MESSAGE_CHARS),
+    };
+  }
+  if (typeof target !== "function") {
+    return { status: "failed", errorCategory: "runtime_error", message: `Define ${entry}(...) before running the visible tests.` };
+  }
+  const display = (value) => {
+    const encoded = JSON.stringify(value);
+    return encoded === undefined ? String(value) : encoded;
+  };
+  const equal = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+  const results = tests.map((test) => {
+    try {
+      const produced = target(...test.input);
+      return { id: test.id, passed: equal(produced, test.expected), produced: display(produced), expected: display(test.expected) };
+    } catch (error) {
+      return { id: test.id, passed: false, error: `${error?.name || "Error"}: ${error?.message || String(error)}` };
+    }
+  });
+  return { status: "completed", stdout: "", results };
+}
+
 self.onmessage = async (event) => {
-  const { runId, source, entry, tests } = event.data || {};
+  const { runId, source, language, entry, tests } = event.data || {};
   const reply = (payload) => self.postMessage({ runId, ...payload });
 
   try {
+    if (language === "javascript") {
+      reply(runJavaScript(source, entry, tests));
+      return;
+    }
     const pyodide = await loadRuntime();
 
     // A fresh module namespace per run: a previous run's globals must not make

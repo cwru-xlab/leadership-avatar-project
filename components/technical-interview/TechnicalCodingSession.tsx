@@ -40,6 +40,7 @@ import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/type
 import type { StartAvatarRequest } from "@/types";
 import {
   MAX_TECHNICAL_HINTS,
+  TECHNICAL_CODING_LANGUAGE_LABEL,
   type TechnicalCodingInputSnapshot,
 } from "@/lib/technical-interview/types";
 import type { ReportDTO } from "@/lib/report/dto";
@@ -175,9 +176,9 @@ export default function TechnicalCodingSession({
         setHintsUsed(Math.max(0, Math.min(MAX_TECHNICAL_HINTS, data.technicalHintCount ?? 0)));
         try {
           const saved = window.localStorage.getItem(`technical-coding:${reportId}:source`);
-          setSource(saved || input.assignment.starterCode);
+          setSource(saved || input.assignment.starterCodeByLanguage?.[input.language] || input.assignment.starterCode);
         } catch {
-          setSource(input.assignment.starterCode);
+          setSource(input.assignment.starterCodeByLanguage?.[input.language] || input.assignment.starterCode);
         }
       })
       .catch(() => {
@@ -233,7 +234,14 @@ export default function TechnicalCodingSession({
   }, [avatarConnected, avatarFailed, reportId, snapshot]);
 
   const entryPoint = useMemo(
-    () => (snapshot ? entryPointFromStarterCode(snapshot.assignment.starterCode) : null),
+    () =>
+      snapshot
+        ? entryPointFromStarterCode(
+            snapshot.assignment.starterCodeByLanguage?.[snapshot.language] ??
+              snapshot.assignment.starterCode,
+            snapshot.language,
+          )
+        : null,
     [snapshot],
   );
 
@@ -276,7 +284,7 @@ export default function TechnicalCodingSession({
       return;
     }
 
-    const outcome = await runPython(source, entryPoint, tests);
+    const outcome = await runPython(source, snapshot.language, entryPoint, tests);
 
     if (outcome.status === "failed") {
       append([{ kind: "error", text: outcome.message }]);
@@ -588,7 +596,7 @@ export default function TechnicalCodingSession({
         </div>
         <div className="flex shrink-0 items-center gap-2 text-sm">
           <span className="hidden rounded-md border border-white/10 bg-white/5 px-2 py-1 font-mono text-xs text-light-blue sm:inline">
-            Python 3.12
+            {TECHNICAL_CODING_LANGUAGE_LABEL[snapshot.language]}
           </span>
           <span
             className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-xs ${
@@ -722,13 +730,16 @@ export default function TechnicalCodingSession({
         {/* Editor + terminal share the center column. */}
         <section className="flex min-h-0 flex-col overflow-hidden bg-white text-slate-900">
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-1.5 text-xs text-slate-500">
-            <span className="font-mono font-medium text-slate-700">solution.py</span>
+            <span className="font-mono font-medium text-slate-700">
+              {snapshot.language === "javascript" ? "solution.js" : "solution.py"}
+            </span>
             <span className="hidden sm:inline">⌘/Ctrl + Enter runs visible tests</span>
           </div>
           <div className="flex min-h-[320px] flex-1 flex-col overflow-hidden lg:min-h-0">
             <TechnicalPythonEditor
               ref={editorRef}
               value={source}
+              language={snapshot.language}
               onChange={setSource}
               onRunVisibleTests={() => void runVisibleTests()}
               isRunning={runningTests}

@@ -3,7 +3,7 @@
 /**
  * Host side of the visible-test runner worker.
  *
- * Candidate Python executes in the worker (see
+ * Candidate code executes in the worker (see
  * `public/technical-runner.worker.js`), never on the server and never on this
  * thread. The host owns the wall-clock limit: on timeout it TERMINATES the
  * worker, which is the only reliable way to stop a candidate's infinite loop,
@@ -17,7 +17,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { PublicTechnicalTest } from "@/lib/technical-interview/types";
+import type {
+  PublicTechnicalTest,
+  TechnicalCodingLanguage,
+} from "@/lib/technical-interview/types";
 
 export const VISIBLE_TEST_TIMEOUT_MS = 20_000;
 /** First run also downloads the runtime from the CDN. */
@@ -40,8 +43,15 @@ export type VisibleTestRun =
  * entry point is read from it rather than stored separately — existing
  * persisted snapshots predate any such field and must keep working.
  */
-export function entryPointFromStarterCode(starterCode: string): string | null {
-  return /^\s*def\s+([A-Za-z_]\w*)\s*\(/m.exec(starterCode)?.[1] ?? null;
+export function entryPointFromStarterCode(
+  starterCode: string,
+  language: TechnicalCodingLanguage,
+): string | null {
+  const pattern =
+    language === "python"
+      ? /^\s*def\s+([A-Za-z_]\w*)\s*\(/m
+      : /^\s*function\s+([A-Za-z_]\w*)\s*\(/m;
+  return pattern.exec(starterCode)?.[1] ?? null;
 }
 
 export function useVisibleTestRunner() {
@@ -60,6 +70,7 @@ export function useVisibleTestRunner() {
   const run = useCallback(
     async (
       source: string,
+      language: TechnicalCodingLanguage,
       entryPoint: string,
       tests: readonly PublicTechnicalTest[],
     ): Promise<VisibleTestRun> => {
@@ -80,7 +91,7 @@ export function useVisibleTestRunner() {
           status: "failed",
           errorCategory: "unavailable",
           message:
-            "This browser could not start the Python runner. Try a different browser.",
+            "This browser could not start the code runner. Try a different browser.",
         };
       }
 
@@ -119,7 +130,7 @@ export function useVisibleTestRunner() {
           settle({
             status: "failed",
             errorCategory: "unavailable",
-            message: "The Python runner stopped unexpectedly. Try running again.",
+            message: "The code runner stopped unexpectedly. Try running again.",
           });
         };
 
@@ -138,6 +149,7 @@ export function useVisibleTestRunner() {
         worker.postMessage({
           runId,
           source,
+          language,
           entry: entryPoint,
           tests: tests.map((test) => ({
             id: test.id,
