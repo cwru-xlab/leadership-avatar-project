@@ -50,22 +50,22 @@ function classifyReadFailure(error: unknown): "SCHEMA_OUT_OF_DATE" | "UNAVAILABL
 }
 
 /**
- * Hint-ledger count for the workspace's "hints used" indicator.
+ * Furthest hint stage reached for the workspace indicator.
  *
- * This is a DISPLAY read, not the security boundary. The authoritative
- * ledger lives in `app/api/interaction/chat/route.ts`, where every hint is
- * allocated under the `(reportId, requestKey)` / `(reportId, tier)` unique
- * constraints; that path fails CLOSED if the ledger is unavailable, so a
- * degraded count here can never buy a student an extra hint. Because of
- * that, an unreachable/unmigrated ledger degrades the indicator instead of
- * failing the whole report read.
+ * This is a DISPLAY read, not the security boundary. The authoritative ledger
+ * lives in `app/api/interaction/chat/route.ts`. A candidate whose checkpoint
+ * already shows an early-stage idea may receive Hint 2 or 3 first, so a row
+ * count would incorrectly invite them to request redundant, unavailable tiers.
  */
-async function countTechnicalHints(reportId: string): Promise<number> {
+async function technicalHintProgress(reportId: string): Promise<number> {
   try {
-    const count = await prisma.technicalInterviewHint.count({ where: { reportId } });
-    return Math.max(0, Math.min(MAX_TECHNICAL_HINTS, count));
+    const result = await prisma.technicalInterviewHint.aggregate({
+      where: { reportId },
+      _max: { tier: true },
+    });
+    return Math.max(0, Math.min(MAX_TECHNICAL_HINTS, result._max.tier ?? 0));
   } catch (error) {
-    console.error("Technical hint ledger count failed; reporting 0 used:", {
+    console.error("Technical hint ledger progress failed; reporting 0 used:", {
       reportId,
       reason: classifyReadFailure(error),
       error,
@@ -95,7 +95,7 @@ export async function GET(
 
     const technicalHintCount =
       result.report.typeSlug === "technical-coding"
-        ? await countTechnicalHints(reportId)
+        ? await technicalHintProgress(reportId)
         : undefined;
     return response(
       {

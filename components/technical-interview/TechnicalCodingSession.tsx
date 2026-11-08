@@ -385,8 +385,20 @@ export default function TechnicalCodingSession({
         if (reply) {
           setTurns((prior) => [...prior, { role: "assistant", content: reply }]);
           setStreamingReply("");
-          if (!avatarFailedRef.current) avatarRef.current?.speak(reply);
-          if (requestHint) setHintsUsed((value) => Math.min(MAX_TECHNICAL_HINTS, value + 1));
+          // Playback is optional; a pending or failed avatar must not turn a
+          // successful chat response into an error state.
+          try {
+            if (!avatarFailedRef.current) avatarRef.current?.speak(reply);
+          } catch {
+            // Text chat remains authoritative while media is unavailable.
+          }
+          if (requestHint) {
+            // The server may skip an already-demonstrated nudge and issue a
+            // later stage first. The tier prefix is server-authored, so reflect
+            // that progress rather than blindly counting button presses.
+            const match = /^Hint ([1-3]) of \d+:/i.exec(reply);
+            if (match) setHintsUsed(Number(match[1]));
+          }
           void checkpoint();
         }
       } catch {
