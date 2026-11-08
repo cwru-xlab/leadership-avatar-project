@@ -269,17 +269,41 @@ console.log("\n3. SEPARATION FROM NORMAL PRACTICE");
   console.log(`  shell's full import list (${importLines.length} line(s)):`);
   for (const line of importLines) console.log(`    ${line}`);
 
-  let practiceDiffOutput = "";
+  // Scoped to ADDED lines, not the mere existence of a diff. This asserted
+  // `git diff -- components/practice/` was empty, which is not the invariant
+  // this section is about: it failed for anyone with ordinary uncommitted work
+  // in the directory (it fired on an unrelated resume-copy fix and went green
+  // on commit, having found nothing), and passed trivially once that work was
+  // committed — loud when harmless, silent when it mattered. The real
+  // invariant is the identifier walk above, which reads every practice file
+  // from disk regardless of git state. What a diff can add cheaply is WHERE a
+  // leak entered, so check the added lines for coached identifiers.
+  let addedLeaks: string[] = [];
+  let practiceDiffError = "";
   try {
-    practiceDiffOutput = execSync("git diff --name-only -- components/practice/", {
+    const diff = execSync("git diff -U0 -- components/practice/ app/practice/", {
       cwd: ROOT,
       encoding: "utf8",
-    }).trim();
+    });
+    addedLeaks = diff
+      .split("\n")
+      .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
+      .map((line) => line.slice(1))
+      .filter((line) => forbiddenIdentifierRe.test(line));
   } catch (err) {
-    practiceDiffOutput = `<git diff failed: ${err instanceof Error ? err.message : String(err)}>`;
+    practiceDiffError = err instanceof Error ? err.message : String(err);
   }
-  console.log(`  git diff --name-only -- components/practice/ => "${practiceDiffOutput}"`);
-  check("components/practice/ is unmodified relative to the working tree's committed state", practiceDiffOutput === "");
+  check(
+    "git diff is readable for the practice tree",
+    practiceDiffError === "",
+    practiceDiffError,
+  );
+  console.log(`  uncommitted added lines mentioning a coached identifier: ${addedLeaks.length}`);
+  check(
+    "no uncommitted line adds a coached identifier to the practice tree",
+    addedLeaks.length === 0,
+    addedLeaks.slice(0, 5).join(" | "),
+  );
 }
 
 // ---------------------------------------------------------------------------

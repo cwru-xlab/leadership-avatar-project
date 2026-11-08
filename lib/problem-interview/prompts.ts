@@ -363,6 +363,15 @@ export function buildProblemProgressBlock(
       ...nudgeable.map(
         (step) => `- "${step.nudge}" → <interview-turn kind="nudge" step="${step.key}" />`,
       ),
+      // A candidate who asserts a conclusion ("basically a 3x, so ~25% IRR")
+      // has skipped SEVERAL steps at once, and no nudge above is written for
+      // that: the later ones presuppose work they never showed, and the
+      // returns-math nudge is absurd when they just stated a return. Given no
+      // rule for which to pick, the model wrote its own redirect and dropped
+      // every marker with it (finance P3). Name the choice so the canned
+      // wording stays reachable.
+      `If they jump to an answer or conclusion having skipped several of the steps above, nudge the EARLIEST skipped one ` +
+        `— its exact words, its marker — not the step nearest their conclusion.`,
       `Otherwise do not redirect them at all. No coaching ("however feels natural", "no right answer", "let you drive"); ` +
         `if asked how to proceed say "It's your call." Never volunteer a fact, number or hint they did not ask for. Never restate the problem.`,
     );
@@ -413,7 +422,12 @@ export function buildProblemProgressBlock(
   }
   if (state.stage === "problem" && nudgeable.length && !nudgeOnCooldown) {
     lines.push(
-      `- If this reply asks any nudge above, it MUST also carry that nudge's marker.`,
+      // Was conditional on "asks any nudge above", which the model read as
+      // not applying once it improvised its own wording — so the redirect
+      // went out unmarked, `nudgedSteps` never recorded it, and the one-per-
+      // step budget was not consumed (the step could be nudged again). State
+      // it as a property of the TURN, not of the canned list.
+      `- If this reply redirects them toward a step they skipped — in the words above or any others — it MUST carry that step's nudge marker.`,
     );
   }
 
