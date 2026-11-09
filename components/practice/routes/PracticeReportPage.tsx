@@ -15,6 +15,7 @@ import ReportBody from "@/components/report/ReportBody";
 import {
   getReportChrome,
   renderReportExtras,
+  reportExtraTabs,
 } from "@/components/practice/ReportChrome";
 import { listRubricDimensionsForSlug } from "@/lib/engine/resolve";
 import type { ReportDTO } from "@/lib/report/dto";
@@ -365,6 +366,11 @@ export default function PracticeReportPage({
           reportId={report.id}
           checkIn={report.checkIn}
           checkInLead={chrome?.checkInLead}
+          extraTabs={reportExtraTabs(chrome, report).map((tab) => ({
+            key: tab.key,
+            title: tab.title,
+            render: () => tab.render(report),
+          }))}
         />
       ) : report?.status === "FAILED" ? (
         <StatusPanel

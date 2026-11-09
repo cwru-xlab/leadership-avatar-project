@@ -13,6 +13,7 @@
 import { ENGINE_TYPES } from "../lib/engine/registry";
 import { listRubricDimensionsForSlug } from "../lib/engine/resolve";
 import { getReportChrome } from "../components/practice/ReportChrome";
+import type { ReportDTO } from "../lib/report/dto";
 
 let failed = 0;
 
@@ -51,6 +52,111 @@ check(
   'dashboard plural "difficult-conversations" is not an engine slug',
   !ENGINE_TYPES.some((t) => t.slug === "difficult-conversations"),
 );
+
+/**
+ * MODE TABS JOIN THE ONE STRIP, AND NEVER OPEN EMPTY.
+ *
+ * Heavy mode analysis (a problem interview's question + process steps, a
+ * questioned-persona report's behavior counts + checklist) used to stack in
+ * the `extras.above` / `extras.below` slots. The two heaviest landed at
+ * opposite ends of the page — the problem panels pushed the four score cards
+ * below the full case prompt, while MITI's counts sat past the Moments
+ * timeline — so the same class of content had no consistent home and the
+ * report did not open on its scores.
+ *
+ * Those panels now contribute a tab into the report's existing strip. Two
+ * properties have to hold, and neither is visible from reading one file:
+ *
+ * 1. Every declared tab carries an `available` predicate. A panel self-nulls
+ *    when its snapshot is missing, which is why the old slots were safe to
+ *    declare unconditionally; a TAB cannot — the strip would still show its
+ *    title and open a blank panel. `INTERVIEW_CHROME` is shared by all
+ *    interview presets, so without the predicate every general and technical
+ *    report would carry an empty "The problem" tab.
+ *
+ * 2. Banners stay OUT of tabs. A practice-only disclaimer or an outcome
+ *    banner behind a tab can be missed entirely, and the house rule is never
+ *    to hide consent or required notices.
+ */
+{
+  const chromes = ENGINE_TYPES.map((t) => ({ slug: t.slug, chrome: getReportChrome(t.slug) }));
+  const withTabs = chromes.filter((c) => (c.chrome?.extraTabs?.length ?? 0) > 0);
+
+  check(
+    "at least one type contributes a mode tab (non-vacuous)",
+    withTabs.length > 0,
+  );
+
+  const missingPredicate = withTabs.flatMap(({ slug, chrome }) =>
+    (chrome!.extraTabs ?? [])
+      .filter((tab) => typeof tab.available !== "function")
+      .map((tab) => `${slug}:${tab.key}`),
+  );
+  check(
+    `every mode tab declares an available() predicate${
+      missingPredicate.length ? ` — missing: ${missingPredicate.join(", ")}` : ""
+    }`,
+    missingPredicate.length === 0,
+  );
+
+  // A tab must be absent, not empty, when the report lacks its data. A bare
+  // DTO stands in for "no mode snapshot": every predicate must reject it.
+  const emptyReport = {
+    status: "READY",
+    scores: {},
+    input: null,
+    outcome: null,
+  } as unknown as ReportDTO;
+  const survivesEmpty = withTabs.flatMap(({ slug, chrome }) =>
+    (chrome!.extraTabs ?? [])
+      .filter((tab) => {
+        try {
+          return tab.available(emptyReport) === true;
+        } catch {
+          // A predicate that throws on a bare report is also a defect: the
+          // report page would crash rather than drop the tab.
+          return true;
+        }
+      })
+      .map((tab) => `${slug}:${tab.key}`),
+  );
+  check(
+    `no mode tab claims to be available on a report with no mode data${
+      survivesEmpty.length ? ` — leaked: ${survivesEmpty.join(", ")}` : ""
+    }`,
+    survivesEmpty.length === 0,
+  );
+
+  // Keys must be unique per type: HeroUI identifies a tab by key, and a
+  // duplicate would make the strip's selection ambiguous.
+  const dupes = withTabs.flatMap(({ slug, chrome }) => {
+    const keys = (chrome!.extraTabs ?? []).map((tab) => tab.key);
+    return keys.length === new Set(keys).size ? [] : [slug];
+  });
+  check(`mode tab keys are unique per type${dupes.length ? ` — ${dupes.join(", ")}` : ""}`, dupes.length === 0);
+
+  // Banners belong in flow. Named here rather than inferred, because the
+  // mistake is moving one INTO a tab for tidiness.
+  //
+  // Checked against each tab's own `render` output rather than the file text:
+  // slicing the source from the first `extraTabs:` to the end swept up
+  // banners declared in LATER chromes' `extras` slots, which is where they
+  // correctly live — the check failed on all three while nothing was wrong.
+  // Rendering is not possible here, so compare function source instead,
+  // which is exact about what each tab actually draws.
+  const bannersInTabs = withTabs.flatMap(({ slug, chrome }) =>
+    (chrome!.extraTabs ?? []).flatMap((tab) => {
+      const body = tab.render.toString();
+      return ["PersonaDisclaimerBanner", "ConversationEndBanner", "PitchOutcomeBanner"]
+        .filter((name) => body.includes(name))
+        .map((name) => `${slug}:${tab.key}:${name}`);
+    }),
+  );
+  check(
+    `no banner is rendered inside a mode tab${bannersInTabs.length ? ` — ${bannersInTabs.join(", ")}` : ""}`,
+    bannersInTabs.length === 0,
+  );
+}
 
 if (failed > 0) {
   console.error(`\n${failed} check(s) failed.`);

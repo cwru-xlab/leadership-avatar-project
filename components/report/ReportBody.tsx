@@ -99,6 +99,15 @@ interface ReportBodyProps {
   checkIn?: CheckInAnswers;
   /** The practice type's check-in coaching opener (`ReportChrome.checkInLead`). */
   checkInLead?: CheckInLead;
+  /**
+   * Mode-specific tabs appended to the shared strip.
+   *
+   * Deliberately a local shape rather than an import of `ReportExtraTab`:
+   * this component is the GENERIC report body and must not depend on the
+   * practice-type chrome map, which imports every mode's panels. `render`
+   * takes no argument because the page has already bound the report.
+   */
+  extraTabs?: { key: string; title: string; render: () => React.ReactNode }[];
 }
 
 function SectionHeading({ children, count }: { children: React.ReactNode; count?: number }) {
@@ -284,6 +293,7 @@ export default function ReportBody({
   reportId,
   checkIn,
   checkInLead,
+  extraTabs = [],
 }: ReportBodyProps) {
   const [selectedAnswer, setSelectedAnswer] = useState(0);
   const [checkInAnswers, setCheckInAnswers] = useState<CheckInAnswers>(checkIn ?? {});
@@ -334,6 +344,13 @@ export default function ReportBody({
             <ReportMarkdown markdown={markdown} />
           </div>
         )}
+        {/* No strip exists on this path, so a mode's tabs would silently
+            vanish. They render in flow instead: a legacy report that somehow
+            carries a mode snapshot still shows its analysis, and a tab is
+            never the only way to reach content. */}
+        {extraTabs.map((tab) => (
+          <Fragment key={tab.key}>{tab.render()}</Fragment>
+        ))}
       </div>
     );
   }
@@ -643,6 +660,23 @@ export default function ReportBody({
             </div>
           </Tab>
         ) : null}
+
+        {/* Mode-specific analysis, contributed through `ReportChrome.extraTabs`
+            (a problem interview's "The problem"/"Process steps", MITI's
+            behavior counts and checklist). LAST, after Content: the shared
+            tabs are the same five on every report, so a mode's own tab
+            arriving at a fixed end position keeps the strip predictable.
+
+            Rendered as `<Tab>` children here rather than as a pre-built
+            fragment, because HeroUI reads its children to build the tab list
+            — a wrapper element would register as one unnamed tab. For the
+            same reason this maps to a flat array and cannot be nested in a
+            fragment. */}
+        {extraTabs.map((tab) => (
+          <Tab key={tab.key} title={tab.title}>
+            <div className="flex flex-col gap-7">{tab.render()}</div>
+          </Tab>
+        ))}
       </Tabs>
 
       {hasMomentsSection && (
