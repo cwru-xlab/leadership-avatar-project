@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Report panels for questioned-persona sessions (clinical communication,
  * motivational interviewing):
@@ -9,11 +11,26 @@
  * - `PersonaChecklistPanel` — the checklist step by step with verbatim
  *   evidence quotes, the hidden facts elicited, cue handling and ICE.
  *
- * Reports prefer more content: nothing is condensed. Long lists sit in
- * expandable sections so the page still opens on the headline numbers.
+ * NOTHING IS DELETED, BUT THE PAGE OPENS ON THE HEADLINES. Measured at
+ * 1440x907 this tab rendered 3391px — 3.7 screens — of evenly weighted rows:
+ * eleven step cards at a uniform 114-142px each (1486px in total), a 453px
+ * count table expanded on load, and seven metric cards at up to 232px. A
+ * student looking for "which steps did I miss" had to read all of it.
+ *
+ * So each list leads with a count and collapses its detail, rather than
+ * being trimmed: every step, quote, note and coded utterance is still
+ * reachable in one click. This is a deliberate revision of the older "reports
+ * prefer more content: nothing is condensed" rule — more content stays
+ * available, it just no longer all arrives at once.
+ *
+ * `"use client"` is explicit because the step rows hold open/closed state.
+ * It already only renders under client components (`PracticeReportPage` ->
+ * `ReportBody`), but relying on an ancestor's directive would make this file
+ * break the moment a server component imported it.
  */
 
-import type { ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
+import { useState, type ReactNode } from "react";
 
 import type { ReportDTO } from "@/lib/report/dto";
 import { formatTimecode } from "@/lib/metrics/bands";
@@ -56,6 +73,115 @@ function Section({ title, children, testId }: { title: string; children: ReactNo
   );
 }
 
+/**
+ * The counts a reader wants before any list: how many steps landed, how many
+ * were missed, how much of the hidden history came out.
+ *
+ * Only non-zero tiles render. A strip reading "Prompted 0 · Not reached 0"
+ * spends the most valuable row on the page saying nothing happened.
+ */
+function SummaryStrip({
+  tiles,
+  testId,
+}: {
+  tiles: { label: string; value: string; total?: string; tone: "good" | "bad" | "neutral" }[];
+  testId: string;
+}) {
+  const shown = tiles.filter((t) => t.value !== "0");
+  if (!shown.length) return null;
+  return (
+    <dl
+      className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4"
+      data-testid={testId}
+    >
+      {shown.map((t) => (
+        <div
+          key={t.label}
+          className="flex flex-col gap-1 rounded-lg border border-line bg-canvas/60 px-3.5 py-3"
+        >
+          <dt className="text-xs font-semibold text-muted">{t.label}</dt>
+          <dd className="flex items-baseline gap-1.5">
+            <span
+              className={`font-display text-[26px] font-medium leading-none [font-variant-numeric:lining-nums] ${
+                t.tone === "bad" ? "text-copper-deep" : "text-cwru-blue"
+              }`}
+            >
+              {t.value}
+            </span>
+            {t.total ? <span className="text-[13px] text-muted">of {t.total}</span> : null}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/**
+ * One checklist step: status and label always visible, the rest on click.
+ *
+ * COLLAPSED BY DEFAULT because the detail is mostly absent on the rows that
+ * matter. Across the stored persona reports every one of the 15 missed steps
+ * has a note but NO evidence quote — there is no quote to show for something
+ * that did not happen — so an always-open card spent 114px rendering a label,
+ * a status, a description and one sentence. Eleven of those is 1486px the
+ * reader scrolls past to count four "Done" chips.
+ */
+function StepRow({
+  label,
+  description,
+  status,
+  note,
+  quote,
+  timecode,
+  testId,
+}: {
+  label: string;
+  description: string | null;
+  status: { label: string; className: string };
+  note: string | null;
+  quote: string | null;
+  timecode: string | null;
+  testId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const hasDetail = Boolean(description || note || quote);
+  return (
+    <li className="overflow-hidden rounded-lg border border-line" data-testid={testId}>
+      <button
+        aria-expanded={hasDetail ? open : undefined}
+        className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left outline-none transition-colors duration-150 ease-out hover:bg-canvas focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-true-blue disabled:cursor-default"
+        disabled={!hasDetail}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{label}</span>
+        {timecode ? (
+          <span className="shrink-0 font-mono text-xs tabular-nums text-muted">{timecode}</span>
+        ) : null}
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.className}`}
+        >
+          {status.label}
+        </span>
+        {hasDetail ? (
+          <ChevronDown
+            aria-hidden
+            className={`shrink-0 text-link transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+            size={15}
+          />
+        ) : null}
+      </button>
+      {open && hasDetail ? (
+        <div className="flex flex-col gap-2 border-t border-line px-3.5 py-3">
+          {description ? <p className="text-sm text-muted">{description}</p> : null}
+          {quote ? <p className="text-sm italic text-ink">&ldquo;{quote}&rdquo;</p> : null}
+          {note ? <p className="text-sm leading-6 text-ink">{note}</p> : null}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
 export function PersonaDisclaimerBanner({ report }: { report: ReportDTO }) {
   const analysis = asPersonaAnalysis(report.outcome);
   const style =
@@ -95,41 +221,58 @@ export function PersonaCountsPanel({ report }: { report: ReportDTO }) {
             const band: ThresholdBand | undefined =
               g.value === null ? undefined : g.value >= g.good ? "good" : g.value >= g.fair ? "fair" : "below";
             return (
-              <div key={g.key} className="rounded-lg border border-line p-4">
-                <p className="text-xs font-semibold text-muted">{g.label}</p>
-                <p className="mt-1 font-display text-2xl font-medium text-ink">{g.value ?? "—"}</p>
-                <p className="mt-1 text-xs text-muted">
+              <div key={g.key} className="rounded-lg border border-line px-4 py-3.5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="font-display text-[26px] font-medium leading-none text-ink [font-variant-numeric:lining-nums]">
+                    {g.value ?? "—"}
+                  </p>
+                  {band ? (
+                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${BAND_STYLE[band].className}`}>
+                      {BAND_STYLE[band].label}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1.5 text-[13.5px] font-semibold text-ink">{g.label}</p>
+                <p className="mt-0.5 text-xs text-muted">
                   {g.formula}. Fair ≥ {g.fair} · Good ≥ {g.good}
                 </p>
-                {band ? (
-                  <span className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${BAND_STYLE[band].className}`}>
-                    {BAND_STYLE[band].label}
-                  </span>
-                ) : null}
               </div>
             );
           })}
         </div>
       ) : null}
 
-      <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="persona-metrics">
+      <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3" data-testid="persona-metrics">
         {analysis.metrics.map((m) => (
-          <li key={m.key} className="flex flex-col gap-1 rounded-lg border border-line p-4" data-testid={`persona-metric-${m.key}`}>
-            <p className="text-xs font-semibold text-muted">{m.label}</p>
-            <p className="font-display text-2xl font-medium text-ink">{formatValue(m)}</p>
+          <li key={m.key} className="flex flex-col gap-1.5 rounded-lg border border-line px-4 py-3.5" data-testid={`persona-metric-${m.key}`}>
+            {/* Figure and band on ONE line: the value and its verdict are the
+                scannable part, and stacking them cost a row each per card. */}
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="font-display text-[26px] font-medium leading-none text-ink [font-variant-numeric:lining-nums]">
+                {formatValue(m)}
+              </p>
+              {m.band ? (
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${BAND_STYLE[m.band].className}`}>
+                  {BAND_STYLE[m.band].label}
+                </span>
+              ) : null}
+            </div>
+            <p className="text-[13.5px] font-semibold text-ink">{m.label}</p>
             {formatThreshold(m) ? <p className="text-xs text-muted">{formatThreshold(m)}</p> : null}
-            {m.band ? (
-              <span className={`w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ${BAND_STYLE[m.band].className}`}>
-                {BAND_STYLE[m.band].label}
-              </span>
-            ) : null}
-            <p className="text-sm leading-6 text-ink">{m.note}</p>
+            {/* The explanation is the least-scanned line on the card, so it
+                closes it rather than leading in ink weight. */}
+            <p className="text-[13px] leading-[1.5] text-muted">{m.note}</p>
           </li>
         ))}
       </ul>
 
-      <details className="mt-4 rounded-lg border border-line px-4 py-3" open>
-        <summary className="cursor-pointer text-sm font-semibold text-cwru-blue">Every behavior count</summary>
+      {/* CLOSED by default. Expanded it rendered 453px of code/count pairs
+          directly under the metric cards that already name the counts that
+          matter, pushing the checklist a screen further down. */}
+      <details className="mt-4 rounded-lg border border-line px-4 py-3">
+        <summary className="cursor-pointer text-sm font-semibold text-cwru-blue">
+          Every behavior count ({codeKeys.length})
+        </summary>
         <table className="mt-3 w-full text-sm" data-testid="persona-count-table">
           <tbody>
             {codeKeys.map((k) => (
@@ -206,35 +349,52 @@ export function PersonaChecklistPanel({ report }: { report: ReportDTO }) {
   const tally = stepTally(analysis.steps);
   const factsFound = analysis.facts.filter((f) => f.elicited).length;
   const mi = analysis.style === "motivational-interviewing";
+  const missedSteps = analysis.steps.filter((s) => s.status === "missed").length;
+  const cuesHandled = analysis.cues.filter(
+    (c) => c.status === "explored" || c.status === "acknowledged",
+  ).length;
+  const cuesRaised = analysis.cues.filter((c) => c.status !== "not_raised").length;
 
   return (
     <Section title={framework.label} testId="persona-checklist-panel">
-      <p className="mt-2 text-sm text-muted">
-        {tally.hit} of {tally.applicable} steps done · {factsFound} of {analysis.facts.length}{" "}
-        {mi ? "things the client was holding back" : "hidden history items"} drawn out
-      </p>
+      <SummaryStrip
+        testId="persona-checklist-summary"
+        tiles={[
+          { label: "Steps done", value: String(tally.hit), total: String(tally.applicable), tone: "good" },
+          { label: "Steps missed", value: String(missedSteps), tone: "bad" },
+          {
+            label: mi ? "Held back, drawn out" : "Hidden history found",
+            value: String(factsFound),
+            total: String(analysis.facts.length),
+            tone: "neutral",
+          },
+          {
+            label: "Cues handled",
+            value: String(cuesHandled),
+            total: String(cuesRaised),
+            tone: cuesHandled < cuesRaised ? "bad" : "neutral",
+          },
+        ]}
+      />
 
-      <ol className="mt-4 flex flex-col gap-3">
+      {/* The list stays complete and in encounter order — a student retraces
+          the conversation, so re-sorting it worst-first would break the one
+          thing the order is for. The strip above already says where to look. */}
+      <ol className="mt-4 flex flex-col gap-1.5">
         {analysis.steps.map((step) => {
           const def = defs.get(step.key);
           const status = STEP_STATUS[step.status] ?? STEP_STATUS.missed;
           return (
-            <li key={step.key} className="rounded-lg border border-line p-4" data-testid={`persona-step-${step.key}`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-semibold text-ink">{def?.label ?? step.key}</p>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.className}`}>{status.label}</span>
-              </div>
-              {def ? <p className="mt-1 text-sm text-muted">{def.description}</p> : null}
-              {step.evidenceQuote ? (
-                <p className="mt-2 text-sm text-ink">
-                  {step.timecodeSeconds !== null ? (
-                    <span className="mr-2 font-mono text-xs tabular-nums text-muted">{formatTimecode(step.timecodeSeconds)}</span>
-                  ) : null}
-                  &ldquo;{step.evidenceQuote}&rdquo;
-                </p>
-              ) : null}
-              {step.note ? <p className="mt-2 text-sm leading-6 text-ink">{step.note}</p> : null}
-            </li>
+            <StepRow
+              key={step.key}
+              description={def?.description ?? null}
+              label={def?.label ?? step.key}
+              note={step.note?.trim() ? step.note : null}
+              quote={step.evidenceQuote?.trim() ? step.evidenceQuote : null}
+              status={status}
+              testId={`persona-step-${step.key}`}
+              timecode={step.timecodeSeconds !== null ? formatTimecode(step.timecodeSeconds) : null}
+            />
           );
         })}
       </ol>
