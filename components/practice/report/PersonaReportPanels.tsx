@@ -81,6 +81,29 @@ function Section({ title, children, testId }: { title: string; children: ReactNo
  * Only non-zero tiles render. A strip reading "Prompted 0 · Not reached 0"
  * spends the most valuable row on the page saying nothing happened.
  */
+/**
+ * Column classes chosen so `count` items divide the row EXACTLY, leaving no
+ * empty cell.
+ *
+ * Both grids here are fed variable-length data, while their column counts were
+ * hard-coded, so the last row broke open whenever the two disagreed. Measured
+ * on the clinical report: the checklist strip renders 3 tiles into
+ * `lg:grid-cols-4` and left a 263px hole, and the 7 metric cards in
+ * `xl:grid-cols-3` left the 7th alone beside 700px of nothing.
+ *
+ * The intermediate 2-column step is skipped for odd counts, since that is the
+ * same bug one breakpoint down (3 items in 2 columns is another hole).
+ */
+const FILL_COLS: Record<number, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-1 sm:grid-cols-2",
+  3: "grid-cols-1 lg:grid-cols-3",
+  4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
+};
+
+/** Falls back to 3 wide, which only ever leaves a hole for counts above 4. */
+const fillCols = (count: number) => FILL_COLS[count] ?? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+
 function SummaryStrip({
   tiles,
   testId,
@@ -92,7 +115,7 @@ function SummaryStrip({
   if (!shown.length) return null;
   return (
     <dl
-      className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4"
+      className={clsx("mt-4 grid gap-2.5", fillCols(shown.length))}
       data-testid={testId}
     >
       {shown.map((t) => (
@@ -340,29 +363,61 @@ export function PersonaCountsPanel({ report }: { report: ReportDTO }) {
         </div>
       ) : null}
 
-      <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3" data-testid="persona-metrics">
-        {analysis.metrics.map((m) => (
-          <li key={m.key} className="flex flex-col gap-1.5 rounded-lg border border-line px-4 py-3.5" data-testid={`persona-metric-${m.key}`}>
-            {/* Figure and band on ONE line: the value and its verdict are the
+      {/* TWO grids, not one, because the row has to divide evenly and 7 is
+          prime: `xl:grid-cols-3` stranded the 7th card beside 700px of empty
+          canvas. The split is the one the data already makes — 3 metrics
+          carry a target to be judged against, the rest are plain "aim for
+          zero" tallies — and it divides 3 + 4 (clinical) and 3 + 2 (MI), each
+          of which fills its row exactly.
+          Both `deriveMetrics` branches author the targeted ones first, so
+          partitioning preserves the authored reading order.
+          Partitioned on `threshold`, which is a static property of the metric,
+          NOT on `band`: band is derived from the value and goes undefined when
+          a denominator is zero, so a student who asked no questions at all
+          would see "Open questions" demoted into the second group. */}
+      <div data-testid="persona-metrics">
+        {[
+          analysis.metrics.filter((m) => m.threshold),
+          analysis.metrics.filter((m) => !m.threshold),
+        ]
+          .filter((group) => group.length > 0)
+          .map((group, gi) => (
+            <ul
+              key={gi}
+              className={clsx("mt-4 grid gap-2.5", fillCols(group.length))}
+            >
+              {group.map((m) => (
+                <li
+                  key={m.key}
+                  className="flex flex-col gap-1.5 rounded-lg border border-line px-4 py-3.5"
+                  data-testid={`persona-metric-${m.key}`}
+                >
+                  {/* Figure and band on ONE line: the value and its verdict are the
                 scannable part, and stacking them cost a row each per card. */}
-            <div className="flex items-baseline justify-between gap-3">
-              <p className="font-display text-[26px] font-medium leading-none text-ink [font-variant-numeric:lining-nums]">
-                {formatValue(m)}
-              </p>
-              {m.band ? (
-                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${BAND_STYLE[m.band].className}`}>
-                  {BAND_STYLE[m.band].label}
-                </span>
-              ) : null}
-            </div>
-            <p className="text-[13.5px] font-semibold text-ink">{m.label}</p>
-            {formatThreshold(m) ? <p className="text-xs text-muted">{formatThreshold(m)}</p> : null}
-            {/* The explanation is the least-scanned line on the card, so it
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="font-display text-[26px] font-medium leading-none text-ink [font-variant-numeric:lining-nums]">
+                      {formatValue(m)}
+                    </p>
+                    {m.band ? (
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${BAND_STYLE[m.band].className}`}
+                      >
+                        {BAND_STYLE[m.band].label}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-[13.5px] font-semibold text-ink">{m.label}</p>
+                  {formatThreshold(m) ? (
+                    <p className="text-xs text-muted">{formatThreshold(m)}</p>
+                  ) : null}
+                  {/* The explanation is the least-scanned line on the card, so it
                 closes it rather than leading in ink weight. */}
-            <p className="text-[13px] leading-[1.5] text-muted">{m.note}</p>
-          </li>
-        ))}
-      </ul>
+                  <p className="text-[13px] leading-[1.5] text-muted">{m.note}</p>
+                </li>
+              ))}
+            </ul>
+          ))}
+      </div>
 
       {/* CLOSED by default. Expanded it rendered 453px of code/count pairs
           directly under the metric cards that already name the counts that
