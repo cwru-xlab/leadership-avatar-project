@@ -497,6 +497,25 @@ export default function ReportBody({
           </div>
         </Tab>
 
+        {/* Mode-specific analysis, contributed through `ReportChrome.extraTabs`
+            (a problem interview's "The Problem"/"Process steps", MITI's
+            behavior counts and checklist). Second, directly after Overview:
+            this is the case the student was actually graded on, so it is read
+            before the cross-cutting scores rather than parked behind Content
+            where the strip's overflow can hide it. Overview keeps first place
+            because it is the default panel and the report's summary.
+
+            Rendered as `<Tab>` children here rather than as a pre-built
+            fragment, because HeroUI reads its children to build the tab list
+            — a wrapper element would register as one unnamed tab. For the
+            same reason this maps to a flat array and cannot be nested in a
+            fragment. */}
+        {extraTabs.map((tab) => (
+          <Tab key={tab.key} title={tab.title}>
+            <div className="flex flex-col gap-7">{tab.render()}</div>
+          </Tab>
+        ))}
+
         {structured.strengths.length + structured.growth_areas.length > 0 ? (
           <Tab key="takeaways" title="Takeaways">
             {/* Columns stretch to one height so the dividers align. Safe only
@@ -661,22 +680,6 @@ export default function ReportBody({
           </Tab>
         ) : null}
 
-        {/* Mode-specific analysis, contributed through `ReportChrome.extraTabs`
-            (a problem interview's "The problem"/"Process steps", MITI's
-            behavior counts and checklist). LAST, after Content: the shared
-            tabs are the same five on every report, so a mode's own tab
-            arriving at a fixed end position keeps the strip predictable.
-
-            Rendered as `<Tab>` children here rather than as a pre-built
-            fragment, because HeroUI reads its children to build the tab list
-            — a wrapper element would register as one unnamed tab. For the
-            same reason this maps to a flat array and cannot be nested in a
-            fragment. */}
-        {extraTabs.map((tab) => (
-          <Tab key={tab.key} title={tab.title}>
-            <div className="flex flex-col gap-7">{tab.render()}</div>
-          </Tab>
-        ))}
       </Tabs>
 
       {hasMomentsSection && (

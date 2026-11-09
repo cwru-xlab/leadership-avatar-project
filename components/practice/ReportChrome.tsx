@@ -55,7 +55,7 @@ export type ReportExtrasRenderer = (report: ReportDTO) => ReactNode;
  *
  * Mode analysis used to have only `above` and `below`, and the two heaviest
  * cases ended up at opposite ends of the page: a problem interview pushed the
- * four score cards below "The problem" and "Process steps", while MITI's
+ * four score cards below "The Problem" and "Process steps", while MITI's
  * counts and checklist sat past the Moments timeline. Same class of content,
  * opposite ends, and the report frame asks for the scores up front.
  *
@@ -130,12 +130,12 @@ const INTERVIEW_CHROME: ReportChrome = {
   extraTabs: [
     {
       key: "problem",
-      title: "The problem",
+      title: "The Problem",
       // The panels' own guard, in one place: `ProblemQuestionPanel` and
       // `ProcessStepsPanel` both return null without a problem snapshot, so
       // the tab must be absent in exactly those cases. Without this, every
       // general and technical report — which share this chrome — would show
-      // an empty "The problem" tab.
+      // an empty "The Problem" tab.
       available: (report) =>
         report.input?.kind === "interview" &&
         asProblemSessionSnapshot(report.input.problem) !== null,

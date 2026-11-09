@@ -10,6 +10,8 @@
  * Run: npx tsx scripts/verify-report-chrome-coverage.ts
  */
 
+import { readFileSync } from "node:fs";
+
 import { ENGINE_TYPES } from "../lib/engine/registry";
 import { listRubricDimensionsForSlug } from "../lib/engine/resolve";
 import { getReportChrome } from "../components/practice/ReportChrome";
@@ -155,6 +157,44 @@ check(
   check(
     `no banner is rendered inside a mode tab${bannersInTabs.length ? ` — ${bannersInTabs.join(", ")}` : ""}`,
     bannersInTabs.length === 0,
+  );
+}
+
+// The mode tab's POSITION in the strip, read from ReportBody's source.
+//
+// This is the whole point of contributing a tab: "The Problem" is the case the
+// student was graded on, so it must be read early, not parked behind Content
+// where the strip's overflow can hide it on a narrow window. The ordering is
+// one JSX line in a file nobody edits for this reason, so a later refactor
+// that re-groups the tabs would silently push it back to last — which is where
+// it started. Asserted on source text because the order is JSX child order,
+// which cannot be read off the chrome objects.
+{
+  const body = readFileSync(
+    new URL("../components/report/ReportBody.tsx", import.meta.url),
+    "utf8",
+  );
+  // The strip only: the pre-structured path above it renders the same tabs in
+  // flow and would otherwise match first.
+  const strip = body.slice(body.indexOf("<Tabs "));
+  const at = (needle: string) => strip.indexOf(needle);
+
+  const overview = at('<Tab key="overview"');
+  const mode = at("{extraTabs.map(");
+  const shared = ['<Tab key="takeaways"', '<Tab key="statistics"', '<Tab key="delivery"', '<Tab key="content"']
+    .map((needle) => ({ needle, index: at(needle) }));
+
+  check("ReportBody's strip renders Overview, then the mode tabs", overview >= 0 && mode > overview);
+  check(
+    "every shared tab is still in the strip",
+    shared.every(({ index }) => index >= 0),
+  );
+  const after = shared.filter(({ index }) => index >= 0 && index < mode).map(({ needle }) => needle);
+  check(
+    `the mode tab is not last — it precedes Takeaways, Statistics, Delivery and Content${
+      after.length ? ` — now behind: ${after.join(", ")}` : ""
+    }`,
+    after.length === 0,
   );
 }
 

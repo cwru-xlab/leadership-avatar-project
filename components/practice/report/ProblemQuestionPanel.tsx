@@ -1,5 +1,5 @@
 /**
- * "The problem" — the question this problem interview posed and the exhibits
+ * "The Problem" — the question this problem interview posed and the exhibits
  * the interviewer actually put on screen, read from the report's snapshot.
  *
  * Self-nulls unless the report carries a problem snapshot, so every interview
@@ -37,8 +37,10 @@ export default function ProblemQuestionPanel({ report }: { report: ReportDTO }) 
       aria-labelledby="problem-question-heading"
       data-testid="problem-question-panel"
     >
+      {/* No "The problem" kicker above the heading: the tab that holds this
+          panel is already named that, so the label was both a duplicate and
+          an eyebrow. The question's own title carries the heading. */}
       <div className="flex flex-col gap-1">
-        <p className="text-[13px] font-semibold text-muted">The problem</p>
         <h2
           id="problem-question-heading"
           className="font-display text-[24px] font-medium leading-[1.15] text-cwru-blue"
