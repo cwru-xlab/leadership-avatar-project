@@ -102,5 +102,34 @@ const sessionShell = source("components/practice/PracticeSessionShell.tsx");
 check("shared setup wizard has no interview slug branch", !setupWizard.includes('typeSlug === "general"') && !setupWizard.includes('typeSlug === "technical"'));
 check("shared session shell has no interview slug branch", !sessionShell.includes('typeSlug === "general"') && !sessionShell.includes('typeSlug === "technical"'));
 
+/**
+ * OBSERVATION VALUES ARE SENTENCES, SO THEY ALIGN LEFT.
+ *
+ * `BandList` renders two kinds of row. Scored bands are one or two words
+ * ("Excellent") and sit flush right, which reads as a column. Observation
+ * values are sentences quoting episode times ("Repeatedly, 1:36–2:22, …"),
+ * and right-aligning a sentence that wraps starts every line after the first
+ * at a different x. `lib/metrics/bands.ts` already holds scored and
+ * descriptive rows apart "by design" in separate functions; this keeps that
+ * separation visible in the rendering.
+ *
+ * Guarded because the natural "cleanup" is to notice two variants doing
+ * almost the same thing and collapse them into one, which silently restores
+ * the ragged edge — and because the variant must follow the row's SOURCE, not
+ * its length, or a card's alignment would change with the session's data.
+ */
+check(
+  "the observation list renders with the descriptive (left-aligned) variant",
+  /<BandList\s+rows=\{observationRows\}\s+variant="descriptive"\s*\/>/.test(reportBody),
+);
+check(
+  "BandList still distinguishes scored from descriptive alignment",
+  reportBody.includes('variant === "scored" ? "sm:text-right" : "sm:text-left"'),
+);
+check(
+  "the variant is chosen by row source, never by measuring value length",
+  !/variant\s*=\s*\{?[^}\n]*\.(length|value\.length)\s*[><]/.test(reportBody),
+);
+
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);

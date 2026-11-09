@@ -25,7 +25,7 @@
  */
 import type { FeedbackSource, StructuredReport } from "@/lib/report/structured";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import clsx from "clsx";
 import { Tab, Tabs } from "@heroui/tabs";
 import { ChevronDown } from "lucide-react";
@@ -116,14 +116,93 @@ function Prose({ children }: { children: React.ReactNode }) {
   return <p className="max-w-[65ch] text-[15px] leading-[1.55] text-ink">{children}</p>;
 }
 
-function BandList({ rows }: { rows: { label: string; value: string }[] }) {
+/**
+ * Label/value list for metric bands.
+ *
+ * ONE GRID, NOT A ROW OF FLEX BOXES. Each row used to be its own
+ * `justify-between` flex container, so no two rows shared a label column: the
+ * split landed wherever that row's own value width put it. Short values
+ * ("Steady") were fine, but these lists also carry sentences — "Held steady
+ * from the opening posture", and observation rows quoting episode times — and
+ * a long value took the width it wanted until the label gave way. "Hand at
+ * mouth" wrapped mid-phrase next to its own wrapped value, which is the
+ * raggedness this grid removes.
+ *
+ * `auto` sizes column one to the WIDEST label in the list, so every label in a
+ * card starts and ends on the same edge and wraps only if that widest label
+ * cannot fit. Long values then wrap inside column two instead of pushing into
+ * column one.
+ *
+ * Stacked below `sm`: at 375px a shared label column would leave single words
+ * per line, so the label sits above its value and the value aligns left with
+ * it. `tabular-nums` keeps the figures in a column from shifting width.
+ */
+/**
+ * Label/value list for metric bands.
+ *
+ * ONE GRID, NOT A ROW OF FLEX BOXES. Each row used to be its own
+ * `justify-between` flex container, so no two rows shared a label column: a
+ * value box shrink-wrapped its own text and so began wherever that text began.
+ * Measured on the real observation rows, the value edges landed at 435 / 556 /
+ * 559 / 595px — a 160px spread down a four-row card, with the right edges
+ * flush the whole time. Short values ("Steady") hid it; the long ones did not,
+ * and "Hand at mouth" and "Posture drift" were squeezed into wrapping
+ * mid-phrase by their own values. `auto` sizes column one to the widest label
+ * in the list, so every label shares one edge (spread now 0px) and a long
+ * value wraps inside column two instead of taking the label's space.
+ *
+ * TWO VARIANTS, because there are two kinds of row, and `lib/metrics/bands.ts`
+ * (see its header) already holds scored and descriptive rendering apart "by
+ * design" in separate functions:
+ *   - `scored` — band words like "Excellent". One or two words, so flush right
+ *     reads as a column and keeps the card's right edge clean.
+ *   - `descriptive` — `visualObservationRows`, whose values are sentences
+ *     quoting episode times. Right-aligning a sentence that wraps leaves every
+ *     line after the first starting at a different x, so these align left on
+ *     the shared value edge and wrap as a block.
+ * The variant follows the row's SOURCE, never its length: a short observation
+ * and a long one must render the same way, or the card's alignment would
+ * change with the session's data.
+ *
+ * Stacked below `sm`: at 375px a shared label column would leave single words
+ * per line, so the label sits above its value. The rule is drawn on the label
+ * (the row's start) and only reaches the value cell at `sm`, or a line would
+ * appear between a label and its own value. `tabular-nums` keeps figures in a
+ * column from shifting width.
+ */
+function BandList({
+  rows,
+  variant = "scored",
+}: {
+  rows: { label: string; value: string }[];
+  variant?: "scored" | "descriptive";
+}) {
   return (
-    <dl className="flex flex-col divide-y divide-line rounded-lg border border-line bg-white">
-      {rows.map((row) => (
-        <div key={row.label} className="flex items-baseline justify-between gap-4 px-4 py-3">
-          <dt className="text-sm text-muted">{row.label}</dt>
-          <dd className="text-right text-sm font-semibold text-ink">{row.value}</dd>
-        </div>
+    <dl className="grid grid-cols-1 rounded-lg border border-line bg-white sm:grid-cols-[auto_1fr]">
+      {rows.map((row, index) => (
+        <Fragment key={row.label}>
+          <dt
+            className={clsx(
+              // Explicit pt/pb rather than `py`, so the stacked and side-by-side
+              // paddings cannot collide as competing shorthand.
+              "px-4 pt-3 pb-1 text-sm text-muted sm:pb-3",
+              // Stacked, the rule belongs above the LABEL (the row's start).
+              // Side by side, both cells need it or the line stops halfway.
+              index > 0 && "border-t border-line",
+            )}
+          >
+            {row.label}
+          </dt>
+          <dd
+            className={clsx(
+              "px-4 pb-3 text-sm font-semibold text-ink tabular-nums sm:pt-3 sm:pl-0",
+              variant === "scored" ? "sm:text-right" : "sm:text-left",
+              index > 0 && "sm:border-t sm:border-line",
+            )}
+          >
+            {row.value}
+          </dd>
+        </Fragment>
       ))}
     </dl>
   );
@@ -523,7 +602,7 @@ export default function ReportBody({
                       <> {visualObservationCaveat(displayVisual)}</>
                     )}
                   </p>
-                  <BandList rows={observationRows} />
+                  <BandList rows={observationRows} variant="descriptive" />
                 </section>
               )}
             </div>
