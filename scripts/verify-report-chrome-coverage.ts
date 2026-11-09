@@ -181,7 +181,7 @@ check(
 
   const overview = at('<Tab key="overview"');
   const mode = at("{extraTabs.map(");
-  const shared = ['<Tab key="takeaways"', '<Tab key="statistics"', '<Tab key="delivery"', '<Tab key="content"']
+  const shared = ['<Tab key="statistics"', '<Tab key="delivery"', '<Tab key="content"']
     .map((needle) => ({ needle, index: at(needle) }));
 
   check("ReportBody's strip renders Overview, then the mode tabs", overview >= 0 && mode > overview);
@@ -191,10 +191,33 @@ check(
   );
   const after = shared.filter(({ index }) => index >= 0 && index < mode).map(({ needle }) => needle);
   check(
-    `the mode tab is not last — it precedes Takeaways, Statistics, Delivery and Content${
+    `the mode tab is not last — it precedes Statistics, Delivery and Content${
       after.length ? ` — now behind: ${after.join(", ")}` : ""
     }`,
     after.length === 0,
+  );
+
+  // The Takeaways tab re-rendered `structured.strengths` and
+  // `structured.growth_areas` as one-line columns — the same two arrays the
+  // Overview tab already lists in full, whose rows are collapsed by default
+  // and so already ARE that one-line scan. Two tabs, one set of items. Its
+  // third column ("Answers to revisit") was the only part not duplicated and
+  // moved to the Moments section, which is what its rows select.
+  check(
+    "no Takeaways tab — Overview owns the strengths and growth areas",
+    !strip.includes('key="takeaways"'),
+  );
+  const moments = readFileSync(
+    new URL("../components/report/MomentsTimeline.tsx", import.meta.url),
+    "utf8",
+  );
+  check(
+    "the revisit list lives with the Moments timeline it drives",
+    moments.includes("Answers to revisit") && moments.includes("function RevisitList("),
+  );
+  check(
+    "the revisit list is not also rendered in the tab strip",
+    !body.includes("Answers to revisit"),
   );
 }
 

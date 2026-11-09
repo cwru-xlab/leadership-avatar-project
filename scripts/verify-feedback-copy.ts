@@ -73,14 +73,19 @@ check(
 /**
  * SUGGESTIONS ARE OFFERED, NEVER ISSUED.
  *
- * Both growth-area suggestion sites — the expanded row and the Takeaways
- * column — must open with "Consider trying this", not the bare imperative
- * "Try this". The report is advice a student may decline, and the shorter form
- * reads as an instruction; this is the same autonomy-supportive rule the
- * generator prompts already enforce on the suggestion TEXT
- * (`lib/interview/prompts.ts`, `lib/study-plan/generate.ts`, which name
- * "Try this" explicitly as a directive to avoid). The LABEL in front of that
- * text has to hold the same line or the prompt rule is undone at render.
+ * The growth-area suggestion must open with "Consider trying this", not the
+ * bare imperative "Try this". The report is advice a student may decline, and
+ * the shorter form reads as an instruction; this is the same
+ * autonomy-supportive rule the generator prompts already enforce on the
+ * suggestion TEXT (`lib/interview/prompts.ts`, `lib/study-plan/generate.ts`,
+ * which name "Try this" explicitly as a directive to avoid). The LABEL in
+ * front of that text has to hold the same line or the prompt rule is undone
+ * at render.
+ *
+ * ONE SITE, not two: the Takeaways tab's "Work on next" column was the second,
+ * and it was dropped along with the tab — it re-rendered the growth areas the
+ * Overview tab already lists in full. The count is asserted so that a second
+ * site cannot reappear unguarded.
  *
  * Guarded at source because `verify-report-structure.ts`'s own
  * "collaborative display terminology" check reads only the composed MARKDOWN
@@ -89,8 +94,8 @@ check(
  * shortened to "Try this:" without any check failing.
  */
 check(
-  "both growth suggestion sites offer rather than instruct",
-  reportBody.split("Consider trying this").length - 1 === 2 &&
+  "the growth suggestion offers rather than instructs, at exactly one site",
+  reportBody.split("Consider trying this").length - 1 === 1 &&
     !reportBody.includes("Try this"),
 );
 

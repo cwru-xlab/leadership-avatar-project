@@ -35,11 +35,7 @@ import ReportScoreCards, {
   type ReportScoreCardsProps,
 } from "@/components/interview/ReportScoreCards";
 import CheckInBanner from "@/components/report/CheckInBanner";
-import { levelDotClass } from "@/components/report/LevelChip";
-import MomentsTimeline, {
-  ANSWER_RAMP,
-  buildTimelineAnswers,
-} from "@/components/report/MomentsTimeline";
+import MomentsTimeline, { buildTimelineAnswers } from "@/components/report/MomentsTimeline";
 import ReportStatistics, {
   hasStatistics,
   measuredVisual,
@@ -54,7 +50,6 @@ import {
   type CheckInLead,
 } from "@/lib/report/check-in";
 import {
-  formatTimecode,
   visualBands,
   visualBodyLanguageBands,
   visualObservationCaveat,
@@ -391,9 +386,6 @@ export default function ReportBody({
   const observationRows = displayVisual ? visualObservationRows(displayVisual).filter(notHidden) : [];
   const hasDeliveryTab = Boolean(visual || vocal) || observationRows.length > 0;
   const hasStatsTab = hasStatistics(metrics);
-  const revisit = answers
-    .filter((a) => a.level <= 2)
-    .sort((a, b) => a.level - b.level || a.start - b.start);
 
   return (
     <div className="flex flex-col gap-7">
@@ -526,72 +518,6 @@ export default function ReportBody({
           </Tab>
         ))}
 
-        {structured.strengths.length + structured.growth_areas.length > 0 ? (
-          <Tab key="takeaways" title="Takeaways">
-            {/* Columns stretch to one height so the dividers align. Safe only
-                because each column is capped below: uncapped, fifteen weak
-                answers against two strengths ran a rule down hundreds of
-                pixels of empty white. */}
-            <div className="grid overflow-hidden rounded-xl border border-line bg-white md:grid-cols-[repeat(auto-fit,minmax(240px,1fr))]">
-              <TakeawayColumn
-                items={structured.strengths.map((s, i) => (
-                  <TakeawayItem key={i} dot="bg-level-4" detail={s.detail} title={s.title} />
-                ))}
-                title="Keep doing"
-              />
-              <TakeawayColumn
-                items={structured.growth_areas.map((g, i) => (
-                  <TakeawayItem
-                    key={i}
-                    dot="bg-level-2"
-                    detail={`Consider trying this: ${g.suggestion}`}
-                    title={g.title}
-                  />
-                ))}
-                title="Work on next"
-              />
-              {answers.length > 0 && (
-                <TakeawayColumn
-                  empty="No answer stood out as uneven."
-                  items={revisit.map((a) => (
-                    <li key={a.index}>
-                      <a
-                        className="-mx-2 flex gap-2.5 rounded-md px-2 py-1 text-ink outline-none transition-colors duration-150 ease-out hover:bg-canvas focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-true-blue"
-                        href="#moments"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          showMoment(a.index);
-                        }}
-                      >
-                        <span
-                          aria-hidden
-                          className={clsx(
-                            "mt-2 size-2 shrink-0 rounded-full",
-                            levelDotClass(ANSWER_RAMP[a.level]),
-                          )}
-                        />
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="flex items-baseline justify-between gap-3">
-                            <span className="font-semibold">Answer {a.index + 1}</span>
-                            <span className="shrink-0 font-mono text-[12.5px] tabular-nums text-muted">
-                              {formatTimecode(a.start)}
-                            </span>
-                          </span>
-                          <span className="text-sm text-muted">
-                            {a.word} delivery
-                            {offTargetSummary(a.notes)}
-                          </span>
-                        </span>
-                      </a>
-                    </li>
-                  ))}
-                  title="Answers to revisit"
-                />
-              )}
-            </div>
-          </Tab>
-        ) : null}
-
         {hasStatsTab ? (
           <Tab key="statistics" title="Statistics">
             <ReportStatistics metrics={metrics} showInterviewPaceTarget={showInterviewPaceTarget} />
@@ -707,97 +633,6 @@ export default function ReportBody({
   );
 }
 
-const OFF_TARGET_WORDS = new Set([
-  "Slow",
-  "Fast",
-  "Frequent",
-  "Very frequent",
-  "Variable",
-  "Uneven",
-]);
-
-/**
- * The "why" on a revisit row: the band words that are off target, at most two.
- *
- * CAPPED DELIBERATELY: the level word already says how many bands missed
- * (three or more reads "Off"), and one bad habit held all session flags the
- * same bands on every answer — listing all four turned fifteen rows into
- * fifteen copies of one sentence, which is one row of information. Two carry
- * the reason; the Moments panel this row links to lists all four.
- */
-function offTargetSummary(notes: { label: string; value: string }[]): string {
-  const flagged = notes.filter((n) => OFF_TARGET_WORDS.has(n.value));
-  return flagged.length
-    ? `, ${flagged
-        .slice(0, 2)
-        .map((n) => `${n.label.toLowerCase()} ${n.value.toLowerCase()}`)
-        .join(", ")}`
-    : "";
-}
-
-/** Visible items per Takeaways column before "Show all" (the list budget). */
-const TAKEAWAY_VISIBLE = 3;
-
-/**
- * One Takeaways column: three items, then the rest behind "Show all N".
- *
- * WHY THE CAP IS STRUCTURAL, NOT COSMETIC: the three columns hold unrelated
- * counts — two strengths against fifteen weak answers is normal — and they
- * share one panel. Uncapped, "Answers to revisit" ran a thousand pixels past
- * the other two and left most of a viewport as ruled white space. The Moments
- * timeline below is the tool for reading every answer; this is the shortlist.
- */
-function TakeawayColumn({
-  title,
-  items,
-  empty,
-}: {
-  title: string;
-  items: React.ReactNode[];
-  empty?: string;
-}) {
-  const [showAll, setShowAll] = useState(false);
-  const hidden = items.length - TAKEAWAY_VISIBLE;
-  return (
-    <section className="flex flex-col gap-3.5 px-6 py-[22px] shadow-[-1px_0_0_var(--la-line),0_-1px_0_var(--la-line)]">
-      <h3 className="font-display text-[22px] font-medium text-cwru-blue">{title}</h3>
-      {items.length === 0 ? (
-        empty && <p className="text-sm text-muted">{empty}</p>
-      ) : (
-        <ul className="flex flex-col gap-3.5">
-          {showAll ? items : items.slice(0, TAKEAWAY_VISIBLE)}
-        </ul>
-      )}
-      {hidden > 0 && (
-        <button
-          className="w-fit rounded-sm text-sm font-semibold text-link outline-none hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-true-blue"
-          type="button"
-          onClick={() => setShowAll((value) => !value)}
-        >
-          {showAll ? "Show fewer" : `Show all ${items.length}`}
-        </button>
-      )}
-    </section>
-  );
-}
-
-/**
- * One takeaway. The detail is clamped to two lines: this tab is the scan, and
- * the evaluator writes multi-sentence details that stacked into paragraph
- * walls three columns wide. Overview carries the same items in full, in
- * expandable rows.
- */
-function TakeawayItem({ title, detail, dot }: { title: string; detail: string; dot: string }) {
-  return (
-    <li className="flex gap-2.5">
-      <span aria-hidden className={clsx("mt-2 size-2 shrink-0 rounded-full", dot)} />
-      <span className="flex min-w-0 flex-col">
-        <span className="font-semibold text-ink">{title}</span>
-        <span className="line-clamp-2 text-sm text-muted">{detail}</span>
-      </span>
-    </li>
-  );
-}
 
 /** The practice-next target. Its ripple plays twice on load and stops. */
 function TargetMark() {
