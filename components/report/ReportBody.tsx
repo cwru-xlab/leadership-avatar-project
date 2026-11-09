@@ -32,9 +32,12 @@ import { ChevronDown } from "lucide-react";
 
 import ReportMarkdown from "@/components/interview/ReportMarkdown";
 import ReportScoreCards, {
+  SCORE_LABELS,
+  scoreLevel,
   type ReportScoreCardsProps,
 } from "@/components/interview/ReportScoreCards";
 import CheckInBanner from "@/components/report/CheckInBanner";
+import LevelChip from "@/components/report/LevelChip";
 import MomentsTimeline, { buildTimelineAnswers } from "@/components/report/MomentsTimeline";
 import ReportStatistics, {
   hasStatistics,
@@ -55,6 +58,7 @@ import {
   visualObservationCaveat,
   visualObservationRows,
   vocalBands,
+  type MetricBandRow,
 } from "@/lib/metrics/bands";
 
 /**
@@ -112,6 +116,9 @@ interface ReportBodyProps {
    * model wrote them — which is how raw keys leaked into the UI.
    */
   rubricLabels?: Record<string, string>;
+  /** Dimension-keyed scores, same keys as `rubric_notes[].item`, so the
+      Content tab can show the score the evaluator already gave each item. */
+  rubricScores?: Record<string, number | null>;
 }
 
 function SectionHeading({ children, count }: { children: React.ReactNode; count?: number }) {
@@ -183,41 +190,97 @@ function Prose({ children }: { children: React.ReactNode }) {
  * appear between a label and its own value. `tabular-nums` keeps figures in a
  * column from shifting width.
  */
+/**
+ * One group of band rows: label, value, and a mark when the row is off target.
+ *
+ * ONE COLUMN, not a two-column `auto_1fr` grid. The values are not one
+ * vocabulary: "Clear" and "Fast" sit beside "Held steady from the opening
+ * posture" and "Shoulder line and Head position", so a column right-aligned
+ * for short words left the long sentences ragged against it. Label above
+ * value reads at any length and needs no alignment bargain.
+ *
+ * The mark is a word ("Worth attention"), never colour alone — and it is only
+ * ever shown where `offTarget` is explicitly true, so a row with no declared
+ * ladder, a descriptive observation and an unmeasurable row all stay unmarked
+ * rather than being quietly called fine.
+ */
 function BandList({
   rows,
   variant = "scored",
 }: {
-  rows: { label: string; value: string }[];
+  rows: MetricBandRow[];
   variant?: "scored" | "descriptive";
 }) {
   return (
-    <dl className="grid grid-cols-1 rounded-lg border border-line bg-white sm:grid-cols-[auto_1fr]">
-      {rows.map((row, index) => (
-        <Fragment key={row.label}>
-          <dt
-            className={clsx(
-              // Explicit pt/pb rather than `py`, so the stacked and side-by-side
-              // paddings cannot collide as competing shorthand.
-              "px-4 pt-3 pb-1 text-sm text-muted sm:pb-3",
-              // Stacked, the rule belongs above the LABEL (the row's start).
-              // Side by side, both cells need it or the line stops halfway.
-              index > 0 && "border-t border-line",
-            )}
-          >
-            {row.label}
-          </dt>
+    <dl className="flex flex-col divide-y divide-line">
+      {rows.map((row) => (
+        <div
+          key={row.label}
+          className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2.5 first:pt-0 last:pb-0"
+        >
+          <dt className="text-sm text-muted">{row.label}</dt>
           <dd
             className={clsx(
-              "px-4 pb-3 text-sm font-semibold text-ink tabular-nums sm:pt-3 sm:pl-0",
-              variant === "scored" ? "sm:text-right" : "sm:text-left",
-              index > 0 && "sm:border-t sm:border-line",
+              "flex min-w-0 items-baseline gap-2 text-sm tabular-nums",
+              // Descriptive rows are measurements, not verdicts: they stay
+              // muted so they cannot be read as a scored finding.
+              variant === "descriptive" ? "text-muted" : "font-semibold text-ink",
             )}
           >
-            {row.value}
+            <span>{row.value}</span>
+            {row.offTarget && (
+              <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-level-2/16 py-0.5 pl-1.5 pr-2 text-[11.5px] font-semibold leading-none text-ink">
+                <span aria-hidden className="size-1.5 rounded-full bg-level-2" />
+                Worth attention
+              </span>
+            )}
           </dd>
-        </Fragment>
+        </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * One Delivery group: heading, how many rows are worth attention, its rows.
+ *
+ * The count is the point of the grouping — it lets a student pick which of
+ * four groups to read instead of scanning sixteen evenly-weighted rows. It is
+ * stated as "2 worth attention" / "All on target" rather than drawn as a
+ * colour, so it survives greyscale and a screen reader.
+ */
+function DeliveryGroup({
+  title,
+  rows,
+  children,
+  variant = "scored",
+  countable = true,
+}: {
+  title: string;
+  rows: MetricBandRow[];
+  children?: React.ReactNode;
+  variant?: "scored" | "descriptive";
+  countable?: boolean;
+}) {
+  const flagged = rows.filter((r) => r.offTarget).length;
+  return (
+    <section className="flex min-w-0 break-inside-avoid flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line pb-2">
+        <h3 className="font-display text-[19px] font-medium leading-tight text-cwru-blue">{title}</h3>
+        {countable && (
+          <span
+            className={clsx(
+              "text-[12.5px] font-semibold",
+              flagged > 0 ? "text-ink" : "text-muted",
+            )}
+          >
+            {flagged > 0 ? `${flagged} worth attention` : "All on target"}
+          </span>
+        )}
+      </div>
+      {children}
+      <BandList rows={rows} variant={variant} />
+    </section>
   );
 }
 
@@ -299,6 +362,7 @@ export default function ReportBody({
   checkInLead,
   extraTabs = [],
   rubricLabels = {},
+  rubricScores = {},
 }: ReportBodyProps) {
   const [selectedAnswer, setSelectedAnswer] = useState(0);
   const [checkInAnswers, setCheckInAnswers] = useState<CheckInAnswers>(checkIn ?? {});
@@ -526,57 +590,72 @@ export default function ReportBody({
 
         {hasDeliveryTab ? (
           <Tab key="delivery" title="Delivery">
-            <div className="grid gap-7 md:grid-cols-2">
-              {visual && (
-                <section className="flex flex-col gap-3">
-                  <SectionHeading>On camera</SectionHeading>
-                  <BandList rows={cameraRows} />
-                  {structured.category_notes.visual && <Prose>{structured.category_notes.visual}</Prose>}
-                </section>
-              )}
+            {/* ONE PANEL, columns laid out by CSS `columns`, not a 2x2 grid.
+                The grid stretched every row in a pair to the taller of the
+                two: "On camera" (7 rows) against "Voice" (4) forced both to
+                353px and left a gap under Voice's prose, and the second pair
+                did it again. Column flow lets each group end where its
+                content ends, and `break-inside-avoid` keeps a group whole.
 
-              {vocal && (
-                <section className="flex flex-col gap-3">
-                  <SectionHeading>Voice</SectionHeading>
-                  {showInterviewPaceTarget && (
-                    <p className="text-sm text-muted">
-                      Assessed pace: {Math.round(vocal.words_per_minute)} WPM. {"Interview target: 100–159 WPM."}
-                    </p>
-                  )}
-                  <BandList rows={vocalBands(vocal)} />
-                  {structured.category_notes.vocal && <Prose>{structured.category_notes.vocal}</Prose>}
-                </section>
-              )}
-
-              {/* Legible as its own thing rather than extra rows on the camera
-                  list — a pre-Phase-12 report has no scored body-language fields
-                  on `metrics.visual`, so this renders nothing new. */}
-              {bodyRows.length > 0 && (
-                <section className="flex flex-col gap-3">
-                  <SectionHeading>Body language</SectionHeading>
-                  <BandList rows={bodyRows} />
-                </section>
-              )}
-
-              {/* LAST section of Delivery, deliberately. These are things the
-                  camera recorded that do not affect any score — stated once here,
-                  at the section level, never as a per-row tag inside a scored
-                  list. Muted treatment only; the tinted panel is reserved for
-                  "One thing to practice next time". */}
-              {/* The reclocked copy, not `metrics.visual`: the rows quote episode
-                  times, and must read on the same clock as Moments. */}
-              {displayVisual && observationRows.length > 0 && (
-                <section className="flex flex-col gap-3">
-                  <SectionHeading>Observations</SectionHeading>
-                  <p className="text-sm text-muted">
-                    Things the camera recorded during the session. These do not affect any score.
-                    {visualObservationCaveat(displayVisual) && (
-                      <> {visualObservationCaveat(displayVisual)}</>
+                Groups stay in sensor order (camera, voice, body, then the
+                unscored observations) rather than being re-sorted worst-first:
+                the student is looking for "how was my voice", and the count in
+                each heading already says where to start. */}
+            <div className="rounded-xl border border-line bg-white px-5 py-5 sm:px-6 [column-gap:2.5rem] md:[columns:2]">
+              <div className="flex flex-col gap-7">
+                {visual && (
+                  <DeliveryGroup rows={cameraRows} title="On camera">
+                    {structured.category_notes.visual && (
+                      <Prose>{structured.category_notes.visual}</Prose>
                     )}
-                  </p>
-                  <BandList rows={observationRows} variant="descriptive" />
-                </section>
-              )}
+                  </DeliveryGroup>
+                )}
+
+                {vocal && (
+                  <DeliveryGroup rows={vocalBands(vocal)} title="Voice">
+                    {showInterviewPaceTarget && (
+                      <p className="text-sm text-muted">
+                        Assessed pace: {Math.round(vocal.words_per_minute)} WPM.{" "}
+                        {"Interview target: 100–159 WPM."}
+                      </p>
+                    )}
+                    {structured.category_notes.vocal && (
+                      <Prose>{structured.category_notes.vocal}</Prose>
+                    )}
+                  </DeliveryGroup>
+                )}
+
+                {/* Legible as its own thing rather than extra rows on the camera
+                    list — a pre-Phase-12 report has no scored body-language fields
+                    on `metrics.visual`, so this renders nothing new. */}
+                {bodyRows.length > 0 && <DeliveryGroup rows={bodyRows} title="Body language" />}
+
+                {/* LAST group of Delivery, deliberately. These are things the
+                    camera recorded that do not affect any score — stated once here,
+                    at the section level, never as a per-row tag inside a scored
+                    list. Muted treatment only; the tinted panel is reserved for
+                    "One thing to practice next time".
+
+                    `countable={false}`: a count of what is "worth attention"
+                    would contradict the sentence right under it. */}
+                {/* The reclocked copy, not `metrics.visual`: the rows quote episode
+                    times, and must read on the same clock as Moments. */}
+                {displayVisual && observationRows.length > 0 && (
+                  <DeliveryGroup
+                    countable={false}
+                    rows={observationRows}
+                    title="Observations"
+                    variant="descriptive"
+                  >
+                    <p className="text-sm text-muted">
+                      Things the camera recorded during the session. These do not affect any score.
+                      {visualObservationCaveat(displayVisual) && (
+                        <> {visualObservationCaveat(displayVisual)}</>
+                      )}
+                    </p>
+                  </DeliveryGroup>
+                )}
+              </div>
             </div>
           </Tab>
         ) : null}
@@ -599,19 +678,11 @@ export default function ReportBody({
               {structured.rubric_notes.length > 0 && (
                 <section className="flex flex-col gap-3">
                   <SectionHeading>By rubric item</SectionHeading>
-                  <dl className="flex flex-col divide-y divide-line rounded-lg border border-line bg-white">
-                    {structured.rubric_notes.map((n) => (
-                      <div
-                        key={n.item}
-                        className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6"
-                      >
-                        <dt className="text-sm font-semibold text-ink">
-                          {rubricItemLabel(n.item, rubricLabels)}
-                        </dt>
-                        <dd className="text-sm text-muted sm:max-w-[70%] sm:text-right">{n.note}</dd>
-                      </div>
-                    ))}
-                  </dl>
+                  <RubricNotes
+                    labels={rubricLabels}
+                    notes={structured.rubric_notes}
+                    scores={rubricScores}
+                  />
                 </section>
               )}
             </div>
@@ -633,6 +704,87 @@ export default function ReportBody({
   );
 }
 
+
+/**
+ * Strip a note's boilerplate lead so the row opens on its finding.
+ *
+ * Evaluators sometimes answer the prompt's checklist out loud before saying
+ * anything: "Meets all criteria: no. Student greeted and identified the
+ * patient, but…". The verdict is already carried by the score chip beside it,
+ * so the clause costs a line and tells the reader nothing twice.
+ *
+ * NARROW ON PURPOSE. Measured across all 595 stored notes, this exact lead
+ * appears in 8 — it is one evaluator's habit, not a format. So this strips
+ * only a leading "meets all criteria" clause and never attempts to
+ * summarise, truncate or re-punctuate the finding itself: a generic
+ * first-sentence trim would silently eat the only sentence in the 533 notes
+ * that have no such prefix (the median note is 71 characters, one line).
+ */
+function noteBody(note: string): string {
+  const trimmed = note.trim();
+  const stripped = trimmed.replace(/^meets all criteria:\s*(no|yes)[.;]?\s*/i, "");
+  if (!stripped) return trimmed;
+  return stripped.replace(/^./, (c) => c.toUpperCase());
+}
+
+/**
+ * Per-rubric-item rows: the item, its score as a figure and chip, its note.
+ *
+ * SCORED, not just annotated. `scores` is keyed by dimension key exactly as
+ * `rubric_notes[].item` is, so the 1-5 the evaluator already gave each item
+ * is shown instead of leaving the reader to infer a verdict from prose. That
+ * is what makes the list scannable: the eye runs down the figures and the
+ * chips, and the note is there for the one row that matters.
+ *
+ * `scoreLevel`/`SCORE_LABELS` are imported, never re-derived, so a 3 here is
+ * the same "Solid" as on the score cards at the top of the report.
+ *
+ * Degrades honestly. A missing score renders the row with no figure rather
+ * than a zero or an invented "Developing" (legacy reports pre-date
+ * per-dimension scores and genuinely have none), and an empty note renders
+ * the row with no note — at least one stored note is the empty string.
+ */
+function RubricNotes({
+  notes,
+  scores,
+  labels,
+}: {
+  notes: { item: string; note: string }[];
+  scores: Record<string, number | null>;
+  labels: Record<string, string>;
+}) {
+  return (
+    <dl className="grid gap-2.5 sm:grid-cols-2">
+      {notes.map((n) => {
+        const raw = scores[n.item] ?? scores[n.item.replace(/_score$/i, "")] ?? null;
+        const score = typeof raw === "number" ? raw : null;
+        const body = noteBody(n.note);
+        return (
+          <div
+            key={n.item}
+            className="flex min-w-0 flex-col gap-2 rounded-xl border border-line bg-white px-4 py-3.5"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="min-w-0 text-[15px] font-semibold text-ink">
+                {rubricItemLabel(n.item, labels)}
+              </dt>
+              {score !== null && (
+                <span className="shrink-0 font-display text-[22px] font-medium leading-none text-cwru-blue [font-variant-numeric:lining-nums]">
+                  {score}
+                  <span className="text-[13px] font-sans text-muted"> / 5</span>
+                </span>
+              )}
+            </div>
+            {score !== null && (
+              <LevelChip label={SCORE_LABELS[score] ?? ""} level={scoreLevel(score)} />
+            )}
+            {body && <dd className="text-[13.5px] leading-[1.5] text-muted">{body}</dd>}
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
 
 /** The practice-next target. Its ripple plays twice on load and stops. */
 function TargetMark() {

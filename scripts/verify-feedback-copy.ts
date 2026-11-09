@@ -108,32 +108,79 @@ check("shared setup wizard has no interview slug branch", !setupWizard.includes(
 check("shared session shell has no interview slug branch", !sessionShell.includes('typeSlug === "general"') && !sessionShell.includes('typeSlug === "technical"'));
 
 /**
- * OBSERVATION VALUES ARE SENTENCES, SO THEY ALIGN LEFT.
+ * NO VALUE IN THE REPORT BODY IS RIGHT-ALIGNED.
  *
- * `BandList` renders two kinds of row. Scored bands are one or two words
- * ("Excellent") and sit flush right, which reads as a column. Observation
- * values are sentences quoting episode times ("Repeatedly, 1:36–2:22, …"),
- * and right-aligning a sentence that wraps starts every line after the first
- * at a different x. `lib/metrics/bands.ts` already holds scored and
- * descriptive rows apart "by design" in separate functions; this keeps that
- * separation visible in the rendering.
+ * Right-aligning a value that WRAPS starts every line after the first at a
+ * different x, so the block has no edge to read down. It is safe only for
+ * values guaranteed to be one short word, and this file has twice been proved
+ * wrong about that: observation values are sentences quoting episode times,
+ * and the Content tab's rubric notes are whole sentences ("Meets all
+ * criteria: no. Student gathered…") — measured in the browser at 1440px, all
+ * four wrapped to two lines with two distinct left edges.
  *
- * Guarded because the natural "cleanup" is to notice two variants doing
- * almost the same thing and collapse them into one, which silently restores
- * the ragged edge — and because the variant must follow the row's SOURCE, not
- * its length, or a card's alignment would change with the session's data.
+ * Asserted across the WHOLE file rather than per site. The narrower check
+ * this replaces ("the observation list uses the left variant") passed happily
+ * while the rubric list a few hundred lines below was ragged.
+ *
+ * Label-above-value, or label and value on one row with the text set flush
+ * left, reads at any length and needs no alignment bargain.
  */
 check(
-  "the observation list renders with the descriptive (left-aligned) variant",
-  /<BandList\s+rows=\{observationRows\}\s+variant="descriptive"\s*\/>/.test(reportBody),
+  "no value is right-aligned, so wrapped sentences cannot ragged",
+  !/text-right/.test(reportBody),
+);
+
+/**
+ * Scored and descriptive rows still LOOK different — the variant carries
+ * emphasis, not alignment: scored rows are ink and semibold, descriptive rows
+ * stay muted so a measurement cannot be read as a verdict. The variant must
+ * follow the row's SOURCE, never its length, or a card's treatment would
+ * change with the session's data.
+ */
+check(
+  "the observation list renders with the descriptive variant",
+  /rows=\{observationRows\}/.test(reportBody) && /variant="descriptive"/.test(reportBody),
 );
 check(
-  "BandList still distinguishes scored from descriptive alignment",
-  reportBody.includes('variant === "scored" ? "sm:text-right" : "sm:text-left"'),
+  "BandList still distinguishes scored from descriptive rows",
+  reportBody.includes('variant === "descriptive" ? "text-muted" : "font-semibold text-ink"'),
 );
 check(
   "the variant is chosen by row source, never by measuring value length",
   !/variant\s*=\s*\{?[^}\n]*\.(length|value\.length)\s*[><]/.test(reportBody),
+);
+
+/**
+ * OFF-TARGET MARKS ARE NEVER COLOUR ALONE, AND NEVER INVENTED AT RENDER.
+ *
+ * The mark reads "Worth attention" next to the dot, so it survives greyscale
+ * and a screen reader. And it is driven by the row's own `offTarget` flag from
+ * `lib/metrics/bands.ts` — never by the component testing value words, which
+ * would let the tab call "Fast" a miss while the Moments level counted it as
+ * fine, and would silently flag the "not visible enough to read" rows.
+ */
+check(
+  "the off-target mark carries a word, not just a colour",
+  reportBody.includes("Worth attention"),
+);
+check(
+  "the mark is driven by the row flag, not by the component matching words",
+  /row\.offTarget/.test(reportBody) &&
+    !/(Fast|Frequent|Uneven)"\s*(===|\.includes|\.has)/.test(reportBody),
+);
+const bands = source("lib/metrics/bands.ts");
+check(
+  "the Moments level counts the rows' own marks, so it cannot drift from them",
+  bands.includes("notes.filter((note) => note.offTarget).length"),
+);
+check(
+  "middle bands are left unmarked (Developing, Intermittent, Slightly fast)",
+  !/"(Developing|Intermittent|Slightly fast|Inconsistent|Occasional)"/.test(
+    bands.slice(
+      bands.indexOf("const OFF_TARGET = {"),
+      bands.indexOf("};", bands.indexOf("const OFF_TARGET = {")),
+    ),
+  ),
 );
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

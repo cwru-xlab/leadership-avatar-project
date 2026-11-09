@@ -33,6 +33,7 @@ import {
   formatTimecode,
   timelineRows,
   type AnswerLevel,
+  type MetricBandRow,
 } from "@/lib/metrics/bands";
 import type { VisualEpisode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 import type { ReportMoments } from "@/lib/report/moments";
@@ -411,11 +412,12 @@ export default function MomentsTimeline({
   );
 }
 
-/** Band words that read as off target on a revisit row's "why". */
-const OFF_TARGET_WORDS = new Set(["Slow", "Fast", "Frequent", "Very frequent", "Variable", "Uneven"]);
-
 /**
  * The "why" on a revisit row: the band words that are off target, at most two.
+ *
+ * Reads each row's own `offTarget` mark rather than re-listing the words, so
+ * this cannot drift from the ladders in `lib/metrics/bands.ts` that decide the
+ * level — a local copy of the word list did exactly that.
  *
  * CAPPED DELIBERATELY: the level word already says how many bands missed
  * (three or more reads "Off"), and one bad habit held all session flags the
@@ -423,8 +425,8 @@ const OFF_TARGET_WORDS = new Set(["Slow", "Fast", "Frequent", "Very frequent", "
  * fifteen copies of one sentence, which is one row of information. Two carry
  * the reason; the detail panel above lists all four for the selected answer.
  */
-function offTargetSummary(notes: { label: string; value: string }[]): string {
-  const flagged = notes.filter((n) => OFF_TARGET_WORDS.has(n.value));
+function offTargetSummary(notes: MetricBandRow[]): string {
+  const flagged = notes.filter((n) => n.offTarget);
   return flagged.length
     ? `, ${flagged
         .slice(0, 2)

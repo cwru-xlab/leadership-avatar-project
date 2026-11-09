@@ -377,6 +377,7 @@ export default function PracticeReportPage({
             render: () => tab.render(report),
           }))}
           rubricLabels={rubricLabels}
+          rubricScores={report?.scores ?? {}}
         />
       ) : report?.status === "FAILED" ? (
         <StatusPanel
