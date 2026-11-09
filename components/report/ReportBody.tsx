@@ -46,6 +46,7 @@ import ReportStatistics, {
   measuredVocal,
 } from "@/components/report/ReportStatistics";
 import { fallbackClock, reclockVisual, type ReportMoments } from "@/lib/report/moments";
+import { rubricItemLabel } from "@/lib/report/rubric-labels";
 import {
   applyCheckInHiding,
   eligibleCheckIns,
@@ -108,6 +109,14 @@ interface ReportBodyProps {
    * takes no argument because the page has already bound the report.
    */
   extraTabs?: { key: string; title: string; render: () => React.ReactNode }[];
+  /**
+   * Key -> label for `rubric_notes[].item`, from the type's own dimensions
+   * (`rubricLabelMap`). A plain map, not `RubricDimension[]`, for the same
+   * reason `extraTabs` is a local shape: this is the generic report body and
+   * must not reach into the engine registry. Absent, items render as the
+   * model wrote them — which is how raw keys leaked into the UI.
+   */
+  rubricLabels?: Record<string, string>;
 }
 
 function SectionHeading({ children, count }: { children: React.ReactNode; count?: number }) {
@@ -294,6 +303,7 @@ export default function ReportBody({
   checkIn,
   checkInLead,
   extraTabs = [],
+  rubricLabels = {},
 }: ReportBodyProps) {
   const [selectedAnswer, setSelectedAnswer] = useState(0);
   const [checkInAnswers, setCheckInAnswers] = useState<CheckInAnswers>(checkIn ?? {});
@@ -669,7 +679,9 @@ export default function ReportBody({
                         key={n.item}
                         className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6"
                       >
-                        <dt className="text-sm font-semibold text-ink">{n.item}</dt>
+                        <dt className="text-sm font-semibold text-ink">
+                          {rubricItemLabel(n.item, rubricLabels)}
+                        </dt>
                         <dd className="text-sm text-muted sm:max-w-[70%] sm:text-right">{n.note}</dd>
                       </div>
                     ))}

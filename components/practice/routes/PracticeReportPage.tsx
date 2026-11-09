@@ -21,6 +21,7 @@ import { listRubricDimensionsForSlug } from "@/lib/engine/resolve";
 import type { ReportDTO } from "@/lib/report/dto";
 import { displayReportTitle, formatReportWhen, typeLabelForReport } from "@/lib/report/title";
 import { reportsListHref } from "@/lib/report/filters";
+import { rubricLabelMap } from "@/lib/report/rubric-labels";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { RubricDimension } from "@/lib/engine/types";
 import { routes } from "@/lib/routes";
@@ -72,6 +73,10 @@ export default function PracticeReportPage({
     () => listRubricDimensionsForSlug(typeSlug),
     [typeSlug],
   );
+  // The evaluator writes `rubric_notes[].item` as free text and sometimes
+  // echoes the dimension KEY from the prompt ("opening_agenda"). The type's
+  // own dimensions are the labels to show instead.
+  const rubricLabels = useMemo(() => rubricLabelMap(dimensions), [dimensions]);
 
   const [report, setReport] = useState<ReportDTO | null>(initialReport ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -371,6 +376,7 @@ export default function PracticeReportPage({
             title: tab.title,
             render: () => tab.render(report),
           }))}
+          rubricLabels={rubricLabels}
         />
       ) : report?.status === "FAILED" ? (
         <StatusPanel
