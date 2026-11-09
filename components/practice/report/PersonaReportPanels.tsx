@@ -29,6 +29,7 @@
  * break the moment a server component imported it.
  */
 
+import clsx from "clsx";
 import { ChevronDown } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
@@ -113,6 +114,103 @@ function SummaryStrip({
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * The complete code tally, inside a closed disclosure.
+ *
+ * KEPT despite overlapping the metric cards above. For the clinical style 8
+ * of its 12 labels also appear on a card, which argues for deleting it — but
+ * for MI only 2 of 11 do: the MI cards are aggregates (`mi_adherent` is
+ * affirm + seeking collaboration + emphasizing autonomy), so this is the only
+ * place the individual codes are visible. It is the audit trail behind every
+ * number on the page, which is why the panel promises "counted from those
+ * codes, not estimated".
+ *
+ * Its job is completeness, so no row is dropped or reordered: a zero here is
+ * a real finding ("Empathy statements 0" is why that card reads Below fair),
+ * and the declared order groups the codes sensibly already (the four question
+ * kinds together, then reflections, and so on).
+ *
+ * What changes is weight. A flat list gave "Closed questions 6" and "Leading
+ * questions 0" identical presence, so the eye had to read twelve numbers to
+ * find the large ones. A bar carries magnitude pre-attentively and the unused
+ * codes recede, while still being listed and still counted in the header.
+ *
+ * The bar is scaled to the LARGEST count in this list, not to the number of
+ * turns: an utterance can carry several codes (16 turns produced 25 codes
+ * here), so a share-of-turns reading would be false. It is a relative
+ * magnitude cue, which is all it claims to be — the number is right there.
+ */
+function CountTally({
+  codeKeys,
+  counts,
+  turns,
+}: {
+  codeKeys: string[];
+  counts: Record<string, number>;
+  turns: number;
+}) {
+  const total = codeKeys.reduce((sum, k) => sum + (counts[k] ?? 0), 0);
+  const max = Math.max(1, ...codeKeys.map((k) => counts[k] ?? 0));
+  const unused = codeKeys.filter((k) => (counts[k] ?? 0) === 0).length;
+
+  return (
+    <div className="mt-3">
+      <p className="text-xs text-muted">
+        {total} coded behavior{total === 1 ? "" : "s"} across {turns} turn{turns === 1 ? "" : "s"}
+        {unused > 0 ? ` · ${unused} of ${codeKeys.length} never used` : null}
+      </p>
+      <dl
+        className="mt-2.5 grid gap-x-8 gap-y-0 sm:grid-cols-2"
+        data-testid="persona-count-table"
+      >
+        {codeKeys.map((k, i) => {
+          const n = counts[k] ?? 0;
+          // The rule belongs under every row EXCEPT the last of each column.
+          // `last:border-0` only knows the last child, which in a two-column
+          // flow left the left column's final row with a dangling rule.
+          //
+          // The grid fills row-wise, so the left column holds the even indices
+          // and the right the odd. The final row of each is therefore always
+          // within the last two indices — true for both an even count (12,
+          // clinical: 10 and 11) and an odd one (11, MI: 9 and 10).
+          const lastInColumn = i >= codeKeys.length - 2;
+          return (
+            <div
+              key={k}
+              className={clsx(
+                "flex items-center gap-3 py-1.5",
+                !lastInColumn && "border-b border-line",
+                // Stacked into one column, only the true last row ends the
+                // list, so the other "last in column" row needs its rule back.
+                lastInColumn && i !== codeKeys.length - 1 && "border-b border-line sm:border-0",
+              )}
+            >
+              <dt className={`min-w-0 flex-1 truncate text-[13.5px] ${n === 0 ? "text-muted" : "text-ink"}`}>
+                {CODE_LABELS[k]}
+              </dt>
+              {/* Fixed-width track so every bar starts at the same x and the
+                  lengths are comparable down the column. */}
+              <div aria-hidden className="h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-canvas">
+                <div
+                  className="h-full rounded-full bg-light-blue"
+                  style={{ width: `${(n / max) * 100}%` }}
+                />
+              </div>
+              <dd
+                className={`w-6 shrink-0 text-right font-mono text-[13px] tabular-nums ${
+                  n === 0 ? "text-muted" : "font-semibold text-ink"
+                }`}
+              >
+                {n}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    </div>
   );
 }
 
@@ -273,16 +371,11 @@ export function PersonaCountsPanel({ report }: { report: ReportDTO }) {
         <summary className="cursor-pointer text-sm font-semibold text-cwru-blue">
           Every behavior count ({codeKeys.length})
         </summary>
-        <table className="mt-3 w-full text-sm" data-testid="persona-count-table">
-          <tbody>
-            {codeKeys.map((k) => (
-              <tr key={k} className="border-b border-line last:border-0">
-                <td className="py-1.5 text-ink">{CODE_LABELS[k]}</td>
-                <td className="py-1.5 text-right font-mono tabular-nums text-ink">{analysis.counts[k]}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <CountTally
+          codeKeys={codeKeys}
+          counts={analysis.counts}
+          turns={analysis.counts.student_utterances ?? analysis.utterances.length}
+        />
       </details>
 
       <details className="mt-3 rounded-lg border border-line px-4 py-3">
