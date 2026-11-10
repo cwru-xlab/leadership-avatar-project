@@ -208,23 +208,22 @@ export async function authenticateUser(
     return null;
   }
 
-  // A database is optional for local UI development. Keep this strictly bound
-  // to Node's development mode so Preview remains database-backed.
-  if (process.env.NODE_ENV === "development") {
-    const account = LOCAL_DEVELOPMENT_ACCOUNTS[email];
-    if (account) {
-      return account.password === password ? account.user : null;
-    }
-  }
+  // A database is optional for local UI development. Prefer a local seeded
+  // record when it exists so database-backed session creation keeps its real
+  // foreign key, then fall back to the static account only if it is unavailable.
+  // Preview remains database-backed because Vercel builds with NODE_ENV=production.
+  const localAccount =
+    process.env.NODE_ENV === "development"
+      ? LOCAL_DEVELOPMENT_ACCOUNTS[email]
+      : undefined;
 
-  // Preview and other non-production deployments authenticate from the database.
   try {
     const dbUser = await prisma.user.findUnique({
       where: { email },
     });
 
     if (!dbUser) {
-      return null;
+      return localAccount?.password === password ? localAccount.user : null;
     }
 
     // Check if user is active
@@ -259,6 +258,11 @@ export async function authenticateUser(
       authProvider: authProviderToString(dbUser.authProvider),
     };
   } catch (error) {
+    // Missing local database credentials must not block the explicitly
+    // development-only accounts. Keep non-development failures unchanged.
+    if (localAccount?.password === password) {
+      return localAccount.user;
+    }
     console.error("Database authentication error:", error);
     return null;
   }
