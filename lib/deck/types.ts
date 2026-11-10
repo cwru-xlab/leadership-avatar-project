@@ -34,6 +34,7 @@ export type DeckRejectionCode =
   | "empty"
   | "too-large"
   | "unknown-format"
+  | "legacy-ppt"
   | "corrupt-pdf"
   | "corrupt-pptx"
   | "no-extractable-pages"
@@ -70,6 +71,10 @@ export const DECK_REJECTIONS: Record<
   "unknown-format": {
     reason: "That file is not a PDF or a PowerPoint (.pptx) deck.",
     fix: "Export your deck as PDF or .pptx and upload that file. Google Slides decks work once you use File → Download → PDF.",
+  },
+  "legacy-ppt": {
+    reason: "That looks like an older PowerPoint (.ppt) file, which we can't read.",
+    fix: "Open it in PowerPoint or Keynote and save it as .pptx or export it as a PDF, then upload that file.",
   },
   "corrupt-pdf": {
     reason: "That file claims to be a PDF but could not be read.",
