@@ -122,6 +122,19 @@ assert.equal(
   "solution_request",
   "A solution request must not be served a hint",
 );
+for (const request of [
+  "Can you give me pseudocode?",
+  "What algorithm should I use?",
+  "Which data structure should I use?",
+]) {
+  assert.equal(categorizeTechnicalChatRequest(request), "solution_request", request);
+}
+for (const declaration of [
+  "I've explained my approach; let me write the code now.",
+  "I'll implement this now.",
+]) {
+  assert.equal(categorizeTechnicalChatRequest(declaration), "interview_response", declaration);
+}
 
 console.log(
   `Technical hint policy verified: ${MAX_TECHNICAL_HINTS} distinct tiers, learner-safe, with a refusal past the last.`,

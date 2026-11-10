@@ -308,11 +308,12 @@ test.describe("technical coding room", () => {
     await page
       .getByRole("textbox", { name: /Message the interviewer/i })
       .locator("visible=true")
-      .fill("I plan to iterate once and build the result as I go.");
+      .fill("I've explained my approach; let me write the code now.");
     await page.getByRole("button", { name: "Send", exact: true }).locator("visible=true").click();
 
     const transcript = page.locator('[aria-label="Interviewer conversation"]:visible');
     await expect(transcript).toContainText(/Interviewer/, { timeout: 60_000 });
+    await expect(transcript).not.toContainText(/I can.t provide a solution or pseudocode/i);
     expect(apiFailures, "the interviewer turn must not fail").toEqual([]);
   });
 

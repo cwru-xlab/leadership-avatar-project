@@ -22,14 +22,22 @@ export interface TechnicalHintRecord {
 }
 
 const HINT_WORDS = /\b(hint|nudge|stuck|help me|direction|where do i start)\b/i;
-const SOLUTION_WORDS = /\b(solution|solve (it|this|the problem)|implement (it|this)|write (the )?code|pseudocode|answer|algorithm should i use|what (algorithm|data structure) should)\b/i;
+// Only an explicit request for interviewer-provided work is a solution
+// request. A candidate saying "I'll write the code now" is normal interview
+// progress, not a request that we write it for them.
+const SOLUTION_REQUESTS = [
+  /\b(?:can|could|would|will) you\s+(?:write|implement|code|solve|provide|give)\b/i,
+  /\b(?:write|implement|code|solve)\s+(?:it|this|the problem)?\s*(?:for me)\b/i,
+  /\b(?:give|show|provide)\s+(?:me\s+)?(?:the\s+)?(?:solution|code|pseudocode)\b/i,
+  /\b(?:what|which)\s+(?:algorithm|data structure)\s+(?:should|do)\b/i,
+];
 const CLARIFICATION_WORDS = /\b(clarif|what does|does .* mean|can i assume|is .* allowed|constraint|input|output|signature|edge case)\b/i;
 
 export function categorizeTechnicalChatRequest(content: string): TechnicalChatRequestCategory {
   // A direct visible-contract question may contain words such as “answer”; it
   // must not be mistaken for a solution request. This classifier selects a
   // reply style only—the server's static refusals remain the policy boundary.
-  if (SOLUTION_WORDS.test(content)) return "solution_request";
+  if (SOLUTION_REQUESTS.some((pattern) => pattern.test(content))) return "solution_request";
   // Mixed requests such as “can you clarify — could I get a hint?” consume a
   // hint. Checking this before clarification prevents bypassing the ledger.
   if (HINT_WORDS.test(content)) return "hint_request";
