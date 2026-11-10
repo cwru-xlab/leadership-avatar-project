@@ -3,6 +3,7 @@
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { addToast } from "@heroui/toast";
+import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/modal";
 import {
   Braces,
   CheckCircle2,
@@ -56,6 +57,19 @@ type TerminalLine = {
 
 type Turn = { role: "user" | "assistant"; content: string };
 
+/** Python snapshots written before language selection retain only starterCode. */
+function starterCodeForSnapshot(snapshot: TechnicalCodingInputSnapshot): string | null {
+  if (snapshot.language === "python") {
+    return snapshot.assignment.starterCodeByLanguage?.python?.trim()
+      ? snapshot.assignment.starterCodeByLanguage.python
+      : snapshot.assignment.starterCode.trim()
+        ? snapshot.assignment.starterCode
+        : null;
+  }
+  const javascript = snapshot.assignment.starterCodeByLanguage?.javascript;
+  return javascript?.trim() ? javascript : null;
+}
+
 export default function TechnicalCodingSession({
   reportId,
   avatarConfig,
@@ -95,11 +109,13 @@ export default function TechnicalCodingSession({
   const [submitting, setSubmitting] = useState(false);
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
   const [confirmingExit, setConfirmingExit] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [sidePanel, setSidePanel] = useState<"problem" | "interviewer">("problem");
   const [avatarFailed, setAvatarFailed] = useState(false);
   // Stopping/draining capture is one-shot. Preserve derived scalar metrics so a
   // transient finish failure can retry without silently losing observations.
   const finalMetricsRef = useRef<{ visual: VisualMetrics | null; vocal: VocalMetrics | null } | null>(null);
+  const terminalActionRef = useRef<"idle" | "submitting" | "abandoning">("idle");
   // Read at call time inside callbacks that must not re-create on failure.
   const avatarFailedRef = useRef(false);
   avatarFailedRef.current = avatarFailed;
@@ -181,13 +197,18 @@ export default function TechnicalCodingSession({
           );
           return;
         }
+        const starter = starterCodeForSnapshot(input);
+        if (!starter) {
+          setLoadError("This coding assignment is unavailable. Please start a new technical interview.");
+          return;
+        }
         setSnapshot(input);
         setHintsUsed(Math.max(0, Math.min(MAX_TECHNICAL_HINTS, data.technicalHintCount ?? 0)));
         try {
           const saved = window.localStorage.getItem(`technical-coding:${reportId}:source`);
-          setSource(saved || input.assignment.starterCodeByLanguage?.[input.language] || input.assignment.starterCode);
+          setSource(saved || starter);
         } catch {
-          setSource(input.assignment.starterCodeByLanguage?.[input.language] || input.assignment.starterCode);
+          setSource(starter);
         }
       })
       .catch(() => {
@@ -242,17 +263,11 @@ export default function TechnicalCodingSession({
       });
   }, [avatarConnected, avatarFailed, reportId, snapshot]);
 
-  const entryPoint = useMemo(
-    () =>
-      snapshot
-        ? entryPointFromStarterCode(
-            snapshot.assignment.starterCodeByLanguage?.[snapshot.language] ??
-              snapshot.assignment.starterCode,
-            snapshot.language,
-          )
-        : null,
-    [snapshot],
-  );
+  const entryPoint = useMemo(() => {
+    if (!snapshot) return null;
+    const starter = starterCodeForSnapshot(snapshot);
+    return starter ? entryPointFromStarterCode(starter, snapshot.language) : null;
+  }, [snapshot]);
 
   const append = useCallback(
     (lines: TerminalLine[]) => setTerminalLines((prior) => [...prior, ...lines].slice(-200)),
@@ -505,8 +520,40 @@ export default function TechnicalCodingSession({
     };
   }, [releaseMicrophone, releaseVisualCapture, vocalCaptureRef]);
 
+  const handleLeave = useCallback(async () => {
+    if (isTranscribing || terminalActionRef.current !== "idle") return;
+    terminalActionRef.current = "abandoning";
+    talkLockRef.current = true;
+    setLeaving(true);
+    try {
+      releaseMicrophone();
+      vocalCaptureRef.current?.detachStream();
+      avatarRef.current?.stopSession();
+      releaseVisualCapture();
+      const response = await fetch("/api/practice/session/abandon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId }),
+      });
+      if (!response.ok) throw new Error("abandon failed");
+      try {
+        window.localStorage.removeItem(`technical-coding:${reportId}:source`);
+      } catch {
+        // The server-side abandonment remains authoritative.
+      }
+      setConfirmingExit(false);
+      onExit();
+    } catch {
+      terminalActionRef.current = "idle";
+      talkLockRef.current = false;
+      setLeaving(false);
+      addToast({ title: "Could not discard this session", description: "Your code is still saved. Please try again.", color: "danger" });
+    }
+  }, [isTranscribing, onExit, releaseMicrophone, releaseVisualCapture, reportId, vocalCaptureRef]);
+
   const submit = useCallback(async () => {
-    if (!source.trim() || submitting) return;
+    if (!source.trim() || submitting || terminalActionRef.current !== "idle") return;
+    terminalActionRef.current = "submitting";
     setSubmitting(true);
     // Stop and drain BEFORE the finish fetch so the metrics ride in the same
     // request — the engine parses metrics on the finish call and has no second
@@ -556,12 +603,14 @@ export default function TechnicalCodingSession({
           detail: typeof body.code === "string" ? `Code: ${body.code}` : undefined,
         },
       ]);
+      terminalActionRef.current = "idle";
       setConfirmingSubmit(false);
       setSubmitting(false);
     } catch {
       append([
         { kind: "error", text: "Unable to submit yet. Your code is saved; try again." },
       ]);
+      terminalActionRef.current = "idle";
       setConfirmingSubmit(false);
       setSubmitting(false);
     }
@@ -626,7 +675,7 @@ export default function TechnicalCodingSession({
             aria-label="Leave interview"
             variant="light"
             className="shrink-0 bg-white/5 text-white hover:bg-white/10"
-            isDisabled={submitting}
+            isDisabled={submitting || leaving || isTranscribing}
             onPress={() => setConfirmingExit(true)}
           >
             <ChevronLeft size={20} />
@@ -831,7 +880,7 @@ export default function TechnicalCodingSession({
                   size="sm"
                   color="primary"
                   isLoading={submitting}
-                  isDisabled={!source.trim() || submitting}
+                  isDisabled={!source.trim() || submitting || leaving}
                   onPress={() => setConfirmingSubmit(true)}
                   startContent={<Send size={14} />}
                 >
@@ -915,34 +964,29 @@ export default function TechnicalCodingSession({
       {/* Always mounted so it folds away rather than disappearing. Only shown
           for a camera-on session — an off session has no face to miss. */}
       <FaceDetectionBanner visible={cameraMode === "ON" && faceMissing} />
-      {confirmingExit && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="technical-leave-heading"
-          className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"
-        >
-          <section className="w-full max-w-md rounded-xl border border-white/15 bg-[#101c2d] p-6 shadow-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-light-blue">
-              Technical interview
+      <Modal
+        isOpen={confirmingExit}
+        isDismissable={!leaving}
+        hideCloseButton={leaving}
+        onClose={() => !leaving && setConfirmingExit(false)}
+      >
+        <ModalContent>
+          <ModalHeader>Leave without a report?</ModalHeader>
+          <ModalBody>
+            <p>
+              Your code, conversation, and saved progress will be discarded. No report will be generated and nothing will be evaluated.
             </p>
-            <h2 id="technical-leave-heading" className="mt-2 font-display text-xl text-white">
-              Leave without a report?
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-300">
-              Leaving now ends this session without generating a report. Nothing you&apos;ve said will be evaluated.
-            </p>
-            <div className="mt-6 flex justify-end gap-3">
-              <Button variant="flat" className="text-white" onPress={() => setConfirmingExit(false)}>
-                Keep coding
-              </Button>
-              <Button color="danger" onPress={onExit}>
-                Leave without a report
-              </Button>
-            </div>
-          </section>
-        </div>
-      )}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="light" isDisabled={leaving} onPress={() => setConfirmingExit(false)}>
+              Keep coding
+            </Button>
+            <Button color="danger" isLoading={leaving} isDisabled={leaving} onPress={() => void handleLeave()}>
+              Leave without a report
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
       {confirmingSubmit && (
         <div
           role="dialog"
