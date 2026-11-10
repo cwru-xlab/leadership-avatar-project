@@ -1036,7 +1036,7 @@ function InterviewerPanel({
             startContent={<Lightbulb size={13} />}
             onPress={() => void onSend("Could I have a hint?", true)}
           >
-            Hint {hintsUsed}/{MAX_TECHNICAL_HINTS}
+            Hint stage {hintsUsed}/{MAX_TECHNICAL_HINTS}
           </Button>
         </div>
 

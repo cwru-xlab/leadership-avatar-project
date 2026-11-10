@@ -323,10 +323,10 @@ test.describe("technical coding room", () => {
 
     const transcript = page.locator('[aria-label="Interviewer conversation"]:visible');
     for (const tier of [1, 2, 3]) {
-      await page.getByRole("button", { name: `Hint ${tier - 1}/3`, exact: true }).click();
+      await page.getByRole("button", { name: `Hint stage ${tier - 1}/3`, exact: true }).click();
       await expect(transcript).toContainText(`Hint ${tier} of 3:`, { timeout: 45_000 });
     }
-    await expect(page.getByRole("button", { name: "Hint 3/3", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Hint stage 3/3", exact: true })).toBeDisabled();
   });
 
   test("a failed avatar connection degrades to text instead of stranding the room", async ({
