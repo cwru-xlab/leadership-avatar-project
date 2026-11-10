@@ -98,10 +98,14 @@ async function openRoom(
   await page
     .getByRole("button", { name: /Begin coding session/i })
     .evaluate((button) => (button as HTMLButtonElement).click());
-  expect((await startResponse).status(), "session launch succeeds").toBe(200);
+  const started = await startResponse;
+  expect(started.status(), "session launch succeeds").toBe(200);
+  const { reportId } = (await started.json()) as { reportId?: unknown };
+  expect(typeof reportId, "session launch returns its eager report id").toBe("string");
 
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 45_000 });
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  return reportId as string;
 }
 
 test.describe("technical coding room", () => {
@@ -282,35 +286,50 @@ test.describe("technical coding room", () => {
     await page.waitForURL(/\/reports\//, { timeout: 30_000 });
   });
 
-  test("leaves without a report and returns to setup", async ({ page }) => {
-    let finishRequests = 0;
-    page.on("request", (request) => {
-      if (
-        request.url().includes("/api/practice/session/finish") &&
-        request.method() === "POST"
-      ) {
-        finishRequests += 1;
-      }
+  test("abandons the eager report only after server confirmation", async ({ page, request }) => {
+    let abandonRequests = 0;
+    page.on("request", (outgoing) => {
+      if (outgoing.url().includes("/api/practice/session/abandon")) abandonRequests += 1;
     });
-
     await signIn(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await openRoom(page, { language: "JavaScript" });
+    const reportId = await openRoom(page, { language: "JavaScript" });
+    const storageKey = `technical-coding:${reportId}:source`;
+    await page.locator(".cm-content").click();
+    await page.keyboard.type("// saved draft");
+    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), storageKey)).toContain("saved draft");
 
     await page.getByRole("button", { name: "Leave interview" }).click();
     const dialog = page.getByRole("dialog", { name: /leave without a report/i });
-    await expect(dialog).toContainText(/nothing you.ve said will be evaluated/i);
+    await expect(dialog).toContainText(/code, conversation, and saved progress will be discarded/i);
     await dialog.getByRole("button", { name: "Keep coding" }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.locator(".cm-editor")).toBeVisible();
 
+    await page.route("**/api/practice/session/abandon", (route) => route.fulfill({ status: 500, body: "{}" }));
     await page.getByRole("button", { name: "Leave interview" }).click();
     await dialog.getByRole("button", { name: "Leave without a report" }).click();
-    await expect(page.getByRole("heading", { name: /want to practise/i })).toBeVisible({
-      timeout: 30_000,
+    await expect(page.locator(".cm-editor")).toBeVisible();
+    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), storageKey)).toContain("saved draft");
+    await page.unroute("**/api/practice/session/abandon");
+
+    const abandoned = page.waitForResponse((response) =>
+      response.url().includes("/api/practice/session/abandon") && response.request().method() === "POST",
+    );
+    await dialog.getByRole("button", { name: "Leave without a report" }).evaluate((button) => {
+      (button as HTMLButtonElement).click();
+      (button as HTMLButtonElement).click();
     });
-    expect(finishRequests, "leaving must not generate a report").toBe(0);
-    await expect(page.locator(".cm-editor")).toBeHidden();
+    expect((await abandoned).status(), "the eager report deletion succeeds").toBe(200);
+    await expect(page.getByRole("heading", { name: /want to practise/i })).toBeVisible({ timeout: 30_000 });
+    expect(abandonRequests, "the synchronous leave lock prevents duplicate deletion").toBe(2);
+    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), storageKey)).toBeNull();
+
+    const cookies = await page.context().cookies();
+    const headers = { cookie: cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ") };
+    expect((await request.get(`/api/practice/report/${reportId}`, { headers })).status()).toBe(404);
+    expect((await request.post("/api/technical-interview/opening", { headers, data: { reportId } })).status()).toBe(404);
+    expect((await request.post("/api/technical-interview/run", { headers, data: { reportId, source: "function solve() { return 1; }", requestedTestIds: ["public-1"], idempotencyKey: "abandoned-test-0001" } })).status()).toBe(404);
+    expect((await request.post("/api/practice/session/finish", { headers, data: { reportId, turns: [], progress: {}, metrics: {}, technicalCheckpoints: { version: 1, checkpoints: [] }, finalSource: "function solve() { return 1; }" } })).status()).toBe(404);
   });
 
   test("uses the shared push-to-talk control and answers a typed turn", async ({ page }) => {
