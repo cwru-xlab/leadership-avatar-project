@@ -92,6 +92,9 @@ export default function TechnicalCodingSession({
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
   const [sidePanel, setSidePanel] = useState<"problem" | "interviewer">("problem");
   const [avatarFailed, setAvatarFailed] = useState(false);
+  // Stopping/draining capture is one-shot. Preserve derived scalar metrics so a
+  // transient finish failure can retry without silently losing observations.
+  const finalMetricsRef = useRef<{ visual: VisualMetrics | null; vocal: VocalMetrics | null } | null>(null);
   // Read at call time inside callbacks that must not re-create on failure.
   const avatarFailedRef = useRef(false);
   avatarFailedRef.current = avatarFailed;
@@ -321,7 +324,7 @@ export default function TechnicalCodingSession({
           text: `${passed}/${outcome.results.length} visible tests passed.`,
           detail:
             passed === outcome.results.length
-              ? "Hidden tests still run when you submit."
+              ? "Visible tests ran locally in your browser."
               : undefined,
         },
       ]);
@@ -505,13 +508,17 @@ export default function TechnicalCodingSession({
     // chance at them. Neither call throws by its own contract; the defensive
     // catch keeps an unexpected failure from losing the interview, at the cost
     // of one unscored dimension.
-    const visual: VisualMetrics | null = await stopVisualCapture();
-    let vocal: VocalMetrics | null = null;
-    try {
-      vocal = (await vocalCaptureRef.current?.drain()) ?? null;
-    } catch {
-      vocal = null;
+    if (!finalMetricsRef.current) {
+      const visual: VisualMetrics | null = await stopVisualCapture();
+      let vocal: VocalMetrics | null = null;
+      try {
+        vocal = (await vocalCaptureRef.current?.drain()) ?? null;
+      } catch {
+        vocal = null;
+      }
+      finalMetricsRef.current = { visual, vocal };
     }
+    const { visual, vocal } = finalMetricsRef.current;
     try {
       const response = await fetch("/api/practice/session/finish", {
         method: "POST",

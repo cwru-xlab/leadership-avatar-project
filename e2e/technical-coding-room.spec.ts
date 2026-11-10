@@ -71,7 +71,8 @@ async function openRoom(
   await expect(briefing.getByRole("heading", { name: /how this coding interview works/i })).toBeVisible();
   await expect(briefing).toContainText(/correctness, code and algorithm quality, and technical communication/i);
   await expect(briefing).toContainText(/visible tests run locally in your browser/i);
-  await expect(briefing).toContainText(/up to three staged hints/i);
+  await expect(briefing).toContainText(/deterministic hidden-test correctness is not currently calculated/i);
+  await expect(briefing).toContainText(/stage-specific hints/i);
   await expect(briefing).not.toContainText(/reference solution|rubric anchors|execution harness|provider/i);
   await briefing.getByRole("button", { name: /Continue to camera setup/i }).click();
 

@@ -100,8 +100,9 @@ export default function TechnicalCodingBriefingStep({
                 Tests
               </h3>
               <p className="mt-1 text-sm leading-6 text-muted">
-                Visible tests run locally in your browser. Additional hidden
-                tests run only when you submit your final solution.
+                Visible tests run locally in your browser. Your final code and
+                interview communication are saved for evaluation; deterministic
+                hidden-test correctness is not currently calculated.
               </p>
             </div>
           </aside>
@@ -112,8 +113,9 @@ export default function TechnicalCodingBriefingStep({
                 Hints
               </h3>
               <p className="mt-1 text-sm leading-6 text-muted">
-                You can request up to three staged hints. They are nudges to
-                help you move forward, not solution steps.
+                You can request stage-specific hints. Based on your progress,
+                the interviewer may move directly to the most relevant stage;
+                hints are nudges, not solution steps.
               </p>
             </div>
           </aside>

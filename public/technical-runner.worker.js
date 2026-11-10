@@ -102,10 +102,29 @@ function runJavaScript(source, entry, tests) {
     return { status: "failed", errorCategory: "runtime_error", message: `Define ${entry}(...) before running the visible tests.` };
   }
   const display = (value) => {
-    const encoded = JSON.stringify(value);
-    return encoded === undefined ? String(value) : encoded;
+    try {
+      const encoded = JSON.stringify(value);
+      return encoded === undefined ? String(value) : encoded;
+    } catch {
+      return "[unsupported value]";
+    }
   };
-  const equal = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+  // Visible fixtures are JSON-like values. Compare their structure rather than
+  // serialization: insertion order must not matter and non-finite values must
+  // never alias JSON null.
+  const equal = (left, right) => {
+    if (typeof left === "number" || typeof right === "number") {
+      return Number.isFinite(left) && Number.isFinite(right) && Object.is(left, right);
+    }
+    if (left === right) return true;
+    if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+    if (Array.isArray(left) || Array.isArray(right)) {
+      return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => equal(value, right[index]));
+    }
+    const leftKeys = Object.keys(left).sort();
+    const rightKeys = Object.keys(right).sort();
+    return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index] && equal(left[key], right[key]));
+  };
   const results = tests.map((test) => {
     try {
       const produced = target(...test.input);
