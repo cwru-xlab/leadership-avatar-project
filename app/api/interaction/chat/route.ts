@@ -55,7 +55,7 @@ import {
   TECHNICAL_HINT_EXHAUSTED_REPLY,
   TECHNICAL_HISTORICAL_V1_HINT_UNAVAILABLE_REPLY,
 } from "@/lib/technical-interview/chat-policy";
-import { type TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
+import type { TechnicalSessionContext } from "@/lib/technical-interview/prompts";
 import { resolveTechnicalAssignment } from "@/lib/technical-interview/assignments.server";
 import {
   loadProblemTurnContext,
@@ -705,7 +705,7 @@ export async function POST(request: NextRequest) {
       );
       const startedAt = engineTurn?.startedAt ?? interviewInput?.startedAt;
       const isInterview = Boolean(getInterviewType(sessionConfig.typeSlug));
-      let technicalAssignment: TechnicalCodingInputSnapshot["assignment"] | null = null;
+      let technicalSession: TechnicalSessionContext | null = null;
       let technicalDirective: string | undefined;
 
       // Technical coding accepts exactly one fresh candidate message. The
@@ -720,7 +720,7 @@ export async function POST(request: NextRequest) {
         });
         const snapshot = report ? asInputSnapshot(report.inputSnapshot) : null;
         if (!report || snapshot?.kind !== "technical-coding") return NextResponse.json({ error: "Technical assignment is unavailable." }, { status: 409 });
-        technicalAssignment = snapshot.assignment;
+        technicalSession = { assignment: snapshot.assignment, language: snapshot.language };
         technicalReportId = report.id;
         // Prefer the authenticated, persisted setup inputs over anything the
         // browser sent this turn, so the prompt prefix is genuinely
@@ -1189,7 +1189,7 @@ export async function POST(request: NextRequest) {
         characterId: networkingCharacterId,
         networkingPersona: networkingPersonaText,
         networkingDisplayName,
-        technicalAssignment,
+        technicalSession,
         problem: problemContext
           ? { question: problemContext.question, framework: problemContext.framework }
           : null,

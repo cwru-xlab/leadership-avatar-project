@@ -42,8 +42,13 @@ import {
   type InterviewType,
 } from "@/lib/interview/types";
 import { buildSlidesTailFragment } from "@/lib/pitch/slide-reveal";
-import type { TechnicalAssignmentPublic } from "@/lib/technical-interview/types";
-import { buildTechnicalCodingSystemPrompt } from "@/lib/technical-interview/prompts";
+import { TECHNICAL_CODING_LANGUAGE_PROFILE } from "@/lib/technical-interview/types";
+import {
+  buildTechnicalCodingSystemPrompt,
+  buildTechnicalSessionSettings,
+  starterCodeForSession,
+  type TechnicalSessionContext,
+} from "@/lib/technical-interview/prompts";
 import { buildProblemProgressBlock } from "@/lib/problem-interview/prompts";
 import type { ProblemInterviewState } from "@/lib/problem-interview/session-state";
 import type {
@@ -92,8 +97,11 @@ export interface AssembleSystemPromptOpts {
   /** Networking: brought-in distilled persona sentence (session-constant). */
   networkingPersona?: string | null;
   networkingDisplayName?: string | null;
-  /** Technical coding: persisted learner-visible assignment only. */
-  technicalAssignment?: TechnicalAssignmentPublic | null;
+  /**
+   * Technical coding: persisted learner-visible assignment plus the session
+   * settings (language, …) the candidate chose. Snapshot-sourced only.
+   */
+  technicalSession?: TechnicalSessionContext | null;
   /**
    * Problem interviews: the question pinned on the report snapshot and its
    * framework, loaded server-side. Session-constant.
@@ -306,8 +314,9 @@ export function assembleSystemPrompt(
     return assembleCaseStudySystemPrompt(opts);
   }
 
-  if (config.typeSlug === "technical-coding" && opts.technicalAssignment) {
-    const assignment = opts.technicalAssignment;
+  if (config.typeSlug === "technical-coding" && opts.technicalSession) {
+    const session = opts.technicalSession;
+    const assignment = session.assignment;
     // Reference material, never instructions — the same framing
     // `buildInterviewSystemPrompt` uses, and the same discipline: these are
     // session-constant and resent byte-identically every turn.
@@ -325,13 +334,17 @@ export function assembleSystemPrompt(
 
     return [
       buildTechnicalCodingSystemPrompt(config),
+      // Before the background and the question, so the language is fixed
+      // before the model reads a resume full of other languages or a starter
+      // whose naming style could suggest one.
+      buildTechnicalSessionSettings(session),
       ...background,
       "[LEARNER-VISIBLE QUESTION]",
       `Title: ${assignment.title}`,
       `Statement: ${assignment.statement}`,
       `Constraints: ${assignment.constraints.join(" | ")}`,
       `Examples: ${assignment.examples.map((example) => `input ${example.input}; output ${example.output}`).join(" | ")}`,
-      `Starter signature:\n${assignment.starterCode}`,
+      `Starter signature (${TECHNICAL_CODING_LANGUAGE_PROFILE[session.language].label}):\n${starterCodeForSession(session)}`,
       `Published complexity target: ${assignment.expectedComplexity}`,
     ].join("\n\n");
   }
@@ -524,7 +537,7 @@ export interface BuildTurnMessagesInput {
   characterId?: string | null;
   networkingPersona?: string | null;
   networkingDisplayName?: string | null;
-  technicalAssignment?: TechnicalAssignmentPublic | null;
+  technicalSession?: TechnicalSessionContext | null;
   problem?: { question: ProblemQuestion; framework: ProcessFramework } | null;
 }
 
@@ -544,7 +557,7 @@ export function buildTurnMessages({
   characterId,
   networkingPersona,
   networkingDisplayName,
-  technicalAssignment,
+  technicalSession,
   problem,
 }: BuildTurnMessagesInput): {
   systemPrompt: string;
@@ -559,7 +572,7 @@ export function buildTurnMessages({
     characterId,
     networkingPersona,
     networkingDisplayName,
-    technicalAssignment,
+    technicalSession,
     problem,
   });
 

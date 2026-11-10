@@ -11,10 +11,48 @@ export const TECHNICAL_CODING_LANGUAGES = ["python", "javascript"] as const;
 export type TechnicalCodingLanguage = (typeof TECHNICAL_CODING_LANGUAGES)[number];
 
 export const TECHNICAL_RUNTIME_POLICY_VERSION = "browser-wasm-runtime-v2" as const;
-export const TECHNICAL_CODING_LANGUAGE_LABEL: Record<TechnicalCodingLanguage, string> = {
-  python: "Python",
-  javascript: "JavaScript",
+/**
+ * Everything a surface needs to know about a coding language, in one place.
+ *
+ * The editor, the panel copy and the interviewer prompt all read from this
+ * record, so adding a language means adding one entry here (the `Record` type
+ * makes a missing entry a compile error) rather than hunting for
+ * `language === "javascript"` branches. The interviewer prompt states these
+ * facts as authoritative session settings — without them the model guessed
+ * the language from the starter code and told JavaScript candidates they
+ * were writing Python.
+ */
+export interface TechnicalCodingLanguageProfile {
+  /** Human name, shown in the header and stated to the interviewer. */
+  label: string;
+  /** File name shown above the editor. */
+  fileName: string;
+  /** Where visible tests execute, in plain words. */
+  runtime: string;
+}
+
+export const TECHNICAL_CODING_LANGUAGE_PROFILE: Readonly<
+  Record<TechnicalCodingLanguage, TechnicalCodingLanguageProfile>
+> = {
+  python: {
+    label: "Python",
+    fileName: "solution.py",
+    runtime: "Python running locally in the candidate's browser",
+  },
+  javascript: {
+    label: "JavaScript",
+    fileName: "solution.js",
+    runtime: "JavaScript running locally in the candidate's browser",
+  },
 };
+
+export const TECHNICAL_CODING_LANGUAGE_LABEL: Readonly<Record<TechnicalCodingLanguage, string>> =
+  Object.fromEntries(
+    TECHNICAL_CODING_LANGUAGES.map((language) => [
+      language,
+      TECHNICAL_CODING_LANGUAGE_PROFILE[language].label,
+    ]),
+  ) as Record<TechnicalCodingLanguage, string>;
 
 export function isTechnicalCodingLanguage(value: unknown): value is TechnicalCodingLanguage {
   return typeof value === "string" && (TECHNICAL_CODING_LANGUAGES as readonly string[]).includes(value);

@@ -43,6 +43,7 @@ import type { StartAvatarRequest } from "@/types";
 import {
   MAX_TECHNICAL_HINTS,
   TECHNICAL_CODING_LANGUAGE_LABEL,
+  TECHNICAL_CODING_LANGUAGE_PROFILE,
   type TechnicalCodingInputSnapshot,
 } from "@/lib/technical-interview/types";
 import type { ReportDTO } from "@/lib/report/dto";
@@ -829,7 +830,7 @@ export default function TechnicalCodingSession({
         <section className="flex min-h-0 flex-col overflow-hidden bg-white text-slate-900">
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-1.5 text-xs text-slate-500">
             <span className="font-mono font-medium text-slate-700">
-              {snapshot.language === "javascript" ? "solution.js" : "solution.py"}
+              {TECHNICAL_CODING_LANGUAGE_PROFILE[snapshot.language].fileName}
             </span>
             <span className="hidden sm:inline">⌘/Ctrl + Enter runs visible tests</span>
           </div>
