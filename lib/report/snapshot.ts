@@ -383,6 +383,29 @@ function isDcSource(
 }
 
 /**
+ * Technical reports written before language selection stored only the Python
+ * compatibility starter. New JavaScript reports must retain their own function
+ * starter: falling back to Python would put invalid source in a JS workspace.
+ */
+function hasValidTechnicalStarter(
+  assignment: Record<string, unknown>,
+  language: "python" | "javascript",
+): boolean {
+  if (typeof assignment.starterCode !== "string" || !assignment.starterCode.trim()) {
+    return false;
+  }
+  if (language === "python") return true;
+
+  const starters = assignment.starterCodeByLanguage;
+  if (!starters || typeof starters !== "object" || Array.isArray(starters)) return false;
+  const javascript = (starters as Record<string, unknown>).javascript;
+  return (
+    typeof javascript === "string" &&
+    /^\s*function\s+[A-Za-z_]\w*\s*\([^)]*\)/m.test(javascript)
+  );
+}
+
+/**
  * Defensively narrows an unknown JSON value into a typed `InputSnapshot`,
  * discriminating on `kind`. Follows the precedent `lib/interview/report-dto.ts`
  * and `lib/scenario/report-dto.ts` already establish for their JSON columns:
@@ -455,7 +478,11 @@ export function asInputSnapshot(value: unknown): InputSnapshot | null {
     isTechnicalCodingLanguage(v.language) &&
     !!v.assignment &&
     typeof v.assignment === "object" &&
-    !Array.isArray(v.assignment)
+    !Array.isArray(v.assignment) &&
+    hasValidTechnicalStarter(
+      v.assignment as Record<string, unknown>,
+      v.language,
+    )
   ) {
     return value as TechnicalCodingInputSnapshot;
   }

@@ -27,8 +27,15 @@ for (const assignment of TECHNICAL_ASSIGNMENTS) {
     }
   }
 
+  if (!publicAssignment.starterCodeByLanguage.python?.trim()) {
+    throw new Error(`${assignment.id}: every assignment must provide a Python starter`);
+  }
+  if (!publicAssignment.starterCodeByLanguage.javascript?.trim()) {
+    throw new Error(`${assignment.id}: every assignment must provide a JavaScript starter`);
+  }
+
   const pythonSignature = /^\s*def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/m.exec(
-    publicAssignment.starterCode,
+    publicAssignment.starterCodeByLanguage.python,
   );
   const javaScriptSignature = /^\s*function\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/m.exec(
     publicAssignment.starterCodeByLanguage.javascript,
@@ -40,12 +47,6 @@ for (const assignment of TECHNICAL_ASSIGNMENTS) {
     pythonSignature[2] !== javaScriptSignature[2]
   ) {
     throw new Error(`${assignment.id}: JavaScript starter must preserve the Python entry signature`);
-  }
-  if (!publicAssignment.starterCodeByLanguage.python?.trim()) {
-    throw new Error(`${assignment.id}: every assignment must provide a Python starter`);
-  }
-  if (!publicAssignment.starterCodeByLanguage.javascript?.trim()) {
-    throw new Error(`${assignment.id}: every assignment must provide a JavaScript starter`);
   }
 }
 
@@ -62,6 +63,34 @@ const javascriptSnapshot = asInputSnapshot({
 });
 if (javascriptSnapshot?.kind !== "technical-coding" || javascriptSnapshot.language !== "javascript") {
   throw new Error("A JavaScript technical-coding snapshot must remain readable in reports");
+}
+
+const snapshotBase = {
+  kind: "technical-coding" as const,
+  assignmentId: sample.id,
+  assignmentVersion: sample.version,
+  assignmentHash: sample.contentHash,
+  runtimePolicyVersion: "browser-wasm-runtime-v2",
+  selectedAt: new Date().toISOString(),
+};
+const legacyPythonSnapshot = asInputSnapshot({
+  ...snapshotBase,
+  language: "python",
+  assignment: { ...sample, starterCodeByLanguage: undefined },
+});
+if (legacyPythonSnapshot?.kind !== "technical-coding") {
+  throw new Error("Legacy Python snapshots must continue to use starterCode");
+}
+for (const assignment of [
+  { ...sample, starterCodeByLanguage: { python: sample.starterCode } },
+  {
+    ...sample,
+    starterCodeByLanguage: { python: sample.starterCode, javascript: "not a function" },
+  },
+]) {
+  if (asInputSnapshot({ ...snapshotBase, language: "javascript", assignment })) {
+    throw new Error("A JavaScript snapshot without a valid JavaScript starter must be rejected");
+  }
 }
 
 // Topic and difficulty are only useful if a filter can still find something.
