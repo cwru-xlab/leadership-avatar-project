@@ -721,7 +721,7 @@ export default function TechnicalCodingSession({
               Visible tests
             </h3>
             <p className="mt-1 text-xs leading-5 text-slate-400">
-              Hidden tests also run when you submit.
+              Visible tests run locally in your browser.
             </p>
             <div className="mt-2 space-y-2">
               {assignment.publicTests.map((test) => (

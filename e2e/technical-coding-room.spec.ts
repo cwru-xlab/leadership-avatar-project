@@ -205,6 +205,8 @@ test.describe("technical coding room", () => {
     await openRoom(page, { language: "JavaScript" });
 
     await expect(page.getByText("JavaScript", { exact: true })).toBeVisible();
+    await expect(page.getByText("Visible tests run locally in your browser.")).toBeVisible();
+    await expect(page.getByText("Hidden tests also run when you submit.")).toHaveCount(0);
     const signature = await page.locator(".cm-content").innerText();
     const entry = /function\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/.exec(signature);
     expect(entry, "JavaScript starter code exposes a function signature").not.toBeNull();
