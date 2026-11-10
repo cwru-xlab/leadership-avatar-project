@@ -20,6 +20,63 @@ export interface User {
   authProvider?: "email" | "cwru_sso";
 }
 
+/**
+ * Local-only accounts mirror the development credentials advertised on the
+ * login screen. They are deliberately authentication-only: their stable IDs
+ * are JWT claims, not Prisma records, so database-backed endpoints still
+ * require a local database when exercised.
+ *
+ * This map is never consulted by Preview or production deployments: Vercel
+ * builds with NODE_ENV=production, while the route-level VERCEL_ENV guard
+ * remains the final production email-login block.
+ */
+const LOCAL_DEVELOPMENT_ACCOUNTS: Readonly<
+  Record<string, Readonly<{ password: string; user: User }>>
+> = {
+  "alice.johnson@case.edu": {
+    password: "student123",
+    user: {
+      id: "local-alice-johnson",
+      email: "alice.johnson@case.edu",
+      name: "Alice Johnson",
+      role: "student",
+      studentId: "STU001",
+      authProvider: "email",
+    },
+  },
+  "student@case.edu": {
+    password: "student123",
+    user: {
+      id: "local-student",
+      email: "student@case.edu",
+      name: "Jane Smith",
+      role: "student",
+      studentId: "jxs456",
+      authProvider: "email",
+    },
+  },
+  "professor.smith@case.edu": {
+    password: "prof123",
+    user: {
+      id: "local-professor-smith",
+      email: "professor.smith@case.edu",
+      name: "Dr. John Smith",
+      role: "professor",
+      authProvider: "email",
+    },
+  },
+  "admin@example.com": {
+    password: "admin123",
+    user: {
+      id: "local-admin",
+      email: "admin@example.com",
+      name: "Admin User",
+      role: "admin",
+      authProvider: "email",
+    },
+  },
+};
+
 export interface AuthTokenPayload {
   userId: string;
   email: string;
@@ -151,7 +208,16 @@ export async function authenticateUser(
     return null;
   }
 
-  // Development only: authenticate from database
+  // A database is optional for local UI development. Keep this strictly bound
+  // to Node's development mode so Preview remains database-backed.
+  if (process.env.NODE_ENV === "development") {
+    const account = LOCAL_DEVELOPMENT_ACCOUNTS[email];
+    if (account) {
+      return account.password === password ? account.user : null;
+    }
+  }
+
+  // Preview and other non-production deployments authenticate from the database.
   try {
     const dbUser = await prisma.user.findUnique({
       where: { email },
