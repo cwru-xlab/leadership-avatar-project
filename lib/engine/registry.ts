@@ -331,6 +331,11 @@ const TECHNICAL_CODING: InteractionTypeConfig = {
       customComponent: "JobDescriptionStep",
       optional: true,
     },
+    {
+      id: "briefing",
+      label: "Briefing",
+      customComponent: "TechnicalCodingBriefingStep",
+    },
   ],
 };
 

@@ -31,6 +31,7 @@ import InterviewerStep, {
 import JobDescriptionStep from "@/components/practice/steps/JobDescriptionStep";
 import ResumeStep from "@/components/practice/steps/ResumeStep";
 import TechnicalFocusStep from "@/components/practice/steps/TechnicalFocusStep";
+import TechnicalCodingBriefingStep from "@/components/practice/steps/TechnicalCodingBriefingStep";
 import TechnicalCodingSession from "@/components/technical-interview/TechnicalCodingSession";
 import { getEngineType } from "@/lib/engine/registry";
 import type { CameraMode } from "@/lib/metrics/types";
@@ -171,6 +172,10 @@ export default function TechnicalCodingPracticePage() {
                 }}
               />
             );
+          }
+
+          if (stepId === "briefing") {
+            return <TechnicalCodingBriefingStep nav={nav} />;
           }
 
           return null;
