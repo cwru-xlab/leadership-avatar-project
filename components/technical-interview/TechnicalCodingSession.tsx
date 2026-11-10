@@ -89,6 +89,7 @@ export default function TechnicalCodingSession({
   const [sendingChat, setSendingChat] = useState(false);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmingSubmit, setConfirmingSubmit] = useState(false);
   const [sidePanel, setSidePanel] = useState<"problem" | "interviewer">("problem");
   const [avatarFailed, setAvatarFailed] = useState(false);
   // Read at call time inside callbacks that must not re-create on failure.
@@ -543,11 +544,13 @@ export default function TechnicalCodingSession({
           detail: typeof body.code === "string" ? `Code: ${body.code}` : undefined,
         },
       ]);
+      setConfirmingSubmit(false);
       setSubmitting(false);
     } catch {
       append([
         { kind: "error", text: "Unable to submit yet. Your code is saved; try again." },
       ]);
+      setConfirmingSubmit(false);
       setSubmitting(false);
     }
   }, [
@@ -807,10 +810,10 @@ export default function TechnicalCodingSession({
                   color="primary"
                   isLoading={submitting}
                   isDisabled={!source.trim() || submitting}
-                  onPress={() => void submit()}
-                  startContent={submitting ? undefined : <Send size={14} />}
+                  onPress={() => setConfirmingSubmit(true)}
+                  startContent={<Send size={14} />}
                 >
-                  Submit
+                  End and get my report
                 </Button>
               </div>
             </div>
@@ -890,6 +893,34 @@ export default function TechnicalCodingSession({
       {/* Always mounted so it folds away rather than disappearing. Only shown
           for a camera-on session — an off session has no face to miss. */}
       <FaceDetectionBanner visible={cameraMode === "ON" && faceMissing} />
+      {confirmingSubmit && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="technical-submit-heading"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"
+        >
+          <section className="w-full max-w-md rounded-xl border border-white/15 bg-[#101c2d] p-6 shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-light-blue">
+              Finish coding interview
+            </p>
+            <h2 id="technical-submit-heading" className="mt-2 font-display text-xl text-white">
+              End session and generate your report?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              Your final code and interview conversation will be evaluated. You can&apos;t resume this session after ending it.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="flat" className="text-white" isDisabled={submitting} onPress={() => setConfirmingSubmit(false)}>
+                Keep coding
+              </Button>
+              <Button color="primary" isLoading={submitting} onPress={() => void submit()}>
+                End and get my report
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

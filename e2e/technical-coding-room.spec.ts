@@ -132,7 +132,7 @@ test.describe("technical coding room", () => {
     await expect(page.locator(".cm-editor")).toBeInViewport();
     await expect(page.getByRole("button", { name: /^Terminal/ })).toBeInViewport();
     await expect(page.getByRole("button", { name: "Run" })).toBeInViewport();
-    await expect(page.getByRole("button", { name: "Submit" })).toBeInViewport();
+    await expect(page.getByRole("button", { name: "End and get my report" })).toBeInViewport();
 
     // `toBeInViewport` is an intersection check, so a shaved edge still passes
     // it, and page-scroll math is absorbed by the app shell's overflow
@@ -253,6 +253,30 @@ test.describe("technical coding room", () => {
     // And the newest output starts at the top of the scroller, not below it.
     const scrollTop = await terminal.evaluate((node) => node.scrollTop);
     expect(scrollTop, "terminal is scrolled to the newest output").toBeLessThanOrEqual(1);
+  });
+
+  test("confirms before ending and queues a report", async ({ page }) => {
+    await signIn(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openRoom(page);
+
+    await page.getByRole("button", { name: "End and get my report" }).click();
+    const dialog = page.getByRole("dialog", { name: /end session and generate your report/i });
+    await expect(dialog).toContainText(/final code and interview conversation will be evaluated/i);
+    await dialog.getByRole("button", { name: "Keep coding" }).click();
+    await expect(dialog).toBeHidden();
+
+    await page.getByRole("button", { name: "End and get my report" }).click();
+    const finishResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/practice/session/finish") &&
+        response.request().method() === "POST",
+    );
+    await dialog
+      .getByRole("button", { name: "End and get my report" })
+      .evaluate((button) => (button as HTMLButtonElement).click());
+    expect((await finishResponse).status(), "report finish request is accepted").toBe(202);
+    await page.waitForURL(/\/reports\//, { timeout: 30_000 });
   });
 
   test("uses the shared push-to-talk control and answers a typed turn", async ({ page }) => {
