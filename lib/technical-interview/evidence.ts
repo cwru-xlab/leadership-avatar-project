@@ -129,7 +129,7 @@ export function setFinalSource(persisted: unknown, finalSource: string): Technic
 }
 
 export function validateTechnicalFinalSource(value: unknown): { ok: true; value: string } | { ok: false; error: string } {
-  if (!sourceIsValid(value) || !value.trim()) return { ok: false, error: "Final Python source is required" };
+  if (!sourceIsValid(value) || !value.trim()) return { ok: false, error: "Final source code is required" };
   return { ok: true, value };
 }
 

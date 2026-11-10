@@ -17,9 +17,19 @@ const accepted = validateTechnicalExecutionRequest({
 });
 assert(accepted.ok, "Expected valid execution request");
 
+const missingSource = validateTechnicalExecutionRequest({
+  source: "",
+  requestedTestIds: ["public-1"],
+  idempotencyKey: "visible-tests-0001",
+});
+assert(!missingSource.ok, "Expected a missing source to be rejected");
+if (!missingSource.ok) {
+  assert.equal(missingSource.error, "Source code is required");
+  assert(!/python/i.test(missingSource.error), "Source validation must support every language");
+}
+
 for (const invalid of [
   {},
-  { source: "", requestedTestIds: ["public-1"], idempotencyKey: "visible-tests-0001" },
   { source: "pass", requestedTestIds: [], idempotencyKey: "visible-tests-0001" },
   { source: "pass", requestedTestIds: ["public-1", "public-1"], idempotencyKey: "visible-tests-0001" },
   { source: "pass", requestedTestIds: ["public-1"], idempotencyKey: "short" },

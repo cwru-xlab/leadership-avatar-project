@@ -41,6 +41,12 @@ for (const assignment of TECHNICAL_ASSIGNMENTS) {
   ) {
     throw new Error(`${assignment.id}: JavaScript starter must preserve the Python entry signature`);
   }
+  if (!publicAssignment.starterCodeByLanguage.python?.trim()) {
+    throw new Error(`${assignment.id}: every assignment must provide a Python starter`);
+  }
+  if (!publicAssignment.starterCodeByLanguage.javascript?.trim()) {
+    throw new Error(`${assignment.id}: every assignment must provide a JavaScript starter`);
+  }
 }
 
 const sample = toPublicTechnicalAssignment(TECHNICAL_ASSIGNMENTS[0]);

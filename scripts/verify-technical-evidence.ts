@@ -32,10 +32,17 @@ assert.equal(preserved.finalExecution, null, "No executor means deterministic co
 
 const finalSource = validateTechnicalFinalSource("def solve():\n    return 1\n");
 assert(finalSource.ok, "Expected final source to validate");
+const javascriptFinalSource = validateTechnicalFinalSource("function solve() { return 1; }");
+assert(javascriptFinalSource.ok, "Expected JavaScript final source to validate");
 if (!finalSource.ok) throw new Error("Unreachable final source validation failure");
 const complete = setFinalSource(preserved, finalSource.value);
 assert.equal(asTechnicalEvidence(complete)?.finalSource, finalSource.value);
 assert.equal(asTechnicalEvidence({ version: 1, checkpoints: [], visibleTurns: [], finalSource: "pass" })?.finalExecution, null, "Legacy evidence normalizes execution to null");
-assert(!validateTechnicalFinalSource("   ").ok);
+const missingFinalSource = validateTechnicalFinalSource("   ");
+assert(!missingFinalSource.ok);
+if (!missingFinalSource.ok) {
+  assert.equal(missingFinalSource.error, "Final source code is required");
+  assert(!/python/i.test(missingFinalSource.error), "Final source error must support every language");
+}
 
 console.log("Technical evidence validation verified.");

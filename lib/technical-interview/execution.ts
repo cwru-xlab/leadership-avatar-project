@@ -55,10 +55,10 @@ export function validateTechnicalExecutionRequest(
 
   const { source, requestedTestIds, idempotencyKey } = body as Record<string, unknown>;
   if (typeof source !== "string" || !source.trim()) {
-    return { ok: false, error: "Python source is required" };
+    return { ok: false, error: "Source code is required" };
   }
   if (Buffer.byteLength(source, "utf8") > MAX_TECHNICAL_SOURCE_BYTES) {
-    return { ok: false, error: "Python source exceeds the allowed size" };
+    return { ok: false, error: "Source code exceeds the allowed size" };
   }
   if (
     !Array.isArray(requestedTestIds) ||

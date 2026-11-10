@@ -297,7 +297,7 @@ const TECHNICAL_CODING: InteractionTypeConfig = {
   slug: "technical-coding",
   name: "Technical Coding Interview",
   description:
-    "Solve an original Python algorithm exercise while explaining your reasoning to an interviewer.",
+    "Solve an original Python or JavaScript algorithm exercise while explaining your reasoning to an interviewer.",
   sessionExperience: "coding",
   extraRubricDimensions: [...TECHNICAL_CODING_RUBRIC_EXTRAS],
   prompts: {

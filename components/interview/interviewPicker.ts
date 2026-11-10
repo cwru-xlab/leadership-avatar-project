@@ -51,7 +51,7 @@ const TAGLINES: Record<string, string> = {
   "data-analytics": "Turn a messy question into an analysis plan.",
   finance: "IB, PE or research: technicals, a paper LBO, or your market view.",
   "system-design": "Design a system and defend the tradeoffs.",
-  "technical-coding": "Solve one Python problem while you explain.",
+  "technical-coding": "Solve one coding problem in Python or JavaScript while you explain.",
 };
 
 export function interviewIcon(slug: string): LucideIcon {
@@ -101,10 +101,10 @@ const CODING_INTERVIEW: SpecializedInterview = {
   title: "Technical coding",
   tagline: TAGLINES["technical-coding"],
   description:
-    "Solve an original Python algorithm exercise in a code workspace while explaining your reasoning to an interviewer. Visible tests run as you work.",
+    "Solve an original algorithm exercise in Python or JavaScript in a code workspace while explaining your reasoning to an interviewer. Visible tests run as you work.",
   icon: Braces,
   minutes: 30,
-  level: "Python",
+  level: "Python or JavaScript",
   areas: ["Clarify the problem", "Explain your approach", "Code and test"],
   href: routes.interview("technical-coding"),
   customizable: false,
