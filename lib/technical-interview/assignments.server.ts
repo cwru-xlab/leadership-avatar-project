@@ -132,3 +132,36 @@ export const TECHNICAL_ASSIGNMENTS: readonly TechnicalAssignmentPrivate[] = [
 
 export function getTechnicalAssignment(id: string): TechnicalAssignmentPrivate | null { return TECHNICAL_ASSIGNMENTS.find((assignment) => assignment.id === id) ?? null; }
 export function listPublicTechnicalAssignments(): TechnicalAssignmentPublic[] { return TECHNICAL_ASSIGNMENTS.map(toPublicTechnicalAssignment); }
+
+/** Exact v1 catalog identities reconstructed from the historical catalog generations. */
+type HistoricalV1Generation = "foundation" | "tagged" | "hinted";
+export interface HistoricalTechnicalAssignmentTuple { assignmentId: string; assignmentVersion: "1"; assignmentHash: string; generation: HistoricalV1Generation; }
+export interface ResolvedTechnicalAssignment { assignment: TechnicalAssignmentPrivate; historicalV1: boolean; }
+
+const V1_FOUNDATION_IDS = new Set(["pair-sum", "valid-delimiters", "merge-ordered", "deduplicate-sorted", "maximum-trade-gain", "tree-depth", "invert-binary-tree", "first-unique", "valid-anagram", "move-zeroes", "search-insert", "climbing-steps", "flood-fill", "reverse-values", "normalized-palindrome", "ransom-note", "queue-operations", "min-stack-operations", "missing-number", "contains-duplicate"]);
+const V1_STATEMENT_OVERRIDES: Readonly<Record<string, string>> = { "word-break-reachable": "Return whether text can be segmented into a sequence of one or more words from the given list. Words may be reused." };
+
+function v1Hash(assignment: TechnicalAssignmentPrivate, generation: HistoricalV1Generation): string {
+  const base = { id: assignment.id, title: assignment.title, statement: V1_STATEMENT_OVERRIDES[assignment.id] ?? assignment.statement, starterCode: assignment.starterCode, expectedComplexity: assignment.expectedComplexity };
+  if (generation === "foundation") return createHash("sha256").update(JSON.stringify(base)).digest("hex");
+  const tagged = { ...base, topics: assignment.topics, difficulty: assignment.difficulty };
+  if (generation === "tagged") return createHash("sha256").update(JSON.stringify(tagged)).digest("hex");
+  return createHash("sha256").update(JSON.stringify({ ...tagged, hintLadder: assignment.hintLadder })).digest("hex");
+}
+
+const HISTORICAL_V1_TUPLES: readonly HistoricalTechnicalAssignmentTuple[] = TECHNICAL_ASSIGNMENTS.flatMap((assignment) => {
+  const generations: HistoricalV1Generation[] = ["tagged", "hinted"];
+  if (V1_FOUNDATION_IDS.has(assignment.id)) generations.unshift("foundation");
+  return generations.map((generation) => ({ assignmentId: assignment.id, assignmentVersion: "1" as const, assignmentHash: v1Hash(assignment, generation), generation }));
+});
+
+export function listHistoricalTechnicalAssignmentTuples(): readonly HistoricalTechnicalAssignmentTuple[] { return HISTORICAL_V1_TUPLES; }
+
+/** Resolves only a complete persisted identity; an id/version match is insufficient. */
+export function resolveTechnicalAssignment(assignmentId: string, assignmentVersion: string, assignmentHash: string): ResolvedTechnicalAssignment | null {
+  const assignment = getTechnicalAssignment(assignmentId);
+  if (!assignment) return null;
+  if (assignment.version === assignmentVersion && assignment.contentHash === assignmentHash) return { assignment, historicalV1: false };
+  const historicalV1 = HISTORICAL_V1_TUPLES.some((tuple) => tuple.assignmentId === assignmentId && tuple.assignmentVersion === assignmentVersion && tuple.assignmentHash === assignmentHash);
+  return historicalV1 ? { assignment, historicalV1: true } : null;
+}

@@ -53,9 +53,10 @@ import {
   technicalHintRequestKey,
   technicalPolicyDirective,
   TECHNICAL_HINT_EXHAUSTED_REPLY,
+  TECHNICAL_HISTORICAL_V1_HINT_UNAVAILABLE_REPLY,
 } from "@/lib/technical-interview/chat-policy";
 import { type TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
-import { getTechnicalAssignment } from "@/lib/technical-interview/assignments.server";
+import { resolveTechnicalAssignment } from "@/lib/technical-interview/assignments.server";
 import {
   loadProblemTurnContext,
   recordProblemTurn,
@@ -737,23 +738,19 @@ export async function POST(request: NextRequest) {
         const category = categorizeTechnicalChatRequest(latestUser.content);
         if (category === "hint_request") {
           const requestKey = technicalHintRequestKey(latestUser.content, technicalHintRequestId);
-          const existing = await prisma.technicalInterviewHint.findUnique({ where: { reportId_requestKey: { reportId: report.id, requestKey } } });
-          if (existing) {
-            technicalStaticReply = existing.hintText;
+          const resolvedAssignment = resolveTechnicalAssignment(snapshot.assignmentId, snapshot.assignmentVersion, snapshot.assignmentHash);
+          if (!resolvedAssignment) return NextResponse.json({ error: "Technical assignment is unavailable." }, { status: 409 });
+          if (resolvedAssignment.historicalV1) {
+            // Never replay or allocate current authored hints for v1 snapshots.
+            technicalStaticReply = TECHNICAL_HISTORICAL_V1_HINT_UNAVAILABLE_REPLY;
           } else {
-            // The private catalogue, not the learner-visible snapshot, owns
-            // authored hint text. Pin it to the snapshot identity so a future
-            // catalogue edit cannot change hints for an in-progress report.
-            const privateAssignment = getTechnicalAssignment(snapshot.assignmentId);
-            if (
-              !privateAssignment ||
-              privateAssignment.version !== snapshot.assignmentVersion ||
-              privateAssignment.contentHash !== snapshot.assignmentHash
-            ) {
-              return NextResponse.json({ error: "Technical assignment is unavailable." }, { status: 409 });
-            }
+            const existing = await prisma.technicalInterviewHint.findUnique({ where: { reportId_requestKey: { reportId: report.id, requestKey } } });
+            if (existing) {
+              technicalStaticReply = existing.hintText;
+            } else {
+              const privateAssignment = resolvedAssignment.assignment;
 
-            // A unique (reportId, tier) constraint can race when two distinct
+              // A unique (reportId, tier) constraint can race when two distinct
             // browser requests arrive together. Re-read the issued tiers once
             // after a collision; identical retries still replay by request key.
             for (let attempt = 0; attempt < 2 && !technicalStaticReply; attempt += 1) {
@@ -785,7 +782,8 @@ export async function POST(request: NextRequest) {
                 if (replay) technicalStaticReply = replay.hintText;
               }
             }
-            technicalStaticReply ??= "A hint request is already being processed. Please try again.";
+              technicalStaticReply ??= "A hint request is already being processed. Please try again.";
+            }
           }
         } else if (category === "solution_request") {
           technicalStaticReply = "I can’t provide a solution or pseudocode. Talk me through the contract, boundary cases, and the tradeoffs you are considering.";

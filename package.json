@@ -23,6 +23,7 @@
     "verify:technical-evidence": "tsx scripts/verify-technical-evidence.ts",
     "verify:technical-hints": "tsx scripts/verify-technical-hint-policy.ts",
     "verify:technical-corpus": "tsx scripts/verify-technical-assignment-corpus.ts",
+    "verify:technical-revisions": "tsx scripts/verify-technical-revision-compatibility.ts",
     "verify:technical-selection": "tsx scripts/verify-technical-selection.ts",
     "verify:rubric-schema-order": "tsx scripts/verify-rubric-schema-order.ts"
   },

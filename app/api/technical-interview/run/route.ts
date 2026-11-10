@@ -7,7 +7,7 @@ import {
   toPublicExecutionResult,
   validateTechnicalExecutionRequest,
 } from "@/lib/technical-interview/execution";
-import { getTechnicalAssignment } from "@/lib/technical-interview/assignments.server";
+import { resolveTechnicalAssignment } from "@/lib/technical-interview/assignments.server";
 import { getPythonSandbox } from "@/lib/technical-interview/sandbox";
 import { prisma } from "@/lib/prisma";
 import { asInputSnapshot } from "@/lib/report/snapshot";
@@ -58,23 +58,19 @@ export async function POST(request: NextRequest) {
       return response({ error: "Technical assignment is unavailable." }, 409);
     }
 
-    const assignment = getTechnicalAssignment(snapshot.assignmentId);
-    if (
-      !assignment ||
-      assignment.version !== snapshot.assignmentVersion ||
-      assignment.contentHash !== snapshot.assignmentHash
-    ) {
+    const resolved = resolveTechnicalAssignment(snapshot.assignmentId, snapshot.assignmentVersion, snapshot.assignmentHash);
+    if (!resolved) {
       console.error("Technical run rejected: assignment version mismatch", { reportId: report.id, assignmentId: snapshot.assignmentId });
       return response({ error: "Technical assignment is unavailable." }, 409);
     }
 
-    const harness = buildPublicHarness(assignment, validated.value.requestedTestIds);
+    const harness = buildPublicHarness(resolved.assignment, validated.value.requestedTestIds);
     if (!harness) return response({ error: "One or more visible tests are invalid." }, 400);
 
     const result = await getPythonSandbox().executePython({
       source: validated.value.source,
       harness,
-      limits: assignment.executionLimits,
+      limits: resolved.assignment.executionLimits,
       correlationId: validated.value.idempotencyKey,
     });
     const safeResult = toPublicExecutionResult(result);

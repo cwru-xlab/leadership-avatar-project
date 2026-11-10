@@ -99,6 +99,10 @@ export function buildTechnicalHint(
 export const TECHNICAL_HINT_EXHAUSTED_REPLY =
   `That’s all ${MAX_TECHNICAL_HINTS} hints — I don’t have any more for this problem. I can still clarify the published problem statement, but from here the reasoning has to be yours. Talk me through where you are stuck and what you have ruled out.`;
 
+/** Historical v1 snapshots predate the current authored-hint contract. */
+export const TECHNICAL_HISTORICAL_V1_HINT_UNAVAILABLE_REPLY =
+  "Hints are unavailable for this historical coding session. I can still clarify the published problem statement, and you can talk me through your reasoning.";
+
 export function technicalPolicyDirective(category: TechnicalChatRequestCategory): string {
   const common = "Use only the learner-visible problem statement, constraints, examples, starter signature, and published complexity target. Never provide code, pseudocode, an algorithm, a data structure recommendation, solution steps, or any private implementation, test, or scoring information.";
   if (category === "clarification") {
