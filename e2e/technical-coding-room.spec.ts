@@ -256,10 +256,10 @@ test.describe("technical coding room", () => {
     expect(scrollTop, "terminal is scrolled to the newest output").toBeLessThanOrEqual(1);
   });
 
-  test("confirms before ending and queues a report", async ({ page }) => {
+  test("JavaScript confirms before ending and queues a report", async ({ page }) => {
     await signIn(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await openRoom(page);
+    await openRoom(page, { language: "JavaScript" });
 
     await page.getByRole("button", { name: "End and get my report" }).click();
     const dialog = page.getByRole("dialog", { name: /end session and generate your report/i });
@@ -278,6 +278,37 @@ test.describe("technical coding room", () => {
       .evaluate((button) => (button as HTMLButtonElement).click());
     expect((await finishResponse).status(), "report finish request is accepted").toBe(202);
     await page.waitForURL(/\/reports\//, { timeout: 30_000 });
+  });
+
+  test("leaves without a report and returns to setup", async ({ page }) => {
+    let finishRequests = 0;
+    page.on("request", (request) => {
+      if (
+        request.url().includes("/api/practice/session/finish") &&
+        request.method() === "POST"
+      ) {
+        finishRequests += 1;
+      }
+    });
+
+    await signIn(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openRoom(page, { language: "JavaScript" });
+
+    await page.getByRole("button", { name: "Leave interview" }).click();
+    const dialog = page.getByRole("dialog", { name: /leave without a report/i });
+    await expect(dialog).toContainText(/nothing you.ve said will be evaluated/i);
+    await dialog.getByRole("button", { name: "Keep coding" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator(".cm-editor")).toBeVisible();
+
+    await page.getByRole("button", { name: "Leave interview" }).click();
+    await dialog.getByRole("button", { name: "Leave without a report" }).click();
+    await expect(page.getByRole("heading", { name: /want to practise/i })).toBeVisible({
+      timeout: 30_000,
+    });
+    expect(finishRequests, "leaving must not generate a report").toBe(0);
+    await expect(page.locator(".cm-editor")).toBeHidden();
   });
 
   test("uses the shared push-to-talk control and answers a typed turn", async ({ page }) => {

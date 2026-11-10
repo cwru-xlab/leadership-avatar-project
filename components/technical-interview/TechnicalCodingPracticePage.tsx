@@ -92,6 +92,7 @@ export default function TechnicalCodingPracticePage() {
         reportId={reportId}
         avatarConfig={avatarConfig}
         cameraMode={cameraMode}
+        onExit={() => setReportId(null)}
       />
     );
   }

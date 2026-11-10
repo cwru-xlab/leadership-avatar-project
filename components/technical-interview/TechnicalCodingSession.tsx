@@ -7,6 +7,7 @@ import {
   Braces,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
   Clock3,
   Lightbulb,
   MessageSquare,
@@ -59,6 +60,7 @@ export default function TechnicalCodingSession({
   reportId,
   avatarConfig,
   cameraMode,
+  onExit,
 }: {
   reportId: string;
   avatarConfig: StartAvatarRequest;
@@ -68,6 +70,8 @@ export default function TechnicalCodingSession({
    * consent is missing, and this room must not capture against that decision.
    */
   cameraMode: CameraMode;
+  /** Leave locally without finalizing or evaluating this abandoned session. */
+  onExit: () => void;
 }) {
   const { setFullScreen } = useLayout();
   const avatarRef = useRef<React.ElementRef<typeof SessionAvatar>>(null);
@@ -90,6 +94,7 @@ export default function TechnicalCodingSession({
   const [hintsUsed, setHintsUsed] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
+  const [confirmingExit, setConfirmingExit] = useState(false);
   const [sidePanel, setSidePanel] = useState<"problem" | "interviewer">("problem");
   const [avatarFailed, setAvatarFailed] = useState(false);
   // Stopping/draining capture is one-shot. Preserve derived scalar metrics so a
@@ -616,6 +621,16 @@ export default function TechnicalCodingSession({
     <main className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-ink text-canvas">
       <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-ink px-4 py-2.5 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
+          <Button
+            isIconOnly
+            aria-label="Leave interview"
+            variant="light"
+            className="shrink-0 bg-white/5 text-white hover:bg-white/10"
+            isDisabled={submitting}
+            onPress={() => setConfirmingExit(true)}
+          >
+            <ChevronLeft size={20} />
+          </Button>
           <div className="grid size-8 shrink-0 place-items-center rounded-lg border border-light-blue/30 bg-light-blue/10">
             <Braces size={16} className="text-light-blue" />
           </div>
@@ -900,6 +915,34 @@ export default function TechnicalCodingSession({
       {/* Always mounted so it folds away rather than disappearing. Only shown
           for a camera-on session — an off session has no face to miss. */}
       <FaceDetectionBanner visible={cameraMode === "ON" && faceMissing} />
+      {confirmingExit && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="technical-leave-heading"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"
+        >
+          <section className="w-full max-w-md rounded-xl border border-white/15 bg-[#101c2d] p-6 shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-light-blue">
+              Technical interview
+            </p>
+            <h2 id="technical-leave-heading" className="mt-2 font-display text-xl text-white">
+              Leave without a report?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              Leaving now ends this session without generating a report. Nothing you&apos;ve said will be evaluated.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="flat" className="text-white" onPress={() => setConfirmingExit(false)}>
+                Keep coding
+              </Button>
+              <Button color="danger" onPress={onExit}>
+                Leave without a report
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
       {confirmingSubmit && (
         <div
           role="dialog"
