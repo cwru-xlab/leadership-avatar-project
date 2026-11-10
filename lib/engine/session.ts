@@ -1630,3 +1630,25 @@ export async function finishSession({
 
   return { ok: true, accepted: true, reportId: report.id };
 }
+
+/**
+ * Discards the eager report row created for an unsubmitted coding session.
+ * The conditional predicate makes retries safe and protects reports that have
+ * already entered evaluation or belong to a different learner.
+ */
+export async function abandonTechnicalCodingSession({
+  userId,
+  reportId,
+}: {
+  userId: string;
+  reportId: string;
+}): Promise<void> {
+  await prisma.interactionReport.deleteMany({
+    where: {
+      id: reportId,
+      userId,
+      typeSlug: "technical-coding",
+      status: "IN_PROGRESS",
+    },
+  });
+}
