@@ -157,7 +157,7 @@ test.describe("technical coding room", () => {
 
     // The Run/Submit row is the part that actually disappeared: assert it sits
     // wholly inside the viewport, not merely that it intersects it.
-    for (const name of ["Run", "Submit"]) {
+    for (const name of ["Run", "End and get my report"]) {
       const control = await page.getByRole("button", { name, exact: true }).boundingBox();
       expect(control, `${name} has a box`).not.toBeNull();
       expect(
