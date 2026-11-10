@@ -20,20 +20,31 @@ import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { StreamingAvatarSessionState } from "@/components/HeyGenAvatar/logic";
+import { useLayout } from "@/lib/layout-context";
 import SessionAvatar, { useAvatarKeepAlive } from "@/components/session/SessionAvatar";
 import { PushToTalkControl, formatElapsed } from "@/components/session/SessionRoom";
 import { usePushToTalkRecorder } from "@/components/session/usePushToTalkRecorder";
-import TechnicalPythonEditor from "@/components/technical-interview/TechnicalPythonEditor";
+import {
+  useSyncVisualSpeaking,
+  useVisualCapture,
+} from "@/components/session/useVisualCapture";
+import { SelfViewThumbnail } from "@/components/session/SelfViewThumbnail";
+import { FaceDetectionBanner } from "@/components/session/FaceDetectionBanner";
+import TechnicalCodeEditor from "@/components/technical-interview/TechnicalCodeEditor";
 import {
   entryPointFromStarterCode,
   useVisibleTestRunner,
   type VisibleTestOutcome,
 } from "@/components/technical-interview/useVisibleTestRunner";
+import type { CameraMode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 import type { StartAvatarRequest } from "@/types";
-import type { TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
+import {
+  MAX_TECHNICAL_HINTS,
+  TECHNICAL_CODING_LANGUAGE_LABEL,
+  type TechnicalCodingInputSnapshot,
+} from "@/lib/technical-interview/types";
 import type { ReportDTO } from "@/lib/report/dto";
 
-const MAX_HINTS = 2;
 const TARGET_SECONDS = 30 * 60;
 
 type TerminalLine = {
@@ -47,13 +58,22 @@ type Turn = { role: "user" | "assistant"; content: string };
 export default function TechnicalCodingSession({
   reportId,
   avatarConfig,
+  cameraMode,
 }: {
   reportId: string;
   avatarConfig: StartAvatarRequest;
+  /**
+   * The camera mode the server RESOLVED at session start, not what the student
+   * asked for — `startSession` downgrades a request to "OFF" when video
+   * consent is missing, and this room must not capture against that decision.
+   */
+  cameraMode: CameraMode;
 }) {
+  const { setFullScreen } = useLayout();
   const avatarRef = useRef<React.ElementRef<typeof SessionAvatar>>(null);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
   const [snapshot, setSnapshot] = useState<TechnicalCodingInputSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -69,19 +89,67 @@ export default function TechnicalCodingSession({
   const [sendingChat, setSendingChat] = useState(false);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmingSubmit, setConfirmingSubmit] = useState(false);
   const [sidePanel, setSidePanel] = useState<"problem" | "interviewer">("problem");
   const [avatarFailed, setAvatarFailed] = useState(false);
+  // Stopping/draining capture is one-shot. Preserve derived scalar metrics so a
+  // transient finish failure can retry without silently losing observations.
+  const finalMetricsRef = useRef<{ visual: VisualMetrics | null; vocal: VocalMetrics | null } | null>(null);
   // Read at call time inside callbacks that must not re-create on failure.
   const avatarFailedRef = useRef(false);
   avatarFailedRef.current = avatarFailed;
 
-  const { run: runPython, runtimeReady } = useVisibleTestRunner();
+  const { run: runVisibleTestsInWorker, runtimeReady } = useVisibleTestRunner();
   useAvatarKeepAlive(avatarRef, avatarConnected);
+
+  /**
+   * The SAME visual-capture lifecycle every other live session uses
+   * (`components/session/useVisualCapture`), not a second implementation: it
+   * owns camera acquisition, MediaPipe face detection and the metrics stop.
+   * Everything below stays null for the whole session when `cameraMode` is
+   * "OFF", so a camera-off interview renders no self-view and no banner and
+   * never touches the camera.
+   */
+  const {
+    cameraStream,
+    faceMissing,
+    startVisualCapture,
+    stopVisualCapture,
+    releaseVisualCapture,
+    syncSpeaking,
+  } = useVisualCapture();
+
+  // The room owns the whole viewport: it asks for `h-[100dvh]` below, so it has
+  // to opt out of MainContent's padded, max-width column and out of the navbar
+  // the same way every other immersive surface does. Without this the bottom
+  // edge (terminal border, Run/Submit row) is pushed outside the visible box.
+  useEffect(() => {
+    setFullScreen(true);
+    return () => setFullScreen(false);
+  }, [setFullScreen]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  /**
+   * The clock transcript turns and captured visual episodes are both stamped
+   * against, so an episode can be matched to the moment it happened. Set once
+   * on mount, beside the elapsed timer it shares an origin with.
+   */
+  const startedAtRef = useRef<number>(Date.now());
+
+  // Capture starts only AFTER the avatar has connected, never before: a
+  // camera-on session must not delay the avatar handshake, and MediaPipe's
+  // several-MB dynamic import would otherwise compete with the WebRTC setup.
+  // A vendor failure still counts as "the room is live", so a degraded-to-text
+  // interview is measured too.
+  useEffect(() => {
+    if (cameraMode !== "ON") return;
+    if (!avatarConnected && !avatarFailed) return;
+    startVisualCapture(() => startedAtRef.current);
+  }, [avatarConnected, avatarFailed, cameraMode, startVisualCapture]);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,12 +177,12 @@ export default function TechnicalCodingSession({
           return;
         }
         setSnapshot(input);
-        setHintsUsed(Math.max(0, Math.min(MAX_HINTS, data.technicalHintCount ?? 0)));
+        setHintsUsed(Math.max(0, Math.min(MAX_TECHNICAL_HINTS, data.technicalHintCount ?? 0)));
         try {
           const saved = window.localStorage.getItem(`technical-coding:${reportId}:source`);
-          setSource(saved || input.assignment.starterCode);
+          setSource(saved || input.assignment.starterCodeByLanguage?.[input.language] || input.assignment.starterCode);
         } catch {
-          setSource(input.assignment.starterCode);
+          setSource(input.assignment.starterCodeByLanguage?.[input.language] || input.assignment.starterCode);
         }
       })
       .catch(() => {
@@ -170,7 +238,14 @@ export default function TechnicalCodingSession({
   }, [avatarConnected, avatarFailed, reportId, snapshot]);
 
   const entryPoint = useMemo(
-    () => (snapshot ? entryPointFromStarterCode(snapshot.assignment.starterCode) : null),
+    () =>
+      snapshot
+        ? entryPointFromStarterCode(
+            snapshot.assignment.starterCodeByLanguage?.[snapshot.language] ??
+              snapshot.assignment.starterCode,
+            snapshot.language,
+          )
+        : null,
     [snapshot],
   );
 
@@ -179,19 +254,27 @@ export default function TechnicalCodingSession({
     [],
   );
 
+  // Each run replaces the previous output rather than stacking under it. The
+  // terminal is a fixed-height scroller, so appending meant the newest result
+  // landed below the fold and the candidate had to scroll to find it.
+  const resetTerminal = useCallback((lines: TerminalLine[]) => {
+    setTerminalLines(lines.slice(-200));
+    if (terminalRef.current) terminalRef.current.scrollTop = 0;
+  }, []);
+
   const runVisibleTests = useCallback(async () => {
     if (!snapshot || runningTests) return;
     const tests = snapshot.assignment.publicTests;
     setRunningTests(true);
     setTerminalOpen(true);
-    append([
+    resetTerminal([
       {
         kind: "command",
-        text: `python -m pytest visible  (${tests.length} test${tests.length === 1 ? "" : "s"})`,
+        text: `${snapshot.language === "javascript" ? "node visible-tests" : "python -m pytest visible"}  (${tests.length} test${tests.length === 1 ? "" : "s"})`,
       },
-      ...(runtimeReady
-        ? []
-        : [{ kind: "info" as const, text: "Starting the Python runtime (first run only)…" }]),
+      ...(snapshot.language === "python" && !runtimeReady
+        ? [{ kind: "info" as const, text: "Starting the Python runtime (first run only)…" }]
+        : []),
     ]);
 
     if (!entryPoint) {
@@ -205,7 +288,7 @@ export default function TechnicalCodingSession({
       return;
     }
 
-    const outcome = await runPython(source, entryPoint, tests);
+    const outcome = await runVisibleTestsInWorker(source, snapshot.language, entryPoint, tests);
 
     if (outcome.status === "failed") {
       append([{ kind: "error", text: outcome.message }]);
@@ -241,14 +324,23 @@ export default function TechnicalCodingSession({
           text: `${passed}/${outcome.results.length} visible tests passed.`,
           detail:
             passed === outcome.results.length
-              ? "Hidden tests still run when you submit."
+              ? "Visible tests ran locally in your browser."
               : undefined,
         },
       ]);
     }
     setRunningTests(false);
     editorRef.current?.view?.focus();
-  }, [append, entryPoint, runPython, runningTests, runtimeReady, snapshot, source]);
+  }, [
+    append,
+    entryPoint,
+    resetTerminal,
+    runVisibleTestsInWorker,
+    runningTests,
+    runtimeReady,
+    snapshot,
+    source,
+  ]);
 
   const evidence = useCallback(
     () => ({ version: 1 as const, checkpoints: [{ source }] }),
@@ -314,8 +406,20 @@ export default function TechnicalCodingSession({
         if (reply) {
           setTurns((prior) => [...prior, { role: "assistant", content: reply }]);
           setStreamingReply("");
-          if (!avatarFailedRef.current) avatarRef.current?.speak(reply);
-          if (requestHint) setHintsUsed((value) => Math.min(MAX_HINTS, value + 1));
+          // Playback is optional; a pending or failed avatar must not turn a
+          // successful chat response into an error state.
+          try {
+            if (!avatarFailedRef.current) avatarRef.current?.speak(reply);
+          } catch {
+            // Text chat remains authoritative while media is unavailable.
+          }
+          if (requestHint) {
+            // The server may skip an already-demonstrated nudge and issue a
+            // later stage first. The tier prefix is server-authored, so reflect
+            // that progress rather than blindly counting button presses.
+            const match = /^Hint ([1-3]) of \d+:/i.exec(reply);
+            if (match) setHintsUsed(Number(match[1]));
+          }
           void checkpoint();
         }
       } catch {
@@ -378,6 +482,10 @@ export default function TechnicalCodingSession({
     audioFileName: "technical-interview-answer.webm",
   });
 
+  // Keeps the visual engine's conversational window locked to the recorder,
+  // driven from the state rather than beside each setter — see the hook.
+  useSyncVisualSpeaking(syncSpeaking, isRecording);
+
   // Leaving the room releases the microphone and the provider session; an
   // unfinished recording is discarded rather than transcribed after the exit.
   useEffect(() => {
@@ -386,12 +494,31 @@ export default function TechnicalCodingSession({
       releaseMicrophone();
       capture.current?.detachStream();
       avatarRef.current?.stopSession();
+      // The camera LED going out is the part a student actually sees, so it
+      // must happen on every exit path, not only a clean submit.
+      releaseVisualCapture();
     };
-  }, [releaseMicrophone, vocalCaptureRef]);
+  }, [releaseMicrophone, releaseVisualCapture, vocalCaptureRef]);
 
   const submit = useCallback(async () => {
     if (!source.trim() || submitting) return;
     setSubmitting(true);
+    // Stop and drain BEFORE the finish fetch so the metrics ride in the same
+    // request — the engine parses metrics on the finish call and has no second
+    // chance at them. Neither call throws by its own contract; the defensive
+    // catch keeps an unexpected failure from losing the interview, at the cost
+    // of one unscored dimension.
+    if (!finalMetricsRef.current) {
+      const visual: VisualMetrics | null = await stopVisualCapture();
+      let vocal: VocalMetrics | null = null;
+      try {
+        vocal = (await vocalCaptureRef.current?.drain()) ?? null;
+      } catch {
+        vocal = null;
+      }
+      finalMetricsRef.current = { visual, vocal };
+    }
+    const { visual, vocal } = finalMetricsRef.current;
     try {
       const response = await fetch("/api/practice/session/finish", {
         method: "POST",
@@ -400,19 +527,49 @@ export default function TechnicalCodingSession({
           reportId,
           turns: [],
           progress: {},
+          // Without this the report records no camera mode and no vocal data,
+          // so Visual and Vocal resolve to INSUFFICIENT_DATA even when the
+          // candidate was on camera and talking for thirty minutes.
+          metrics: { cameraMode, visual, vocal },
           technicalCheckpoints: evidence(),
           finalSource: source,
         }),
       });
-      if (!response.ok && response.status !== 409) throw new Error("submit failed");
-      window.location.assign(`/reports/${reportId}`);
+      if (response.ok || response.status === 409) {
+        window.location.assign(`/reports/${reportId}`);
+        return;
+      }
+
+      const body = (await response.json().catch(() => ({}))) as { error?: unknown; code?: unknown };
+      append([
+        {
+          kind: "error",
+          text:
+            typeof body.error === "string"
+              ? body.error
+              : "Unable to submit yet. Your code is saved; try again.",
+          detail: typeof body.code === "string" ? `Code: ${body.code}` : undefined,
+        },
+      ]);
+      setConfirmingSubmit(false);
+      setSubmitting(false);
     } catch {
       append([
         { kind: "error", text: "Unable to submit yet. Your code is saved; try again." },
       ]);
+      setConfirmingSubmit(false);
       setSubmitting(false);
     }
-  }, [append, evidence, reportId, source, submitting]);
+  }, [
+    append,
+    cameraMode,
+    evidence,
+    reportId,
+    source,
+    stopVisualCapture,
+    submitting,
+    vocalCaptureRef,
+  ]);
 
   if (loadError) {
     return (
@@ -473,7 +630,7 @@ export default function TechnicalCodingSession({
         </div>
         <div className="flex shrink-0 items-center gap-2 text-sm">
           <span className="hidden rounded-md border border-white/10 bg-white/5 px-2 py-1 font-mono text-xs text-light-blue sm:inline">
-            Python 3.12
+            {TECHNICAL_CODING_LANGUAGE_LABEL[snapshot.language]}
           </span>
           <span
             className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-xs ${
@@ -599,6 +756,7 @@ export default function TechnicalCodingSession({
               onAvatarFailed={() => setAvatarFailed(true)}
               onToggleRecording={toggleRecording}
               mounted={false}
+              cameraStream={cameraStream}
             />
           </div>
         </aside>
@@ -606,21 +764,25 @@ export default function TechnicalCodingSession({
         {/* Editor + terminal share the center column. */}
         <section className="flex min-h-0 flex-col overflow-hidden bg-white text-slate-900">
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-1.5 text-xs text-slate-500">
-            <span className="font-mono font-medium text-slate-700">solution.py</span>
+            <span className="font-mono font-medium text-slate-700">
+              {snapshot.language === "javascript" ? "solution.js" : "solution.py"}
+            </span>
             <span className="hidden sm:inline">⌘/Ctrl + Enter runs visible tests</span>
           </div>
           <div className="flex min-h-[320px] flex-1 flex-col overflow-hidden lg:min-h-0">
-            <TechnicalPythonEditor
+            <TechnicalCodeEditor
               ref={editorRef}
               value={source}
+              language={snapshot.language}
               onChange={setSource}
               onRunVisibleTests={() => void runVisibleTests()}
               isRunning={runningTests}
             />
           </div>
           <p id="editor-help" className="sr-only">
-            Python editor with line numbers and syntax highlighting. Press Control or Command Enter
-            to run visible tests. Tab and Shift Tab adjust indentation.
+            {TECHNICAL_CODING_LANGUAGE_LABEL[snapshot.language]} editor with line numbers and syntax
+            highlighting. Press Control or Command Enter to run visible tests. Tab and Shift Tab adjust
+            indentation.
           </p>
 
           <section className="shrink-0 border-t border-white/10 bg-[#050a12] text-canvas">
@@ -655,22 +817,23 @@ export default function TechnicalCodingSession({
                   color="primary"
                   isLoading={submitting}
                   isDisabled={!source.trim() || submitting}
-                  onPress={() => void submit()}
-                  startContent={submitting ? undefined : <Send size={14} />}
+                  onPress={() => setConfirmingSubmit(true)}
+                  startContent={<Send size={14} />}
                 >
-                  Submit
+                  End and get my report
                 </Button>
               </div>
             </div>
             {terminalOpen && (
               <div
+                ref={terminalRef}
                 className="h-40 overflow-y-auto border-t border-white/10 px-4 py-2.5 font-mono text-xs leading-5"
                 aria-live="polite"
+                data-testid="coding-test-terminal"
               >
                 {terminalLines.length === 0 ? (
                   <p className="text-slate-500">
-                    Ready. Run the visible tests to check your work — Python runs locally in this
-                    tab.
+                    Ready. Run the visible tests to check your work — {TECHNICAL_CODING_LANGUAGE_LABEL[snapshot.language]} runs locally in this tab.
                   </p>
                 ) : (
                   terminalLines.map((line, index) => (
@@ -730,9 +893,41 @@ export default function TechnicalCodingSession({
             onAvatarFailed={() => setAvatarFailed(true)}
             onToggleRecording={toggleRecording}
             mounted
+            cameraStream={cameraStream}
           />
         </aside>
       </div>
+      {/* Always mounted so it folds away rather than disappearing. Only shown
+          for a camera-on session — an off session has no face to miss. */}
+      <FaceDetectionBanner visible={cameraMode === "ON" && faceMissing} />
+      {confirmingSubmit && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="technical-submit-heading"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"
+        >
+          <section className="w-full max-w-md rounded-xl border border-white/15 bg-[#101c2d] p-6 shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-light-blue">
+              Finish coding interview
+            </p>
+            <h2 id="technical-submit-heading" className="mt-2 font-display text-xl text-white">
+              End session and generate your report?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              Your final code and interview conversation will be evaluated. You can&apos;t resume this session after ending it.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="flat" className="text-white" isDisabled={submitting} onPress={() => setConfirmingSubmit(false)}>
+                Keep coding
+              </Button>
+              <Button color="primary" isLoading={submitting} onPress={() => void submit()}>
+                End and get my report
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
@@ -763,6 +958,7 @@ function InterviewerPanel({
   onAvatarFailed,
   onToggleRecording,
   mounted,
+  cameraStream,
 }: {
   avatarRef: React.Ref<React.ElementRef<typeof SessionAvatar>>;
   avatarConfig: StartAvatarRequest;
@@ -783,6 +979,8 @@ function InterviewerPanel({
   onAvatarFailed: () => void;
   onToggleRecording: () => void;
   mounted: boolean;
+  /** The student's own camera stream, or null when the session is camera-off. */
+  cameraStream: MediaStream | null;
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -803,6 +1001,9 @@ function InterviewerPanel({
               // microphone and no explanation.
               onSessionTokenError={onAvatarFailed}
             />
+            {/* Anchored inside the avatar panel, the usual video-call
+                convention. Renders nothing at all when the stream is null. */}
+            <SelfViewThumbnail stream={cameraStream} />
             {avatarFailed && (
               <div
                 role="status"
@@ -831,11 +1032,11 @@ function InterviewerPanel({
             size="sm"
             variant="flat"
             className="h-7 min-w-0 px-2 text-xs text-white"
-            isDisabled={sendingChat || hintsUsed >= MAX_HINTS}
+            isDisabled={sendingChat || hintsUsed >= MAX_TECHNICAL_HINTS}
             startContent={<Lightbulb size={13} />}
             onPress={() => void onSend("Could I have a hint?", true)}
           >
-            Hint {hintsUsed}/{MAX_HINTS}
+            Hint stage {hintsUsed}/{MAX_TECHNICAL_HINTS}
           </Button>
         </div>
 

@@ -49,10 +49,14 @@ import {
 import {
   buildTechnicalHint,
   categorizeTechnicalChatRequest,
+  selectTechnicalHintTier,
   technicalHintRequestKey,
   technicalPolicyDirective,
+  TECHNICAL_HINT_EXHAUSTED_REPLY,
+  TECHNICAL_HISTORICAL_V1_HINT_UNAVAILABLE_REPLY,
 } from "@/lib/technical-interview/chat-policy";
-import type { TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
+import { type TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
+import { resolveTechnicalAssignment } from "@/lib/technical-interview/assignments.server";
 import {
   loadProblemTurnContext,
   recordProblemTurn,
@@ -690,7 +694,7 @@ export async function POST(request: NextRequest) {
           : typeof interviewInput?.resumeText === "string"
             ? interviewInput.resumeText
             : "";
-      const resumeText = rawResume.slice(0, MAX_RESUME_TEXT_LENGTH);
+      let resumeText = rawResume.slice(0, MAX_RESUME_TEXT_LENGTH);
       // Legacy fallback only. For a started, owned interview below, this is
       // replaced with the session snapshot so the prompt cannot vary by turn.
       let jobDescriptionText = (
@@ -718,29 +722,67 @@ export async function POST(request: NextRequest) {
         if (!report || snapshot?.kind !== "technical-coding") return NextResponse.json({ error: "Technical assignment is unavailable." }, { status: 409 });
         technicalAssignment = snapshot.assignment;
         technicalReportId = report.id;
+        // Prefer the authenticated, persisted setup inputs over anything the
+        // browser sent this turn, so the prompt prefix is genuinely
+        // session-constant and byte-identical for prefix caching. The posting
+        // is interviewer context only — it reaches the live prompt here and
+        // never the evaluator's context.
+        resumeText = (snapshot.resumeText ?? "").slice(0, MAX_RESUME_TEXT_LENGTH);
+        jobDescriptionText = (snapshot.jobDescriptionText ?? "").slice(
+          0,
+          MAX_JOB_DESCRIPTION_TEXT_LENGTH,
+        );
         const latestUser = messages[0];
         const prior = parseStoredTechnicalEvidence(report.technicalEvidence) ?? emptyTechnicalEvidence();
         const serverTranscript = [...prior.visibleTurns, latestUser];
         const category = categorizeTechnicalChatRequest(latestUser.content);
         if (category === "hint_request") {
           const requestKey = technicalHintRequestKey(latestUser.content, technicalHintRequestId);
-          const existing = await prisma.technicalInterviewHint.findUnique({ where: { reportId_requestKey: { reportId: report.id, requestKey } } });
-          if (existing) {
-            technicalStaticReply = existing.hintText;
+          const resolvedAssignment = resolveTechnicalAssignment(snapshot.assignmentId, snapshot.assignmentVersion, snapshot.assignmentHash);
+          if (!resolvedAssignment) return NextResponse.json({ error: "Technical assignment is unavailable." }, { status: 409 });
+          if (resolvedAssignment.historicalV1) {
+            // Never replay or allocate current authored hints for v1 snapshots.
+            technicalStaticReply = TECHNICAL_HISTORICAL_V1_HINT_UNAVAILABLE_REPLY;
           } else {
-            const hintCount = await prisma.technicalInterviewHint.count({ where: { reportId: report.id } });
-            if (hintCount >= 2) {
-              technicalStaticReply = "You have used both available hints. I can clarify the published problem statement, but I cannot provide a solution.";
+            const existing = await prisma.technicalInterviewHint.findUnique({ where: { reportId_requestKey: { reportId: report.id, requestKey } } });
+            if (existing) {
+              technicalStaticReply = existing.hintText;
             } else {
-              const tier = (hintCount + 1) as 1 | 2;
-              const text = buildTechnicalHint(snapshot.assignment, tier);
+              const privateAssignment = resolvedAssignment.assignment;
+
+              // A unique (reportId, tier) constraint can race when two distinct
+            // browser requests arrive together. Re-read the issued tiers once
+            // after a collision; identical retries still replay by request key.
+            for (let attempt = 0; attempt < 2 && !technicalStaticReply; attempt += 1) {
+              const issued = await prisma.technicalInterviewHint.findMany({
+                where: { reportId: report.id },
+                select: { tier: true },
+              });
+              const tier = selectTechnicalHintTier(
+                privateAssignment,
+                prior.checkpoints,
+                issued.map((hint) => hint.tier),
+              );
+              if (!tier) {
+                technicalStaticReply = TECHNICAL_HINT_EXHAUSTED_REPLY;
+                break;
+              }
               try {
-                const hint = await prisma.technicalInterviewHint.create({ data: { reportId: report.id, requestKey, tier, hintText: text } });
+                const hint = await prisma.technicalInterviewHint.create({
+                  data: {
+                    reportId: report.id,
+                    requestKey,
+                    tier,
+                    hintText: buildTechnicalHint(privateAssignment, tier),
+                  },
+                });
                 technicalStaticReply = hint.hintText;
               } catch {
                 const replay = await prisma.technicalInterviewHint.findUnique({ where: { reportId_requestKey: { reportId: report.id, requestKey } } });
-                technicalStaticReply = replay?.hintText ?? "A hint request is already being processed. Please try again.";
+                if (replay) technicalStaticReply = replay.hintText;
               }
+            }
+              technicalStaticReply ??= "A hint request is already being processed. Please try again.";
             }
           }
         } else if (category === "solution_request") {

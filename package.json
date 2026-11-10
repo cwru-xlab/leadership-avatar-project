@@ -21,6 +21,10 @@
     "verify:route-contract": "tsx scripts/verify-route-contract.ts",
     "verify:technical-execution": "tsx scripts/verify-technical-execution-contract.ts",
     "verify:technical-evidence": "tsx scripts/verify-technical-evidence.ts",
+    "verify:technical-hints": "tsx scripts/verify-technical-hint-policy.ts",
+    "verify:technical-corpus": "tsx scripts/verify-technical-assignment-corpus.ts",
+    "verify:technical-revisions": "tsx scripts/verify-technical-revision-compatibility.ts",
+    "verify:technical-selection": "tsx scripts/verify-technical-selection.ts",
     "verify:rubric-schema-order": "tsx scripts/verify-rubric-schema-order.ts"
   },
   "prisma": {
@@ -29,6 +33,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1014.0",
     "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-javascript": "^6.2.4",
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/view": "^6.43.15",
     "@heroui/accordion": "^2.2.29",

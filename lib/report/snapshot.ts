@@ -13,7 +13,10 @@
 import type { ProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
 import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
 import { isDeckModeSlug } from "@/lib/pitch/deck-modes";
-import type { TechnicalCodingInputSnapshot } from "@/lib/technical-interview/types";
+import {
+  isTechnicalCodingLanguage,
+  type TechnicalCodingInputSnapshot,
+} from "@/lib/technical-interview/types";
 
 /**
  * The interview type's input snapshot — the union of every typed
@@ -449,7 +452,7 @@ export function asInputSnapshot(value: unknown): InputSnapshot | null {
     typeof v.assignmentHash === "string" &&
     typeof v.runtimePolicyVersion === "string" &&
     typeof v.selectedAt === "string" &&
-    v.language === "python" &&
+    isTechnicalCodingLanguage(v.language) &&
     !!v.assignment &&
     typeof v.assignment === "object" &&
     !Array.isArray(v.assignment)

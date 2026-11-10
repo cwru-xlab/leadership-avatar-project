@@ -1,50 +1,186 @@
 "use client";
 
-import { Button } from "@heroui/button";
-import { Card, CardBody } from "@heroui/card";
-import { Spinner } from "@heroui/spinner";
-import { Braces, Clock3, ShieldCheck } from "lucide-react";
-import { useEffect, useState } from "react";
+/**
+ * Pre-session setup for the coding room, then the room itself.
+ *
+ * This used to be a single "Begin coding session" button that drew a random
+ * problem and hardcoded `cameraMode: "OFF"`. It now runs the SAME generic
+ * `SetupWizard` every other practice type runs, with the steps declared on
+ * `TECHNICAL_CODING.setupSteps` — so the coding interview gets an interviewer
+ * choice, a resume, a job posting and the standard camera consent gate,
+ * instead of being the one type with no setup at all.
+ *
+ * The component NAME is pinned by `scripts/verify-route-contract.ts`, which
+ * requires the canonical `/practice/interviews/technical` page to render it.
+ * Keep the export name even if this file's contents change again.
+ *
+ * Two things this file deliberately does not do:
+ * - It does not re-implement the start POST. `SetupWizard` owns that; this
+ *   page only contributes the body fields via `buildStartPayload`.
+ * - It does not send the job posting to the evaluator. The posting is
+ *   interviewer context only (`JobDescriptionStep` decision 2) and reaches
+ *   the model through the chat body, never the report's evaluation input.
+ */
 
+import { useCallback, useState } from "react";
+
+import SetupWizard, { type SetupStepNav } from "@/components/practice/SetupWizard";
+import InterviewerStep, {
+  type InterviewerOption,
+} from "@/components/practice/steps/InterviewerStep";
+import JobDescriptionStep from "@/components/practice/steps/JobDescriptionStep";
+import ResumeStep from "@/components/practice/steps/ResumeStep";
+import TechnicalFocusStep from "@/components/practice/steps/TechnicalFocusStep";
+import TechnicalCodingBriefingStep from "@/components/practice/steps/TechnicalCodingBriefingStep";
 import TechnicalCodingSession from "@/components/technical-interview/TechnicalCodingSession";
+import { getEngineType } from "@/lib/engine/registry";
+import type { CameraMode } from "@/lib/metrics/types";
+import type {
+  TechnicalCodingLanguage,
+  TechnicalDifficulty,
+  TechnicalTopic,
+} from "@/lib/technical-interview/types";
 import type { StartAvatarRequest } from "@/types";
 
-type Interviewer = { avatarId: string; name: string; voice: { id: string } };
-
 export default function TechnicalCodingPracticePage() {
-  const [interviewer, setInterviewer] = useState<Interviewer | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [starting, setStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const engineType = getEngineType("technical-coding");
+
+  const [interviewer, setInterviewer] = useState<InterviewerOption | null>(null);
+  const [topics, setTopics] = useState<readonly TechnicalTopic[]>([]);
+  const [difficulty, setDifficulty] = useState<TechnicalDifficulty | null>(null);
+  const [language, setLanguage] = useState<TechnicalCodingLanguage>("python");
+  const [resumeId, setResumeId] = useState<string | null>(null);
+  const [resumeText, setResumeText] = useState("");
+  const [resumeFileName, setResumeFileName] = useState<string | undefined>();
+  const [jobDescriptionId, setJobDescriptionId] = useState<string | null>(null);
+  const [jobDescriptionText, setJobDescriptionText] = useState("");
+  const [jobDescriptionFileName, setJobDescriptionFileName] = useState<
+    string | undefined
+  >();
   const [reportId, setReportId] = useState<string | null>(null);
+  // The mode the SERVER resolved, not the one the student asked for — it
+  // downgrades to OFF when video consent is missing, and the room must capture
+  // against the server's answer.
+  const [cameraMode, setCameraMode] = useState<CameraMode>("OFF");
 
-  useEffect(() => {
-    void fetch("/api/interview/interviewers", { cache: "no-store" })
-      .then(async (response) => ({ response, data: await response.json() as { interviewers?: Interviewer[]; error?: string } }))
-      .then(({ response, data }) => {
-        if (!response.ok || !data.interviewers?.[0]) setError(data.error || "We could not load an interviewer.");
-        else setInterviewer(data.interviewers[0]);
-      })
-      .catch(() => setError("We could not load an interviewer."))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const start = async () => {
-    if (!interviewer) return;
-    setStarting(true); setError(null);
-    try {
-      const response = await fetch("/api/practice/session/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ typeSlug: "technical-coding", cameraMode: "OFF", interviewerAvatarId: interviewer.avatarId, interviewerName: interviewer.name }) });
-      const data = await response.json().catch(() => ({})) as { reportId?: string; error?: string };
-      if (!response.ok || !data.reportId) { setError(data.error || "We could not start the coding session."); return; }
-      setReportId(data.reportId);
-    } catch { setError("We could not start the coding session."); }
-    finally { setStarting(false); }
-  };
+  const buildStartPayload = useCallback(
+    () => ({
+      interviewerAvatarId: interviewer?.avatarId,
+      interviewerName: interviewer?.name,
+      resumeId,
+      resumeText,
+      jobDescriptionId,
+      jobDescriptionText,
+      // Validated server-side by `normalizeTechnicalSelectionRequest`, which
+      // drops anything it does not recognize. Empty means "no preference",
+      // which selection reads as the whole catalog rather than an empty pool.
+      technicalSelection: { topics, difficulty },
+      language,
+    }),
+    [difficulty, interviewer, jobDescriptionId, jobDescriptionText, language, resumeId, resumeText, topics],
+  );
 
   if (reportId && interviewer) {
-    const avatarConfig: StartAvatarRequest = { quality: "low", avatarName: interviewer.avatarId, voice: { voiceId: interviewer.voice.id, rate: 1.05 }, language: "en" };
-    return <TechnicalCodingSession reportId={reportId} avatarConfig={avatarConfig} />;
+    const avatarConfig: StartAvatarRequest = {
+      quality: "low",
+      avatarName: interviewer.avatarId,
+      voice: { voiceId: interviewer.voice.id, rate: 1.05 },
+      language: "en",
+    };
+    return (
+      <TechnicalCodingSession
+        reportId={reportId}
+        avatarConfig={avatarConfig}
+        cameraMode={cameraMode}
+      />
+    );
   }
 
-  return <main className="grid min-h-[100dvh] place-items-center bg-canvas p-5"><Card className="w-full max-w-xl border border-line shadow-none"><CardBody className="gap-6 p-6 sm:p-9"><div className="flex items-start gap-4"><div className="grid size-12 shrink-0 place-items-center rounded-xl bg-cwru-blue text-white"><Braces size={24} /></div><div><p className="text-sm font-semibold text-link">Technical practice</p><h1 className="mt-1 font-display text-3xl font-medium text-cwru-blue">Coding interview room</h1><p className="mt-3 text-sm leading-6 text-muted">You’ll receive one original Python problem selected at random. Explain your approach, code in the workspace, and use visible tests as you work.</p></div></div><div className="grid gap-3 rounded-lg border border-line bg-canvas p-4 text-sm text-ink sm:grid-cols-2"><p className="flex items-center gap-2"><Clock3 size={17} className="text-link" />30-minute target</p><p className="flex items-center gap-2"><ShieldCheck size={17} className="text-link" />Private practice session</p></div>{error && <p role="alert" className="rounded-md bg-danger-50 p-3 text-sm text-danger">{error}</p>}<Button color="primary" size="lg" className="font-semibold" isDisabled={loading || !interviewer} isLoading={starting} onPress={() => void start()}>{loading ? "Preparing interviewer" : "Begin coding session"}</Button>{loading && <Spinner size="sm" color="primary" label="Preparing interviewer" />}</CardBody></Card></main>;
+  if (!engineType) {
+    return (
+      <main className="grid min-h-full place-items-center p-5">
+        <p role="alert" className="text-sm text-danger">
+          Technical practice is unavailable right now.
+        </p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="mx-auto w-full max-w-4xl px-4 py-8">
+      <SetupWizard
+        typeSlug={engineType.slug}
+        steps={engineType.setupSteps}
+        progressAriaLabel="Coding interview setup progress"
+        launchLabel="Begin coding session"
+        buildStartPayload={buildStartPayload}
+        onLaunch={({ reportId: launchedId, cameraMode: locked }) => {
+          setCameraMode(locked);
+          setReportId(launchedId);
+        }}
+        renderStep={(stepId: string, nav: SetupStepNav) => {
+          if (stepId === "focus") {
+            return (
+              <TechnicalFocusStep
+                nav={nav}
+                topics={topics}
+                difficulty={difficulty}
+                language={language}
+                onLanguageChange={setLanguage}
+                onTopicsChange={setTopics}
+                onDifficultyChange={setDifficulty}
+              />
+            );
+          }
+
+          if (stepId === "interviewer") {
+            return (
+              <InterviewerStep
+                nav={nav}
+                selectedInterviewerId={interviewer?.avatarId ?? null}
+                onSelect={setInterviewer}
+              />
+            );
+          }
+
+          if (stepId === "resume") {
+            return (
+              <ResumeStep
+                nav={nav}
+                resumeId={resumeId}
+                resumeFileName={resumeFileName}
+                onResumeChange={(next) => {
+                  setResumeId(next.resumeId);
+                  setResumeText(next.resumeText);
+                  setResumeFileName(next.resumeFileName);
+                }}
+              />
+            );
+          }
+
+          if (stepId === "job-description") {
+            return (
+              <JobDescriptionStep
+                nav={nav}
+                jobDescriptionId={jobDescriptionId}
+                jobDescriptionText={jobDescriptionText}
+                jobDescriptionFileName={jobDescriptionFileName}
+                onJobDescriptionChange={(next) => {
+                  setJobDescriptionId(next.jobDescriptionId);
+                  setJobDescriptionText(next.jobDescriptionText);
+                  setJobDescriptionFileName(next.jobDescriptionFileName);
+                }}
+              />
+            );
+          }
+
+          if (stepId === "briefing") {
+            return <TechnicalCodingBriefingStep nav={nav} />;
+          }
+
+          return null;
+        }}
+      />
+    </main>
+  );
 }

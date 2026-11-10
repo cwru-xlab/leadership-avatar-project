@@ -69,8 +69,13 @@ import {
   TECHNICAL_ASSIGNMENTS,
 } from "@/lib/technical-interview/assignments.server";
 import {
+  normalizeTechnicalSelectionRequest,
+  selectTechnicalAssignment,
+} from "@/lib/technical-interview/selection";
+import {
   TECHNICAL_CODING_LANGUAGE,
   TECHNICAL_RUNTIME_POLICY_VERSION,
+  isTechnicalCodingLanguage,
   toPublicTechnicalAssignment,
   type TechnicalCodingInputSnapshot,
 } from "@/lib/technical-interview/types";
@@ -383,6 +388,7 @@ export async function startSession({
   cameraModeRequest,
   interviewerAvatarId: rawInterviewerAvatarId,
   interviewerName: rawInterviewerName,
+  technicalSelection,
   resumeId: rawResumeId,
   resumeText: rawResumeText,
   jobDescriptionId: rawJobDescriptionId,
@@ -403,6 +409,12 @@ export async function startSession({
   cameraModeRequest?: unknown;
   interviewerAvatarId?: unknown;
   interviewerName?: unknown;
+  /**
+   * Technical coding only: `{ topics, difficulty, biasTopics }` as the student
+   * asked for it. Validated by `normalizeTechnicalSelectionRequest`, which
+   * drops anything it does not recognize.
+   */
+  technicalSelection?: unknown;
   resumeId?: unknown;
   resumeText?: unknown;
   /** Attached job posting (quick task 003) — interview types only. */
@@ -495,20 +507,64 @@ export async function startSession({
   if (type.slug === "technical-coding") {
     const resolved = resolveSessionConfig(typeSlug);
     if (!resolved.ok) return { ok: false, status: 400, error: resolved.reason };
-    const selected = TECHNICAL_ASSIGNMENTS[randomInt(TECHNICAL_ASSIGNMENTS.length)];
-    if (!selected) {
+    const selectionRequest = normalizeTechnicalSelectionRequest(technicalSelection);
+    const selection = selectTechnicalAssignment(
+      TECHNICAL_ASSIGNMENTS,
+      selectionRequest,
+      randomInt,
+    );
+    if (!selection) {
       console.error("Technical coding catalog is empty");
       return { ok: false, status: 500, error: "Technical practice is unavailable." };
     }
+    const selected = selection.assignment;
+    // Same validation shape the interview branch below uses: a server-issued
+    // UUID or null (a pasted posting legitimately has no id), and a truncated
+    // string. The posting is interviewer context only — it is snapshotted so
+    // the chat route can re-read it per turn, and is NOT part of the
+    // evaluation context the coding evaluator builds.
+    const resumeId =
+      typeof rawResumeId === "string" && UUID_V4_REGEX.test(rawResumeId) ? rawResumeId : null;
+    const resumeText =
+      typeof rawResumeText === "string" ? truncate(rawResumeText, MAX_RESUME_TEXT_LENGTH) : null;
+    const jobDescriptionId =
+      typeof rawJobDescriptionId === "string" && UUID_V4_REGEX.test(rawJobDescriptionId)
+        ? rawJobDescriptionId
+        : null;
+    const jobDescriptionText =
+      typeof rawJobDescriptionText === "string"
+        ? truncate(rawJobDescriptionText, MAX_RESUME_TEXT_LENGTH)
+        : null;
+    const technicalLanguage = isTechnicalCodingLanguage(language)
+      ? language
+      : TECHNICAL_CODING_LANGUAGE;
     const inputSnapshot: TechnicalCodingInputSnapshot = {
       kind: "technical-coding",
+      // The coding page used to drop these on the floor, so the room showed a
+      // generic interviewer and the prompt had no candidate background.
+      interviewerAvatarId:
+        typeof rawInterviewerAvatarId === "string"
+          ? truncate(rawInterviewerAvatarId, MAX_NAME_LENGTH)
+          : null,
+      interviewerName:
+        typeof rawInterviewerName === "string"
+          ? truncate(rawInterviewerName, MAX_NAME_LENGTH)
+          : null,
+      resumeId,
+      resumeText,
+      jobDescriptionId,
+      jobDescriptionText,
       assignmentId: selected.id,
       assignmentVersion: selected.version,
       assignmentHash: selected.contentHash,
       assignment: toPublicTechnicalAssignment(selected),
-      language: TECHNICAL_CODING_LANGUAGE,
+      language: technicalLanguage,
       runtimePolicyVersion: TECHNICAL_RUNTIME_POLICY_VERSION,
       selectedAt: new Date().toISOString(),
+      requested: {
+        topics: selectionRequest.topics ?? [],
+        difficulty: selectionRequest.difficulty ?? null,
+      },
     };
     const timeBudgetSeconds = resolvePersistedBudget(
       resolved.config.timeBudget,
@@ -531,6 +587,13 @@ export async function startSession({
       reportId: report.id,
       assignmentId: selected.id,
       assignmentVersion: selected.version,
+      topics: selected.topics,
+      difficulty: selected.difficulty,
+      // `widened` means the request matched nothing and a looser pool was
+      // used; worth seeing in logs, since it points at a catalog gap.
+      selectionBasis: selection.basis,
+      selectionWidened: selection.widened,
+      selectionPoolSize: selection.poolSize,
     });
     return { ok: true, reportId: report.id, cameraMode, timeBudgetSeconds };
   }
@@ -1378,7 +1441,11 @@ export async function finishSession({
     try {
       transcriptKey = await s3Storage.saveInterviewTranscript(userId, report.id, transcript);
     } catch (error) {
-      console.error("Engine coding finish: transcript save failed", error);
+      console.error("Engine coding finish: transcript save failed", {
+        userId,
+        reportId: report.id,
+        error,
+      });
       return { ok: false, status: 502, error: "We could not save your coding interview. Please try again." };
     }
 
@@ -1449,7 +1516,11 @@ export async function finishSession({
         transcript,
       );
     } catch (error) {
-      console.error("Engine interview finish: transcript save failed", error);
+      console.error("Engine interview finish: transcript save failed", {
+        userId,
+        reportId: report.id,
+        error,
+      });
       return {
         ok: false,
         status: 502,
@@ -1528,7 +1599,11 @@ export async function finishSession({
   try {
     await s3Storage.saveInteractionLog(log);
   } catch (error) {
-    console.error("Engine scenario finish: interaction log save failed", error);
+    console.error("Engine scenario finish: interaction log save failed", {
+      userId,
+      reportId: report.id,
+      error,
+    });
     return {
       ok: false,
       status: 502,

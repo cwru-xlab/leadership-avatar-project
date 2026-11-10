@@ -25,8 +25,8 @@ export function buildTechnicalOpening(
   const visibleTests = assignment.publicTests.length;
   const testSentence =
     visibleTests === 1
-      ? "There is one visible test in the panel, and hidden tests run when you submit."
-      : `There are ${visibleTests} visible tests in the panel, and hidden tests run when you submit.`;
+      ? "There is one visible test in the panel, which you can run locally in your browser."
+      : `There are ${visibleTests} visible tests in the panel, which you can run locally in your browser.`;
 
   const opening = [
     `Thanks for making time today. Let's work through a problem called ${assignment.title}.`,

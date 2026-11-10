@@ -316,7 +316,27 @@ const TECHNICAL_CODING: InteractionTypeConfig = {
   checkpointing: "client-driven",
   finishPendingFlip: "request-path",
   supportsRetry: true,
-  setupSteps: [{ id: "interviewer", label: "Interviewer", customComponent: "InterviewerStep" }],
+  // Same shape as a normal interview — interviewer, resume, posting, camera
+  // (the wizard appends the camera gate itself) — plus the one input a coding
+  // interview has that a behavioural one does not. `focus` runs first because
+  // it decides which problem is served, and a student who came to practise
+  // graphs should say so before being asked to upload anything.
+  setupSteps: [
+    { id: "focus", label: "Focus", customComponent: "TechnicalFocusStep", optional: true },
+    { id: "interviewer", label: "Interviewer", customComponent: "InterviewerStep" },
+    { id: "resume", label: "Resume", customComponent: "ResumeStep", optional: true },
+    {
+      id: "job-description",
+      label: "Job posting",
+      customComponent: "JobDescriptionStep",
+      optional: true,
+    },
+    {
+      id: "briefing",
+      label: "Briefing",
+      customComponent: "TechnicalCodingBriefingStep",
+    },
+  ],
 };
 
 const NETWORKING: InteractionTypeConfig = {
