@@ -819,6 +819,7 @@ export default function TechnicalCodingSession({
                 ref={terminalRef}
                 className="h-40 overflow-y-auto border-t border-white/10 px-4 py-2.5 font-mono text-xs leading-5"
                 aria-live="polite"
+                data-testid="coding-test-terminal"
               >
                 {terminalLines.length === 0 ? (
                   <p className="text-slate-500">

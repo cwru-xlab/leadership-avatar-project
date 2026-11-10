@@ -82,12 +82,22 @@ async function openRoom(
   });
   if (options.camera === "ON") {
     await page.getByRole("button", { name: /camera on/i }).first().click();
-    await page.getByRole("button", { name: /Begin coding session/i }).click();
   } else {
-    // Choosing OFF is itself the explicit launch action in the shared consent
-    // component; do not click the CTA a second time after the route changes.
     await page.getByRole("button", { name: /^Camera off/ }).click();
   }
+
+  // Starting the session intentionally replaces the wizard as soon as the
+  // response arrives. Do not make Playwright wait for the clicked button to
+  // remain attached after dispatching its React handler.
+  const startResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/practice/session/start") &&
+      response.request().method() === "POST",
+  );
+  await page
+    .getByRole("button", { name: /Begin coding session/i })
+    .evaluate((button) => (button as HTMLButtonElement).click());
+  expect((await startResponse).status(), "session launch succeeds").toBe(200);
 
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 45_000 });
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
@@ -202,9 +212,10 @@ test.describe("technical coding room", () => {
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.type(`function ${name}(${args}) { return "definitely-wrong"; }`);
     await page.getByRole("button", { name: "Run", exact: true }).click();
-    await expect(page.locator('[aria-live="polite"]')).toContainText(/0\/\d+ visible tests passed/, {
-      timeout: 30_000,
-    });
+    await expect(page.getByTestId("coding-test-terminal")).toContainText(
+      /0\/\d+ visible tests passed/,
+      { timeout: 30_000 },
+    );
   });
 
   test("each run replaces the previous terminal output", async ({ page }) => {
