@@ -34,7 +34,7 @@ skipped; three clear points and a next step get acted on.
 | Rubric notes, category notes | 2 | Content tab, one expandable row each |
 | Delivery bands | 1 | Short label / word lists in the Delivery tab |
 | Answer-by-answer delivery, camera observations | 2 | Expandable sections in the Delivery tab |
-| Learning points (keep doing, work on next, rewatch) | 1 | Takeaways tab, one line each |
+| Answers worth revisiting (uneven or off, worst first) | 1 | "Answers to revisit" in the Moments section; selecting one drives the timeline |
 | Headline delivery and camera figures | 1 | Statistics tab, eight figures with one line each |
 | Per-answer delivery and camera moments over time | 1 then 2 | Moments timeline; selecting a point opens its detail |
 | Transcript excerpt for one answer | 2 | "What you said" in the timeline's detail panel |

@@ -92,7 +92,7 @@ export default function ChoiceTiles({
               className={`flex min-h-11 justify-between gap-2 rounded-lg px-3.5 py-2.5 text-left ${layout === "wrap" ? "items-center" : "items-start"} transition-colors duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${
                 selected
                   ? "border-2 border-true-blue bg-light-blue/32 px-[13px] py-[9px]"
-                  : "border border-line bg-white hover:border-true-blue/50"
+                  : "border border-line bg-white hover:border-ink/25 hover:bg-canvas"
               }`}
               disabled={disabled}
               role="radio"

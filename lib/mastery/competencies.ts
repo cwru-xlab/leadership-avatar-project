@@ -191,7 +191,23 @@ export const COMPETENCIES: readonly Competency[] = [
     description: "Reading the person in front of you and shaping to them.",
     dimensionKeys: [
       "behavioral",
+      // Three DISTINCT empathy constructs, deliberately not one key
+      // (2026-11-07). They all evidence this competency, but they measure
+      // different things and are scored against different rubrics:
+      //   empathy          — difficult-conversation: acknowledged the other
+      //                      person's position instead of steamrolling.
+      //   empathy_clinical — Calgary-Cambridge: noticed an emotional cue and
+      //                      responded before moving on, no premature
+      //                      reassurance.
+      //   empathy_mi       — MITI 4 global: depth of reflected understanding.
+      // Pooling them under one key averaged a student's clinical cue-handling
+      // with their workplace conversation style into a single number. Keeping
+      // them separate preserves the per-rubric signal on the report while
+      // still rolling up here. DIMENSION_TO_COMPETENCY forbids a key being
+      // claimed twice, so these must stay distinct spellings.
       "empathy",
+      "empathy_clinical",
+      "empathy_mi",
       "rapport",
       "discovery_tailoring",
       "self-introduction",

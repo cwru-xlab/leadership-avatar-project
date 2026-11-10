@@ -83,7 +83,10 @@ function stripComments(src: string): string {
     .replace(/(^|[^:])\/\/.*$/gm, "$1");
 }
 
-const PAGE_PATH = "app/practice/[type]/page.tsx";
+// The launcher composition moved here; `app/practice/[type]/page.tsx` is now an
+// 11-line wrapper. Reading the wrapper made every negative assertion below
+// (e.g. "no CameraConsentStep") pass vacuously.
+const PAGE_PATH = "components/practice/routes/PracticeTypePage.tsx";
 const WIZARD_PATH = "components/practice/SetupWizard.tsx";
 
 const pageSrcRaw = readFileSync(abs(...PAGE_PATH.split("/")), "utf8");
@@ -182,21 +185,21 @@ check(
 
 // --- 3c. Exactly one avatar-selection path live per type --------------------
 {
-  check(
-    "page.tsx's auto-pick effect is gated by declaresInterviewerStep (or equivalent)",
-    /declaresInterviewerStep/.test(pageSrc),
-  );
-
-  // The auto-pick effect's own guard must include the gate — not just the
-  // name existing somewhere unrelated in the file.
-  const autoPickGuardRe =
-    /if\s*\(\s*!isPitch\s*\|\|\s*declaresInterviewerStep\s*\|\|\s*selectedInterviewer\s*\)\s*return;/;
-
-  check(
-    "the auto-pick effect's guard checks !isPitch || declaresInterviewerStep || selectedInterviewer",
-    autoPickGuardRe.test(pageSrc),
-  );
-
+  /**
+   * The client-side auto-pick effect this section used to assert
+   * (`if (!isPitch || declaresInterviewerStep || selectedInterviewer) return;`)
+   * was deliberately deleted by `2d62140`, which moved listener selection to a
+   * deterministic server-side draw pinned in `inputSnapshot.listenerPersona`
+   * and explicitly re-read "never from the client". `declaresInterviewerStep`
+   * no longer exists anywhere in the tree.
+   *
+   * Those two checks are therefore obsolete, not merely relocated — restoring
+   * them would re-assert a mechanism the product intentionally removed. The
+   * replacement invariant (the draw is server-side and the snapshot stores the
+   * id) is owned by `verify-elevator-personas.ts`. What remains in scope here
+   * is that every pitch type still resolves exactly one avatar-selection path,
+   * which the `setupSteps` assertions below cover.
+   */
   const elevatorType = getEngineType("pitch-elevator")!;
 
   check(
@@ -237,18 +240,32 @@ check(
     .map((f) => rel(f))
     .sort();
 
-  const expected = [
-    "app/practice/[type]/[instanceId]/page.tsx",
-    "app/practice/[type]/page.tsx",
-    "app/practice/[type]/report/[reportId]/page.tsx",
-    "app/practice/pitches/page.tsx",
-    "app/practice/pitches/deck/page.tsx",
-  ].sort();
+  /**
+   * This used to pin an exact five-route inventory. `09dda6e` ("unify student
+   * practice URLs") intentionally added the canonical named routes
+   * (`/practice/interviews/*`, `/practice/case-studies/*`, ...), so the frozen
+   * list contradicted the newer `verify-route-contract.ts`, which is now the
+   * authoritative owner of route inventory and redirects.
+   *
+   * The property worth keeping here is the anti-duplication one this section
+   * was named for: exactly one dynamic launcher, and the named routes must stay
+   * thin delegations rather than growing a parallel wizard implementation.
+   */
+  check(
+    "exactly one dynamic app/practice/[type]/page.tsx launcher",
+    allPageFiles.filter((f) => f === "app/practice/[type]/page.tsx").length === 1,
+    `found: ${allPageFiles.join(", ")}`,
+  );
+
+  // A second SetupWizard mount under app/practice would be a parallel wizard.
+  const wizardMounts = allPageFiles.filter((f) =>
+    readFileSync(abs(...f.split("/")), "utf8").includes("<SetupWizard"),
+  );
 
   check(
-    "exactly one app/practice/[type]/page.tsx and no page route under app/practice beyond the pitches picker and its deck page",
-    JSON.stringify(allPageFiles) === JSON.stringify(expected),
-    `found: ${allPageFiles.join(", ")}`,
+    "no app/practice page route mounts its own SetupWizard",
+    wizardMounts.length === 0,
+    `mounted in: ${wizardMounts.join(", ")}`,
   );
 
   const pitchModeDirs = walkFiles(abs("app", "practice")).filter((f) =>

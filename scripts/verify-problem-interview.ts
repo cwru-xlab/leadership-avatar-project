@@ -38,13 +38,17 @@ async function main() {
     buildProblemSessionSnapshot,
     asProblemSessionSnapshot,
     toProblemLiveView,
+    toPublicQuestion,
+    toPublicFramework,
+    NUDGE_COOLDOWN_TURNS,
   } = await import("../lib/problem-interview/session-state");
+  type ProblemInterviewState = import("../lib/problem-interview/session-state").ProblemInterviewState;
   const {
     asProcessStepResults,
     finalizeProblemOutcome,
     buildProcessStepViews,
   } = await import("../lib/problem-interview/outcome");
-  const { buildProblemProgressBlock } = await import("../lib/problem-interview/prompts");
+  const { buildProblemProgressBlock, isNudgeOnCooldown } = await import("../lib/problem-interview/prompts");
   const { selectProblemQuestion, getProblemBank } = await import(
     "../lib/problem-interview/banks.server"
   );
@@ -193,6 +197,201 @@ async function main() {
       thinkingBlock.includes("Current stage: problem") &&
         /already on the candidate's screen: ex1/.test(thinkingBlock),
     );
+
+    // -------------------------------------------------------------------
+    // NUDGE CADENCE. The live defect: three canned nudges on three
+    // consecutive turns of a PM estimation interview — "What exactly are we
+    // counting here?", "How are you going to break that down?", "Where does
+    // that number come from?". `nudgedSteps` did not stop it because each
+    // nudge was a DIFFERENT step; the block offered every un-nudged step's
+    // text on every turn, so the model had three canned lines in hand and a
+    // candidate who had not yet ticked the rubric's boxes.
+    // -------------------------------------------------------------------
+    console.log("\nnudge cadence (consecutive-nudge defect)");
+
+    const fresh = (() => {
+      let s = initialProblemState();
+      s = reduceProblemTurn(s, [{ kind: "planned" }], ctx).state; // -> fit
+      s = reduceProblemTurn(s, [{ kind: "planned" }], ctx).state; // -> problem
+      return s;
+    })();
+
+    // Turn 5 nudges.
+    const t5 = reduceProblemTurn(
+      fresh,
+      [{ kind: "nudge", step: framework.steps[0]!.key }],
+      { ...ctx, turnIndex: 5 },
+    );
+    check("cooldown: a nudge records the turn it happened on", t5.state.lastNudgedTurnIndex === 5);
+
+    // Turn 6 — the very next turn — must NOT be offered any nudge text.
+    const turn6 = buildProblemProgressBlock(
+      t5.state,
+      { ...timing, turnIndex: 6 },
+      question,
+      framework,
+    );
+    check(
+      "cooldown: the turn AFTER a nudge is offered no nudge list",
+      !/Nudges —/.test(turn6),
+    );
+    check(
+      "cooldown: no nudge TEXT leaks on the cooled-down turn (the words are the vector)",
+      !framework.steps.some((s) => turn6.includes(`"${s.nudge}"`)),
+      framework.steps.filter((s) => turn6.includes(`"${s.nudge}"`)).map((s) => s.key).join(", "),
+    );
+    check(
+      "cooldown: the cooled-down turn says why, and asks for a plain reply",
+      /Do NOT nudge again this turn/.test(turn6),
+    );
+    check(
+      "cooldown: the cooled-down turn offers no nudgeable step keys either",
+      /may still nudge once if skipped: none this turn/.test(turn6),
+    );
+    check(
+      "cooldown: the marker instruction is withheld too (nothing to mark)",
+      !/MUST also carry that nudge's marker/.test(turn6),
+    );
+    check(
+      "cooldown: stage, exhibit and time context all survive",
+      turn6.includes("Current stage: problem") && /min elapsed/.test(turn6),
+    );
+
+    // Turn 7 — one clear turn later — may nudge again.
+    const turn7 = buildProblemProgressBlock(
+      t5.state,
+      { ...timing, turnIndex: 7 },
+      question,
+      framework,
+    );
+    check(
+      "cooldown: expires after NUDGE_COOLDOWN_TURNS, so turn 7 may nudge again",
+      /Nudges —/.test(turn7),
+    );
+    check(
+      "cooldown: the already-nudged step is still never re-offered",
+      !turn7.includes(`"${framework.steps[0]!.nudge}"`),
+    );
+
+    // THE DEFECT, as a direct assertion: three different steps, three
+    // consecutive turns. Only the first may be offered the list.
+    const consecutive = [5, 6, 7].map((turnIndex) => {
+      let s = fresh;
+      let offered = 0;
+      for (let t = turnIndex - 2; t <= turnIndex; t += 1) {
+        const block = buildProblemProgressBlock(s, { ...timing, turnIndex: t }, question, framework);
+        if (/Nudges —/.test(block)) {
+          offered += 1;
+          const step = framework.steps.find((x) => !s.nudgedSteps.includes(x.key));
+          if (step) {
+            s = reduceProblemTurn(s, [{ kind: "nudge", step: step.key }], { ...ctx, turnIndex: t }).state;
+          }
+        }
+      }
+      return offered;
+    });
+    check(
+      "cooldown: across three consecutive turns the list is offered at most twice, never three times",
+      consecutive.every((n) => n <= 2),
+      `offered counts: ${consecutive.join(", ")}`,
+    );
+
+    // Bite-proof: without a turnIndex the OLD every-turn behavior is what
+    // happens, which is exactly the regression this guard must catch.
+    const noIndex = buildProblemProgressBlock(t5.state, timing, question, framework);
+    check(
+      "bite-proof: with no turnIndex the nudge list IS offered (proves the gate, not the filter, is doing the work)",
+      /Nudges —/.test(noIndex),
+    );
+
+    // A thinking candidate on a cooled-down turn: thinking wins, and the
+    // two suppressions must not both emit contradictory instructions.
+    const bothBlock = buildProblemProgressBlock(
+      t5.state,
+      { ...timing, turnIndex: 6, candidateThinking: true },
+      question,
+      framework,
+    );
+    check(
+      "cooldown + thinking: no nudge list, and only the thinking directive",
+      !/Nudges —/.test(bothBlock) &&
+        /asking for thinking time/.test(bothBlock) &&
+        // The cooldown DIRECTIVE must not also fire — two suppression
+        // instructions in one block is how contradictory prompts happen. The
+        // status line still says "none this turn (you nudged on the previous
+        // turn)", which is context, not an instruction; match the imperative.
+        !/Do NOT nudge again this turn/.test(bothBlock),
+    );
+
+    // Recording is never gated: a nudge the model fired anyway is ground
+    // truth the evaluator grades against.
+    const defiant = reduceProblemTurn(
+      t5.state,
+      [{ kind: "nudge", step: framework.steps[1]!.key }],
+      { ...ctx, turnIndex: 6 },
+    );
+    check(
+      "cooldown: a nudge fired during cooldown is STILL recorded (evaluator ground truth)",
+      defiant.state.nudgedSteps.includes(framework.steps[1]!.key) &&
+        defiant.events.some((e) => e.kind === "nudge" && e.turnIndex === 6),
+    );
+    check(
+      "cooldown: and it restarts the cooldown",
+      defiant.state.lastNudgedTurnIndex === 6,
+    );
+
+    // Round-trip: the field must survive serialization, or the cooldown
+    // silently resets on every turn (the snapshot is re-read each time).
+    {
+      const snap = {
+        version: 1 as const,
+        questionId: question.id,
+        frameworkKey: framework.key,
+        selectedAt: new Date().toISOString(),
+        question: toPublicQuestion(question),
+        framework: toPublicFramework(framework),
+        state: t5.state,
+        events: t5.events,
+      };
+      const reread = asProblemSessionSnapshot(JSON.parse(JSON.stringify(snap)));
+      check(
+        "cooldown: lastNudgedTurnIndex survives a snapshot round-trip",
+        reread?.state.lastNudgedTurnIndex === 5,
+        String(reread?.state.lastNudgedTurnIndex),
+      );
+      // A pre-existing session has no such field. It must read as null, not 0
+      // — 0 would claim a nudge on turn 0 and suppress turn 1 for no reason.
+      const legacy = asProblemSessionSnapshot({
+        ...JSON.parse(JSON.stringify(snap)),
+        state: { stage: "problem", fitFollowUpsUsed: 1, promptPosed: true, revealedExhibits: [], nudgedSteps: [] },
+      });
+      check(
+        "cooldown: a pre-cooldown stored session degrades to null, not 0",
+        legacy?.state.lastNudgedTurnIndex === null,
+        String(legacy?.state.lastNudgedTurnIndex),
+      );
+      check(
+        "cooldown: and such a session is therefore NOT on cooldown",
+        legacy !== null && !isNudgeOnCooldown(legacy.state, 1),
+      );
+    }
+
+    // Unit-level truth table for the predicate itself.
+    {
+      const withLast = (n: number | null): ProblemInterviewState => ({
+        ...fresh,
+        lastNudgedTurnIndex: n,
+      });
+      check("isNudgeOnCooldown: never nudged -> false", !isNudgeOnCooldown(withLast(null), 9));
+      check("isNudgeOnCooldown: same turn -> true", isNudgeOnCooldown(withLast(5), 5));
+      check("isNudgeOnCooldown: next turn -> true", isNudgeOnCooldown(withLast(5), 6));
+      check("isNudgeOnCooldown: two turns later -> false", !isNudgeOnCooldown(withLast(5), 7));
+      check("isNudgeOnCooldown: far later -> false", !isNudgeOnCooldown(withLast(5), 50));
+      check("isNudgeOnCooldown: missing index -> false (probe scripts)", !isNudgeOnCooldown(withLast(5), undefined));
+      check("isNudgeOnCooldown: NaN index -> false", !isNudgeOnCooldown(withLast(5), Number.NaN));
+      check("isNudgeOnCooldown: replayed earlier turn -> true", isNudgeOnCooldown(withLast(5), 3));
+      check("NUDGE_COOLDOWN_TURNS is 1", NUDGE_COOLDOWN_TURNS === 1);
+    }
 
     // The classifier decides when that happens; its PRECISION is the risk.
     // A false positive silently removes a legitimate nudge for the whole turn.
@@ -648,6 +847,35 @@ async function main() {
     check("paraphrased prompt during fit → posed", inferredPose.some((a) => a.kind === "posed"));
     const afterPose = reduceProblemTurn(fit, [{ kind: "follow_up" }, ...inferredPose], ctx);
     check("posed moves fit → problem", afterPose.state.stage === "problem" && afterPose.state.promptPosed);
+  }
+
+  // ---------------------------------------------------------------------------
+  // The card in the rail collapses while the interviewer is still reading the
+  // problem out loud, so the case is not on screen twice (measured: ~120px of
+  // a 900px rail). The UI and the dropped-marker `posed` inference now share
+  // ONE comparison, so they cannot disagree about whether a turn said the
+  // prompt — the card would otherwise hide text the state machine thinks was
+  // never read, or stay open over a verbatim reading.
+  console.log("\nprompt duplication (shared with the posed inference)");
+  {
+    const { turnSaysPrompt, inferUnmarkedActions } = await import("../lib/problem-interview/session-state");
+    const fit = { ...initialProblemState(), stage: "fit" as const };
+    check("verbatim reading is a duplicate", turnSaysPrompt(question.prompt, `Here it is: ${question.prompt}`));
+    const paraphrase = "Let's jump in. The city's public library wants to grow digital borrowing. How would you improve its mobile app?";
+    check("near-verbatim reading is a duplicate", turnSaysPrompt(question.prompt, paraphrase));
+    check("ordinary probing is not", !turnSaysPrompt(question.prompt, "Take your time. What are you thinking about first?"));
+    check("an unrelated turn is not", !turnSaysPrompt(question.prompt, "Thanks for joining today. Tell me about your interest in this role."));
+    check("a trivial prompt never counts", !turnSaysPrompt("Go on", "Go on"));
+    // ONE THRESHOLD, both callers: every turn the inference calls "posed"
+    // must also read as a duplicate to the card, and vice versa.
+    for (const turn of [`Here it is: ${question.prompt}`, paraphrase, "Take your time. What are you thinking about first?"]) {
+      const posedByInference = inferUnmarkedActions(turn, [{ kind: "follow_up" }], fit, question, framework)
+        .some((a) => a.kind === "posed");
+      check(
+        `card and inference agree: ${turn.slice(0, 34)}…`,
+        posedByInference === turnSaysPrompt(question.prompt, turn),
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------

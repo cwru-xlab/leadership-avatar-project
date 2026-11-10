@@ -12,7 +12,9 @@
 import {
   classifyFinger,
   createHeldPoseTracker,
+  createMouthMovementState,
   fingertipToLipRatio,
+  flushMouthMovement,
   groupHandAtMouthEvents,
   isMiddleFingerPose,
   matchedDisplacements,
@@ -337,25 +339,102 @@ console.log("\n9. Hand-to-mouth arrivals");
 
 console.log("\n10. Mouth movement is energy, gated on not speaking");
 {
-  const deltas = (ticks: Array<{ jaw: number | null; speaking?: boolean; t: number }>) => {
-    let state = { lastJaw: null as number | null, lastSpeakingS: null as number | null };
-    const out: Array<number | null> = [];
+  // Returns one entry per tick: the deltas COMMITTED on that tick, then the
+  // flush. Deltas now arrive late and in batches, because the leading edge of
+  // a spoken turn cannot be judged until a tick is old enough to be safe —
+  // see `stepMouthMovement`.
+  const commits = (ticks: Array<{ jaw: number | null; speaking?: boolean; t: number }>) => {
+    let state = createMouthMovementState();
+    const out: number[][] = [];
     for (const { jaw, speaking = false, t } of ticks) {
       const step = stepMouthMovement(state, jaw, speaking, t);
       state = step.state;
-      out.push(step.delta === null ? null : +step.delta.toFixed(2));
+      out.push(step.deltas.map((d) => +d.toFixed(2)));
     }
+    out.push(flushMouthMovement(state).deltas.map((d) => +d.toFixed(2)));
     return out;
   };
+  /** Everything a session would actually count, in order. */
+  const totals = (ticks: Array<{ jaw: number | null; speaking?: boolean; t: number }>) =>
+    commits(ticks).flat();
+
   check("silent movement yields absolute deltas",
-    deltas([{ jaw: 0.1, t: 0 }, { jaw: 0.3, t: 0.33 }, { jaw: 0.1, t: 0.67 }]), [null, 0.2, 0.2]);
+    totals([{ jaw: 0.1, t: 0 }, { jaw: 0.3, t: 0.33 }, { jaw: 0.1, t: 0.67 }]), [0.2, 0.2]);
+  check("nothing is committed before the lead has elapsed",
+    commits([{ jaw: 0.1, t: 0 }, { jaw: 0.3, t: 0.33 }])[1], []);
   check("speech contributes nothing",
-    deltas([{ jaw: 0.1, t: 0, speaking: true }, { jaw: 0.5, t: 0.33, speaking: true }]), [null, null]);
+    totals([{ jaw: 0.1, t: 0, speaking: true }, { jaw: 0.5, t: 0.33, speaking: true }]), []);
   check("the tail of a turn is excluded, then counting restarts",
-    deltas([{ jaw: 0.5, t: 0, speaking: true }, { jaw: 0.1, t: 0.33 }, { jaw: 0.1, t: 1.0 }, { jaw: 0.1, t: 1.6 }, { jaw: 0.3, t: 2 }]),
-    [null, null, null, null, 0.2]);
+    totals([{ jaw: 0.5, t: 0, speaking: true }, { jaw: 0.1, t: 0.33 }, { jaw: 0.1, t: 1.0 }, { jaw: 0.1, t: 1.6 }, { jaw: 0.3, t: 2 }]),
+    [0.2]);
   check("a missed face breaks the chain instead of spanning it",
-    deltas([{ jaw: 0.1, t: 0 }, { jaw: null, t: 0.33 }, { jaw: 0.5, t: 0.67 }]), [null, null, null]);
+    totals([{ jaw: 0.1, t: 0 }, { jaw: null, t: 0.33 }, { jaw: 0.5, t: 0.67 }]), []);
+
+  // THE BUG THE LEAD WINDOW EXISTS FOR. A student starts talking, then reaches
+  // for push-to-talk: the opening words land on not-speaking ticks and used to
+  // be counted as "mouth moving while not speaking" — the one thing this
+  // signal claims to measure. Jaw swings hard, then the button goes down.
+  check("speech begun BEFORE the button is pressed is not counted",
+    totals([
+      { jaw: 0.1, t: 0 },
+      { jaw: 0.6, t: 0.33 },
+      { jaw: 0.1, t: 0.67 },
+      { jaw: 0.6, t: 1.0 },
+      { jaw: 0.2, t: 1.33, speaking: true },
+    ]),
+    []);
+  // ...and the same movement with NO button press is still counted, so the
+  // window suppresses a false positive rather than gutting the signal.
+  check("the same movement with no button press still counts",
+    totals([
+      { jaw: 0.1, t: 0 },
+      { jaw: 0.6, t: 0.33 },
+      { jaw: 0.1, t: 0.67 },
+      { jaw: 0.6, t: 1.0 },
+      { jaw: 0.2, t: 1.33 },
+    ]),
+    [0.5, 0.5, 0.5, 0.4]);
+  // Only the ticks INSIDE the lead window are dropped; a longer silent stretch
+  // before a turn survives it.
+  check("a long silent stretch before a turn keeps all but the lead window",
+    totals([
+      { jaw: 0.1, t: 0 },
+      { jaw: 0.3, t: 1 },
+      { jaw: 0.1, t: 2 },
+      { jaw: 0.3, t: 3 },
+      { jaw: 0.1, t: 4 },
+      { jaw: 0.3, t: 5, speaking: true },
+    ]),
+    [0.2, 0.2, 0.2]);
+  check("the final silent stretch is flushed, never silently dropped",
+    flushMouthMovement(
+      stepMouthMovement(
+        stepMouthMovement(createMouthMovementState(), 0.1, false, 0).state,
+        0.4, false, 0.33,
+      ).state,
+    ).deltas.map((d) => +d.toFixed(2)),
+    [0.3]);
+  check("a second flush cannot double-count",
+    flushMouthMovement(
+      flushMouthMovement(
+        stepMouthMovement(
+          stepMouthMovement(createMouthMovementState(), 0.1, false, 0).state,
+          0.4, false, 0.33,
+        ).state,
+      ).state,
+    ).deltas,
+    []);
+  // The buffer is bounded by the lead window, not by how long the student
+  // stays silent — a 20-minute silent session must not accumulate state.
+  check("the pending buffer stays bounded across a long silent stretch", (() => {
+    let state = createMouthMovementState();
+    let max = 0;
+    for (let i = 0; i < 2000; i++) {
+      state = stepMouthMovement(state, i % 2 === 0 ? 0.1 : 0.3, false, i / 3).state;
+      max = Math.max(max, state.pending.length);
+    }
+    return max <= 6;
+  })(), true);
 
   // Same mean movement whichever rhythm produced it. This is the property that
   // makes it energy: no assertion anywhere here reads a period off the samples.

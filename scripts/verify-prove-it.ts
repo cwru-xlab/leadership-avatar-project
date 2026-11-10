@@ -22,6 +22,7 @@ import {
 import { readPlanPrefillParams } from "../components/study-plan/prove-it/usePlanPrefill";
 import { resolveInterviewType } from "../lib/interview/customization";
 import { getInterviewType } from "../lib/interview/types";
+import { routes } from "../lib/routes";
 import { PERSONALITY_DIALS } from "../lib/interview/customization-options";
 
 let failures = 0;
@@ -168,9 +169,16 @@ console.log("\n2. SNAPSHOT -> PREFILL");
 console.log("\n3. HREF, BRIEF, LINK GATE");
 {
   const href = proveItHref("plan-1", "step-1", "general", { kind: "interview", customization: {}, resume: null, jobDescription: null });
-  check("href = existing practice route + fromPlan/step only", href === "/practice/general?fromPlan=plan-1&step=step-1", href);
+  // Derived from `routes.practiceType`, not a pinned literal. These expectations
+  // were frozen as `/practice/general` and `/practice/case-study/case-9`; the
+  // `09dda6e` URL unification moved them to `/practice/interviews/general` and
+  // `/practice/case-studies/case-9`. `proveItHref` already delegates to the
+  // helper, so the product was right and only the guard was stale.
+  const expectedHref = `${routes.practiceType("general")}?fromPlan=plan-1&step=step-1`;
+  check(`href = existing practice route + fromPlan/step only`, href === expectedHref, `${href} (expected ${expectedHref})`);
   const instanceHref = proveItHref("plan-1", "step-1", "case-study", { kind: "instance", instanceId: "case-9" });
-  check("instance href uses the existing /practice/{type}/{instanceId} route", instanceHref === "/practice/case-study/case-9?fromPlan=plan-1&step=step-1", instanceHref);
+  const expectedInstanceHref = `${routes.practiceType("case-study", "case-9")}?fromPlan=plan-1&step=step-1`;
+  check("instance href uses the canonical instance route", instanceHref === expectedInstanceHref, `${instanceHref} (expected ${expectedInstanceHref})`);
   check(
     "the instance route file exists on disk",
     fs.existsSync(path.join(ROOT, "app", "practice", "[type]", "[instanceId]", "page.tsx"))
@@ -201,7 +209,8 @@ console.log("\n3b. OWNERSHIP of carried-over personal data");
     "resolveProveIt scopes the report query by userId AND applies ownedSourceReports",
     /where: \{ id: \{ in: reportIds \}, userId, status: "READY" \}/.test(src) && src.includes("ownedSourceReports(")
   );
-  const page = fs.readFileSync(path.join(ROOT, "app", "practice", "[type]", "page.tsx"), "utf-8");
+  // Same relocation as the loop below: read the component, not the wrapper.
+  const page = fs.readFileSync(path.join(ROOT, "components", "practice", "routes", "PracticeTypePage.tsx"), "utf-8");
   check(
     "the practice page seeds resume and job posting only from planPrefill",
     page.includes("setResumeText(prefill.resume.resumeText)") && page.includes("setJobDescriptionText(prefill.jobDescription.jobDescriptionText)")
@@ -233,7 +242,10 @@ console.log("\n4. PRACTICE PAGES ARE INERT WITHOUT THE PARAMS");
     .readFileSync(path.join(ROOT, "components", "practice", "PracticeSessionShell.tsx"), "utf-8")
     .includes("fromPlan");
   check("PracticeSessionShell.tsx is untouched by the prefill", shellUntouched);
-  for (const page of [["app", "practice", "[type]", "page.tsx"], ["app", "practice", "[type]", "[instanceId]", "page.tsx"]]) {
+  // The launcher composition moved into components/practice/routes/*; the
+  // app/practice/** files are now 2-11 line re-export wrappers, so reading them
+  // found zero `planPrefill` lines and failed while the prefill was intact.
+  for (const page of [["components", "practice", "routes", "PracticeTypePage.tsx"], ["components", "practice", "routes", "PracticeInstancePage.tsx"]]) {
     const src = fs.readFileSync(path.join(ROOT, ...page), "utf-8");
     const prefillLines = src.split("\n").filter((l) => /planPrefill|ProveItBrief/.test(l));
     check(

@@ -146,7 +146,7 @@ Score every dimension 1–5. The shared four (Visual, Vocal, Content, Behavioral
 Encounter dimensions (Calgary–Cambridge Guide; SEGUE):
 1. Opening & agenda (opening_agenda): greeting, introduction of self and role, an open opening question, and screening for the patient's full list of concerns before diving in.
 2. Information gathering (information_gathering): open-to-closed questioning, letting the patient tell the story, clarifying the presenting problem, and eliciting the patient's ideas, concerns and expectations (ICE). Hidden facts the patient disclosed only to good questions are strong evidence here.
-3. Empathy & responding to cues (empathy): noticing the patient's emotional cues and responding with empathy (naming, acknowledging, exploring) before moving on; avoiding premature reassurance.
+3. Empathy & responding to cues (empathy_clinical): noticing the patient's emotional cues and responding with empathy (naming, acknowledging, exploring) before moving on; avoiding premature reassurance.
 4. Explanation & closing (explanation_planning): plain language with jargon explained, chunked information, shared decision on next steps, teach-back, and a clear close with safety-netting. If the encounter ended before any explanation, score on what DID happen and say so.
 
 Global over checklist: score each dimension as an expert rater's global judgment of that skill (Ilgen et al., 2015; Hodges et al., 1999) — do not mechanically count checklist hits, and do not reward reciting a framework.
@@ -161,7 +161,7 @@ MITI 4.2.1 global scores (1 = low, 5 = high), scored as the MITI manual defines 
 1. Cultivating Change Talk (cultivating_change_talk): how actively the counselor encourages the client's own language in favor of change. 1: no attention to change talk; 3: often misses opportunities; 5: consistently and strategically evokes and deepens change talk.
 2. Softening Sustain Talk (softening_sustain_talk): how much the counselor avoids focusing on, arguing with or amplifying the client's reasons against change. 1: consistently responds in ways that increase sustain talk (arguing, warning); 5: consistently softens sustain talk (reflects it, shifts focus) without arguing.
 3. Partnership (partnership): how much the counselor conveys that the client is an equal partner with expertise in their own life. 1: actively assumes the expert role and dominates; 5: fosters collaboration and power-sharing so the client's ideas shape the session.
-4. Empathy (empathy): how much the counselor understands and tries to grasp the client's perspective. 1: no interest in the client's view; 5: shows deep understanding beyond what was said, reflected accurately.
+4. Empathy (empathy_mi): how much the counselor understands and tries to grasp the client's perspective. 1: no interest in the client's view; 5: shows deep understanding beyond what was said, reflected accurately.
 
 Behavior counts are separate (supplied below when available). Use the global scales as global judgments; counts may inform but never determine them.
 

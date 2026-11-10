@@ -51,7 +51,12 @@ export async function POST(
     const result = await saveCheckInForUser(currentUser.id, reportId, body);
 
     if (!result.ok) {
-      return response({ error: result.error }, result.status);
+      // `retired` rides along so the client can drop a withdrawn question
+      // instead of telling the student their answer failed to save.
+      return response(
+        { error: result.error, ...("retired" in result ? { retired: true } : {}) },
+        result.status,
+      );
     }
 
     return response({ checkIn: result.checkIn }, 200);

@@ -1138,6 +1138,11 @@ export async function POST(request: NextRequest) {
 
               return latestUser ? isThinkingTimeRequest(latestUser.content) : false;
             })(),
+            // The turn about to be generated. Lets the problem block compare
+            // against state.lastNudgedTurnIndex and withhold the nudge list
+            // for one turn after a nudge — the same index recordProblemTurn
+            // stores, so the two cannot disagree.
+            turnIndex: assistantTurnCount,
           },
           // Non-interview types that declare a time budget / first-turn window
           // read these in buildTailBlock; interview types ignore them (timing

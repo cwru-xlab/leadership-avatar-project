@@ -25,7 +25,10 @@
     "verify:technical-corpus": "tsx scripts/verify-technical-assignment-corpus.ts",
     "verify:technical-revisions": "tsx scripts/verify-technical-revision-compatibility.ts",
     "verify:technical-selection": "tsx scripts/verify-technical-selection.ts",
-    "verify:rubric-schema-order": "tsx scripts/verify-rubric-schema-order.ts"
+    "verify:rubric-schema-order": "tsx scripts/verify-rubric-schema-order.ts",
+    "verify:guard-targets": "tsx scripts/verify-guard-targets.ts",
+    "verify:all": "tsx scripts/run-verify-all.ts",
+    "verify:fast": "tsx scripts/run-verify-all.ts --fast"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

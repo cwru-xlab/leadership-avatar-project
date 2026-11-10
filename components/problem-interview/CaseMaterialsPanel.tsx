@@ -6,9 +6,13 @@
  *
  * Lives inside the existing session side pane (no new room). Progressive
  * disclosure: nothing renders until there is something to read; then one tab
- * per item, the newest exhibit selected automatically when it arrives, and
- * the whole card collapsible so it never crowds the transcript on a phone.
- * Every earlier exhibit stays one tap away.
+ * per item ONCE THERE IS MORE THAN ONE, the newest exhibit selected
+ * automatically when it arrives, and the whole card collapsible so it never
+ * crowds the transcript on a phone. Every earlier exhibit stays one tap away.
+ *
+ * The height cap is deliberately tight: the transcript is what the student
+ * reads to answer, and it is the only thing in the rail that flexes, so every
+ * fixed block above it is taken straight out of the conversation.
  *
  * Data comes only from the chat route's turn metadata (server-owned state);
  * this component never sees the bank, the facts, or an unrevealed exhibit.
@@ -18,17 +22,52 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 import ExhibitView from "@/components/problem-interview/ExhibitView";
-import type { ProblemLiveView } from "@/lib/problem-interview/session-state";
+import { turnSaysPrompt, type ProblemLiveView } from "@/lib/problem-interview/session-state";
 
-export default function CaseMaterialsPanel({ view }: { view: ProblemLiveView | null }) {
+export default function CaseMaterialsPanel({
+  view,
+  latestInterviewerTurn,
+}: {
+  view: ProblemLiveView | null;
+  /**
+   * The newest interviewer turn, if any. Used only to avoid showing the
+   * problem twice at once — see the auto-collapse effect below.
+   */
+  latestInterviewerTurn?: string;
+}) {
   const headingId = useId();
   const [open, setOpen] = useState(true);
   const [selected, setSelected] = useState<string>("prompt");
   const [announcement, setAnnouncement] = useState("");
   const exhibitCount = view?.exhibits.length ?? 0;
   const seenExhibits = useRef(0);
+  /**
+   * Set once the student opens or closes the card themselves, after which
+   * the auto-collapse below never moves it again. A panel that reopens itself
+   * under someone who just closed it is worse than the duplication.
+   */
+  const userToggled = useRef(false);
+
+  // THE PROBLEM IS ON SCREEN TWICE when the interviewer has just read it out
+  // loud, because it is a prompt instruction that it do exactly that. While
+  // the newest turn still carries the text, this card is redundant, so it
+  // collapses to its one-line header and the transcript gets the room. It
+  // expands again on its own once the conversation has moved on, so the
+  // problem is never more than a glance away and never hidden outright.
+  const duplicated = Boolean(
+    view?.question &&
+      latestInterviewerTurn &&
+      turnSaysPrompt(view.question.prompt, latestInterviewerTurn),
+  );
+  useEffect(() => {
+    if (userToggled.current) return;
+    setOpen(!duplicated);
+  }, [duplicated]);
 
   // A newly revealed exhibit takes focus of the card (not of the keyboard).
+  // This runs regardless of `userToggled`: an exhibit the interviewer just put
+  // on screen is new information the student has not seen, unlike the problem
+  // text, and it outranks both a manual collapse and the duplication rule.
   useEffect(() => {
     if (!view || exhibitCount <= seenExhibits.current) return;
     const newest = view.exhibits[exhibitCount - 1];
@@ -47,6 +86,13 @@ export default function CaseMaterialsPanel({ view }: { view: ProblemLiveView | n
   ];
   const active = tabs.some((tab) => tab.id === selected) ? selected : tabs[0]!.id;
   const activeExhibit = view.exhibits.find((exhibit) => exhibit.id === active) ?? null;
+  // ONE TAB IS NOT A CHOICE. Before the first exhibit is revealed there is
+  // only the prompt, and a tablist of one is a 44px row of chrome that
+  // switches nothing — it read as a stray "Problem" chip above a card whose
+  // own heading already names the problem. The strip returns the moment there
+  // is somewhere to go. The live session's scarcest resource is the height
+  // left for the transcript, so nothing here spends a row it does not need.
+  const showTabs = tabs.length > 1;
 
   return (
     <section
@@ -62,7 +108,10 @@ export default function CaseMaterialsPanel({ view }: { view: ProblemLiveView | n
           type="button"
           aria-expanded={open}
           className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-[13px] font-semibold text-light-blue hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-true-blue"
-          onClick={() => setOpen((value) => !value)}
+          onClick={() => {
+            userToggled.current = true;
+            setOpen((value) => !value);
+          }}
         >
           {open ? "Hide" : "Show"}
           {open ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
@@ -71,32 +120,42 @@ export default function CaseMaterialsPanel({ view }: { view: ProblemLiveView | n
 
       {open ? (
         <>
-          <div role="tablist" aria-labelledby={headingId} className="flex flex-wrap gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                id={`${headingId}-tab-${tab.id}`}
-                type="button"
-                role="tab"
-                aria-selected={tab.id === active}
-                aria-controls={`${headingId}-panel`}
-                className={`min-h-11 rounded-lg border px-3 text-[13px] font-semibold transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-true-blue motion-reduce:transition-none ${
-                  tab.id === active
-                    ? "border-light-blue bg-light-blue/15 text-white"
-                    : "border-white/15 text-light-blue hover:border-light-blue/60"
-                }`}
-                onClick={() => setSelected(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          {showTabs ? (
+            <div role="tablist" aria-labelledby={headingId} className="flex flex-wrap gap-2">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  id={`${headingId}-tab-${tab.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab.id === active}
+                  aria-controls={`${headingId}-panel`}
+                  className={`min-h-11 rounded-lg border px-3 text-[13px] font-semibold transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-true-blue motion-reduce:transition-none ${
+                    tab.id === active
+                      ? "border-light-blue bg-light-blue/15 text-white"
+                      : "border-white/15 text-light-blue hover:border-light-blue/60"
+                  }`}
+                  onClick={() => setSelected(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div
             id={`${headingId}-panel`}
-            role="tabpanel"
-            aria-labelledby={`${headingId}-tab-${active}`}
+            // Without a tablist there is no tab to be the panel OF, so it
+            // becomes a plain labelled scroll region; `tabIndex` keeps it
+            // reachable for keyboard scrolling either way.
+            role={showTabs ? "tabpanel" : "region"}
+            aria-labelledby={showTabs ? `${headingId}-tab-${active}` : headingId}
             tabIndex={0}
-            className="max-h-[32dvh] overflow-y-auto rounded-lg border border-white/10 bg-white/[0.03] p-3 lg:max-h-[42vh]"
+            // Capped below its old 42vh so a long exhibit cannot crowd out
+            // the transcript, but not so tight that an exhibit table has to
+            // scroll inside a sliver. Measured at 1440x900, an ordinary
+            // prompt needs ~167px here, so this cap binds only on the long
+            // cases it exists for.
+            className="max-h-[36dvh] overflow-y-auto rounded-lg border border-white/10 bg-white/[0.03] p-3 lg:max-h-[32vh]"
           >
             {activeExhibit ? (
               <ExhibitView exhibit={activeExhibit} tone="room" />

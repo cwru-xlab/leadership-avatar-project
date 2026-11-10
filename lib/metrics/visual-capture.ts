@@ -84,6 +84,8 @@ import {
 } from "@/lib/metrics/body-thresholds";
 import {
   createHeldPoseTracker,
+  createMouthMovementState,
+  flushMouthMovement,
   groupHandAtMouthEvents,
   matchedDisplacements,
   scaledGestureAmplitudeMin,
@@ -1489,7 +1491,7 @@ export function createVisualCapture(
   let handAtMouthState: HandAtMouthState = { atMouth: false };
   const handAtMouthEventTimesS: number[] = [];
   let mouthEligibleHandSamples = 0;
-  let mouthMovementState: MouthMovementState = { lastJaw: null, lastSpeakingS: null };
+  let mouthMovementState: MouthMovementState = createMouthMovementState();
   let jawSamples = 0;
 
   // --- 12-05 per-model diagnostics (frame-budget log only — never part of
@@ -1736,6 +1738,10 @@ export function createVisualCapture(
 
     // A missed face or a speaking tick breaks the chain, inside
     // `stepMouthMovement`, so a delta only ever spans adjacent silent ticks.
+    // Deltas arrive LATE and in batches (usually none): the gate now excludes
+    // speech from both edges, and the leading edge cannot be judged until a
+    // tick is old enough that no button press can still claim it. See
+    // `stepMouthMovement`. `stop()` flushes the remainder.
     if (result.jawOpen !== null) jawSamples += 1;
     const mouthStep = stepMouthMovement(
       mouthMovementState,
@@ -1744,8 +1750,8 @@ export function createVisualCapture(
       nowS
     );
     mouthMovementState = mouthStep.state;
-    if (mouthStep.delta !== null) {
-      winMouthMovementSum += mouthStep.delta;
+    for (const delta of mouthStep.deltas) {
+      winMouthMovementSum += delta;
       winMouthMovementSamples += 1;
     }
 
@@ -2540,6 +2546,18 @@ export function createVisualCapture(
     lumaCtx = null;
 
     await closeEngine(timeoutMs);
+
+    // The final silent stretch's deltas are still buffered inside
+    // `mouthMovementState`: no speech onset ever arrived to commit or discard
+    // them, and no further tick will run. Flushed BEFORE `closeWindow` below
+    // so they land in the last window rather than being dropped. See
+    // `flushMouthMovement`.
+    const mouthFlush = flushMouthMovement(mouthMovementState);
+    mouthMovementState = mouthFlush.state;
+    for (const delta of mouthFlush.deltas) {
+      winMouthMovementSum += delta;
+      winMouthMovementSamples += 1;
+    }
 
     const sessionSeconds = (sessionStartMs() - startedAtMs) / 1000;
     // DEFECT 1 FIX (12-05 live checkpoint, re-run 1): `processedSamples`

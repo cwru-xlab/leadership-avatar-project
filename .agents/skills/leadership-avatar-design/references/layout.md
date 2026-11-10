@@ -48,14 +48,14 @@ Lives in the app shell. Real files: `app/practice/[type]/report/[reportId]/page.
 | (target) One thing to practice next time              |  Light Blue tint
 |          "Italic statement, one sentence"             |
 +-------------------------------------------------------+
-| Overview | Takeaways | Statistics | Delivery | Content|
+| Overview | The Problem | Statistics | Delivery | Content |
 |  Overview:   summary; Strengths | Growth areas rows   |
-|  Takeaways:  Keep doing | Work on next | Rewatch      |
 |  Statistics: 8 figures in one divided panel           |
 +-------------------------------------------------------+
 | Moments (flat Dark Blue)                              |
 |  line chart: delivery per answer over time   | detail |
 |  camera-moment strip under it                | panel  |
+|  Answers to revisit: grid of rows -> select a point   |
 +-------------------------------------------------------+
 ```
 Tabs carry what the student chooses to read; the timeline closes the page so the screen has no empty

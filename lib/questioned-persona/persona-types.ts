@@ -37,7 +37,23 @@ const CLINICAL_EXTRAS: RubricDimension[] = [
       "Letting the patient tell the story, moving from open to closed questions, clarifying the problem, and eliciting their ideas, concerns and expectations.",
   },
   {
-    key: "empathy",
+    // SPLIT from a shared `empathy` key (2026-11-07). Calgary-Cambridge
+    // empathy, MITI's empathy global, and Courageous Conversations' empathy
+    // were all keyed `empathy`, so `DIMENSION_TO_COMPETENCY` pooled three
+    // materially different constructs — "noticed a cue and did not reassure
+    // too early", "reflected the client's frame accurately", and "did not
+    // steamroll a colleague" — into one `audience_attunement` number. All
+    // three still roll up to that competency (see lib/mastery/competencies.ts)
+    // but as distinct dimensions, so a student's clinical cue-handling is no
+    // longer averaged with their workplace conversation style.
+    //
+    // Safe to rename outright: at the time of the split every persona report
+    // in the database was IN_PROGRESS with an empty `scores` object, so no
+    // stored row carried this key, and MasteryContribution is keyed by
+    // competencyKey rather than by dimension. `difficult-conversation` keeps
+    // the bare `empathy` key precisely so its already-graded reports need no
+    // migration.
+    key: "empathy_clinical",
     label: "Empathy & cues",
     description:
       "Noticing the patient's emotional cues and responding with empathy before moving on, without premature reassurance.",
@@ -70,7 +86,12 @@ const MI_EXTRAS: RubricDimension[] = [
       "MITI 4 global: how much you treated the client as an equal partner and the expert on their own life.",
   },
   {
-    key: "empathy",
+    // SPLIT from a shared `empathy` key (2026-11-07) — see the note on
+    // `empathy_clinical` above. MITI 4's empathy global is a specific
+    // construct (depth of reflected understanding) that must not be averaged
+    // with clinical cue-handling or workplace conversation style, even though
+    // all three evidence `audience_attunement`.
+    key: "empathy_mi",
     label: "Empathy",
     description:
       "MITI 4 global: how deeply you understood and reflected the client's perspective.",

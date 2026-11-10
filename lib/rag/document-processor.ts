@@ -1,6 +1,7 @@
 import mammoth from "mammoth";
 
 import { cleanExtractedText } from "@/lib/interview/extracted-text";
+import { loadPdfjs } from "@/lib/pdfjs-node";
 
 export interface TextChunk {
   text: string;
@@ -37,7 +38,7 @@ export class DocumentProcessor {
   // rejects AES-256 owner-restricted PDFs that open without a password.
   // pdfjs-dist is already a serverExternalPackage for the deck pipeline.
   async extractTextFromPDF(buffer: Buffer): Promise<string> {
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const pdfjs = await loadPdfjs();
     // Copy: pdfjs may transfer/detach the underlying ArrayBuffer.
     const loadingTask = pdfjs.getDocument({
       data: new Uint8Array(buffer),

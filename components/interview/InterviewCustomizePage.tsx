@@ -400,14 +400,31 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
           value={values.role}
           onChange={(value) => setField("role", value)}
         />
-        <ChoiceTiles
-          label="Industry"
-          layout="wrap"
-          name="industry"
-          options={options.industry}
-          value={values.industry}
-          onChange={(value) => setField("industry", value)}
-        />
+        {/* Industry is OFFERED ONLY on the generic types.
+            On a problem interview the session is one question pinned from that
+            type's own bank and read to the candidate word for word, so industry
+            cannot reach the thing being practised. Measured on the finance
+            preset: switching Finance -> Healthcare changed exactly 1 of 145
+            prompt lines, the "- Industry:" context header, and left the problem,
+            the interviewer facts, the exhibits and the process framework
+            identical. The tile row implied it would re-theme the interview and
+            then handed the student the same LBO.
+            The generic types are the opposite case, and keep the control: there
+            the industry is a real variable the prompt spends twice, once in the
+            header and once to steer the role/industry-specific stage.
+            `values.industry` still defaults to the preset's own industry and is
+            still submitted, so the resolved prompt is byte-identical to today —
+            this hides a control that did nothing, it does not change behaviour. */}
+        {!isProblemInterview && (
+          <ChoiceTiles
+            label="Industry"
+            layout="wrap"
+            name="industry"
+            options={options.industry}
+            value={values.industry}
+            onChange={(value) => setField("industry", value)}
+          />
+        )}
       </section>
 
       <section aria-labelledby="customize-pace" className="flex flex-col gap-6 rounded-lg border border-line bg-white p-5 sm:p-6">

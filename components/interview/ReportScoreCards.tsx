@@ -30,13 +30,24 @@ export interface ReportScoreCardsProps {
   } | null;
 }
 
-const SCORE_LABELS: Record<number, string> = {
+/**
+ * The 1-5 score vocabulary. Exported so every surface that puts a word on a
+ * score uses the SAME word — the Content tab's per-rubric-item rows read
+ * these too, and a second private copy would let one surface call a 3 "Solid"
+ * while another called it "Developing".
+ */
+export const SCORE_LABELS: Record<number, string> = {
   5: "Excellent",
   4: "Strong",
   3: "Solid",
   2: "Developing",
   1: "Needs work",
 };
+
+/** A raw score onto the shared 1-5 ramp, clamped and rounded once. */
+export function scoreLevel(score: number): 1 | 2 | 3 | 4 | 5 {
+  return Math.min(5, Math.max(1, Math.round(score))) as 1 | 2 | 3 | 4 | 5;
+}
 
 /**
  * Four rubric score cards, in fixed order, with titles copied verbatim from
@@ -265,7 +276,7 @@ function PlaceholderBar() {
 }
 
 function ScoreFigure({ score }: { score: number }) {
-  const level = Math.min(5, Math.max(1, Math.round(score))) as 1 | 2 | 3 | 4 | 5;
+  const level = scoreLevel(score);
   return (
     <>
       <p className="flex items-baseline gap-1.5">

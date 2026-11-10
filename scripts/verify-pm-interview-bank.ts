@@ -95,7 +95,12 @@ const root = join(__dirname, "..");
 for (const [file, needle] of [
   ["components/interview/interviewPicker.ts", `"${PM_INTERVIEW_SLUG}": PackageSearch`],
   ["components/practice/ReportChrome.tsx", `"${PM_INTERVIEW_SLUG}",`],
-  ["app/api/study-plans/generate/route.ts", `"${PM_INTERVIEW_SLUG}",`],
+  // The study-plan eligibility list moved OUT of the generate route into one
+  // shared module (2026-11-07) so the route and lib/report/filters.ts can no
+  // longer drift apart. The route now imports it; this grep follows the list
+  // to its new home. `INTERVIEW_TYPE_SLUGS.has(...)` above already asserts
+  // the runtime membership either way.
+  ["lib/study-plan/plan-source-types.ts", `"${PM_INTERVIEW_SLUG}",`],
 ] as const) {
   check(`${file} lists the slug`, readFileSync(join(root, file), "utf8").includes(needle));
 }

@@ -25,6 +25,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { forbiddenTermsIn } from "./guard-text";
 
 import { buildPathDTO } from "../app/api/study-plans/[planId]/path/route";
 
@@ -283,8 +284,10 @@ function runSection5() {
       continue;
     }
     const source = fs.readFileSync(filePath, "utf-8");
-    const stripped = stripCommentsAndStrings(source).toLowerCase();
-    const matches = FORBIDDEN_TERMS.filter((term) => stripped.includes(term));
+    const stripped = stripCommentsAndStrings(source);
+    // Identifier-token matching, not substring — `includes("locked")` also hit
+    // the local `blocked` (ineligible drill techniques) in drill/grade.ts.
+    const matches = forbiddenTermsIn(stripped, FORBIDDEN_TERMS);
     check(
       `${path.relative(ROOT, filePath)} contains no gating/streak term outside a comment or string`,
       matches.length === 0,
@@ -860,8 +863,8 @@ function runSection9() {
       check(`${path.relative(ROOT, filePath)} exists`, false, "MISSING");
       continue;
     }
-    const stripped = stripCommentsAndStrings(fs.readFileSync(filePath, "utf-8")).toLowerCase();
-    const matches = FORBIDDEN_TERMS.filter((term) => stripped.includes(term));
+    const stripped = stripCommentsAndStrings(fs.readFileSync(filePath, "utf-8"));
+    const matches = forbiddenTermsIn(stripped, FORBIDDEN_TERMS);
     check(
       `${path.relative(ROOT, filePath)} contains no gating/streak term outside a comment or string`,
       matches.length === 0,
@@ -869,8 +872,21 @@ function runSection9() {
     );
   }
   // Bite proof for the scan itself on a new file.
-  const planted = stripCommentsAndStrings("const isUnlocked = drillCount > 0;").toLowerCase();
-  check("the forbidden-term scan DETECTS a planted identifier (bite proof)", FORBIDDEN_TERMS.some((t) => planted.includes(t)));
+  const planted = stripCommentsAndStrings("const isUnlocked = drillCount > 0;");
+  check(
+    "the forbidden-term scan DETECTS a planted identifier (bite proof)",
+    forbiddenTermsIn(planted, FORBIDDEN_TERMS).length > 0,
+  );
+  // And the identifier matcher must NOT fire on an innocent word that merely
+  // contains a forbidden one — the `blocked`/`locked` collision that made this
+  // very section red while the code had no gating in it.
+  check(
+    "the forbidden-term scan IGNORES `blocked` (anti-false-positive proof)",
+    forbiddenTermsIn(
+      stripCommentsAndStrings("const blocked = ctx.ineligibleIds ?? new Set();"),
+      FORBIDDEN_TERMS,
+    ).length === 0,
+  );
 }
 
 // ---------------------------------------------------------------------------

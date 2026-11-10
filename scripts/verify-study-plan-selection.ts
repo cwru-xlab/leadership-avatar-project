@@ -101,9 +101,9 @@ console.log("Section 1: pure shape (buildAnonymousReports)");
 {
   // Ordinal assignment: reportNumber follows array order, 1-indexed.
   const rows: SelectedReportRow[] = [
-    { id: "r1", scores: { content: 1 }, reportMarkdown: "" },
-    { id: "r2", scores: { content: 2 }, reportMarkdown: "" },
-    { id: "r3", scores: { content: 3 }, reportMarkdown: "" },
+    { id: "r1", scores: { content: 1 }, reportMarkdown: "", typeSlug: "general" },
+    { id: "r2", scores: { content: 2 }, reportMarkdown: "", typeSlug: "general" },
+    { id: "r3", scores: { content: 3 }, reportMarkdown: "", typeSlug: "general" },
   ];
   const reports = buildAnonymousReports(rows);
   check(

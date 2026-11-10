@@ -149,14 +149,17 @@ function configFor(c: PersonaCase) {
 const CLINICAL_DIMENSIONS = [
   "opening_agenda",
   "information_gathering",
-  "empathy",
+  // Split from a bare `empathy` key (2026-11-07) so clinical cue-handling,
+  // the MITI empathy global and difficult-conversation empathy stay distinct
+  // mastery signals. See lib/questioned-persona/persona-types.ts.
+  "empathy_clinical",
   "explanation_planning",
 ];
 const MI_DIMENSIONS = [
   "cultivating_change_talk",
   "softening_sustain_talk",
   "partnership",
-  "empathy",
+  "empathy_mi",
 ];
 
 // ---------------------------------------------------------------------------
@@ -532,7 +535,7 @@ console.log("\n4. Step keys and behavior-code keys agree across the modules");
   // The MI summary globals read only MI rubric dimension keys.
   const globals = mitiSummaryGlobals({
     partnership: 4,
-    empathy: 5,
+    empathy_mi: 5,
     cultivating_change_talk: 3,
     softening_sustain_talk: 4,
   });
@@ -549,7 +552,7 @@ console.log("\n4. Step keys and behavior-code keys agree across the modules");
   );
   check(
     "every key mitiSummaryGlobals reads is a declared MI rubric dimension",
-    ["partnership", "empathy", "cultivating_change_talk", "softening_sustain_talk"].every((k) =>
+    ["partnership", "empathy_mi", "cultivating_change_talk", "softening_sustain_talk"].every((k) =>
       MI_DIMENSIONS.includes(k),
     ),
   );

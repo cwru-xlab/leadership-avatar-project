@@ -33,6 +33,7 @@ import {
   formatTimecode,
   timelineRows,
   type AnswerLevel,
+  type MetricBandRow,
 } from "@/lib/metrics/bands";
 import type { VisualEpisode, VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 import type { ReportMoments } from "@/lib/report/moments";
@@ -405,7 +406,124 @@ export default function MomentsTimeline({
           </div>
         </details>
       )}
+
+      <RevisitList answers={answers} onSelect={onSelect} />
     </Stage>
+  );
+}
+
+/**
+ * The "why" on a revisit row: the band words that are off target, at most two.
+ *
+ * Reads each row's own `offTarget` mark rather than re-listing the words, so
+ * this cannot drift from the ladders in `lib/metrics/bands.ts` that decide the
+ * level — a local copy of the word list did exactly that.
+ *
+ * CAPPED DELIBERATELY: the level word already says how many bands missed
+ * (three or more reads "Off"), and one bad habit held all session flags the
+ * same bands on every answer — listing all four turned fifteen rows into
+ * fifteen copies of one sentence, which is one row of information. Two carry
+ * the reason; the detail panel above lists all four for the selected answer.
+ */
+function offTargetSummary(notes: MetricBandRow[]): string {
+  const flagged = notes.filter((n) => n.offTarget);
+  return flagged.length
+    ? `, ${flagged
+        .slice(0, 2)
+        .map((n) => `${n.label.toLowerCase()} ${n.value.toLowerCase()}`)
+        .join(", ")}`
+    : "";
+}
+
+/** Revisit rows shown before "Show all" (the list budget). */
+const REVISIT_VISIBLE = 6;
+
+/**
+ * The answers worth rewatching, worst first — selecting one drives the chart
+ * and detail panel above.
+ *
+ * LIVES HERE, not in a tab. This was the third column of a "Takeaways" tab
+ * whose other two columns re-rendered the same strengths and growth areas the
+ * Overview tab already listed in full, so the tab was dropped. This list was
+ * never duplicated: it is the only per-answer delivery triage in the report,
+ * and every row is a jump INTO this timeline. In a tab it pointed at a section
+ * the reader had to scroll to and could not see; here the thing it selects is
+ * already on screen, so no scroll and no cross-section link is needed.
+ *
+ * Laid out as a grid rather than one column: at nineteen rows a single column
+ * ran a tower down the stage, and the stage is full width here where the tab
+ * was half of a two-column panel.
+ */
+function RevisitList({
+  answers,
+  onSelect,
+}: {
+  answers: TimelineAnswer[];
+  onSelect: (index: number) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const revisit = answers
+    .filter((a) => a.level <= 2)
+    .sort((a, b) => a.level - b.level || a.start - b.start);
+
+  // The frame is kept even with nothing to revisit: an absent section reads as
+  // a missing feature, and "nothing stood out" is the good news here.
+  const hidden = revisit.length - REVISIT_VISIBLE;
+  const shown = showAll ? revisit : revisit.slice(0, REVISIT_VISIBLE);
+
+  return (
+    <section aria-labelledby="revisit-heading" className="flex flex-col gap-3 border-t border-light-blue/15 pt-5">
+      <h3 className="text-[15px] font-semibold" id="revisit-heading">
+        Answers to revisit
+        {revisit.length > 0 && (
+          <span className="ml-2 font-normal text-white/70">{revisit.length}</span>
+        )}
+      </h3>
+
+      {revisit.length === 0 ? (
+        <p className="text-[14px] text-white/70">No answer stood out as uneven.</p>
+      ) : (
+        <>
+          <ul className="grid list-none gap-x-5 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+            {shown.map((a) => (
+              <li key={a.index}>
+                <button
+                  className="-mx-2 flex w-full gap-2.5 rounded-md px-2 py-1.5 text-left outline-none transition-colors duration-150 ease-out hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-light-blue"
+                  type="button"
+                  onClick={() => onSelect(a.index)}
+                >
+                  <span
+                    aria-hidden
+                    className={clsx("mt-2 size-2 shrink-0 rounded-full", levelDotClass(ANSWER_RAMP[a.level]))}
+                  />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="flex items-baseline justify-between gap-3">
+                      <span className="text-[14.5px] font-semibold">Answer {a.index + 1}</span>
+                      <span className="shrink-0 font-mono text-[12.5px] tabular-nums text-white/70">
+                        {formatTimecode(a.start)}
+                      </span>
+                    </span>
+                    <span className="text-[13px] text-white/80">
+                      {a.word} delivery
+                      {offTargetSummary(a.notes)}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {hidden > 0 && (
+            <button
+              className="w-fit rounded-sm text-[13.5px] font-semibold text-light-blue outline-none hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-light-blue"
+              type="button"
+              onClick={() => setShowAll((value) => !value)}
+            >
+              {showAll ? "Show fewer" : `Show all ${revisit.length}`}
+            </button>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

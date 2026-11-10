@@ -13,8 +13,13 @@
  * - An answer never changes a score. The banner says so once, in muted text.
  * - "Something else" saves nothing by itself; it reveals that flag's options,
  *   and picking one saves.
+ * - A question the server says it no longer asks is DROPPED, not failed. The
+ *   page may have rendered before a tuning threshold moved, and the student
+ *   cannot fix or retry a question that has been withdrawn, so showing them
+ *   an error would be a dead end. See the `retired` result in
+ *   `lib/report/handlers.ts`.
  */
-import { useId, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { CircleCheck, MessageCircleQuestion } from "lucide-react";
 
@@ -45,13 +50,21 @@ interface CheckInBannerProps {
   lead?: CheckInLead;
 }
 
-export default function CheckInBanner({ reportId, questions, answers, onAnswersChange, lead }: CheckInBannerProps) {
+export default function CheckInBanner({ reportId, questions: asked, answers, onAnswersChange, lead }: CheckInBannerProps) {
   const headingId = useId();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [reviewing, setReviewing] = useState(false);
-  const [current, setCurrent] = useState(() => firstUnanswered(questions, answers, 0) ?? 0);
+  // Flags the server has withdrawn since this page rendered. Local state, not
+  // a refetch: the report body around us is still valid, and one stale
+  // question is not worth reloading the page the student is reading.
+  const [retired, setRetired] = useState<ReadonlySet<string>>(() => new Set());
+  const questions = useMemo(
+    () => asked.filter((question) => !retired.has(question.id)),
+    [asked, retired],
+  );
+  const [current, setCurrent] = useState(() => firstUnanswered(asked, answers, 0) ?? 0);
   const questionRefs = useRef(new Map<string, HTMLElement>());
   const thanksRef = useRef<HTMLParagraphElement>(null);
 
@@ -68,8 +81,28 @@ export default function CheckInBanner({ reportId, questions, answers, onAnswersC
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ flag: question.id, answer, ...(reason ? { reason } : {}) }),
       });
-      const data = (await response.json().catch(() => ({}))) as { checkIn?: CheckInAnswers; error?: string };
+      const data = (await response.json().catch(() => ({}))) as {
+        checkIn?: CheckInAnswers;
+        error?: string;
+        retired?: boolean;
+      };
       if (!response.ok || !data.checkIn) {
+        // Withdrawn: take the question off the list and carry on, silently.
+        // Index work uses the list this save started from, because `questions`
+        // has not re-rendered yet.
+        if (data.retired) {
+          const remaining = questions.filter((q) => q.id !== question.id);
+          setRetired((previous) => new Set(previous).add(question.id));
+          setStatus("That question no longer applies and was removed.");
+          const next = firstUnanswered(remaining, answers, 0);
+          if (next === null) {
+            requestAnimationFrame(() => thanksRef.current?.focus());
+          } else {
+            setCurrent(next);
+            requestAnimationFrame(() => questionRefs.current.get(remaining[next].id)?.focus());
+          }
+          return;
+        }
         setError(data.error ?? "Your answer couldn't be saved. Please try again.");
         return;
       }
@@ -108,6 +141,12 @@ export default function CheckInBanner({ reportId, questions, answers, onAnswersC
       )}
     </>
   );
+
+  // Every question withdrawn: render nothing, which is exactly what a freshly
+  // rendered page would have shown. Without this, `every` on an empty list
+  // reports all-answered and we would thank the student for answering
+  // questions that no longer exist.
+  if (questions.length === 0) return null;
 
   if (allAnswered) {
     return (

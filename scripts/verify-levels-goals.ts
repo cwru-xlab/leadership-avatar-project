@@ -17,6 +17,7 @@ import * as path from "path";
 import { levelFor, LEVEL_THRESHOLDS } from "../lib/mastery/levels";
 import { goalProgress, GOAL_DEFAULTS } from "../lib/study-plan/goals";
 import type { MasteryContributionRow } from "../lib/mastery/ledger";
+import { forbiddenTermsIn } from "./guard-text";
 import { markStepComplete } from "../lib/study-plan/path";
 import { nextStepFor } from "../lib/study-plan/next-step";
 
@@ -404,11 +405,13 @@ function findForbiddenMatches(terms: string[]): Array<{ file: string; term: stri
     const source = fs.readFileSync(file, "utf-8");
     const stripped = withKnownUnrelatedCollisionsRemoved(
       stripCommentsAndStrings(source)
-    ).toLowerCase();
-    for (const term of terms) {
-      if (stripped.includes(term.toLowerCase())) {
-        matches.push({ file: path.relative(process.cwd(), file), term });
-      }
+    );
+    // Identifier-token matching, not substring: plain `includes("locked")` also
+    // matched the local `blocked` in lib/study-plan/drill/grade.ts (a set of
+    // ineligible drill techniques — the opposite of gating). scripts/guard-text.ts
+    // splits camelCase/snake_case so `isLocked` and `locked_by` still match.
+    for (const term of forbiddenTermsIn(stripped, terms)) {
+      matches.push({ file: path.relative(process.cwd(), file), term });
     }
   }
   return matches;

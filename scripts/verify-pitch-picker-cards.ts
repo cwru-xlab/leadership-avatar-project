@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { DECK_MODES, listDeckModes } from "../lib/pitch/deck-modes";
+import { routes } from "../lib/routes";
 
 let failures = 0;
 
@@ -107,24 +108,39 @@ check(
 );
 
 // 3. "With a deck" is a link to its own page, not an in-place disclosure.
+//
+// Accepts either the typed helper or the literal. `09dda6e` moved these pages
+// onto `lib/routes.ts` (`routes.deckPitches()`), so pinning the literal URL
+// made the guard fail while the link was correct. Asserting the helper's
+// RETURN VALUE keeps the destination guarded without re-freezing the spelling.
 check(
-  'picker links "With a deck" to /practice/pitches/deck',
-  pickerSource.includes('href="/practice/pitches/deck"'),
+  `picker links "With a deck" to ${routes.deckPitches()}`,
+  pickerSource.includes("routes.deckPitches()") ||
+    pickerSource.includes(`href="${routes.deckPitches()}"`),
 );
 check(
   "deck page links back to the picker",
-  deckSource.includes('backHref="/practice/pitches"'),
+  deckSource.includes("routes.pitches()") ||
+    deckSource.includes(`backHref="${routes.pitches()}"`),
 );
 
-// 4. The picker plus exactly one deck sub-route; no decks directory exists.
+// 4. The picker plus its canonical sub-routes; no decks directory exists.
 const PITCHES_DIR = path.join(__dirname, "..", "app", "practice", "pitches");
 const pitchesDirEntries = fs.readdirSync(PITCHES_DIR, {
   withFileTypes: true,
 });
 const subRoutes = pitchesDirEntries.filter((entry) => entry.isDirectory());
+// `elevator/` joined `deck/` when the canonical named routes landed; both are
+// thin wrappers over the shared launcher. The property worth guarding is that
+// no OTHER sub-route appears (in particular no pluralised `decks/`).
+const EXPECTED_PITCH_SUBROUTES = ["deck", "elevator"];
 check(
-  "app/practice/pitches has only the deck subdirectory",
-  subRoutes.length === 1 && subRoutes[0].name === "deck",
+  `app/practice/pitches has only the ${EXPECTED_PITCH_SUBROUTES.join(" + ")} subdirector${EXPECTED_PITCH_SUBROUTES.length > 1 ? "ies" : "y"}`,
+  subRoutes.length === EXPECTED_PITCH_SUBROUTES.length &&
+    subRoutes
+      .map((e) => e.name)
+      .sort()
+      .every((name, i) => name === EXPECTED_PITCH_SUBROUTES[i]),
   subRoutes.map((e) => e.name).join(", "),
 );
 check(
@@ -137,16 +153,37 @@ check(
   !fs.existsSync(DECKS_DIR),
 );
 
-// 5. href={`/practice/${...}`} is the only launch target shape; no direct
-// API or report fetch lives on either page.
+// 5. A practice route is the only launch target shape; no direct API or report
+// fetch lives on either page.
+//
+// Originally pinned the literal shape href={`/practice/${...}`}. `09dda6e`
+// replaced those template literals with typed helpers
+// (`routes.elevatorPitch()`, `routes.deckPitch(mode.slug)`), so the shape
+// regex no longer matched even though both pages still launch correctly.
+// Accept either: a /practice/ template literal, or a routes helper that
+// returns a /practice/ URL.
 const LINK_PRACTICE = /href=\{`\/practice\/\$\{/g;
+const ROUTES_HELPER = /href=\{routes\.\w+\(/g;
+const launchesPractice = (source: string) =>
+  (source.match(LINK_PRACTICE) ?? []).length +
+    (source.match(ROUTES_HELPER) ?? []).length >=
+  1;
+
 check(
-  "picker launches the elevator via href={`/practice/${...}`}",
-  (pickerSource.match(LINK_PRACTICE) ?? []).length >= 1,
+  "picker launches the elevator via a /practice/ route",
+  launchesPractice(pickerSource),
 );
 check(
-  "deck page launches each mode via href={`/practice/${...}`}",
-  (deckSource.match(LINK_PRACTICE) ?? []).length >= 1,
+  "deck page launches each mode via a /practice/ route",
+  launchesPractice(deckSource),
+);
+// The helpers must actually resolve under /practice/, or the check above would
+// accept any routes.* call at all.
+check(
+  "the elevator and deck-mode helpers resolve to /practice/ URLs",
+  routes.elevatorPitch().startsWith("/practice/") &&
+    routes.deckPitch("pitch-funding").startsWith("/practice/"),
+  `${routes.elevatorPitch()}, ${routes.deckPitch("pitch-funding")}`,
 );
 check(
   "neither page contains an /api/ fetch",

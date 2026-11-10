@@ -15,11 +15,13 @@ import ReportBody from "@/components/report/ReportBody";
 import {
   getReportChrome,
   renderReportExtras,
+  reportExtraTabs,
 } from "@/components/practice/ReportChrome";
 import { listRubricDimensionsForSlug } from "@/lib/engine/resolve";
 import type { ReportDTO } from "@/lib/report/dto";
 import { displayReportTitle, formatReportWhen, typeLabelForReport } from "@/lib/report/title";
 import { reportsListHref } from "@/lib/report/filters";
+import { rubricLabelMap } from "@/lib/report/rubric-labels";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { RubricDimension } from "@/lib/engine/types";
 import { routes } from "@/lib/routes";
@@ -71,6 +73,10 @@ export default function PracticeReportPage({
     () => listRubricDimensionsForSlug(typeSlug),
     [typeSlug],
   );
+  // The evaluator writes `rubric_notes[].item` as free text and sometimes
+  // echoes the dimension KEY from the prompt ("opening_agenda"). The type's
+  // own dimensions are the labels to show instead.
+  const rubricLabels = useMemo(() => rubricLabelMap(dimensions), [dimensions]);
 
   const [report, setReport] = useState<ReportDTO | null>(initialReport ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -365,6 +371,13 @@ export default function PracticeReportPage({
           reportId={report.id}
           checkIn={report.checkIn}
           checkInLead={chrome?.checkInLead}
+          extraTabs={reportExtraTabs(chrome, report).map((tab) => ({
+            key: tab.key,
+            title: tab.title,
+            render: () => tab.render(report),
+          }))}
+          rubricLabels={rubricLabels}
+          rubricScores={report?.scores ?? {}}
         />
       ) : report?.status === "FAILED" ? (
         <StatusPanel

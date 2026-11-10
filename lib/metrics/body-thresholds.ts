@@ -844,6 +844,26 @@ export const MOUTH_MOVEMENT_WINDOW_MIN_SAMPLES = 8;
  * mouth still closing at the end of a turn. */
 export const MOUTH_MOVEMENT_SPEECH_GRACE_S = 1.5;
 
+/**
+ * Ticks this soon BEFORE push-to-talk is pressed are excluded too. UNTUNED.
+ *
+ * WHY THIS EXISTS: `MOUTH_MOVEMENT_SPEECH_GRACE_S` above covers only the tail
+ * of a turn, so the gate was one-sided. A student who begins talking and then
+ * reaches for the button — ordinary behaviour, and the whole reason the signal
+ * cannot simply trust the button — had that opening speech counted as "mouth
+ * moving while NOT speaking", which is the one thing this signal claims to
+ * measure. `stepMouthMovement`'s own doc comment recorded the hole ("Speech
+ * begun before the button is pressed cannot be excluded this way and will read
+ * as movement") without closing it.
+ *
+ * Deliberately EQUAL to the trailing grace: nothing measured argues for either
+ * edge being wider, and a matched pair is the honest default when a signal is
+ * symmetric in principle. Costs `stepMouthMovement` a retroactive buffer —
+ * no streaming gate can know a button press is coming.
+ */
+export const MOUTH_MOVEMENT_SPEECH_LEAD_S = 1.5;
+
+
 // --- Whether either descriptive signal was really measured this session. These
 // decide the `not_measured` vocabulary, so they decide what the evaluator is told.
 

@@ -241,6 +241,13 @@ export interface InterviewTiming {
    * `isThinkingTimeRequest`); the five-stage interview ignores it.
    */
   candidateThinking?: boolean;
+  /**
+   * Index of the assistant turn being generated. Problem interviews compare it
+   * against `state.lastNudgedTurnIndex` to space nudges out by
+   * `NUDGE_COOLDOWN_TURNS`; the five-stage interview ignores it, exactly as it
+   * ignores `candidateThinking`.
+   */
+  turnIndex?: number;
 }
 
 /**

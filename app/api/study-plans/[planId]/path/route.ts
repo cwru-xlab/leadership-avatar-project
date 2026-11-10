@@ -87,21 +87,73 @@ async function authenticate(request: NextRequest) {
 
 /**
  * A competency has no single owning interaction type (its `dimensionKeys`
- * span several types, by design). This derives ONE representative type
- * deterministically: the first ENGINE_TYPES entry whose own
- * `extraRubricDimensions` claims one of this competency's NON-SHARED
- * dimension keys. Used only for an UNAIDED_SESSION that is NOT the path's
- * final prove-it step (pre-Phase-23 degraded steps), and as the fallback
- * when a prove-it source cannot be resolved.
+ * span several types, by design). This derives ONE representative type for a
+ * non-prove-it `UNAIDED_SESSION` step — pre-Phase-23 degraded steps, and the
+ * fallback when a prove-it source cannot be resolved.
+ *
+ * ## Why `sourceTypeSlugs` is the FIRST thing consulted
+ *
+ * This function used to consider only `ENGINE_TYPES`, returning the first
+ * entry whose `extraRubricDimensions` claimed one of the competency's
+ * non-shared keys. That made the destination POSITIONAL on the registry
+ * array, with two consequences:
+ *
+ *   - reordering `ENGINE_TYPES`, or inserting a type that claims an earlier
+ *     dimension, silently changed where students were sent;
+ *   - four of the seven competencies resolved to a type the plan is not even
+ *     allowed to be built from (`delivery_presence` -> `pitch-talk`,
+ *     `concision_and_focus` -> `pitch-elevator`,
+ *     `holding_position_under_pressure` -> `pitch-deck`,
+ *     `outcome_achievement` -> `networking`). An interview-only plan would
+ *     hand an interview student a pitch or a networking session as the way to
+ *     rework an interview skill.
+ *
+ * So the plan's OWN source types are preferred, in the order the competency
+ * declares its dimensions (not registry order): if any session this plan was
+ * built from scores this competency, that type is where the student reworks
+ * it. `ENGINE_TYPES` is consulted only as a last resort, for a competency no
+ * source type scores at all — which is reachable, because a target may be
+ * selected on a THEME or GLOBAL basis rather than on this plan's own
+ * evidence. Returning null there is wrong: `PathPanel.hrefForStep` renders no
+ * action link at all for a null `practiceSlug`, leaving a dead step.
+ *
+ * Deterministic for a fixed input: `sourceTypeSlugs` is de-duplicated and
+ * sorted by the caller, and both loops below iterate the competency's own
+ * declared `dimensionKeys` order.
  */
-function practiceSlugForCompetency(competencyKey: CompetencyKey): string | null {
+function practiceSlugForCompetency(
+  competencyKey: CompetencyKey,
+  sourceTypeSlugs: readonly string[] = [],
+): string | null {
   const competency = COMPETENCIES.find((c) => c.key === competencyKey);
   if (!competency) return null;
 
   const sharedKeys: readonly string[] = SHARED_RUBRIC_DIMENSION_KEYS;
   const nonSharedKeys = competency.dimensionKeys.filter((k) => !sharedKeys.includes(k));
-  if (nonSharedKeys.length === 0) return null;
 
+  // A competency evidenced ONLY by shared dimensions (visual/vocal/content/
+  // behavioral) is scored by every type, so the plan's own source type is the
+  // only non-arbitrary answer. Registry order would be meaningless here.
+  if (nonSharedKeys.length === 0) return sourceTypeSlugs[0] ?? null;
+
+  // 1. A source type that scores one of this competency's non-shared
+  //    dimensions — the session the student actually practiced.
+  for (const dimensionKey of nonSharedKeys) {
+    for (const slug of sourceTypeSlugs) {
+      const type = getEngineType(slug);
+      if (type?.extraRubricDimensions.some((dim) => dim.key === dimensionKey)) {
+        return slug;
+      }
+    }
+  }
+
+  // 2. Any source type at all: still somewhere the student has been, which
+  //    beats a type this plan could not have been built from.
+  if (sourceTypeSlugs.length > 0) return sourceTypeSlugs[0];
+
+  // 3. Last resort — registry order, the pre-existing behavior. Only reached
+  //    when the caller passed no source types (a legacy path whose plan has
+  //    no readable source reports).
   for (const type of ENGINE_TYPES) {
     const claims = type.extraRubricDimensions.some((dim) => nonSharedKeys.includes(dim.key));
     if (claims) return type.slug;
@@ -161,6 +213,30 @@ function labelFor(key: CompetencyKey): string {
  *     the step.
  */
 export async function buildPathDTO(userId: string, path: PathWithSteps): Promise<PathDTO> {
+  // The practice types this plan was actually built from. Used to resolve a
+  // non-prove-it UNAIDED_SESSION step's destination (see
+  // practiceSlugForCompetency) so a rework step can never point at a type the
+  // plan is not allowed to be sourced from. De-duplicated and SORTED, so the
+  // resolved slug is stable for a fixed plan rather than dependent on row
+  // order. Tolerant by design: a plan whose source reports were deleted
+  // yields an empty list and the registry fallback applies.
+  const sourceTypeSlugs = await (async () => {
+    const plan = await prisma.studyPlan.findFirst({
+      where: { id: path.studyPlanId, userId },
+      select: { sourceReportIds: true },
+    });
+    const rawIds = plan?.sourceReportIds;
+    const ids = Array.isArray(rawIds)
+      ? rawIds.filter((id): id is string => typeof id === "string")
+      : [];
+    if (ids.length === 0) return [] as string[];
+    const rows = await prisma.interactionReport.findMany({
+      where: { id: { in: ids }, userId },
+      select: { typeSlug: true },
+    });
+    return [...new Set(rows.map((r) => r.typeSlug))].sort();
+  })();
+
   const knowledgeCheckIds = path.steps
     .map((s) => s.knowledgeCheckId)
     .filter((id): id is string => typeof id === "string" && id !== PLACEHOLDER_KNOWLEDGE_CHECK_ID);
@@ -282,7 +358,7 @@ export async function buildPathDTO(userId: string, path: PathWithSteps): Promise
         kind === "UNAIDED_SESSION"
           ? isProveIt
             ? proveIt!.typeSlug
-            : practiceSlugForCompetency(competencyKey)
+            : practiceSlugForCompetency(competencyKey, sourceTypeSlugs)
           : null,
       check,
       coachedPhase,

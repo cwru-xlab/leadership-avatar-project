@@ -26,6 +26,7 @@ import {
   type ProblemQuestion,
   type ProcessFramework,
 } from "./types";
+import { NUDGE_COOLDOWN_TURNS } from "./session-state";
 import type {
   ProblemInterviewEvent,
   ProblemInterviewState,
@@ -231,6 +232,15 @@ export interface ProblemTiming {
    * unwilling to honour "never nudge while they are thinking" as wording.
    */
   candidateThinking?: boolean;
+  /**
+   * Index of the assistant turn being generated. Compared against
+   * `state.lastNudgedTurnIndex` to enforce `NUDGE_COOLDOWN_TURNS`.
+   *
+   * Optional so every existing caller (six live-probe scripts) still compiles;
+   * omitting it means "no cooldown information", which leaves the previous
+   * every-turn behavior rather than silently suppressing nudges forever.
+   */
+  turnIndex?: number;
 }
 
 const STAGE_GUIDANCE: Record<ProblemInterviewState["stage"], string> = {
@@ -243,6 +253,33 @@ const STAGE_GUIDANCE: Record<ProblemInterviewState["stage"], string> = {
     "Answer the candidate's questions briefly and in character, then close.",
   closing: "Close the interview professionally.",
 };
+
+/**
+ * Is the nudge list withheld from this turn's prompt because the previous
+ * turn (or this one) already nudged?
+ *
+ * The defect this closes: `nudgedSteps` stops a step being nudged TWICE, but
+ * nothing stopped three DIFFERENT steps firing on three consecutive turns.
+ * Live PM estimation session, verbatim: "What exactly are we counting here?"
+ * then "How are you going to break that down?" then "Where does that number
+ * come from?" — three canned nudges back to back, because the block offered
+ * all of them every turn.
+ *
+ * Exported so the guard can exercise it directly rather than regexing prose.
+ */
+export function isNudgeOnCooldown(
+  state: ProblemInterviewState,
+  turnIndex: number | undefined,
+): boolean {
+  const last = state.lastNudgedTurnIndex;
+  if (last === null || last === undefined) return false;
+  // No turn index supplied (the live-probe scripts): keep the pre-existing
+  // behavior rather than withholding nudges for the rest of the session.
+  if (typeof turnIndex !== "number" || !Number.isFinite(turnIndex)) return false;
+  // A replayed or out-of-order turn must not read as "cooled down".
+  if (turnIndex < last) return true;
+  return turnIndex - last <= NUDGE_COOLDOWN_TURNS;
+}
 
 /**
  * The per-turn block. Appended to the latest user message, never to the
@@ -259,6 +296,7 @@ export function buildProblemProgressBlock(
   const pending = exhibits.filter(
     (exhibit) => !state.revealedExhibits.includes(exhibit.id),
   );
+  const nudgeOnCooldown = isNudgeOnCooldown(state, timing.turnIndex);
   const nudgeable = framework.steps.filter(
     (step) => !state.nudgedSteps.includes(step.key),
   );
@@ -280,7 +318,9 @@ export function buildProblemProgressBlock(
   }
   lines.push(
     `Steps already nudged (never nudge these again): ${state.nudgedSteps.join(", ") || "none"}`,
-    `Steps you may still nudge once if skipped: ${nudgeable.map((step) => step.key).join(", ") || "none"}`,
+    nudgeOnCooldown
+      ? `Steps you may still nudge once if skipped: none this turn (you nudged on the previous turn)`
+      : `Steps you may still nudge once if skipped: ${nudgeable.map((step) => step.key).join(", ") || "none"}`,
     `Time: ~${timing.elapsedMinutes} min elapsed, ~${remaining} min remaining of ${timing.targetMinutes}.`,
     `This stage: ${STAGE_GUIDANCE[state.stage]}`,
   );
@@ -308,7 +348,12 @@ export function buildProblemProgressBlock(
       `When you pose the problem, read this word for word, once, then stop: "${question.prompt}"`,
     );
   }
-  if (state.stage === "problem" && nudgeable.length && !timing.candidateThinking) {
+  if (
+    state.stage === "problem" &&
+    nudgeable.length &&
+    !timing.candidateThinking &&
+    !nudgeOnCooldown
+  ) {
     // The exact nudge texts, every turn: a nudge the model writes itself names
     // the step or drops its marker (the live probes' most frequent failure).
     lines.push(
@@ -318,8 +363,27 @@ export function buildProblemProgressBlock(
       ...nudgeable.map(
         (step) => `- "${step.nudge}" → <interview-turn kind="nudge" step="${step.key}" />`,
       ),
+      // A candidate who asserts a conclusion ("basically a 3x, so ~25% IRR")
+      // has skipped SEVERAL steps at once, and no nudge above is written for
+      // that: the later ones presuppose work they never showed, and the
+      // returns-math nudge is absurd when they just stated a return. Given no
+      // rule for which to pick, the model wrote its own redirect and dropped
+      // every marker with it (finance P3). Name the choice so the canned
+      // wording stays reachable.
+      `If they jump to an answer or conclusion having skipped several of the steps above, nudge the EARLIEST skipped one ` +
+        `— its exact words, its marker — not the step nearest their conclusion.`,
       `Otherwise do not redirect them at all. No coaching ("however feels natural", "no right answer", "let you drive"); ` +
         `if asked how to proceed say "It's your call." Never volunteer a fact, number or hint they did not ask for. Never restate the problem.`,
+    );
+  }
+  if (state.stage === "problem" && nudgeable.length && nudgeOnCooldown && !timing.candidateThinking) {
+    // No nudge list at all this turn, for the same reason the thinking-time
+    // branch below withholds it: the model treated "space them out" as
+    // advisory and fired three in a row. Withholding the TEXT is what
+    // actually stops it — it cannot use the exact words it was not given.
+    lines.push(
+      `You nudged on the previous turn. Do NOT nudge again this turn: let the candidate's answer stand, ` +
+        `and reply only to what they actually said or asked. If they are working, say nothing more than a brief acknowledgement.`,
     );
   }
   if (state.stage === "problem" && timing.candidateThinking) {
@@ -356,9 +420,14 @@ export function buildProblemProgressBlock(
         .join(" or ")} — without it nothing appears on their screen.`,
     );
   }
-  if (state.stage === "problem" && nudgeable.length) {
+  if (state.stage === "problem" && nudgeable.length && !nudgeOnCooldown) {
     lines.push(
-      `- If this reply asks any nudge above, it MUST also carry that nudge's marker.`,
+      // Was conditional on "asks any nudge above", which the model read as
+      // not applying once it improvised its own wording — so the redirect
+      // went out unmarked, `nudgedSteps` never recorded it, and the one-per-
+      // step budget was not consumed (the step could be nudged again). State
+      // it as a property of the TURN, not of the canned list.
+      `- If this reply redirects them toward a step they skipped — in the words above or any others — it MUST carry that step's nudge marker.`,
     );
   }
 
