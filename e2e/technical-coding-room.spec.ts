@@ -19,9 +19,10 @@ async function signIn(page: Page) {
 
 /**
  * Walks the setup wizard the coding room now runs: focus, interviewer, resume,
- * posting, camera. `focus` and the two document steps are optional, so the
- * default path skips them — this is the fastest route to the room, and it also
- * proves "no preference" still yields a problem rather than an empty pool.
+ * posting, learner briefing, camera. `focus` and the two document steps are
+ * optional, so the default path skips them — this is the fastest route to the
+ * room, and it also proves "no preference" still yields a problem rather than
+ * an empty pool.
  */
 async function openRoom(
   page: Page,
@@ -62,6 +63,17 @@ async function openRoom(
   for (let step = 0; step < 2; step += 1) {
     await page.getByRole("button", { name: /Skip for now/i }).first().click();
   }
+
+  // The briefing describes the public workflow before the shared camera gate.
+  // It must not receive private assignment or evaluator material.
+  const briefing = page.getByTestId("technical-coding-briefing");
+  await expect(briefing).toBeVisible();
+  await expect(briefing.getByRole("heading", { name: /how this coding interview works/i })).toBeVisible();
+  await expect(briefing).toContainText(/correctness, code and algorithm quality, and technical communication/i);
+  await expect(briefing).toContainText(/visible tests run locally in your browser/i);
+  await expect(briefing).toContainText(/up to three staged hints/i);
+  await expect(briefing).not.toContainText(/reference solution|rubric anchors|execution harness|provider/i);
+  await briefing.getByRole("button", { name: /Continue to camera setup/i }).click();
 
   // The shared camera consent gate, which this room now uses like every
   // other type instead of silently forcing OFF.
