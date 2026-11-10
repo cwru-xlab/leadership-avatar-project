@@ -195,7 +195,7 @@ export function resolveTermination({
  * Picks the reason a derived walk-out records, from the type's own closed
  * vocabulary. The engine never invents a reason and never emits one a policy
  * did not declare: an unmapped or non-member result returns null, and the
- * caller falls back to the model's own marker reason (today's behaviour).
+ * caller falls back to the model's own marker reason (today's behavior).
  *
  * Precedence is deterministic and does not depend on map iteration order:
  *   1. severe content, when the policy maps `severe_content`

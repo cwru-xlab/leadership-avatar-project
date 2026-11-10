@@ -20,6 +20,8 @@ import {
   STRUCTURED_REPORT_REQUIRED,
 } from "@/lib/report/structured";
 import type { ScoreMap } from "@/lib/report/snapshot";
+import { isProblemInterviewSlug } from "@/lib/problem-interview/problem-slugs";
+import { PROBLEM_OUTCOME_FIELD_KEYS } from "@/lib/problem-interview/types";
 import {
   SHARED_RUBRIC_DIMENSION_KEYS,
   type OutcomeFieldKind,
@@ -129,12 +131,33 @@ export function buildRubricJsonSchema(
       // optional-in-spirit fields use a nullable type instead of omission.
       outcomeRequired.push(field.key);
     }
-    properties.outcome = {
+    const outcome = {
       type: "object",
       additionalProperties: false,
       required: outcomeRequired,
       properties: outcomeProperties,
     };
+    // OUTCOME-FIRST for problem interviews: the model writes properties in
+    // schema order, so putting the step verdicts (evidence → status) before
+    // the *_score properties makes it grade the steps first and score from
+    // them (system-design grading study: 11/14 → 14/14). Every other type
+    // keeps outcome last, byte-identical to its frozen schema.
+    const problemInterview =
+      isProblemInterviewSlug(config.typeSlug) ||
+      config.outcome.fields.some((f) => f.key === PROBLEM_OUTCOME_FIELD_KEYS.processSteps);
+    if (problemInterview) {
+      return {
+        name: schemaNameFor(config),
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["outcome", ...required],
+          properties: { outcome, ...properties },
+        },
+      };
+    }
+    properties.outcome = outcome;
     required.push("outcome");
   }
 

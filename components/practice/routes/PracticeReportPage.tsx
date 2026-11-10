@@ -15,10 +15,13 @@ import ReportBody from "@/components/report/ReportBody";
 import {
   getReportChrome,
   renderReportExtras,
+  reportExtraTabs,
 } from "@/components/practice/ReportChrome";
 import { listRubricDimensionsForSlug } from "@/lib/engine/resolve";
 import type { ReportDTO } from "@/lib/report/dto";
-import { formatReportWhen, typeLabelForReport } from "@/lib/report/title";
+import { displayReportTitle, formatReportWhen, typeLabelForReport } from "@/lib/report/title";
+import { reportsListHref } from "@/lib/report/filters";
+import { rubricLabelMap } from "@/lib/report/rubric-labels";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { RubricDimension } from "@/lib/engine/types";
 import { routes } from "@/lib/routes";
@@ -70,6 +73,10 @@ export default function PracticeReportPage({
     () => listRubricDimensionsForSlug(typeSlug),
     [typeSlug],
   );
+  // The evaluator writes `rubric_notes[].item` as free text and sometimes
+  // echoes the dimension KEY from the prompt ("opening_agenda"). The type's
+  // own dimensions are the labels to show instead.
+  const rubricLabels = useMemo(() => rubricLabelMap(dimensions), [dimensions]);
 
   const [report, setReport] = useState<ReportDTO | null>(initialReport ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -219,6 +226,13 @@ export default function PracticeReportPage({
 
   const typeLabel = typeLabelForReport(report?.typeSlug ?? typeSlug);
 
+  // Shared with the reports list. The subtitle only adds what the title doesn't say.
+  const reportTitle = report
+    ? displayReportTitle({ title: report.title, typeSlug: report.typeSlug, input: report.input })
+    : isInterviewChrome
+      ? "Your interview report"
+      : "Your practice report";
+
   if (unknownType) {
     return (
       <ReportShell
@@ -296,15 +310,16 @@ export default function PracticeReportPage({
 
   return (
     <ReportShell
-      title={isInterviewChrome ? "Your interview report" : "Your practice report"}
+      title={reportTitle}
       subtitle={[
-        interviewerName ? `${typeLabel} with ${interviewerName}` : typeLabel,
+        reportTitle.startsWith(typeLabel) ? null : typeLabel,
+        interviewerName && !reportTitle.includes(interviewerName) ? `with ${interviewerName}` : null,
         report?.completedAt ? formatReportWhen(report.completedAt) : null,
       ]
         .filter(Boolean)
         .join(" · ")}
       aiLabel={report?.status === "READY"}
-      onBackToReports={() => router.push(routes.reports())}
+      onBackToReports={() => router.push(reportsListHref())}
       onPracticeAgain={
         isInterviewChrome
           ? () => router.push(routes.interview(typeSlug))
@@ -351,7 +366,18 @@ export default function PracticeReportPage({
           markdown={report.reportMarkdown}
           scores={scores}
           metrics={report.metrics ?? null}
+          moments={report.moments ?? null}
           showInterviewPaceTarget={report.input?.kind === "interview"}
+          reportId={report.id}
+          checkIn={report.checkIn}
+          checkInLead={chrome?.checkInLead}
+          extraTabs={reportExtraTabs(chrome, report).map((tab) => ({
+            key: tab.key,
+            title: tab.title,
+            render: () => tab.render(report),
+          }))}
+          rubricLabels={rubricLabels}
+          rubricScores={report?.scores ?? {}}
         />
       ) : report?.status === "FAILED" ? (
         <StatusPanel
@@ -549,7 +575,9 @@ function ReportShell({
             {title}
           </h1>
           {(subtitle || aiLabel || setup) && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14.5px] text-muted">
+            // `relative` anchors Session setup's panel at phone width. The panel floats, so
+            // opening it leaves this line, the title and "Practice again" where they are.
+            <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14.5px] text-muted">
               {subtitle && <span>{subtitle}</span>}
               {aiLabel && (
                 <span className="rounded-sm bg-ai/10 px-2 py-0.5 text-xs font-semibold text-ai">

@@ -29,12 +29,12 @@ skipped; three clear points and a next step get acted on.
 | Four category scores with level words | 1 | Score cards |
 | "One thing to practice next time" | 1 | Tinted panel under the scores |
 | Overall summary | 1 | Two sentences in the Overview tab |
-| Strength and growth-area titles, source and timecodes | 1 | Collapsed rows, 3 visible, "Show all" for more |
+| Strength and growth-area titles, source and timecodes | 1 | Collapsed rows, every item listed (no "Show all" cut) |
 | Strength detail and evidence quote; growth detail and suggestion | 2 | Inside each row |
 | Rubric notes, category notes | 2 | Content tab, one expandable row each |
 | Delivery bands | 1 | Short label / word lists in the Delivery tab |
 | Answer-by-answer delivery, camera observations | 2 | Expandable sections in the Delivery tab |
-| Learning points (keep doing, work on next, rewatch) | 1 | Takeaways tab, one line each |
+| Answers worth revisiting (uneven or off, worst first) | 1 | "Answers to revisit" in the Moments section; selecting one drives the timeline |
 | Headline delivery and camera figures | 1 | Statistics tab, eight figures with one line each |
 | Per-answer delivery and camera moments over time | 1 then 2 | Moments timeline; selecting a point opens its detail |
 | Transcript excerpt for one answer | 2 | "What you said" in the timeline's detail panel |

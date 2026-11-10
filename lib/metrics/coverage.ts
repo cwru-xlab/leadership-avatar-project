@@ -162,7 +162,7 @@ export function resolveVocalOutcome(vocal: VocalMetrics | null): VocalOutcome {
     return { scored: false, reason: "INSUFFICIENT_DATA" };
   }
 
-  // 4. The student spoke, but nothing could be analysed (e.g. every STT call
+  // 4. The student spoke, but nothing could be analyzed (e.g. every STT call
   //    for those turns failed) — a genuine technical failure, not a
   //    modality outcome and not weak delivery.
   if (coverage.spoken_turns > 0 && coverage.analyzed_turns === 0) {

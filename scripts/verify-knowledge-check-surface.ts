@@ -29,6 +29,7 @@ import {
 } from "../lib/study-plan/checks/types";
 import { MIN_QUOTABLE_LENGTH } from "../lib/study-plan/verbatim";
 import { ENGINE_TYPES } from "../lib/engine/registry";
+import { EXPECTED_ENGINE_TYPES_COUNT } from "./guard-expectations";
 
 const ROOT = process.cwd();
 let checks = 0;
@@ -417,19 +418,29 @@ console.log("\n2a. No ENGINE_TYPES entry is a knowledge-check slug or mentions o
 
 console.log("\n2b. ENGINE_TYPES.length has not silently grown around this guard");
 {
-  // No existing verifier (verify-engine-surface-count.ts,
+  // No engine-surface verifier (verify-engine-surface-count.ts,
   // verify-pitch-surface-count.ts, verify-deck-family-surface-count.ts,
   // verify-dc-surface-count.ts) exports an expected ENGINE_TYPES.length — each
   // deliberately avoids hardcoding it, since parallel phases add engine types
   // concurrently (see verify-pitch-surface-count.ts's own comment to that
-  // effect). Per this plan's fallback instruction, the expected count is
-  // therefore a LOCAL const here, duplicated from today's actual count rather
-  // than read from an existing export. Documented in 21-06-SUMMARY.md: this
-  // number (13, as of 2026-10-20) will need a deliberate bump whenever a
-  // sixteenth-and-beyond engine type lands; its purpose is only to make a
-  // silent, automated widening of ENGINE_TYPES visible in THIS file's diff,
-  // not to duplicate the authoritative count Phase 13 already owns.
-  const EXPECTED_ENGINE_TYPES_COUNT = 13;
+  // effect). This guard still wants a tripwire, so the expected count lives in
+  // scripts/guard-expectations.ts: close enough to be reviewed in a diff, but
+  // shared so it cannot be partially applied.
+  //
+  // Its purpose is only to make a silent, automated widening of ENGINE_TYPES
+  // visible in a diff, not to duplicate the authoritative count Phase 13 owns.
+  //
+  // BUMPED 13 -> 20 (2026-11-07). The guard had been failing, which means it
+  // had stopped guarding: seven types landed after 2026-10-20 without the
+  // bump (product-management, data-analytics, finance, system-design,
+  // technical-coding, clinical-communication, motivational-interviewing). The
+  // whole point of this const is that the bump is a reviewed act, so it is
+  // recorded here rather than silently corrected. If it is red again, do the
+  // same thing: confirm the new types are intended, then bump and say which.
+  //
+  // CENTRALISED (2026-11-08). Two siblings hand-copied this number and a third
+  // (verify-coach-containment.ts) never got the 13 -> 20 bump at all, so the
+  // "keep these in lockstep" comments were doing no work. One import now.
   check(
     `ENGINE_TYPES.length is ${EXPECTED_ENGINE_TYPES_COUNT} (bump this const deliberately if it grows)`,
     ENGINE_TYPES.length === EXPECTED_ENGINE_TYPES_COUNT,

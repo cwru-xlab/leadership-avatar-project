@@ -20,6 +20,7 @@ import {
   buildCoachSystemPrompt,
 } from "../lib/study-plan/coached/coach-prompt";
 import { ENGINE_TYPES } from "../lib/engine/registry";
+import { EXPECTED_ENGINE_TYPES_COUNT } from "./guard-expectations";
 import { resolveFromTypeConfig } from "../lib/engine/resolve";
 import { assembleSystemPrompt } from "../lib/engine/prompts";
 
@@ -197,7 +198,20 @@ const leaks = (s: string) => s.includes(COACH_LAYER_MARKER) || s.includes(COACH_
 // ---------------------------------------------------------------------------
 console.log("\n4. REGISTRY");
 {
-  check("ENGINE_TYPES.length === 13", ENGINE_TYPES.length === 13, `length=${ENGINE_TYPES.length}`);
+  /**
+   * This sat at a hardcoded 13 while the registry grew to 20 — it was the copy
+   * the "lockstep" comments in the two sibling guards asked for but never got.
+   * Now imported from scripts/guard-expectations.ts so the next addition is one
+   * edit that cannot be partially applied.
+   *
+   * The count is incidental here; the assertion below it ("no slug or name
+   * contains coach") is what this section exists to protect.
+   */
+  check(
+    `ENGINE_TYPES.length === ${EXPECTED_ENGINE_TYPES_COUNT}`,
+    ENGINE_TYPES.length === EXPECTED_ENGINE_TYPES_COUNT,
+    `length=${ENGINE_TYPES.length}`,
+  );
   const bad = ENGINE_TYPES.filter((t) => /coach/i.test(t.slug) || /coach/i.test(t.name));
   check('no ENGINE_TYPES slug or name contains "coach"', bad.length === 0, bad.map((t) => t.slug).join(", "));
 }

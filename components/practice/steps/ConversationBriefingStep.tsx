@@ -34,6 +34,12 @@ export interface ConversationBriefingStepProps {
   briefing: ConversationBriefingFields;
   /** Optional heading for the scenario (seeded title / authored title). */
   title?: string;
+  /** Replaces the intro line under the heading (questioned-persona cases). */
+  intro?: string;
+  /** Replaces the closing note (questioned-persona cases). */
+  footnote?: string;
+  /** A visible practice-only disclaimer (questioned-persona cases). */
+  disclaimer?: string;
 }
 
 const BLOCKS: Array<{
@@ -56,10 +62,13 @@ export default function ConversationBriefingStep({
   nav,
   briefing,
   title,
+  intro,
+  footnote,
+  disclaimer,
 }: ConversationBriefingStepProps) {
   // Call buildStudentBriefing so the narrower authored-text helper stays on
   // the dependency path (compile-time refusal of hiddenPosition). The UI
-  // lays out labelled blocks rather than the delimited prompt string.
+  // lays out labeled blocks rather than the delimited prompt string.
   void buildStudentBriefing(briefing);
 
   return (
@@ -75,10 +84,20 @@ export default function ConversationBriefingStep({
           {title?.trim() || "Before you start"}
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-          Read the situation carefully. You will not see what they privately
-          think — finding that out is part of the conversation.
+          {intro ??
+            "Read the situation carefully. You will not see what they privately think — finding that out is part of the conversation."}
         </p>
       </div>
+
+      {disclaimer ? (
+        <p
+          className="rounded-xl border border-copper/40 bg-copper/[0.08] px-5 py-4 text-sm leading-6 text-ink"
+          data-testid="persona-disclaimer"
+          role="note"
+        >
+          {disclaimer}
+        </p>
+      ) : null}
 
       <div className="space-y-4">
         {BLOCKS.map((block) => {
@@ -120,8 +139,7 @@ export default function ConversationBriefingStep({
       </div>
 
       <p className="rounded-xl border border-dashed border-line bg-canvas px-5 py-4 text-sm leading-6 text-muted">
-        What they actually think about all this is theirs. You&apos;ll have to
-        find out.
+        {footnote ?? "What they actually think about all this is theirs. You'll have to find out."}
       </p>
 
       <div className="flex flex-wrap justify-between gap-3">

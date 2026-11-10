@@ -20,6 +20,7 @@
  */
 
 import { waitUntil } from "@vercel/functions";
+import { randomInt } from "node:crypto";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
@@ -50,6 +51,13 @@ import {
 } from "@/lib/report/title";
 import { resolveDifficultConversationInstance } from "@/lib/difficult-conversation/resolve-instance";
 import { findSeededConversation } from "@/lib/difficult-conversation/seeded";
+import { findPersonaCase } from "@/lib/questioned-persona/cases";
+import { isPersonaStyle } from "@/lib/questioned-persona/types";
+import {
+  drawElevatorListener,
+  toElevatorListenerStart,
+} from "@/lib/pitch/elevator-listener-draw";
+import type { ElevatorListenerStart } from "@/lib/pitch/elevator-personas";
 import { ratchetHighWaterMark } from "@/lib/pitch/slide-reveal";
 import { resolveDeckFairValueBand } from "@/lib/pitch/fair-value-band";
 import {
@@ -57,6 +65,31 @@ import {
   type DifficultyBand,
 } from "@/lib/difficult-conversation/types";
 import { buildNetworkingStartSnapshot } from "@/lib/networking/start-snapshot";
+import {
+  TECHNICAL_ASSIGNMENTS,
+} from "@/lib/technical-interview/assignments.server";
+import {
+  normalizeTechnicalSelectionRequest,
+  selectTechnicalAssignment,
+} from "@/lib/technical-interview/selection";
+import {
+  TECHNICAL_CODING_LANGUAGE,
+  TECHNICAL_RUNTIME_POLICY_VERSION,
+  isTechnicalCodingLanguage,
+  toPublicTechnicalAssignment,
+  type TechnicalCodingInputSnapshot,
+} from "@/lib/technical-interview/types";
+import {
+  replaceCandidateCheckpoints,
+  setFinalSource,
+  validateTechnicalCheckpoints,
+  validateTechnicalFinalSource,
+} from "@/lib/technical-interview/evidence";
+import {
+  getProblemBank,
+  selectProblemQuestion,
+} from "@/lib/problem-interview/banks.server";
+import { buildProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
 import type { InteractionLog } from "@/types";
 
 import { runAndPersistEvaluation } from "./evaluation-runner";
@@ -127,7 +160,7 @@ export function pitchSnapshotFromInstance(
       fairValueBand: null,
       firstTurnWindowSeconds: 60,
       budgetSeconds,
-      listenerPersona: null,
+      listenerPersona: instance.listenerPersonaId ?? null,
     };
   }
   if (instance.kind === "pitch-deck") {
@@ -258,6 +291,8 @@ export type StartSessionSuccess = {
    * Pitch-deck timer displays this, not the wizard's requested value (14-13).
    */
   timeBudgetSeconds?: number | null;
+  /** Elevator only: the drawn listener's casting and level-filtered identity. */
+  listener?: ElevatorListenerStart;
 };
 
 export type CheckpointSessionSuccess = {
@@ -329,6 +364,12 @@ function difficultConversationSnapshotFromInstance(
     stakes: instance.stakes,
     difficulty: instance.difficulty,
     avatarId: instance.avatarId,
+    ...(instance.personaCard
+      ? {
+          personaStyle: instance.personaCard.style,
+          personaName: instance.personaCard.personaName,
+        }
+      : {}),
   };
 }
 
@@ -347,6 +388,7 @@ export async function startSession({
   cameraModeRequest,
   interviewerAvatarId: rawInterviewerAvatarId,
   interviewerName: rawInterviewerName,
+  technicalSelection,
   resumeId: rawResumeId,
   resumeText: rawResumeText,
   jobDescriptionId: rawJobDescriptionId,
@@ -354,6 +396,7 @@ export async function startSession({
   language,
   timeBudgetOverrideSeconds,
   difficulty: rawDifficulty,
+  problemFamily: rawProblemFamily,
 }: {
   userId: string;
   userEmail: string;
@@ -366,6 +409,12 @@ export async function startSession({
   cameraModeRequest?: unknown;
   interviewerAvatarId?: unknown;
   interviewerName?: unknown;
+  /**
+   * Technical coding only: `{ topics, difficulty, biasTopics }` as the student
+   * asked for it. Validated by `normalizeTechnicalSelectionRequest`, which
+   * drops anything it does not recognize.
+   */
+  technicalSelection?: unknown;
   resumeId?: unknown;
   resumeText?: unknown;
   /** Attached job posting (quick task 003) — interview types only. */
@@ -376,6 +425,11 @@ export async function startSession({
   timeBudgetOverrideSeconds?: unknown;
   /** Difficult-conversation wizard band override (15-08). */
   difficulty?: unknown;
+  /**
+   * Problem interviews: optional question-family preference (e.g.
+   * "guesstimate"). Ignored when no bank entry matches.
+   */
+  problemFamily?: unknown;
 }): Promise<StartSessionResult> {
   const type = getEngineType(typeSlug);
   if (!type) {
@@ -446,6 +500,104 @@ export async function startSession({
     return { ok: true, reportId: report.id, cameraMode };
   }
 
+  // ---- Technical coding: server-random assignment snapshot, ONE Prisma write ----
+  // The catalog entry is chosen only here, before the report is returned. The
+  // learner receives the snapshot's public fields; private tests/reference
+  // code remain in the server-only catalog and are reconstructed by id later.
+  if (type.slug === "technical-coding") {
+    const resolved = resolveSessionConfig(typeSlug);
+    if (!resolved.ok) return { ok: false, status: 400, error: resolved.reason };
+    const selectionRequest = normalizeTechnicalSelectionRequest(technicalSelection);
+    const selection = selectTechnicalAssignment(
+      TECHNICAL_ASSIGNMENTS,
+      selectionRequest,
+      randomInt,
+    );
+    if (!selection) {
+      console.error("Technical coding catalog is empty");
+      return { ok: false, status: 500, error: "Technical practice is unavailable." };
+    }
+    const selected = selection.assignment;
+    // Same validation shape the interview branch below uses: a server-issued
+    // UUID or null (a pasted posting legitimately has no id), and a truncated
+    // string. The posting is interviewer context only — it is snapshotted so
+    // the chat route can re-read it per turn, and is NOT part of the
+    // evaluation context the coding evaluator builds.
+    const resumeId =
+      typeof rawResumeId === "string" && UUID_V4_REGEX.test(rawResumeId) ? rawResumeId : null;
+    const resumeText =
+      typeof rawResumeText === "string" ? truncate(rawResumeText, MAX_RESUME_TEXT_LENGTH) : null;
+    const jobDescriptionId =
+      typeof rawJobDescriptionId === "string" && UUID_V4_REGEX.test(rawJobDescriptionId)
+        ? rawJobDescriptionId
+        : null;
+    const jobDescriptionText =
+      typeof rawJobDescriptionText === "string"
+        ? truncate(rawJobDescriptionText, MAX_RESUME_TEXT_LENGTH)
+        : null;
+    const technicalLanguage = isTechnicalCodingLanguage(language)
+      ? language
+      : TECHNICAL_CODING_LANGUAGE;
+    const inputSnapshot: TechnicalCodingInputSnapshot = {
+      kind: "technical-coding",
+      // The coding page used to drop these on the floor, so the room showed a
+      // generic interviewer and the prompt had no candidate background.
+      interviewerAvatarId:
+        typeof rawInterviewerAvatarId === "string"
+          ? truncate(rawInterviewerAvatarId, MAX_NAME_LENGTH)
+          : null,
+      interviewerName:
+        typeof rawInterviewerName === "string"
+          ? truncate(rawInterviewerName, MAX_NAME_LENGTH)
+          : null,
+      resumeId,
+      resumeText,
+      jobDescriptionId,
+      jobDescriptionText,
+      assignmentId: selected.id,
+      assignmentVersion: selected.version,
+      assignmentHash: selected.contentHash,
+      assignment: toPublicTechnicalAssignment(selected),
+      language: technicalLanguage,
+      runtimePolicyVersion: TECHNICAL_RUNTIME_POLICY_VERSION,
+      selectedAt: new Date().toISOString(),
+      requested: {
+        topics: selectionRequest.topics ?? [],
+        difficulty: selectionRequest.difficulty ?? null,
+      },
+    };
+    const timeBudgetSeconds = resolvePersistedBudget(
+      resolved.config.timeBudget,
+      timeBudgetOverrideSeconds,
+    );
+    const report = await prisma.interactionReport.create({
+      data: {
+        userId,
+        typeSlug: type.slug,
+        status: "IN_PROGRESS",
+        cameraMode,
+        metricsConsentAt: consentAt,
+        inputSnapshot: inputSnapshot as unknown as Prisma.InputJsonValue,
+        timeBudgetSeconds,
+      },
+      select: { id: true },
+    });
+    console.info("Technical coding report created", {
+      userId,
+      reportId: report.id,
+      assignmentId: selected.id,
+      assignmentVersion: selected.version,
+      topics: selected.topics,
+      difficulty: selected.difficulty,
+      // `widened` means the request matched nothing and a looser pool was
+      // used; worth seeing in logs, since it points at a catalog gap.
+      selectionBasis: selection.basis,
+      selectionWidened: selection.widened,
+      selectionPoolSize: selection.poolSize,
+    });
+    return { ok: true, reportId: report.id, cameraMode, timeBudgetSeconds };
+  }
+
   // ---- Interview presets: ONE Prisma write, ZERO S3 writes ----
   if (!type.instance.required) {
     const resolved = resolveSessionConfig(typeSlug, {
@@ -500,6 +652,44 @@ export async function startSession({
         ? truncate(rawJobDescriptionText, MAX_RESUME_TEXT_LENGTH)
         : null;
 
+    // Problem interviews: ONE question per session, chosen here, server-side,
+    // and pinned on the snapshot. The chat route (live prompt + exhibits),
+    // the live client (via turn metadata) and the evaluator all read this
+    // pin, never a client value — so all three see the same question.
+    let problem: InterviewInputSnapshot["problem"];
+    if (type.problemInterview) {
+      const selected = selectProblemQuestion(
+        getProblemBank(type.slug),
+        type.problemInterview.frameworks,
+        {
+          // Top-level param first; the customize handoff's copy covers the
+          // live shell's fallback start, which only resends `customization`.
+          family:
+            typeof rawProblemFamily === "string" && rawProblemFamily.trim()
+              ? rawProblemFamily.trim()
+              : typeof customization?.problemFamily === "string" &&
+                  customization.problemFamily.trim()
+                ? customization.problemFamily.trim()
+                : null,
+        },
+      );
+      if (!selected) {
+        console.error("Problem interview bank is empty or unusable", {
+          typeSlug: type.slug,
+        });
+        return {
+          ok: false,
+          status: 500,
+          error: "This interview is unavailable right now.",
+        };
+      }
+      problem = buildProblemSessionSnapshot(
+        selected.question,
+        selected.framework,
+        new Date().toISOString(),
+      );
+    }
+
     const inputSnapshot: InterviewInputSnapshot = {
       kind: "interview",
       interviewerAvatarId,
@@ -514,6 +704,7 @@ export async function startSession({
       interviewerPersona: customizationRecord.interviewerPersona,
       jobDescriptionId,
       jobDescriptionText,
+      ...(problem ? { problem } : {}),
     };
 
     const report = await prisma.interactionReport.create({
@@ -536,6 +727,7 @@ export async function startSession({
       reportId: report.id,
       typeSlug: type.slug,
       cameraMode,
+      ...(problem ? { problemQuestionId: problem.questionId } : {}),
     });
 
     return { ok: true, reportId: report.id, cameraMode };
@@ -569,6 +761,25 @@ export async function startSession({
         } = wizardInstance;
         wizardInstance = rest;
       }
+    }
+
+    // pitch-elevator: the listener is drawn here, once, and pinned in the
+    // snapshot below. Always overwrite, so a client cannot choose its listener.
+    let listener: ElevatorListenerStart | undefined;
+    if (wizardInstance?.kind === "pitch-elevator") {
+      const draw = await drawElevatorListener({
+        userId,
+        pitchSubject: wizardInstance.pitchSubject,
+        blind: wizardInstance.listenerKnowledge === "blind",
+      });
+      listener = toElevatorListenerStart(
+        draw,
+        wizardInstance.listenerKnowledge,
+      );
+      wizardInstance = {
+        ...wizardInstance,
+        listenerPersonaId: draw.persona.id,
+      };
     }
 
     const resolved = resolveSessionConfig(typeSlug, {
@@ -611,13 +822,23 @@ export async function startSession({
       timeBudgetSeconds,
     });
 
-    return { ok: true, reportId: report.id, cameraMode, timeBudgetSeconds };
+    return {
+      ok: true,
+      reportId: report.id,
+      cameraMode,
+      timeBudgetSeconds,
+      ...(listener ? { listener } : {}),
+    };
   }
 
 
   // ---- difficult-conversation: seeded-first resolve → Prisma snapshot
   //      (no InteractionLog). Must run before the case-study fallthrough. ----
-  if (type.slug === "difficult-conversation") {
+  // Questioned-persona types (clinical communication, motivational
+  // interviewing) extend this engine: same resolver, same snapshot, plus a
+  // persona card. The style on the card must match the type being started,
+  // so a courageous-conversation id never starts as a patient and vice versa.
+  if (type.slug === "difficult-conversation" || isPersonaStyle(type.slug)) {
     const conversationId =
       typeof instanceId === "string" && instanceId.trim()
         ? instanceId.trim()
@@ -630,12 +851,16 @@ export async function startSession({
     if (!dcInstance) {
       return { ok: false, status: 404, error: "Conversation not found" };
     }
+    if ((dcInstance.personaCard?.style ?? "difficult-conversation") !== type.slug) {
+      return { ok: false, status: 404, error: "Conversation not found" };
+    }
 
     if (isDifficultyBand(rawDifficulty)) {
       dcInstance = { ...dcInstance, difficulty: rawDifficulty };
     }
 
-    const seeded = findSeededConversation(conversationId);
+    const seeded =
+      findSeededConversation(conversationId) ?? findPersonaCase(conversationId);
     let conversationTitle = seeded?.title ?? "";
     if (!conversationTitle) {
       const situation = dcInstance.situation;
@@ -816,12 +1041,15 @@ export async function checkpointSession({
   turns: rawTurns,
   progress: rawProgress,
   revealedSlideIndex,
+  technicalCheckpoints: rawTechnicalCheckpoints,
 }: {
   userId: string;
   reportId: string;
   turns: unknown;
   progress?: unknown;
   revealedSlideIndex?: unknown;
+  /** Coding-only browser-authored source checkpoints. */
+  technicalCheckpoints?: unknown;
 }): Promise<CheckpointSessionResult> {
   if (typeof reportId !== "string" || !UUID_REGEX.test(reportId)) {
     return { ok: false, status: 400, error: "Invalid reportId" };
@@ -835,8 +1063,10 @@ export async function checkpointSession({
       typeSlug: true,
       startedAt: true,
       inputSnapshot: true,
+      turnCount: true,
       slideHighWaterMark: true,
       slideReveals: true,
+      technicalEvidence: true,
     },
   });
 
@@ -861,6 +1091,19 @@ export async function checkpointSession({
       reportId: report.id,
       reportStatus: report.status,
     };
+  }
+
+  // Coding checkpoints are deliberately independent from conversation state.
+  // A browser can only replace its own source draft; it cannot submit any
+  // transcript, hint, or execution evidence.
+  if (report.typeSlug === "technical-coding") {
+    const validated = validateTechnicalCheckpoints(rawTechnicalCheckpoints);
+    if (!validated.ok) return { ok: false, status: 400, error: validated.error };
+    await prisma.interactionReport.update({
+      where: { id: report.id },
+      data: { technicalEvidence: replaceCandidateCheckpoints(report.technicalEvidence, validated.value) as unknown as Prisma.InputJsonValue },
+    });
+    return { ok: true, turnCount: report.turnCount };
   }
 
   const turns = normalizeTurns(rawTurns);
@@ -966,6 +1209,8 @@ export async function finishSession({
   outcome: rawOutcome,
   walkOutProof: rawWalkOutProof,
   title: rawTitle,
+  technicalCheckpoints: rawTechnicalCheckpoints,
+  finalSource: rawFinalSource,
 }: {
   userId: string;
   userEmail: string;
@@ -983,6 +1228,10 @@ export async function finishSession({
   walkOutProof?: unknown;
   /** Optional student-chosen My Reports title. */
   title?: unknown;
+  /** Coding-only browser-authored source checkpoints. */
+  technicalCheckpoints?: unknown;
+  /** Coding-only final candidate source, stored with private evidence. */
+  finalSource?: unknown;
 }): Promise<FinishSessionResult> {
   if (typeof reportId !== "string" || !reportId) {
     return { ok: false, status: 404, error: "Report not found" };
@@ -1163,6 +1412,64 @@ export async function finishSession({
   const { visual: visualMetrics, vocal: vocalMetrics } =
     parseMetricsPayload(metricsPayload);
 
+  // ---- Technical coding: persist the canonical transcript and bounded,
+  // private source evidence atomically before the report can queue. This is
+  // deliberately separate from the general interview branch: coding needs a
+  // final source and never accepts execution-provider results from the client. ----
+  if (report.typeSlug === "technical-coding") {
+    // The transcript is server-recorded by the chat route. Do not use request
+    // turns here: a client can never retroactively author interviewer history.
+    const checkpoints = validateTechnicalCheckpoints(rawTechnicalCheckpoints);
+    if (!checkpoints.ok) return { ok: false, status: 400, error: checkpoints.error };
+    const finalSource = validateTechnicalFinalSource(rawFinalSource);
+    if (!finalSource.ok) return { ok: false, status: 400, error: finalSource.error };
+    const checkpointed = replaceCandidateCheckpoints(report.technicalEvidence, checkpoints.value);
+    const evidence = setFinalSource(checkpointed, finalSource.value);
+    const turns = evidence.visibleTurns;
+
+    const transcript = buildInterviewTranscript({
+      reportId: report.id,
+      userId,
+      typeSlug: report.typeSlug,
+      interviewer: { avatarId: null, name: null },
+      startedAt: report.startedAt.getTime(),
+      turns: turns.map((turn) => ({ ...turn, timestamp: Date.now() })),
+      progress: initialProgress(),
+    });
+
+    let transcriptKey: string;
+    try {
+      transcriptKey = await s3Storage.saveInterviewTranscript(userId, report.id, transcript);
+    } catch (error) {
+      console.error("Engine coding finish: transcript save failed", {
+        userId,
+        reportId: report.id,
+        error,
+      });
+      return { ok: false, status: 502, error: "We could not save your coding interview. Please try again." };
+    }
+
+    await prisma.interactionReport.update({
+      where: { id: report.id },
+      data: {
+        status: "PENDING",
+        transcriptKey,
+        turnCount: turns.length,
+        technicalEvidence: evidence as unknown as Prisma.InputJsonValue,
+        failureReason: null,
+        title: resolvedTitle,
+        visualMetrics: toMetricsJsonInput(visualMetrics),
+        vocalMetrics: toMetricsJsonInput(vocalMetrics),
+        terminationReason: recordedTerminationReason,
+        terminationAtSeconds: recordedTerminationAtSeconds,
+        outcome: recordedOutcome === null ? Prisma.DbNull : (recordedOutcome as Prisma.InputJsonValue),
+      },
+    });
+
+    waitUntil(runAndPersistEvaluation({ reportId: report.id }));
+    return { ok: true, accepted: true, reportId: report.id, pendingStatus: "PENDING" };
+  }
+
   // ---- Interview finish shape (finishPendingFlip: "request-path") ----
   if (type.finishPendingFlip === "request-path") {
     const turns = normalizedTurns;
@@ -1209,7 +1516,11 @@ export async function finishSession({
         transcript,
       );
     } catch (error) {
-      console.error("Engine interview finish: transcript save failed", error);
+      console.error("Engine interview finish: transcript save failed", {
+        userId,
+        reportId: report.id,
+        error,
+      });
       return {
         ok: false,
         status: 502,
@@ -1288,7 +1599,11 @@ export async function finishSession({
   try {
     await s3Storage.saveInteractionLog(log);
   } catch (error) {
-    console.error("Engine scenario finish: interaction log save failed", error);
+    console.error("Engine scenario finish: interaction log save failed", {
+      userId,
+      reportId: report.id,
+      error,
+    });
     return {
       ok: false,
       status: 502,
@@ -1314,4 +1629,26 @@ export async function finishSession({
   waitUntil(runAndPersistEvaluation({ reportId: report.id }));
 
   return { ok: true, accepted: true, reportId: report.id };
+}
+
+/**
+ * Discards the eager report row created for an unsubmitted coding session.
+ * The conditional predicate makes retries safe and protects reports that have
+ * already entered evaluation or belong to a different learner.
+ */
+export async function abandonTechnicalCodingSession({
+  userId,
+  reportId,
+}: {
+  userId: string;
+  reportId: string;
+}): Promise<void> {
+  await prisma.interactionReport.deleteMany({
+    where: {
+      id: reportId,
+      userId,
+      typeSlug: "technical-coding",
+      status: "IN_PROGRESS",
+    },
+  });
 }

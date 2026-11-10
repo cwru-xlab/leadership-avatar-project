@@ -48,7 +48,8 @@ console.log("\n2. D19-1 — each deck mode's session length uses its own envelop
   rule("SessionLengthStep takes envelopeSeconds and no longer imports DECK_ENVELOPE_SECONDS", step,
     (s) => /envelopeSeconds: readonly \[number, number\]/.test(s) && !/DECK_ENVELOPE_SECONDS/.test(s),
     (s) => s.replace('import { proposeDeckSeconds } from "@/lib/pitch/session-length";', 'import { DECK_ENVELOPE_SECONDS, proposeDeckSeconds } from "@/lib/pitch/session-length";'));
-  const page = read("app/practice/[type]/page.tsx");
+  // Launcher composition lives here; app/practice/[type]/page.tsx is a wrapper.
+  const page = read("components/practice/routes/PracticeTypePage.tsx");
   rule("the wizard passes deckMode.envelopeSeconds", page,
     (s) => /envelopeSeconds=\{deckMode\.envelopeSeconds\}/.test(s),
     (s) => s.replace("envelopeSeconds={deckMode.envelopeSeconds}", "envelopeSeconds={[1200, 1800]}"));
@@ -90,7 +91,8 @@ console.log("\n7. K-5 / K-6 — deck modes use their own listener wording");
   rule("slide thumbnails name the mode's audience, not 'the investor'", viewer,
     (s) => !/shown to the investor/.test(s) && /shown to \$\{audienceLabel\}/.test(s),
     (s) => s.replace("shown to ${audienceLabel}", "shown to the investor"));
-  const page = read("app/practice/[type]/page.tsx");
+  // Launcher composition lives here; app/practice/[type]/page.tsx is a wrapper.
+  const page = read("components/practice/routes/PracticeTypePage.tsx");
   rule("pitch modes pass their own avatar-step heading and role line", page,
     (s) => /heading: "Choose who you'll pitch to\."/.test(s) && /roleLabel: deckMode\?\.listenerLine/.test(s),
     (s) => s.replace(`heading: "Choose who you'll pitch to.",`, ""));
@@ -112,7 +114,7 @@ rule("roving tabindex plus an arrow-key handler", read("components/practice/step
   (s) => s.replace("onKeyDown={(event) => handleBandKeyDown(event, index)}", ""));
 
 console.log("\n11. D17-2 — the persona textarea has an accessible name");
-rule("CustomizePanel persona Textarea has aria-label", read("components/interview/CustomizePanel.tsx"),
+rule("Interview customize page persona Textarea has aria-label", read("components/interview/InterviewCustomizePage.tsx"),
   (s) => /aria-label="Description of who is interviewing you"/.test(s),
   (s) => s.replace('aria-label="Description of who is interviewing you"', ""));
 

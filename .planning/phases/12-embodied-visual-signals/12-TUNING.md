@@ -769,3 +769,202 @@ Distinguishing these needs the raw per-tick `phoneScore` series from a
 phone-held session. The dump that produces it was removed when this plan closed;
 re-adding it is the first step of any future attempt.
 
+## Untuned: hand matching and the descriptive hand and mouth signals (2026-11-05)
+
+**No real session has been recorded against anything in this section.** The
+constants at the end of `lib/metrics/body-thresholds.ts` are geometric estimates.
+Only synthetic landmarks have exercised them
+(`scripts/verify-hand-mouth-signals.ts`). None may move a score, and none should
+until they have a labelled dataset, written precision targets and an appeal path.
+
+> **SUPERSEDED IN PART — see "12-12: the first real readings on the hand/mouth
+> signals" at the end of this file.** Real sessions have now been measured: the
+> eating check-in fired on 5 of the 8 camera-on sessions recorded since these
+> signals shipped, and the three that were genuine user sessions had no food or
+> drink in frame. Those readings are an observed FALSE-POSITIVE RATE, not the
+> labelled dataset this section asks for, and **every constant named below is
+> still untuned** — the repair added a corroboration requirement in the
+> check-in rather than moving any cutoff. The list of behaviours to record at
+> the end of this section stands unchanged.
+
+**Changes that touch previously tuned numbers:**
+
+- `matchHands` replaces list-index comparison in the gesture loop. `primary` is
+  sorted by distance to the shoulders, so its order swaps when one hand passes the
+  other, and the old loop read still hands as two events. S1-S4's 0, 9, 12.2 and
+  4/min all include any such events, so `GESTURE_RATE_STILL_MAX`,
+  `GESTURE_RATE_EXCESSIVE_MIN` and `GESTURE_WINDOW_*_PCT` were tuned on counts
+  that real sessions will no longer produce. The direction is lower; the size is
+  unknown.
+- `GESTURE_AMPLITUDE_MIN` now scales with shoulder width, clamped to 0.6x-1.6x,
+  around a reference width of 0.4 that is an estimate. No dump recorded raw
+  shoulder width.
+- `HANDS_NEAR_FACE_RADIUS` and the wrist-to-expanded-box test are deliberately
+  unchanged, because `HANDS_NEAR_FACE_TRIP_PCT` was tuned from them.
+
+**Blendshape cost, measured 2026-11-05.** Same worker, same frame, alternating, 300
+calls per arm, one face at 640x480, Apple M1 Pro, Chromium headless:
+
+| Delegate | Without blendshapes (mean / p95 ms) | With (mean / p95 ms) |
+|---|---|---|
+| CPU | 14.71 / 15.6 | 14.58 / 15.2 |
+| GPU | 15.42 / 18.8 | 15.45 / 19.0 |
+
+The difference is inside the noise on this machine. Not measured: more than one
+face (the three-face test image found none), a live camera, or a low-end laptop.
+The live `[visual-capture] frame budget` log reports the face model's real cost
+per session, and is what to read on a school machine.
+
+**To tune these, record:** repeated eating, sipping water, chin resting, nail
+biting, listening with a mask on, speaking without holding push-to-talk, and the
+middle-finger shape at several angles, against pointing, peace, adjusting glasses
+and holding a pen.
+
+---
+
+# 12-12: the first real readings on the hand/mouth signals (2026-11-07)
+
+**The section above says "no real session has been recorded against anything in
+this section." That is no longer true, and this section is the record.** The
+readings came from a user report — *"im noticing that i get flagged for
+eating/drinking after pretty much every interview i do"* — not from a planned
+capture, so they are an OBSERVED FIRING RATE, not the labelled dataset that
+section asks for. Everything that section says is still needed is still needed.
+
+## The dataset: every camera-on session since the signals shipped
+
+Measured by replaying `eligibleCheckIns` over the stored `visualMetrics` of
+every `READY`, camera-on `InteractionReport` created after `3fd7213`
+(2026-11-05 16:22 -0500), which is when these signals first ran. Sessions before
+it cannot fire these flags and must not be in the denominator — including them
+gives 4% and hides the problem entirely.
+
+| Session | Type | Hand run | Mouth run | Arrivals | Food/drink seen | Asked about eating? |
+|---|---|---|---|---|---|---|
+| 11-05 22:15 | pitch-elevator | n | n | – | – | no |
+| 11-05 22:28 | general (seed) | Y | Y | 9 | **40s** | yes, twice |
+| 11-05 22:28 | general (seed) | n | n | 0 | 40s | no |
+| 11-05 22:28 | general (seed) | Y | Y | 9 | **40s** | yes, twice |
+| 11-06 16:41 | technical-coding | n | n | – | – | no |
+| 11-07 22:58 | product-management | Y | Y | 7 | **0s** | yes, twice |
+| 11-08 01:00 | motivational-interviewing | n | Y | 7 | **0s** | yes |
+| 11-08 01:23 | consulting | Y | Y | 6 | **0s** | yes, twice |
+
+**5 of 8 sessions asked the student whether they had been eating. 9 eating
+questions across 8 sessions**, because `hand_at_mouth` and `mouth_movement` both
+asked, independently, about the same hypothesis.
+
+Of the four sessions with a hand-at-mouth run, the three that were real user
+sessions recorded **zero seconds** of food or drink in frame. The only rows with
+food present are the seeded fixture (40s, three identical copies).
+
+### What this establishes, and what it does not
+
+1. **The false-positive side is now measured, and it is high.** The user's own
+   three sessions all fired and none involved eating. That is 3/3 wrong on the
+   sessions whose ground truth is known.
+2. **It is NOT a measured true-positive rate.** No session in this table is a
+   labelled eating session. Nothing here says what the detector does when a
+   student really is eating, so **no threshold below was lowered or raised on
+   the strength of it** — see the repair, which adds a corroboration
+   requirement instead of touching a cutoff.
+3. **Arrival counts cluster just above the trip.** 6, 7, 7, 9 against
+   `HAND_AT_MOUTH_REPEAT_MIN_EVENTS = 3`. With
+   `HAND_AT_MOUTH_REPEAT_MAX_GAP_S = 45`, three touches spread over 90 seconds
+   chain into one "repeated" run, so ordinary chin-resting across a 10-minute
+   session reaches it comfortably. The 0.45 enter ratio's own comment already
+   conceded "the nose and chin sit near or beyond it".
+4. **The check-in calibration tally is too thin to tune from**: 3 answers on
+   `hand_at_mouth` (1 yes / 1 no / 1 "sipping water") and 4 on
+   `mouth_movement` (2/2/0). Recorded because the tally was built for exactly
+   this and its emptiness is itself the finding — students are not answering
+   enough for it to settle anything yet.
+
+## The repair: corroboration, not re-tuning
+
+**No constant in `body-thresholds.ts` was changed.** The detectors still see
+what they saw and the Observations rows still say so. What changed is the bar
+for INTERRUPTING the student with a question, all of it in
+`lib/report/check-in.ts`:
+
+| Change | Effect |
+|---|---|
+| Both eating questions now require `food_or_drink_visible_seconds > 0` | The fix that actually worked. The object model is the one independent witness to food, the pipeline already computed it, and the check-in never read it. |
+| `mouth_movement` stands down whenever `hand_at_mouth` asks | One question per hypothesis. Being asked twice is most of what made this read as an accusation. |
+| `HAND_AT_MOUTH_CHECK_IN_MIN_EVENTS = 6` | Check-in-only gate, double the detector's own minimum, on the `PHONE_CHECK_IN_MIN_SECONDS` precedent. |
+| Wording asks about the observation, not the act | "Was there food or a drink on camera?" replaces "Were you eating or drinking?" — the module's own WORDING RULES forbid naming a cause as fact, and the `phone` flag already obeyed them. |
+
+**Replayed against the table above: 5 of 8 becomes 2 of 8, and the 2 are the
+seeded fixtures with 40s of food genuinely visible.** All three real user
+sessions now ask nothing. Pinned by six new assertions in
+`scripts/verify-check-in.ts`.
+
+**ABSENT IS NOT ZERO** in the new gate, and neither asks: `0` is the object
+model reporting it saw none; absent is the model never having run. Neither
+corroborates.
+
+### The honest limit of this repair
+
+`HAND_AT_MOUTH_CHECK_IN_MIN_EVENTS = 6` **would not have fixed the reported
+problem on its own** — the three real sessions measured 6, 7 and 7 arrivals, at
+or above it. Corroboration is doing all the work; the gate only stops a bare
+three-arrival trip from costing a question. Stated plainly so a future reader
+does not credit the gate with the improvement.
+
+A second limit: corroboration makes the eating questions only as good as the
+object model's food detection, which has **no dataset of its own**.
+`FOOD_DRINK_SCORE_THRESHOLD` (0.5) and `FOOD_DRINK_MIN_VISIBLE_S` (4) are
+untuned, and if that model under-detects a cup the way
+`PHONE_SCORE_THRESHOLD` was suspected of under-detecting a phone, then a real
+eating session will now be asked about LESS often. That is a deliberate trade —
+a missed question costs nothing, a false accusation costs trust — but it is a
+trade, and it moves the open question from "why does this fire so often" to
+"can the object model see a cup at all". **That is the next reading to take**,
+and it needs a session with a drink held in frame, labelled.
+
+## The push-to-talk hole in `mouth_movement`, closed
+
+Found while investigating the above, and the likely reason `mouth_movement`
+fired on MORE sessions than `hand_at_mouth` (5 vs 4 runs, including one where
+the hand signal did not fire at all).
+
+`stepMouthMovement`'s gate was **one-sided**. `MOUTH_MOVEMENT_SPEECH_GRACE_S`
+excluded the 1.5s after push-to-talk releases, as the mouth finishes closing,
+but nothing excluded the ticks BEFORE the press. Its own doc comment recorded
+the hole without closing it: *"Speech begun before the button is pressed cannot
+be excluded this way and will read as movement."* A student who starts talking
+and then reaches for the button — ordinary behaviour, and the whole reason this
+signal cannot simply trust the button — had their opening words counted as
+"mouth moving while not speaking", which is the one thing the signal claims to
+measure.
+
+Closed with `MOUTH_MOVEMENT_SPEECH_LEAD_S = 1.5`, deliberately equal to the
+trailing grace: nothing measured argues for either edge being wider, and a
+matched pair is the honest default for a gate that is symmetric in principle.
+
+The leading edge cannot be judged causally — at the tick itself nothing knows a
+press is coming — so `stepMouthMovement` now buffers deltas and commits them
+only once no press can still claim them. Consequences, all pinned by assertions:
+
+- A speech onset discards pending deltas **inside** the lead window and commits
+  those older than it. Discarding the whole buffer over-suppressed whenever
+  ticks were sparse enough that a safe delta had no later silent tick to commit
+  it — caught by the "long silent stretch before a turn" assertion failing on
+  the first attempt, not by reading the code.
+- `stop()` must call `flushMouthMovement`, or the final silent stretch is lost:
+  those deltas never get a speech onset to clear them. Flushed before
+  `closeWindow(sessionSeconds)` so they land in the last window.
+- A delta is attributed to the window open when it is COMMITTED, up to 1.5s
+  after it occurred. At 5s windows that can shift a reported boundary by one
+  window at most, on a descriptive row quoted to the nearest second. The
+  alternative is writing into a closed window.
+- The buffer is bounded by the lead window (~5 entries at 3 Hz), not by session
+  length.
+
+**NOT MEASURED: how much this changes a real session's
+`mouth_movement_silent_seconds`.** The eight sessions above all predate it, and
+the corroboration gate now suppresses the question on all three real ones
+anyway, so the two repairs cannot be separated by re-reading stored reports. A
+labelled session — "speak without holding the button, then chew gum" — is what
+would show the lead window working in both directions, and it is already on the
+list at the end of the previous section.

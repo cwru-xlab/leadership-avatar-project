@@ -15,7 +15,7 @@ they operate, a mono for time.
 |---|---|---|---|---|
 | `title` | Newsreader | 32 / 1.1, tracking -0.01em | 500 | Your interview report |
 | `figure` | Newsreader | 36–40 / 1.0, lining figures | 500 | 4 / 5, 138 wpm |
-| `section` | Newsreader | 22–26 / 1.15 | 500 | Strengths, Moments, Keep doing |
+| `section` | Newsreader | 22–26 / 1.15 | 500 | Strengths, Growth areas, Moments |
 | `statement` | Newsreader italic | 24 / 1.35 (practice-next), 16–18 (quotes) | 400 | "End each story with the result as a number." |
 | `body` | Public Sans | 15–17 / 1.55 | 400 | You named the stakes early. |
 | `label` | Public Sans, sentence case | 13 / 1.3 | 600 | Speech rate, One thing to practice next time |

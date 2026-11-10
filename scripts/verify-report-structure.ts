@@ -52,7 +52,7 @@ import { CONVERSATION_EVALUATOR_PROMPT } from "../lib/difficult-conversation/con
  * frozen verbatim as a permanent regression guard (plan 13-13), PLUS TWO
  * deliberate post-Phase-13 additions:
  *   1. The nested `source` attribution field on `strengths`/`growth_areas`
- *      items, added by quick task 002 so a feedback point can be labelled as
+ *      items, added by quick task 002 so a feedback point can be labeled as
  *      drawn from the resume, the conversation, or both.
  *   2. The nested `dimension` field on `growth_areas` items, added by quick
  *      task 004 so a growth area can self-declare the rubric dimension key
@@ -287,7 +287,7 @@ const FULL = {
   growth_areas: [
     { title: "Answer structure", detail: "Answers wandered.", suggestion: "Use STAR.", timecodes: ["1:59", "2:46"] },
   ],
-  category_notes: { visual: "Centred 57% of the time.", vocal: "Pace climbed.", content: null, behavioral: "Good ownership." },
+  category_notes: { visual: "Centered 57% of the time.", vocal: "Pace climbed.", content: null, behavioral: "Good ownership." },
   rubric_notes: [
     { item: "Ownership", note: "Strong — took responsibility for the missed deadline" },
     { item: "Empathy", note: "Developing — little acknowledgement of teammates" },
@@ -359,7 +359,7 @@ console.log("\n3. Markdown composition");
     check(`emits ${section}`, md.includes(section), true);
   }
   check("timecodes reach the prose", md.includes("1:59, 2:46"), true);
-  check("category table carries the notes", md.includes("Centred 57% of the time."), true);
+  check("category table carries the notes", md.includes("Centered 57% of the time."), true);
   check("growth suggestions use collaborative display terminology", md.includes("Consider trying this:"), true);
   check("legacy suggestion label is absent", md.includes("*Suggestion:*"), false);
 }
@@ -683,7 +683,9 @@ console.log("\n7. Type-derived rubric schema (13-05)");
                 },
                 proposedSeconds: 1200,
               }
-            : type.slug === "difficult-conversation"
+            : type.slug === "difficult-conversation" ||
+                type.slug === "clinical-communication" ||
+                type.slug === "motivational-interviewing"
               ? {
                   kind: "difficult-conversation" as const,
                   conversationId: "verify-dc",
@@ -764,7 +766,8 @@ console.log("\n7. Type-derived rubric schema (13-05)");
   }
 
   // 6.2 — deep equality with today's hardcoded schemas (regression until 13-13).
-  for (const slug of ["general", "technical", "consulting", "early-career"]) {
+  // `consulting` is a problem interview now (lib/case-interview): see 6.2b.
+  for (const slug of ["general", "technical", "early-career"]) {
     const resolved = resolveSessionConfig(slug, {});
     if (!resolved.ok) {
       failures += 1;
@@ -776,6 +779,46 @@ console.log("\n7. Type-derived rubric schema (13-05)");
       deepEqual(buildRubricJsonSchema(resolved.config), EVALUATION_JSON_SCHEMA),
       true,
     );
+  }
+  // 6.2b — consulting is a problem interview: the legacy schema is a strict
+  // subset of its schema, plus process_rigor / quantitative / synthesis and
+  // the problem outcome (question, framework, process steps).
+  {
+    const resolved = resolveSessionConfig("consulting", {});
+    if (!resolved.ok) {
+      failures += 1;
+      console.log(`  FAIL resolve consulting: ${resolved.reason}`);
+    } else {
+      const schema = buildRubricJsonSchema(resolved.config);
+      const legacy = EVALUATION_JSON_SCHEMA.schema;
+      const props = schema.schema.properties as Record<string, unknown>;
+      const legacyProps = legacy.properties as Record<string, unknown>;
+      check(
+        `"consulting" schema keeps every legacy property unchanged`,
+        Object.keys(legacyProps).every((key) => deepEqual(props[key], legacyProps[key])),
+        true,
+      );
+      check(
+        `"consulting" schema keeps every legacy required key`,
+        legacy.required.every((key: string) => schema.schema.required.includes(key)),
+        true,
+      );
+      check(
+        `"consulting" schema adds the problem-interview scores`,
+        ["process_rigor_score", "quantitative_score", "synthesis_score"].map((key) =>
+          schema.schema.required.includes(key),
+        ),
+        [true, true, true],
+      );
+      check(
+        `"consulting" schema adds the problem outcome`,
+        ["questionId", "frameworkKey", "processSteps"].map(
+          (key) =>
+            !!(props.outcome as { properties?: Record<string, unknown> } | undefined)?.properties?.[key],
+        ),
+        [true, true, true],
+      );
+    }
   }
   {
     const resolved = resolveSessionConfig("case-study", {
@@ -886,7 +929,8 @@ console.log("\n7. Type-derived rubric schema (13-05)");
 console.log("\n8. Outcome / images / early-end cap (14-04)");
 {
   // 7.1 — Phase 13 types remain deeply equal to the frozen snapshots.
-  for (const slug of ["general", "technical", "consulting", "early-career"]) {
+  // `consulting` left this list when it became a problem interview (6.2b).
+  for (const slug of ["general", "technical", "early-career"]) {
     const resolved = resolveSessionConfig(slug, {});
     if (!resolved.ok) {
       failures += 1;
@@ -1190,6 +1234,42 @@ console.log("\n9. growth_areas[].dimension (quick-004)");
     withMissingDimension.growth_areas[0]?.dimension,
     null,
   );
+}
+
+console.log("\nConduct: no commending an absence, no naming a cause");
+{
+  const base = () => asStructuredReport(JSON.parse(JSON.stringify(FULL))) as StructuredReport;
+  for (const sentence of [
+    "You showed no distracting behaviors throughout.",
+    "Your delivery was free of distractions.",
+    "There was minimal obvious fidgeting or posture concerns detected.",
+    "You kept a professional demeanor on camera.",
+    "You avoided eating or anything inappropriate.",
+    "You were eating during the third answer?",
+    "There was an obscene gesture at 2:10?",
+  ]) {
+    const report = base();
+    report.overall_summary = `Your forward gaze held at 82%. ${sentence}`;
+    const { report: out } = sanitizeBodySignalWording(report);
+    check(`stripped: ${sentence}`, out.overall_summary, "Your forward gaze held at 82%.");
+  }
+  for (const sentence of [
+    "You offered no inappropriate language in your answers.",
+    "The plan avoided eating into the contingency budget.",
+    "You never mentioned the inappropriate expense claim.",
+    "You gave no examples of cost control.",
+  ]) {
+    const report = base();
+    report.overall_summary = sentence;
+    check(`kept: ${sentence}`, sanitizeBodySignalWording(report).report.overall_summary, sentence);
+  }
+  const titled = base();
+  titled.strengths = [
+    { ...titled.strengths[0], title: "No distracting behaviors", detail: "Your gaze held at 82%." },
+    { ...titled.strengths[0], title: "Forward gaze", detail: "Your gaze held at 82%." },
+  ];
+  check("a strength titled as an absence is dropped whole",
+    sanitizeBodySignalWording(titled).report.strengths.map((s) => s.title), ["Forward gaze"]);
 }
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

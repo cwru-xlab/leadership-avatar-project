@@ -1,0 +1,28 @@
+{
+  "id": "e-metric-drop-no-segment",
+  "label": "(e) Metric drop, never segments the data",
+  "questionId": "pm-metrics-food-delivery-drop",
+  "expect": {
+    "stepsMissed": ["diagnose_root_cause"],
+    "analyticalJudgmentMax": 2,
+    "processRigorMax": 3
+  },
+  "turns": [
+    { "t": "0:05", "who": "Interviewer", "text": "Hi, thanks for joining. What draws you to product management?" },
+    { "t": "0:12", "who": "Candidate", "text": "I've been in operations at a logistics company for three years, and I keep ending up in conversations about what the app should do for our drivers. I'd like to own those decisions." },
+    { "t": "1:00", "who": "Interviewer", "text": "Great. You're the PM for a food delivery app. Orders this week are down 12% compared to last week. What's going on?" },
+    { "t": "1:12", "who": "Candidate", "text": "Okay. First, what is the app for — I assume it connects hungry customers with local restaurants and couriers, and the business makes money on each order, so orders are basically the core metric. Is the metric completed orders?" },
+    { "t": "1:25", "who": "Interviewer", "text": "Yes, completed orders. The definition and the tracking pipeline haven't changed." },
+    { "t": "1:35", "who": "Candidate", "text": "Okay. So a customer opens the app, browses restaurants, adds to cart, checks out, and then the order is delivered. A drop could come from fewer people opening the app or fewer people converting." },
+    { "t": "2:00", "who": "Candidate", "text": "There are a lot of possible reasons. It could be seasonal — maybe last week was a holiday. It could be a competitor running a big promotion. It could be that restaurants raised prices, or that delivery fees went up. It could be bad weather making couriers unavailable. It could also be a bug in the app." },
+    { "t": "2:40", "who": "Interviewer", "text": "Last week was a normal week — no holiday, no big weather event, no promotion ending. No competitor launched a promotion that we know of." },
+    { "t": "2:52", "who": "Candidate", "text": "Then I think the most likely reason is pricing. Food prices have been going up everywhere and people are cutting back on delivery because it's expensive. Customers might be deciding to cook at home more." },
+    { "t": "3:20", "who": "Interviewer", "text": "Where exactly is the drop coming from?" },
+    { "t": "3:25", "who": "Candidate", "text": "I think it's coming from customers deciding not to order because of the price. So I'd look at the price of the average order and whether it's gone up. If it has, we could run a promotion — maybe free delivery for a week — to win those customers back." },
+    { "t": "4:00", "who": "Candidate", "text": "The tradeoff is that free delivery costs us money, so we'd lose margin in the short term, but it would bring back orders and hopefully retain customers." },
+    { "t": "4:20", "who": "Candidate", "text": "So in summary, I think the drop is mostly due to price sensitivity, and I'd run a free-delivery promotion and watch whether orders come back to normal." },
+    { "t": "4:40", "who": "Interviewer", "text": "Okay. Any questions for me?" },
+    { "t": "4:44", "who": "Candidate", "text": "What metrics does your team look at every day?" },
+    { "t": "4:55", "who": "Interviewer", "text": "Orders, conversion and delivery time, mostly. Thanks for your time." }
+  ]
+}

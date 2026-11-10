@@ -18,7 +18,7 @@ HeroUI through tokens rather than replacing it. Class names below assume the tok
 - Icons
 - Sidebar
 - Score panel and stat tiles
-- Takeaways columns
+- Answers to revisit
 - Moments timeline
 
 ## Buttons
@@ -223,14 +223,21 @@ grid can wrap without double lines), never a row of separate cards with icons.
   consistency, on camera, eye contact, framing, speaking time. Add a caption that names the basis
   ("Rates are per spoken minute").
 
-## Takeaways columns
+## Answers to revisit
 
-One white panel, three divided columns, each headed in Newsreader 22:
-- **Keep doing:** each strength title (600) with its one-line detail; Blue Green 8px dot.
-- **Work on next:** each growth area title with "Try this: [suggestion]"; Orange 8px dot.
-- **Rewatch:** the answers at Uneven or Off, worst first, each a row link with a level dot, "Answer 6",
-  why ("Off delivery, 6 filler words"), and its time in mono. Selecting one selects that point on the
-  Moments timeline and scrolls to it.
+The closing block of the Moments section, on the same Dark Blue stage, above a hairline rule.
+
+- Only the answers at Uneven or Off, worst first. A grid (3 columns at desktop, 2 at tablet, 1 at
+  mobile) rather than one column — at nineteen rows a single column towers down the stage.
+- Each row: a level dot, "Answer 6", why ("Off delivery, pace fast, filler words frequent", at most
+  two band words), and its time in mono. Selecting one selects that point on the chart above it and
+  fills the detail panel — no scroll and no cross-section link, since the chart is already on screen.
+- Six rows, then "Show all N". With nothing to revisit the heading stays and reads "No answer stood
+  out as uneven": an absent section reads as a missing feature, and this is the good news.
+
+Do NOT give the strengths and growth areas a second home alongside it. They belong to the Overview
+tab, whose rows are collapsed by default and so already read as a one-line scan; a "Takeaways" tab
+re-listing them was two tabs showing one set of items, and was removed.
 
 ## Moments timeline
 
@@ -240,7 +247,9 @@ The report's closing section on the flat Dark Blue stage, radius 16.
   point to see what happened."). Legend on the right: Delivery line, Camera moment, Cited in a growth
   area, and an "Example data" chip while data is sample.
 - **Chart:** SVG `viewBox="0 0 1000 340"` in a box with `aspect-ratio: 1000 / 340` (uniform scaling,
-  no stretched strokes), min-width 620px with horizontal scroll below that. X is session time with
+  no stretched strokes), min-width 620px with horizontal scroll below that. Beside the detail panel it
+  grows to the panel's height (up to 1000 x 760) by adding viewBox height, never by stretching, so the
+  chart column leaves no blank block under the chart. X is session time with
   5 even ticks in mono; Y is delivery per answer in four labelled levels (Strong, Steady, Uneven, Off)
   on faint gridlines. Light Blue 2.5px line in straight segments; a True Blue area fading to clear
   under it. A camera strip below the plot marks camera episodes as Orange bars.

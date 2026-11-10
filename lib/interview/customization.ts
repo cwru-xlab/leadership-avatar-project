@@ -15,6 +15,7 @@
  */
 
 import { getInterviewType } from "./types";
+import { isProblemInterviewSlug } from "@/lib/problem-interview/problem-slugs";
 import type { InterviewType, InterviewDifficulty } from "./types";
 import {
   CURATED_INDUSTRIES,
@@ -41,6 +42,12 @@ export interface InterviewCustomizationInput {
    * avatar's name instead (REQ-22: the interviewer plays the named person).
    */
   personaDisplayName?: string;
+  /**
+   * Problem interviews only: the question family chosen on the customize page
+   * (a `ProblemQuestion.family` key). Absent = random. Sent to session start
+   * as the top-level `problemFamily`; never read by `resolveInterviewType`.
+   */
+  problemFamily?: string;
 }
 
 /**
@@ -94,14 +101,27 @@ export function resolveInterviewType(
     ? (customization.difficulty as InterviewDifficulty)
     : base.difficulty;
   const lengthMatch = SESSION_LENGTH_PRESETS.find((p) => p.slug === customization.lengthSlug);
+  // Problem interviews (case, product management): one problem needs the
+  // preset's full time, so a shorter length preset never shrinks the session
+  // below the preset's target, and the question count stays the preset's
+  // (one problem). Longer presets still extend it. The Customize panel hides
+  // the shorter options; this is the server-side guarantee.
+  const isProblemInterview = isProblemInterviewSlug(base.slug);
+  const targetMinutes = lengthMatch
+    ? isProblemInterview
+      ? Math.max(lengthMatch.targetMinutes, base.targetMinutes)
+      : lengthMatch.targetMinutes
+    : base.targetMinutes;
+  const targetQuestionCount =
+    lengthMatch && !isProblemInterview ? lengthMatch.targetQuestionCount : base.targetQuestionCount;
 
   return {
     ...base,
     defaultIndustry: industryMatch ? industryMatch.promptValue : base.defaultIndustry,
     defaultRoleTitle: roleMatch ? roleMatch.promptValue : base.defaultRoleTitle,
     difficulty,
-    targetMinutes: lengthMatch ? lengthMatch.targetMinutes : base.targetMinutes,
-    targetQuestionCount: lengthMatch ? lengthMatch.targetQuestionCount : base.targetQuestionCount,
+    targetMinutes,
+    targetQuestionCount,
     interviewerPersona: composePersona(base, customization),
   };
 }

@@ -26,11 +26,11 @@ import type {
  *
  *   eye_contact_pct     (Eye contact): <30 Limited, 30-50 Developing,
  *                        50-70 Solid, 70-85 Strong, >=85 Excellent.
- *                        Centred on the evaluator prompt's own stated
+ *                        Centered on the evaluator prompt's own stated
  *                        70-80% target (`lib/interview/prompts.ts:229`).
  *   camera_centered_pct (Framing):     <40 Often off-frame, 40-65 Inconsistent,
- *                        65-80 Mostly centred, 80-92 Well centred,
- *                        >=92 Consistently centred.
+ *                        65-80 Mostly centered, 80-92 Well centered,
+ *                        >=92 Consistently centered.
  *   eye_contact_pct     (Eye contact): whole-session forward gaze.
  *   attentiveness_pct   (Attention):   listening stretches only.
  *                        <40 Often looking away, 40-65 Intermittent,
@@ -68,6 +68,21 @@ import type {
 export interface MetricBandRow {
   label: string;
   value: string;
+  /**
+   * DISPLAY ONLY: this band word reads as off target, so the report can mark
+   * the row. Never a score, never fed to the evaluator or a mastery figure.
+   *
+   * Set from `OFF_TARGET` by whichever builder knows the metric, never from
+   * the label string: the ladders disagree about direction (pace is centred —
+   * both Slow and Fast miss, Well paced is best — while filler words descend
+   * and eye contact climbs), so a word alone cannot say which end it is.
+   *
+   * `undefined` is a THIRD state, not a quiet "fine". A row whose ladder has
+   * no declared off-target word, a descriptive observation, and a row that
+   * could not be measured at all ("Not visible enough to read") all leave it
+   * unset, because none of them is a finding the student should act on.
+   */
+  offTarget?: boolean;
 }
 
 /** Clamp a number to a finite value, treating NaN/-Infinity/Infinity as the
@@ -94,9 +109,9 @@ function bandFraming(pctRaw: number): string {
   const pct = clampFinite(pctRaw, 0, 100);
   if (pct < 40) return "Often off-frame";
   if (pct < 65) return "Inconsistent";
-  if (pct < 80) return "Mostly centred";
-  if (pct < 92) return "Well centred";
-  return "Consistently centred";
+  if (pct < 80) return "Mostly centered";
+  if (pct < 92) return "Well centered";
+  return "Consistently centered";
 }
 
 /** Minimum listening samples before an attentiveness figure is worth
@@ -210,7 +225,7 @@ function bandVolume(consistencyRaw: number): string {
  */
 export function visualBands(m: VisualMetrics): MetricBandRow[] {
   const rows: MetricBandRow[] = [
-    { label: "Eye contact", value: bandEyeContact(m.eye_contact_pct) },
+    band("Eye contact", bandEyeContact(m.eye_contact_pct), OFF_TARGET.eyeContact),
   ];
 
   // Attention isolates the LISTENING stretches — whether the student stayed
@@ -223,10 +238,10 @@ export function visualBands(m: VisualMetrics): MetricBandRow[] {
     typeof listeningSamples !== "number" ||
     listeningSamples >= MIN_LISTENING_SAMPLES_FOR_BAND;
   if (typeof m.attentiveness_pct === "number" && attentionMeasurable) {
-    rows.push({ label: "Attention", value: bandAttentiveness(m.attentiveness_pct) });
+    rows.push(band("Attention", bandAttentiveness(m.attentiveness_pct), OFF_TARGET.attention));
   }
 
-  rows.push({ label: "Framing", value: bandFraming(m.camera_centered_pct) });
+  rows.push(band("Framing", bandFraming(m.camera_centered_pct), OFF_TARGET.framing));
 
   // Rows below are omitted rather than defaulted when their field is absent.
   // Reports written before these metrics existed are stored as plain `Json?`
@@ -236,13 +251,13 @@ export function visualBands(m: VisualMetrics): MetricBandRow[] {
   // inventing a finding, which is the failure this whole change exists to
   // stop. Saying nothing is the only honest option for a row with no data.
   if (typeof m.face_presence_pct === "number") {
-    rows.push({ label: "On camera", value: bandOnCamera(m.face_presence_pct) });
+    rows.push(band("On camera", bandOnCamera(m.face_presence_pct), OFF_TARGET.onCamera));
   }
 
-  rows.push({ label: "Lighting", value: bandLighting(m.lighting_ok) });
+  rows.push(band("Lighting", bandLighting(m.lighting_ok), OFF_TARGET.lighting));
 
   const flags = Array.isArray(m.posture_flags) ? m.posture_flags : [];
-  rows.push({ label: "Steadiness", value: bandSteadiness(flags) });
+  rows.push(band("Steadiness", bandSteadiness(flags), OFF_TARGET.steadiness));
 
   // Legacy rows predate multi-face detection entirely: their empty
   // `posture_flags` means "never looked for", not "nobody else was there".
@@ -258,7 +273,7 @@ export function visualBands(m: VisualMetrics): MetricBandRow[] {
 const EPISODE_LABELS: Record<VisualEpisode["kind"], string> = {
   off_camera: "Off camera",
   gaze_away: "Looking away",
-  off_center: "Off centre in frame",
+  off_center: "Off center in frame",
   multiple_faces: "Another person in frame",
   high_movement: "Moving around a lot",
   excessive_gesturing: "A lot of hand movement",
@@ -273,12 +288,15 @@ const EPISODE_LABELS: Record<VisualEpisode["kind"], string> = {
  * between `VisualEpisodeKind` and `VisualDescriptiveEpisodeKind`. */
 const DESCRIPTIVE_EPISODE_LABELS: Record<VisualDescriptiveEpisode["kind"], string> = {
   phone_visible: "Phone visible",
+  hand_at_mouth_repeated: "Hand at mouth repeatedly",
+  mouth_movement_silent: "Mouth moving while not speaking",
+  middle_finger_extended: "Middle finger extended, others curled",
 };
 
 /** Which display group each episode kind belongs to, for `timelineRows`'s
  * merged chronological list (REQ-55's "tagged by kind"). Camera/environment
  * kinds predate this phase; body kinds and descriptive kinds are new. */
-const EPISODE_KIND_GROUP: Record<
+export const EPISODE_KIND_GROUP: Record<
   VisualEpisode["kind"],
   "camera" | "body"
 > = {
@@ -481,14 +499,17 @@ export function visualBodyLanguageBands(m: VisualMetrics): MetricBandRow[] {
   const rows: MetricBandRow[] = [];
 
   if (typeof m.gesture_rate_per_min === "number") {
-    rows.push({
-      label: "Gesturing",
-      value: bandGesturing(m.gesture_rate_per_min, m.gesture_amplitude_mean),
-    });
+    rows.push(
+      band(
+        "Gesturing",
+        bandGesturing(m.gesture_rate_per_min, m.gesture_amplitude_mean),
+        OFF_TARGET.gesturing,
+      ),
+    );
   }
 
   if (typeof m.hands_near_face_pct === "number") {
-    rows.push({ label: "Hands near face", value: bandHandsNearFace(m.hands_near_face_pct) });
+    rows.push(band("Hands near face", bandHandsNearFace(m.hands_near_face_pct), OFF_TARGET.handsNearFace));
   }
 
   // BUG FIX (12-09, item-7 sign-off failure, Defect 2): this row used to be
@@ -515,10 +536,13 @@ export function visualBodyLanguageBands(m: VisualMetrics): MetricBandRow[] {
     Array.isArray(m.posture_signals_measured) &&
     m.posture_signals_measured.length > 0
   ) {
-    rows.push({
-      label: "Posture drift",
-      value: bandPostureDrift(m.posture_drift_max_s, m.posture_signals_measured),
-    });
+    rows.push(
+      band(
+        "Posture drift",
+        bandPostureDrift(m.posture_drift_max_s, m.posture_signals_measured),
+        OFF_TARGET.postureDrift,
+      ),
+    );
   }
 
   if (Array.isArray(m.posture_signals_measured)) {
@@ -569,7 +593,75 @@ export function visualObservationRows(m: VisualMetrics): MetricBandRow[] {
     });
   }
 
+  // The rows below describe motion and hand shape, then stop. No row says what
+  // anyone was doing or why, and none reports an absence: a session where these
+  // tripped nothing shows nothing, because hands out of frame also trip nothing
+  // and "no gesture detected" would be a clean bill of health nobody issued.
+  const handAtMouth = descriptiveEpisodeRanges(m, "hand_at_mouth_repeated");
+  if (handAtMouth) {
+    const events = observations.hand_at_mouth_events;
+    rows.push({
+      label: "Hand at mouth",
+      value: `Repeatedly, ${handAtMouth}${
+        typeof events === "number" && events > 0 ? ` (${Math.round(events)} times in all)` : ""
+      }`,
+    });
+  }
+
+  const mouthMovement = descriptiveEpisodeRanges(m, "mouth_movement_silent");
+  if (mouthMovement) {
+    rows.push({ label: "Mouth movement", value: `While not speaking, ${mouthMovement}` });
+  }
+
+  const foodSeconds = observations.food_or_drink_visible_seconds;
+  if ((handAtMouth || mouthMovement) && typeof foodSeconds === "number" && foodSeconds > 0) {
+    rows.push({
+      label: "Cup, bottle or food in frame",
+      value: `Visible for about ${Math.round(clampFinite(foodSeconds, 0, Number.MAX_SAFE_INTEGER))} seconds`,
+    });
+  }
+
+  const fingerShape = descriptiveEpisodeRanges(m, "middle_finger_extended");
+  if (fingerShape) {
+    rows.push({ label: "Hand shape", value: `Middle finger extended, others curled, ${fingerShape}` });
+  }
+
   return rows;
+}
+
+/** The session-time ranges of one descriptive kind, or null when it has none. */
+function descriptiveEpisodeRanges(
+  m: VisualMetrics,
+  kind: VisualDescriptiveEpisode["kind"]
+): string | null {
+  const o = clampFinite(m.coverage?.capture_offset_s ?? 0, 0, 86_400);
+  const ranges = (m.observations?.episodes ?? [])
+    .filter((episode) => episode.kind === kind)
+    .map((episode) => {
+      const start = formatTimecode(episode.start_s + o);
+      const end = formatTimecode(episode.end_s + o);
+      // Word joiners keep a range on one line on a phone-width row.
+      return start === end ? start : `${start}\u2060–\u2060${end}`;
+    });
+  if (ranges.length === 0) return null;
+  const shown = ranges.slice(0, OBSERVATION_RANGES_SHOWN).join(", ");
+  const more = ranges.length - OBSERVATION_RANGES_SHOWN;
+  return more > 0 ? `${shown} and ${more} more` : shown;
+}
+
+/** How many time ranges one observation row lists before summarising the rest. */
+const OBSERVATION_RANGES_SHOWN = 3;
+
+/**
+ * The one line that travels with the motion rows, or null when none is showing.
+ * It is the only statement a student gets of what those rows cannot establish,
+ * so it lists innocent causes rather than a generic disclaimer.
+ */
+export function visualObservationCaveat(m: VisualMetrics): string | null {
+  const episodes = m.observations?.episodes ?? [];
+  return episodes.some((episode) => episode.kind !== "phone_visible")
+    ? "The camera sees motion, not reasons. Sipping water, a medical need, a tic, signing or a mask can read the same way."
+    : null;
 }
 
 /**
@@ -614,13 +706,14 @@ export function timelineRows(
  */
 export function vocalBands(m: VocalMetrics): MetricBandRow[] {
   return [
-    { label: "Pace", value: bandPace(m.words_per_minute) },
-    {
-      label: "Filler words",
-      value: bandFillerDensity(m.filler_word_count, m.words_per_minute, m.coverage.spoken_seconds),
-    },
-    { label: "Pauses", value: bandPauseRate(m.pause_count, m.coverage.spoken_seconds) },
-    { label: "Volume", value: bandVolume(m.volume_consistency) },
+    band("Pace", bandPace(m.words_per_minute), OFF_TARGET.pace),
+    band(
+      "Filler words",
+      bandFillerDensity(m.filler_word_count, m.words_per_minute, m.coverage.spoken_seconds),
+      OFF_TARGET.fillers,
+    ),
+    band("Pauses", bandPauseRate(m.pause_count, m.coverage.spoken_seconds), OFF_TARGET.pauses),
+    band("Volume", bandVolume(m.volume_consistency), OFF_TARGET.volume),
   ];
 }
 
@@ -647,12 +740,59 @@ export const ANSWER_LEVEL_WORDS: Record<AnswerLevel, string> = {
   1: "Off",
 };
 
+/**
+ * The band words that read as off target, per metric.
+ *
+ * ONE SOURCE OF TRUTH for both the Moments level ("2 off target -> Uneven")
+ * and the Delivery tab's row marks, so the two surfaces cannot disagree about
+ * whether "Fast" is a problem — the report naming a row off target while the
+ * timeline counts it as fine is exactly the contradiction this prevents.
+ *
+ * CONSERVATIVE BY RULE: only clearly-negative ends are listed. The middle of
+ * a ladder is left out even where it is below the top — "Developing" eye
+ * contact, "Intermittent" attention or presence, "Inconsistent" framing and
+ * "Occasional" fillers are progress, not faults, and marking them would turn
+ * the tab into a wall of flags that says nothing about where to start. `pace`
+ * holds the line already set for Moments: "Slightly fast" is NOT off target,
+ * only "Slow" and "Fast".
+ *
+ * The four vocal ladders are unchanged from the rule Moments has always
+ * used — including "Variable" volume — because changing a set here would
+ * silently move every answer's level on the timeline.
+ *
+ * "Others in frame" has no entry on purpose: "Another person detected"
+ * describes the room, not the student's delivery (the same reason
+ * `bandSteadiness` refuses to fold it in), so it is reported, not faulted.
+ *
+ * Rows with no entry here (and every descriptive observation) are never
+ * marked. Unreadable verdicts are excluded deliberately: "Not visible enough
+ * to read" is a missing measurement, and flagging it would blame the student
+ * for the camera.
+ */
 const OFF_TARGET = {
   pace: new Set(["Slow", "Fast"]),
   fillers: new Set(["Frequent", "Very frequent"]),
   pauses: new Set(["Frequent", "Very frequent"]),
   volume: new Set(["Variable", "Uneven"]),
+  eyeContact: new Set(["Limited"]),
+  framing: new Set(["Often off-frame"]),
+  attention: new Set(["Often looking away"]),
+  onCamera: new Set(["Often absent"]),
+  lighting: new Set(["Dim or uneven"]),
+  steadiness: new Set([
+    "Drifts out of frame and restless",
+    "Drifts out of frame",
+    "Restless",
+  ]),
+  gesturing: new Set(["Very still", "A lot of movement"]),
+  handsNearFace: new Set(["Frequent"]),
+  postureDrift: new Set(["Shifted from the opening posture"]),
 };
+
+/** Mark a row off target when its own ladder says the word is a miss. */
+function band(label: string, value: string, ladder: Set<string>): MetricBandRow {
+  return ladder.has(value) ? { label, value, offTarget: true } : { label, value };
+}
 
 export function answerDeliveryLevel(turn: VocalTurnMetrics): {
   level: AnswerLevel;
@@ -660,19 +800,18 @@ export function answerDeliveryLevel(turn: VocalTurnMetrics): {
   notes: MetricBandRow[];
 } {
   const notes: MetricBandRow[] = [
-    { label: "Pace", value: bandPace(turn.words_per_minute) },
-    {
-      label: "Filler words",
-      value: bandFillerDensity(turn.filler_count, turn.words_per_minute, turn.duration_s),
-    },
-    { label: "Pauses", value: bandPauseRate(turn.pause_count, turn.duration_s) },
-    { label: "Volume", value: bandVolume(turn.volume_consistency) },
+    band("Pace", bandPace(turn.words_per_minute), OFF_TARGET.pace),
+    band(
+      "Filler words",
+      bandFillerDensity(turn.filler_count, turn.words_per_minute, turn.duration_s),
+      OFF_TARGET.fillers,
+    ),
+    band("Pauses", bandPauseRate(turn.pause_count, turn.duration_s), OFF_TARGET.pauses),
+    band("Volume", bandVolume(turn.volume_consistency), OFF_TARGET.volume),
   ];
-  const offCount =
-    Number(OFF_TARGET.pace.has(notes[0].value)) +
-    Number(OFF_TARGET.fillers.has(notes[1].value)) +
-    Number(OFF_TARGET.pauses.has(notes[2].value)) +
-    Number(OFF_TARGET.volume.has(notes[3].value));
+  // Counted off the rows' own marks, so the level and the Delivery tab's
+  // flags can never disagree about which words are a miss.
+  const offCount = notes.filter((note) => note.offTarget).length;
   const level = (offCount === 0 ? 4 : offCount === 1 ? 3 : offCount === 2 ? 2 : 1) as AnswerLevel;
   return { level, word: ANSWER_LEVEL_WORDS[level], notes };
 }

@@ -53,9 +53,20 @@ const SAFE_RATINGS = new Map([
   ["n/a", "N/A"],
 ]);
 
-export const STUDY_PLAN_SYSTEM_PROMPT = `You create self-paced interview-practice study plans.
+/**
+ * Base system prompt. Deliberately says "practice" rather than "interview":
+ * a plan may be synthesized from any type in
+ * `lib/study-plan/plan-source-types.ts`, and that list is no longer
+ * interview-only by definition. The practice types a given plan was actually
+ * built from are appended by `buildSystemPrompt` below, so the model names
+ * them accurately instead of assuming an interview.
+ *
+ * "interview" survives in the FILLER ban list on purpose — it is banned as a
+ * title word, which is the opposite of framing the plan as interview-only.
+ */
+export const STUDY_PLAN_SYSTEM_PROMPT = `You create self-paced communication-practice study plans.
 
-You receive only anonymous score aggregates and closed-vocabulary behavioral rubric signals. Never infer, request, or mention a student's identity, employer, work history, resume, interview answers, transcript, dates, timelines, or any personal detail.
+You receive only anonymous score aggregates and closed-vocabulary behavioral rubric signals. Never infer, request, or mention a student's identity, employer, work history, resume, practice-session answers, transcript, dates, timelines, or any personal detail.
 
 Ground each theme only in the provided signals. A theme can be described as recurring only when supported by at least two reports; with one report, call it an observed development area. Be constructive and specific. Include strengths to leverage, ranked development themes, targeted exercises, verifiable readiness checks, and useful resources.
 
@@ -63,7 +74,36 @@ Address the learner as “you.” For attribution, refer to their statements as 
 
 Use encouraging, autonomy-supportive language in every learner-facing recommendation. Write exercise titles and instructions, successCriteria ("Ready when" guidance), readinessChecks, and nextPracticeFocus as invitations, such as "You might try...", "Consider experimenting with...", or "You could...". Avoid hard directives such as "Try this", "You must", or commands that make practice sound compulsory.
 
-Do not include dates, deadlines, schedules, calendar language, day-by-day or week-by-week sequencing, or time-to-complete claims. Exercises may include an estimated duration in minutes, but the plan must remain self-paced.`;
+Do not include dates, deadlines, schedules, calendar language, day-by-day or week-by-week sequencing, or time-to-complete claims. Exercises may include an estimated duration in minutes, but the plan must remain self-paced.
+
+Title the plan in eight words or fewer, naming its top one or two development themes so it can be told apart from the learner's other plans, such as "Answer structure and active listening". Lead with what is distinct. Never use filler such as "self-paced", "study plan", "practice plan", "interview skills", "building", "strengthening", "foundations" or a "Label: subtitle" format.
+Use American English spelling (practice, behavior, center, analyze) throughout.`;
+
+/**
+ * Names the practice types this plan's signals came from, so exercises are
+ * framed as the thing the student actually practiced.
+ *
+ * Takes LABELS, not slugs: this module is inside the `lib/study-plan/`
+ * import boundary and must not read the engine registry
+ * (scripts/verify-knowledge-check-surface.ts section 2c). The caller resolves
+ * slugs to labels and passes them in.
+ *
+ * Empty or unknown input appends nothing, leaving the base prompt's neutral
+ * "communication practice" framing — never a guess at the type.
+ */
+export function buildSystemPrompt(sourceTypeLabels: readonly string[] = []): string {
+  const labels = [...new Set(sourceTypeLabels.map((l) => l.trim()).filter(Boolean))];
+  if (labels.length === 0) return STUDY_PLAN_SYSTEM_PROMPT;
+
+  const named =
+    labels.length === 1
+      ? labels[0]
+      : `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+
+  return `${STUDY_PLAN_SYSTEM_PROMPT}
+
+These signals come from the learner's ${named} practice. Frame exercises, readiness checks and next practice focus around that kind of session, and never describe the plan as preparing for a kind of practice the signals did not come from.`;
+}
 
 export interface AnonymousBehavioralReport {
   reportNumber: number;
@@ -115,7 +155,7 @@ export function extractBehavioralSignals(source: {
     for (const { item, note } of structured.rubric_notes) {
       const label = SAFE_RUBRIC_LABELS.get(normalizeLabel(item));
       // The note reads "Strong — took responsibility for..."; only the rating
-      // before the dash is eligible, matching the legacy regex's behaviour.
+      // before the dash is eligible, matching the legacy regex's behavior.
       const rating = SAFE_RATINGS.get(normalizeLabel(note.split(/[—–-]/)[0]));
       if (label && rating) output.add(`${label}: ${rating}`);
     }
@@ -154,7 +194,8 @@ function buildUserMessage(reports: AnonymousBehavioralReport[]): string {
 async function attemptGeneration(
   reports: AnonymousBehavioralReport[],
   model: string,
-  timeoutMs: number
+  timeoutMs: number,
+  sourceTypeLabels: readonly string[] = [],
 ): Promise<StudyPlanContent> {
   const OpenAI = (await import("openai")).default;
   const openai = new OpenAI({
@@ -166,7 +207,7 @@ async function attemptGeneration(
   const completion = await openai.chat.completions.create({
     model,
     messages: [
-      { role: "system", content: STUDY_PLAN_SYSTEM_PROMPT },
+      { role: "system", content: buildSystemPrompt(sourceTypeLabels) },
       { role: "user", content: buildUserMessage(reports) },
     ],
     max_tokens: 4_000,
@@ -184,10 +225,15 @@ async function attemptGeneration(
 
 /**
  * Generates a plan from anonymous behavioral signals only. It has a bounded
- * total timeout and one application-owned retry, matching interview evaluation.
+ * total timeout and one application-owned retry, matching live evaluation.
+ *
+ * `sourceTypeLabels` names the practice types the signals came from, so the
+ * plan is framed as the kind of session the student actually did. Optional and
+ * defaulted: omitting it yields the neutral framing, never a wrong one.
  */
 export async function generateStudyPlan(
-  reports: AnonymousBehavioralReport[]
+  reports: AnonymousBehavioralReport[],
+  sourceTypeLabels: readonly string[] = [],
 ): Promise<StudyPlanGenerationSuccess | StudyPlanGenerationFailure> {
   const model = process.env.STUDY_PLAN_MODEL || "gpt-4.1";
   const BUDGET_MS = 50_000;
@@ -197,7 +243,12 @@ export async function generateStudyPlan(
   let lastError: unknown;
   for (let attempt = 1; attempt <= RETRIES + 1; attempt++) {
     try {
-      const content = await attemptGeneration(reports, model, PER_ATTEMPT_TIMEOUT);
+      const content = await attemptGeneration(
+        reports,
+        model,
+        PER_ATTEMPT_TIMEOUT,
+        sourceTypeLabels,
+      );
       console.info("Study plan generated", {
         model,
         reportCount: reports.length,

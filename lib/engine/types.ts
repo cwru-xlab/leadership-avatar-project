@@ -21,7 +21,12 @@
 import type { AttemptLanguage } from "@/lib/languages";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
+import type { PersonaCard } from "@/lib/questioned-persona/types";
 import type { DisengagementCause, DisengagementWeights } from "./disengagement";
+import type {
+  ProblemQuestion,
+  ProcessFramework,
+} from "@/lib/problem-interview/types";
 
 /** A single scored dimension on the report. */
 export interface RubricDimension {
@@ -98,7 +103,7 @@ export interface TerminationPolicyConfig {
    * Optional map from a dominant observable cause to the reason this type's
    * avatar cites when that cause ends the session. Every value MUST already
    * be a member of avatarEndReasons — the engine never invents a reason.
-   * Omitted -> the existing behaviour, where the model's own marker reason
+   * Omitted -> the existing behavior, where the model's own marker reason
    * is used.
    */
   avatarEndReasonByCause?: Partial<Record<DisengagementCause, string>> | null;
@@ -208,6 +213,12 @@ export interface LiveSystemPromptExtra {
    */
   networkingPersona?: string | null;
   networkingDisplayName?: string | null;
+  /**
+   * Problem interviews only: the ONE question pinned on the report snapshot at
+   * session start, re-read from the server-only bank by the chat route, plus
+   * its framework. Session-constant — the same question every turn.
+   */
+  problem?: { question: ProblemQuestion; framework: ProcessFramework } | null;
 }
 
 /**
@@ -250,6 +261,48 @@ export interface InteractionPromptsConfig {
   buildTailFragment?: (config: ResolvedSessionConfig) => string;
 }
 
+/**
+ * What the setup wizard's briefing says about a problem interview. Tells the
+ * student what kind of interview it is — never the framework's steps.
+ */
+export interface ProblemInterviewBriefing {
+  headline: string;
+  points: string[];
+  /**
+   * Optional longer explanation, hidden behind a "More about this interview"
+   * disclosure (progressive disclosure: headline + points stay short).
+   */
+  more?: string;
+}
+
+/**
+ * Declared by problem-interview types (case interview, product management)
+ * built with `makeProblemInterviewTypeConfig`. Its presence is the ONE
+ * signal the engine, chat route, live shell and report read — nothing
+ * branches on a slug. The question BANK is deliberately not here: this
+ * record reaches the browser bundle through the registry, and the bank holds
+ * interviewer facts and strong-answer notes. Banks are registered in
+ * `lib/problem-interview/banks.server.ts`.
+ */
+export interface ProblemInterviewTypeSpec {
+  frameworks: ProcessFramework[];
+  briefing: ProblemInterviewBriefing;
+  /**
+   * The question families the student may ask for on the customize page, in
+   * display order. Public labels only — the bank stays server-side; the
+   * bank verify scripts prove every family here has questions in the bank.
+   * Empty: no "Question type" choice is offered.
+   */
+  families: ProblemFamilyOption[];
+}
+
+/** One student-selectable question family (`ProblemQuestion.family`). */
+export interface ProblemFamilyOption {
+  key: string;
+  label: string;
+  hint?: string;
+}
+
 /** A type's limits, stated to the model, not enforced as a hard cutoff
  * (matches the interview presets' existing `targetMinutes`/
  * `targetQuestionCount` semantics). `null` means the type declares no target
@@ -273,6 +326,10 @@ export interface InteractionTypeConfig {
   slug: string;
   name: string;
   description: string;
+  /** Rendering model. Omitted legacy types resolve to the conversation room. */
+  sessionExperience?: "conversation" | "coding";
+  /** Problem interviews only. See `ProblemInterviewTypeSpec`. */
+  problemInterview?: ProblemInterviewTypeSpec;
   /** Additional scored dimensions beyond the four shared ones. Empty for
    * every built-in type today. */
   extraRubricDimensions: RubricDimension[];
@@ -329,6 +386,23 @@ export interface InteractionTypeConfig {
    * introduce a score where the model returned null, and must never lower a
    * dimension it was not asked to cap — plan 14-04's verification asserts both.
    */
+  /**
+   * Optional second evaluator pass that produces ENGINE-OWNED structured
+   * analysis (e.g. per-utterance behavior coding with counts derived in
+   * code). The runner calls it before the rubric evaluator, stores
+   * `outcomeValue` at `outcome[outcomeKey]` (merged after outcome
+   * validation, the same way `disengagementDecline` is), and appends
+   * `evaluatorNote` to the rubric evaluator's context so narrative and
+   * counts agree. A failure here never fails the report: the analysis is
+   * simply absent.
+   */
+  supplementaryAnalysis?: {
+    outcomeKey: string;
+    run: (input: SupplementaryAnalysisInput) => Promise<{
+      outcomeValue: unknown;
+      evaluatorNote?: string;
+    } | null>;
+  };
   postProcessScores?: (
     scores: ScoreMap,
     ctx: {
@@ -336,6 +410,14 @@ export interface InteractionTypeConfig {
       outcome: Record<string, unknown> | null;
     },
   ) => ScoreMap;
+}
+
+/** What a type's `supplementaryAnalysis` pass receives. */
+export interface SupplementaryAnalysisInput {
+  config: ResolvedSessionConfig;
+  /** The stored turns in order; timestamps are client epoch ms. */
+  turns: Array<{ role: "user" | "assistant"; content: string; timestamp: number }>;
+  startedAt: number;
 }
 
 /**
@@ -385,6 +467,24 @@ export interface DifficultConversationInstance {
   avatarId: string;
   /** Always set together with `avatarId`, never cross-paired (CaseAvatar precedent). */
   voiceId: string;
+  /**
+   * Questioned-persona cases only (`lib/questioned-persona/`): the student
+   * interviews or counsels this persona, who holds facts revealed only to
+   * the right question. Absent for every courageous conversation.
+   *
+   * Privacy follows `hiddenPosition` exactly: it reaches the LIVE PROMPT
+   * and the EVALUATOR, and it is excluded from the student BRIEFING
+   * (`ConversationBriefingFields` has no key for it) and from the REPORT
+   * INPUT SNAPSHOT (`DifficultConversationInputSnapshot` records only
+   * `personaStyle` / `personaName`). Like `hiddenPosition` it does ride the
+   * `/api/difficult-conversation/play` response, because the browser resends
+   * the instance on every chat turn — no surface renders it.
+   *
+   * The post-session REPORT does name which hidden facts the student drew
+   * out; that is the debrief, and it comes from the engine-owned
+   * `personaAnalysis` the supplementary pass wrote, never from this field.
+   */
+  personaCard?: PersonaCard;
 }
 
 /**
@@ -422,6 +522,13 @@ export type InstanceConfig =
       kind: "pitch-elevator";
       pitchSubject: string;
       listenerKnowledge: "blind" | "name-role" | "full-profile";
+      /**
+       * Which listener this session drew. SERVER-OWNED: set by startSession and
+       * re-read from the report snapshot by the chat route and the evaluation
+       * runner, overwriting anything a client sends. Absent means the legacy
+       * listener (`resolveElevatorListener`).
+       */
+      listenerPersonaId?: string;
     }
   /**
    * Shared by ALL FIVE deck modes (REQ-88, REQ-93): the existing investor
@@ -518,6 +625,8 @@ export type InstanceConfig =
 export interface ResolvedSessionConfig {
   typeSlug: string;
   typeName: string;
+  /** Chosen from the type record; legacy fixture/config objects may omit it. */
+  sessionExperience?: "conversation" | "coding";
   /** Always `[visual, vocal, content, behavioral, ...extras]` in that order. */
   rubricDimensions: RubricDimension[];
   limits: InteractionLimitsConfig;

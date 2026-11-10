@@ -3,7 +3,7 @@
 /**
  * Create a private difficult conversation. Middleware gates /conversations
  * under STUDENT_ROUTES. Save never auto-publishes — the builder offers
- * Practise it now and Publish it as separate next steps (P15-SC2).
+ * Practice it now and Publish it as separate next steps (P15-SC2).
  *
  * Authored records are structurally identical to seeded ones: the same six
  * content fields plus title, student role, default difficulty, and avatar.
@@ -25,10 +25,10 @@ export default function NewConversationPage() {
         <p className="max-w-[58ch] text-[15px] text-muted">
           Same fields as the featured conversations — situation, shared facts,
           the character&apos;s private stance, your goal, and the stakes. Save
-          privately, then practise or publish when you are ready.
+          privately, then practice or publish when you are ready.
         </p>
         <ul className="max-w-[58ch] text-sm text-muted list-disc pl-5 space-y-1">
-          <li>Saving keeps it private so you can practise immediately.</li>
+          <li>Saving keeps it private so you can practice immediately.</li>
           <li>Publishing is a separate step and runs an automated safety check.</li>
           <li>You stay the owner — you can edit or unpublish at any time.</li>
           <li>

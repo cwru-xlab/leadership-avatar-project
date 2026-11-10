@@ -66,6 +66,11 @@ import {
 } from "@/components/session/useVisualCapture";
 import type { CaseStudy, InteractionLog, StartAvatarRequest } from "@/types";
 import CaseStudySessionView from "@/components/practice/CaseStudySessionView";
+import CaseMaterialsPanel from "@/components/problem-interview/CaseMaterialsPanel";
+import type {
+  ProblemInterviewStage,
+  ProblemLiveView,
+} from "@/lib/problem-interview/session-state";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -85,7 +90,34 @@ type WalkOutMetadata = {
    * (proof missing/invalid, or an end-of-turn metadata computation failed).
    * See debug: elevator-walkout-dead-end. */
   walkOutFarewellDeclined?: boolean;
+  /** Problem interviews: server-owned stage, posed prompt, revealed exhibits. */
+  problem?: ProblemLiveView;
 };
+
+const PROBLEM_STAGE_LABELS: Record<ProblemInterviewStage, string> = {
+  opening: "Opening",
+  fit: "About you",
+  problem: "Problem",
+  candidate_questions: "Your questions",
+  closing: "Closing",
+};
+
+/** The three phases a candidate sees on the agenda, mapped from stages. */
+const PROBLEM_AGENDA: Array<{ label: string; stages: ProblemInterviewStage[] }> = [
+  { label: "About you", stages: ["opening", "fit"] },
+  { label: "The problem", stages: ["problem"] },
+  { label: "Your questions", stages: ["candidate_questions", "closing"] },
+];
+
+// Pitch flow. Two phases because the shell only knows two: `openingTurnPhase`
+// is "pitching" until a turn clears the pitch-scale floor, then "followups"
+// for the rest of the session. Deliberately not a third "closing" step — the
+// shell has no signal for one, and a step that never lights up is worse than
+// a step that is absent.
+const PITCH_FLOW: Array<{ label: string; phase: "pitching" | "followups" }> = [
+  { label: "Your pitch", phase: "pitching" },
+  { label: "Their questions", phase: "followups" },
+];
 
 interface PracticeSessionShellProps {
   /**
@@ -284,6 +316,12 @@ function PracticeInterviewRoom({
   const checkpointing =
     getEngineType(sessionConfig.typeSlug)?.checkpointing ?? "none";
   const isInterviewSession = Boolean(getInterviewType(sessionConfig.typeSlug));
+  // Problem interviews (case / product): stage and materials come from the
+  // server in each turn's metadata; the five-stage `progress` is unused.
+  const isProblemInterview = Boolean(
+    getEngineType(sessionConfig.typeSlug)?.problemInterview
+  );
+  const [problemView, setProblemView] = useState<ProblemLiveView | null>(null);
   const targetQuestionCount =
     sessionConfig.limits.targetQuestionCount ??
     sessionConfig.customization?.targetQuestionCount ??
@@ -364,6 +402,26 @@ function PracticeInterviewRoom({
   } = useVisualCapture();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  /**
+   * The transcript's own scroll box, so new turns can be brought into view.
+   *
+   * WHY: this pane grows DOWNWARD and was never scrolled. Measured in a live
+   * Data/Product Analytics session at 1440x900, the interviewer's opening
+   * question needed 196px inside a 253px box and arrived cut off mid-sentence
+   * ("…why are you interested in this data scientist") with `scrollTop` at 0 —
+   * the student could not read the question they were being asked without
+   * scrolling. Every other transcript surface in this app already does this
+   * (`TechnicalCodingSession`, `CoachedSessionShell`, `CaseStudySessionView`);
+   * this shell was the exception.
+   */
+  const transcriptRef = useRef<HTMLDivElement>(null);
+  /**
+   * Whether the transcript should follow new turns. True until the student
+   * scrolls away from the bottom, true again when they come back. A ref, not
+   * state: it is read inside the scroll effect and must never itself cause a
+   * render while the interviewer is streaming.
+   */
+  const stickToBottomRef = useRef(true);
   const [progress, setProgress] = useState<InterviewProgress>(initialProgress);
   const [input, setInput] = useState("");
   const [streamingText, setStreamingText] = useState("");
@@ -431,10 +489,12 @@ function PracticeInterviewRoom({
 
   const stageLabel = useMemo(
     () =>
-      progress.stage === "role_specific"
-        ? "Role focus"
-        : progress.stage.charAt(0).toUpperCase() + progress.stage.slice(1),
-    [progress.stage]
+      isProblemInterview
+        ? PROBLEM_STAGE_LABELS[problemView?.stage ?? "opening"]
+        : progress.stage === "role_specific"
+          ? "Role focus"
+          : progress.stage.charAt(0).toUpperCase() + progress.stage.slice(1),
+    [isProblemInterview, problemView?.stage, progress.stage]
   );
 
   const appendMessage = useCallback(
@@ -750,6 +810,9 @@ function PracticeInterviewRoom({
           walkOutProofRef.current = walkOutMetadata.walkOutProof;
         }
         appendMessage({ role: "assistant", content: parsedTurn.cleanedText });
+        if (walkOutMetadata?.problem) {
+          setProblemView(walkOutMetadata.problem);
+        }
         // This shell buffers transport streaming until the clean, marker-free
         // response can render. Clear the wait indicator at that visible handoff,
         // rather than at the first byte the learner cannot yet see.
@@ -948,6 +1011,31 @@ function PracticeInterviewRoom({
   // Keeps the visual engine's conversational window locked to the recorder —
   // an effect on `isRecording` itself, so the two can never disagree.
   useSyncVisualSpeaking(syncSpeaking, isRecording);
+
+  /**
+   * Keep the newest turn in view. Anchored to the BOTTOM because that is where
+   * the live question and the student's own last answer are; the composer sits
+   * directly below, so reading and answering stay in one place.
+   *
+   * `partialTranscript` is a dependency too: live dictation grows the box with
+   * every interim result, and without it the student's own words would scroll
+   * out from under them as they spoke. It is declared by the recorder above,
+   * which is why this effect sits here rather than beside the transcript ref.
+   *
+   * ONLY WHILE THE STUDENT IS ALREADY AT THE BOTTOM. `streamingText` updates
+   * many times a second, so an unconditional scroll would drag anyone who had
+   * scrolled up to re-read an earlier turn back down on every token — the
+   * rail is short enough that re-reading is normal. `stickToBottomRef` is
+   * owned by the scroll handler below, so the student's own position decides.
+   */
+  useEffect(() => {
+    const box = transcriptRef.current;
+    if (!box || !stickToBottomRef.current) return;
+    // Jumps rather than animates under reduced motion, per the design
+    // system's motion rules; the content still ends in the same place.
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    box.scrollTo({ top: box.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  }, [messages, streamingText, partialTranscript]);
 
   const startOpening = useCallback(() => {
     if (openingSentRef.current) return;
@@ -1253,7 +1341,51 @@ function PracticeInterviewRoom({
           {/* Interview agenda (dev #55): interview types only — pitches,
               networking and difficult conversations have no question count
               or resume (UAT 2026-10-25). */}
-          {isInterviewSession ? (
+          {isProblemInterview ? (
+          <div className="border-y border-white/10 py-3" data-testid="problem-agenda">
+            <p className="text-[11px] font-semibold text-light-blue">
+              Practice flow
+            </p>
+            {/* ORIENTATION IS READ ONCE. This sentence explains the format
+                before anything has happened; once the student is working the
+                problem, the stage list below is the live answer to "where am
+                I?", and the sentence is a fixed block charged against the
+                transcript for the rest of the session.
+
+                Gated on the STAGE, not on `progress.questionsAsked`: measured
+                in a live Data/Product Analytics session, the counter was
+                still 0 after the opening exchange had advanced the stage to
+                "problem", so a count-based gate never stood the sentence
+                down. The stage is what the chips below already render, so the
+                sentence and the chips cannot disagree.
+
+                `&&`, NOT a ternary: a nested ternary whose else-arm is null
+                would plant a second copy of this chain's terminator inside
+                it, capturing the mutation that
+                `verify-disengagement-walkout-shell.ts` uses to prove the
+                agenda gate still bites and silently disarming that check.
+                Mentioning the terminator literally here does it too. */}
+            {PROBLEM_AGENDA[0]!.stages.includes(problemView?.stage ?? "opening") && (
+              <p className="mt-1 hidden text-xs leading-5 text-light-blue sm:block">
+                A short question about you, then one problem you work through out loud. Ask for what you need.
+              </p>
+            )}
+            <ol className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-light-blue">
+              {PROBLEM_AGENDA.map((phase) => {
+                const current = phase.stages.includes(problemView?.stage ?? "opening");
+                return (
+                  <li
+                    key={phase.label}
+                    aria-current={current ? "step" : undefined}
+                    className={current ? "font-semibold text-white" : undefined}
+                  >
+                    {phase.label}
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+          ) : isInterviewSession ? (
           <div className="border-y border-white/10 py-3">
             <p className="text-[11px] font-semibold text-light-blue">
               Practice flow
@@ -1268,7 +1400,73 @@ function PracticeInterviewRoom({
           </div>
           ) : null}
 
-          <div aria-live="polite" className="min-h-0 flex-1 space-y-5 overflow-y-auto py-6 pr-1">
+          {/* Pitch flow (UAT 2026-10-25, D17-1 revisited). That UAT decided
+              "the interview agenda block renders for interview types only"
+              (032ae988) — a judgement about THAT block, whose question count
+              and resume chip are meaningless outside an interview. It did not
+              decide a pitch may never answer "where am I?".
+
+              A SIBLING of the agenda chain above, never a third arm inside it:
+              `verify-disengagement-walkout-shell.ts` §12 proves D17-1 by
+              requiring the interview arm to contain no element-opening ternary,
+              so an arm added there would make the guard's own bite-proof stop
+              biting while still reading as gated.
+
+              Gated on the timing callback, not on a slug: `PracticeTypePage`
+              passes `onOpeningTurnTimingChange` only for pitch-elevator, which
+              is the only type whose pitch window is wired and verified. The
+              phase state itself advances in every session (every send calls
+              `markOpeningTurnDelivered`), so a slug list here would be a second
+              source of truth free to drift from the page's `isPitchElevator` —
+              and re-deriving it would show this rail in interviews. */}
+          {onOpeningTurnTimingChange ? (
+            <div className="border-y border-white/10 py-3" data-testid="pitch-flow">
+              <p className="text-[11px] font-semibold text-light-blue">
+                Practice flow
+              </p>
+              <ol className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-light-blue">
+                {PITCH_FLOW.map((phase) => {
+                  const current = phase.phase === openingTurnPhase;
+                  return (
+                    <li
+                      key={phase.label}
+                      aria-current={current ? "step" : undefined}
+                      className={current ? "font-semibold text-white" : undefined}
+                    >
+                      {phase.label}
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          ) : null}
+
+          {isProblemInterview ? (
+            <CaseMaterialsPanel
+              // The streaming text while it arrives, then the committed turn:
+              // the card should stand down AS the interviewer reads the
+              // problem, not a beat later.
+              latestInterviewerTurn={
+                streamingText ||
+                [...messages].reverse().find((m) => m.role === "assistant")?.content
+              }
+              view={problemView}
+            />
+          ) : null}
+
+          <div
+            ref={transcriptRef}
+            aria-live="polite"
+            className="min-h-0 flex-1 space-y-5 overflow-y-auto py-6 pr-1"
+            onScroll={(event) => {
+              const box = event.currentTarget;
+              // 24px of slack: smooth scrolling and sub-pixel line heights
+              // rarely land exactly on the bottom, and a student who is
+              // effectively at the end should keep following.
+              stickToBottomRef.current =
+                box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+            }}
+          >
             {!messages.length && !streamingText && (
               <div className="flex h-full min-h-44 flex-col items-center justify-center text-center text-light-blue">
                 <Spinner color="primary" size="sm" />
@@ -1388,9 +1586,17 @@ function PracticeInterviewRoom({
             </>
           )}
           {answerControlsSupplement}
-          <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-light-blue">
-            <FileText size={13} /> Your resume is used only to personalize this practice interview.
-          </p>
+          {/* Only where a resume is actually in play. `PracticeTypePage` passes
+              `resumeText=""` for pitches and networking, and the instance
+              launcher (courageous conversations) passes none at all, so this
+              ran as a false privacy claim about a file those sessions never
+              collected — the same families the agenda above is gated away from
+              (UAT 2026-10-25). */}
+          {resumeText.trim() ? (
+            <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-light-blue">
+              <FileText size={13} /> Your resume is used only to personalize this practice interview.
+            </p>
+          ) : null}
         </div>
       </SessionSidePane>
 

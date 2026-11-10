@@ -7,8 +7,8 @@ import type { HeygenErrorCode } from "@/lib/heygen-types";
 export class HeygenSessionError extends Error {
   readonly code?: HeygenErrorCode;
 
-  constructor(message: string, code?: HeygenErrorCode) {
-    super(message);
+  constructor(message: string, code?: HeygenErrorCode, options?: ErrorOptions) {
+    super(message, options);
     this.name = "HeygenSessionError";
     this.code = code;
   }

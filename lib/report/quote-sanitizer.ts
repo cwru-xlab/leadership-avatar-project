@@ -91,7 +91,7 @@ function capLength(text: string): string {
  *    quote with a characterization drawn from the verdict's matched
  *    rule-group names. `sanitized: true`.
  * 3. `tier === "hostile"` or `"none"` → keep the quote. Hostility is the
- *    student's own behaviour and seeing it is the point of the report;
+ *    student's own behavior and seeing it is the point of the report;
  *    only EXPLICIT content is withheld. The current SEVERE lexicon has no
  *    distinct "profanity" sub-group (only `severe_identity_slur` /
  *    `severe_harassment`), so there is nothing to partially mask inside a
@@ -198,6 +198,29 @@ export function sanitizeOutcomeQuotes(
     }
   } else if (Array.isArray(reactionCauses)) {
     next.reactionCauses = sanitizeReactionCausesArray(reactionCauses);
+  }
+
+  // Problem interviews: `processSteps` is a JSON-encoded step list whose
+  // `evidenceQuote` is the candidate's verbatim words. Same guarantee, same
+  // representation-preserving rewrite as `reactionCauses` above.
+  const processSteps = next.processSteps;
+  if (typeof processSteps === "string" && processSteps.trim()) {
+    try {
+      const parsed = JSON.parse(processSteps);
+      if (Array.isArray(parsed)) {
+        next.processSteps = JSON.stringify(
+          parsed.map((item) => {
+            if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+            const row = item as Record<string, unknown>;
+            return typeof row.evidenceQuote === "string"
+              ? { ...row, evidenceQuote: sanitizeQuote(row.evidenceQuote).quote }
+              : row;
+          }),
+        );
+      }
+    } catch {
+      // Left as-is; `asProcessStepResults` drops unparseable values.
+    }
   }
 
   return next;

@@ -18,6 +18,7 @@
 
 import type { ReactNode } from "react";
 import type { ReportDTO } from "@/lib/report/dto";
+import type { CheckInLead } from "@/lib/report/check-in";
 
 import { deckModeNegotiates, isDeckModeSlug, type DeckModeSlug } from "@/lib/pitch/deck-modes";
 
@@ -29,7 +30,18 @@ import DeckVerdictPanel from "@/components/practice/report/DeckVerdictPanel";
 import { DisengagementDeclinePanel } from "@/components/practice/report/DisengagementDeclinePanel";
 import InRoleReactionPanel from "@/components/practice/report/InRoleReactionPanel";
 import NegotiationTriplePanel from "@/components/practice/report/NegotiationTriplePanel";
+import ListenerIdentityPanel from "@/components/practice/report/ListenerIdentityPanel";
 import PitchOutcomeBanner from "@/components/practice/report/PitchOutcomeBanner";
+import ProblemQuestionPanel from "@/components/practice/report/ProblemQuestionPanel";
+import ProcessStepsPanel from "@/components/practice/report/ProcessStepsPanel";
+import { getInterviewType } from "@/lib/interview/types";
+import { asPersonaAnalysis } from "@/lib/questioned-persona/report";
+import { asProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
+import {
+  PersonaChecklistPanel,
+  PersonaCountsPanel,
+  PersonaDisclaimerBanner,
+} from "@/components/practice/report/PersonaReportPanels";
 
 export type StalledAffordance = "retry" | "check-again";
 
@@ -37,6 +49,39 @@ export type StalledAffordance = "retry" | "check-again";
 export type ReportExtrasSlot = "above" | "below";
 
 export type ReportExtrasRenderer = (report: ReportDTO) => ReactNode;
+
+/**
+ * One mode-specific tab, contributed INTO the report's existing strip.
+ *
+ * Mode analysis used to have only `above` and `below`, and the two heaviest
+ * cases ended up at opposite ends of the page: a problem interview pushed the
+ * four score cards below "The Problem" and "Process steps", while MITI's
+ * counts and checklist sat past the Moments timeline. Same class of content,
+ * opposite ends, and the report frame asks for the scores up front.
+ *
+ * A tab is for ANALYSIS a student reads once they know the score. It is never
+ * for a banner, a disclaimer or required consent — those stay in flow, where
+ * they cannot be left unopened (rule: never hide errors or consent).
+ *
+ * `key` must be stable: it identifies the tab to HeroUI and would otherwise
+ * reset the selection on re-render.
+ */
+export interface ReportExtraTab {
+  key: string;
+  title: string;
+  /**
+   * Whether this report has the data the tab shows.
+   *
+   * REQUIRED, because a tab cannot self-null the way a panel can. Every
+   * mode panel returns null when its snapshot is absent, so `extras` slots
+   * were safe to declare unconditionally — `INTERVIEW_CHROME` is shared by
+   * all interview presets, and a general or technical report simply rendered
+   * nothing. A tab is different: the strip would still show its title and
+   * open an empty panel. The predicate must match the panels' own guard.
+   */
+  available: (report: ReportDTO) => boolean;
+  render: (report: ReportDTO) => ReactNode;
+}
 
 export interface ReportChrome {
   pollIntervalMs: number;
@@ -46,10 +91,21 @@ export interface ReportChrome {
   guardsRepollAfter404: boolean;
   showsCustomizationStrip: boolean;
   /**
+   * How the report check-in's coaching lines open, naming the real situation
+   * this practice stands in for (see `CheckInLead` in `lib/report/check-in.ts`).
+   */
+  checkInLead: CheckInLead;
+  /**
    * Per-type report panels. Types that declare none leave both slots
    * undefined — interview presets and case-study stay visually unchanged.
    */
   extras?: Partial<Record<ReportExtrasSlot, ReportExtrasRenderer>>;
+  /**
+   * Mode-specific tabs appended to the report's shared strip, after Content.
+   * Heavy analysis belongs here rather than in `extras`, so the page keeps
+   * ONE tab strip and opens on the score cards.
+   */
+  extraTabs?: ReportExtraTab[];
 }
 
 /** Interview presets — sourced from `app/interview/[type]/report/[reportId]/page.tsx`. */
@@ -60,6 +116,37 @@ const INTERVIEW_CHROME: ReportChrome = {
   distinguishes401: true,
   guardsRepollAfter404: false,
   showsCustomizationStrip: true,
+  checkInLead: "In a real interview",
+  // Problem interviews (consulting case, product management) only: both
+  // panels self-null without a problem snapshot, so the four classic
+  // presets — and consulting reports from before problem interviews — render
+  // exactly as they always have.
+  //
+  // Moved out of `extras.above` into the shared tab strip. In flow they sat
+  // between the header and the score cards, so the four scores — which the
+  // report frame puts up front — opened below two large panels, one of them
+  // the full case prompt. As a tab the question stays one click away while
+  // reading Moments, and the page opens on the score.
+  extraTabs: [
+    {
+      key: "problem",
+      title: "The Problem",
+      // The panels' own guard, in one place: `ProblemQuestionPanel` and
+      // `ProcessStepsPanel` both return null without a problem snapshot, so
+      // the tab must be absent in exactly those cases. Without this, every
+      // general and technical report — which share this chrome — would show
+      // an empty "The Problem" tab.
+      available: (report) =>
+        report.input?.kind === "interview" &&
+        asProblemSessionSnapshot(report.input.problem) !== null,
+      render: (report) => (
+        <>
+          <ProblemQuestionPanel report={report} />
+          <ProcessStepsPanel report={report} />
+        </>
+      ),
+    },
+  ],
 };
 
 /** Case-study — sourced from `app/case-play/[caseId]/report/[reportId]/page.tsx`. */
@@ -70,6 +157,7 @@ const CASE_STUDY_CHROME: ReportChrome = {
   distinguishes401: false,
   guardsRepollAfter404: true,
   showsCustomizationStrip: false,
+  checkInLead: "In a real meeting",
 };
 
 /**
@@ -84,6 +172,7 @@ const DIFFICULT_CONVERSATION_CHROME: ReportChrome = {
   distinguishes401: true,
   guardsRepollAfter404: false,
   showsCustomizationStrip: false,
+  checkInLead: "In a real courageous conversation",
   extras: {
     above: (report) => <ConversationEndBanner report={report} />,
     below: (report) => (
@@ -103,6 +192,58 @@ const DIFFICULT_CONVERSATION_CHROME: ReportChrome = {
  * are the only places a type slug is permitted to appear in a `.tsx` file
  * outside the type's own components.
  */
+const TECHNICAL_CODING_CHROME: ReportChrome = {
+  pollIntervalMs: 2000,
+  giveUpAfterMs: 120_000,
+  stalledAffordance: "retry",
+  distinguishes401: true,
+  guardsRepollAfter404: false,
+  showsCustomizationStrip: false,
+  checkInLead: "In a real interview",
+};
+
+/**
+ * Questioned-persona types (clinical communication, motivational
+ * interviewing) — difficult-conversation poll discipline; the practice-only
+ * disclaimer above the scores, the counts panel and the checklist below.
+ */
+function personaChrome(checkInLead: string): ReportChrome {
+  return {
+    pollIntervalMs: 2000,
+    giveUpAfterMs: 120_000,
+    stalledAffordance: "retry",
+    distinguishes401: true,
+    guardsRepollAfter404: false,
+    showsCustomizationStrip: false,
+    checkInLead,
+    extras: {
+      // STAYS IN FLOW. A practice-only disclaimer is not analysis: behind a
+      // tab a student could read the whole report without ever seeing it.
+      above: (report) => <PersonaDisclaimerBanner report={report} />,
+    },
+    // Counts and checklist were below the Moments timeline — the furthest
+    // point on the page from the scores they explain. Both are long by
+    // design ("reports prefer more content"), which is what made them a
+    // scroll rather than a read.
+    extraTabs: [
+      {
+        key: "behaviors",
+        title: "Behaviors",
+        available: (report) => asPersonaAnalysis(report.outcome) !== null,
+        render: (report) => (
+          <>
+            <PersonaCountsPanel report={report} />
+            <PersonaChecklistPanel report={report} />
+          </>
+        ),
+      },
+    ],
+  };
+}
+
+const CLINICAL_COMMUNICATION_CHROME = personaChrome("In a real patient encounter");
+const MOTIVATIONAL_INTERVIEWING_CHROME = personaChrome("In a real counseling session");
+
 const NETWORKING_CHROME: ReportChrome = {
   pollIntervalMs: 2000,
   giveUpAfterMs: 120_000,
@@ -110,6 +251,7 @@ const NETWORKING_CHROME: ReportChrome = {
   distinguishes401: true,
   guardsRepollAfter404: false,
   showsCustomizationStrip: false,
+  checkInLead: "In a real networking conversation",
   extras: {
     below: (report) => <NetworkingOutcomePanel report={report} />,
   },
@@ -137,8 +279,9 @@ const PITCH_ELEVATOR_CHROME: ReportChrome = {
   distinguishes401: true,
   guardsRepollAfter404: false,
   showsCustomizationStrip: false,
+  checkInLead: "When you pitch for real",
   extras: {
-    above: (report) => <><PitchOutcomeBanner report={report} /><DisengagementDeclinePanel report={report} /></>,
+    above: (report) => <><ListenerIdentityPanel report={report} /><PitchOutcomeBanner report={report} /><DisengagementDeclinePanel report={report} /></>,
   },
 };
 
@@ -174,6 +317,7 @@ function deckChromeFor(slug: DeckModeSlug): ReportChrome {
     distinguishes401: true,
     guardsRepollAfter404: false,
     showsCustomizationStrip: false,
+    checkInLead: "In a real presentation",
     extras: {
       above: (report) => <><PitchOutcomeBanner report={report} /><DisengagementDeclinePanel report={report} /></>,
       below: (report) => (
@@ -195,6 +339,9 @@ const INTERVIEW_PRESET_SLUGS = new Set([
   "technical",
   "consulting",
   "early-career",
+  "product-management",
+  "finance",
+  "system-design",
 ]);
 
 /**
@@ -216,6 +363,22 @@ export function renderReportExtras(
 }
 
 /**
+ * The mode's tabs, or an empty list. Mirrors `renderReportExtras`'s READY
+ * gate: a pending report must not show a tab whose panel has no data yet.
+ *
+ * Returns descriptors rather than rendered nodes, because `ReportBody` owns
+ * the strip and must build each `<Tab>` itself — HeroUI reads its children
+ * for the tab list, so a pre-rendered fragment would not register.
+ */
+export function reportExtraTabs(
+  chrome: ReportChrome | null | undefined,
+  report: ReportDTO | null | undefined,
+): ReportExtraTab[] {
+  if (!chrome?.extraTabs || !report || report.status !== "READY") return [];
+  return chrome.extraTabs.filter((tab) => tab.available(report));
+}
+
+/**
  * Resolve report chrome for a practice type slug. Returns null for an
  * unknown slug so the report page can render not-found rather than
  * inventing a default cadence.
@@ -229,9 +392,15 @@ export function getReportChrome(
   if (slug === "case-study") return CASE_STUDY_CHROME;
   if (slug === "difficult-conversation") return DIFFICULT_CONVERSATION_CHROME;
   if (slug === "networking") return NETWORKING_CHROME;
+  if (slug === "clinical-communication") return CLINICAL_COMMUNICATION_CHROME;
+  if (slug === "motivational-interviewing") return MOTIVATIONAL_INTERVIEWING_CHROME;
+  if (slug === "technical-coding") return TECHNICAL_CODING_CHROME;
   if (slug === "pitch-elevator") return PITCH_ELEVATOR_CHROME;
   if (isDeckModeSlug(slug)) return deckChromeFor(slug);
   if (INTERVIEW_PRESET_SLUGS.has(slug)) return INTERVIEW_CHROME;
+  // Any other interview preset (e.g. a newly registered problem interview
+  // such as product-management) shares the interview chrome.
+  if (getInterviewType(slug)) return INTERVIEW_CHROME;
 
   return null;
 }

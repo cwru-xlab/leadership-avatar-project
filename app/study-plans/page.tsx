@@ -59,7 +59,9 @@ function PlanCard({ item }: { item: PlanWithPath }) {
   return (
     <li className="flex flex-col overflow-hidden rounded-2xl border border-line bg-white">
       <Link
-        className={`relative flex items-center gap-4 px-5 py-[18px] text-white transition-colors duration-150 ease-out ${
+        // The card clips its corners, so the ring sits inside the header in
+        // Light Blue, which reads on both header colors.
+        className={`relative flex items-center gap-4 px-5 py-[18px] text-white transition-colors duration-150 ease-out focus-visible:-outline-offset-6 focus-visible:outline-light-blue ${
           finished ? "bg-level-4 hover:bg-level-4/90" : "bg-cwru-blue hover:bg-ink"
         }`}
         href={`/study-plans/${item.plan.id}`}
@@ -191,6 +193,9 @@ export default function StudyPlansPage() {
   const inProgress = items.filter((i) => !isFinished(i));
   const completed = items.filter(isFinished);
   const shown = tab === "completed" ? completed : inProgress;
+  // A plan is only known finished once its path loads; until every path has,
+  // counts would show a finished plan as in progress and then move it.
+  const countsKnown = state.status === "loaded" && items.every((i) => i.path !== undefined);
 
   return (
     <div className="flex flex-col gap-6">
@@ -212,10 +217,10 @@ export default function StudyPlansPage() {
         <>
           {reportsError ? (
             <p role="alert" className="text-sm text-copper-deep">{reportsError}</p>
-          ) : reports === null ? (
-            <div className="h-24 animate-pulse rounded-xl border border-line bg-white" />
           ) : (
-            <StudyPlanGenerator reports={reports} onSaved={addPlan} />
+            // While reports load, the card renders as it will look with its
+            // button off, rather than as a blank box that then changes size.
+            <StudyPlanGenerator loading={reports === null} reports={reports ?? []} onSaved={addPlan} />
           )}
 
           <section aria-label="Saved study plans" className="flex flex-col gap-4">
@@ -236,7 +241,9 @@ export default function StudyPlansPage() {
                   type="button"
                   onClick={() => setTab(id)}
                 >
-                  {label} <span className="font-normal text-muted">{count}</span>
+                  {label}
+                  {/* No count until known: "0" would read as having none. */}
+                  {countsKnown && <span className="font-normal text-muted"> {count}</span>}
                 </button>
               ))}
             </div>

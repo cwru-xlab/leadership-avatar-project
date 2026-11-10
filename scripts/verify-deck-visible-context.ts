@@ -54,7 +54,10 @@ const SOURCE_READER_PATHS = ["app", "components", "lib"];
 const ALLOWED_CLIENT_INDEX_READERS = new Set([
   "app/api/interaction/chat/route.ts",
   "app/api/practice/session/checkpoint/route.ts",
-  "app/practice/[type]/page.tsx",
+  // Sends the untrusted `revealedSlideIndex` hint on extraChatBody. The wizard
+  // moved out of `app/practice/[type]/page.tsx` (now an 11-line wrapper); like
+  // the shell below it forwards the hint and never computes a mark.
+  "components/practice/routes/PracticeTypePage.tsx",
   // Forwards the untrusted hint in the checkpoint request; it never computes a mark.
   "components/practice/PracticeSessionShell.tsx",
   "lib/engine/session.ts",

@@ -10,8 +10,13 @@
  * columns.
  */
 
+import type { ProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
 import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
 import { isDeckModeSlug } from "@/lib/pitch/deck-modes";
+import {
+  isTechnicalCodingLanguage,
+  type TechnicalCodingInputSnapshot,
+} from "@/lib/technical-interview/types";
 
 /**
  * The interview type's input snapshot — the union of every typed
@@ -45,6 +50,14 @@ export interface InterviewInputSnapshot {
    */
   jobDescriptionId?: string | null;
   jobDescriptionText?: string | null;
+  /**
+   * Problem interviews only (consulting case, product management): the ONE
+   * question pinned at session start plus the server-recorded stage, nudges
+   * and exhibit reveals. OPTIONAL and not in `INTERVIEW_INPUT_KEYS`, for the
+   * same back-compat reason as the job-posting fields above. Stored JSON —
+   * always read it through `asProblemSessionSnapshot`.
+   */
+  problem?: ProblemSessionSnapshot;
 }
 
 /**
@@ -100,6 +113,11 @@ export interface PitchInputSnapshot {
   } | null;
   firstTurnWindowSeconds: number | null;
   budgetSeconds: number | null;
+  /**
+   * Elevator only: the id of the listener drawn at session start
+   * (lib/pitch/elevator-personas.ts). Null on reports from before the roster,
+   * which all spoke to the legacy listener; `resolveElevatorListener` handles both.
+   */
   listenerPersona: string | null;
   /**
    * Per-mode wizard inputs (Phase 19), riding alongside the negotiation
@@ -135,6 +153,14 @@ export interface DifficultConversationInputSnapshot {
   stakes: string;
   difficulty: "receptive" | "guarded" | "hostile";
   avatarId: string;
+  /**
+   * Questioned-persona sessions only (clinical communication, motivational
+   * interviewing). Absent on every courageous conversation. The persona card
+   * itself is never snapshotted — its hidden facts follow hiddenPosition's
+   * privacy rule.
+   */
+  personaStyle?: "clinical-communication" | "motivational-interviewing";
+  personaName?: string;
 }
 
 /**
@@ -187,7 +213,8 @@ export type InputSnapshot =
   | ScenarioInputSnapshot
   | PitchInputSnapshot
   | DifficultConversationInputSnapshot
-  | NetworkingInputSnapshot;
+  | NetworkingInputSnapshot
+  | TechnicalCodingInputSnapshot;
 
 /**
  * The dimension-keyed score map replacing the four fixed score columns
@@ -264,6 +291,17 @@ const DIFFICULT_CONVERSATION_INPUT_KEYS: readonly (keyof DifficultConversationIn
     "difficulty",
     "avatarId",
   ];
+
+const TECHNICAL_CODING_INPUT_KEYS: readonly (keyof TechnicalCodingInputSnapshot)[] = [
+  "kind",
+  "assignmentId",
+  "assignmentVersion",
+  "assignmentHash",
+  "assignment",
+  "language",
+  "runtimePolicyVersion",
+  "selectedAt",
+];
 
 const NETWORKING_PERSONA_SOURCES = ["character", "brought-in"] as const;
 
@@ -345,6 +383,29 @@ function isDcSource(
 }
 
 /**
+ * Technical reports written before language selection stored only the Python
+ * compatibility starter. New JavaScript reports must retain their own function
+ * starter: falling back to Python would put invalid source in a JS workspace.
+ */
+function hasValidTechnicalStarter(
+  assignment: Record<string, unknown>,
+  language: "python" | "javascript",
+): boolean {
+  if (typeof assignment.starterCode !== "string" || !assignment.starterCode.trim()) {
+    return false;
+  }
+  if (language === "python") return true;
+
+  const starters = assignment.starterCodeByLanguage;
+  if (!starters || typeof starters !== "object" || Array.isArray(starters)) return false;
+  const javascript = (starters as Record<string, unknown>).javascript;
+  return (
+    typeof javascript === "string" &&
+    /^\s*function\s+[A-Za-z_]\w*\s*\([^)]*\)/m.test(javascript)
+  );
+}
+
+/**
  * Defensively narrows an unknown JSON value into a typed `InputSnapshot`,
  * discriminating on `kind`. Follows the precedent `lib/interview/report-dto.ts`
  * and `lib/scenario/report-dto.ts` already establish for their JSON columns:
@@ -405,6 +466,25 @@ export function asInputSnapshot(value: unknown): InputSnapshot | null {
     typeof v.avatarId === "string"
   ) {
     return value as DifficultConversationInputSnapshot;
+  }
+  if (
+    v.kind === "technical-coding" &&
+    hasAllKeys(v, TECHNICAL_CODING_INPUT_KEYS) &&
+    typeof v.assignmentId === "string" &&
+    typeof v.assignmentVersion === "string" &&
+    typeof v.assignmentHash === "string" &&
+    typeof v.runtimePolicyVersion === "string" &&
+    typeof v.selectedAt === "string" &&
+    isTechnicalCodingLanguage(v.language) &&
+    !!v.assignment &&
+    typeof v.assignment === "object" &&
+    !Array.isArray(v.assignment) &&
+    hasValidTechnicalStarter(
+      v.assignment as Record<string, unknown>,
+      v.language,
+    )
+  ) {
+    return value as TechnicalCodingInputSnapshot;
   }
   if (
     v.kind === "networking" &&

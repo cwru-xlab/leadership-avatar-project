@@ -25,7 +25,7 @@ export const INTERACTION_TYPES: InteractionType[] = [
   {
     slug: "interviews",
     name: "Practice interviews",
-    description: "A behavioral interview built from your resume.",
+    description: "General or industry-specific, with a live interviewer.",
     icon: "Briefcase",
     estimatedMinutes: 20,
     route: routes.interviews(),
@@ -66,6 +66,24 @@ export const INTERACTION_TYPES: InteractionType[] = [
     icon: "Users",
     estimatedMinutes: 15,
     route: routes.networking(),
+    availability: "live",
+  },
+  {
+    slug: "clinical-communication",
+    name: "Clinical communication",
+    description: "Take a history from a patient who holds things back.",
+    icon: "Stethoscope",
+    estimatedMinutes: 12,
+    route: routes.clinicalCommunication(),
+    availability: "live",
+  },
+  {
+    slug: "motivational-interviewing",
+    name: "Motivational interviewing",
+    description: "Counsel a client who is of two minds about a change.",
+    icon: "HeartHandshake",
+    estimatedMinutes: 15,
+    route: routes.motivationalInterviewing(),
     availability: "live",
   },
 ];

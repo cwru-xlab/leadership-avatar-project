@@ -8,13 +8,11 @@
  */
 
 import { assignSeededAvatar } from "@/lib/difficult-conversation/avatar-assignment";
-import {
-  findSeededConversation,
-  SEEDED_AVATAR_GENDER_HINTS,
-} from "@/lib/difficult-conversation/seeded";
+import { findSeededConversation } from "@/lib/difficult-conversation/seeded";
 import { loadDifficultConversationForPlay } from "@/lib/difficult-conversation/store";
 import type { DifficultConversationRecord } from "@/lib/difficult-conversation/types";
 import type { DifficultConversationInstance } from "@/lib/engine/types";
+import { findPersonaCase, PERSONA_CAST } from "@/lib/questioned-persona/cases";
 
 /**
  * Maps a seeded or authored record into the engine instance member.
@@ -54,12 +52,23 @@ export async function resolveDifficultConversationInstance(
   const trimmed = id.trim();
   if (!trimmed) return null;
 
+  // Questioned-persona cases (patients, clients) are seeded records of the
+  // same shape plus a persona card. They share this resolver so the session
+  // start, chat and grading paths need no second branch; callers that
+  // serve one type check `personaCard?.style` against their slug.
+  const persona = findPersonaCase(trimmed);
+  if (persona) {
+    const avatar = await assignSeededAvatar(trimmed, PERSONA_CAST);
+    return {
+      ...mapRecordToInstance(persona, "seeded", avatar),
+      personaCard: persona.personaCard,
+    };
+  }
+
   const seeded = findSeededConversation(trimmed);
 
   if (seeded) {
-    const avatar = await assignSeededAvatar(trimmed, {
-      genderHint: SEEDED_AVATAR_GENDER_HINTS[trimmed],
-    });
+    const avatar = await assignSeededAvatar(trimmed);
     return mapRecordToInstance(seeded, "seeded", avatar);
   }
 

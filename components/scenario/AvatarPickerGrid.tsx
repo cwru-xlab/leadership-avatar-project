@@ -42,9 +42,21 @@ interface AvatarSelection {
 interface AvatarPickerGridProps {
   value: string | null;
   onChange: (selection: AvatarSelection) => void;
+  /** Id of the visible label, so the grid reads as one named group. */
+  labelledBy?: string;
+  /** Id(s) of help or error text announced with the group. */
+  describedBy?: string;
+  /** A required pick is missing: the group is marked invalid. */
+  invalid?: boolean;
 }
 
-export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridProps) {
+export default function AvatarPickerGrid({
+  value,
+  onChange,
+  labelledBy,
+  describedBy,
+  invalid = false,
+}: AvatarPickerGridProps) {
   const [interviewers, setInterviewers] = useState<InterviewerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +126,15 @@ export default function AvatarPickerGrid({ value, onChange }: AvatarPickerGridPr
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div
+      role="group"
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
+      aria-invalid={invalid || undefined}
+      className={`grid gap-4 sm:grid-cols-2 xl:grid-cols-3 ${
+        invalid ? "rounded-xl outline outline-2 outline-offset-4 outline-copper" : ""
+      }`}
+    >
       {interviewers.map((interviewer) => {
         const selected = interviewer.avatarId === value;
         return (

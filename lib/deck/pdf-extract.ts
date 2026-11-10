@@ -5,10 +5,11 @@
  * of a joined blob). Implementation uses `pdfjs-dist` rather than in-process
  * `pdf2json`: pdf2json's fake worker keeps process-global state that returns
  * stale pages from a prior buffer under sequential load — verified against
- * the 14-03 fixtures. `lib/rag/document-processor.ts` is deliberately NOT
- * edited (still pdf2json for the RAG pipeline).
+ * the 14-03 fixtures. `lib/rag/document-processor.ts` has since moved to
+ * pdfjs-dist as well, and pdf2json is no longer a dependency.
  */
 
+import { loadPdfjs } from "@/lib/pdfjs-node";
 import { normalizeDeckWhitespace } from "./pptx-extract";
 
 /**
@@ -18,7 +19,7 @@ import { normalizeDeckWhitespace } from "./pptx-extract";
  */
 export async function extractPerPageText(buffer: Buffer): Promise<string[]> {
   try {
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const pdfjs = await loadPdfjs();
     // Copy — pdfjs may transfer/detach the underlying ArrayBuffer.
     const data = new Uint8Array(buffer);
     const loadingTask = pdfjs.getDocument({

@@ -20,6 +20,63 @@ export interface User {
   authProvider?: "email" | "cwru_sso";
 }
 
+/**
+ * Local-only accounts mirror the development credentials advertised on the
+ * login screen. They are deliberately authentication-only: their stable IDs
+ * are JWT claims, not Prisma records, so database-backed endpoints still
+ * require a local database when exercised.
+ *
+ * This map is never consulted by Preview or production deployments: Vercel
+ * builds with NODE_ENV=production, while the route-level VERCEL_ENV guard
+ * remains the final production email-login block.
+ */
+const LOCAL_DEVELOPMENT_ACCOUNTS: Readonly<
+  Record<string, Readonly<{ password: string; user: User }>>
+> = {
+  "alice.johnson@case.edu": {
+    password: "student123",
+    user: {
+      id: "local-alice-johnson",
+      email: "alice.johnson@case.edu",
+      name: "Alice Johnson",
+      role: "student",
+      studentId: "STU001",
+      authProvider: "email",
+    },
+  },
+  "student@case.edu": {
+    password: "student123",
+    user: {
+      id: "local-student",
+      email: "student@case.edu",
+      name: "Jane Smith",
+      role: "student",
+      studentId: "jxs456",
+      authProvider: "email",
+    },
+  },
+  "professor.smith@case.edu": {
+    password: "prof123",
+    user: {
+      id: "local-professor-smith",
+      email: "professor.smith@case.edu",
+      name: "Dr. John Smith",
+      role: "professor",
+      authProvider: "email",
+    },
+  },
+  "admin@example.com": {
+    password: "admin123",
+    user: {
+      id: "local-admin",
+      email: "admin@example.com",
+      name: "Admin User",
+      role: "admin",
+      authProvider: "email",
+    },
+  },
+};
+
 export interface AuthTokenPayload {
   userId: string;
   email: string;
@@ -151,25 +208,35 @@ export async function authenticateUser(
     return null;
   }
 
-  // Development only: authenticate from database
+  // Static credentials are an explicit local UI-development escape hatch, not
+  // a deployment fallback. A found database user is always authoritative.
+  const normalizedEmail = email.trim().toLowerCase();
+  const localAccountsEnabled =
+    process.env.NODE_ENV === "development" &&
+    process.env.VERCEL_ENV !== "production" &&
+    process.env.ALLOW_LOCAL_STATIC_ACCOUNTS === "1";
+  const localAccount = localAccountsEnabled
+    ? LOCAL_DEVELOPMENT_ACCOUNTS[normalizedEmail]
+    : undefined;
+
   try {
     const dbUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (!dbUser) {
-      return null;
+      return localAccount?.password === password ? localAccount.user : null;
     }
 
     // Check if user is active
     if (!dbUser.isActive) {
-      console.log(`User ${email} is deactivated`);
+      console.log(`User ${normalizedEmail} is deactivated`);
       return null;
     }
 
     // Check if user has a password (SSO users don't)
     if (!dbUser.passwordHash) {
-      console.log(`User ${email} has no password (SSO user)`);
+      console.log(`User ${normalizedEmail} has no password (SSO user)`);
       return null;
     }
 
@@ -193,6 +260,8 @@ export async function authenticateUser(
       authProvider: authProviderToString(dbUser.authProvider),
     };
   } catch (error) {
+    // A database outage must never become an authentication bypass. Static
+    // identities are available only after a successful lookup found no row.
     console.error("Database authentication error:", error);
     return null;
   }

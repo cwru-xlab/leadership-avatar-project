@@ -43,6 +43,13 @@ const s3Client = new S3Client({
 
 // S3 bucket and prefix constants
 const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME!; // Same bucket as avatars
+
+// Local practice must work without shared cloud credentials. This process-local
+// store is intentionally development-only: it never contacts S3, is wiped on
+// server restart, and is used solely for documents/transcripts created here.
+const localDevelopmentObjects = new Map<string, Uint8Array>();
+const useLocalDevelopmentStorage = process.env.NODE_ENV === "development";
+
 const AVATARS_PREFIX = "avatars/"; // Existing avatar storage prefix
 const CHATS_PREFIX = "chats/"; // NEW: Chat storage prefix
 const VERSION_FILE = "avatars/version.json"; // Avatar version manifest
@@ -166,6 +173,13 @@ export class S3AvatarStorage {
     body: Uint8Array;
     contentType?: string;
   }> {
+    const localObject = useLocalDevelopmentStorage
+      ? localDevelopmentObjects.get(key)
+      : undefined;
+    if (localObject) {
+      return { body: localObject };
+    }
+
     const command = new GetObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
@@ -1690,6 +1704,11 @@ export class S3AvatarStorage {
     const safeResumeId = this.sanitizePathSegment(resumeId, "resumeId");
     const key = `${INTERVIEW_RESUMES_PREFIX}${safeUserId}/${safeResumeId}.pdf`;
 
+    if (useLocalDevelopmentStorage) {
+      localDevelopmentObjects.set(key, file);
+      return key;
+    }
+
     await s3Client.send(
       new PutObjectCommand({
         Bucket: BUCKET_NAME,
@@ -1725,12 +1744,54 @@ export class S3AvatarStorage {
     );
     const key = `${INTERVIEW_JOB_DESCRIPTIONS_PREFIX}${safeUserId}/${safeJobDescriptionId}.pdf`;
 
+    if (useLocalDevelopmentStorage) {
+      localDevelopmentObjects.set(key, file);
+      return key;
+    }
+
     await s3Client.send(
       new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key,
         Body: file,
         ContentType: "application/pdf",
+        ContentDisposition: "attachment",
+      })
+    );
+
+    return key;
+  }
+
+  /**
+   * Store the extracted text of an interview PDF that was read in the browser
+   * because it was over the direct-upload size. The PDF itself never reaches
+   * the server, so this text is the private copy kept in its place, under the
+   * same prefix and id the PDF would have had (`.txt` instead of `.pdf`).
+   * Same guarantees as the two methods above.
+   */
+  async saveInterviewDocumentText(
+    kind: "resume" | "job-description",
+    userId: string,
+    documentId: string,
+    text: string
+  ): Promise<string> {
+    const safeUserId = this.sanitizePathSegment(userId, "userId");
+    const safeDocumentId = this.sanitizePathSegment(documentId, "documentId");
+    const prefix =
+      kind === "resume" ? INTERVIEW_RESUMES_PREFIX : INTERVIEW_JOB_DESCRIPTIONS_PREFIX;
+    const key = `${prefix}${safeUserId}/${safeDocumentId}.txt`;
+
+    if (useLocalDevelopmentStorage) {
+      localDevelopmentObjects.set(key, new TextEncoder().encode(text));
+      return key;
+    }
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: text,
+        ContentType: "text/plain; charset=utf-8",
         ContentDisposition: "attachment",
       })
     );
@@ -1760,6 +1821,11 @@ export class S3AvatarStorage {
     const safeReportId = this.sanitizePathSegment(reportId, "reportId");
     const key = `${INTERVIEW_TRANSCRIPTS_PREFIX}${safeUserId}/${safeReportId}.json`;
 
+    if (useLocalDevelopmentStorage) {
+      localDevelopmentObjects.set(key, new TextEncoder().encode(JSON.stringify(transcript)));
+      return key;
+    }
+
     await s3Client.send(
       new PutObjectCommand({
         Bucket: BUCKET_NAME,
@@ -1788,6 +1854,14 @@ export class S3AvatarStorage {
     const key = `${INTERVIEW_TRANSCRIPTS_PREFIX}${safeUserId}/${safeReportId}.json`;
 
     try {
+      const localObject = useLocalDevelopmentStorage
+        ? localDevelopmentObjects.get(key)
+        : undefined;
+      if (localObject) {
+        return JSON.parse(new TextDecoder().decode(localObject)) as InterviewTranscript;
+      }
+      if (useLocalDevelopmentStorage) return null;
+
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key,

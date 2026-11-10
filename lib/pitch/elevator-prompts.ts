@@ -4,8 +4,8 @@
  * ## The cache-prefix contract (REQ-73)
  *
  * Every input to `buildElevatorSystemPrompt` is session-constant: the resolved
- * config (pitch subject, listener knowledge level) and the built-in listener
- * persona. There is no turn index, no timestamp, no elapsed seconds and no
+ * config (pitch subject, listener knowledge level, and the listener drawn once
+ * at session start and pinned in the report snapshot). There is no turn index, no timestamp, no elapsed seconds and no
  * reveal state in this function. Per-turn values (elapsed talking time, over-
  * window state, turn count) arrive only through `buildTimeBudgetFragment` in
  * the tail block — never here — so OpenAI's automatic prefix cache hits.
@@ -13,38 +13,25 @@
 
 import type { ResolvedSessionConfig } from "@/lib/engine/types";
 import type { DisengagementDeclineRecord } from "@/lib/report/dto";
+import {
+  ELEVATOR_LISTENER_PERSONA,
+  resolveElevatorListener,
+  type ElevatorListenerProfile,
+} from "@/lib/pitch/elevator-personas";
 
-/**
- * Built-in listener the avatar always plays. Student-facing disclosure is
- * gated by `listenerKnowledge` in the wizard (plan 14-10); the model always
- * receives the full persona so it can answer coherently when asked.
- *
- * Anchored on 14-CONTEXT.md's name-role example ("Dana Reyes, VP Ops at a
- * logistics firm") with concrete interests/priorities the discovery dimension
- * can grade against.
- */
-export const ELEVATOR_LISTENER_PERSONA = {
-  name: "Dana Reyes",
-  role: "VP of Operations at a mid-size logistics firm",
-  interests: [
-    "operational efficiency and reducing last-mile cost",
-    "tools that cut manual coordination between warehouses and drivers",
-    "sustainability initiatives that also improve margins",
-  ],
-  priorities: [
-    "proof the idea works with real operators, not just a slide deck",
-    "a clear ask and a realistic path to a pilot in under 90 days",
-    "founders who listen before they sell",
-  ],
-} as const;
+// Student-facing disclosure is gated by `listenerKnowledge` in the wizard (plan
+// 14-10); the model always receives the full persona so it can answer coherently
+// when asked. Who that is comes from lib/pitch/elevator-personas.ts.
+export { ELEVATOR_LISTENER_PERSONA };
 
 export type ListenerKnowledge = "blind" | "name-role" | "full-profile";
 
-function formatPersonaBlock(): string {
-  const { name, role, interests, priorities } = ELEVATOR_LISTENER_PERSONA;
+function formatPersonaBlock(persona: ElevatorListenerProfile): string {
+  const { name, role, temperament, interests, priorities } = persona;
   return [
     `Name: ${name}`,
     `Role: ${role}`,
+    ...(temperament ? [`Temperament: ${temperament}`] : []),
     `Interests:`,
     ...interests.map((i) => `- ${i}`),
     `Priorities:`,
@@ -92,7 +79,7 @@ export function buildElevatorSystemPrompt(
 
   return [
     `You are in a chance encounter — an elevator, a hallway, a short walk between meetings. A student is about to give you a brief spoken pitch. Stay fully in character as this specific person:`,
-    formatPersonaBlock(),
+    formatPersonaBlock(resolveElevatorListener(instance?.listenerPersonaId)),
     `## What the student knows about you
 ${disclosureInstruction(knowledge)}
 The student may not know who you are. Do NOT volunteer your role, your priorities or your interests unprompted at the blind level; answer naturally if asked.`,
@@ -137,7 +124,7 @@ export type ElevatorEvaluationContext = {
   kind: "pitch-elevator";
   pitchSubject: string;
   listenerKnowledge: ListenerKnowledge | null;
-  listenerPersona: typeof ELEVATOR_LISTENER_PERSONA;
+  listenerPersona: ElevatorListenerProfile;
   firstTurnWindowSeconds: number | null;
   terminationReason: string | null;
   terminationAtSeconds: number | null;
@@ -155,11 +142,15 @@ export function buildElevatorEvaluationContext(
   const instance =
     config.instance.kind === "pitch-elevator" ? config.instance : null;
 
+  const { name, role, temperament, interests, priorities } =
+    resolveElevatorListener(instance?.listenerPersonaId);
+
   return {
     kind: "pitch-elevator",
     pitchSubject: instance?.pitchSubject ?? "",
     listenerKnowledge: instance?.listenerKnowledge ?? null,
-    listenerPersona: ELEVATOR_LISTENER_PERSONA,
+    // Only what the grader needs: never the casting fields (avatar, voice).
+    listenerPersona: { name, role, temperament, interests, priorities },
     firstTurnWindowSeconds: config.timeBudget.firstTurnWindowSeconds ?? null,
     terminationReason: null,
     terminationAtSeconds: null,

@@ -7,6 +7,7 @@ import {
   useCallback,
 } from "react";
 import { useMemoizedFn, useUnmount } from "ahooks";
+import { SessionEvent, SessionState } from "@heygen/liveavatar-web-sdk";
 import { StartAvatarRequest } from "@/types";
 import { avatarFramingStyle } from "@/lib/avatar-framing";
 import { Button } from "@heroui/button";
@@ -79,7 +80,7 @@ interface InteractiveAvatarWrapperProps {
    * OFF by default, and deliberately opt-in rather than keyed off `cleanMode`:
    * the kiosk main display and case-play both render in clean mode too, and a
    * kiosk is a large standing display where a full-length avatar is plausibly
-   * the right look. Cropping is a judgement about the SURFACE, not about the
+   * the right look. Cropping is a judgment about the SURFACE, not about the
    * avatar, so each call site states it.
    */
   applyAvatarFraming?: boolean;
@@ -90,15 +91,28 @@ interface InteractiveAvatarWrapperProps {
 }
 
 async function fetchSessionToken(config: StartAvatarRequest): Promise<string> {
-  const response = await fetch("/api/avatar/get-access-token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      avatar_id: config.avatarName,
-      voice_id: config.voice.voiceId,
-      language: config.language,
-    }),
-  });
+  // A dropped connection to our own token route is just as definitive a
+  // failure as a rejected key, and callers only act on `HeygenSessionError`.
+  // Letting the raw `TypeError` escape meant `onSessionTokenError` never
+  // fired, so every live session sat on a dead video box with no explanation.
+  let response: Response;
+  try {
+    response = await fetch("/api/avatar/get-access-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        avatar_id: config.avatarName,
+        voice_id: config.voice.voiceId,
+        language: config.language,
+      }),
+    });
+  } catch (cause) {
+    throw new HeygenSessionError(
+      "Could not reach the video interviewer service.",
+      "HEYGEN_UPSTREAM_ERROR",
+      { cause },
+    );
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throwHeygenTokenError(data);
@@ -123,9 +137,12 @@ const ActiveSession = forwardRef<
     avatarId?: string;
     onProgrammaticSpeak?: (speak: (text: string) => void) => void;
     onSessionStateChange?: (state: StreamingAvatarSessionState) => void;
+    /** The SDK could not connect; the token is spent, so the wrapper must fetch a new one. */
+    onStartFailed: (error: unknown) => void;
   }
->(({ showHistory, cleanMode, avatarId, onProgrammaticSpeak, onSessionStateChange }, ref) => {
+>(({ showHistory, cleanMode, avatarId, onProgrammaticSpeak, onSessionStateChange, onStartFailed }, ref) => {
   const {
+    sessionRef,
     startSession,
     stopAvatar,
     sessionState,
@@ -141,14 +158,25 @@ const ActiveSession = forwardRef<
   const recordedChunksRef = useRef<Blob[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const startedRef = useRef(false);
+  // Strict Mode and Fast Refresh unmount and remount in the same commit; the
+  // deferred stop below checks this so a remount keeps its session.
+  const unmountedRef = useRef(false);
 
   // Start session exactly once on mount
   useEffect(() => {
+    unmountedRef.current = false;
     if (!startedRef.current) {
       startedRef.current = true;
-      startSession();
+      // HeyGen can end the room mid-handshake (LiveKit "leave request"); left
+      // uncaught, that stranded the student on "Connecting to avatar...".
+      startSession()?.catch((error) => {
+        if (!unmountedRef.current) onStartFailed(error);
+      });
     }
-  }, [startSession]);
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, [startSession, onStartFailed]);
 
   // Notify parent of session state changes
   useEffect(() => {
@@ -236,7 +264,22 @@ const ActiveSession = forwardRef<
       speechWatcherRef.current = null;
     }
     if (isRecording) stopRecording();
-    stopAvatar();
+    const session = sessionRef.current;
+    window.setTimeout(() => {
+      if (!unmountedRef.current || !session) return;
+      if (session.state !== SessionState.CONNECTING) {
+        stopAvatar();
+        return;
+      }
+      // The SDK ignores stop() while connecting, so a session ended or left
+      // mid-connect kept running (and billing) until HeyGen reaped it.
+      const stopOnceConnected = (state: SessionState) => {
+        if (state === SessionState.CONNECTING) return;
+        session.off(SessionEvent.SESSION_STATE_CHANGED, stopOnceConnected);
+        if (state === SessionState.CONNECTED) void session.stop();
+      };
+      session.on(SessionEvent.SESSION_STATE_CHANGED, stopOnceConnected);
+    }, 0);
   });
 
   const startRecording = useMemoizedFn(() => {
@@ -396,6 +439,12 @@ const InteractiveAvatarWrapper = forwardRef<
     setSessionToken(null);
   }, []);
 
+  const handleStartFailed = useCallback((err: unknown) => {
+    console.error("Avatar session failed to connect:", err);
+    setSessionToken(null);
+    setError("The video interviewer could not connect.");
+  }, []);
+
   useImperativeHandle(
     ref,
     () => ({
@@ -485,6 +534,7 @@ const InteractiveAvatarWrapper = forwardRef<
         avatarId={applyAvatarFraming ? config.avatarName : undefined}
         onProgrammaticSpeak={onProgrammaticSpeak}
         onSessionStateChange={onSessionStateChange}
+        onStartFailed={handleStartFailed}
       />
     </StreamingAvatarProvider>
   );

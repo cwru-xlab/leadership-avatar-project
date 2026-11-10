@@ -481,7 +481,9 @@ console.log("\n5. No type-slug branching in the engine (difficult-conversation)"
     .map(({ file }) => file);
 
   const permittedTsx = new Set([
-    "app/practice/[type]/[instanceId]/page.tsx",
+    // The launcher moved here; `app/practice/[type]/[instanceId]/page.tsx` is
+    // now a two-line wrapper that re-exports it.
+    "components/practice/routes/PracticeInstancePage.tsx",
     "components/practice/ReportChrome.tsx",
   ]);
   const unexpectedTsx = typeAwareTsx.filter((f) => !permittedTsx.has(f));

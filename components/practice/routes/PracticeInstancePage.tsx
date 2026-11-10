@@ -32,6 +32,8 @@ import type { DifficultConversationInstance } from "@/lib/engine/types";
 import { useLayout } from "@/lib/layout-context";
 import { routes } from "@/lib/routes";
 import type { DifficultyBand } from "@/lib/difficult-conversation/types";
+import { disclaimerFor, PERSONA_STYLE_COPY } from "@/lib/questioned-persona/copy";
+import { isPersonaStyle } from "@/lib/questioned-persona/types";
 import type { CameraMode } from "@/lib/metrics/types";
 import type { CaseStudy, InteractionLog, StartAvatarRequest } from "@/types";
 import { Button } from "@heroui/button";
@@ -43,11 +45,14 @@ import {
   Briefcase,
   CircleAlert,
   FileChartColumn,
+  HeartHandshake,
   MessageCircleWarning,
+  Stethoscope,
   UserRound,
   Users,
 } from "lucide-react";
 import PracticeHero from "@/components/practice/PracticeHero";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -71,13 +76,19 @@ export default function PracticeInstancePage({
   const planPrefill = usePlanPrefill();
 
   const engineType = useMemo(() => getEngineType(typeSlug), [typeSlug]);
+  // Questioned-persona types (clinical communication, motivational
+  // interviewing) extend the difficult-conversation engine and reuse its
+  // whole session path; only copy, back links and the briefing differ.
+  const personaStyle = isPersonaStyle(engineType?.slug) ? engineType!.slug : null;
+  const personaCopy = isPersonaStyle(personaStyle) ? PERSONA_STYLE_COPY[personaStyle] : null;
   const isDifficultConversation =
-    engineType?.slug === "difficult-conversation";
+    engineType?.slug === "difficult-conversation" || personaStyle !== null;
 
   const [caseData, setCaseData] = useState<CaseStudy | null>(null);
   const [dcInstance, setDcInstance] =
     useState<DifficultConversationInstance | null>(null);
   const [dcTitle, setDcTitle] = useState("");
+  const [dcCanEdit, setDcCanEdit] = useState(false);
   const [difficulty, setDifficulty] = useState<DifficultyBand | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -100,18 +111,20 @@ export default function PracticeInstancePage({
       setLoading(true);
       setLoadError(null);
       try {
-        if (typeSlug === "difficult-conversation") {
+        if (typeSlug === "difficult-conversation" || isPersonaStyle(typeSlug)) {
           const res = await fetch(
-            `/api/difficult-conversation/play?id=${encodeURIComponent(instanceId)}`,
+            `/api/difficult-conversation/play?id=${encodeURIComponent(instanceId)}&type=${encodeURIComponent(typeSlug)}`,
           );
           if (!res.ok) throw new Error("Conversation not found");
           const data = (await res.json()) as {
             instance: DifficultConversationInstance;
             title: string;
+            canEdit?: boolean;
           };
           if (cancelled) return;
           setDcInstance(data.instance);
           setDcTitle(data.title);
+          setDcCanEdit(data.canEdit === true);
           setDifficulty(data.instance.difficulty);
           setCaseData(null);
         } else {
@@ -128,13 +141,13 @@ export default function PracticeInstancePage({
         console.error("Failed to load instance:", err);
         if (!cancelled) {
           setLoadError(
-            typeSlug === "difficult-conversation"
+            typeSlug === "difficult-conversation" || isPersonaStyle(typeSlug)
               ? "This conversation is not available."
               : "This scenario is not available.",
           );
           addToast({
             title:
-              typeSlug === "difficult-conversation"
+              typeSlug === "difficult-conversation" || isPersonaStyle(typeSlug)
                 ? "Failed to load conversation"
                 : "Failed to load case",
             color: "danger",
@@ -274,6 +287,47 @@ export default function PracticeInstancePage({
   }
 
   if (isDifficultConversation) {
+    // A record saved before an avatar was required loads fine but cannot
+    // start a session. Say so, and send the owner to the editor to pick one.
+    if (dcInstance && !loadError && sessionConfig && !dcAvatarConfig) {
+      return (
+        <main className="mx-auto max-w-xl px-5 py-12 text-ink">
+          <Card className="border border-line shadow-none">
+            <CardBody className="items-start gap-4 p-8">
+              <UserRound aria-hidden className="text-link" size={28} />
+              <h1 className="font-display text-2xl font-medium">
+                This conversation needs an avatar
+              </h1>
+              <p className="text-muted">
+                {dcCanEdit
+                  ? "It was saved without a character avatar, so it cannot start yet. Pick one in the editor, save, and come back."
+                  : "It was saved without a character avatar, so it cannot start yet. Its author needs to pick one."}
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {dcCanEdit && (
+                  // A real link (not a HeroUI Button, which renders
+                  // role="button"): it navigates to the editor.
+                  <Link
+                    href={routes.editCourageousConversation(instanceId)}
+                    className="inline-flex h-10 items-center rounded-xl bg-cwru-blue px-4 text-sm font-semibold text-white hover:bg-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue"
+                  >
+                    Edit and pick an avatar
+                  </Link>
+                )}
+                <Button
+                  variant="flat"
+                  onPress={() => router.push(personaStyle ? routes.practiceType(personaStyle) : routes.courageousConversations())}
+                  startContent={<ArrowLeft className="h-4 w-4" />}
+                >
+                  Back to Conversations
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        </main>
+      );
+    }
+
     if (!dcInstance || loadError || !sessionConfig || !dcAvatarConfig) {
       return (
         <main className="mx-auto max-w-4xl px-5 py-12 text-center text-ink">
@@ -281,10 +335,10 @@ export default function PracticeInstancePage({
             {loadError ?? "Conversation not found"}
           </p>
           <Button
-            onPress={() => router.push(routes.courageousConversations())}
+            onPress={() => router.push(personaStyle ? routes.practiceType(personaStyle) : routes.courageousConversations())}
             startContent={<ArrowLeft className="h-4 w-4" />}
           >
-            Back to Conversations
+            {personaCopy ? `Back to ${personaCopy.label}` : "Back to Conversations"}
           </Button>
         </main>
       );
@@ -325,8 +379,8 @@ export default function PracticeInstancePage({
           autoFinishOnAvatarEnd
           defaultReportTitle={
             dcTitle.trim()
-              ? `Courageous conversation · ${dcTitle.trim().slice(0, 60)}`
-              : "Courageous conversation"
+              ? `${personaCopy?.reportLabel ?? "Courageous conversation"} · ${dcTitle.trim().slice(0, 60)}`
+              : personaCopy?.reportLabel ?? "Courageous conversation"
           }
           sessionFinishRef={sessionFinishRef}
           sessionPanel={
@@ -359,16 +413,16 @@ export default function PracticeInstancePage({
     return (
       <div className="flex flex-col gap-6">
         <PracticeHero
-          backHref={routes.courageousConversations()}
-          backLabel="Courageous conversations"
-          description="A live conversation: they answer in character and push back, then you get a scored report."
+          backHref={personaStyle ? routes.practiceType(personaStyle) : routes.courageousConversations()}
+          backLabel={personaCopy?.label ?? "Courageous conversations"}
+          description={personaCopy?.heroDescription ?? "A live conversation: they answer in character and push back, then you get a scored report."}
           facts={[
             { icon: UserRound, label: `They: ${dcInstance.role}` },
             ...(dcInstance.studentRole ? [{ icon: Users, label: `You: ${dcInstance.studentRole}` }] : []),
             { icon: FileChartColumn, label: "Scored report" },
           ]}
-          icon={MessageCircleWarning}
-          title="Courageous conversation"
+          icon={personaStyle === "clinical-communication" ? Stethoscope : personaStyle ? HeartHandshake : MessageCircleWarning}
+          title={personaStyle && dcTitle.trim() ? dcTitle.trim() : personaCopy?.label ?? "Courageous conversation"}
         />
         <div className="flex flex-col gap-6">
           {planPrefill.info ? <ProveItBrief info={planPrefill.info} /> : null}
@@ -377,8 +431,8 @@ export default function PracticeInstancePage({
             steps={engineType.setupSteps}
             createReportOnLaunch
             progressAriaLabel="Conversation setup progress"
-            launchLabel="Start conversation"
-            onBackFromStart={() => router.push(routes.courageousConversations())}
+            launchLabel={personaStyle === "clinical-communication" ? "Start encounter" : personaStyle ? "Start session" : "Start conversation"}
+            onBackFromStart={() => router.push(personaStyle ? routes.practiceType(personaStyle) : routes.courageousConversations())}
             buildStartPayload={() => ({
               instanceId: dcInstance.conversationId,
               difficulty: effectiveDifficulty,
@@ -399,6 +453,18 @@ export default function PracticeInstancePage({
                     nav={nav}
                     title={dcTitle}
                     briefing={briefingFields}
+                  />
+                );
+              }
+              if (stepId === "persona-briefing" && personaStyle && personaCopy) {
+                return (
+                  <ConversationBriefingStep
+                    nav={nav}
+                    title={dcTitle}
+                    briefing={briefingFields}
+                    intro={personaCopy.briefingIntro}
+                    footnote={personaCopy.briefingFootnote}
+                    disclaimer={disclaimerFor(personaStyle)}
                   />
                 );
               }

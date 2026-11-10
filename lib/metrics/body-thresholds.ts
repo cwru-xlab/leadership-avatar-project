@@ -136,7 +136,7 @@ export const POSTURE_BASELINE_WINDOW_S = 20;
  * ~1.5 Hz effective. Over the 20s window that is AT MOST ~30 pose ticks
  * total — 60 was structurally unreachable, so the posture baseline could
  * never establish and `posture_drift_mean`/`posture_drift_max_s` could
- * never be emitted for ANY session, regardless of behaviour. Confirmed
+ * never be emitted for ANY session, regardless of behavior. Confirmed
  * against a real still-session recording: `handSamples` (hands shares the
  * same 1/4 schedule slot) was 209 over a 140.1s session, 1.49/s, matching
  * the 1.5 Hz derivation; that session's `postureDriftSamples` was 0 and
@@ -167,10 +167,10 @@ export const POSTURE_BASELINE_MIN_SAMPLES = 15;
  * one.
  *
  * SET FROM TWO REAL SESSIONS (12-10 Task 3) — and NOT "TUNED" in the sense
- * the rest of this file uses that word. Every constant here labelled TUNED
+ * the rest of this file uses that word. Every constant here labeled TUNED
  * was placed against an observed DISTRIBUTION across five recorded sessions
  * (12-TUNING.md). This one is placed from the SEPARATION BETWEEN TWO
- * SESSIONS, which is a much weaker evidence base, and it is labelled that way
+ * SESSIONS, which is a much weaker evidence base, and it is labeled that way
  * on purpose. 12-09 set this value to 0.25 as a REASONED BOUND with no
  * readings at all, and the bound did not hold — the honest label matters.
  *
@@ -244,7 +244,7 @@ export const POSTURE_BASELINE_MIN_SAMPLES = 15;
  * first thing to collect before touching the value", and the follow-up should
  * not keep waiting for a reading that has already been taken.
  *
- * SESSION A (12-11 Task 2, fully in frame, well centred, 108.0s): 162 pose
+ * SESSION A (12-11 Task 2, fully in frame, well centered, 108.0s): 162 pose
  * ticks, both `shoulder_line` and `forward_head` declared measured, and all
  * 162 ticks (31 baseline + 131 post-baseline, every one of the 131 scored)
  * yielded at least one usable signal. Both signals therefore cleared 0.60 by
@@ -266,7 +266,7 @@ export const POSTURE_BASELINE_MIN_SAMPLES = 15;
  *
  * WHAT WOULD ACTUALLY NARROW IT: a session that is genuinely partial at
  * BETWEEN 43% and 75% in-frame — i.e. one whose verdict DIFFERS across the
- * band — together with the user's judgement on whether it ought to have been
+ * band — together with the user's judgment on whether it ought to have been
  * scored. Still not collected. Do not describe 0.60 as well-characterised. */
 export const POSTURE_COVERAGE_MIN_RATIO = 0.6;
 
@@ -335,7 +335,7 @@ export const HANDS_COVERAGE_MIN_RATIO = 0.25;
  * real sessions ever produced a `posture_drift_mean` at all (S3: 0.358 over
  * 78 post-baseline samples; S4: 0.424 over 351 samples — see 12-TUNING.md),
  * and NEITHER was a session the user described as deliberately slumping or
- * shifting posture; both were ordinary mixed-behaviour sessions. The
+ * shifting posture; both were ordinary mixed-behavior sessions. The
  * original 0.35 value sat BELOW both of those ordinary-session means,
  * which would read a normal, non-slumping session as "shifted from the
  * opening posture" more often than not. Raised to 0.5 — comfortably above
@@ -454,7 +454,7 @@ export const POSTURE_DRIFT_SUSTAINED_S = 8;
  * TUNED (12-08 Task 2) from a NARROW real-reading gap, stated plainly
  * rather than hidden behind a confident-looking number: S1 (a session
  * explicitly run as "hands in lap, minimal movement") measured 0/min;
- * S4 (the best real proxy for ordinary behaviour available — see
+ * S4 (the best real proxy for ordinary behavior available — see
  * 12-TUNING.md) measured 4/min and must NOT read as still. 2 sits at the
  * midpoint of that 0-to-4 gap. There is no session between 0 and 4/min to
  * narrow this further. */
@@ -464,7 +464,7 @@ export const GESTURE_RATE_STILL_MAX = 2;
  * "excessive" — the high end of the same curve, read by `bandGesturing`.
  *
  * TUNED (12-08 Task 2) from four real session-wide readings: S1 0/min
- * (still), S4 4/min (ordinary-behaviour proxy), S2 9/min (a session with a
+ * (still), S4 4/min (ordinary-behavior proxy), S2 9/min (a session with a
  * real sustained arm-waving excursion the user confirmed), S3 12.2/min (a
  * short, 73.5s session — under the plan's 3-4 minute floor, weighted
  * accordingly). The calibration rule this file's header already states —
@@ -476,7 +476,7 @@ export const GESTURE_RATE_STILL_MAX = 2;
  * `excessive_gesturing` bug fix in `visual-capture.ts`'s `windowTrips`,
  * now fixed to derive from this same number). Lowered to 20 — conservatively
  * above S3's 12.2 (the highest real session-wide reading, from a session
- * the user did not describe as exhibiting excessive behaviour), while
+ * the user did not describe as exhibiting excessive behavior), while
  * staying well clear of S1/S4/S2. No session in this dataset measured a
  * session-wide rate the user DID describe as excessive — S2's arm-waving
  * excursion is real and localised, not a high SESSION-WIDE average (9/min
@@ -517,17 +517,31 @@ export const GESTURE_WINDOW_STILL_PCT = 2;
  * — the mean amplitude of events that ALREADY cleared this floor — never the
  * raw sub-threshold displacement distribution the floor itself would need to
  * be checked against. Using the post-filter mean to retune the filter would
- * be circular. Left at its original value. */
+ * be circular. Left at its original value.
+ *
+ * Applied scaled by shoulder width since the hand-matching change (see
+ * `scaledGestureAmplitudeMin`), and unscaled when no pose reading exists. That
+ * change and hand matching both move the event count underneath the
+ * `GESTURE_RATE_*` bands, which were tuned on the old counts: the sort-order swap
+ * the old list-index loop misread as two events is gone. Expect lower rates. The
+ * size of that shift is unmeasured until real sessions are re-recorded. */
 export const GESTURE_AMPLITUDE_MIN = 0.08;
 
-/** Normalized-image-space radius around the face centre within which a hand
+/** Normalized-image-space radius around the face center within which a hand
  * landmark counts as "near the face" for the hands-near-face signal.
  *
  * NOT RE-TUNED (12-08 Task 2): no session dump captured the raw
  * hand-to-face distance distribution this radius would need to be checked
  * against — only the downstream `hands_near_face_pct` aggregate (which
  * `HANDS_NEAR_FACE_TRIP_PCT` below WAS tuned from). Left at its original
- * value. */
+ * value.
+ *
+ * NOT scaled to body size, unlike `GESTURE_AMPLITUDE_MIN`, and that is a decision.
+ * A fixed margin does read wider relative to a small, distant face, so this is a
+ * real weakness. But this signal is scored, and `HANDS_NEAR_FACE_TRIP_PCT` was tuned
+ * from sessions measured with exactly this wrist-to-expanded-box test, so changing
+ * it without a re-recording would silently invalidate those bands. The new
+ * fingertip reading lives beside it (`fingertipToLipRatio`), not in place of it. */
 export const HANDS_NEAR_FACE_RADIUS = 0.15;
 
 /** Percentage of processed samples with a hand inside `HANDS_NEAR_FACE_RADIUS`
@@ -536,7 +550,7 @@ export const HANDS_NEAR_FACE_RADIUS = 0.15;
  * above (REQ-50).
  *
  * TUNED (12-08 Task 2) from four real `hands_near_face_pct` readings: S1 0%
- * (still session), S4 26% (ordinary-behaviour proxy), S2 32% (a mixed
+ * (still session), S4 26% (ordinary-behavior proxy), S2 32% (a mixed
  * session), S3 71% (the ONLY session the user explicitly described as
  * deliberate face-touching — see 12-TUNING.md). The original 15 would have
  * read S4's ordinary 26% as "Frequent," which is not defensible without a
@@ -713,3 +727,186 @@ export const GESTURE_WINDOW_MIN_HAND_SAMPLES = 3;
  * `PHONE_MIN_VISIBLE_S` was checked against, not this per-window ratio.
  * Left at its original value. */
 export const PHONE_EPISODE_TRIP_PCT = 50;
+
+// --- Stable hand matching and scale-aware gesture floor.
+//
+// EVERY CONSTANT FROM HERE TO THE END OF THIS FILE IS UNTUNED. Nobody has
+// recorded a session against them. None rests on a measured distribution; each
+// is geometric reasoning about a typical webcam frame, and synthetic landmark
+// fixtures (`scripts/verify-hand-mouth-signals.ts`) are the only thing that has
+// exercised them. That is why every descriptive signal below stays out of every
+// score, and `12-TUNING.md`'s "Untuned" section records the same.
+
+/** Added to a wrist-distance match cost when two hands carry opposite
+ * handedness labels. A penalty, not a veto: the label flips on stationary hands.
+ * UNTUNED. Half of `HAND_MATCH_MAX_COST`, so opposite labels only match when the
+ * wrists are genuinely close. */
+export const HAND_MATCH_HANDEDNESS_PENALTY = 0.25;
+
+/** Maximum match cost (normalized image units) for two readings to count as one
+ * hand across one hands tick (about 0.67 s). UNTUNED. Half a frame width: a fast
+ * real gesture stays inside it, one hand leaving as the other enters does not. */
+export const HAND_MATCH_MAX_COST = 0.5;
+
+/** The shoulder width at which `GESTURE_AMPLITUDE_MIN` applies unscaled. UNTUNED,
+ * and the weakest number here: no session dump recorded raw shoulder width, so
+ * this is an estimate of a seated head-and-shoulders frame at laptop distance,
+ * not the width the rate bands were actually tuned at. */
+export const GESTURE_REFERENCE_SHOULDER_WIDTH = 0.4;
+
+/** Lower clamp on the gesture-floor scale. UNTUNED. Deliberately narrow, along
+ * with the upper clamp: `GESTURE_RATE_*` were tuned downstream of an unscaled
+ * floor, and these keep a wrong reference from moving those bands far. */
+export const GESTURE_AMPLITUDE_SCALE_MIN = 0.6;
+
+/** Upper clamp on the gesture-floor scale. UNTUNED. See the lower clamp. */
+export const GESTURE_AMPLITUDE_SCALE_MAX = 1.6;
+
+// --- Finger state from joint geometry. Angles are in degrees; reach is
+// wrist-to-fingertip distance over wrist-to-knuckle distance. All scale- and
+// rotation-invariant by construction.
+
+/** A finger counts as extended only at or above this middle-joint angle (180 is
+ * dead straight). UNTUNED. Set high so a relaxed, slightly bent finger does not
+ * count. */
+export const FINGER_EXTENDED_PIP_MIN_DEG = 155;
+
+/** The same test at the joint nearer the tip. UNTUNED. Lower than the PIP floor:
+ * this joint rests slightly bent even on a straight finger. */
+export const FINGER_EXTENDED_DIP_MIN_DEG = 145;
+
+/** An extended finger's tip must reach at least this many palm lengths from the
+ * wrist. UNTUNED. Rejects a straight finger folded down at the knuckle. */
+export const FINGER_EXTENDED_REACH_MIN = 1.5;
+
+/** A finger counts as curled at or below this middle-joint angle. UNTUNED. The
+ * gap up to `FINGER_EXTENDED_PIP_MIN_DEG` is deliberately "ambiguous", which
+ * never matches. */
+export const FINGER_CURLED_PIP_MAX_DEG = 115;
+
+/** A finger also counts as curled when its tip sits within this many palm lengths
+ * of the wrist, whatever the joint angles report. UNTUNED. Catches a tightly
+ * folded finger whose joints are too bunched to read a clean angle from. */
+export const FINGER_CURLED_REACH_MAX = 1.05;
+
+/** Consecutive hands ticks (about 0.67 s apart) the shape must hold. UNTUNED.
+ * Two ticks needs at least two matching frames, so one transitional frame cannot
+ * trigger it; a quick flash shorter than that WILL be missed at 1.5 Hz. */
+export const MIDDLE_FINGER_HOLD_TICKS = 2;
+
+/** A gap between hits longer than this breaks a streak. UNTUNED. Three hands
+ * ticks: long enough to survive a dropped tick, too long to imply a held shape. */
+export const MIDDLE_FINGER_MAX_TICK_GAP_S = 2;
+
+/** Two runs closer than this are reported as one. UNTUNED. */
+export const MIDDLE_FINGER_MERGE_GAP_S = 5;
+
+// --- Hand to mouth. Ratios are nearest-fingertip-to-lip-center distance over the
+// distance between the outer eye corners (see the worker's face runner).
+
+/** A hand arrives at the mouth at or below this ratio. UNTUNED. Anatomically
+ * about the mouth's own half-width plus a margin; the nose and chin sit near or
+ * beyond it, so touching either may or may not trip. */
+export const HAND_AT_MOUTH_ENTER_RATIO = 0.45;
+
+/** A hand has left the mouth above this ratio. UNTUNED. Wider than the arrival
+ * ratio on purpose: this hysteresis keeps a resting hand as one event. */
+export const HAND_AT_MOUTH_EXIT_RATIO = 0.75;
+
+/** Arrivals needed before any of it is reported as repeated. UNTUNED. Three rules
+ * out a single sip, or a sip and a scratch. Sipping steadily through a session
+ * still reaches it, which is one reason this signal stays descriptive. */
+export const HAND_AT_MOUTH_REPEAT_MIN_EVENTS = 3;
+
+/** A longer gap between arrivals starts a new run. UNTUNED. */
+export const HAND_AT_MOUTH_REPEAT_MAX_GAP_S = 45;
+
+/** How old a mouth reading may be and still anchor a hands tick. UNTUNED. A hand
+ * over the mouth can cost the face tracker the face, which is the exact moment
+ * this signal needs its last known position. One second is about three face
+ * ticks. */
+export const MOUTH_READING_MAX_AGE_MS = 1000;
+
+// --- Mouth movement while not speaking. See `stepMouthMovement` for why this is
+// movement ENERGY and can never be read as a chewing rhythm.
+
+/** Mean absolute `jawOpen` change per 3 Hz face tick above which a window trips.
+ * UNTUNED. No distribution exists for resting, listening, smiling or chewing, so
+ * this is only an estimate that it clears landmark jitter. */
+export const MOUTH_MOVEMENT_ENERGY_TRIP = 0.04;
+
+/** Eligible jaw deltas a 5 s window needs before it can trip. UNTUNED. About half
+ * of the 15 a window can hold at 3 Hz, so a window that is mostly speech or
+ * missing face cannot trip on a few ticks. */
+export const MOUTH_MOVEMENT_WINDOW_MIN_SAMPLES = 8;
+
+/** Ticks this soon after push-to-talk releases are excluded. UNTUNED. Covers the
+ * mouth still closing at the end of a turn. */
+export const MOUTH_MOVEMENT_SPEECH_GRACE_S = 1.5;
+
+/**
+ * Ticks this soon BEFORE push-to-talk is pressed are excluded too. UNTUNED.
+ *
+ * WHY THIS EXISTS: `MOUTH_MOVEMENT_SPEECH_GRACE_S` above covers only the tail
+ * of a turn, so the gate was one-sided. A student who begins talking and then
+ * reaches for the button — ordinary behaviour, and the whole reason the signal
+ * cannot simply trust the button — had that opening speech counted as "mouth
+ * moving while NOT speaking", which is the one thing this signal claims to
+ * measure. `stepMouthMovement`'s own doc comment recorded the hole ("Speech
+ * begun before the button is pressed cannot be excluded this way and will read
+ * as movement") without closing it.
+ *
+ * Deliberately EQUAL to the trailing grace: nothing measured argues for either
+ * edge being wider, and a matched pair is the honest default when a signal is
+ * symmetric in principle. Costs `stepMouthMovement` a retroactive buffer —
+ * no streaming gate can know a button press is coming.
+ */
+export const MOUTH_MOVEMENT_SPEECH_LEAD_S = 1.5;
+
+
+// --- Whether either descriptive signal was really measured this session. These
+// decide the `not_measured` vocabulary, so they decide what the evaluator is told.
+
+/** The hands model must have run on at least this share of its expected ticks.
+ * UNTUNED. Half, because a stalled model has not really looked. Deliberately NOT
+ * `HANDS_COVERAGE_MIN_RATIO`, which requires hands DETECTED on 25% of ticks and
+ * would drop exactly the session this exists for: hands seen only when raised. */
+export const CONDUCT_MODEL_COVERAGE_MIN_RATIO = 0.5;
+
+/** Hands ticks with a hand in frame needed to say hands were looked at at all.
+ * UNTUNED. A session with hands entirely below the frame declares these signals
+ * not measured rather than implying nothing happened. */
+export const CONDUCT_MIN_HAND_TICKS = 3;
+
+// --- Supporting evidence only, from the existing object detector. Never a signal
+// of its own: a cup on a desk says nothing.
+
+/** COCO labels in `efficientdet_lite0` that read as food or drink. Hand-held
+ * berries are too small and not a class at all. */
+export const FOOD_DRINK_LABELS: readonly string[] = [
+  "bottle",
+  "wine glass",
+  "cup",
+  "fork",
+  "knife",
+  "spoon",
+  "bowl",
+  "banana",
+  "apple",
+  "sandwich",
+  "orange",
+  "broccoli",
+  "carrot",
+  "hot dog",
+  "pizza",
+  "donut",
+  "cake",
+];
+
+/** Detector confidence for those labels. UNTUNED. The same value the model-side
+ * filter already applies, so this adds no inference and no new tail. */
+export const FOOD_DRINK_SCORE_THRESHOLD = 0.5;
+
+/** Seconds of visibility below which the item is not reported. UNTUNED. Two object
+ * ticks at 0.5 Hz, so one false detection never reports. */
+export const FOOD_DRINK_MIN_VISIBLE_S = 4;

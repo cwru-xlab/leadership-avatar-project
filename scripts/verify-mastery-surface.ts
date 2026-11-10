@@ -47,6 +47,10 @@ function blankCompetency(
     competencyKey: key,
     lifetimePercent: null,
     currentPercent: null,
+    lifetimeObservedPercent: null,
+    currentObservedPercent: null,
+    lifetimeRange: null,
+    currentRange: null,
     lifetimeEvidenceCount: 0,
     currentEvidenceCount: 0,
     lifetimeWeightSum: 0,
@@ -69,6 +73,8 @@ function resultWith(
     competencies,
     overallLifetimePercent: null,
     overallCurrentPercent: null,
+    overallLifetimeEvidence: { count: 0, weightSum: 0 },
+    overallCurrentEvidence: { count: 0, weightSum: 0 },
     windowStart: new Date(NOW.getTime() - 30 * 24 * 60 * 60 * 1000),
     windowDays: 30,
     unmappedRowCount: 0,
@@ -85,8 +91,8 @@ console.log("1. DTO COMPLETENESS");
   // competency is the all-null one.
   const tierShapes: Array<{ count: number; weightSum: number; percent: number }> = [
     { count: 0, weightSum: 0, percent: 0 }, // NONE — percent unused, forced null below
-    { count: 1, weightSum: 1.0, percent: 50 }, // THIN (< 2.0)
-    { count: 4, weightSum: 4.0, percent: 60 }, // EMERGING (>= 2.0, < 6.0)
+    { count: 1, weightSum: 1.0, percent: 50 }, // THIN (< 3.0)
+    { count: 4, weightSum: 4.0, percent: 60 }, // EMERGING (>= 3.0, < 6.0)
     { count: 7, weightSum: 7.0, percent: 75 }, // ESTABLISHED (>= 6.0)
   ];
 
@@ -367,7 +373,7 @@ console.log("\n5b. STUDY PLANS + PATHS NAV (Phase 23)");
         issues.push(`no studentNavItems entry with href '${href}'`);
         continue;
       }
-      if (entry.label !== label) issues.push(`'${href}' is labelled '${entry.label}', expected '${label}'`);
+      if (entry.label !== label) issues.push(`'${href}' is labeled '${entry.label}', expected '${label}'`);
       if (!new RegExp(`\\b${entry.icon}\\b`).test(iconMapBlock)) {
         issues.push(`icon '${entry.icon}' for '${href}' is not a key in auth-navbar's iconMap block`);
       }
@@ -485,14 +491,14 @@ console.log("\n8. GROWTH FIELDS: sources, trend, drivers, recent growth");
   const dto = toMasteryDTO(result, { activityLinks: links });
   const a = dto.competencies.find((c) => c.competencyKey === KEY_A)!;
 
-  check("every competency carries 3 labelled sources", dto.competencies.every((c) => c.sources.length === 3 && c.sources.every((x) => x.label.length > 0)));
+  check("every competency carries 3 labeled sources", dto.competencies.every((c) => c.sources.length === 3 && c.sources.every((x) => x.label.length > 0)));
   check(
     "sources split live vs path (live | check, coached)",
     a.sources.map((x) => `${x.origin}:${x.group}`).join() === "live:live,check:path,coached:path"
   );
   check("live source counts 2 lifetime, check counts 1", a.sources[0].lifetime.evidenceCount === 2 && a.sources[1].lifetime.evidenceCount === 1);
   check("trend points carry ISO strings, last one ends at now", a.trend.length > 0 && a.trend[a.trend.length - 1].endsAt === NOW.toISOString());
-  check("windowChange carries the pre-window figure (25) and a delta", a.windowChange.startPercent === 25 && a.windowChange.delta !== null);
+  check("windowChange carries the pre-window figure (25% row, estimate 41.7) and a delta", a.windowChange.startPercent === 41.7 && a.windowChange.delta !== null);
   const repDriver = a.drivers.find((d) => d.href === "/practice/case-study/report/rep-1");
   check("a resolved driver gets its href and activity label", repDriver?.activityLabel === "Case study session");
   const checkDriver = a.drivers.find((d) => d.origin === "check");

@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
       cameraMode,
       interviewerAvatarId,
       interviewerName,
+      technicalSelection,
       resumeId,
       resumeText,
       jobDescriptionId,
@@ -53,6 +54,7 @@ export async function POST(request: NextRequest) {
       language,
       timeBudgetOverrideSeconds,
       difficulty,
+      problemFamily,
     } = body as Record<string, unknown>;
 
     if (typeof typeSlug !== "string" || !typeSlug) {
@@ -73,6 +75,7 @@ export async function POST(request: NextRequest) {
       cameraModeRequest: cameraMode,
       interviewerAvatarId,
       interviewerName,
+      technicalSelection,
       resumeId,
       resumeText,
       jobDescriptionId,
@@ -80,6 +83,7 @@ export async function POST(request: NextRequest) {
       language,
       timeBudgetOverrideSeconds,
       difficulty,
+      problemFamily,
     });
 
     if (!result.ok) {
@@ -96,6 +100,9 @@ export async function POST(request: NextRequest) {
     }
     if (result.timeBudgetSeconds != null) {
       payload.timeBudgetSeconds = result.timeBudgetSeconds;
+    }
+    if (result.listener) {
+      payload.listener = result.listener;
     }
 
     return response(payload, 200);

@@ -47,11 +47,11 @@ const FIRM_NOT_HOSTILE: CorpusRow[] = [
   // improvement plan with dates."
   {
     text: "Your performance has been unacceptable and this is your final warning.",
-    why: "confront-low-performer: the brief's named example, judgement of PERFORMANCE — must never trip",
+    why: "confront-low-performer: the brief's named example, judgment of PERFORMANCE — must never trip",
   },
   {
     text: "You missed two deadlines this quarter. That is the problem on the table.",
-    why: "confront-low-performer: judgement of WORK/RESULT, not the person",
+    why: "confront-low-performer: judgment of WORK/RESULT, not the person",
   },
   {
     text: "I need a written plan with dates before you leave this room.",
@@ -65,7 +65,7 @@ const FIRM_NOT_HOSTILE: CorpusRow[] = [
   // fire-team-member — "Deliver the decision clearly, do not negotiate it..."
   {
     text: "I am ending your employment. Your last day is two weeks from today.",
-    why: "fire-team-member: judgement about the DECISION/POSITION, delivered clearly but not hostile",
+    why: "fire-team-member: judgment about the DECISION/POSITION, delivered clearly but not hostile",
   },
   {
     text: "This decision is final and it is not up for negotiation today.",
@@ -73,7 +73,7 @@ const FIRM_NOT_HOSTILE: CorpusRow[] = [
   },
   {
     text: "You were on a documented performance plan and two checkpoints were missed.",
-    why: "fire-team-member: judgement of WORK/RESULT recounted factually",
+    why: "fire-team-member: judgment of WORK/RESULT recounted factually",
   },
   {
     text: "I understand this is hard to hear, but the decision stands.",
@@ -102,7 +102,7 @@ const FIRM_NOT_HOSTILE: CorpusRow[] = [
   },
   {
     text: "The rubric row was ambiguous and I want a written explanation, not a brush-off about effort.",
-    why: "challenge-grade: judgement of the RUBRIC/PROCESS, not the person",
+    why: "challenge-grade: judgment of the RUBRIC/PROCESS, not the person",
   },
   {
     text: "I will escalate this to the department if we cannot agree a resolution.",
@@ -117,7 +117,7 @@ const FIRM_NOT_HOSTILE: CorpusRow[] = [
   },
   {
     text: "Two dependency vendors slipped and that pushed our estimate out six weeks.",
-    why: "deliver-bad-news-client: judgement of the SITUATION/RESULT, not the client",
+    why: "deliver-bad-news-client: judgment of the SITUATION/RESULT, not the client",
   },
   {
     text: "I need a credible explanation of what changed before I can accept a soft apology.",
@@ -128,7 +128,7 @@ const FIRM_NOT_HOSTILE: CorpusRow[] = [
   // forward."
   {
     text: "Presenting our team's analysis as your own in the forum was not accurate, and I need that corrected going forward.",
-    why: "peer-conflict: judgement of an ACTION/RESULT, not a name-calling attack on the peer",
+    why: "peer-conflict: judgment of an ACTION/RESULT, not a name-calling attack on the peer",
   },
   {
     text: "I need an explicit agreement about attribution before the next shared deliverable.",

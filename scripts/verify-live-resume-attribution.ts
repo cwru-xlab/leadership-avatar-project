@@ -9,6 +9,8 @@
  * check ensures the chat route's builder sees the same prompt.
  */
 import { resolveAttemptLanguage } from "../lib/languages";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { resolveSessionConfig } from "../lib/engine/resolve";
 import { assembleSystemPrompt } from "../lib/engine/prompts";
 import { buildInterviewSystemPrompt } from "../lib/interview/prompts";
@@ -111,6 +113,53 @@ console.log("\n2. Prompt without a resume");
       resumeText: "",
       language: LANGUAGE,
     }),
+  );
+}
+
+/**
+ * 4. The in-session privacy line is a claim, so it may only appear when it is
+ *    true.
+ *
+ * `PracticeTypePage` passes `resumeText=""` for pitches and networking, and
+ * the instance launcher (courageous conversations) passes none at all. The
+ * sentence "Your resume is used only to personalize this practice interview"
+ * was nevertheless rendered unconditionally, telling students a file was in
+ * use in sessions that never collect one (U3).
+ *
+ * Guarded at source because the sentence lives in JSX with no prompt or DTO
+ * behind it: nothing else in this suite would notice it going ungated again.
+ */
+console.log("\n4. The resume privacy line only renders with a resume");
+{
+  const shell = readFileSync(
+    join(__dirname, "..", "components", "practice", "PracticeSessionShell.tsx"),
+    "utf8",
+  );
+  const claim = "Your resume is used only to personalize this practice interview.";
+  const claimIndex = shell.indexOf(claim);
+
+  check("the shell still carries the privacy line", claimIndex !== -1);
+
+  if (claimIndex !== -1) {
+    // The gate must be the resume itself, in the 400 characters before the
+    // sentence — close enough to be the condition that renders it.
+    const preceding = shell.slice(Math.max(0, claimIndex - 400), claimIndex);
+
+    check(
+      "the line is gated on resumeText rather than rendered unconditionally",
+      /resumeText\.trim\(\)\s*\?/.test(preceding),
+      "expected a `resumeText.trim() ?` gate immediately before the sentence",
+    );
+  }
+
+  // Bite proof: the gate check must fail on the pre-fix, ungated markup.
+  const ungated = `{answerControlsSupplement}\n<p className="mt-3">${claim}</p>`;
+  const ungatedIndex = ungated.indexOf(claim);
+  check(
+    "bite-proof: the ungated original would be caught",
+    !/resumeText\.trim\(\)\s*\?/.test(
+      ungated.slice(Math.max(0, ungatedIndex - 400), ungatedIndex),
+    ),
   );
 }
 

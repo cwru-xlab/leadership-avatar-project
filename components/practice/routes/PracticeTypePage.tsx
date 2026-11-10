@@ -86,7 +86,6 @@ import { resolveSessionConfig } from "@/lib/engine/resolve";
 import { useLayout } from "@/lib/layout-context";
 import { routes } from "@/lib/routes";
 import { getNetworkingCharacter } from "@/lib/networking/characters";
-import { ELEVATOR_LISTENER_PERSONA } from "@/lib/pitch/elevator-prompts";
 import { proposeDeckSeconds } from "@/lib/pitch/session-length";
 import {
   getDeckMode,
@@ -113,15 +112,7 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
   const isPitch = isPitchElevator || isDeckMode;
   const isNetworking = engineType?.slug === "networking";
   const authoredInWizard = Boolean(engineType?.instance.authoredInWizard);
-  // All five deck modes declare the shared Phase 13 `interviewer` step
-  // (InterviewerStep); pitch-elevator declares none and still depends on
-  // the auto-pick fallback below. No slug comparison — a generic read of
-  // the registered type's own setupSteps.
-  const declaresInterviewerStep = Boolean(
-    engineType?.setupSteps.some((step) => step.id === "interviewer"),
-  );
-
-  // Read-once-then-clear handoff from the picker (see app/interview/page.tsx),
+  // Read-once-then-clear handoff from the customize page (components/interview/InterviewCustomizePage.tsx),
   // guarded by a ref so React strict-mode's double-invoke of the mount effect
   // cannot read (and clear) the key twice. A parse failure is treated exactly
   // as absence — the wizard degrades to the preset's own defaults.
@@ -198,6 +189,11 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
   const [pitchSubject, setPitchSubject] = useState("");
   const [listenerKnowledge, setListenerKnowledge] =
     useState<ListenerKnowledge | null>(null);
+  // Set from the start response. Null at `blind`, where the student meets the
+  // listener cold, and until a session has started.
+  const [drawnListenerName, setDrawnListenerName] = useState<string | null>(
+    null,
+  );
 
   // Deck-mode wizard state, shared by all five modes — keys match
   // setupSteps; fair band is server-only. `deckUpload` and `sessionLength`
@@ -443,40 +439,6 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
     }
   }, [planPrefill.info, typeSlug]);
 
-  // Fallback auto-pick for a pitch type that declares NO `interviewer` step
-  // (today, only pitch-elevator — its type record is read-only this phase
-  // and the session render gate below requires `selectedInterviewer`, so it
-  // cannot start without this). Every type that DOES declare the step
-  // (all five deck modes) is owned entirely by InterviewerStep, which does
-  // strictly more than this effect: same catalog fetch, same
-  // interviewers[0] default, PLUS it surfaces a catalog error that this
-  // effect silently swallows. Gated generically on the declared steps, no
-  // slug, so for no single type are both selection paths live.
-  useEffect(() => {
-    if (!isPitch || declaresInterviewerStep || selectedInterviewer) return;
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const response = await fetch("/api/interview/interviewers", {
-          cache: "no-store",
-        });
-        const data = (await response.json().catch(() => ({}))) as {
-          interviewers?: InterviewerOption[];
-        };
-
-        if (cancelled || !data.interviewers?.length) return;
-        setSelectedInterviewer(data.interviewers[0]);
-      } catch {
-        // Session can still run typed-only if the catalog is unavailable.
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isPitch, declaresInterviewerStep, selectedInterviewer]);
-
   useEffect(() => {
     setFullScreen(phase === "session");
 
@@ -546,9 +508,7 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
   // name. Adding the avatar picker changes which FACE and VOICE play the
   // listener, never who the listener is (Phase 14 behavior unchanged).
   const listenerDisplayName = isPitchElevator
-    ? listenerKnowledge === "blind"
-      ? "Your listener"
-      : ELEVATOR_LISTENER_PERSONA.name
+    ? (drawnListenerName ?? "Your listener")
     : isDeckMode && deckMode
       ? deckMode.listenerDisplayName
       : isNetworking
@@ -838,6 +798,9 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
 
             return {
               customization: storedCustomization,
+              ...(storedCustomization?.problemFamily
+                ? { problemFamily: storedCustomization.problemFamily }
+                : {}),
               interviewerAvatarId: selectedInterviewer?.avatarId,
               interviewerName:
                 storedCustomization?.personaDisplayName?.trim() ||
@@ -944,6 +907,7 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
                 <ListenerKnowledgeStep
                   listenerKnowledge={listenerKnowledge}
                   nav={nav}
+                  pitchSubject={pitchSubject}
                   onSelect={setListenerKnowledge}
                 />
               );
@@ -1027,6 +991,7 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
                   industry={interviewType.defaultIndustry}
                   interviewerName={listenerDisplayName || "Your interviewer"}
                   nav={nav}
+                  problemBriefing={engineType.problemInterview?.briefing ?? null}
                   roleTitle={interviewType.defaultRoleTitle}
                 />
               );
@@ -1041,7 +1006,19 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
             reportId: launchedId,
             cameraMode: locked,
             timeBudgetSeconds: launchedBudget,
+            listener,
           }) => {
+            // Elevator has no interviewer step: the server cast this session
+            // (lib/pitch/elevator-personas.ts), so face and voice come from it.
+            if (listener) {
+              setDrawnListenerName(listener.name);
+              setSelectedInterviewer({
+                avatarId: listener.avatarId,
+                name: listener.name ?? "Your listener",
+                previewUrl: null,
+                voice: { id: listener.voiceId, name: "" },
+              });
+            }
             setReportId(launchedId);
             planPrefill.linkReport(launchedId);
             setCameraMode(locked);

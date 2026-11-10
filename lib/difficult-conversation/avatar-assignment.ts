@@ -1,264 +1,117 @@
 /**
- * Deterministic avatar assignment for seeded difficult conversations.
+ * Avatar assignment for seeded difficult conversations.
  *
- * Seeded records deliberately leave `avatarId` / `voiceId` empty and resolve
- * them at session-start (or verification) time against the live ACTIVE HeyGen
- * LiveAvatar catalog. Hardcoding an id would silently break when the account's
- * catalog churns — the same failure class `/api/interview/interviewers` exists
- * to filter against.
+ * Seeded records deliberately leave `avatarId` / `voiceId` empty. They are
+ * filled here at resolve time (play, session start and grading all call
+ * `resolveDifficultConversationInstance`) from the pinned stock cast in
+ * `SEEDED_COUNTERPART_CAST`, checked against the same filtered, cached catalog
+ * the interviewer picker renders (`lib/interview/avatar-catalog.ts`). Nothing
+ * is written anywhere, so changing the cast changes every student's next
+ * session; reports already taken keep the avatar their snapshot recorded.
  *
- * Filtering criteria mirror `app/api/interview/interviewers/route.ts`
- * (ACTIVE, non-expired, paired default_voice). The filter lives here rather
- * than being extracted from that route so Phase 15 parallel waves do not edit
- * the interviewers endpoint; keep the two in sync if either changes.
+ * NEVER A FACULTY FACE. The account's custom avatars are likenesses of real
+ * Weatherhead faculty. Neither the cast nor any fallback below may pick one:
+ * fallbacks draw only from the seated public roster (`lib/avatar-roster.ts`).
+ * Authored conversations never come through here; they keep the avatar the
+ * student picked, faculty included.
  *
- * Voice pairing: always return the chosen avatar's OWN `default_voice.id`.
- * Never cross-pair — same discipline as `CaseAvatar` in `types/index.ts`.
+ * Voice pairing: always the chosen avatar's OWN default voice. Never
+ * cross-pair — same discipline as `CaseAvatar` in `types/index.ts`.
  */
 
 import { createHash } from "crypto";
 
-import { getHeygenApiKey, getLiveAvatarApiUrl } from "@/lib/heygen-server";
+import { SEATED_PUBLIC_AVATAR_ID_SET } from "@/lib/avatar-roster";
+import {
+  loadInterviewerCatalog,
+  type InterviewerOption,
+} from "@/lib/interview/avatar-catalog";
+import {
+  SEEDED_COUNTERPART_CAST,
+  type SeededCounterpartCast,
+} from "@/lib/difficult-conversation/seeded";
 
-export interface ActiveAvatarWithVoice {
+type CastMap = Readonly<Record<string, SeededCounterpartCast>>;
+
+export interface SeededAvatarPair {
   avatarId: string;
-  name: string;
-  /** Present on some LiveAvatar payloads; often absent on this account. */
-  gender?: string;
-  voice: {
-    id: string;
-    name: string;
-  };
+  voiceId: string;
 }
 
-interface LiveAvatarVoice {
-  id: string;
-  name: string;
-}
-
-interface LiveAvatarRecord {
-  id: string;
-  name: string;
-  status?: string;
-  is_expired?: boolean;
-  gender?: string;
-  default_voice?: LiveAvatarVoice | null;
-}
-
-/**
- * Same ACTIVE + default_voice gate as the interviewers catalog route.
- * Exported so verification can assert a resolved id is still in today's set.
- */
-export function filterActiveAvatarsWithVoices(
-  results: LiveAvatarRecord[],
-): ActiveAvatarWithVoice[] {
-  return results
-    .filter(
-      (avatar) =>
-        avatar.status === "ACTIVE" &&
-        avatar.is_expired !== true &&
-        Boolean(avatar.id) &&
-        Boolean(avatar.name) &&
-        Boolean(avatar.default_voice?.id) &&
-        Boolean(avatar.default_voice?.name),
-    )
-    .map((avatar) => ({
-      avatarId: avatar.id,
-      name: avatar.name,
-      gender:
-        typeof avatar.gender === "string" && avatar.gender.trim()
-          ? avatar.gender.trim()
-          : undefined,
-      voice: {
-        id: avatar.default_voice!.id,
-        name: avatar.default_voice!.name,
-      },
-    }));
-}
-
-/**
- * Fetches the live account catalog and returns ACTIVE avatars that have a
- * paired default voice. Throws with a diagnosable message on missing key,
- * upstream failure, or an empty usable set — never silently substitutes.
- */
-export async function fetchActiveAvatarCatalog(): Promise<
-  ActiveAvatarWithVoice[]
-> {
-  const apiKey = getHeygenApiKey();
-
-  if (!apiKey) {
-    throw new Error(
-      "Cannot resolve seeded conversation avatar: HEYGEN_API_KEY is not set on the server.",
-    );
-  }
-
-  let response: Response;
-
-  try {
-    response = await fetch(`${getLiveAvatarApiUrl()}/v1/avatars`, {
-      headers: { "X-API-KEY": apiKey },
-      cache: "no-store",
-    });
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-
-    throw new Error(
-      `Cannot resolve seeded conversation avatar: LiveAvatar catalog fetch failed (${detail}).`,
-    );
-  }
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-
-    throw new Error(
-      `Cannot resolve seeded conversation avatar: LiveAvatar catalog returned HTTP ${response.status}${
-        body ? ` — ${body.slice(0, 200)}` : ""
-      }.`,
-    );
-  }
-
-  const data = (await response.json()) as {
-    data?: { results?: LiveAvatarRecord[] };
-  };
-  const catalog = filterActiveAvatarsWithVoices(data.data?.results ?? []);
-
-  if (catalog.length === 0) {
-    throw new Error(
-      "Cannot resolve seeded conversation avatar: no ACTIVE, non-expired LiveAvatar profiles with a default_voice are available on this account.",
-    );
-  }
-
-  return catalog;
-}
-
-/** Stable non-negative index from conversationId into a catalog of `length`. */
+/** Stable non-negative index from conversationId into a list of `length`. */
 function catalogIndex(conversationId: string, length: number): number {
   const digest = createHash("sha256").update(conversationId).digest();
-  const n = digest.readUInt32BE(0);
-
-  return n % length;
+  return digest.readUInt32BE(0) % length;
 }
 
 /**
- * Soft gender match for the optional `genderHint`.
- * Prefer an API `gender` field when present; otherwise infer from the first
- * token of the display name against a small common-name set. Empty match set
- * always falls back to the full catalog — a hint, never a requirement.
- */
-function matchesGenderHint(
-  avatar: ActiveAvatarWithVoice,
-  genderHint: string,
-): boolean {
-  const hint = genderHint.trim().toLowerCase();
-
-  if (!hint) return true;
-
-  if (avatar.gender) {
-    const g = avatar.gender.toLowerCase();
-
-    return g === hint || g.startsWith(hint) || hint.startsWith(g);
-  }
-
-  const first = avatar.name.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
-
-  if (!first) return false;
-
-  // Compact set covering this account's catalog plus common English names.
-  // Extend as the live catalog grows; miss → fall back to full set upstream.
-  const FEMALE = new Set([
-    "jenny",
-    "jennifer",
-    "jessica",
-    "sarah",
-    "emily",
-    "amanda",
-    "ashley",
-    "stephanie",
-    "nicole",
-    "elizabeth",
-    "rachel",
-    "lauren",
-    "megan",
-    "anna",
-    "maria",
-    "lisa",
-    "karen",
-    "susan",
-    "helen",
-    "priya",
-    "elena",
-  ]);
-  const MALE = new Set([
-    "scott",
-    "john",
-    "michael",
-    "richard",
-    "james",
-    "robert",
-    "david",
-    "william",
-    "thomas",
-    "daniel",
-    "matthew",
-    "andrew",
-    "joseph",
-    "mark",
-    "paul",
-    "steven",
-    "kevin",
-    "brian",
-    "marcus",
-    "devon",
-  ]);
-
-  if (hint === "female" || hint === "f" || hint === "woman") {
-    return FEMALE.has(first);
-  }
-  if (hint === "male" || hint === "m" || hint === "man") {
-    return MALE.has(first);
-  }
-
-  return false;
-}
-
-/**
- * Picks a live ACTIVE avatar (+ its own paired voice) for a seeded conversation.
+ * The pure rule, separated so verification can run it against a fixed catalog.
  *
- * Deterministic: sort by avatarId, index by a stable hash of `conversationId`.
- * Same id → same pair while the catalog is unchanged. Never hardcodes an id.
+ * `catalog` is the live interviewer catalog, or null when it could not be
+ * loaded. In order:
+ * 1. The cast avatar is in the catalog: use it with its current default voice.
+ * 2. It churned out: a stock avatar of the same presentation, preferring one
+ *    no other seeded scenario is cast with, chosen by a stable hash of the id.
+ * 3. No catalog, or no stock match: the cast's own pinned pair. A catalog
+ *    outage must not stop a student starting (or a report grading); the
+ *    session's avatar error path covers a pair that truly stopped working.
+ */
+export function resolveSeededCounterpart(
+  conversationId: string,
+  catalog: readonly InterviewerOption[] | null,
+  castMap: CastMap = SEEDED_COUNTERPART_CAST,
+): SeededAvatarPair | null {
+  const cast = castMap[conversationId];
+  if (!cast) return null;
+
+  const pinned = { avatarId: cast.avatarId, voiceId: cast.voiceId };
+  if (!catalog) return pinned;
+
+  const live = catalog.find((option) => option.avatarId === cast.avatarId);
+  if (live) return { avatarId: live.avatarId, voiceId: live.voice.id };
+
+  const stock = catalog
+    .filter(
+      (option) =>
+        SEATED_PUBLIC_AVATAR_ID_SET.has(option.avatarId) &&
+        option.gender === cast.presentation,
+    )
+    .sort((a, b) => a.avatarId.localeCompare(b.avatarId));
+  const castIds = new Set(
+    Object.values(castMap).map((c) => c.avatarId),
+  );
+  const uncast = stock.filter((option) => !castIds.has(option.avatarId));
+  const pool = uncast.length ? uncast : stock;
+  if (!pool.length) return pinned;
+
+  const chosen = pool[catalogIndex(conversationId, pool.length)]!;
+  console.error("[dc-avatar] cast avatar not in catalog; substituting", {
+    conversationId,
+    missing: cast.avatarId,
+    substitute: chosen.name,
+  });
+  return { avatarId: chosen.avatarId, voiceId: chosen.voice.id };
+}
+
+/**
+ * The stock avatar (+ its own voice) that plays a seeded conversation's
+ * counterpart. Throws only for an id with no cast entry, which is a code bug.
  */
 export async function assignSeededAvatar(
   conversationId: string,
-  preference?: { genderHint?: string },
-): Promise<{ avatarId: string; voiceId: string }> {
-  if (!conversationId.trim()) {
+  castMap: CastMap = SEEDED_COUNTERPART_CAST,
+): Promise<SeededAvatarPair> {
+  const id = conversationId.trim();
+  const catalog = await loadInterviewerCatalog();
+  const pair = resolveSeededCounterpart(
+    id,
+    catalog.ok ? catalog.interviewers : null,
+    castMap,
+  );
+  if (!pair) {
     throw new Error(
-      "Cannot resolve seeded conversation avatar: conversationId is required.",
+      `Cannot resolve seeded conversation avatar: "${id}" has no entry in SEEDED_COUNTERPART_CAST.`,
     );
   }
-
-  const catalog = await fetchActiveAvatarCatalog();
-  const sorted = [...catalog].sort((a, b) =>
-    a.avatarId.localeCompare(b.avatarId),
-  );
-
-  let pool = sorted;
-  const hint = preference?.genderHint?.trim();
-
-  if (hint) {
-    const narrowed = sorted.filter((a) => matchesGenderHint(a, hint));
-
-    if (narrowed.length > 0) {
-      pool = narrowed;
-    }
-  }
-
-  const chosen = pool[catalogIndex(conversationId.trim(), pool.length)]!;
-
-  // CaseAvatar pairing discipline: avatarId and voiceId always travel as a pair
-  // from this avatar's own default_voice — never a cross-paired voice id.
-  return {
-    avatarId: chosen.avatarId,
-    voiceId: chosen.voice.id,
-  };
+  return pair;
 }
