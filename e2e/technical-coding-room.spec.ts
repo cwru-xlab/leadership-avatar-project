@@ -327,7 +327,7 @@ test.describe("technical coding room", () => {
     const cookies = await page.context().cookies();
     const headers = { cookie: cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ") };
     expect((await request.get(`/api/practice/report/${reportId}`, { headers })).status()).toBe(404);
-    expect((await request.post("/api/technical-interview/opening", { headers, data: { reportId } })).status()).toBe(404);
+    expect((await request.post("/api/technical-interview/opening", { headers, data: { reportId } })).status()).toBe(409);
     expect((await request.post("/api/technical-interview/run", { headers, data: { reportId, source: "function solve() { return 1; }", requestedTestIds: ["public-1"], idempotencyKey: "abandoned-test-0001" } })).status()).toBe(404);
     expect((await request.post("/api/practice/session/finish", { headers, data: { reportId, turns: [], progress: {}, metrics: {}, technicalCheckpoints: { version: 1, checkpoints: [] }, finalSource: "function solve() { return 1; }" } })).status()).toBe(404);
   });
