@@ -208,18 +208,20 @@ export async function authenticateUser(
     return null;
   }
 
-  // A database is optional for local UI development. Prefer a local seeded
-  // record when it exists so database-backed session creation keeps its real
-  // foreign key, then fall back to the static account only if it is unavailable.
-  // Preview remains database-backed because Vercel builds with NODE_ENV=production.
-  const localAccount =
-    process.env.NODE_ENV === "development"
-      ? LOCAL_DEVELOPMENT_ACCOUNTS[email]
-      : undefined;
+  // Static credentials are an explicit local UI-development escape hatch, not
+  // a deployment fallback. A found database user is always authoritative.
+  const normalizedEmail = email.trim().toLowerCase();
+  const localAccountsEnabled =
+    process.env.NODE_ENV === "development" &&
+    process.env.VERCEL_ENV !== "production" &&
+    process.env.ALLOW_LOCAL_STATIC_ACCOUNTS === "1";
+  const localAccount = localAccountsEnabled
+    ? LOCAL_DEVELOPMENT_ACCOUNTS[normalizedEmail]
+    : undefined;
 
   try {
     const dbUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (!dbUser) {
@@ -228,13 +230,13 @@ export async function authenticateUser(
 
     // Check if user is active
     if (!dbUser.isActive) {
-      console.log(`User ${email} is deactivated`);
+      console.log(`User ${normalizedEmail} is deactivated`);
       return null;
     }
 
     // Check if user has a password (SSO users don't)
     if (!dbUser.passwordHash) {
-      console.log(`User ${email} has no password (SSO user)`);
+      console.log(`User ${normalizedEmail} has no password (SSO user)`);
       return null;
     }
 
@@ -258,11 +260,8 @@ export async function authenticateUser(
       authProvider: authProviderToString(dbUser.authProvider),
     };
   } catch (error) {
-    // Missing local database credentials must not block the explicitly
-    // development-only accounts. Keep non-development failures unchanged.
-    if (localAccount?.password === password) {
-      return localAccount.user;
-    }
+    // A database outage must never become an authentication bypass. Static
+    // identities are available only after a successful lookup found no row.
     console.error("Database authentication error:", error);
     return null;
   }
