@@ -58,8 +58,10 @@ export interface DeckUploadStepProps {
   onChange: (deck: DeckUploadValue | null) => void;
 }
 
+// .ppt stays pickable on purpose: the server answers it with a specific
+// "re-save as .pptx or PDF" rejection instead of a silently greyed-out file.
 const ACCEPT =
-  ".pdf,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation";
+  ".pdf,.pptx,.ppt,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint";
 
 function parseErrorBody(raw: unknown): ErrorParts {
   const body = (raw && typeof raw === "object" ? raw : {}) as {

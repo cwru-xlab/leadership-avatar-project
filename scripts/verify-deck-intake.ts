@@ -20,6 +20,7 @@ const FIXTURE_NAMES = [
   "deck-one-slide.pdf",
   "deck-image-only.pdf",
   "not-a-deck.txt",
+  "legacy.ppt",
   "fake.pdf",
   "not-pptx.zip",
 ];
@@ -128,7 +129,18 @@ async function main() {
     }
   });
 
-  await section(7, "fake.pdf → corrupt-pdf with reason+fix", async () => {
+  await section(7, "legacy.ppt (OLE2) → legacy-ppt with reason+fix", async () => {
+    const result = await validateAndExtractDeck(load("legacy.ppt"));
+
+    assert(result.ok === false, "ok: false");
+    if (!result.ok) {
+      assert(result.code === "legacy-ppt", 'code: "legacy-ppt"');
+      assert(/\.ppt\b/.test(result.reason), "reason names .ppt");
+      assert(/pptx|PDF/.test(result.fix), "fix says to re-save as .pptx or PDF");
+    }
+  });
+
+  await section(8, "fake.pdf → corrupt-pdf with reason+fix", async () => {
     const result = await validateAndExtractDeck(load("fake.pdf"));
 
     assert(result.ok === false, "ok: false");
@@ -139,7 +151,7 @@ async function main() {
     }
   });
 
-  await section(8, "not-pptx.zip → corrupt-pptx with reason+fix", async () => {
+  await section(9, "not-pptx.zip → corrupt-pptx with reason+fix", async () => {
     const result = await validateAndExtractDeck(load("not-pptx.zip"));
 
     assert(result.ok === false, "ok: false");
@@ -150,7 +162,7 @@ async function main() {
     }
   });
 
-  await section(9, "empty and too-large size gates", async () => {
+  await section(10, "empty and too-large size gates", async () => {
     const empty = await validateAndExtractDeck(Buffer.alloc(0));
 
     assert(empty.ok === false && empty.code === "empty", 'zero-length → "empty"');
@@ -165,10 +177,10 @@ async function main() {
     );
   });
 
-  await section(10, "copy completeness guard for every DeckRejectionCode", async () => {
+  await section(11, "copy completeness guard for every DeckRejectionCode", async () => {
     const codes = Object.keys(DECK_REJECTIONS) as DeckRejectionCode[];
 
-    assert(codes.length === 7, "seven rejection codes");
+    assert(codes.length === 8, "eight rejection codes");
     for (const code of codes) {
       const copy = DECK_REJECTIONS[code];
 
@@ -178,7 +190,7 @@ async function main() {
     }
   });
 
-  await section(11, "no-escape-hatch guard on intake/types sources", async () => {
+  await section(12, "no-escape-hatch guard on intake/types sources", async () => {
     const intake = readFileSync(join(process.cwd(), "lib/deck/intake.ts"), "utf8");
     const types = readFileSync(join(process.cwd(), "lib/deck/types.ts"), "utf8");
     const combined = `${intake}\n${types}`;
@@ -193,7 +205,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("All eleven sections passed.");
+  console.log("All twelve sections passed.");
 }
 
 main().catch((err) => {

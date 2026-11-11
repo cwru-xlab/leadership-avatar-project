@@ -3,7 +3,7 @@
 import NextLink from "next/link";
 import { useEffect, useState } from "react";
 
-interface UpNext {
+export interface UpNext {
   planId: string;
   position: number;
   total: number;
@@ -25,21 +25,23 @@ interface PathResponse {
 }
 
 /**
- * The sidebar's "Up next in your plan" card: the newest saved plan's next
- * open step. Renders nothing when there is no plan, no path, or the path is
- * finished, so the sidebar never shows an empty promise. `refreshKey`
- * (the pathname) re-reads after a student completes a step elsewhere.
+ * The newest saved plan's next open step, or null when there is no plan, no
+ * path, or the path is finished. `refreshKey` (the pathname) re-reads after a
+ * student completes a step elsewhere.
+ *
+ * Call this once per page and pass the result to every <UpNextCard>: the
+ * navbar mounts the sidebar twice (mobile drawer + desktop), and a fetch per
+ * card doubled the plans and path requests on every navigation.
  */
-export function UpNextCard({
-  refreshKey,
-  onNavigate,
-}: {
-  refreshKey: string;
-  onNavigate?: () => void;
-}) {
+export function useUpNext(refreshKey: string, enabled: boolean): UpNext | null {
   const [upNext, setUpNext] = useState<UpNext | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setUpNext(null);
+      return;
+    }
+
     const controller = new AbortController();
 
     (async () => {
@@ -70,8 +72,22 @@ export function UpNextCard({
     })();
 
     return () => controller.abort();
-  }, [refreshKey]);
+  }, [refreshKey, enabled]);
 
+  return upNext;
+}
+
+/**
+ * The sidebar's "Up next in your plan" card. Renders nothing without a next
+ * step, so the sidebar never shows an empty promise.
+ */
+export function UpNextCard({
+  upNext,
+  onNavigate,
+}: {
+  upNext: UpNext | null;
+  onNavigate?: () => void;
+}) {
   if (!upNext) return null;
 
   const done = upNext.position - 1;
