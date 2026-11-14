@@ -175,12 +175,38 @@ reusing the pill radiogroup pattern already in `TechnicalFocusStep` (Language pi
 All three held their manner, reacted to the planted bad move (stepping-stone framing, "pick your brain",
 buzzwords) exactly as the persona says, and warmed to a field-appropriate ask. Nobody broke character.
 
+## Suggested faces (user decision 2026-11-14)
+
+Each built-in character carries `suggestedAvatar: { avatarId, presentation }`. The face/voice step
+pre-selects it; the student can still pick any face. It is a hint, not a pin:
+`pickSuggestedAvatar` uses it when it's in the live catalog. If it churned out, it falls back to a seated
+public face of the same presentation, chosen by a stable hash. If nothing matches, it returns undefined
+and the step keeps its old default, the first entry. Suggestions and fallbacks come only from the public
+roster, never a faculty likeness. The voice is always that avatar's own default voice from the catalog.
+A brought-in person keeps the old behaviour.
+
+| Character | Suggested face | Presentation |
+|---|---|---|
+| Priya Malhotra | Maya (Friendly) | female |
+| Marcus Okonkwo | Anthony Sitting | male |
+| Elena Vasquez | Marianne Sitting | female |
+| Devon Park | Ryan (Friendly) | male |
+| Amira Hassan | Sophia (Friendly) | female |
+| Harold Brennan | Dexter Lawyer | male |
+| Samuel Adeyemi | James (Friendly) | male |
+| Rosa Delgado | Anna (Friendly) | female |
+| Lena Sorensen | Ella (Friendly) | female |
+| Tomasz Kowalski | Matthew (Friendly) | male |
+| Miriam Goldberg | Hannah (Friendly) | female |
+| Keisha Robinson | Grace (Friendly) | female |
+| Farah Haddad | Natalie (Friendly) | female |
+
+All 13 ids were checked against the live catalog on 2026-11-14 (present, gender matches).
+
 ## Open questions
 
-1. Default avatar gender/age: the face step pre-selects the first catalog avatar (an older man), so
-   "Plays Rosa Delgado" shows on a male face until the student picks. Pre-existing for Priya, Elena, etc.
-   Should a built-in character carry a soft *suggested* face (not a pin) — or is student choice the point?
-2. Other fields worth adding next: attorney (law-school-bound students), UX designer, union/trades
-   leader, hospital administrator, social worker. Kept to eight now to avoid a wall of cards.
-3. The avatar step's right-hand note still says "Each interviewer uses a compatible voice profile" —
-   shared copy across all types; left as is.
+1. The pre-selected face keeps its place in the catalog order, so it often sits below the fold. The
+   sticky footer does say "Selected Anna (Friendly)". Should the suggested face move to the front of
+   the grid?
+2. The avatar step's right-hand note still says "Each interviewer uses a compatible voice profile". It's
+   shared copy across all types, so I left it as is.

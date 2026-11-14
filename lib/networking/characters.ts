@@ -11,9 +11,18 @@
  * sentences) is listed under 16-CONTEXT.md Deferred Ideas and is DEFERRED, not
  * forgotten — no record carries a difficulty / level / hardness field.
  *
- * No character pins an avatarId, voice, or previewUrl (decision 10). The
+ * No character PINS an avatar, voice, or previewUrl (decision 10). The
  * student picks face and voice from the existing Phase 2 catalog, which also
  * avoids the "pinned avatar went INACTIVE upstream" failure class.
+ *
+ * Each character does carry a `suggestedAvatar` (user decision 2026-11-14):
+ * the face step PRE-SELECTS it so Rosa Delgado is not played by an older man
+ * by default, and the student can still pick any face. It is a hint, never a
+ * pin: `pickSuggestedAvatar` checks it against the live catalog, falls back to
+ * a stock face of the same presentation when it churned out, and only then to
+ * the catalog's first entry (the old behaviour). Suggestions and fallbacks
+ * come from the seated PUBLIC roster only, never a faculty likeness. The voice
+ * is always the chosen avatar's own default voice, read from the catalog.
  *
  * Every person here is fictional (invented names, invented employers), which is
  * why no attestation applies to this path — attestation is for real-person
@@ -24,6 +33,9 @@
  * clause later without rewriting these records.
  */
 
+import type { InterviewerOption } from "@/lib/interview/avatar-catalog";
+
+import { SEATED_PUBLIC_AVATAR_ID_SET } from "@/lib/avatar-roster";
 import { MAX_PERSONA_LENGTH } from "@/lib/interview/customization";
 
 export const NETWORKING_CHARACTER_GROUPS = [
@@ -55,6 +67,16 @@ export type NetworkingCharacter = {
   group: NetworkingCharacterGroup;
   /** Grammatical continuation of "You are playing the role of: ", <= MAX_PERSONA_LENGTH. */
   persona: string;
+  /**
+   * Face pre-selected on the face/voice step — a suggestion, not a pin (see
+   * file header). `avatarId` is from the seated public roster
+   * (`lib/avatar-roster.ts`); `presentation` is the catalog's voice gender and
+   * drives the fallback when that avatar is missing or inactive.
+   */
+  suggestedAvatar: {
+    avatarId: string;
+    presentation: "female" | "male";
+  };
 };
 
 /**
@@ -77,6 +99,10 @@ const PRIYA_MALHOTRA: NetworkingCharacter = {
     "interrupt to ask so-what questions; you decide quickly whether a " +
     "conversation is worth continuing. You give short replies until the other " +
     "person offers a concrete thesis or a specific ask.",
+  suggestedAvatar: {
+    avatarId: "e2336732-dc9b-4c90-8a91-3d80f4b8dd13", // Maya (Friendly)
+    presentation: "female",
+  },
 };
 
 /**
@@ -99,6 +125,10 @@ const MARCUS_OKONKWO: NetworkingCharacter = {
     "You are warm and fast: you screen for fit within two minutes and ask what " +
     "the other person actually wants rather than waiting to be asked. You keep " +
     "the exchange brisk and redirect vague answers toward a concrete next step.",
+  suggestedAvatar: {
+    avatarId: "91342979-4c4c-44f1-bd3b-1c846d20341e", // Anthony Sitting
+    presentation: "male",
+  },
 };
 
 /**
@@ -121,6 +151,10 @@ const ELENA_VASQUEZ: NetworkingCharacter = {
     "an executive. You are courteous but genuinely short on time: you give two " +
     "sentences and wait. You warm considerably when the other person is concrete " +
     "about what they want and why they came to you specifically.",
+  suggestedAvatar: {
+    avatarId: "bf00036b-558a-44b5-b2ff-1e3cec0f4ceb", // Marianne Sitting
+    presentation: "female",
+  },
 };
 
 /**
@@ -141,6 +175,10 @@ const DEVON_PARK: NetworkingCharacter = {
     "out of school in product analytics. You are relaxed and chatty, happy to " +
     "talk shop, and you will not drive the conversation — the other person has " +
     "to. You answer openly once asked, but you rarely volunteer the next topic.",
+  suggestedAvatar: {
+    avatarId: "33333980-c9d5-40c1-a7cf-d323de265609", // Ryan (Friendly)
+    presentation: "male",
+  },
 };
 
 /**
@@ -163,6 +201,10 @@ const AMIRA_HASSAN: NetworkingCharacter = {
     "consulting. You are thoughtful: you ask why the other person is talking to " +
     "you specifically, and you linger on that question until you hear a clear " +
     "answer. You speak carefully and expect the same.",
+  suggestedAvatar: {
+    avatarId: "59bd47d1-3053-4e3d-903f-4108eb302d9a", // Sophia (Friendly)
+    presentation: "female",
+  },
 };
 
 /**
@@ -187,6 +229,10 @@ const SAMUEL_ADEYEMI: NetworkingCharacter = {
     "two-sentence answer. You open up when someone is specific about why " +
     "medicine and why your field, and you point anyone who asks to shadow " +
     "toward the hospital's formal observer process rather than promising it yourself.",
+  suggestedAvatar: {
+    avatarId: "69a246bd-1739-418d-b533-9fc578208175", // James (Friendly)
+    presentation: "male",
+  },
 };
 
 /**
@@ -211,6 +257,10 @@ const ROSA_DELGADO: NetworkingCharacter = {
     "or a lesser doctor. You ask what kind of care the other person wants to " +
     "give and who they want to give it to, and you get generous with advice " +
     "once you hear a real answer.",
+  suggestedAvatar: {
+    avatarId: "a96238c3-21e9-4eca-b4ca-3e411e4e5b6d", // Anna (Friendly)
+    presentation: "female",
+  },
 };
 
 /**
@@ -235,6 +285,10 @@ const LENA_SORENSEN: NetworkingCharacter = {
     "product easily, and you quietly test whether the other person could be " +
     "useful: you ask what they can do, not what they want to learn. You lose " +
     "interest when someone only offers compliments.",
+  suggestedAvatar: {
+    avatarId: "5bc90b6e-3fd0-4c33-8e55-22a4a9199016", // Ella (Friendly)
+    presentation: "female",
+  },
 };
 
 /**
@@ -259,6 +313,10 @@ const TOMASZ_KOWALSKI: NetworkingCharacter = {
     "actually built or tested and what went wrong, and you distrust buzzwords. " +
     "You warm up quickly when someone describes a real problem they solved, " +
     "however small.",
+  suggestedAvatar: {
+    avatarId: "9bbf0dbc-d1d4-491b-a4af-549b3715c230", // Matthew (Friendly)
+    presentation: "male",
+  },
 };
 
 /**
@@ -283,6 +341,10 @@ const MIRIAM_GOLDBERG: NetworkingCharacter = {
     "and generic enthusiasm leaves you polite but noncommittal. You get " +
     "animated when someone asks a real question about the science or explains " +
     "what they would want to learn by doing it.",
+  suggestedAvatar: {
+    avatarId: "1d91e311-781e-42ab-bcbf-07801119a67b", // Hannah (Friendly)
+    presentation: "female",
+  },
 };
 
 /**
@@ -307,6 +369,10 @@ const HAROLD_BRENNAN: NetworkingCharacter = {
     "character more than credentials. A quick transactional ask cools you; " +
     "honest curiosity about how you made hard decisions warms you, and you " +
     "test whether the other person wants a relationship or just a favor.",
+  suggestedAvatar: {
+    avatarId: "0930fd59-c8ad-434d-ad53-b391a1768720", // Dexter Lawyer
+    presentation: "male",
+  },
 };
 
 /**
@@ -330,6 +396,10 @@ const KEISHA_ROBINSON: NetworkingCharacter = {
     "thin. You listen for whether the other person cares about the mission or " +
     "wants a line on a resume, and you ask what they can offer as readily as " +
     "what they want. You are generous with people who show up for the kids.",
+  suggestedAvatar: {
+    avatarId: "8ac65921-0579-4116-abe3-fb46aafcf567", // Grace (Friendly)
+    presentation: "female",
+  },
 };
 
 /**
@@ -354,6 +424,10 @@ const FARAH_HADDAD: NetworkingCharacter = {
     "anyone a job, and you say so plainly. You light up when someone connects " +
     "their own skills to a public problem, and you know every fellowship, " +
     "internship and civil-service route by heart.",
+  suggestedAvatar: {
+    avatarId: "74f992e3-45e6-4fe4-a0b9-e93faca8d4ff", // Natalie (Friendly)
+    presentation: "female",
+  },
 };
 
 export const NETWORKING_CHARACTERS: NetworkingCharacter[] = [
@@ -388,6 +462,49 @@ export function getNetworkingCharacter(
 /** Declaration order — the picker's order. */
 export function listNetworkingCharacters(): NetworkingCharacter[] {
   return NETWORKING_CHARACTERS;
+}
+
+/** Stable non-negative index from a string into a list of `length`. */
+function stableIndex(key: string, length: number): number {
+  let hash = 0;
+
+  for (const ch of key) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+
+  return hash % length;
+}
+
+/**
+ * The face to pre-select for a built-in character, from the live catalog the
+ * face/voice step rendered. In order:
+ * 1. The suggested avatar is in the catalog: use it.
+ * 2. It churned out: a seated public face of the same presentation, chosen by
+ *    a stable hash of the character id (never a faculty likeness).
+ * 3. No match at all: undefined — the caller keeps its old default.
+ */
+export function pickSuggestedAvatar<T extends Pick<InterviewerOption, "avatarId" | "gender">>(
+  characterId: string | null | undefined,
+  catalog: readonly T[],
+): T | undefined {
+  const character = getNetworkingCharacter(characterId);
+
+  if (!character || catalog.length === 0) return undefined;
+
+  const { avatarId, presentation } = character.suggestedAvatar;
+  const exact = catalog.find((option) => option.avatarId === avatarId);
+
+  if (exact) return exact;
+
+  const stock = catalog
+    .filter(
+      (option) =>
+        SEATED_PUBLIC_AVATAR_ID_SET.has(option.avatarId) &&
+        option.gender === presentation,
+    )
+    .sort((a, b) => a.avatarId.localeCompare(b.avatarId));
+
+  return stock.length
+    ? stock[stableIndex(character.id, stock.length)]
+    : undefined;
 }
 
 // Module-scope sanity: every persona must satisfy the shared distiller contract.

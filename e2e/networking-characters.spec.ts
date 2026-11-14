@@ -10,6 +10,26 @@ const SHOTS =
   "/Users/ajabreu79/projects/leadership-avatar-wt/screenshots-2026-11-14/loop-networking-expand";
 const STUDENT = { email: "student@case.edu", password: "student123" };
 
+/** Bring the pre-selected face into view with its image loaded, then capture. */
+async function shotSelectedFace(page: Page, name: RegExp, path: string) {
+  const card = page.getByRole("button", { name }).first();
+  await expect(card).toHaveAttribute("aria-pressed", "true");
+  await card.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 160));
+  await page
+    .waitForFunction(
+      () =>
+        [...document.querySelectorAll('button[aria-pressed="true"] img')].every(
+          (img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0,
+        ),
+      undefined,
+      { timeout: 20_000 },
+    )
+    .catch(() => undefined);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path });
+}
+
 async function signIn(page: Page) {
   await page.goto("/login");
   await page.locator('input[type="email"]').fill(STUDENT.email);
@@ -70,7 +90,23 @@ test("picker shows new people, filters by field, and starts one", async ({ page 
   await expect(page.getByRole("heading", { name: /What do you want from this conversation/ })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Choose a face and voice." })).toBeVisible();
   await expect(page.getByText("Plays Rosa Delgado · Live session").first()).toBeVisible();
-  await page.screenshot({ path: `${SHOTS}/customize-step.png`, fullPage: true });
+  // Rosa suggests a female face (Anna), pre-selected but still changeable.
+  await expect(page.getByText("Selected Anna (Friendly)")).toBeVisible();
+  await shotSelectedFace(page, /Anna \(Friendly\)/, `${SHOTS}/customize-step-rosa.png`);
+  await page.getByRole("button", { name: /Maya \(Friendly\)/ }).click();
+  await expect(page.getByText("Selected Maya (Friendly)")).toBeVisible();
+});
+
+test("Harold suggests an older male face", async ({ page }) => {
+  await page.goto("/practice/networking");
+  await page.getByRole("button", { name: /Pick someone to practice with/ }).click();
+  await page.getByRole("button", { name: /Harold Brennan/ }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("Your networking goal").fill("A once-a-semester mentor check-in");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByText("Plays Harold Brennan · Live session").first()).toBeVisible();
+  await expect(page.getByText("Selected Dexter Lawyer")).toBeVisible();
+  await shotSelectedFace(page, /Dexter Lawyer/, `${SHOTS}/customize-step-harold.png`);
 });
 
 test("picker at phone width", async ({ page }) => {

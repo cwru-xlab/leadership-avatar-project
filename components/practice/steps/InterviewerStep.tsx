@@ -32,6 +32,11 @@ export interface InterviewerStepProps {
   heading?: string;
   /** Role line under each avatar's name; defaults to the interview wording. */
   roleLabel?: string;
+  /**
+   * Face to pre-select when nothing is selected yet (networking's suggested
+   * face). Returning undefined keeps the old default, the first entry.
+   */
+  pickDefault?: (interviewers: InterviewerOption[]) => InterviewerOption | undefined;
 }
 
 export default function InterviewerStep({
@@ -40,6 +45,7 @@ export default function InterviewerStep({
   onSelect,
   heading = "Choose your interviewer",
   roleLabel = "Hiring manager",
+  pickDefault,
 }: InterviewerStepProps) {
   const [interviewers, setInterviewers] = useState<InterviewerOption[]>([]);
   const [loadingInterviewers, setLoadingInterviewers] = useState(true);
@@ -62,7 +68,7 @@ export default function InterviewerStep({
         if (!isCurrent) return;
         setInterviewers(data.interviewers);
         if (!selectedInterviewerId) {
-          onSelect(data.interviewers[0]);
+          onSelect(pickDefault?.(data.interviewers) ?? data.interviewers[0]);
         }
       } catch (error) {
         if (!isCurrent) return;
