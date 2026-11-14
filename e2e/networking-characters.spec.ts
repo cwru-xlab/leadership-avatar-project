@@ -90,9 +90,25 @@ test("picker shows new people, filters by field, and starts one", async ({ page 
   await expect(page.getByRole("heading", { name: /What do you want from this conversation/ })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Choose a face and voice." })).toBeVisible();
   await expect(page.getByText("Plays Rosa Delgado · Live session").first()).toBeVisible();
-  // Rosa suggests a female face (Anna), pre-selected but still changeable.
+  // Rosa suggests a female face (Anna): first in the grid, tagged, pre-selected,
+  // visible without scrolling, and still changeable.
   await expect(page.getByText("Selected Anna (Friendly)")).toBeVisible();
-  await shotSelectedFace(page, /Anna \(Friendly\)/, `${SHOTS}/customize-step-rosa.png`);
+  const faces = page.locator("section[aria-labelledby='interviewer-heading'] .grid > button");
+  const first = faces.first();
+  await expect(first).toContainText("Anna (Friendly)");
+  await expect(first).toContainText("Suggested");
+  await expect(first).toHaveAttribute("aria-pressed", "true");
+  await expect(first).toBeInViewport();
+  await expect(page.getByText("Suggested", { exact: true })).toHaveCount(1);
+  await page.waitForFunction(
+    () => {
+      const img = document.querySelector('button[aria-pressed="true"] img') as HTMLImageElement | null;
+      return !img || (img.complete && img.naturalWidth > 0);
+    },
+    undefined,
+    { timeout: 20_000 },
+  ).catch(() => undefined);
+  await page.screenshot({ path: `${SHOTS}/customize-step-rosa.png` });
   await page.getByRole("button", { name: /Maya \(Friendly\)/ }).click();
   await expect(page.getByText("Selected Maya (Friendly)")).toBeVisible();
 });
@@ -106,6 +122,9 @@ test("Harold suggests an older male face", async ({ page }) => {
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByText("Plays Harold Brennan · Live session").first()).toBeVisible();
   await expect(page.getByText("Selected Dexter Lawyer")).toBeVisible();
+  await expect(
+    page.locator("section[aria-labelledby='interviewer-heading'] .grid > button").first(),
+  ).toContainText("Dexter Lawyer");
   await shotSelectedFace(page, /Dexter Lawyer/, `${SHOTS}/customize-step-harold.png`);
 });
 

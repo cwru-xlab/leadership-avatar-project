@@ -185,6 +185,9 @@ and the step keeps its old default, the first entry. Suggestions and fallbacks c
 roster, never a faculty likeness. The voice is always that avatar's own default voice from the catalog.
 A brought-in person keeps the old behaviour.
 
+The suggested face is listed first in the grid with a small white "Suggested" tag, so it is visible
+without scrolling (user decision 2026-11-14).
+
 | Character | Suggested face | Presentation |
 |---|---|---|
 | Priya Malhotra | Maya (Friendly) | female |
@@ -205,8 +208,5 @@ All 13 ids were checked against the live catalog on 2026-11-14 (present, gender 
 
 ## Open questions
 
-1. The pre-selected face keeps its place in the catalog order, so it often sits below the fold. The
-   sticky footer does say "Selected Anna (Friendly)". Should the suggested face move to the front of
-   the grid?
-2. The avatar step's right-hand note still says "Each interviewer uses a compatible voice profile". It's
+1. The avatar step's right-hand note still says "Each interviewer uses a compatible voice profile". It's
    shared copy across all types, so I left it as is.

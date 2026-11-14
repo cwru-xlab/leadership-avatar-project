@@ -33,10 +33,12 @@ export interface InterviewerStepProps {
   /** Role line under each avatar's name; defaults to the interview wording. */
   roleLabel?: string;
   /**
-   * Face to pre-select when nothing is selected yet (networking's suggested
-   * face). Returning undefined keeps the old default, the first entry.
+   * A suggested face (networking's built-in characters). It is pre-selected
+   * when nothing is selected yet, listed first and tagged "Suggested"; the
+   * student can still pick any face. Returning undefined keeps the old
+   * behaviour: catalog order, first entry pre-selected.
    */
-  pickDefault?: (interviewers: InterviewerOption[]) => InterviewerOption | undefined;
+  suggest?: (interviewers: InterviewerOption[]) => InterviewerOption | undefined;
 }
 
 export default function InterviewerStep({
@@ -45,7 +47,7 @@ export default function InterviewerStep({
   onSelect,
   heading = "Choose your interviewer",
   roleLabel = "Hiring manager",
-  pickDefault,
+  suggest,
 }: InterviewerStepProps) {
   const [interviewers, setInterviewers] = useState<InterviewerOption[]>([]);
   const [loadingInterviewers, setLoadingInterviewers] = useState(true);
@@ -68,7 +70,7 @@ export default function InterviewerStep({
         if (!isCurrent) return;
         setInterviewers(data.interviewers);
         if (!selectedInterviewerId) {
-          onSelect(pickDefault?.(data.interviewers) ?? data.interviewers[0]);
+          onSelect(suggest?.(data.interviewers) ?? data.interviewers[0]);
         }
       } catch (error) {
         if (!isCurrent) return;
@@ -88,6 +90,11 @@ export default function InterviewerStep({
     // Load once on mount — selection changes must not re-fetch the catalog.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const suggested = suggest?.(interviewers);
+  const ordered = suggested
+    ? [suggested, ...interviewers.filter((i) => i !== suggested)]
+    : interviewers;
 
   const selectedInterviewer = interviewers.find(
     (interviewer) => interviewer.avatarId === selectedInterviewerId,
@@ -127,7 +134,7 @@ export default function InterviewerStep({
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {interviewers.map((interviewer) => {
+            {ordered.map((interviewer) => {
               const selected = interviewer.avatarId === selectedInterviewerId;
               return (
                 <button
@@ -159,6 +166,11 @@ export default function InterviewerStep({
                         <span className="sr-only">Voice: </span>
                         {interviewer.voice.name}
                       </span>
+                      {interviewer === suggested && (
+                        <span className="mr-auto rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-cwru-blue">
+                          Suggested
+                        </span>
+                      )}
                       {selected && (
                         <span className="grid h-6 w-6 place-items-center rounded-full bg-true-blue text-white ring-2 ring-white">
                           <Check size={15} strokeWidth={3} />

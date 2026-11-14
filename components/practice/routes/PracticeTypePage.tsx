@@ -971,7 +971,7 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
                           }`,
                           // Built-in characters suggest a matching face;
                           // a brought-in person keeps the first entry.
-                          pickDefault: (options: InterviewerOption[]) =>
+                          suggest: (options: InterviewerOption[]) =>
                             pickSuggestedAvatar(networkingCharacterId, options),
                         }
                       : {})}
