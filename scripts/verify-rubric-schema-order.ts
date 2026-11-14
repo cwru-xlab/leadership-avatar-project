@@ -156,7 +156,8 @@ function instanceFor(slug: string): InstanceConfig {
         voiceId: "voice-test",
       };
     case "clinical-communication":
-    case "motivational-interviewing": {
+    case "motivational-interviewing":
+    case "sales-discovery": {
       // Questioned-persona types resolve through the difficult-conversation
       // instance plus a personaCard. The card is taken from the first seeded
       // case of that style rather than hand-written here: the rubric is built

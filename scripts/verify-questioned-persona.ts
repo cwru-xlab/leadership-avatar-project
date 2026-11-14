@@ -40,12 +40,14 @@ import { competencyForDimension } from "../lib/mastery/competencies";
 import {
   CALGARY_CAMBRIDGE_FRAMEWORK,
   MI_PROCESS_FRAMEWORK,
+  SALES_DISCOVERY_FRAMEWORK,
   frameworkForStyle,
 } from "../lib/questioned-persona/frameworks";
 import {
   CODE_DEFINITIONS,
   cleanEvidenceQuote,
   codesForStyle,
+  salesTranscriptCounts,
   countCodes,
   deriveMetrics,
   locateQuote,
@@ -78,6 +80,7 @@ import {
 } from "../lib/questioned-persona/report";
 import {
   CLINICAL_CODES,
+  SALES_CODES,
   MI_CODES,
   PERSONA_STYLES,
   isPersonaStyle,
@@ -161,6 +164,18 @@ const MI_DIMENSIONS = [
   "partnership",
   "empathy_mi",
 ];
+const SALES_DIMENSIONS = [
+  "discovery_before_pitch",
+  "active_listening_sales",
+  "needs_tailoring",
+  "objection_exploration",
+  "next_step_agreed",
+];
+const EXTRAS_BY_STYLE: Record<PersonaStyle, string[]> = {
+  "clinical-communication": CLINICAL_DIMENSIONS,
+  "motivational-interviewing": MI_DIMENSIONS,
+  "sales-discovery": SALES_DIMENSIONS,
+};
 
 // ---------------------------------------------------------------------------
 console.log("\n1. Both types are registered, resolvable and routable");
@@ -196,14 +211,11 @@ console.log("\n1. Both types are registered, resolvable and routable");
       JSON.stringify(type.setupSteps.map((s) => s.id)),
     );
 
-    const expected =
-      style === "clinical-communication"
-        ? ["visual", "vocal", "content", "behavioral", ...CLINICAL_DIMENSIONS]
-        : ["visual", "vocal", "content", "behavioral", ...MI_DIMENSIONS];
+    const expected = ["visual", "vocal", "content", "behavioral", ...EXTRAS_BY_STYLE[style]];
     const config = configFor(listPersonaCases(style)[0]!);
     const keys = config.rubricDimensions.map((d) => d.key);
     check(
-      `"${style}" rubric is the shared four plus its four extras`,
+      `"${style}" rubric is the shared four plus its own extras`,
       JSON.stringify(keys) === JSON.stringify(expected),
       `actual=${JSON.stringify(keys)}`,
     );
@@ -344,6 +356,18 @@ console.log("\n2. Every seeded case has a COMPLETE persona card");
         (card.explanationPoints ?? "").trim().length >= 60,
       );
       check(`${label}: clinical card declares no MI-only fields`, !card.targetBehavior && !card.changeTalk);
+    } else if (card.style === "sales-discovery") {
+      check(`${label}: sales card declares what is being sold`, (card.offering ?? "").trim().length >= 40);
+      check(`${label}: at least 2 buyer objections`, (card.objections ?? []).length >= 2);
+      check(
+        `${label}: declares how the buyer reacts to an early pitch`,
+        (card.pitchReactionRule ?? "").trim().length >= 80,
+      );
+      check(`${label}: declares the next step the buyer will agree to`, (card.nextStepCondition ?? "").trim().length >= 60);
+      check(
+        `${label}: sales card declares no clinical- or MI-only fields`,
+        !card.ice && !card.explanationPoints && !card.targetBehavior && !card.changeTalk,
+      );
     } else {
       check(`${label}: MI card declares a target behavior`, (card.targetBehavior ?? "").trim().length >= 15);
       check(`${label}: at least 3 change-talk lines`, (card.changeTalk ?? []).length >= 3);
@@ -422,10 +446,17 @@ console.log("\n3. Every hidden fact is REACHABLE by a documented question");
       /Never list several hidden facts at once/.test(live),
     );
     check(`${c.id}: live prompt forbids coaching`, /never coach|Never tell .* what they should ask/i.test(live));
-    check(
-      `${c.id}: live prompt forbids clinical or counseling advice`,
-      /Never give medical|never give medical/i.test(live),
-    );
+    if (card.style === "sales-discovery") {
+      check(
+        `${c.id}: live prompt makes the buyer cool off when pitched at early`,
+        /you cool down/i.test(live) && live.includes(card.pitchReactionRule ?? "\u0000"),
+      );
+    } else {
+      check(
+        `${c.id}: live prompt forbids clinical or counseling advice`,
+        /Never give medical|never give medical/i.test(live),
+      );
+    }
     check(`${c.id}: live prompt forbids acknowledging a simulation`, /Never acknowledge a simulation/.test(live));
     check(
       `${c.id}: the per-turn reminder repeats the hidden-fact rule without naming a fact`,
@@ -447,7 +478,11 @@ console.log("\n4. Step keys and behavior-code keys agree across the modules");
     check(
       `${style}: frameworkForStyle returns the declared framework`,
       framework ===
-        (style === "clinical-communication" ? CALGARY_CAMBRIDGE_FRAMEWORK : MI_PROCESS_FRAMEWORK),
+        (style === "clinical-communication"
+          ? CALGARY_CAMBRIDGE_FRAMEWORK
+          : style === "sales-discovery"
+            ? SALES_DISCOVERY_FRAMEWORK
+            : MI_PROCESS_FRAMEWORK),
     );
     check(
       `${style}: framework step keys are unique`,
@@ -483,7 +518,9 @@ console.log("\n4. Step keys and behavior-code keys agree across the modules");
     check(
       `${style}: codesForStyle matches the declared tuple`,
       JSON.stringify(codes) ===
-        JSON.stringify(style === "clinical-communication" ? CLINICAL_CODES : MI_CODES),
+        JSON.stringify(
+          style === "clinical-communication" ? CLINICAL_CODES : style === "sales-discovery" ? SALES_CODES : MI_CODES,
+        ),
     );
     const defs = CODE_DEFINITIONS[style];
     check(
@@ -573,7 +610,7 @@ console.log("\n5. The mastery catalog covers every dimension these types declare
     }
   }
   // The extras specifically — the shared four were always mapped.
-  for (const key of [...CLINICAL_DIMENSIONS, ...MI_DIMENSIONS]) {
+  for (const key of [...CLINICAL_DIMENSIONS, ...MI_DIMENSIONS, ...SALES_DIMENSIONS]) {
     check(`extra dimension "${key}" maps to a competency`, competencyForDimension(key) !== null);
   }
 }
@@ -879,7 +916,7 @@ console.log("\n8. Counts are arithmetic over the stored tags, never asked of the
   );
   check(
     "assembleAnalysis fills counts from countCodes and metrics from deriveMetrics",
-    /const counts = countCodes\(style, tagged\)/.test(analysisSrc) &&
+    /const counts = \{ \.\.\.countCodes\(style, tagged\), \.\.\.\(opts\.extraCounts \?\? \{\}\) \}/.test(analysisSrc) &&
       /metrics: deriveMetrics\(style, counts\)/.test(analysisSrc),
   );
   check(
@@ -907,11 +944,44 @@ console.log("\n8. Counts are arithmetic over the stored tags, never asked of the
     }),
   );
   check(
-    "the evaluator prompts forbid commenting on medical correctness",
-    PERSONA_STYLES.every((s) =>
+    "the clinical and MI evaluator prompts forbid commenting on medical correctness",
+    PERSONA_STYLES.filter((s) => s !== "sales-discovery").every((s) =>
       /Do NOT comment on medical correctness/.test(getEngineType(s)!.prompts.evaluatorPrompt),
     ),
   );
+  check(
+    "the sales evaluator prompt grades how the student sold, not the product",
+    /not whether the product is any good/.test(getEngineType("sales-discovery")!.prompts.evaluatorPrompt),
+  );
+
+  // Sales transcript counts: talk share and first-pitch timing are pure code.
+  {
+    const turns = [
+      { role: "user", content: "I'm ready to begin the interview." },
+      { role: "assistant", content: "Hi there." },
+      { role: "user", content: "What is hardest about discharge today?" },
+      { role: "assistant", content: "Honestly the afternoons, everything stalls after three o'clock." },
+      { role: "user", content: "Our platform fixes that." },
+    ];
+    const tagged: TaggedUtterance[] = [
+      { index: 0, text: turns[2]!.content, codes: ["open_question"] },
+      { index: 1, text: turns[4]!.content, codes: ["pitch"] },
+    ];
+    const extra = salesTranscriptCounts(turns, tagged);
+    check(
+      "salesTranscriptCounts excludes the canned opener and counts words per side",
+      extra.seller_words === 10 && extra.buyer_words === 10,
+      JSON.stringify(extra),
+    );
+    check(
+      "salesTranscriptCounts dates the first pitch and counts questions before it",
+      extra.first_pitch_turn === 2 && extra.questions_before_first_pitch === 1,
+      JSON.stringify(extra),
+    );
+    const metrics = deriveMetrics("sales-discovery", { ...countCodes("sales-discovery", tagged), ...extra });
+    const share = metrics.find((m) => m.key === "buyer_talk_share");
+    check("buyer talk share is 50% for equal words", share?.value === 50 && share.band === "fair", JSON.stringify(share));
+  }
 
   // The arithmetic itself, against the hand-coded goldens: countCodes over the
   // hand codes must reproduce the counts, and deriveMetrics must be a pure
@@ -980,7 +1050,7 @@ console.log("\n8. Counts are arithmetic over the stored tags, never asked of the
     for (const key of Object.keys(g.expectGlobals ?? {})) {
       check(
         `golden ${g.id}: expectGlobals key "${key}" is a real extra rubric dimension`,
-        (style === "motivational-interviewing" ? MI_DIMENSIONS : CLINICAL_DIMENSIONS).includes(key),
+        EXTRAS_BY_STYLE[style].includes(key),
       );
     }
     for (const key of Object.keys(g.expectCounts ?? {})) {

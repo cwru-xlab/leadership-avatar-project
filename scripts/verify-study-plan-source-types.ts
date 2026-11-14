@@ -407,11 +407,10 @@ console.log("\n8. Competency reachability — recorded, not aspirational");
    * from GLOBAL mastery, which is ungated — this is only about a plan's own
    * source evidence.
    */
-  const UNREACHABLE = [
-    "concision_and_focus",
-    "holding_position_under_pressure",
-    "outcome_achievement",
-  ] as const;
+  // AMENDED 2026-11-14: sales-discovery (eligible since it shipped) owns
+  // `objection_exploration` and `next_step_agreed`, so holding position and
+  // outcome achievement are now reachable from a plan's own sources.
+  const UNREACHABLE = ["concision_and_focus"] as const;
 
   const sharedKeys: readonly string[] = SHARED_RUBRIC_DIMENSION_KEYS;
   const reachable = (competencyKey: CompetencyKey) => {

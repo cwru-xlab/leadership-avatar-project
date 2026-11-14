@@ -685,7 +685,8 @@ console.log("\n7. Type-derived rubric schema (13-05)");
               }
             : type.slug === "difficult-conversation" ||
                 type.slug === "clinical-communication" ||
-                type.slug === "motivational-interviewing"
+                type.slug === "motivational-interviewing" ||
+                type.slug === "sales-discovery"
               ? {
                   kind: "difficult-conversation" as const,
                   conversationId: "verify-dc",
