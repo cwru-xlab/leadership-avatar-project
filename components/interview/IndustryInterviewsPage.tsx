@@ -9,13 +9,13 @@
  * `lib/interview/types.ts` appear here automatically, and presets with
  * `listed: false` (early-career) do not.
  *
- * Technical coding is the featured mode: every layout keeps it, and every other
- * option, inside the first 1440×900 viewport, and gives it the page's one
- * filled primary button. Each layout keeps the same text levels: title, one
- * line, time · level visible; "What it covers" behind a disclosure.
+ * Technical coding is easy to reach, not highlighted: it is an ordinary card in
+ * the first position of the first row, and every card stays inside the first
+ * 1440×900 viewport. Cards are compact: title, one line, time · level visible;
+ * "What it covers" behind a disclosure on the same row as the action.
  *
- * Three layouts are under review (2026-11-14). `DEFAULT_LAYOUT` (interviewPicker.ts) is what ships;
- * `?layout=featured|grouped|rows` previews the others until one is picked.
+ * Two layouts are under review (2026-11-14). `DEFAULT_LAYOUT` (interviewPicker.ts)
+ * is what ships; `?layout=grid|grouped` previews the other until one is picked.
  */
 import Link from "next/link";
 import clsx from "clsx";
@@ -24,7 +24,6 @@ import { ArrowRight, ChevronDown, Clock3, FileChartColumn, Layers, UserRound } f
 import PracticeHero from "@/components/practice/PracticeHero";
 import {
   DEFAULT_LAYOUT,
-  FEATURED_INTERVIEW_KEY,
   INTERVIEW_GROUPS,
   type InterviewLayout,
   interviewGroup,
@@ -38,8 +37,6 @@ const SPECIALIZED = orderForPicker(listSpecializedInterviews());
 
 const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue";
 const CARD = "relative rounded-lg border border-line bg-white transition-colors duration-150 ease-out hover:border-true-blue/50";
-const FEATURE_CARD =
-  "relative rounded-xl border border-true-blue/40 bg-light-blue/20 transition-colors duration-150 ease-out hover:border-true-blue";
 
 function actionWord(item: SpecializedInterview) {
   return item.customizable ? "Set up" : "Start";
@@ -113,23 +110,6 @@ function CardLink({ item }: { item: SpecializedInterview }) {
   );
 }
 
-/** The page's one filled primary, for the featured interview; its ::after also covers the card. */
-function PrimaryLink({ item }: { item: SpecializedInterview }) {
-  const action = actionWord(item);
-  return (
-    <Link
-      aria-label={`${action} ${item.title}`}
-      className={clsx(
-        "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-cwru-blue px-5 text-sm font-semibold text-white transition-colors duration-150 ease-out after:absolute after:inset-0 after:rounded-xl hover:bg-cwru-blue/90",
-        FOCUS,
-      )}
-      href={item.href}
-    >
-      {action} {item.title.toLowerCase()} <ArrowRight aria-hidden size={16} strokeWidth={2.5} />
-    </Link>
-  );
-}
-
 /** Compact card: title, one line, meta, then disclosure + action on one footer row. No dead space. */
 function CompactCard({ item, heading = "h2" }: { item: SpecializedInterview; heading?: "h2" | "h3" }) {
   const Icon = item.icon;
@@ -150,44 +130,18 @@ function CompactCard({ item, heading = "h2" }: { item: SpecializedInterview; hea
   );
 }
 
-/** B: the coding room as a wide card across the top, then a compact grid of the rest. */
-function FeaturedLayout() {
+/** Grid: seven equal compact cards, four across, the coding room first. */
+function GridLayout() {
   return (
-    <ul aria-label="Industry-specific interviews" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {SPECIALIZED.map((item) => {
-        if (item.key !== FEATURED_INTERVIEW_KEY) return <CompactCard key={item.key} item={item} />;
-        const Icon = item.icon;
-        return (
-          <li
-            key={item.key}
-            className={clsx(FEATURE_CARD, "flex flex-col gap-1 px-5 pt-5 sm:col-span-2 md:px-6 lg:col-span-3")}
-            data-interview={item.key}
-          >
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-6">
-              <div className="flex min-w-0 items-start gap-4">
-                <span className="hidden size-12 shrink-0 place-items-center rounded-xl bg-cwru-blue text-white sm:grid">
-                  <Icon aria-hidden size={24} strokeWidth={1.75} />
-                </span>
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <h2 className="flex items-center gap-2 font-display text-2xl font-medium leading-tight text-cwru-blue">
-                    <Icon aria-hidden className="shrink-0 sm:hidden" size={22} strokeWidth={1.75} />
-                    {item.title}
-                  </h2>
-                  <p className="text-[15px] leading-6 text-ink">{item.tagline}</p>
-                  <Meta item={item} />
-                </div>
-              </div>
-              <PrimaryLink item={item} />
-            </div>
-            <Covers item={item} className="sm:pl-16" />
-          </li>
-        );
-      })}
+    <ul aria-label="Industry-specific interviews" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {SPECIALIZED.map((item) => (
+        <CompactCard key={item.key} item={item} />
+      ))}
     </ul>
   );
 }
 
-/** A: grouped by field, Technical first; the coding room leads its group, two columns wide. */
+/** Grouped: a Technical row, then a Business row, all equal cards; the coding room first. */
 function GroupedLayout() {
   return (
     <div className="flex flex-col gap-6">
@@ -201,81 +155,14 @@ function GroupedLayout() {
               {group.title}
             </h2>
             <ul aria-labelledby={headingId} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {items.map((item) => {
-                if (item.key !== FEATURED_INTERVIEW_KEY) return <CompactCard key={item.key} heading="h3" item={item} />;
-                const Icon = item.icon;
-                return (
-                  <li
-                    key={item.key}
-                    className={clsx(FEATURE_CARD, "flex flex-col gap-1.5 px-5 pt-4 sm:col-span-2")}
-                    data-interview={item.key}
-                  >
-                    <h3 className="flex items-start gap-2 font-display text-[22px] font-medium leading-tight text-cwru-blue">
-                      <Icon aria-hidden className="mt-0.5 shrink-0" size={22} strokeWidth={1.75} />
-                      {item.title}
-                    </h3>
-                    <p className="text-[15px] leading-6 text-ink">{item.tagline}</p>
-                    <Meta item={item} />
-                    <div className="mt-auto flex flex-wrap-reverse items-center justify-between gap-x-3 pb-3 pt-1">
-                      <Covers item={item} className="min-w-0" />
-                      <PrimaryLink item={item} />
-                    </div>
-                  </li>
-                );
-              })}
+              {items.map((item) => (
+                <CompactCard key={item.key} heading="h3" item={item} />
+              ))}
             </ul>
           </section>
         );
       })}
     </div>
-  );
-}
-
-/** C: one compact list, the coding row first and tinted, action on the right of each row. */
-function RowsLayout() {
-  return (
-    <ul aria-label="Industry-specific interviews" className="flex flex-col gap-2">
-      {SPECIALIZED.map((item) => {
-        const Icon = item.icon;
-        const featured = item.key === FEATURED_INTERVIEW_KEY;
-        return (
-          <li
-            key={item.key}
-            className={clsx(featured ? FEATURE_CARD : CARD, "flex flex-col px-4 pt-2 sm:px-5", featured && "py-1")}
-            data-interview={item.key}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 pt-1">
-              <div className="flex min-w-0 flex-1 basis-[22rem] items-start gap-3">
-                <Icon
-                  aria-hidden
-                  className="mt-0.5 shrink-0 text-cwru-blue"
-                  size={featured ? 22 : 20}
-                  strokeWidth={1.75}
-                />
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <h2
-                    className={clsx(
-                      "font-display font-medium leading-tight text-cwru-blue",
-                      featured ? "text-[22px]" : "text-lg",
-                    )}
-                  >
-                    {item.title}
-                  </h2>
-                  <p className="text-sm leading-[1.45] text-muted">{item.tagline}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-6 pl-8 sm:pl-0">
-                <div className="w-44">
-                  <Meta item={item} />
-                </div>
-                {featured ? <PrimaryLink item={item} /> : <CardLink item={item} />}
-              </div>
-            </div>
-            <Covers item={item} className="-mt-1 pl-8" />
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 
@@ -294,7 +181,7 @@ export default function IndustryInterviewsPage({ layout = DEFAULT_LAYOUT }: { la
         title="Industry-specific interviews"
       />
 
-      {layout === "grouped" ? <GroupedLayout /> : layout === "rows" ? <RowsLayout /> : <FeaturedLayout />}
+      {layout === "grouped" ? <GroupedLayout /> : <GridLayout />}
     </div>
   );
 }

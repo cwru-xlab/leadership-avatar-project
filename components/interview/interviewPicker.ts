@@ -129,8 +129,8 @@ export function listSpecializedInterviews(): SpecializedInterview[] {
   return [...presets, CODING_INTERVIEW];
 }
 
-/** The interview the picker features first: the coding room. */
-export const FEATURED_INTERVIEW_KEY = CODING_INTERVIEW.key;
+/** The interview the picker lists first: the coding room. */
+export const FIRST_INTERVIEW_KEY = CODING_INTERVIEW.key;
 
 export type InterviewGroupKey = "technical" | "business";
 
@@ -146,17 +146,17 @@ export function interviewGroup(key: string): InterviewGroupKey {
   return TECHNICAL_KEYS.includes(key) ? "technical" : "business";
 }
 
-/** The featured interview first, then the rest in catalog order (technical before business). */
+/** The coding room first, then the rest in catalog order (technical before business). */
 export function orderForPicker(items: SpecializedInterview[]): SpecializedInterview[] {
   const rank = (item: SpecializedInterview) =>
-    item.key === FEATURED_INTERVIEW_KEY ? -1 : interviewGroup(item.key) === "technical" ? TECHNICAL_KEYS.indexOf(item.key) : 10;
+    item.key === FIRST_INTERVIEW_KEY ? -1 : interviewGroup(item.key) === "technical" ? TECHNICAL_KEYS.indexOf(item.key) : 10;
   return [...items].sort((a, b) => rank(a) - rank(b));
 }
 
 /** Picker layouts under review (2026-11-14); `?layout=` previews each. Plain module so the server page can read it. */
-export const INTERVIEW_LAYOUTS = ["featured", "grouped", "rows"] as const;
+export const INTERVIEW_LAYOUTS = ["grid", "grouped"] as const;
 export type InterviewLayout = (typeof INTERVIEW_LAYOUTS)[number];
-export const DEFAULT_LAYOUT: InterviewLayout = "featured";
+export const DEFAULT_LAYOUT: InterviewLayout = "grid";
 
 export function parseInterviewLayout(value: unknown): InterviewLayout {
   return INTERVIEW_LAYOUTS.find((option) => option === value) ?? DEFAULT_LAYOUT;
