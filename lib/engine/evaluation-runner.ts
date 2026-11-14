@@ -54,6 +54,7 @@ import type { InteractionLog, InteractionEvent } from "@/types";
 
 import { runEvaluation } from "./evaluation";
 import { validateOutcome } from "./outcome";
+import { retimeOutcomeQuotes, studentTurnTexts } from "./quote-timecodes";
 import { getEngineType } from "./registry";
 import { resolveSessionConfig } from "./resolve";
 import type {
@@ -726,15 +727,25 @@ export async function runAndPersistEvaluation({
         typeRecord?.problemInterview && snapshot?.kind === "interview"
           ? asProblemSessionSnapshot(snapshot.problem)
           : null;
+      // Quote timecodes come from the student turn each quote was found in,
+      // not the model's own [m:ss] arithmetic (see ./quote-timecodes). Runs
+      // BEFORE finalizeProblemOutcome so the hit/prompted reconciliation
+      // compares nudges against the real time of the evidence.
+      const retimedOutcome = transcriptTurns
+        ? retimeOutcomeQuotes(
+            outcome.producedOutcome,
+            studentTurnTexts(transcriptTurns, transcriptStartedAt),
+          )
+        : outcome.producedOutcome;
       const produced = problemSnapshot
         ? finalizeProblemOutcome(
-            outcome.producedOutcome,
+            retimedOutcome,
             problemSnapshot,
             typeRecord?.problemInterview?.frameworks.find(
               (f) => f.key === problemSnapshot.frameworkKey,
             ) ?? null,
           )
-        : outcome.producedOutcome;
+        : retimedOutcome;
       const storedOutcome =
         report.outcome && typeof report.outcome === "object" && !Array.isArray(report.outcome)
           ? (report.outcome as Record<string, unknown>)

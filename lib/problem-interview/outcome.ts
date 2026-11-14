@@ -266,7 +266,11 @@ export function finalizeProblemOutcome(
     }
     const nudge = nudgedAt.get(result.key);
     if (nudge === undefined) return result;
-    // KNOWN HOLE: the stamp decides hit vs prompted, so a model that wants to
+    // The stamp decides hit vs prompted. The evaluation runner now re-times
+    // each quote from the transcript turn it was found in before this runs
+    // (lib/engine/quote-timecodes.ts), which closes the hole below whenever
+    // the quote is locatable; an unlocatable quote keeps the model's stamp.
+    // HISTORY: a model that wants to
     // keep a "hit" can move it earlier. Case retail-nudged run 3 did exactly
     // that under f4359f6's reverted carve-out: real quotes from lines at 146s
     // and 174s stamped 26s and 54s, which walked past this check and inflated
