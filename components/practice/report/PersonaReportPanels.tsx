@@ -36,8 +36,7 @@ import { useState, type ReactNode } from "react";
 import type { ReportDTO } from "@/lib/report/dto";
 import { formatTimecode } from "@/lib/metrics/bands";
 import PracticeNotice from "@/components/questioned-persona/PracticeNotice";
-import { RubricScoreCards } from "@/components/interview/ReportScoreCards";
-import { disclaimerFor, disclaimerToneFor, SALES_SCORE_DIMENSIONS } from "@/lib/questioned-persona/copy";
+import { disclaimerFor, disclaimerToneFor } from "@/lib/questioned-persona/copy";
 import {
   asPersonaAnalysis,
   CODE_LABELS,
@@ -313,29 +312,6 @@ export function PersonaDisclaimerBanner({ report }: { report: ReportDTO }) {
   if (!style) return null;
   return (
     <PracticeNotice testId="persona-report-disclaimer" text={disclaimerFor(style)} tone={disclaimerToneFor(style)} />
-  );
-}
-
-/**
- * Sales only: the five sales rubric scores as tiles above the shared four,
- * listening dimensions first. Other persona styles render nothing here, so
- * clinical and MI reports are unchanged.
- */
-export function SalesScoreTiles({ report }: { report: ReportDTO }) {
-  if (report.typeSlug !== "sales-discovery") return null;
-  if (report.status === "FAILED") return null;
-  const pending = report.status !== "READY";
-  return (
-    <RubricScoreCards
-      ariaLabel="Sales scores"
-      pending={pending}
-      testId="sales-score-tiles"
-      items={SALES_SCORE_DIMENSIONS.map((d) => ({
-        key: d.key,
-        title: d.label,
-        score: typeof report.scores?.[d.key] === "number" ? (report.scores[d.key] as number) : null,
-      }))}
-    />
   );
 }
 

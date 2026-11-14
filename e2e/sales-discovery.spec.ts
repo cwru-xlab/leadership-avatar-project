@@ -154,18 +154,11 @@ test.describe("sales conversations", () => {
     await expect(page.getByTestId("persona-report-disclaimer")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("tab", { name: "Behaviors" })).toBeVisible();
     await expect(page.getByTestId("persona-report-disclaimer")).toHaveAttribute("data-tone", "quiet");
-    // The five sales scores, listening first, above the shared four.
-    const tiles = page.getByTestId("sales-score-tiles");
-    await expect(tiles).toBeVisible();
-    const titles = await tiles.locator("p.font-semibold, p:first-child").allInnerTexts();
-    const order = ["Discovery before pitching", "Listening & reflecting", "Tailoring to stated needs", "Exploring objections", "Agreeing a next step"];
-    const seen = order.map((t) => titles.findIndex((x) => x.includes(t)));
-    expect(seen.every((i) => i >= 0)).toBe(true);
-    expect([...seen].sort((a, b) => a - b)).toEqual(seen);
-    for (const key of ["discovery_before_pitch", "active_listening_sales", "needs_tailoring", "objection_exploration", "next_step_agreed"]) {
-      await expect(tiles.getByTestId(`sales-score-tiles-${key}`)).toContainText("/ 5");
-    }
-    await shot(page, "04-report-top-tiles");
+    // Same top as a motivational-interviewing report: notice, then the one
+    // shared four-score panel. The five sales scores are not tiles.
+    await expect(page.getByTestId("sales-score-tiles")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Scores" })).toHaveCount(1);
+    await shot(page, "04-report-top");
 
     await page.getByRole("tab", { name: "Behaviors" }).click();
     await expect(page.getByTestId("persona-counts-panel")).toBeVisible();

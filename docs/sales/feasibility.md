@@ -134,7 +134,7 @@ metrics, and the buyer's behavior (cooling when pitched) all reward discovery be
 
 - Placement: a "Sales meeting" card on the Practice pitches picker; breadcrumb "← Practice pitches";
   reports file under the Pitches filter; report and study-plan label "Sales meeting".
-- The five sales scores show as score tiles above the shared four, listening dimensions first.
+- The report top matches motivational interviewing: the five sales scores are not shown as tiles (reverted the same day).
 - The fictional-people notice is a quiet grey info line for sales (clinical/MI keep their banner).
 - "One thing to practice next time" must quote a moment from the meeting, even on a strong run.
 

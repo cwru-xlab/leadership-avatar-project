@@ -22,19 +22,6 @@ export function disclaimerToneFor(style: PersonaStyle): "banner" | "quiet" {
   return style === "sales-discovery" ? "quiet" : "banner";
 }
 
-/**
- * Sales score tiles, listening dimensions first. Client-safe home for the
- * keys and labels; `persona-types.ts` reads the labels from here so the tile
- * and the rubric can never disagree.
- */
-export const SALES_SCORE_DIMENSIONS = [
-  { key: "discovery_before_pitch", label: "Discovery before pitching" },
-  { key: "active_listening_sales", label: "Listening & reflecting" },
-  { key: "needs_tailoring", label: "Tailoring to stated needs" },
-  { key: "objection_exploration", label: "Exploring objections" },
-  { key: "next_step_agreed", label: "Agreeing a next step" },
-] as const;
-
 export function disclaimerFor(style: PersonaStyle): string {
   if (style === "sales-discovery") return SALES_DISCLAIMER;
   return style === "clinical-communication" ? CLINICAL_DISCLAIMER : MI_DISCLAIMER;
