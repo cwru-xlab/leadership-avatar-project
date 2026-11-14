@@ -31,8 +31,9 @@
 
   /* Accent: the one brand-character color. CWRU tertiary, used in small,
      decorative doses only (active nav marker, title rule, practice icons,
-     the practice-next target, the up-next progress fill). It never carries
-     text and never marks status, so it can't be read as a score level. */
+     the practice-next target, the up-next progress fill or arrow). It never
+     carries text and never marks status, and it stays off Mastery (except
+     the nav marker) so it can't be read as the level-2 orange. */
   --la-accent: #FF9239;
 
   /* surfaces */
