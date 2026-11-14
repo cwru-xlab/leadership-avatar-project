@@ -324,16 +324,25 @@ export function PersonaCountsPanel({ report }: { report: ReportDTO }) {
   const analysis = asPersonaAnalysis(report.outcome);
   if (!analysis) return null;
   const mi = analysis.style === "motivational-interviewing";
+  const sales = analysis.style === "sales-discovery";
   const codeKeys = Object.keys(CODE_LABELS).filter((k) => k in analysis.counts);
   const globals = mi ? mitiSummaryGlobals(report.scores) : [];
   const sources = [...new Set(analysis.metrics.map((m) => m.threshold?.source).filter(Boolean))] as string[];
 
   return (
-    <Section title={mi ? "MITI behavior counts" : "Communication behavior counts"} testId="persona-counts-panel">
+    <Section
+      title={mi ? "MITI behavior counts" : sales ? "Listening-first counts" : "Communication behavior counts"}
+      testId="persona-counts-panel"
+    >
       <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
         Every one of your {analysis.counts.student_utterances ?? analysis.utterances.length} turns was coded
-        {mi ? " with MITI 4.2.1 behavior codes" : " for question type, reflections, empathy and jargon"}. The
-        numbers below are counted from those codes, not estimated.
+        {mi
+          ? " with MITI 4.2.1 behavior codes"
+          : sales
+            ? " for questions, reflections, pitches and objections"
+            : " for question type, reflections, empathy and jargon"}
+        . The numbers below are counted from those codes{sales ? " and the transcript's word counts" : ""}, not
+        estimated.
       </p>
 
       {mi ? (
@@ -497,6 +506,7 @@ export function PersonaChecklistPanel({ report }: { report: ReportDTO }) {
   const tally = stepTally(analysis.steps);
   const factsFound = analysis.facts.filter((f) => f.elicited).length;
   const mi = analysis.style === "motivational-interviewing";
+  const sales = analysis.style === "sales-discovery";
   const missedSteps = analysis.steps.filter((s) => s.status === "missed").length;
   const cuesHandled = analysis.cues.filter(
     (c) => c.status === "explored" || c.status === "acknowledged",
@@ -511,13 +521,13 @@ export function PersonaChecklistPanel({ report }: { report: ReportDTO }) {
           { label: "Steps done", value: String(tally.hit), total: String(tally.applicable), tone: "good" },
           { label: "Steps missed", value: String(missedSteps), tone: "bad" },
           {
-            label: mi ? "Held back, drawn out" : "Hidden history found",
+            label: mi ? "Held back, drawn out" : sales ? "Needs uncovered" : "Hidden history found",
             value: String(factsFound),
             total: String(analysis.facts.length),
             tone: "neutral",
           },
           {
-            label: "Cues handled",
+            label: sales ? "Signals followed up" : "Cues handled",
             value: String(cuesHandled),
             total: String(cuesRaised),
             tone: cuesHandled < cuesRaised ? "bad" : "neutral",
@@ -550,7 +560,7 @@ export function PersonaChecklistPanel({ report }: { report: ReportDTO }) {
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div className="rounded-lg border border-line p-4" data-testid="persona-facts">
           <p className="text-xs font-semibold text-muted">
-            {mi ? "What the client was holding back" : "Hidden history"}
+            {mi ? "What the client was holding back" : sales ? "What the buyer was holding back" : "Hidden history"}
           </p>
           <ul className="mt-2 flex flex-col gap-2">
             {analysis.facts.map((f) => (
@@ -566,7 +576,7 @@ export function PersonaChecklistPanel({ report }: { report: ReportDTO }) {
         </div>
 
         <div className="rounded-lg border border-line p-4" data-testid="persona-cues">
-          <p className="text-xs font-semibold text-muted">Emotional cues</p>
+          <p className="text-xs font-semibold text-muted">{sales ? "Buyer signals" : "Emotional cues"}</p>
           <ul className="mt-2 flex flex-col gap-2">
             {analysis.cues.map((c) => (
               <li key={c.id} className="text-sm">

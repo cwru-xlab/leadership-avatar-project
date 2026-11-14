@@ -5,7 +5,7 @@
  */
 
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, HeartHandshake, Stethoscope } from "lucide-react";
+import { ArrowLeft, ArrowRight, Handshake, HeartHandshake, Stethoscope } from "lucide-react";
 
 import { listPersonaCases } from "@/lib/questioned-persona/cases";
 import { disclaimerFor, PERSONA_STYLE_COPY } from "@/lib/questioned-persona/copy";
@@ -14,7 +14,8 @@ import { routes } from "@/lib/routes";
 
 export default function PersonaCaseList({ style }: { style: PersonaStyle }) {
   const copy = PERSONA_STYLE_COPY[style];
-  const Icon = style === "clinical-communication" ? Stethoscope : HeartHandshake;
+  const Icon =
+    style === "clinical-communication" ? Stethoscope : style === "sales-discovery" ? Handshake : HeartHandshake;
   const cases = listPersonaCases(style).map((c) => ({
     id: c.id,
     title: c.title,

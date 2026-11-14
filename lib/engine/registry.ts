@@ -55,6 +55,7 @@ import { DIFFICULT_CONVERSATION_TYPE } from "../difficult-conversation/conversat
 import {
   CLINICAL_COMMUNICATION_TYPE,
   MOTIVATIONAL_INTERVIEWING_TYPE,
+  SALES_DISCOVERY_TYPE,
 } from "../questioned-persona/persona-types";
 import {
   buildTechnicalCodingSystemPrompt,
@@ -469,6 +470,7 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   DIFFICULT_CONVERSATION_TYPE,
   CLINICAL_COMMUNICATION_TYPE,
   MOTIVATIONAL_INTERVIEWING_TYPE,
+  SALES_DISCOVERY_TYPE,
 ];
 
 const ENGINE_TYPES_BY_SLUG: Record<string, InteractionTypeConfig> =

@@ -35,6 +35,7 @@ export const TYPE_FILTERS = [
   { id: "networking", label: "Networking" },
   { id: "clinical-communication", label: "Clinical communication" },
   { id: "motivational-interviewing", label: "Motivational interviewing" },
+  { id: "sales-discovery", label: "Sales conversations" },
   { id: "case-study", label: "Case studies" },
 ] as const;
 export type TypeFilter = (typeof TYPE_FILTERS)[number]["id"];

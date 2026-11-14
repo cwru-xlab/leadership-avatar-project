@@ -11,6 +11,7 @@ import {
   Users,
   Stethoscope,
   HeartHandshake,
+  Handshake,
 } from "lucide-react";
 
 import type { InteractionType } from "@/lib/interactions";
@@ -28,6 +29,7 @@ const iconMap = {
   Users,
   Stethoscope,
   HeartHandshake,
+  Handshake,
 } as const;
 
 interface InteractionTileProps {

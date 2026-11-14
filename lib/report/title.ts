@@ -38,6 +38,7 @@ const TYPE_LABELS: Record<string, string> = {
   networking: "Networking",
   "clinical-communication": "Clinical communication",
   "motivational-interviewing": "Motivational interviewing",
+  "sales-discovery": "Sales conversation",
 };
 
 /**

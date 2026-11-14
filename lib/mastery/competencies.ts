@@ -217,6 +217,10 @@ export const COMPETENCIES: readonly Competency[] = [
       "cultivating_change_talk",
       "softening_sustain_talk",
       "partnership",
+      // sales conversations (listening first)
+      "discovery_before_pitch",
+      "active_listening_sales",
+      "needs_tailoring",
     ],
     order: 4,
   },
@@ -224,7 +228,7 @@ export const COMPETENCIES: readonly Competency[] = [
     key: "holding_position_under_pressure",
     label: "Holding position under pressure",
     description: "Keeping the ask intact when pushed.",
-    dimensionKeys: ["holding_the_line", "objection_handling", "negotiation"],
+    dimensionKeys: ["holding_the_line", "objection_handling", "negotiation", "objection_exploration"],
     order: 5,
   },
   {
@@ -252,7 +256,7 @@ export const COMPETENCIES: readonly Competency[] = [
     key: "outcome_achievement",
     label: "Outcome achievement",
     description: "Whether you got what you came for.",
-    dimensionKeys: ["objective_achieved", "goal-progress"],
+    dimensionKeys: ["objective_achieved", "goal-progress", "next_step_agreed"],
     order: 7,
   },
 ];
