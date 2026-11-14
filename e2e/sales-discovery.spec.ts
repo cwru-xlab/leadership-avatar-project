@@ -50,13 +50,21 @@ test.describe("sales conversations", () => {
     await blockSpend(page);
     await signIn(page);
 
+    // Not a top-level tile: it lives under Practice pitches.
     await page.goto("/practice");
-    const tile = page.getByRole("link", { name: /Sales conversations/ });
-    await expect(tile).toBeVisible();
-    await shot(page, "01-picker", true);
+    await expect(page.getByRole("link", { name: /Practice pitches/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Sales/ })).toHaveCount(0);
+    await shot(page, "00-practice-dashboard");
 
-    await tile.click();
+    await page.goto("/practice/pitches");
+    const card = page.getByRole("link", { name: /Choose a buyer for a sales meeting/ });
+    await expect(card).toBeVisible();
+    await shot(page, "01-pitches-picker");
+
+    await card.click();
     await page.waitForURL("**/practice/sales-discovery");
+    await expect(page.getByRole("heading", { name: "Sales meeting" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Practice pitches/ }).first()).toHaveAttribute("href", "/practice/pitches");
     const list = page.getByTestId("persona-case-list");
     await expect(list).toBeVisible();
     const ids = await list
@@ -68,7 +76,7 @@ test.describe("sales conversations", () => {
       "sales-saas-hospital-ops",
       "sales-startup-first-customer",
     ]);
-    await expect(page.getByTestId("persona-disclaimer")).toBeVisible();
+    await expect(page.getByTestId("persona-disclaimer")).toHaveAttribute("data-tone", "quiet");
     const listText = (await page.locator("body").innerText()).toLowerCase();
     for (const f of FORBIDDEN) expect(listText, `case list leaked "${f}"`).not.toContain(f);
     await shot(page, "02-scenario-list", true);
@@ -78,6 +86,7 @@ test.describe("sales conversations", () => {
     const briefing = page.locator("section[aria-labelledby='conversation-briefing-heading']");
     await expect(briefing).toBeVisible({ timeout: 30_000 });
     await expect(briefing.getByText("The situation", { exact: true })).toBeVisible();
+    await expect(briefing.getByTestId("persona-disclaimer")).toHaveAttribute("data-tone", "quiet");
     await expect(page.getByRole("button", { name: /Start meeting|Next|Continue/ }).first()).toBeVisible();
     const html = (await page.content()).toLowerCase();
     for (const f of FORBIDDEN) expect(html, `briefing payload carried "${f}"`).not.toContain(f);
@@ -144,7 +153,19 @@ test.describe("sales conversations", () => {
     // Strength titles are model-written, so wait on fixed chrome, not on them.
     await expect(page.getByTestId("persona-report-disclaimer")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("tab", { name: "Behaviors" })).toBeVisible();
-    await shot(page, "04-report-overview", true);
+    await expect(page.getByTestId("persona-report-disclaimer")).toHaveAttribute("data-tone", "quiet");
+    // The five sales scores, listening first, above the shared four.
+    const tiles = page.getByTestId("sales-score-tiles");
+    await expect(tiles).toBeVisible();
+    const titles = await tiles.locator("p.font-semibold, p:first-child").allInnerTexts();
+    const order = ["Discovery before pitching", "Listening & reflecting", "Tailoring to stated needs", "Exploring objections", "Agreeing a next step"];
+    const seen = order.map((t) => titles.findIndex((x) => x.includes(t)));
+    expect(seen.every((i) => i >= 0)).toBe(true);
+    expect([...seen].sort((a, b) => a - b)).toEqual(seen);
+    for (const key of ["discovery_before_pitch", "active_listening_sales", "needs_tailoring", "objection_exploration", "next_step_agreed"]) {
+      await expect(tiles.getByTestId(`sales-score-tiles-${key}`)).toContainText("/ 5");
+    }
+    await shot(page, "04-report-top-tiles");
 
     await page.getByRole("tab", { name: "Behaviors" }).click();
     await expect(page.getByTestId("persona-counts-panel")).toBeVisible();

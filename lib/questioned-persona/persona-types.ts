@@ -20,6 +20,7 @@ import {
   MI_EVALUATOR_PROMPT,
   SALES_EVALUATOR_PROMPT,
 } from "./prompts";
+import { SALES_SCORE_DIMENSIONS } from "./copy";
 import type { PersonaStyle } from "./types";
 
 export const PERSONA_ANALYSIS_OUTCOME_KEY = "personaAnalysis";
@@ -104,34 +105,38 @@ const MI_EXTRAS: RubricDimension[] = [
  * first"). Listening is weighted first on purpose: three of five dimensions
  * judge discovery, listening and tailoring to what the buyer said.
  */
+function salesLabel(key: (typeof SALES_SCORE_DIMENSIONS)[number]["key"]): string {
+  return SALES_SCORE_DIMENSIONS.find((d) => d.key === key)!.label;
+}
+
 const SALES_EXTRAS: RubricDimension[] = [
   {
     key: "discovery_before_pitch",
-    label: "Discovery before pitching",
+    label: salesLabel("discovery_before_pitch"),
     description:
       "Asking about the buyer's situation, problems and what they cost before presenting anything (SPIN-style discovery).",
   },
   {
     key: "active_listening_sales",
-    label: "Listening & reflecting",
+    label: salesLabel("active_listening_sales"),
     description:
       "Following up on what the buyer said, reflecting and summarizing their needs, and letting them do most of the talking.",
   },
   {
     key: "needs_tailoring",
-    label: "Tailoring to stated needs",
+    label: salesLabel("needs_tailoring"),
     description:
       "Connecting the offer to needs the buyer actually named, in their words, instead of a generic feature list.",
   },
   {
     key: "objection_exploration",
-    label: "Exploring objections",
+    label: salesLabel("objection_exploration"),
     description:
       "Acknowledging and exploring a concern before answering it, rather than arguing or discounting.",
   },
   {
     key: "next_step_agreed",
-    label: "Agreeing a next step",
+    label: salesLabel("next_step_agreed"),
     description:
       "Ending with a concrete, mutually agreed next step — who, what and when.",
   },
@@ -157,7 +162,7 @@ const TYPE_TEXT: Record<
     targetMinutes: 15,
   },
   "sales-discovery": {
-    name: "Sales Conversations",
+    name: "Sales Meeting",
     description:
       "Meet a prospective buyer who only shares real needs when you listen first, graded on discovery before pitching, talk share and tailoring.",
     extras: SALES_EXTRAS,

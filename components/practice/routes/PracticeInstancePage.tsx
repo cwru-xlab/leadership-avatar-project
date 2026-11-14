@@ -32,7 +32,7 @@ import type { DifficultConversationInstance } from "@/lib/engine/types";
 import { useLayout } from "@/lib/layout-context";
 import { routes } from "@/lib/routes";
 import type { DifficultyBand } from "@/lib/difficult-conversation/types";
-import { disclaimerFor, PERSONA_STYLE_COPY } from "@/lib/questioned-persona/copy";
+import { disclaimerFor, disclaimerToneFor, PERSONA_STYLE_COPY } from "@/lib/questioned-persona/copy";
 import { isPersonaStyle } from "@/lib/questioned-persona/types";
 import type { CameraMode } from "@/lib/metrics/types";
 import type { CaseStudy, InteractionLog, StartAvatarRequest } from "@/types";
@@ -466,6 +466,7 @@ export default function PracticeInstancePage({
                     intro={personaCopy.briefingIntro}
                     footnote={personaCopy.briefingFootnote}
                     disclaimer={disclaimerFor(personaStyle)}
+                    disclaimerTone={disclaimerToneFor(personaStyle)}
                   />
                 );
               }

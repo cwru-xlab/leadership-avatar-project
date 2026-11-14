@@ -41,6 +41,7 @@ import {
   PersonaChecklistPanel,
   PersonaCountsPanel,
   PersonaDisclaimerBanner,
+  SalesScoreTiles,
 } from "@/components/practice/report/PersonaReportPanels";
 
 export type StalledAffordance = "retry" | "check-again";
@@ -243,7 +244,24 @@ function personaChrome(checkInLead: string): ReportChrome {
 
 const CLINICAL_COMMUNICATION_CHROME = personaChrome("In a real patient encounter");
 const MOTIVATIONAL_INTERVIEWING_CHROME = personaChrome("In a real counseling session");
-const SALES_DISCOVERY_CHROME = personaChrome("In a real sales meeting");
+// Sales adds its five rubric scores as tiles above the shared four. A new
+// const rather than a personaChrome() option, so clinical and MI chrome is
+// byte-for-byte what it was.
+const SALES_DISCOVERY_CHROME: ReportChrome = (() => {
+  const base = personaChrome("In a real sales meeting");
+  return {
+    ...base,
+    extras: {
+      ...base.extras,
+      above: (report) => (
+        <>
+          <PersonaDisclaimerBanner report={report} />
+          <SalesScoreTiles report={report} />
+        </>
+      ),
+    },
+  };
+})();
 
 const NETWORKING_CHROME: ReportChrome = {
   pollIntervalMs: 2000,

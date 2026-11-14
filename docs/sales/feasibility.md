@@ -7,8 +7,9 @@ product, a service, your business — it has to evaluate LISTENING first — too
 ## Verdict
 
 **Feasible and cheap.** Build it as a **third style on the questioned-persona engine** (the engine
-behind Clinical communication and Motivational interviewing), slug `sales-discovery`, shown in the
-picker as **Sales conversations**. No schema migration, no new session room, no new report page.
+behind Clinical communication and Motivational interviewing), slug `sales-discovery`, listed under
+**Practice pitches** as **Sales meeting** (decided 2026-11-14: no top-level tile; the case list and
+session keep the `/practice/sales-discovery` route). No schema migration, no new session room, no new report page.
 
 ## What exists today
 
@@ -128,3 +129,19 @@ metrics, and the buyer's behavior (cooling when pitched) all reward discovery be
 - Cases are fictional; no real vendor names or products.
 - No schema change: the analysis rides `InteractionReport.outcome.personaAnalysis` JSON, the type is a
   code registry entry, cases are seeded code records.
+
+## Decisions (2026-11-14)
+
+- Placement: a "Sales meeting" card on the Practice pitches picker; breadcrumb "← Practice pitches";
+  reports file under the Pitches filter; report and study-plan label "Sales meeting".
+- The five sales scores show as score tiles above the shared four, listening dimensions first.
+- The fictional-people notice is a quiet grey info line for sales (clinical/MI keep their banner).
+- "One thing to practice next time" must quote a moment from the meeting, even on a strong run.
+
+## Future
+
+- **Own-scenario authoring** (deferred by the user): let a student describe their real product,
+  service or business and their target buyer, and generate a buyer card (hidden needs, objections,
+  next-step condition) the way Courageous conversations lets students author a counterpart. Ship the
+  four built-in cases first.
+- Calibrate the buyer talk-share bands on real sessions.

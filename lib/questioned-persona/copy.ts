@@ -14,6 +14,27 @@ export const MI_DISCLAIMER =
 export const SALES_DISCLAIMER =
   "Sales practice only. The buyer, their organization and the product you sell are fictional.";
 
+/**
+ * How loud the notice is. Clinical and MI keep the copper banner (it carries
+ * safety wording); the sales notice only says the people are fictional.
+ */
+export function disclaimerToneFor(style: PersonaStyle): "banner" | "quiet" {
+  return style === "sales-discovery" ? "quiet" : "banner";
+}
+
+/**
+ * Sales score tiles, listening dimensions first. Client-safe home for the
+ * keys and labels; `persona-types.ts` reads the labels from here so the tile
+ * and the rubric can never disagree.
+ */
+export const SALES_SCORE_DIMENSIONS = [
+  { key: "discovery_before_pitch", label: "Discovery before pitching" },
+  { key: "active_listening_sales", label: "Listening & reflecting" },
+  { key: "needs_tailoring", label: "Tailoring to stated needs" },
+  { key: "objection_exploration", label: "Exploring objections" },
+  { key: "next_step_agreed", label: "Agreeing a next step" },
+] as const;
+
 export function disclaimerFor(style: PersonaStyle): string {
   if (style === "sales-discovery") return SALES_DISCLAIMER;
   return style === "clinical-communication" ? CLINICAL_DISCLAIMER : MI_DISCLAIMER;
@@ -61,13 +82,13 @@ export const PERSONA_STYLE_COPY: Record<
     checkInLead: "In a real counseling session",
   },
   "sales-discovery": {
-    label: "Sales conversation",
-    listTitle: "Sales conversations",
+    label: "Sales meeting",
+    listTitle: "Sales meeting",
     listIntro:
       "Meet a potential client and sell a product, a service or your own business. Listen first — they only share what matters if you ask.",
     heroDescription:
       "A live sales meeting: the buyer opens up when you ask and listen, and cools off if you pitch too early. Then a listening-first report.",
-    reportLabel: "Sales conversation",
+    reportLabel: "Sales meeting",
     briefingIntro:
       "Read the brief. The buyer has real needs and constraints that are not written here — what you learn depends on how you ask.",
     briefingFootnote:

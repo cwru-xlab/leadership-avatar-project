@@ -126,6 +126,37 @@ export default function ReportScoreCards({
 }
 
 /**
+ * A row of plain 1-5 score cells in the same divided panel and with the same
+ * `ScoredCard` as the four above — for a type that shows its own rubric
+ * dimensions as tiles (the sales meeting). Never a combined score.
+ */
+export function RubricScoreCards({
+  items,
+  pending = false,
+  ariaLabel,
+  testId,
+}: {
+  items: Array<{ key: string; title: string; score: number | null }>;
+  pending?: boolean;
+  ariaLabel: string;
+  testId?: string;
+}) {
+  return (
+    <section
+      aria-label={ariaLabel}
+      className="grid grid-cols-1 overflow-hidden rounded-xl border border-line bg-white sm:grid-cols-2 lg:grid-cols-5"
+      data-testid={testId}
+    >
+      {items.map((item) => (
+        <div key={item.key} data-testid={testId ? `${testId}-${item.key}` : undefined}>
+          <ScoredCard pending={pending} score={item.score} title={item.title} />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/**
  * The seven possible causes for a Visual/Vocal card's content. "scored" is
  * the only state that renders a number; every other state renders
  * cause-specific copy, never a score.

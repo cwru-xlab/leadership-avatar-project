@@ -35,7 +35,9 @@ import { useState, type ReactNode } from "react";
 
 import type { ReportDTO } from "@/lib/report/dto";
 import { formatTimecode } from "@/lib/metrics/bands";
-import { disclaimerFor } from "@/lib/questioned-persona/copy";
+import PracticeNotice from "@/components/questioned-persona/PracticeNotice";
+import { RubricScoreCards } from "@/components/interview/ReportScoreCards";
+import { disclaimerFor, disclaimerToneFor, SALES_SCORE_DIMENSIONS } from "@/lib/questioned-persona/copy";
 import {
   asPersonaAnalysis,
   CODE_LABELS,
@@ -310,13 +312,30 @@ export function PersonaDisclaimerBanner({ report }: { report: ReportDTO }) {
     (report.input?.kind === "difficult-conversation" ? report.input.personaStyle : undefined);
   if (!style) return null;
   return (
-    <p
-      className="rounded-xl border border-copper/40 bg-copper/[0.08] px-5 py-3 text-sm leading-6 text-ink"
-      data-testid="persona-report-disclaimer"
-      role="note"
-    >
-      {disclaimerFor(style)}
-    </p>
+    <PracticeNotice testId="persona-report-disclaimer" text={disclaimerFor(style)} tone={disclaimerToneFor(style)} />
+  );
+}
+
+/**
+ * Sales only: the five sales rubric scores as tiles above the shared four,
+ * listening dimensions first. Other persona styles render nothing here, so
+ * clinical and MI reports are unchanged.
+ */
+export function SalesScoreTiles({ report }: { report: ReportDTO }) {
+  if (report.typeSlug !== "sales-discovery") return null;
+  if (report.status === "FAILED") return null;
+  const pending = report.status !== "READY";
+  return (
+    <RubricScoreCards
+      ariaLabel="Sales scores"
+      pending={pending}
+      testId="sales-score-tiles"
+      items={SALES_SCORE_DIMENSIONS.map((d) => ({
+        key: d.key,
+        title: d.label,
+        score: typeof report.scores?.[d.key] === "number" ? (report.scores[d.key] as number) : null,
+      }))}
+    />
   );
 }
 

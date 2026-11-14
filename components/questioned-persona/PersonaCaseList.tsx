@@ -8,9 +8,11 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, Handshake, HeartHandshake, Stethoscope } from "lucide-react";
 
 import { listPersonaCases } from "@/lib/questioned-persona/cases";
-import { disclaimerFor, PERSONA_STYLE_COPY } from "@/lib/questioned-persona/copy";
+import { disclaimerFor, disclaimerToneFor, PERSONA_STYLE_COPY } from "@/lib/questioned-persona/copy";
 import type { PersonaStyle } from "@/lib/questioned-persona/types";
 import { routes } from "@/lib/routes";
+
+import PracticeNotice from "./PracticeNotice";
 
 export default function PersonaCaseList({ style }: { style: PersonaStyle }) {
   const copy = PERSONA_STYLE_COPY[style];
@@ -27,9 +29,13 @@ export default function PersonaCaseList({ style }: { style: PersonaStyle }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-link hover:text-cwru-blue" href={routes.practice()}>
+      {/* The sales meeting is listed under Practice pitches, so it goes back there. */}
+      <Link
+        className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-link hover:text-cwru-blue"
+        href={style === "sales-discovery" ? routes.pitches() : routes.practice()}
+      >
         <ArrowLeft aria-hidden className="h-4 w-4" />
-        Practice
+        {style === "sales-discovery" ? "Practice pitches" : "Practice"}
       </Link>
       <header className="flex flex-col gap-2">
         <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
@@ -37,9 +43,12 @@ export default function PersonaCaseList({ style }: { style: PersonaStyle }) {
         </h1>
         <p className="max-w-2xl text-[15px] text-muted">{copy.listIntro}</p>
       </header>
-      <p className="max-w-3xl rounded-xl border border-copper/40 bg-copper/[0.08] px-5 py-3 text-sm leading-6 text-ink" data-testid="persona-disclaimer" role="note">
-        {disclaimerFor(style)}
-      </p>
+      <PracticeNotice
+        className="max-w-3xl"
+        testId="persona-disclaimer"
+        text={disclaimerFor(style)}
+        tone={disclaimerToneFor(style)}
+      />
       <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="persona-case-list">
         {cases.map((c) => (
           <li key={c.id}>

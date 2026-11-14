@@ -250,6 +250,15 @@ console.log("\n1. Both types are registered, resolvable and routable");
       check(`route file exists: ${file}`, existsSync(join(ROOT, ...file.split("/"))));
     }
     const tile = INTERACTION_TYPES.find((t) => t.slug === style);
+    if (style === "sales-discovery") {
+      // Listed under Practice pitches, not as its own dashboard tile.
+      check(`"${style}" has no top-level tile`, !tile);
+      check(
+        `the pitches picker links to /practice/${style}`,
+        read("app/practice/pitches/page.tsx").includes("routes.salesConversations()"),
+      );
+      continue;
+    }
     check(`lib/interactions lists "${style}" as a live tile`, tile?.availability === "live");
     check(
       `the "${style}" tile links to its own list page`,

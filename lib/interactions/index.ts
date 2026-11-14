@@ -86,15 +86,6 @@ export const INTERACTION_TYPES: InteractionType[] = [
     route: routes.motivationalInterviewing(),
     availability: "live",
   },
-  {
-    slug: "sales-discovery",
-    name: "Sales conversations",
-    description: "Sell to a potential client. Listen first, then pitch.",
-    icon: "Handshake",
-    estimatedMinutes: 15,
-    route: routes.salesConversations(),
-    availability: "live",
-  },
 ];
 
 /**

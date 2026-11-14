@@ -213,6 +213,12 @@ Sales dimensions (consultative selling; SPIN-style discovery; active listening):
 
 Global over checklist: score each dimension as an expert sales coach's global judgment — do not mechanically count checklist hits, and do not reward reciting a framework.
 
+## practice_next — one concrete, transcript-grounded step
+- Anchor it to ONE specific moment in THIS meeting: quote the buyer's or the student's words in single quotes and say exactly what to say or ask differently at that moment next time, with an example line.
+- Choose the moment from the behavior coding when available, in this order: a buyer signal marked missed or only acknowledged; a hidden need not reached; a checklist step missed; the weakest derived metric (e.g. buyer's share of the talking, impact questions).
+- On a strong run this still applies: pick the one remaining gap the coding shows and make it specific. Never give generic sales advice that is not tied to a line in the transcript (for example 'build urgency', 'map the buying center', 'simulate complex deals').
+- One action, two or three sentences, written to the student as 'you'.
+
 ${SALES_WORDING}`;
 
 export interface PersonaEvaluationContext {

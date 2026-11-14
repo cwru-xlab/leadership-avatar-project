@@ -152,7 +152,8 @@ async function grade(label: string, lines: Line[]) {
   const metrics = Object.fromEntries(analysis.metrics.map((m) => [m.key, { value: m.value, band: m.band ?? null }]));
   const steps = Object.fromEntries(analysis.steps.map((s) => [s.key, s.status]));
   const facts = analysis.facts.filter((f) => f.elicited).map((f) => f.id);
-  return { label, scores, metrics, steps, facts, counts: analysis.counts };
+  const practiceNext = typeof raw.practice_next === "string" ? raw.practice_next : "";
+  return { label, scores, metrics, steps, facts, counts: analysis.counts, practiceNext };
 }
 
 async function main() {
@@ -184,6 +185,11 @@ async function main() {
   if (hits(listen.steps) <= hits(pitch.steps)) failures.push("checklist hits not separated");
   if (pitch.steps.hold_the_pitch !== "missed") failures.push(`pitch-first hold_the_pitch=${pitch.steps.hold_the_pitch}`);
   if (listen.steps.hold_the_pitch !== "hit") failures.push(`listen-first hold_the_pitch=${listen.steps.hold_the_pitch}`);
+
+  console.log(`\nOne thing to practice next (pitch-first): ${pitch.practiceNext}`);
+  console.log(`One thing to practice next (listen-first): ${listen.practiceNext}`);
+  // Grounded = quotes a line from the meeting (single-quoted span).
+  if (!/'[^']{8,}'/.test(listen.practiceNext)) failures.push("listen-first practice_next quotes no line from the meeting");
 
   if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify({ pitch, listen }, null, 2));
   if (failures.length) {
