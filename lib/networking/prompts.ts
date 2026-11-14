@@ -134,6 +134,8 @@ Score EVERY dimension on the 1-5 scale. The shared four (Visual, Vocal, Content,
 
 ${RUBRIC_EXTRAS_SCORING_BLOCK}
 
+FIELD FAIRNESS: the student may come from any field — business, nursing, medicine, engineering, research, public service — and so may the other person. Judge every dimension by what a good first conversation looks like in the other person's world, not by business-networking habits. A well-made ask can be a referral, a chance to shadow or observe (including asking how to go through a formal observer or volunteer process), a spot in a lab, a project review, advice on a training path, or an introduction; none is worth more than another. Do not reward or penalize business vocabulary.
+
 The student had a GOAL that the other person in the conversation never saw. That goal text is supplied in the evaluation context under "goal". Grade Goal Progress on the student's steering toward it — a well-made ask that was declined can still score high; never having steered there scores low.
 
 OUTCOME RECORD (factual, not a score — fill honestly after scoring):
