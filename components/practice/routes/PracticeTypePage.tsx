@@ -951,7 +951,18 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
                         heading: "Choose who you'll pitch to.",
                         roleLabel: deckMode?.listenerLine ?? "Pitch listener",
                       }
-                    : {})}
+                    : isNetworking
+                      ? {
+                          // The face plays the person picked on step 1 — a
+                          // nurse practitioner is not a "hiring manager".
+                          heading: "Choose a face and voice.",
+                          roleLabel: `Plays ${
+                            networkingCharacter?.displayName ||
+                            networkingBroughtInLive?.displayName ||
+                            "your contact"
+                          }`,
+                        }
+                      : {})}
                 />
               );
             }
