@@ -73,8 +73,9 @@ export default function InteractionDashboard() {
           What do you want to practice?
         </h1>
         <p className="text-[15px] leading-[1.55] text-muted">
-          Each session is a live conversation with an AI avatar, followed by a
-          scored report.
+          Each session is a{" "}
+          <em className="font-semibold not-italic text-ink">personalized</em>{" "}
+          live conversation with an AI avatar, followed by a scored report.
         </p>
       </header>
 
