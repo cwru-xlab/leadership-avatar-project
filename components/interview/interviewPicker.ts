@@ -132,17 +132,11 @@ export function listSpecializedInterviews(): SpecializedInterview[] {
 /** The interview the picker lists first: the coding room. */
 export const FIRST_INTERVIEW_KEY = CODING_INTERVIEW.key;
 
-export type InterviewGroupKey = "technical" | "business";
-
-/** Field groups for the grouped layout, Technical first. Unknown slugs land in Business. */
-export const INTERVIEW_GROUPS: { key: InterviewGroupKey; title: string }[] = [
-  { key: "technical", title: "Technical" },
-  { key: "business", title: "Business" },
-];
+type InterviewGroupKey = "technical" | "business";
 
 const TECHNICAL_KEYS = ["technical-coding", "system-design", "technical"];
 
-export function interviewGroup(key: string): InterviewGroupKey {
+function interviewGroup(key: string): InterviewGroupKey {
   return TECHNICAL_KEYS.includes(key) ? "technical" : "business";
 }
 
@@ -154,9 +148,42 @@ export function orderForPicker(items: SpecializedInterview[]): SpecializedInterv
 }
 
 /** Picker layouts under review (2026-11-14); `?layout=` previews each. Plain module so the server page can read it. */
-export const INTERVIEW_LAYOUTS = ["grid", "grouped"] as const;
+export const INTERVIEW_LAYOUTS = ["balanced", "filler"] as const;
 export type InterviewLayout = (typeof INTERVIEW_LAYOUTS)[number];
-export const DEFAULT_LAYOUT: InterviewLayout = "grid";
+export const DEFAULT_LAYOUT: InterviewLayout = "balanced";
+
+/**
+ * Column spans (of 12) that fill every row: `count` cards, at most `perRow` per
+ * row, split into as few rows as possible with sizes differing by at most one
+ * (7 at 4 → 4 + 3, 5 at 4 → 3 + 2, 6 at 4 → 3 + 3). Longer rows come first.
+ * `perRow` must divide into 12 for every resulting row size (1–4 do).
+ */
+export function balancedSpans(count: number, perRow: number): number[] {
+  if (count <= 0) return [];
+  const rows = Math.ceil(count / perRow);
+  const base = Math.floor(count / rows);
+  const extra = count % rows;
+  const spans: number[] = [];
+  for (let row = 0; row < rows; row++) {
+    const size = base + (row < extra ? 1 : 0);
+    for (let i = 0; i < size; i++) spans.push(12 / size);
+  }
+  return spans;
+}
+
+/** The general interview as a picker card: the filler layout's last tile. */
+export const GENERAL_PICKER_ITEM: SpecializedInterview = {
+  key: DEFAULT_INTERVIEW_TYPE.slug,
+  title: "General interview",
+  tagline: interviewTagline(DEFAULT_INTERVIEW_TYPE),
+  description: DEFAULT_INTERVIEW_TYPE.description,
+  icon: interviewIcon(DEFAULT_INTERVIEW_TYPE.slug),
+  minutes: DEFAULT_INTERVIEW_TYPE.targetMinutes,
+  level: DEFAULT_INTERVIEW_TYPE.difficulty,
+  areas: DEFAULT_INTERVIEW_TYPE.questionAreas ?? [],
+  href: routes.customizeInterview(DEFAULT_INTERVIEW_TYPE.slug),
+  customizable: true,
+};
 
 export function parseInterviewLayout(value: unknown): InterviewLayout {
   return INTERVIEW_LAYOUTS.find((option) => option === value) ?? DEFAULT_LAYOUT;

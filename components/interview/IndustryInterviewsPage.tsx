@@ -14,8 +14,9 @@
  * 1440×900 viewport. Cards are compact: title, one line, time · level visible;
  * "What it covers" behind a disclosure on the same row as the action.
  *
- * Two layouts are under review (2026-11-14). `DEFAULT_LAYOUT` (interviewPicker.ts)
- * is what ships; `?layout=grid|grouped` previews the other until one is picked.
+ * No row may end in an empty slot. Two layouts are under review (2026-11-14):
+ * `balanced` (default, rows sized to fill the width) and `filler` (four across,
+ * the general interview as the last tile). `?layout=` previews either.
  */
 import Link from "next/link";
 import clsx from "clsx";
@@ -24,9 +25,9 @@ import { ArrowRight, ChevronDown, Clock3, FileChartColumn, Layers, UserRound } f
 import PracticeHero from "@/components/practice/PracticeHero";
 import {
   DEFAULT_LAYOUT,
-  INTERVIEW_GROUPS,
+  GENERAL_PICKER_ITEM,
+  balancedSpans,
   type InterviewLayout,
-  interviewGroup,
   listSpecializedInterviews,
   orderForPicker,
   type SpecializedInterview,
@@ -60,7 +61,7 @@ function Covers({ item, className }: { item: SpecializedInterview; className?: s
     <details className={clsx("group/details relative z-10 text-sm", className)}>
       <summary
         className={clsx(
-          "inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-md font-semibold text-link hover:underline [&::-webkit-details-marker]:hidden",
+          "inline-flex min-h-11 cursor-pointer list-none items-center gap-1 whitespace-nowrap rounded-md font-semibold text-link hover:underline [&::-webkit-details-marker]:hidden",
           FOCUS,
         )}
       >
@@ -111,15 +112,14 @@ function CardLink({ item }: { item: SpecializedInterview }) {
 }
 
 /** Compact card: title, one line, meta, then disclosure + action on one footer row. No dead space. */
-function CompactCard({ item, heading = "h2" }: { item: SpecializedInterview; heading?: "h2" | "h3" }) {
+function CompactCard({ item, className }: { item: SpecializedInterview; className?: string }) {
   const Icon = item.icon;
-  const Heading = heading;
   return (
-    <li className={clsx(CARD, "flex flex-col gap-1.5 px-4 pt-4")} data-interview={item.key}>
-      <Heading className="flex items-start gap-2 font-display text-lg font-medium leading-tight text-cwru-blue">
+    <li className={clsx(CARD, "flex flex-col gap-1.5 px-4 pt-4", className)} data-interview={item.key}>
+      <h2 className="flex items-start gap-2 font-display text-lg font-medium leading-tight text-cwru-blue">
         <Icon aria-hidden className="mt-0.5 shrink-0" size={20} strokeWidth={1.75} />
         {item.title}
-      </Heading>
+      </h2>
       <p className="text-sm leading-[1.45] text-muted">{item.tagline}</p>
       <Meta item={item} />
       <div className="mt-auto flex flex-wrap items-start justify-between gap-x-3">
@@ -130,39 +130,40 @@ function CompactCard({ item, heading = "h2" }: { item: SpecializedInterview; hea
   );
 }
 
-/** Grid: seven equal compact cards, four across, the coding room first. */
-function GridLayout() {
+// Static class names so Tailwind sees them; index = span of 12.
+const SM_SPAN: Record<number, string> = { 6: "sm:col-span-6", 12: "sm:col-span-12" };
+const LG_SPAN: Record<number, string> = { 4: "lg:col-span-4", 6: "lg:col-span-6", 12: "lg:col-span-12" };
+const XL_SPAN: Record<number, string> = { 3: "xl:col-span-3", 4: "xl:col-span-4", 6: "xl:col-span-6", 12: "xl:col-span-12" };
+
+/**
+ * Balanced: every row full width at every breakpoint. Seven cards are 4 + 3 at
+ * xl, 3 + 2 + 2 at lg (the 1024 content column is too narrow for four), and
+ * 2 + 2 + 2 + 1 on tablet.
+ */
+function BalancedLayout() {
+  const sm = balancedSpans(SPECIALIZED.length, 2);
+  const lg = balancedSpans(SPECIALIZED.length, 3);
+  const xl = balancedSpans(SPECIALIZED.length, 4);
   return (
-    <ul aria-label="Industry-specific interviews" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {SPECIALIZED.map((item) => (
-        <CompactCard key={item.key} item={item} />
+    <ul aria-label="Industry-specific interviews" className="grid gap-3 sm:grid-cols-12">
+      {SPECIALIZED.map((item, index) => (
+        <CompactCard key={item.key} className={clsx(SM_SPAN[sm[index]], LG_SPAN[lg[index]], XL_SPAN[xl[index]])} item={item} />
       ))}
     </ul>
   );
 }
 
-/** Grouped: a Technical row, then a Business row, all equal cards; the coding room first. */
-function GroupedLayout() {
+/**
+ * Filler: four across at xl (two below, since eight cards in three columns would
+ * leave a gap), with the general interview as a quiet last tile so no slot is empty.
+ */
+function FillerLayout() {
   return (
-    <div className="flex flex-col gap-6">
-      {INTERVIEW_GROUPS.map((group) => {
-        const items = SPECIALIZED.filter((item) => interviewGroup(item.key) === group.key);
-        if (items.length === 0) return null;
-        const headingId = `interview-group-${group.key}`;
-        return (
-          <section key={group.key} aria-labelledby={headingId} className="flex flex-col gap-3">
-            <h2 className="font-display text-[22px] font-medium leading-[1.15] text-cwru-blue" id={headingId}>
-              {group.title}
-            </h2>
-            <ul aria-labelledby={headingId} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {items.map((item) => (
-                <CompactCard key={item.key} heading="h3" item={item} />
-              ))}
-            </ul>
-          </section>
-        );
-      })}
-    </div>
+    <ul aria-label="Industry-specific interviews" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {[...SPECIALIZED, GENERAL_PICKER_ITEM].map((item) => (
+        <CompactCard key={item.key} item={item} />
+      ))}
+    </ul>
   );
 }
 
@@ -181,7 +182,7 @@ export default function IndustryInterviewsPage({ layout = DEFAULT_LAYOUT }: { la
         title="Industry-specific interviews"
       />
 
-      {layout === "grouped" ? <GroupedLayout /> : <GridLayout />}
+      {layout === "filler" ? <FillerLayout /> : <BalancedLayout />}
     </div>
   );
 }
