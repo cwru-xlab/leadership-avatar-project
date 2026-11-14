@@ -18,6 +18,7 @@ import {
   UserRound,
 } from "lucide-react";
 
+import BalancedGrid from "@/components/layout/BalancedGrid";
 import PracticeHero from "@/components/practice/PracticeHero";
 import { deckModeIcon } from "@/components/practice/deckModeIcons";
 import { listDeckModes } from "@/lib/pitch/deck-modes";
@@ -46,14 +47,15 @@ export default function DeckPitchSettingsPage() {
         <h2 className="font-display text-2xl font-medium text-cwru-blue" id="deck-settings-heading">
           Choose a setting
         </h2>
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Rows always fill the width: five settings are 3 + 2 on desktop, 2 + 2 + 1 on tablet. */}
+        <BalancedGrid className="gap-4" perRow={{ sm: 2, lg: 3 }}>
           {DECK_MODES.map((mode) => {
             const Icon = deckModeIcon(mode.slug);
 
             return (
-              <li
+              <div
                 key={mode.slug}
-                className="group relative flex flex-col gap-4 rounded-2xl border border-line bg-white p-6 transition-shadow hover:shadow-raised"
+                className="group relative flex h-full flex-col gap-4 rounded-2xl border border-line bg-white p-6 transition-shadow hover:shadow-raised"
               >
                 <div className="flex items-start gap-3.5">
                   <span className="grid size-12 shrink-0 place-items-center rounded-[14px] bg-cwru-blue text-white">
@@ -79,7 +81,8 @@ export default function DeckPitchSettingsPage() {
                   </span>
                 </p>
 
-                <div className="flex flex-wrap items-center gap-2">
+                {/* Footer pinned to the bottom so chips and Start line up across a row. */}
+                <div className="mt-auto flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-xs text-ink">
                     <Clock3 aria-hidden size={12} />
                     {minutesRange(mode.envelopeSeconds)}
@@ -97,19 +100,19 @@ export default function DeckPitchSettingsPage() {
                   )}
                 </div>
 
-                <div className="mt-auto flex justify-end pt-1">
+                <div className="-mt-2 flex justify-end">
                   <Link
                     aria-label={`Start ${mode.cardTitle}`}
-                    className="inline-flex items-center gap-1 rounded-md text-sm font-bold text-link after:absolute after:inset-0 after:rounded-2xl hover:underline focus-visible:outline-true-blue"
+                    className="inline-flex min-h-11 items-center gap-1 rounded-md text-sm font-bold text-link after:absolute after:inset-0 after:rounded-2xl hover:underline focus-visible:outline-true-blue"
                     href={routes.deckPitch(mode.slug)}
                   >
                     Start <ArrowRight aria-hidden size={15} strokeWidth={2.5} />
                   </Link>
                 </div>
-              </li>
+              </div>
             );
           })}
-        </ul>
+        </BalancedGrid>
       </section>
     </div>
   );

@@ -14,20 +14,15 @@
  * 1440×900 viewport. Cards are compact: title, one line, time · level visible;
  * "What it covers" behind a disclosure on the same row as the action.
  *
- * No row may end in an empty slot. Two layouts are under review (2026-11-14):
- * `balanced` (default, rows sized to fill the width) and `filler` (four across,
- * the general interview as the last tile). `?layout=` previews either.
+ * Cards sit in a BalancedGrid, so no row ever ends in an empty slot.
  */
 import Link from "next/link";
 import clsx from "clsx";
 import { ArrowRight, ChevronDown, Clock3, FileChartColumn, Layers, UserRound } from "lucide-react";
 
 import PracticeHero from "@/components/practice/PracticeHero";
+import BalancedGrid from "@/components/layout/BalancedGrid";
 import {
-  DEFAULT_LAYOUT,
-  GENERAL_PICKER_ITEM,
-  balancedSpans,
-  type InterviewLayout,
   listSpecializedInterviews,
   orderForPicker,
   type SpecializedInterview,
@@ -112,10 +107,10 @@ function CardLink({ item }: { item: SpecializedInterview }) {
 }
 
 /** Compact card: title, one line, meta, then disclosure + action on one footer row. No dead space. */
-function CompactCard({ item, className }: { item: SpecializedInterview; className?: string }) {
+function CompactCard({ item }: { item: SpecializedInterview }) {
   const Icon = item.icon;
   return (
-    <li className={clsx(CARD, "flex flex-col gap-1.5 px-4 pt-4", className)} data-interview={item.key}>
+    <div className={clsx(CARD, "flex h-full flex-col gap-1.5 px-4 pt-4")} data-interview={item.key}>
       <h2 className="flex items-start gap-2 font-display text-lg font-medium leading-tight text-cwru-blue">
         <Icon aria-hidden className="mt-0.5 shrink-0" size={20} strokeWidth={1.75} />
         {item.title}
@@ -126,50 +121,13 @@ function CompactCard({ item, className }: { item: SpecializedInterview; classNam
         <Covers item={item} className="min-w-0 flex-1" />
         <CardLink item={item} />
       </div>
-    </li>
+    </div>
   );
 }
 
-// Static class names so Tailwind sees them; index = span of 12.
-const SM_SPAN: Record<number, string> = { 6: "sm:col-span-6", 12: "sm:col-span-12" };
-const LG_SPAN: Record<number, string> = { 4: "lg:col-span-4", 6: "lg:col-span-6", 12: "lg:col-span-12" };
-const XL_SPAN: Record<number, string> = { 3: "xl:col-span-3", 4: "xl:col-span-4", 6: "xl:col-span-6", 12: "xl:col-span-12" };
-
-/**
- * Balanced: every row full width at every breakpoint. Seven cards are 4 + 3 at
- * xl, 3 + 2 + 2 at lg (the 1024 content column is too narrow for four), and
- * 2 + 2 + 2 + 1 on tablet.
- */
-function BalancedLayout() {
-  const sm = balancedSpans(SPECIALIZED.length, 2);
-  const lg = balancedSpans(SPECIALIZED.length, 3);
-  const xl = balancedSpans(SPECIALIZED.length, 4);
+export default function IndustryInterviewsPage() {
   return (
-    <ul aria-label="Industry-specific interviews" className="grid gap-3 sm:grid-cols-12">
-      {SPECIALIZED.map((item, index) => (
-        <CompactCard key={item.key} className={clsx(SM_SPAN[sm[index]], LG_SPAN[lg[index]], XL_SPAN[xl[index]])} item={item} />
-      ))}
-    </ul>
-  );
-}
-
-/**
- * Filler: four across at xl (two below, since eight cards in three columns would
- * leave a gap), with the general interview as a quiet last tile so no slot is empty.
- */
-function FillerLayout() {
-  return (
-    <ul aria-label="Industry-specific interviews" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {[...SPECIALIZED, GENERAL_PICKER_ITEM].map((item) => (
-        <CompactCard key={item.key} item={item} />
-      ))}
-    </ul>
-  );
-}
-
-export default function IndustryInterviewsPage({ layout = DEFAULT_LAYOUT }: { layout?: InterviewLayout }) {
-  return (
-    <div className="flex flex-col gap-5" data-layout={layout}>
+    <div className="flex flex-col gap-5">
       <PracticeHero
         backHref={routes.interviews()}
         backLabel="Interview practice"
@@ -182,7 +140,12 @@ export default function IndustryInterviewsPage({ layout = DEFAULT_LAYOUT }: { la
         title="Industry-specific interviews"
       />
 
-      {layout === "filler" ? <FillerLayout /> : <BalancedLayout />}
+      {/* Seven cards: 4 + 3 at xl, 3 + 2 + 2 at lg (four is too narrow beside the sidebar), 2 + 2 + 2 + 1 on tablet. */}
+      <BalancedGrid aria-label="Industry-specific interviews" className="gap-3" perRow={{ sm: 2, lg: 3, xl: 4 }}>
+        {SPECIALIZED.map((item) => (
+          <CompactCard key={item.key} item={item} />
+        ))}
+      </BalancedGrid>
     </div>
   );
 }
