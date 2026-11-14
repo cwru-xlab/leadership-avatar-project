@@ -477,6 +477,8 @@ export function PersonaCountsPanel({ report }: { report: ReportDTO }) {
 
 const STEP_STATUS: Record<string, { label: string; className: string }> = {
   hit: { label: "Done", className: "bg-light-blue/40 text-cwru-blue" },
+  // Attempted but incomplete: neutral, between Done's blue and Missed's copper.
+  partly: { label: "Partly", className: "bg-canvas text-cwru-blue border border-light-blue" },
   missed: { label: "Missed", className: "bg-copper/[0.12] text-copper-deep" },
   prompted: { label: "Prompted", className: "bg-canvas text-ink border border-line" },
   not_applicable: { label: "Not reached", className: "bg-canvas text-muted border border-line" },
@@ -498,6 +500,7 @@ export function PersonaChecklistPanel({ report }: { report: ReportDTO }) {
   const factsFound = analysis.facts.filter((f) => f.elicited).length;
   const mi = analysis.style === "motivational-interviewing";
   const missedSteps = analysis.steps.filter((s) => s.status === "missed").length;
+  const partlySteps = analysis.steps.filter((s) => s.status === "partly").length;
   const cuesHandled = analysis.cues.filter(
     (c) => c.status === "explored" || c.status === "acknowledged",
   ).length;
@@ -509,6 +512,7 @@ export function PersonaChecklistPanel({ report }: { report: ReportDTO }) {
         testId="persona-checklist-summary"
         tiles={[
           { label: "Steps done", value: String(tally.hit), total: String(tally.applicable), tone: "good" },
+          { label: "Steps partly done", value: String(partlySteps), tone: "neutral" },
           { label: "Steps missed", value: String(missedSteps), tone: "bad" },
           {
             label: mi ? "Held back, drawn out" : "Hidden history found",

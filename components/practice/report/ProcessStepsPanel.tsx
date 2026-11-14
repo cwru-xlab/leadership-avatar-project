@@ -1,6 +1,6 @@
 /**
  * Process steps — how the candidate handled each step of the problem
- * interview's framework: Hit / Prompted / Missed / N/A, with the evidence
+ * interview's framework: Hit / Prompted / Partly / Missed / N/A, with the evidence
  * quote, its timecode, and one coaching note. The framework comes from the
  * report snapshot (pinned at session start); the results come from the
  * outcome's `processSteps`, narrowed defensively — a malformed value renders
@@ -33,6 +33,14 @@ const STATUS: Record<ProcessStepStatus, { label: string; dot: string; tint: stri
     dot: "bg-level-2",
     tint: "bg-level-2/15",
     meaning: "You did this after the interviewer's nudge.",
+  },
+  // Light Blue is the ramp's middle ("Solid") — an attempt that landed
+  // halfway. Deliberately not Orange (Level 2), which Prompted already uses.
+  partly: {
+    label: "Partly",
+    dot: "bg-light-blue",
+    tint: "bg-light-blue/30",
+    meaning: "You attempted this, but it was incomplete or vague.",
   },
   missed: {
     label: "Missed",

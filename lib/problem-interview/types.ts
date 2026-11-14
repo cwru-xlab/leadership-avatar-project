@@ -20,6 +20,13 @@
  *
  * - `hit`: did it unprompted.
  * - `prompted`: only did it after the interviewer's neutral nudge.
+ * - `partly`: attempted it, but the attempt was incomplete or vague. Used by
+ *   checklists with no interviewer to nudge (courageous conversations,
+ *   clinical communication, motivational interviewing). NOT used by problem
+ *   interviews: their grading is a calibrated yes/no on the full criteria,
+ *   `prompted` already covers "got there with help", and `process_rigor` is
+ *   derived from the statuses — `finalizeProblemOutcome` downgrades a stray
+ *   `partly` to `missed`.
  * - `missed`: never did it, nudged or not.
  * - `not_applicable`: the session ended before the step could be reached
  *   through no fault of the candidate's process (e.g. the interviewer ran out
@@ -32,11 +39,20 @@
 export const PROCESS_STEP_STATUSES = [
   "hit",
   "prompted",
+  "partly",
   "missed",
   "not_applicable",
 ] as const;
 
 export type ProcessStepStatus = (typeof PROCESS_STEP_STATUSES)[number];
+
+/** The statuses a problem-interview evaluator may emit (no `partly`). */
+export const PROBLEM_STEP_STATUSES = [
+  "hit",
+  "prompted",
+  "missed",
+  "not_applicable",
+] as const satisfies readonly ProcessStepStatus[];
 
 /** One step of a named method such as CIRCLE or a case-interview flow. */
 export interface ProcessStepDef {
@@ -185,7 +201,9 @@ export function deriveProcessRigorScore(steps: ProcessStepResult[]): number | nu
   const applicable = steps.filter((step) => step.status !== "not_applicable");
   if (applicable.length === 0) return null;
   const prompted = applicable.filter((step) => step.status === "prompted").length;
-  const missed = applicable.filter((step) => step.status === "missed").length;
+  // `partly` never survives `finalizeProblemOutcome`; counted as missed here
+  // too so the bands can never be lifted by one.
+  const missed = applicable.filter((step) => step.status === "missed" || step.status === "partly").length;
   if (missed >= 3) return 1;
   if (missed === 2 || prompted >= 3) return 2;
   if (missed === 1 || prompted === 2) return 3;

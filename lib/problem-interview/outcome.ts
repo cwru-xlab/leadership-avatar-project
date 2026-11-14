@@ -66,7 +66,7 @@ function repairStepsJson(text: string): unknown {
     .split(/(?=\{\s*"key"\s*:)/)
     .flatMap((chunk) => {
       const key = chunk.match(/^\{\s*"key"\s*:\s*"([a-z0-9_]+)"/i)?.[1];
-      const status = chunk.match(/"status"\s*:\s*"(hit|prompted|missed|not_applicable)"/)?.[1];
+      const status = chunk.match(/"status"\s*:\s*"(hit|prompted|partly|missed|not_applicable)"/)?.[1];
       if (!key || !status) return [];
       const timecode = chunk.match(/"timecodeSeconds"\s*:\s*(\d+(?:\.\d+)?)/)?.[1];
       const field = (name: string) =>
@@ -257,6 +257,9 @@ export function finalizeProblemOutcome(
     : results;
 
   const reconciled = ordered.map((result): ProcessStepResult => {
+    // Problem interviews grade yes/no on the full criteria (see
+    // PROCESS_STEP_STATUSES): an incomplete attempt is a miss here.
+    if (result.status === "partly") return { ...result, status: "missed" };
     if (result.status !== "hit" && result.status !== "prompted") return result;
     if (isGenericNonAnswer(result.evidenceQuote, defsByKey.get(result.key)?.genericAnswerTerms)) {
       return { ...result, status: "missed" };
