@@ -9,6 +9,7 @@
  */
 import { MAX_PERSONA_LENGTH } from "../lib/interview/customization";
 import {
+  NETWORKING_CHARACTER_GROUPS,
   NETWORKING_CHARACTERS,
   getNetworkingCharacter,
   listNetworkingCharacters,
@@ -25,11 +26,13 @@ function check(name: string, pass: boolean, detail?: string) {
   }
 }
 
-console.log("\n1. Count — between 4 and 6 records inclusive (16-CONTEXT.md band)");
+// The 16-CONTEXT.md band was 4–6. Client feedback (2026-11-14) widened the set
+// beyond business; the picker now filters by group, so the band is 4–16.
+console.log("\n1. Count — between 4 and 16 records inclusive (widened 2026-11-14)");
 {
   const count = NETWORKING_CHARACTERS.length;
   console.log(`  count: ${count}`);
-  check("count is between 4 and 6 inclusive", count >= 4 && count <= 6, `got ${count}`);
+  check("count is between 4 and 16 inclusive", count >= 4 && count <= 16, `got ${count}`);
   check(
     "listNetworkingCharacters returns the same declaration-order array",
     listNetworkingCharacters() === NETWORKING_CHARACTERS ||
@@ -190,6 +193,19 @@ console.log(
       `"${c.id}" persona does not start with "You are"`,
       !c.persona.startsWith("You are"),
     );
+  }
+}
+
+console.log("\n9b. Groups — every group used, every record in a known group");
+{
+  const known = new Set<string>(NETWORKING_CHARACTER_GROUPS.map((g) => g.id));
+  for (const c of NETWORKING_CHARACTERS) {
+    check(`"${c.id}" group "${c.group}" is known`, known.has(c.group));
+  }
+  for (const g of NETWORKING_CHARACTER_GROUPS) {
+    const n = NETWORKING_CHARACTERS.filter((c) => c.group === g.id).length;
+    console.log(`  ${g.label}: ${n}`);
+    check(`group "${g.id}" has at least two people`, n >= 2);
   }
 }
 
