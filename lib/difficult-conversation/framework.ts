@@ -13,8 +13,8 @@
  * view, and a concrete move to action — but the wording below is ours. Do
  * not paste that book's proprietary phrasing or acronyms into step text.
  *
- * Steps are graded `hit` / `missed` / `not_applicable`; `prompted` does not
- * apply (there is no interviewer nudging). `nudge` is required by the shared
+ * Steps are graded `hit` / `partly` / `missed` / `not_applicable`; `prompted`
+ * does not apply (there is no interviewer nudging). `nudge` is required by the shared
  * contract but is never used live: the character does not coach.
  *
  * The checklist sits BESIDE the four scored conversation dimensions; it does
@@ -103,14 +103,15 @@ Separately from the scores, grade the student's conversation against these five 
 
 ${steps}
 
-For EACH move, find the student's own words first, then decide:
-- "hit": the student's own words fully meet the "counts as hit" criteria. Quote them verbatim in evidenceQuote — the shortest span that shows the move, at most about 30 words (trim with "…").
-- "missed": they never fully met the criteria. evidenceQuote is "" — or, when an attempt fell short, quote that attempt and say in the note what was missing.
+For EACH move, find the student's own words first, then check them against EVERY required part of its "counts as hit" criteria (a criterion joined by AND needs both parts — e.g. the concern needs the problem AND its impact). Then decide:
+- "hit": the student's own words meet every required part of the criteria. If any part is absent, it is not a hit. Quote them verbatim in evidenceQuote — the shortest span that shows the move, at most about 30 words (trim with "…").
+- "partly": the student attempted the move but it was incomplete or vague — e.g. a goal named only for themselves, a fact mixed with a label, a concern with no impact, one open question they then ignored, a next step with no owner or date. Quote the attempt; the note says exactly what would have made it a hit.
+- "missed": no real attempt, or the attempt worked against the move — an accusation or label instead of a fact or concern, a rhetorical question, a vague "let's keep talking about it". These are ALWAYS missed, never partly: partly is for an attempt that moved the conversation in the right direction but stopped short. evidenceQuote is "" — or quote the counter-productive line — and the note gives a concrete phrase that would have been a hit.
 - "not_applicable": ONLY when the character ended the conversation before this move could reasonably come up through no fault of the student's process. Never use it to excuse a skipped move.
-- timecodeSeconds: the [m:ss] stamp of the transcript line holding the quote, converted to total seconds (minutes × 60 + seconds: [1:25] → 85, [3:05] → 185); null when there is no quote.
-- note: ONE short sentence (under 35 words) of coaching addressed to the student ("you"). For a hit, say what made it work. For a miss, give a concrete phrase they could have used at that point in THIS conversation, built only from facts in the scenario or the transcript — never invent events, numbers or names.
+- timecodeSeconds: the [m:ss] stamp of the transcript line holding the quote, converted to total seconds (minutes × 60 + seconds: [1:25] → 85, NOT 125; [3:05] → 185, NOT 305); null when there is no quote.
+- note: ONE short sentence (under 35 words) of coaching addressed to the student ("you"). For a hit, say what made it work. For partly, say what would have made it a hit. For a miss, give a concrete phrase they could have used at that point in THIS conversation, built only from facts in the scenario or the transcript — never invent events, numbers or names.
 
-These moves also inform the scores above — use the same evidence, do not contradict it: facts and the concern feed clarity; common ground and inquiry feed empathy; a next step feeds objective_achieved. In strengths and growth areas, name the move by its label when it is the point (e.g. "Lead with inquiry").
+These moves also inform the scores above — use the same evidence, do not contradict it: facts and the concern feed clarity; common ground and inquiry feed empathy; a next step feeds objective_achieved. The report shows this checklist on its own, so do NOT repeat the five moves as strengths or growth areas — use those for everything else (tone, holding the line, how you handled pushback, pacing, word choice).
 
-- ${CONVERSATION_STEPS_OUTCOME_KEY}: a STRING containing a JSON array with exactly one object per move, in the order above: [{"key": "${framework.steps[0]?.key ?? ""}", "status": "hit" | "missed" | "not_applicable", "evidenceQuote": string, "timecodeSeconds": number | null, "note": string}, ...]. Never a raw JSON array value.`;
+- ${CONVERSATION_STEPS_OUTCOME_KEY}: a STRING containing a JSON array with exactly one object per move, in the order above: [{"key": "${framework.steps[0]?.key ?? ""}", "status": "hit" | "partly" | "missed" | "not_applicable", "evidenceQuote": string, "timecodeSeconds": number | null, "note": string}, ...]. Never a raw JSON array value.`;
 }

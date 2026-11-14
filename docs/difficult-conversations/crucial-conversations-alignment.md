@@ -42,6 +42,13 @@ Add the five moves to the evaluation and the report as a **named, graded checkli
 - The report adds a new **"The five moves"** panel (`components/practice/report/ConversationStepsPanel.tsx`) as the first section below the summary. It reuses the problem-interview checklist body, which is now exported as `ProcessStepsSection`.
 - Compatibility: the rubric dimensions, their keys, mastery mapping and score cards are unchanged. The new outcome field is optional, so reports graded earlier have no checklist and render exactly as before. The quote sanitizer also applies to the new field's quotes.
 
+### Follow-up decisions (2026-11-14)
+
+- Shipped **alongside** the four existing scores, as built.
+- Strengths and growth areas no longer restate the five moves; the checklist owns them.
+- A **Partly** verdict ("attempted, but incomplete or vague"; the coaching note says what would make it a Hit) is now part of the shared step format. It applies to courageous conversations and to the clinical-communication and motivational-interviewing checklists. It shows as a Light Blue chip, the middle of the level ramp, and summaries read e.g. "1 hit · 4 partly · 0 missed". Older reports that contain only hit/missed render unchanged.
+- **Problem interviews (case/PM/finance/system design/analytics) do not use Partly.** Their grading is a calibrated yes/no on the full criteria, validated in grading studies. Prompted already covers "got there with help", and the Process & structure score is derived from the step verdicts. `finalizeProblemOutcome` turns any stray Partly into Missed. The shared report panel can still display Partly, so all checklists look the same.
+
 Further options not built here, for the user to decide:
 1. Replace the four extra dimensions with five scored 1–5 dimensions named after the moves. That changes the score cards and mastery competencies, and would need a mapping for old reports.
 2. Add a short pre-session briefing tip listing the five moves.

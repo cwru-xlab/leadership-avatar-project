@@ -1,6 +1,6 @@
 /**
  * The five moves of a courageous conversation — common ground, facts, the
- * concern, inquiry, a next step — each Hit / Missed / N/A with the student's
+ * concern, inquiry, a next step — each Hit / Partly / Missed / N/A with the student's
  * own words, timecode and one coaching note. Same checklist body as the
  * problem-interview process steps (`ProcessStepsSection`).
  *
@@ -27,7 +27,7 @@ export default function ConversationStepsPanel({ report }: { report: ReportDTO }
       stepResults={raw}
       heading="The five moves"
       testId="conversation-steps"
-      summaryStatuses={["hit", "missed", "not_applicable"]}
+      summaryStatuses={["hit", "partly", "missed", "not_applicable"]}
     />
   );
 }
