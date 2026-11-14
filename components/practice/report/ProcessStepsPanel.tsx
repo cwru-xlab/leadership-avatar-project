@@ -18,7 +18,7 @@ import { ChevronDown } from "lucide-react";
 
 import type { ReportDTO } from "@/lib/report/dto";
 import type { ProcessStepStatus } from "@/lib/problem-interview/types";
-import { asProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
+import { asProblemSessionSnapshot, type PublicProcessFramework } from "@/lib/problem-interview/session-state";
 import { buildProcessStepViews } from "@/lib/problem-interview/outcome";
 
 const STATUS: Record<ProcessStepStatus, { label: string; dot: string; tint: string; meaning: string }> = {
@@ -71,9 +71,41 @@ export default function ProcessStepsPanel({ report }: { report: ReportDTO }) {
     report.input?.kind === "interview" ? asProblemSessionSnapshot(report.input.problem) : null;
   if (!problem || problem.framework.steps.length === 0) return null;
 
-  const steps = buildProcessStepViews(problem.framework, report.outcome?.processSteps);
+  return (
+    <ProcessStepsSection
+      framework={problem.framework}
+      stepResults={report.outcome?.processSteps}
+      heading="Process steps"
+      testId="process-steps"
+    />
+  );
+}
+
+/**
+ * The checklist body, framework-agnostic: any `PublicProcessFramework` plus
+ * its stored step verdicts. Shared by problem interviews (above) and the
+ * courageous-conversation five moves (`ConversationStepsPanel`).
+ */
+export function ProcessStepsSection({
+  framework,
+  stepResults,
+  heading,
+  testId,
+  summaryStatuses = ["hit", "prompted", "missed", "not_applicable"],
+}: {
+  framework: PublicProcessFramework;
+  /** The outcome's JSON-encoded `ProcessStepResult[]`, narrowed defensively. */
+  stepResults: unknown;
+  heading: string;
+  /** `data-testid` prefix: `<testId>-panel`, `<testId>-summary`. Step rows stay `process-step-<key>`. */
+  testId: string;
+  /** Statuses this checklist can produce, in summary order. */
+  summaryStatuses?: readonly ProcessStepStatus[];
+}) {
+  const headingId = `${testId}-heading`;
+  const steps = buildProcessStepViews(framework, stepResults);
   const graded = steps.filter((step) => step.result);
-  const counts = (["hit", "prompted", "missed", "not_applicable"] as const)
+  const counts = summaryStatuses
     .map((status) => ({
       status,
       count: graded.filter((step) => step.result?.status === status).length,
@@ -83,21 +115,21 @@ export default function ProcessStepsPanel({ report }: { report: ReportDTO }) {
   return (
     <section
       className="flex flex-col gap-4 rounded-xl border border-line bg-white p-6 sm:p-8"
-      aria-labelledby="process-steps-heading"
-      data-testid="process-steps-panel"
+      aria-labelledby={headingId}
+      data-testid={`${testId}-panel`}
     >
       <div className="flex flex-col gap-1">
         <h2
-          id="process-steps-heading"
+          id={headingId}
           className="font-display text-[24px] font-medium leading-[1.15] text-cwru-blue"
         >
-          Process steps
+          {heading}
         </h2>
         <p className="text-[15px] leading-6 text-ink">
-          Graded against the {problem.framework.label || "interview's method"}.
+          Graded against the {framework.label || "interview's method"}.
         </p>
         {graded.length ? (
-          <p className="text-[13px] text-muted" data-testid="process-steps-summary">
+          <p className="text-[13px] text-muted" data-testid={`${testId}-summary`}>
             {counts.map(({ status, count }) => `${count} ${STATUS[status].label.toLowerCase()}`).join(" · ")}
           </p>
         ) : (
@@ -107,13 +139,13 @@ export default function ProcessStepsPanel({ report }: { report: ReportDTO }) {
         )}
       </div>
 
-      {problem.framework.source ? (
+      {framework.source ? (
         <details className="group text-[13px] text-muted">
           <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 font-semibold text-link focus-visible:outline focus-visible:outline-2 focus-visible:outline-true-blue">
             Why these steps
             <ChevronDown size={16} aria-hidden className="shrink-0 group-open:rotate-180 motion-safe:transition-transform" />
           </summary>
-          <p className="max-w-[65ch] leading-6">{problem.framework.source}</p>
+          <p className="max-w-[65ch] leading-6">{framework.source}</p>
         </details>
       ) : null}
 

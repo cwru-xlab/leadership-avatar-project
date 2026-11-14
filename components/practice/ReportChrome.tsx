@@ -24,6 +24,7 @@ import { deckModeNegotiates, isDeckModeSlug, type DeckModeSlug } from "@/lib/pit
 
 import NetworkingOutcomePanel from "@/components/practice/panels/NetworkingOutcomePanel";
 import ConversationEndBanner from "@/components/practice/report/ConversationEndBanner";
+import ConversationStepsPanel from "@/components/practice/report/ConversationStepsPanel";
 import ConversationOutcomePanel from "@/components/practice/report/ConversationOutcomePanel";
 import DeckTimelinePanel from "@/components/practice/report/DeckTimelinePanel";
 import DeckVerdictPanel from "@/components/practice/report/DeckVerdictPanel";
@@ -177,6 +178,7 @@ const DIFFICULT_CONVERSATION_CHROME: ReportChrome = {
     above: (report) => <ConversationEndBanner report={report} />,
     below: (report) => (
       <>
+        <ConversationStepsPanel report={report} />
         <ConversationOutcomePanel report={report} />
         <InRoleReactionPanel report={report} />
       </>
