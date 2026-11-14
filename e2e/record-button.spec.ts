@@ -6,17 +6,21 @@ import { expect, test, type Page } from "@playwright/test";
  */
 const SHOTS = "/Users/ajabreu79/projects/leadership-avatar-wt/screenshots-2026-11-14/loop-tweaks-ui";
 
+async function signIn(page: Page, email: string, password: string) {
+  await page.goto("/login");
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="password"]').fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
+}
+
 async function shotLocator(page: Page, testId: string, name: string) {
   await page.getByTestId(testId).screenshot({ path: `${SHOTS}/${name}.png`, animations: "disabled" });
 }
 
 test("practice headline says personalized", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/login");
-  await page.locator('input[type="email"]').fill("student@case.edu");
-  await page.locator('input[type="password"]').fill("student123");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
+  await signIn(page, "student@case.edu", "student123");
   await page.goto("/practice");
   const em = page.locator("header p em", { hasText: "personalized" });
   await expect(em).toBeVisible();
@@ -28,6 +32,8 @@ test("practice headline says personalized", async ({ page }) => {
 
 test("record button variants", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  // Test pages sit behind auth in dev.
+  await signIn(page, "admin@example.com", "admin123");
   await page.goto("/test-pages/record-button");
   await expect(page.getByText("Record button states")).toBeVisible();
   // No crossed-out mic on any new recording state; buttons use the success (green) fill.
