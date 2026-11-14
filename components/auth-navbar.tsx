@@ -130,13 +130,19 @@ export const AuthNavbar = () => {
                         <NextLink
                           aria-current={active ? "page" : undefined}
                           className={clsx(
-                            "flex h-11 items-center gap-3 rounded-lg px-3 text-[14.5px] transition-colors duration-150 ease-out focus-visible:outline-light-blue",
+                            "relative flex h-11 items-center gap-3 rounded-lg px-3 text-[14.5px] transition-colors duration-150 ease-out focus-visible:outline-light-blue",
                             active
                               ? "bg-white font-semibold text-cwru-blue"
                               : "text-white/[0.88] hover:bg-white/10 hover:text-white",
                           )}
                           href={item.href}
                         >
+                          {active && (
+                            <span
+                              aria-hidden
+                              className="absolute inset-y-2.5 left-0 w-[3px] rounded-r-full bg-accent"
+                            />
+                          )}
                           {Icon && <Icon aria-hidden className="shrink-0" size={18} strokeWidth={1.5} />}
                           {item.label}
                         </NextLink>

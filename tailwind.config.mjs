@@ -35,6 +35,8 @@ const config = {
         "copper-deep": "#B8321A",
         "copper-soft": "#FF9C88",
         ai: "#692C95",
+        // Decorative accent; the value lives in --la-accent (styles/brand.css).
+        accent: "var(--la-accent)",
         weatherhead: {
           primary: "#003071",
           white: "#FFFFFF",

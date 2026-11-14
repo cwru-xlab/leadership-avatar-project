@@ -534,7 +534,7 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
         <span aria-hidden className="la-dots absolute inset-0 opacity-60" />
         {bothOverallNull ? (
           <div className="relative flex max-w-xl flex-col gap-1">
-            <h1 className="font-display text-[32px] font-medium leading-[1.1]">Mastery</h1>
+            <h1 className="la-title-rule font-display text-[32px] font-medium leading-[1.1]">Mastery</h1>
             <p className="font-display text-xl">No mastery measured yet</p>
             <p className="text-sm leading-6 text-light-blue">
               Complete a live practice session, a knowledge check or a coached session and this
@@ -564,7 +564,7 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
               </ProgressRing>
             </div>
             <div className="relative flex min-w-[220px] flex-1 flex-col gap-1">
-              <h1 className="font-display text-[32px] font-medium leading-[1.1]">Mastery</h1>
+              <h1 className="la-title-rule font-display text-[32px] font-medium leading-[1.1]">Mastery</h1>
               <dl className="flex flex-wrap gap-x-5 text-[15px] text-light-blue">
                 <div className="flex gap-1.5">
                   <dt>{`Recent (last ${masteryWindow.days} days)`}</dt>

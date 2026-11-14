@@ -110,7 +110,7 @@ export function UpNextCard({
         className="h-1 overflow-hidden rounded-full bg-white/[0.16]"
       >
         <span
-          className="block h-full rounded-full bg-light-blue"
+          className="block h-full rounded-full bg-accent"
           style={{ width: `${(done / upNext.total) * 100}%` }}
         />
       </span>

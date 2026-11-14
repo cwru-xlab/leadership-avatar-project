@@ -200,7 +200,7 @@ export default function StudyPlansPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-2">
-        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px] la-title-rule">
           Study plans
         </h1>
         <p className="text-[15px] text-muted">Each plan turns your feedback into a path of short steps.</p>

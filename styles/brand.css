@@ -29,6 +29,12 @@
   --la-level-1: #D63D1F;
   --la-ai: #692C95;
 
+  /* Accent: the one brand-character color. CWRU tertiary, used in small,
+     decorative doses only (active nav marker, title rule, practice icons,
+     the practice-next target, the up-next progress fill). It never carries
+     text and never marks status, so it can't be read as a score level. */
+  --la-accent: #FF9239;
+
   /* surfaces */
   --la-shadow-raised: 0 12px 32px rgb(9 20 58 / 0.16);
   --la-stage: #09143A;
@@ -83,6 +89,17 @@
 }
 
 @layer utilities {
+  /* Short accent rule under a page title. Decorative; the title carries the meaning. */
+  .la-title-rule::after {
+    content: "";
+    display: block;
+    width: 32px;
+    height: 3px;
+    margin-top: 12px;
+    border-radius: 2px;
+    background: var(--la-accent);
+  }
+
   /* "Not started" / "no data yet" texture. Never behind body-length text. */
   .la-hatch {
     background: repeating-linear-gradient(135deg, var(--la-surface) 0 6px, rgb(9 20 58 / 0.06) 6px 7px);
