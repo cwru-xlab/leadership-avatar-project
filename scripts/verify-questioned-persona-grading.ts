@@ -224,7 +224,8 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
   const steps: Record<string, string> = {};
   for (const s of analysis.steps) steps[s.key] = s.status;
   for (const [key, want] of Object.entries(g.expectSteps)) {
-    if (steps[key] !== want) failures.push(`step ${key}=${steps[key] ?? "absent"} (want ${want})`);
+    const ok = Array.isArray(want) ? want.includes(steps[key] as never) : steps[key] === want;
+    if (!ok) failures.push(`step ${key}=${steps[key] ?? "absent"} (want ${Array.isArray(want) ? want.join("|") : want})`);
   }
 
   const facts: Record<string, boolean> = {};
@@ -284,7 +285,7 @@ async function grade(g: GoldenTranscript, run: number): Promise<Graded> {
   };
 }
 
-const ABBR: Record<string, string> = { hit: "H", missed: "M", not_applicable: "-" };
+const ABBR: Record<string, string> = { hit: "H", partly: "~", missed: "M", not_applicable: "-" };
 
 function row(r: Graded): string {
   const sc = Object.entries(r.scores)

@@ -54,6 +54,34 @@ test.describe("five moves panel", () => {
     });
   }
 
+  test("middling report shows Partly in the chips and the summary", async ({ page }) => {
+    const id = process.env.DC_MIDDLING_ID;
+    test.skip(!id, "middling report id not provided");
+    await page.setViewportSize({ width: 1280, height: 2600 });
+    await signIn(page, "student@case.edu");
+    await page.goto(`/practice/difficult-conversation/report/${id}`);
+    const panel = page.getByTestId("conversation-steps-panel");
+    await expect(panel).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("conversation-steps-summary")).toHaveText(/\d+ hit · [1-9]\d* partly · \d+ missed/);
+    await expect(panel.locator('[data-status="partly"]').first()).toHaveText("Partly");
+    await shotPanel(page, "dc-five-moves-middling");
+  });
+
+  test("clinical checklist shows Partly", async ({ page }) => {
+    const id = process.env.CLINICAL_PARTLY_ID;
+    test.skip(!id, "clinical report id not provided");
+    await page.setViewportSize({ width: 1280, height: 2600 });
+    await signIn(page, "student@case.edu");
+    await page.goto(`/practice/clinical-communication/report/${id}`);
+    await page.getByRole("tab", { name: "Behaviors" }).click({ timeout: 60_000 });
+    const panel = page.getByTestId("persona-checklist-panel");
+    await expect(panel).toBeVisible();
+    await expect(page.getByTestId("persona-checklist-summary")).toContainText("Steps partly done");
+    await expect(panel.getByText("Partly", { exact: true }).first()).toBeVisible();
+    mkdirSync(SHOTS, { recursive: true });
+    await panel.screenshot({ path: `${SHOTS}/clinical-checklist-partly-panel.png`, animations: "disabled" });
+  });
+
   test("pre-checklist report renders without the panel", async ({ page }) => {
     const id = process.env.DC_OLD_ID;
     test.skip(!id, "old report id not provided");

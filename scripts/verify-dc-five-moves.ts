@@ -60,6 +60,26 @@ const STRONG: Turn[] = [
   { who: "Manager", t: "3:50", text: "Fine — Wednesday, then Thursday, then Monday. I'll put it on the calendar." },
 ];
 
+/**
+ * Each move ATTEMPTED but incomplete or vague: a goal only for themselves,
+ * facts mixed with a label, a concern with no impact, one open question the
+ * student then talks over, a next step with no owner or date.
+ */
+const MIDDLING: Turn[] = [
+  { who: "Student", t: "0:10", text: "Thanks for meeting. I want to talk about my pay — I really want to keep growing my career." },
+  { who: "Manager", t: "0:25", text: "Okay. Though you know budgets are tight this cycle." },
+  { who: "Student", t: "0:40", text: "I led the migration and I've basically been doing two jobs since Priya left, which honestly nobody seems to notice." },
+  { who: "Manager", t: "1:00", text: "People notice. The migration went well." },
+  { who: "Student", t: "1:15", text: "I just feel like my pay should be higher." },
+  { who: "Manager", t: "1:30", text: "I hear you, but I can't hand out raises outside the review cycle." },
+  { who: "Student", t: "1:45", text: "What would it take on your side?" },
+  { who: "Manager", t: "2:00", text: "Anything over three percent needs my director, and she'll want market data." },
+  { who: "Student", t: "2:15", text: "Right, but I really think I've earned eight percent regardless of what she wants." },
+  { who: "Manager", t: "2:35", text: "That's not how it works here." },
+  { who: "Student", t: "2:50", text: "Okay. Maybe we can look at it again at some point soon." },
+  { who: "Manager", t: "3:05", text: "Sure, at some point." },
+];
+
 /** None of the five moves. */
 const WEAK: Turn[] = [
   { who: "Student", t: "0:15", text: "So I'm just going to say it, you've been ignoring me and I'm underpaid." },
@@ -101,9 +121,12 @@ async function main() {
 
   const results: Array<{ label: string; scores: Record<string, number | null>; outcome: Record<string, unknown>; structured: unknown; markdown: string; model: string }> = [];
 
-  for (const [label, turns, minHits, maxHits] of [
-    ["strong", STRONG, 4, 5],
-    ["weak", WEAK, 0, 1],
+  const moveScore: Record<string, number> = {};
+  // [label, turns, hits range, minimum partly]
+  for (const [label, turns, minHits, maxHits, minPartly] of [
+    ["strong", STRONG, 4, 5, 0],
+    ["middling", MIDDLING, 0, 2, 2],
+    ["weak", WEAK, 0, 1, 0],
   ] as const) {
     console.log(`\n== ${label} transcript`);
     const out = await runEvaluation({
@@ -132,16 +155,39 @@ async function main() {
       if (step?.note) console.log(`      note: ${step.note}`);
     }
     const hits = steps.filter((s) => s.status === "hit").length;
+    const partly = steps.filter((s) => s.status === "partly").length;
     check(`${label}: hits within [${minHits}, ${maxHits}]`, hits >= minHits && hits <= maxHits, `hits=${hits}`);
+    if (minPartly > 0) check(`${label}: at least ${minPartly} partly`, partly >= minPartly, `partly=${partly}`);
+    if (label === "weak") check("weak: at most one partly", partly <= 1, `partly=${partly}`);
+    moveScore[label] = hits * 2 + partly;
     const s = out.result.scores;
     console.log(`  scores: ${["content", "behavioral", "clarity", "empathy", "holding_the_line", "objective_achieved"].map((k) => `${k}=${s[k]}`).join(" ")}`);
     check(`${label}: objectiveStatus still recorded`, typeof v.outcome.objectiveStatus === "string");
     results.push({ label, scores: s, outcome: v.outcome, structured: out.result.reportStructured, markdown: out.result.reportMarkdown, model: out.model });
   }
 
-  if (results.length === 2) {
-    check("strong clarity > weak clarity", (results[0].scores.clarity ?? 0) > (results[1].scores.clarity ?? 0));
-    check("strong empathy > weak empathy", (results[0].scores.empathy ?? 0) > (results[1].scores.empathy ?? 0));
+  // Separation on the checklist itself: hit = 2, partly = 1, missed = 0.
+  if (moveScore.strong !== undefined && moveScore.middling !== undefined && moveScore.weak !== undefined) {
+    check(
+      `checklist separates strong > middling > weak`,
+      moveScore.strong > moveScore.middling && moveScore.middling > moveScore.weak,
+      JSON.stringify(moveScore),
+    );
+    console.log(`  checklist points (hit=2, partly=1): ${JSON.stringify(moveScore)}`);
+  }
+  const byLabel = Object.fromEntries(results.map((r) => [r.label, r]));
+  if (byLabel.strong && byLabel.weak) {
+    check("strong clarity > weak clarity", (byLabel.strong.scores.clarity ?? 0) > (byLabel.weak.scores.clarity ?? 0));
+    check("strong empathy > weak empathy", (byLabel.strong.scores.empathy ?? 0) > (byLabel.weak.scores.empathy ?? 0));
+  }
+  // The checklist owns the five moves: strengths/growth areas should not
+  // simply restate them (user decision 2026-11-14).
+  const MOVE_TITLES = /^(find common ground|share facts( and observations)?|frame the concern|lead with inquiry|create a next step)$/i;
+  for (const r of results) {
+    const st = r.structured as { strengths?: { title?: string }[]; growth_areas?: { title?: string }[] } | null;
+    const titles = [...(st?.strengths ?? []), ...(st?.growth_areas ?? [])].map((x) => (x.title ?? "").trim());
+    const dupes = titles.filter((t) => MOVE_TITLES.test(t));
+    check(`${r.label}: strengths/growth areas don't restate the moves`, dupes.length === 0, dupes.join(", "));
   }
 
   if (seedEmail && results.length) {
@@ -166,7 +212,7 @@ async function main() {
           reportStructured: r.structured as object,
           reportMarkdown: r.markdown,
           evalModel: r.model,
-          turnCount: (r.label === "strong" ? STRONG : WEAK).length,
+          turnCount: ({ strong: STRONG, middling: MIDDLING, weak: WEAK } as const)[r.label as "strong"].length,
           title: `Five moves check — ${r.label}`,
           startedAt: new Date(now.getTime() - 4 * 60_000),
           completedAt: now,
