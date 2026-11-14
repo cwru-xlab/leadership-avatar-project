@@ -25,6 +25,7 @@ import type { DifficultConversationRecord } from "@/lib/difficult-conversation/t
 export const PERSONA_STYLES = [
   "clinical-communication",
   "motivational-interviewing",
+  "sales-discovery",
 ] as const;
 
 export type PersonaStyle = (typeof PERSONA_STYLES)[number];
@@ -95,6 +96,17 @@ export interface PersonaCard {
   sustainTalk?: string[];
   /** MI only: how the client reacts to the righting reflex. */
   reactanceRule?: string;
+  /** Sales only: what the seller is offering (product, service or business). */
+  offering?: string;
+  /** Sales only: concerns the buyer raises once the seller proposes something. */
+  objections?: string[];
+  /**
+   * Sales only: how the buyer reacts to being pitched at before they feel
+   * understood (the sales analogue of `reactanceRule`).
+   */
+  pitchReactionRule?: string;
+  /** Sales only: the concrete next step the buyer will agree to, and when. */
+  nextStepCondition?: string;
   /** Short line under the case card on the picker. */
   tagline: string;
   /** Profession tag on the card, e.g. "Medicine", "Nursing", "Dental". */
@@ -155,7 +167,29 @@ export const MI_CODES = [
 
 export type MiCode = (typeof MI_CODES)[number];
 
-export type BehaviorCode = ClinicalCode | MiCode;
+/**
+ * Sales-discovery seller codes. Question categories follow SPIN-style
+ * discovery (situation / problem / implication questions — coded here as
+ * open/closed plus `impact_question`); `pitch` marks any presentation of the
+ * offering, so the first one dates "when did you start selling".
+ */
+export const SALES_CODES = [
+  "open_question",
+  "closed_question",
+  "leading_question",
+  "impact_question",
+  "reflection",
+  "summary",
+  "pitch",
+  "tailored_pitch",
+  "objection_explored",
+  "objection_rebutted",
+  "next_step_ask",
+] as const;
+
+export type SalesCode = (typeof SALES_CODES)[number];
+
+export type BehaviorCode = ClinicalCode | MiCode | SalesCode;
 
 /** One coded student utterance, as returned by the tagging pass. */
 export interface TaggedUtterance {

@@ -11,7 +11,11 @@ export const CLINICAL_DISCLAIMER =
 export const MI_DISCLAIMER =
   "Counseling-skills practice only. The client is fictional. If anything here touches something you are going through yourself, please reach out to University Counseling Services or call or text 988.";
 
+export const SALES_DISCLAIMER =
+  "Sales practice only. The buyer, their organization and the product you sell are fictional.";
+
 export function disclaimerFor(style: PersonaStyle): string {
+  if (style === "sales-discovery") return SALES_DISCLAIMER;
   return style === "clinical-communication" ? CLINICAL_DISCLAIMER : MI_DISCLAIMER;
 }
 
@@ -55,5 +59,19 @@ export const PERSONA_STYLE_COPY: Record<
     briefingFootnote:
       "Arguing for change usually strengthens the other side. Reflect, ask, affirm — and leave the choice with them.",
     checkInLead: "In a real counseling session",
+  },
+  "sales-discovery": {
+    label: "Sales conversation",
+    listTitle: "Sales conversations",
+    listIntro:
+      "Meet a potential client and sell a product, a service or your own business. Listen first — they only share what matters if you ask.",
+    heroDescription:
+      "A live sales meeting: the buyer opens up when you ask and listen, and cools off if you pitch too early. Then a listening-first report.",
+    reportLabel: "Sales conversation",
+    briefingIntro:
+      "Read the brief. The buyer has real needs and constraints that are not written here — what you learn depends on how you ask.",
+    briefingFootnote:
+      "Resist pitching early. Ask, listen, play back what you heard — then tie your offer to what they told you and agree a next step.",
+    checkInLead: "In a real sales meeting",
   },
 };
