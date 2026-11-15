@@ -200,11 +200,11 @@ export function sanitizeOutcomeQuotes(
     next.reactionCauses = sanitizeReactionCausesArray(reactionCauses);
   }
 
-  // Problem interviews' `processSteps` and the courageous-conversation
-  // `conversationSteps` checklist are JSON-encoded step lists whose
+  // Problem interviews' `processSteps`, the courageous-conversation
+  // `conversationSteps` and the technical-coding `codingSteps` checklists are JSON-encoded step lists whose
   // `evidenceQuote` is the student's verbatim words. Same guarantee, same
   // representation-preserving rewrite as `reactionCauses` above.
-  for (const stepsKey of ["processSteps", "conversationSteps"] as const) {
+  for (const stepsKey of ["processSteps", "conversationSteps", "codingSteps"] as const) {
     const processSteps = next[stepsKey];
     if (typeof processSteps === "string" && processSteps.trim()) {
       try {

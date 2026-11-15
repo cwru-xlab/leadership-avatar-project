@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 
 import {
+  KEEP_FIRST_TECHNICAL_VISIBLE_TURNS,
   MAX_TECHNICAL_CHECKPOINTS,
+  MAX_TECHNICAL_VISIBLE_TURNS,
+  parseStoredTechnicalEvidence,
   appendServerVisibleTurns,
   asTechnicalEvidence,
   emptyTechnicalEvidence,
@@ -44,5 +47,31 @@ if (!missingFinalSource.ok) {
   assert.equal(missingFinalSource.error, "Final source code is required");
   assert(!/python/i.test(missingFinalSource.error), "Final source error must support every language");
 }
+
+// G4 (2026-11-15): every server turn carries its own server time.
+const t1 = appendServerVisibleTurns(emptyTechnicalEvidence(), [{ role: "assistant", content: "Opening" }], 1_000);
+const t2 = appendServerVisibleTurns(t1, [{ role: "user", content: "I'd clarify first." }], 61_000);
+assert.deepEqual(t2.visibleTurns.map((turn) => turn.timestamp), [1_000, 61_000], "Each turn keeps the time it was recorded");
+assert.deepEqual(parseStoredTechnicalEvidence(JSON.parse(JSON.stringify(t2)))?.visibleTurns.map((turn) => turn.timestamp), [1_000, 61_000], "Timestamps survive a JSON round trip");
+// Records written before per-turn stamps still parse, with no timestamp.
+const legacy = parseStoredTechnicalEvidence({ version: 1, checkpoints: [], visibleTurns: [{ role: "user", content: "hi" }], finalExecution: null });
+assert(legacy && legacy.visibleTurns[0]!.timestamp === undefined, "Legacy turns without timestamps still parse");
+assert(parseStoredTechnicalEvidence({ version: 1, checkpoints: [], visibleTurns: [{ role: "user", content: "hi", timestamp: "x" }] }), "A malformed timestamp is dropped, not fatal");
+// A caller cannot smuggle extra fields (or a client-chosen time) into the record.
+const smuggled = appendServerVisibleTurns(emptyTechnicalEvidence(), [{ role: "user", content: "x", timestamp: 5, extra: 1 } as never], 9_000);
+assert.deepEqual(Object.keys(smuggled.visibleTurns[0]!).sort(), ["content", "role", "timestamp"]);
+assert.equal(smuggled.visibleTurns[0]!.timestamp, 9_000);
+
+// G13: first-N plus last-M cap keeps the opening clarification.
+let long = emptyTechnicalEvidence();
+for (let i = 0; i < MAX_TECHNICAL_VISIBLE_TURNS + 20; i += 1) {
+  long = appendServerVisibleTurns(long, [{ role: i % 2 ? "user" : "assistant", content: `turn ${i}` }], 1_000 + i);
+}
+assert.equal(long.visibleTurns.length, MAX_TECHNICAL_VISIBLE_TURNS);
+assert.equal(long.visibleTurns[0]!.content, "turn 0", "The opening survives the cap");
+assert.equal(long.visibleTurns[KEEP_FIRST_TECHNICAL_VISIBLE_TURNS - 1]!.content, `turn ${KEEP_FIRST_TECHNICAL_VISIBLE_TURNS - 1}`);
+assert.equal(long.visibleTurns.at(-1)!.content, `turn ${MAX_TECHNICAL_VISIBLE_TURNS + 19}`, "The latest turn is kept");
+assert.equal(long.omittedVisibleTurns, 20, "The dropped middle is counted");
+assert(parseStoredTechnicalEvidence(JSON.parse(JSON.stringify(long))), "A capped record still parses");
 
 console.log("Technical evidence validation verified.");

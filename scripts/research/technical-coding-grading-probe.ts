@@ -5,15 +5,22 @@
  * Python) through the real `technical-coding` evaluator, exactly as
  * `runAndPersistEvaluation` would after `/api/practice/session/finish`:
  *
- *   - transcript   = the server's visibleTurns, formatted by
- *                    formatTranscriptForEvaluator, with every turn stamped
- *                    Date.now() at finish (as lib/engine/session.ts does);
- *   - context      = { kind: "technical-coding", technicalEvidence,
- *                      finalSource, finalExecution: null } (the runner's
- *                    buildEvaluationContextForReport branch, copied here
- *                    because it is not exported);
- *   - runEvaluation (real prompt, real schema, real model);
- *   - coding_correctness forced to null (the runner's post-process).
+ *   - transcript   = the server's visibleTurns, each with its own server
+ *                    timestamp (G4, 2026-11-15), formatted by
+ *                    formatTranscriptForEvaluator;
+ *   - context      = the runner's buildEvaluationContextForReport technical
+ *                    branch (copied here because it is not exported): evidence,
+ *                    finalSource, finalExecution: null, the public assignment,
+ *                    the language and the issued hints located by
+ *                    locateHintTurns;
+ *   - runEvaluation (real prompt, real schema, real model — the execution-
+ *                    claim guard runs inside it);
+ *   - the runner's post-process: codingSteps re-timed and finalized,
+ *     coding_correctness forced to null.
+ *
+ * Before 2026-11-15 the code never reached the model; the "Before" table in
+ * docs/technical-coding/grading-probe.md was taken with the earlier version
+ * of this script (git history).
  *
  * The OpenAI client is wrapped so the exact user message the model received
  * is captured and saved — that is how we show what the evaluator can and
@@ -121,12 +128,15 @@ interface Session {
   checkpoints: string[];
   finalSource: string;
   tests: string;
+  /** Turn indexes that are system-issued hints, with their tier. */
+  hintTurns?: Record<number, number>;
 }
 
 const I = (content: string): Turn => ({ role: "assistant", content });
 const C = (content: string): Turn => ({ role: "user", content });
 
 function sessions(opening: string, hint1: string): Session[] {
+  // hint1 is the full server reply, "Hint 1 of 3: …" (buildTechnicalHint).
   return [
     {
       id: "a-strong-correct",
@@ -205,6 +215,7 @@ function sessions(opening: string, hint1: string): Session[] {
       checkpoints: [BRUTE],
       finalSource: BRUTE,
       tests: TEST_FACTS.BRUTE,
+      hintTurns: { 9: 1 },
       turns: [
         I(opening),
         C("yeah I'll just check all the substrings"),
@@ -236,6 +247,8 @@ interface Graded {
   model: string;
   scores: Record<string, number | null>;
   rawCodingCorrectness: number | null;
+  outcome: Record<string, unknown> | null;
+  guardStripped: number;
   reportStructured: unknown;
   reportMarkdown: string;
   userMessage: string;
@@ -269,11 +282,25 @@ async function main() {
   const { getEngineType } = await import("../../lib/engine/registry");
   const { buildInterviewTranscript, formatTranscriptForEvaluator } = await import("../../lib/interview/transcript");
   const { initialProgress } = await import("../../lib/interview/types");
+  const { buildTechnicalHint } = await import("../../lib/technical-interview/chat-policy");
+  const { locateHintTurns, finalizeCodingStepsOutcome } = await import("../../lib/technical-interview/grading");
+  const { retimeOutcomeQuotes, studentTurnTexts } = await import("../../lib/engine/quote-timecodes");
+
+  // Count the execution-claim guard's strips (it logs a warning per report).
+  let guardStrips = 0;
+  const realWarn = console.warn;
+  console.warn = (...a: unknown[]) => {
+    if (typeof a[0] === "string" && a[0].includes("execution-claim")) {
+      guardStrips += Number((a[1] as { strippedCount?: number })?.strippedCount ?? 0);
+      return;
+    }
+    realWarn(...a);
+  };
 
   const assignment = getTechnicalAssignment(ASSIGNMENT_ID);
   if (!assignment) throw new Error(`no assignment ${ASSIGNMENT_ID}`);
   const opening = buildTechnicalOpening(toPublicTechnicalAssignment(assignment));
-  const all = sessions(opening, assignment.hintLadder[0]);
+  const all = sessions(opening, buildTechnicalHint(assignment, 1));
 
   const resolved = resolveSessionConfig("technical-coding", {});
   if (!resolved.ok) throw new Error(`resolveSessionConfig: ${JSON.stringify(resolved)}`);
@@ -284,29 +311,36 @@ async function main() {
   console.log(`rubric dimensions: ${config.rubricDimensions.map((d) => d.key).join(", ")}`);
 
   const startedAt = Date.now() - 28 * 60_000;
-  const transcriptOf = (s: Session) => {
-    // lib/engine/session.ts finish: every visible turn is stamped Date.now().
-    const finishedAt = Date.now();
-    return formatTranscriptForEvaluator(
+  /** Server time per turn (G4): spread over the session, never all equal. */
+  const timed = (st: Session) =>
+    st.turns.map((t, i) => ({ ...t, timestamp: startedAt + 5_000 + Math.round((i * 26 * 60_000) / st.turns.length) + (i % 3) * 7_000 }));
+  const transcriptOf = (st: Session) =>
+    formatTranscriptForEvaluator(
       buildInterviewTranscript({
-        reportId: `probe-${s.id}`,
+        reportId: `probe-${st.id}`,
         userId: "probe",
         typeSlug: "technical-coding",
         interviewer: { avatarId: null, name: null },
         startedAt,
-        turns: s.turns.map((t) => ({ ...t, timestamp: finishedAt })),
+        turns: timed(st),
         progress: initialProgress(),
       }),
     );
-  };
 
-  const evidenceOf = (s: Session) => ({
+  const evidenceOf = (st: Session) => ({
     version: 1 as const,
-    checkpoints: s.checkpoints.map((source) => ({ source })),
-    visibleTurns: s.turns,
-    finalSource: s.finalSource,
+    checkpoints: st.checkpoints.map((source) => ({ source })),
+    visibleTurns: timed(st),
+    finalSource: st.finalSource,
     finalExecution: null,
   });
+
+  const hintRowsOf = (st: Session) =>
+    Object.entries(st.hintTurns ?? {}).map(([index, tier]) => ({
+      tier,
+      hintText: st.turns[Number(index)]!.content,
+      issuedAt: new Date(timed(st)[Number(index)]!.timestamp),
+    }));
 
   async function grade(s: Session, run: string, withCode: boolean): Promise<Graded> {
     const evidence = evidenceOf(s);
@@ -316,6 +350,10 @@ async function main() {
       technicalEvidence: evidence,
       finalSource: evidence.finalSource,
       finalExecution: null,
+      assignment: toPublicTechnicalAssignment(assignment!),
+      language: "python",
+      hints: locateHintTurns(hintRowsOf(s), evidence.visibleTurns, startedAt),
+      omittedVisibleTurns: 0,
     };
     if (withCode) {
       evaluationContext.evaluatorBrief = [
@@ -325,6 +363,7 @@ async function main() {
       ].join("\n\n");
     }
     const marker = `Candidate: ${s.turns.find((t) => t.role === "user")!.content}`;
+    const before = guardStrips;
     const out = await runEvaluation({
       config,
       transcript: transcriptOf(s),
@@ -335,12 +374,16 @@ async function main() {
     const userMessage = [...captured].reverse().find((m) => m.includes(marker) && m.includes("case_context:") === withCode) ?? "";
     if (!userMessage) console.warn("  (request not captured)");
     if (!out.ok) {
-      return { session: s.id, run, model: out.model, scores: {}, rawCodingCorrectness: null, reportStructured: null, reportMarkdown: "", userMessage, ok: false, reason: out.reason };
+      return { session: s.id, run, model: out.model, scores: {}, rawCodingCorrectness: null, outcome: null, guardStripped: 0, reportStructured: null, reportMarkdown: "", userMessage, ok: false, reason: out.reason };
     }
     const raw = out.result.scores.coding_correctness ?? null;
     // == runner post-process: no executor, so correctness is withheld ==
     const scores = { ...out.result.scores, coding_correctness: null };
-    return { session: s.id, run, model: out.model, scores, rawCodingCorrectness: raw, reportStructured: out.result.reportStructured, reportMarkdown: out.result.reportMarkdown, userMessage, ok: true };
+    // == runner post-process: re-time quotes from the real turn times, finalize codingSteps ==
+    const outcome = finalizeCodingStepsOutcome(
+      retimeOutcomeQuotes(out.producedOutcome, studentTurnTexts(timed(s), startedAt)),
+    );
+    return { session: s.id, run, model: out.model, scores, rawCodingCorrectness: raw, outcome, guardStripped: guardStrips - before, reportStructured: out.result.reportStructured, reportMarkdown: out.result.reportMarkdown, userMessage, ok: true };
   }
 
   if (DUMP_ONLY) {
@@ -364,17 +407,30 @@ async function main() {
     for (const g of batch) {
       results.push(g);
       const sc = (k: string) => String(g.scores[k] ?? "–");
+      const steps = (() => {
+        try {
+          const rows = JSON.parse(String(g.outcome?.codingSteps ?? "[]")) as Array<{ key: string; status: string }>;
+          return rows.map((r) => `${r.key}:${r.status}`).join(" ");
+        } catch {
+          return "(unparsed)";
+        }
+      })();
       console.log(
-        `${g.session.padEnd(18)} ${g.run.padEnd(9)} ${g.ok ? "" : `FAILED ${g.reason}`}content ${sc("content")} behav ${sc("behavioral")} quality ${sc("coding_quality")} comm ${sc("technical_communication")} correctness(raw model) ${g.rawCodingCorrectness ?? "–"} visual ${sc("visual")} vocal ${sc("vocal")}`,
+        `${g.session.padEnd(18)} ${g.run.padEnd(9)} ${g.ok ? "" : `FAILED ${g.reason}`}content ${sc("content")} behav ${sc("behavioral")} quality ${sc("coding_quality")} comm ${sc("technical_communication")} correctness(raw model) ${g.rawCodingCorrectness ?? "–"} visual ${sc("visual")} vocal ${sc("vocal")} guard-stripped ${g.guardStripped}\n    steps: ${steps}`,
       );
       writeFileSync(join(OUT, `${g.session}.${g.run}.json`), JSON.stringify(g, null, 2));
     }
   }
   writeFileSync(join(OUT, "all.json"), JSON.stringify(results, null, 2));
 
-  // What the model saw: does the code, the tests or the problem reach it?
+  // What the model saw, and what it said.
+  const claim = /\b(?:tests?|test cases?)\b[^.!?]{0,60}\b(?:pass(?:es|ed)?|fail(?:s|ed)?)\b|\baccepted by\b|\bpassed execution\b/i;
   for (const r of results) {
-    console.log(`${r.session} ${r.run}: request has final source ${r.userMessage.includes("def longest_unique_window")}, test outcome ${/hidden tests/i.test(r.userMessage)}, target complexity ${r.userMessage.includes(assignment.expectedComplexity)}`);
+    const text = `${r.reportMarkdown}\n${String(r.outcome?.codingSteps ?? "")}`;
+    const stamps = [...r.userMessage.matchAll(/^\[(\d+:\d\d)\]/gm)].map((m) => m[1]);
+    console.log(
+      `${r.session} ${r.run}: request has final source ${r.userMessage.includes("def longest_unique_window")}, NOT RUN line ${r.userMessage.includes("Execution: NOT RUN")}, target complexity ${r.userMessage.includes(assignment.expectedComplexity)}, hints ${/hints_given \(/.test(r.userMessage)}; distinct transcript stamps ${new Set(stamps).size}/${stamps.length}; growth timecodes ${JSON.stringify((r.reportStructured as { growth_areas?: Array<{ timecodes: string[] }> } | null)?.growth_areas?.flatMap((g) => g.timecodes) ?? [])}; residual test-claim match ${claim.test(text) ? `YES: ${text.match(claim)?.[0]}` : "none"}; mentions empty string ${/empty|""|''/i.test(r.reportMarkdown)}; mentions O(n³) ${/O\(n\s*(?:\^\s*3|³)\)|cubic/i.test(r.reportMarkdown)}`,
+    );
   }
 
   if (SEED_EMAIL) {
@@ -404,16 +460,22 @@ async function main() {
           } as object,
           technicalEvidence: evidenceOf(s) as object,
           scores: g.scores as object,
+          ...(g.outcome ? { outcome: g.outcome as object } : {}),
           reportStructured: g.reportStructured as object,
           reportMarkdown: g.reportMarkdown,
           evalModel: g.model,
           turnCount: s.turns.length,
           cameraMode: "OFF",
-          title: `Grading probe — ${s.label}`,
-          startedAt: new Date(now.getTime() - 28 * 60_000),
+          title: `Grading probe (after) — ${s.label}`,
+          startedAt: new Date(startedAt),
           completedAt: now,
         },
       });
+      for (const hint of hintRowsOf(s)) {
+        await prisma.technicalInterviewHint.create({
+          data: { reportId: row.id, requestKey: `probe:${hint.tier}`, tier: hint.tier, hintText: hint.hintText, issuedAt: hint.issuedAt },
+        });
+      }
       seeded.push(`${s.id}=${row.id}`);
     }
     console.log(`\nseeded for ${SEED_EMAIL}: ${seeded.join(" ")}`);

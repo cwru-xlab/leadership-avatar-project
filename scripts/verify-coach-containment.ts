@@ -242,6 +242,12 @@ console.log("\n5. ENGINE UNTOUCHED since Phase 22 base (59f6166)");
       // grading fix, not coached-mode work.
       "':(exclude)lib/engine/quote-timecodes.ts'",
       "':(exclude)lib/engine/evaluation-runner.ts'",
+      // Technical-coding grading (2026-11-15): the evaluator's coding user
+      // message and execution-claim guard (evaluation.ts) and the live
+      // interviewer's private latest-code block (prompts.ts). Grading and
+      // coding-interview fixes, not coached-mode work.
+      "':(exclude)lib/engine/evaluation.ts'",
+      "':(exclude)lib/engine/prompts.ts'",
     ].join(" ");
     const commits = execSync(
       `git log --no-merges --format=%h 59f6166..HEAD ${hasDev ? "--not origin/dev" : ""} -- lib/engine/ ${walkOutExempt}`,

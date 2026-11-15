@@ -28,6 +28,11 @@ import { enforceSourceAttribution } from "@/lib/report/source-attribution";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { VisualMetrics, VocalMetrics } from "@/lib/metrics/types";
 import { buildScenarioEvaluationUserMessage } from "@/lib/scenario/prompts";
+import {
+  buildTechnicalCodingUserMessage,
+  normalizeRubricNoteItems,
+  stripExecutionClaims,
+} from "@/lib/technical-interview/grading";
 
 import { getEngineType } from "./registry";
 import {
@@ -178,8 +183,9 @@ export function buildImageAttachmentNote(
  * Assembles the USER message. Format stays byte-compatible with today's two
  * evaluators so model-facing input does not change. Dispatch is on the
  * context's `kind` discriminator the type record produced — not on typeSlug.
+ * Exported for the offline input checks in scripts/.
  */
-function buildUserMessage(
+export function buildUserMessage(
   transcript: string,
   evaluationContext: Record<string, unknown>,
   metrics: MetricsOutcome,
@@ -208,6 +214,13 @@ function buildUserMessage(
       visualMetrics: metrics.visualMetrics,
       vocalMetrics: metrics.vocalMetrics,
     });
+  }
+
+  // Technical coding (2026-11-15, G1): the problem, language, final code,
+  // visible tests, hints and an explicit NOT RUN line. Before this branch the
+  // code was on the context but never reached the model.
+  if (evaluationContext.kind === "technical-coding") {
+    return buildTechnicalCodingUserMessage(transcript, evaluationContext, metrics);
   }
 
   // Interview (and any future kind that shares this envelope).
@@ -320,11 +333,25 @@ export function validateEvaluationResult(
     });
   }
 
+  // Technical coding: nothing is executed, so any sentence claiming a test
+  // passed or failed, or that the code was "accepted", is removed (G1).
+  let executionGuarded = wordingSanitized;
+  if (evaluationContext.kind === "technical-coding") {
+    const guarded = stripExecutionClaims(wordingSanitized);
+    executionGuarded = normalizeRubricNoteItems(guarded.report, config.rubricDimensions);
+    if (guarded.strippedCount > 0) {
+      console.warn("Engine evaluator execution-claim sentences stripped", {
+        strippedCount: guarded.strippedCount,
+        typeSlug: config.typeSlug,
+      });
+    }
+  }
+
   const hasResume =
     typeof evaluationContext.resumeText === "string" &&
     evaluationContext.resumeText.trim().length > 0;
   const { report: reportStructured, downgradedCount } = enforceSourceAttribution(
-    wordingSanitized,
+    executionGuarded,
     { hasResume },
   );
   if (downgradedCount > 0) {

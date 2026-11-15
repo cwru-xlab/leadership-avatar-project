@@ -266,8 +266,10 @@ if (process.argv.includes("--write")) {
       "`empathy_score` was left untouched. AMENDED 2026-11-14: difficult-conversation was " +
       "re-taken when the optional `conversationSteps` outcome field (the five-moves " +
       "checklist) was appended after the existing outcome fields; no existing property " +
-      "moved. sales-discovery was added as a new type. Every other type's bytes are " +
-      "still b168d09's.",
+      "moved. sales-discovery was added as a new type. AMENDED 2026-11-15: technical-coding " +
+      "was re-taken when it gained its first outcome field, the optional `codingSteps` " +
+      "checklist, which adds an `outcome` property LAST (properties and required); no " +
+      "existing property moved or changed. Every other type's bytes are still b168d09's.",
     note:
       "digest = sha256 of JSON.stringify(buildRubricJsonSchema(config)) with outcome last. " +
       "Instances come from instanceFor() in scripts/verify-rubric-schema-order.ts.",
