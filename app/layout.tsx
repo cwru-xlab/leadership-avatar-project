@@ -6,7 +6,6 @@ import clsx from "clsx";
 import { Providers } from "./providers";
 
 import { siteConfig } from "@/config/site";
-import { ACCENT_LEVEL } from "@/lib/brand/accent";
 import { fontDisplay, fontMono, fontSans } from "@/config/fonts";
 import { AuthNavbar } from "@/components/auth-navbar";
 import { MainContent } from "@/components/main-content";
@@ -33,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html suppressHydrationWarning className="light" data-accent-level={ACCENT_LEVEL} lang="en">
+    <html suppressHydrationWarning className="light" lang="en">
       <head />
       <body
         className={clsx(

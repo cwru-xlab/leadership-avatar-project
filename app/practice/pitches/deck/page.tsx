@@ -57,19 +57,16 @@ export default function DeckPitchSettingsPage() {
                 key={mode.slug}
                 className="group relative flex h-full flex-col gap-4 rounded-2xl border border-line bg-white p-6 transition-shadow hover:shadow-raised"
               >
-                <div className="flex items-start gap-3.5">
-                  <span className="grid size-12 shrink-0 place-items-center rounded-[14px] bg-cwru-blue text-white">
-                    <Icon aria-hidden className="la-card-icon" size={22} strokeWidth={1.75} />
-                  </span>
-                  <div className="flex flex-col gap-0.5">
-                    <h3 className="font-display text-xl font-medium leading-tight text-cwru-blue">
-                      {mode.cardTitle}
-                    </h3>
-                    <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-link">
-                      <UserRound aria-hidden size={14} />
-                      {mode.listenerLine}
-                    </p>
-                  </div>
+                <div className="flex flex-col gap-1">
+                  {/* Icon inline beside the title, like every other picker card. */}
+                  <h3 className="flex items-center gap-3 font-display text-xl font-medium leading-tight text-cwru-blue">
+                    <Icon aria-hidden className="la-card-icon shrink-0" size={22} strokeWidth={1.75} />
+                    {mode.cardTitle}
+                  </h3>
+                  <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-link">
+                    <UserRound aria-hidden size={14} />
+                    {mode.listenerLine}
+                  </p>
                 </div>
 
                 <p className="text-[15px] leading-6 text-muted">{mode.cardBlurb}</p>
