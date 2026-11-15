@@ -24,10 +24,10 @@
  *   silently re-picking someone's interviewer is worse than a hidden card.
  *
  * The step's closing action lives in `InterviewerActionDock`, which wraps the
- * grid: the house `border-t` step footer in flow, plus a strip that pins the
- * same action to the top of the column while that footer is off screen. It
- * replaced a dock that hovered over the cards. Its header comment keeps the
- * geometry reasoning.
+ * grid: the house `border-t` step footer in flow, plus the shared floating pill
+ * (`components/shell/FloatingAction`) that stands in for that footer while it
+ * is off screen. It replaced a dock that hovered over the cards. Those two
+ * header comments keep the geometry reasoning.
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
@@ -298,7 +298,7 @@ export default function InterviewerStep({
       ) : (
         <InterviewerActionDock
           continueDisabled={!selectedInterviewer}
-          stripSummary={
+          pillSummary={
             selectedInterviewer ? (
               <>
                 Selected{" "}

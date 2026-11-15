@@ -28,7 +28,7 @@
  * as the top-level `problemFamily` param.
  */
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@heroui/button";
 import { Textarea } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
@@ -38,6 +38,7 @@ import { ArrowRight, ChevronDown, Clock3, Gauge, RotateCcw, Sparkles, UserRound 
 import ChoiceTiles, { type ChoiceTile } from "@/components/interview/ChoiceTiles";
 import { interviewIcon, interviewTagline } from "@/components/interview/interviewPicker";
 import PracticeHero from "@/components/practice/PracticeHero";
+import FloatingAction from "@/components/shell/FloatingAction";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import {
   CURATED_INDUSTRIES,
@@ -286,12 +287,30 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
 
   const fromGeneral = preset.slug === DEFAULT_INTERVIEW_TYPE.slug || !isListedInterviewType(preset);
 
-  // Variant C: the forward action lives in the hero band and in the strip the
-  // band condenses into, so nothing ever floats over the form. Both are
-  // secondary weight (bordered white on CWRU Blue) and read "Continue"; the
-  // page's one CWRU Blue primary, and the only button whose accessible name is
-  // exactly "Continue to setup" (clicked in strict mode by
-  // `e2e/interview-picker.spec.ts`), closes the form at the end of the page.
+  /**
+   * THE FORWARD ACTION, in three places and never twice at once.
+   *
+   * `heroAction` rides the in-flow hero band at the top of the page, secondary
+   * weight (bordered white on CWRU Blue). `continueToSetupRef` marks the page's
+   * one CWRU Blue primary at the end of the form — the only button whose
+   * accessible name is exactly "Continue to setup", which
+   * `e2e/interview-picker.spec.ts` clicks in strict mode. `FloatingAction`
+   * below stands in for that primary while it is scrolled out of the
+   * scrollport.
+   *
+   * WHAT THIS REPLACED. The band used to condense into a 56px CWRU Blue strip
+   * pinned across the top of the content column, carrying a back link, the
+   * title and a Continue. Two things were wrong with it. It could not reach the
+   * sidebar on the left or the viewport on the right, because `<main>` is
+   * centred and capped (`components/main-content.tsx`), so it read as clipped.
+   * And it stayed pinned at the BOTTOM of the page, where "Continue to setup"
+   * is already on screen, so the page showed two competing primary actions at
+   * once. The pill fixes both: it needs no edge to align to, and it hides
+   * whenever the real control is visible. The back link and the title are not
+   * in it — they stay in the in-flow band, a scroll up, where they are also in
+   * keyboard order.
+   */
+  const continueToSetupRef = useRef<HTMLDivElement>(null);
   const heroAction = (
     <Button
       className="h-11 rounded-lg border-white/60 bg-transparent px-4 font-semibold text-white data-[hover=true]:bg-white/12"
@@ -318,6 +337,29 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
         icon={Icon}
         title={preset.label}
       />
+
+      {/* Rendered HERE, directly after the band, because that is the point past
+          which the pill should start floating: its non-sticky probe sits at this
+          position, so "the probe has left the top of the column" means the whole
+          band — back link, title and its own Continue — has scrolled away.
+          `-mb-6` cancels the two `gap-6` rows this column would otherwise open
+          for the component's two zero-height elements.
+          The label is live setup state, not navigation: it re-reads as the
+          student changes tiles, which is the one thing worth carrying up here
+          when the form itself is off screen. */}
+      <FloatingAction
+        className="-mb-6"
+        inFlowRef={continueToSetupRef}
+        label={`${values.difficulty || preset.difficulty} · ~${minutes} min`}
+      >
+        <Button
+          className="h-9 shrink-0 rounded-full bg-white px-4 font-semibold text-cwru-blue data-[hover=true]:bg-light-blue"
+          endContent={<ArrowRight aria-hidden size={15} strokeWidth={2.5} />}
+          onPress={continueToSetup}
+        >
+          Continue
+        </Button>
+      </FloatingAction>
 
       <details className="group rounded-lg border border-line bg-white">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-5 py-3 text-sm font-semibold text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue [&::-webkit-details-marker]:hidden">
@@ -509,9 +551,8 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
         />
       </section>
 
-      {/* The end of the form: the setup recap, then an ordinary action row, both
-          in flow. No stickiness — the sentence that used to ride the floating
-          bar sits beside the buttons as muted text. */}
+      {/* The end of the form: the setup recap, then the real action row under
+          the house hairline, both in flow. */}
       <section className="rounded-lg border border-line bg-white px-5 py-4" aria-labelledby="setup-recap">
         <h2 className="font-display text-[17px] font-medium text-cwru-blue" id="setup-recap">
           Your setup
@@ -526,7 +567,13 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
         </dl>
       </section>
 
-      <div className="flex flex-col gap-4 pt-2 sm:flex-row sm:items-center sm:justify-between">
+      {/* The real end-of-page action, under the house hairline every setup step
+          closes with (`border-t border-line pt-6`, as in
+          `InterviewerActionDock`). The hairline is what makes this read as the
+          end of the form rather than one more row, and the ref is what
+          `FloatingAction` watches: the pill stands down the moment any part of
+          this is in the scrollport, so the page never offers two primaries. */}
+      <div className="flex flex-col gap-4 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-[62ch] text-[13px] leading-5 text-muted">
           Next: pick your interviewer and, if you like, add a resume and job posting.
         </p>
@@ -541,13 +588,15 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
               Reset
             </Button>
           )}
-          <Button
-            className="h-11 flex-1 rounded-lg bg-cwru-blue px-5 font-semibold text-white sm:flex-none"
-            endContent={<ArrowRight aria-hidden size={16} strokeWidth={2.5} />}
-            onPress={continueToSetup}
-          >
-            Continue to setup
-          </Button>
+          <div className="flex-1 sm:flex-none" ref={continueToSetupRef}>
+            <Button
+              className="h-11 w-full rounded-lg bg-cwru-blue px-5 font-semibold text-white"
+              endContent={<ArrowRight aria-hidden size={16} strokeWidth={2.5} />}
+              onPress={continueToSetup}
+            >
+              Continue to setup
+            </Button>
+          </div>
         </div>
       </div>
     </div>
