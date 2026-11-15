@@ -247,6 +247,16 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
   return (
     <div className="flex flex-col gap-6 pb-4">
       <PracticeHero
+        action={
+          <Button
+            className="h-10 rounded-lg border border-white/70 bg-transparent px-4 font-semibold text-white data-[hover=true]:bg-white/10"
+            endContent={<ArrowRight aria-hidden size={16} strokeWidth={2.5} />}
+            variant="bordered"
+            onPress={continueToSetup}
+          >
+            Continue to setup
+          </Button>
+        }
         backHref={fromGeneral ? routes.interviews() : routes.industryInterviews()}
         backLabel={fromGeneral ? "Interview practice" : "Industry-specific interviews"}
         description={interviewTagline(preset)}
@@ -449,7 +459,10 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
         />
       </section>
 
-      <div className="sticky bottom-0 z-20 -mx-4 flex items-center justify-between gap-3 border-t border-line bg-white px-4 py-3 sm:mx-0 sm:rounded-lg sm:border sm:px-5">
+      {/* Variant C: the forward action lives in the hero band (and its condensed
+          strip), so this footer sits in the normal flow instead of floating
+          over the form. Nothing overlaps the choice tiles at any width. */}
+      <div className="-mx-4 flex items-center justify-between gap-3 border-t border-line bg-white px-4 py-3 sm:mx-0 sm:rounded-lg sm:border sm:px-5">
         <p className="hidden min-w-0 flex-1 text-[13px] leading-5 text-muted sm:block">
           Next: pick your interviewer and, if you like, add a resume and job posting.
         </p>
