@@ -14,9 +14,12 @@
  * (`ResumeStep`, `JobDescriptionStep`, and the rest).
  *
  * So the footer is now that same house footer, in flow, overlapping nothing —
- * and reachability moves to a 56px CWRU Blue strip at the top of the column,
- * the same strip `PracticeHero` condenses into on the customize page. One
- * visual language for "your action is still here", and nothing covers content.
+ * and reachability moves to a compact CWRU Blue pill pinned to the top-right of
+ * the column, a condensed cousin of the strip `PracticeHero` shows on the
+ * customize page. Same placement and colour, so the two screens still read as
+ * one system; pill rather than full-bleed bar because this column is wall-to-
+ * wall photography and a 56px slab cut 2-4 faces in half at every scroll
+ * position (measured). Nothing covers content that matters.
  *
  * WHY THE STRIP IS STICKY AND WHERE IT SITS. A sticky box pins only from its
  * own natural position downward, so the anchor is rendered BEFORE the grid
@@ -24,7 +27,8 @@
  * containing block is the step's `<section>`, which spans the whole step, so it
  * tracks the entire scroll. The anchor is zero-height, so it costs no layout
  * space and the page cannot jump when the strip fades in; `-mx-4`/`-mx-8`
- * cancels the content column's padding so the strip spans it edge to edge.
+ * cancels the content column's padding so the pill can sit against the
+ * column's true right edge.
  *
  * ONE CONSTRAINT INHERITED FROM THE OLD DOCK, still load-bearing: no ancestor
  * inside the content column may create a scroll container, or `position:
@@ -114,22 +118,34 @@ export default function InterviewerActionDock({
           pinned?" probe. See the effect above. */}
       <div aria-hidden className="h-px" ref={headRef} />
       <div className="sticky -top-6 z-30 -mx-4 h-0 md:-top-8 md:-mx-8">
+        {/* A right-aligned PILL, not a full-bleed bar.
+            The customize page's strip spans the column because it is the hero
+            band condensing, and it crosses form tiles with whitespace between
+            them. Here the same shape crossed edge-to-edge photographs and cut
+            2-4 faces in half at every scroll position — over imagery, a solid
+            56px slab reads as damage rather than chrome. An auto-width pill in
+            the corner keeps the placement and the colour (so the two screens
+            still behave alike) while covering one card's corner instead of a
+            whole row. `pt-3`/`pr-4` inset it from the column's edge. */}
         <div
-          className={`flex h-14 items-center gap-3 bg-cwru-blue px-4 transition duration-200 ease-out motion-reduce:transition-none md:px-8 ${
+          className={`flex justify-end px-4 pt-3 transition duration-200 ease-out motion-reduce:transition-none md:px-8 ${
             showStrip ? "visible translate-y-0 opacity-100" : "invisible -translate-y-2 opacity-0"
           }`}
           inert={!showStrip}
         >
-          <p className="min-w-0 flex-1 truncate text-sm text-light-blue">{stripSummary ?? summary}</p>
-          <Button
-            className="h-10 shrink-0 rounded-lg border-white/60 bg-transparent px-4 font-semibold text-white data-[hover=true]:bg-white/12"
-            endContent={<ArrowRight aria-hidden size={16} strokeWidth={2.5} />}
-            isDisabled={continueDisabled}
-            variant="bordered"
-            onPress={onContinue}
-          >
-            Continue
-          </Button>
+          <div className="flex max-w-full items-center gap-3 rounded-full bg-cwru-blue py-2 pl-5 pr-2 shadow-[0_12px_32px_rgb(9_20_58/0.16)]">
+            <p className="hidden min-w-0 truncate text-[13px] text-light-blue sm:block">
+              {stripSummary ?? summary}
+            </p>
+            <Button
+              className="h-9 shrink-0 rounded-full bg-white px-4 font-semibold text-cwru-blue data-[hover=true]:bg-light-blue"
+              endContent={<ArrowRight aria-hidden size={15} strokeWidth={2.5} />}
+              isDisabled={continueDisabled}
+              onPress={onContinue}
+            >
+              Continue
+            </Button>
+          </div>
         </div>
       </div>
 
