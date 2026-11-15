@@ -73,6 +73,16 @@ existing HeroUI defaults.
 | Orange | `#FF9239` | Level 2 | No, Dark Blue text on it |
 | Copper Red | `#D63D1F` | Level 1, errors, End session | Yes, 4.6:1 |
 | Violet Purple | `#692C95` | "AI" label on model-written text | Yes |
+| Accent (Orange) | `#FF9239` | Decorative accent only; see "Accent" below | No, never carries text |
+
+### Accent
+
+The client asked for a little character, so Orange is also the app's one accent (`--la-accent`, Tailwind
+`accent`). Decorative only: never text, never status, never a button fill, and always beside its own
+label. Allowed spots, and no others: the active sidebar marker, the 32x3px rule under student page
+titles (`.la-title-rule`), practice-picker tile icons, the report's practice-next target, and the
+sidebar up-next progress fill (its "Continue" arrow at 0%). Not on Mastery, where it would read as the
+level-2 orange; only the sidebar marker shows there.
 
 ### Level ramp
 
@@ -180,6 +190,7 @@ Everything stops under `prefers-reduced-motion`.
 | Status chip with dot, tint, and the word ("Developing") | Status shown by color alone |
 | Muted text as Dark Blue at 68% | Text in `#999999`, Light Blue, Orange, or Vivid Green |
 | Force Blue only while something is live | Force Blue as a decorative accent |
+| The Orange accent only in its five listed spots | Accent on Mastery, on text, or as a status color |
 | Long feedback in an expandable row with a size hint ("18 turns") | Paragraph walls on reports or setup screens |
 | Full transcript in a side panel with Copy and Download, where the page has one | Transcript dumped inline under the report |
 | Four category scores, each with its level word | A blended overall score or a 0–100 ring the scoring doesn't produce |
@@ -226,7 +237,8 @@ Run this on every new or changed screen. Each item maps to a rule above.
       failed, and empty states.
 - [ ] CWRU Blue is visible (sidebar or top bar) and is the only primary button color.
 - [ ] Every color comes from a token; `grep -E '#[0-9a-fA-F]{6}'` on the changed files finds none.
-- [ ] Tertiary colors appear only as status, errors, or the AI label, each with a word or icon.
+- [ ] Tertiary colors appear only as status, errors, or the AI label, each with a word or icon
+      (the exception is the Orange accent in its listed spots).
 - [ ] Type sizes and weights come from the scale; Newsreader only in its roles; no uppercase or
       mono labels; no accent word in a heading.
 - [ ] No icons in tinted squares, glow gradients, decorative shapes, or shadows on resting cards.

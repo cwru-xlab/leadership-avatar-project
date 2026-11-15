@@ -1,6 +1,7 @@
 "use client";
 
 import NextLink from "next/link";
+import clsx from "clsx";
 import { useEffect, useState } from "react";
 
 export interface UpNext {
@@ -80,13 +81,20 @@ export function useUpNext(refreshKey: string, enabled: boolean): UpNext | null {
 /**
  * The sidebar's "Up next in your plan" card. Renders nothing without a next
  * step, so the sidebar never shows an empty promise.
+ *
+ * Accent: the progress fill carries it; at 0% (nothing to fill, and no fake
+ * stub) the "Continue" arrow carries it instead. `accent={false}` drops it
+ * entirely — Mastery passes that so the accent can't be mistaken for the
+ * level-2 orange there.
  */
 export function UpNextCard({
   upNext,
   onNavigate,
+  accent = true,
 }: {
   upNext: UpNext | null;
   onNavigate?: () => void;
+  accent?: boolean;
 }) {
   if (!upNext) return null;
 
@@ -110,11 +118,16 @@ export function UpNextCard({
         className="h-1 overflow-hidden rounded-full bg-white/[0.16]"
       >
         <span
-          className="block h-full rounded-full bg-light-blue"
+          className={clsx("block h-full rounded-full", accent ? "bg-accent" : "bg-light-blue")}
           style={{ width: `${(done / upNext.total) * 100}%` }}
         />
       </span>
-      <span className="text-[13px] font-semibold">Continue →</span>
+      <span className="text-[13px] font-semibold">
+        Continue{" "}
+        <span aria-hidden className={clsx(accent && done === 0 && "text-accent")}>
+          →
+        </span>
+      </span>
     </NextLink>
   );
 }

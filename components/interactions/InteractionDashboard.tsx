@@ -69,7 +69,7 @@ export default function InteractionDashboard() {
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
-        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px] la-title-rule">
           What do you want to practice?
         </h1>
         <p className="text-[15px] leading-[1.55] text-muted">

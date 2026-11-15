@@ -790,11 +790,11 @@ function RubricNotes({
 function TargetMark() {
   return (
     <div aria-hidden className="relative size-16 shrink-0 max-sm:hidden">
-      <span className="absolute inset-0 rounded-full border-2 border-true-blue opacity-0 motion-safe:animate-[la-ripple_1.6s_ease-out_0.4s_2]" />
+      <span className="absolute inset-0 rounded-full border-2 border-accent opacity-0 motion-safe:animate-[la-ripple_1.6s_ease-out_0.4s_2]" />
       <svg className="relative" height="64" viewBox="0 0 56 56" width="64">
         <circle cx="28" cy="28" fill="white" r="22" />
         <circle cx="28" cy="28" fill="none" r="16" stroke="var(--la-true-blue)" strokeWidth="2" />
-        <circle cx="28" cy="28" fill="none" r="8" stroke="var(--la-true-blue)" strokeWidth="2" />
+        <circle cx="28" cy="28" fill="var(--la-accent)" r="8" />
         <circle cx="28" cy="28" fill="var(--la-cwru-blue)" r="3" />
         <path d="M28 28 46 10" stroke="var(--la-cwru-blue)" strokeLinecap="round" strokeWidth="2.5" />
         <path

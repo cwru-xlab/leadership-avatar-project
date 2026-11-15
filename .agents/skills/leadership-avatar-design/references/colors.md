@@ -34,6 +34,11 @@ are opacities of Dark Blue or tints of Light Blue, which keep the palette intact
 | Copper Red | `#D63D1F` | Level 1 (Needs work / Starting out), errors, End session | White on solid passes |
 | Violet Purple | `#692C95` | AI-generated content label | Violet text on 8% violet tint |
 
+### Accent
+Orange `#FF9239` doubles as the one decorative accent (`--la-accent`). It never carries text or status,
+appears only in the spots listed under "Accent" in `SKILL.md`, and stays off Mastery so it can't be
+read as level 2.
+
 Level 3 (Solid / Competent) uses Light Blue, a secondary color, so the middle of the scale reads as
 neutral rather than as a warning. The full ramp with both label sets is in `SKILL.md`.
 
