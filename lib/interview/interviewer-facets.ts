@@ -10,9 +10,15 @@
  * 1. ABSENT IS NOT A VALUE. `gender` and `language` are joined from HeyGen's
  *    preset voice catalog, which knows nothing about the account's five custom
  *    faculty avatars. An option missing a facet value therefore stays VISIBLE
- *    under that facet's filter. Hiding it would hide Scott Cowen and Richard
- *    Boyatsis, the roster's most important entries, because a vendor's voice
- *    list happens not to mention them.
+ *    under that facet's filter, because hiding a face is a stronger claim than
+ *    the data supports.
+ *
+ *    Today only `language` actually exercises this: the faculty's voice
+ *    genders are curated in `FACULTY_VOICE_GENDER`, so every face now carries
+ *    a gender and the Voice filter is exact. The rule is still load-bearing —
+ *    a faculty avatar added without an entry in that map lands here, and
+ *    `alwaysVisibleNote` is computed from live data so the caveat reappears by
+ *    itself rather than needing a code change.
  *
  * 2. A ONE-VALUE FACET IS WORSE THAN NO FACET. The distribution is measured at
  *    runtime, not assumed: `availableFacets` drops any facet whose live data

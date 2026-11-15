@@ -59,10 +59,11 @@ export interface InterviewerOption {
   voice: { id: string; name: string };
   /**
    * Facets joined server-side in `lib/interview/avatar-catalog.ts`. All four
-   * are optional on the wire: `gender` and `language` are absent whenever the
-   * vendor's preset voice catalog said nothing (the five faculty avatars use
-   * custom voices), and an absent value means a filter on that facet keeps
-   * the option VISIBLE rather than hiding it.
+   * are optional on the wire: a facet is absent whenever neither the vendor's
+   * preset voice catalog nor the curated faculty map supplied a value, and an
+   * absent value means a filter on that facet keeps the option VISIBLE rather
+   * than hiding it. Today that is `language` only — every face carries a
+   * gender since the faculty's were curated.
    */
   gender?: string;
   language?: string;

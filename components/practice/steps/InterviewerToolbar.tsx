@@ -250,8 +250,10 @@ export default function InterviewerToolbar({
             Clear all
           </Button>
 
-          {/* Rule 1 made visible: without this line the five faculty faces
-              surviving every Voice filter look like a bug. */}
+          {/* Rule 1 made visible: a face with no value for the active facet
+              survives every choice, and without this line that looks like a
+              bug. Data-driven, so it stays absent while the roster is fully
+              described and returns if an undescribed avatar appears. */}
           {facets
             .filter((facet) => filters[facet.id] && facet.alwaysVisibleNote)
             .map((facet) => (

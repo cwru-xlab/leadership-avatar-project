@@ -6,6 +6,7 @@
  */
 
 import {
+  FACULTY_VOICE_GENDER,
   PUBLIC_AVATAR_PLAYS,
   SEATED_PUBLIC_AVATAR_ID_SET,
   SEATED_PUBLIC_AVATAR_IDS,
@@ -51,16 +52,22 @@ export interface InterviewerOption {
   };
   /**
    * Presented gender, joined from the preset voice catalog (`/v1/voices`) via
-   * the avatar's own `default_voice.id`. The avatar records carry no
-   * demographic metadata of their own, so this is the only vendor-supplied
-   * facet available for filtering.
+   * the avatar's own `default_voice.id`, and for the faculty filled in from
+   * `FACULTY_VOICE_GENDER`. The avatar records carry no demographic metadata
+   * of their own, so those are the only two sources available for filtering.
    *
-   * ABSENT IS MEANINGFUL, not a failure: the account's five custom faculty
-   * avatars use custom voices that are not in the preset catalog, so no gender
-   * is supplied for them. They are real people, and guessing from a name is
-   * exactly the wrong move. **A gender filter must treat an absent value as
-   * always-visible** — filtering it out would hide the faculty, who are the
-   * roster's most important entries.
+   * THE VENDOR WINS where it supplies a value; the curated map only fills the
+   * gap the preset catalog leaves for the account's custom faculty voices.
+   * That gap used to mean all five faculty stayed visible under BOTH gender
+   * choices, which showed four male instructors to a student asking for a
+   * female voice. The curated values are stated by the course owners about
+   * named colleagues, not inferred from names or faces — guessing remains the
+   * wrong move, and nothing here guesses.
+   *
+   * ABSENT IS STILL MEANINGFUL, and still possible: a future faculty avatar
+   * with no entry in that map supplies no gender. **A gender filter must keep
+   * treating an absent value as always-visible** — filtering it out would hide
+   * a face rather than admit the data is missing.
    *
    * Note this is the VOICE's gender, a reliable proxy only because HeyGen
    * pairs each avatar with its own voice (`Ann Therapist` ships `Ann - IA`).
@@ -140,7 +147,12 @@ function toOption(
 ): InterviewerOption {
   const voiceId = avatar.default_voice!.id;
   const facets = facetsByVoiceId.get(voiceId);
-  const gender = facets?.gender;
+  const vendorGender =
+    facets?.gender && facets.gender !== "unknown" ? facets.gender : undefined;
+  // Curated faculty voices fill the gap the preset catalog leaves, and ONLY
+  // that gap: the vendor's own value wins wherever it exists, so this can
+  // never contradict `/v1/voices`. See `FACULTY_VOICE_GENDER`.
+  const gender = vendorGender ?? FACULTY_VOICE_GENDER[avatar.id];
   const language = facets?.language;
   // The faculty get no `plays` at all — see the field's comment. A stock face
   // the curated map does not mention is `general`, which is an answer.
@@ -157,7 +169,7 @@ function toOption(
     },
     // Omit rather than emit a placeholder, so "we were told nothing" stays
     // distinguishable from a real "unknown" the catalog reports.
-    ...(gender && gender !== "unknown" ? { gender } : {}),
+    ...(gender ? { gender } : {}),
     ...(language && language !== "unknown" ? { language } : {}),
     ...(plays ? { plays } : {}),
     faculty,

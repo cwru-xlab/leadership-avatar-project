@@ -132,3 +132,44 @@ export const PUBLIC_AVATAR_PLAYS: Readonly<Record<string, AvatarPlays>> = {
   "513fd1b7-7ef9-466d-9af2-344e51eeb833": "coaching", // Ann Therapist
   "7b888024-f8c9-4205-95e1-78ce01497bda": "coaching", // Shawn Therapist
 };
+
+/**
+ * Voice gender for the account's five custom faculty avatars, keyed by
+ * LiveAvatar avatar id.
+ *
+ * WHY THIS MAP EXISTS. The faculty speak with custom voices that are absent
+ * from HeyGen's preset `/v1/voices` catalog, so the vendor supplies no gender
+ * for any of them. The picker's Voice filter reads absent as "no opinion" and
+ * keeps such a face visible under every choice — the right default, since the
+ * alternative hides the roster's most important entries. But with all five
+ * absent, a student asking for a female voice was shown four male instructors,
+ * and a student asking for a male voice was shown Jenny Hawkins. The filter
+ * was wrong for every faculty member in one direction or the other.
+ *
+ * WHY THIS IS NOT THE INFERENCE THE OTHER COMMENTS FORBID. `avatar-catalog.ts`
+ * and `PUBLIC_AVATAR_PLAYS` both refuse to GUESS a facet from a name or a
+ * face, and that still stands: nothing here is derived. These five values were
+ * stated by the people who run the course, about five named colleagues whose
+ * recorded voices they have heard. Curated fact, supplied by a human, in the
+ * same spirit as the `plays` map above — which is why it lives beside it
+ * rather than inside the vendor join.
+ *
+ * STILL THE VOICE, NOT THE PERSON. The value answers "what does this avatar
+ * sound like", which is what a student filtering by voice is asking. The UI
+ * labels the control "Voice" for exactly that reason.
+ *
+ * SCOPE: faculty only. Stock faces already carry a vendor gender, and this map
+ * must never override one — see the merge in `lib/interview/avatar-catalog.ts`.
+ *
+ * CHURN: same contract as its siblings. An id that vanishes upstream stops
+ * matching and that face simply returns to always-visible; a faculty avatar
+ * added without an entry here behaves exactly as all five did before.
+ */
+export const FACULTY_VOICE_GENDER: Readonly<Record<string, "female" | "male">> =
+  {
+    "0192261e-bef3-4de4-be8d-8ed075b9aea9": "female", // Jenny Hawkins
+    "52b24044-7b0c-4211-b113-239443801a5b": "male", // Scott Cowen
+    "c0fdc362-a015-40b9-bb20-ec8805ddb01e": "male", // Richard Boyatsis
+    "77c6f78c-8154-40f0-be95-fdaa6d0f2f19": "male", // Michael Goldberg
+    "0f0eec42-9bcb-4365-8b31-09b2d30b594d": "male", // John Paul Stephens
+  };
