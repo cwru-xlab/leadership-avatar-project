@@ -55,6 +55,10 @@ import { getEngineType } from "@/lib/engine/registry";
 const MAX_PROFILE_TEXT_LENGTH = 4000;
 /** "" in any field means "the preset's own value" — used when no curated option matches it. */
 const PRESET = "";
+/** Title of the synthetic `PRESET` tile. The setup recap keys off it: that title
+ *  names no setting on its own, so the recap shows the tile's hint instead,
+ *  which is where the preset's concrete value lives. */
+const PRESET_TILE_TITLE = "Interview default";
 
 type Field = "family" | "industry" | "role" | "difficulty" | "length" | "interviewer";
 /** The question-type value for "Surprise me": no family preference. */
@@ -73,6 +77,9 @@ const DIFFICULTY_HINTS: Record<string, string> = {
 };
 
 const stripArticle = (text: string) => text.replace(/^(an?|the)\s+/i, "");
+/** Preset hints are written to read mid-sentence ("early-career professional
+ *  role"); the setup recap shows them as a value, so raise the first letter. */
+const sentenceCase = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 export default function InterviewCustomizePage({ slug }: { slug: string }) {
   const router = useRouter();
@@ -105,7 +112,7 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
 
   const options: Record<Field, ChoiceTile[]> = useMemo(() => {
     const withPreset = (tiles: ChoiceTile[], isCurated: boolean, hint: string) =>
-      isCurated ? tiles : [{ value: PRESET, title: "Interview default", hint }, ...tiles];
+      isCurated ? tiles : [{ value: PRESET, title: PRESET_TILE_TITLE, hint }, ...tiles];
     return {
       family: families.length
         ? [
@@ -187,6 +194,41 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
   const chosenLength = SESSION_LENGTH_PRESETS.find((p) => p.slug === values.length);
   const minutes = chosenLength?.targetMinutes ?? preset.targetMinutes;
 
+  /**
+   * The setup recap reads back the SELECTED TILE, never the raw slug, so a row
+   * can never disagree with the tiles it summarizes. It shows the tile's hint
+   * instead of its title where the title names no value: "Interview default" on
+   * a preset tile, and the length names ("Standard") — a student checking their
+   * setup wants the minutes, which is what the tile prints.
+   *
+   * Ported from the rail variant, which carried this same summary in a sticky
+   * second column. Here it is a recap at the end of the form instead: the form
+   * keeps its full width, and the summary still answers "what did I just pick?"
+   * at the moment the student is about to commit.
+   */
+  const tileLabel = (field: Field, preferHint = false) => {
+    const option = options[field].find((o) => o.value === values[field]);
+    if (!option) return "—";
+    if (option.hint && (preferHint || option.title === PRESET_TILE_TITLE)) return sentenceCase(option.hint);
+    return option.title;
+  };
+
+  // Only the rows whose control is actually on the page: question type on
+  // problem interviews, industry on the generic types.
+  const summaryRows: Array<{ label: string; value: string }> = [
+    {
+      label: "Personality",
+      // A distilled persona disables the Personality tiles, so the row names
+      // the modeled interviewer rather than a dial the student cannot change.
+      value: distilledPersona ? (personaDisplayName ?? "Modeled interviewer") : tileLabel("interviewer"),
+    },
+    ...(options.family.length > 0 ? [{ label: "Question type", value: tileLabel("family") }] : []),
+    { label: "Role", value: tileLabel("role") },
+    ...(isProblemInterview ? [] : [{ label: "Industry", value: tileLabel("industry") }]),
+    { label: "Difficulty", value: tileLabel("difficulty") },
+    { label: "Session length", value: tileLabel("length", true) },
+  ];
+
   const buildPersona = async () => {
     const trimmed = profileText.trim();
     if (!trimmed) return;
@@ -244,19 +286,27 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
 
   const fromGeneral = preset.slug === DEFAULT_INTERVIEW_TYPE.slug || !isListedInterviewType(preset);
 
+  // Variant C: the forward action lives in the hero band and in the strip the
+  // band condenses into, so nothing ever floats over the form. Both are
+  // secondary weight (bordered white on CWRU Blue) and read "Continue"; the
+  // page's one CWRU Blue primary, and the only button whose accessible name is
+  // exactly "Continue to setup" (clicked in strict mode by
+  // `e2e/interview-picker.spec.ts`), closes the form at the end of the page.
+  const heroAction = (
+    <Button
+      className="h-11 rounded-lg border-white/60 bg-transparent px-4 font-semibold text-white data-[hover=true]:bg-white/12"
+      endContent={<ArrowRight aria-hidden size={16} strokeWidth={2.5} />}
+      variant="bordered"
+      onPress={continueToSetup}
+    >
+      Continue
+    </Button>
+  );
+
   return (
     <div className="flex flex-col gap-6 pb-4">
       <PracticeHero
-        action={
-          <Button
-            className="h-10 rounded-lg border border-white/70 bg-transparent px-4 font-semibold text-white data-[hover=true]:bg-white/10"
-            endContent={<ArrowRight aria-hidden size={16} strokeWidth={2.5} />}
-            variant="bordered"
-            onPress={continueToSetup}
-          >
-            Continue to setup
-          </Button>
-        }
+        action={heroAction}
         backHref={fromGeneral ? routes.interviews() : routes.industryInterviews()}
         backLabel={fromGeneral ? "Interview practice" : "Industry-specific interviews"}
         description={interviewTagline(preset)}
@@ -459,14 +509,28 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
         />
       </section>
 
-      {/* Variant C: the forward action lives in the hero band (and its condensed
-          strip), so this footer sits in the normal flow instead of floating
-          over the form. Nothing overlaps the choice tiles at any width. */}
-      <div className="-mx-4 flex items-center justify-between gap-3 border-t border-line bg-white px-4 py-3 sm:mx-0 sm:rounded-lg sm:border sm:px-5">
-        <p className="hidden min-w-0 flex-1 text-[13px] leading-5 text-muted sm:block">
+      {/* The end of the form: the setup recap, then an ordinary action row, both
+          in flow. No stickiness — the sentence that used to ride the floating
+          bar sits beside the buttons as muted text. */}
+      <section className="rounded-lg border border-line bg-white px-5 py-4" aria-labelledby="setup-recap">
+        <h2 className="font-display text-[17px] font-medium text-cwru-blue" id="setup-recap">
+          Your setup
+        </h2>
+        <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+          {summaryRows.map((row) => (
+            <div key={row.label}>
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{row.label}</dt>
+              <dd className="mt-0.5 text-sm font-semibold leading-5 text-ink">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <div className="flex flex-col gap-4 pt-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="max-w-[62ch] text-[13px] leading-5 text-muted">
           Next: pick your interviewer and, if you like, add a resume and job posting.
         </p>
-        <div className="flex flex-1 items-center justify-end gap-2 sm:flex-none">
+        <div className="flex items-center gap-2 sm:shrink-0">
           {changed && (
             <Button
               className="h-11 font-semibold text-link"
