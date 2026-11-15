@@ -108,7 +108,7 @@ test.describe("Mastery card expansions", () => {
     await page.locator("body").click({ position: { x: 1, y: 1 } });
     const all = page.locator("a, button, summary, [tabindex='0']");
     const index = await all.evaluateAll(
-      (els, target) => els.indexOf(target as Element),
+      (els, target) => els.indexOf(target as HTMLElement),
       await toggle.elementHandle(),
     );
     await all.nth(index - 1).focus();
