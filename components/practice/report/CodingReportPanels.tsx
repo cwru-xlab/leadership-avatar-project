@@ -116,6 +116,16 @@ function Disclosure({ summary, children }: { summary: string; children: ReactNod
 /** Shown first to last: the two the evaluator scores, then correctness. */
 const SCORE_ORDER = ["coding_quality", "technical_communication", "coding_correctness"] as const;
 
+/**
+ * Student-facing one-liners. The registry's descriptions are written for the
+ * evaluator ("the candidate"); the report speaks to the student as "you".
+ */
+const SCORE_HELP: Record<(typeof SCORE_ORDER)[number], string> = {
+  coding_quality: "Your algorithm, its cost, edge cases and how clear the code reads.",
+  technical_communication: "How clearly you explained, justified and checked your approach.",
+  coding_correctness: "Whether your final code passes the tests.",
+};
+
 const normalize = (value: string) => value.trim().toLowerCase().replace(/[\s_-]+/g, " ").replace(/ score$/, "");
 
 /**
@@ -180,7 +190,7 @@ export function CodingScoresPanel({ report }: { report: ReportDTO }) {
               <p className="text-[12.5px] leading-[1.45] text-muted">
                 {isCorrectness && score === null
                   ? "Your code wasn't run against the tests on our side, so correctness isn't scored."
-                  : (caption ?? dim.description)}
+                  : (caption ?? SCORE_HELP[key])}
               </p>
               {note ? <p className="text-[13px] leading-[1.5] text-ink">{note}</p> : null}
             </li>
