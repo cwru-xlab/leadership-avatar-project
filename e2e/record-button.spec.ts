@@ -14,10 +14,6 @@ async function signIn(page: Page, email: string, password: string) {
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
 }
 
-async function shotLocator(page: Page, testId: string, name: string) {
-  await page.getByTestId(testId).screenshot({ path: `${SHOTS}/${name}.png`, animations: "disabled" });
-}
-
 test("practice headline says personalized", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, "student@case.edu", "student123");
@@ -28,24 +24,4 @@ test("practice headline says personalized", async ({ page }) => {
     "Each session is a personalized live conversation with an AI avatar, followed by a scored report.",
   );
   await page.screenshot({ path: `${SHOTS}/headline-practice.png`, clip: { x: 0, y: 0, width: 1440, height: 260 } });
-});
-
-test("record button variants", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  // Test pages sit behind auth in dev.
-  await signIn(page, "admin@example.com", "admin123");
-  await page.goto("/test-pages/record-button");
-  await expect(page.getByText("Record button states")).toBeVisible();
-  // No crossed-out mic on any new recording state; buttons use the success (green) fill.
-  const sessionBar = page.getByTestId("session-bar");
-  await expect(sessionBar.getByRole("button", { name: "Stop recording and send answer" })).toHaveCount(3);
-  const bg = await sessionBar
-    .getByRole("button", { name: "Stop recording and send answer" })
-    .first()
-    .evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(bg).toBe("rgb(55, 126, 114)");
-  await shotLocator(page, "session-bar", "record-session-bar");
-  await shotLocator(page, "floating", "record-floating");
-  await shotLocator(page, "kiosk", "record-kiosk");
-  await page.screenshot({ path: `${SHOTS}/record-all.png`, fullPage: true, animations: "disabled" });
 });

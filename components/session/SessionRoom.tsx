@@ -19,10 +19,7 @@ import type { ReactNode } from "react";
 import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
 import { Mic } from "lucide-react";
-import {
-  RecordingIcon,
-  type RecordButtonVariant,
-} from "@/components/session/RecordingIcon";
+import { RecordingIcon } from "@/components/session/RecordingIcon";
 
 export function formatElapsed(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
@@ -145,7 +142,6 @@ export function PushToTalkControl({
   submittedLabel = "Answer submitted",
   startAriaLabel = "Start recording answer",
   stopAriaLabel = "Stop recording and send answer",
-  variant,
 }: {
   isRecording: boolean;
   isTranscribing: boolean;
@@ -156,8 +152,6 @@ export function PushToTalkControl({
   submittedLabel?: string;
   startAriaLabel?: string;
   stopAriaLabel?: string;
-  /** Only for side-by-side comparison; defaults to RECORD_BUTTON_VARIANT. */
-  variant?: RecordButtonVariant;
 }) {
   // Tap-to-send (dev #37): one tap starts the recording, the next sends it.
   return (
@@ -179,7 +173,7 @@ export function PushToTalkControl({
         }
         startContent={
           isRecording ? (
-            <RecordingIcon className="h-[15px] w-[15px]" variant={variant} />
+            <RecordingIcon className="h-[15px] w-[15px]" />
           ) : (
             <Mic size={15} />
           )
