@@ -21,8 +21,10 @@ export default function InterviewPaceGuidance({
     );
   }
 
+  // `mb-8`, not `mt-8`: the panel sits above the step body (see SetupWizard),
+  // so the gap belongs underneath it.
   return (
-    <aside className="mt-8 flex gap-3 rounded-xl border border-light-blue bg-canvas p-4 text-sm leading-6 text-ink">
+    <aside className="mb-8 flex gap-3 rounded-xl border border-light-blue bg-canvas p-4 text-sm leading-6 text-ink">
       <Gauge className="mt-0.5 shrink-0 text-link" size={18} />
       <div>
         <p className="font-semibold text-ink">Set a measured pace</p>

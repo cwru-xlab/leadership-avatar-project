@@ -90,8 +90,23 @@ const PROBE = `(() => {
   };
 })()`;
 
-async function scrollTo(page: Page, fraction: number) {
-  await page.evaluate(`(() => {
+/** Count of elements with real area painted below the step's footer. */
+const BELOW_FOOTER = `(() => {
+  const main = document.querySelector("main");
+  const footer = Array.from(main.querySelectorAll("div.border-t")).filter(function (d) {
+    return (d.textContent || "").indexOf("Continue") !== -1;
+  })[0];
+  if (!footer) return -1;
+  const fb = footer.getBoundingClientRect();
+  let below = 0;
+  for (const el of main.querySelectorAll("section, aside, div.border-t, h2, h3, p")) {
+    const r = el.getBoundingClientRect();
+    if (r.height > 8 && r.top > fb.bottom + 2 && !footer.contains(el)) below += 1;
+  }
+  return below;
+})()`;
+
+async function scrollTo(page: Page, fraction: number) {  await page.evaluate(`(() => {
     const m = document.querySelector("main");
     m.scrollTop = Math.round((m.scrollHeight - m.clientHeight) * ${fraction});
   })()`);
@@ -137,6 +152,35 @@ test("the picker's Continue is reachable without covering the roster", async ({ 
       expect(probe.pill.shown, `${where}: pill still up with the footer on screen`).toBe(false);
       expect(probe.footer.shown, `${where}: footer missing at the end of the roster`).toBe(true);
       expect(probe.footer.obscuredPx, `${where}: footer covers cards at the end`).toBe(0);
+
+      // The step's primary action is the LAST thing in the column. The pace
+      // panel used to render after the whole step, stranding Continue
+      // mid-page with content below it.
+      const below = (await page.evaluate(BELOW_FOOTER)) as number;
+      expect(below, `${where}: content renders below the step's Continue`).toBe(0);
     }
+  }
+});
+
+test("a filtered-down roster does not pin a Continue", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page);
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await page.goto("/practice/interviews/general");
+  await expect(page.getByRole("heading", { name: "Choose your interviewer" })).toBeVisible({
+    timeout: 60_000,
+  });
+  await page.waitForTimeout(1500);
+
+  // Narrow to a single card. The column still scrolls (hero, toolbar and
+  // headings outrun the viewport), so a naive "footer off screen" rule would
+  // pin a Continue over a one-card result.
+  await page.getByLabel("Search by name").fill("scott");
+  await page.waitForTimeout(900);
+
+  for (const fraction of [0, 1]) {
+    await scrollTo(page, fraction);
+    const probe = (await page.evaluate(PROBE)) as Probe;
+    expect(probe.pill.shown, `filtered roster pins a Continue at ${fraction * 100}%`).toBe(false);
   }
 });

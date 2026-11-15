@@ -86,12 +86,13 @@ export default function InterviewerActionDock({
      *    uses to cancel that same padding.
      *
      * 2. CARDS LEFT. The tempting rule "show it when the footer is off screen"
-     *    is wrong here and measurably so: this step is followed by the pace
-     *    panel, so even a filtered roster leaves the page ~2500px tall with the
-     *    footer off screen. The sentinel sits between the grid and the footer,
-     *    so "still below the column's bottom" means there are cards the student
-     *    has not reached. Once it rises into view the footer is a flick away and
-     *    the strip retires.
+     *    is wrong here and measurably so: even a roster filtered to ONE card
+     *    leaves the column scrollable (hero, toolbar and section headings
+     *    outrun the viewport) with the footer off screen, so that rule would
+     *    pin a Continue over a one-card result. The sentinel sits between the
+     *    grid and the footer, so "still below the column's bottom" means there
+     *    are cards the student has not reached. Once it rises into view the
+     *    footer is a flick away and the pill retires.
      */
     const update = () => {
       const columnBox = column.getBoundingClientRect();
