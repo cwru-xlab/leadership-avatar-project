@@ -734,7 +734,12 @@ export async function POST(request: NextRequest) {
         );
         const latestUser = messages[0];
         const prior = parseStoredTechnicalEvidence(report.technicalEvidence) ?? emptyTechnicalEvidence();
-        const serverTranscript = [...prior.visibleTurns, latestUser];
+        // Role and content only: stored turns carry a server timestamp, and
+        // the model API rejects unknown message fields.
+        const serverTranscript = [
+          ...prior.visibleTurns.map(({ role, content }) => ({ role, content })),
+          { role: latestUser.role, content: latestUser.content },
+        ];
         const category = categorizeTechnicalChatRequest(latestUser.content);
         if (category === "hint_request") {
           const requestKey = technicalHintRequestKey(latestUser.content, technicalHintRequestId);

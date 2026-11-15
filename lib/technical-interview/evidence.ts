@@ -10,6 +10,13 @@ export const TECHNICAL_EVIDENCE_VERSION = 1 as const;
 export const MAX_TECHNICAL_CHECKPOINTS = 24;
 export const MAX_TECHNICAL_EVIDENCE_BYTES = 200_000;
 export const MAX_TECHNICAL_VISIBLE_TURNS = 48;
+/**
+ * When a long session passes the turn cap, the FIRST turns are kept (opening,
+ * clarification, approach — the part a coding interview is graded on first)
+ * together with the most recent ones; the middle is dropped. A plain
+ * `slice(-48)` used to throw the opening clarification away.
+ */
+export const KEEP_FIRST_TECHNICAL_VISIBLE_TURNS = 12;
 export const MAX_TECHNICAL_VISIBLE_TURN_BYTES = 4_000;
 
 export interface TechnicalSourceCheckpoint {
@@ -24,11 +31,18 @@ export interface TechnicalSourceCheckpointPayload {
 export interface TechnicalVisibleTurn {
   role: "user" | "assistant";
   content: string;
+  /**
+   * Server clock (epoch ms) when the turn was recorded. Absent on records
+   * written before 2026-11-15; finish falls back to its own clock for those.
+   */
+  timestamp?: number;
 }
 
 /** Server-only envelope. `finalExecution` is null until an approved sandbox exists. */
 export interface TechnicalEvidence extends TechnicalSourceCheckpointPayload {
   visibleTurns: TechnicalVisibleTurn[];
+  /** How many middle turns the cap dropped (absent = none). */
+  omittedVisibleTurns?: number;
   finalSource?: string;
   finalExecution: null;
 }
@@ -89,13 +103,18 @@ export function parseStoredTechnicalEvidence(value: unknown): TechnicalEvidence 
   const visibleTurns: TechnicalVisibleTurn[] = [];
   for (const turn of value.visibleTurns) {
     if (!isPlainObject(turn) || (turn.role !== "user" && turn.role !== "assistant") || typeof turn.content !== "string" || !turn.content.trim() || byteLength(turn.content) > MAX_TECHNICAL_VISIBLE_TURN_BYTES) return null;
-    visibleTurns.push({ role: turn.role, content: turn.content });
+    // Timestamps are server-written; a malformed one is dropped, not fatal,
+    // so a record stays readable (finish then falls back to its own clock).
+    const timestamp = typeof turn.timestamp === "number" && Number.isFinite(turn.timestamp) && turn.timestamp > 0 ? turn.timestamp : undefined;
+    visibleTurns.push({ role: turn.role, content: turn.content, ...(timestamp !== undefined ? { timestamp } : {}) });
   }
+  const omitted = value.omittedVisibleTurns;
+  const omittedVisibleTurns = typeof omitted === "number" && Number.isInteger(omitted) && omitted > 0 ? omitted : undefined;
   const finalSource = value.finalSource;
   if (finalSource !== undefined && (!sourceIsValid(finalSource) || !finalSource.trim())) return null;
   // Historical records have no field; normalize them to the fail-closed state.
   if (value.finalExecution !== undefined && value.finalExecution !== null) return null;
-  const evidence: TechnicalEvidence = { ...checkpoints.value, visibleTurns, ...(typeof finalSource === "string" ? { finalSource } : {}), finalExecution: null };
+  const evidence: TechnicalEvidence = { ...checkpoints.value, visibleTurns, ...(omittedVisibleTurns ? { omittedVisibleTurns } : {}), ...(typeof finalSource === "string" ? { finalSource } : {}), finalExecution: null };
   return evidenceIsBounded(evidence) ? evidence : null;
 }
 
@@ -112,13 +131,41 @@ export function replaceCandidateCheckpoints(
   return evidenceIsBounded(next) ? next : prior;
 }
 
+/**
+ * First-N plus last-M cap. Idempotent on the first turns: once a session is
+ * over the cap, every later append drops the oldest of the RECENT turns, so
+ * the opening clarification survives however long the session runs.
+ */
+export function capVisibleTurns(
+  turns: readonly TechnicalVisibleTurn[],
+): { turns: TechnicalVisibleTurn[]; dropped: number } {
+  if (turns.length <= MAX_TECHNICAL_VISIBLE_TURNS) return { turns: [...turns], dropped: 0 };
+  const keepLast = MAX_TECHNICAL_VISIBLE_TURNS - KEEP_FIRST_TECHNICAL_VISIBLE_TURNS;
+  return {
+    turns: [...turns.slice(0, KEEP_FIRST_TECHNICAL_VISIBLE_TURNS), ...turns.slice(-keepLast)],
+    dropped: turns.length - MAX_TECHNICAL_VISIBLE_TURNS,
+  };
+}
+
+/**
+ * Appends server-authored turns, stamping each with the server clock at the
+ * moment it is recorded (the chat route calls this once per turn), so the
+ * evaluator's [m:ss] stamps and quote timecodes point at real moments.
+ */
 export function appendServerVisibleTurns(
   persisted: unknown,
   turns: readonly TechnicalVisibleTurn[],
+  now: number = Date.now(),
 ): TechnicalEvidence {
   const prior = parseStoredTechnicalEvidence(persisted) ?? emptyTechnicalEvidence();
-  const valid = turns.filter((turn) => turn.content.trim() && byteLength(turn.content) <= MAX_TECHNICAL_VISIBLE_TURN_BYTES);
-  const next = { ...prior, visibleTurns: [...prior.visibleTurns, ...valid].slice(-MAX_TECHNICAL_VISIBLE_TURNS) };
+  const valid = turns
+    .filter((turn) => turn.content.trim() && byteLength(turn.content) <= MAX_TECHNICAL_VISIBLE_TURN_BYTES)
+    // Only role and content are taken from the caller; a browser message
+    // object can carry nothing else into the record.
+    .map((turn) => ({ role: turn.role, content: turn.content, timestamp: now }));
+  const capped = capVisibleTurns([...prior.visibleTurns, ...valid]);
+  const omitted = (prior.omittedVisibleTurns ?? 0) + capped.dropped;
+  const next: TechnicalEvidence = { ...prior, visibleTurns: capped.turns, ...(omitted > 0 ? { omittedVisibleTurns: omitted } : {}) };
   return evidenceIsBounded(next) ? next : prior;
 }
 
