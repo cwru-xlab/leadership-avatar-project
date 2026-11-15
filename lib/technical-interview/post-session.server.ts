@@ -1,5 +1,3 @@
-import "server-only";
-
 /**
  * Material a student may see AFTER their coding report is READY: how a strong
  * candidate approaches the problem and a clean model solution. Server-only and
