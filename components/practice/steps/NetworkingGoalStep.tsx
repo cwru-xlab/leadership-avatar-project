@@ -47,8 +47,8 @@ export default function NetworkingGoalStep({
           </h2>
         </div>
         <p className="max-w-md text-sm leading-6 text-muted">
-          One short goal — for example, a referral into their team, or advice on
-          breaking into consulting.{" "}
+          One short goal — for example, a referral, a chance to shadow, or
+          advice on getting into their field.{" "}
           <span className="font-medium text-ink">
             The person you are practicing with will not be told this.
           </span>{" "}
@@ -66,7 +66,7 @@ export default function NetworkingGoalStep({
           maxLength={NETWORKING_GOAL_MAX_LENGTH}
           maxRows={4}
           minRows={2}
-          placeholder="e.g. a referral into their team"
+          placeholder="e.g. a chance to shadow in their clinic"
           value={goal}
           onValueChange={onChange}
         />

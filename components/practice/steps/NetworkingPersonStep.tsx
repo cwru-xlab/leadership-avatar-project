@@ -46,7 +46,11 @@ import {
 } from "@/lib/networking/wizard-client";
 import { MAX_HINT_LENGTH } from "@/lib/networking/person-generation";
 import { MAX_DISPLAY_NAME_LENGTH } from "@/lib/interview/persona-distill";
-import { listNetworkingCharacters } from "@/lib/networking/characters";
+import {
+  listNetworkingCharacters,
+  NETWORKING_CHARACTER_GROUPS,
+  type NetworkingCharacterGroup,
+} from "@/lib/networking/characters";
 
 type Branch = "character" | "bring-in" | null;
 type InputMode = "pasted" | "written" | "generated";
@@ -64,6 +68,13 @@ export interface NetworkingPersonStepProps {
 }
 
 const CHARACTERS = listNetworkingCharacters();
+
+type GroupFilter = NetworkingCharacterGroup | "all";
+
+const GROUP_FILTERS: { id: GroupFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  ...NETWORKING_CHARACTER_GROUPS,
+];
 
 export default function NetworkingPersonStep({
   nav,
@@ -102,6 +113,12 @@ export default function NetworkingPersonStep({
   // Bumped when the bring-in branch opens so the mount-style fetch re-runs.
   const [bringInEpoch, setBringInEpoch] = useState(0);
 
+  // Browse aid only: the selected character stays selected when filtered out.
+  const [groupFilter, setGroupFilter] = useState<GroupFilter>("all");
+  const visibleCharacters =
+    groupFilter === "all"
+      ? CHARACTERS
+      : CHARACTERS.filter((c) => c.group === groupFilter);
   const canAdvance = Boolean(characterId || instanceId);
 
   const loadWording = useCallback(async () => {
@@ -379,7 +396,8 @@ export default function NetworkingPersonStep({
             Pick someone to practice with
           </h3>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Five fictional professionals — no pasting, no authoring.
+            {CHARACTERS.length} fictional people across business, health care,
+            engineering, and public service.
           </p>
         </button>
 
@@ -411,8 +429,30 @@ export default function NetworkingPersonStep({
             code records (16-CONTEXT.md decision 8). Attestation is for
             third-party paste on the bring-in path only.
           */}
+          <div
+            aria-label="Filter by field"
+            className="mb-5 flex flex-wrap gap-2"
+            role="radiogroup"
+          >
+            {GROUP_FILTERS.map((option) => (
+              <button
+                key={option.id}
+                aria-checked={groupFilter === option.id}
+                className={`min-h-11 rounded-full border px-4 py-2 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue ${
+                  groupFilter === option.id
+                    ? "border-true-blue bg-light-blue/22 font-medium text-ink"
+                    : "border-line bg-white text-muted hover:border-true-blue/50"
+                }`}
+                role="radio"
+                type="button"
+                onClick={() => setGroupFilter(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {CHARACTERS.map((character) => {
+            {visibleCharacters.map((character) => {
               const selected = character.id === characterId;
 
               return (
@@ -571,7 +611,7 @@ export default function NetworkingPersonStep({
                   label="Hint"
                   labelPlacement="outside"
                   maxLength={MAX_HINT_LENGTH}
-                  placeholder="e.g. senior product manager at a B2B SaaS company"
+                  placeholder="e.g. nurse practitioner at a rural clinic"
                   value={hint}
                   onValueChange={setHint}
                 />
