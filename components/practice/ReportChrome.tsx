@@ -24,6 +24,7 @@ import { deckModeNegotiates, isDeckModeSlug, type DeckModeSlug } from "@/lib/pit
 
 import NetworkingOutcomePanel from "@/components/practice/panels/NetworkingOutcomePanel";
 import ConversationEndBanner from "@/components/practice/report/ConversationEndBanner";
+import ConversationStepsPanel from "@/components/practice/report/ConversationStepsPanel";
 import ConversationOutcomePanel from "@/components/practice/report/ConversationOutcomePanel";
 import DeckTimelinePanel from "@/components/practice/report/DeckTimelinePanel";
 import DeckVerdictPanel from "@/components/practice/report/DeckVerdictPanel";
@@ -34,7 +35,14 @@ import ListenerIdentityPanel from "@/components/practice/report/ListenerIdentity
 import PitchOutcomeBanner from "@/components/practice/report/PitchOutcomeBanner";
 import ProblemQuestionPanel from "@/components/practice/report/ProblemQuestionPanel";
 import ProcessStepsPanel from "@/components/practice/report/ProcessStepsPanel";
+import {
+  CodingScoresPanel,
+  CodingSolutionPanel,
+  CodingStepsPanel,
+  isCodingReport,
+} from "@/components/practice/report/CodingReportPanels";
 import { getInterviewType } from "@/lib/interview/types";
+import { routes } from "@/lib/routes";
 import { asPersonaAnalysis } from "@/lib/questioned-persona/report";
 import { asProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
 import {
@@ -106,6 +114,19 @@ export interface ReportChrome {
    * ONE tab strip and opens on the score cards.
    */
   extraTabs?: ReportExtraTab[];
+  /**
+   * Where "Practice again" goes, for a type whose chrome does not show the
+   * interview customization strip (that strip's types get it already). Absent
+   * means no button, as before.
+   */
+  practiceAgainHref?: (report: ReportDTO) => string;
+  /**
+   * False hides the "From your resume" / "From the conversation" chips on
+   * strengths and growth areas. For a type graded on something other than
+   * the resume and conversation (a coding report is graded on the code), a
+   * resume chip would claim a source the grade does not use.
+   */
+  showsSourceAttribution?: boolean;
 }
 
 /** Interview presets — sourced from `app/interview/[type]/report/[reportId]/page.tsx`. */
@@ -177,6 +198,7 @@ const DIFFICULT_CONVERSATION_CHROME: ReportChrome = {
     above: (report) => <ConversationEndBanner report={report} />,
     below: (report) => (
       <>
+        <ConversationStepsPanel report={report} />
         <ConversationOutcomePanel report={report} />
         <InRoleReactionPanel report={report} />
       </>
@@ -192,6 +214,16 @@ const DIFFICULT_CONVERSATION_CHROME: ReportChrome = {
  * are the only places a type slug is permitted to appear in a `.tsx` file
  * outside the type's own components.
  */
+/**
+ * Technical coding. The headline four cards stay as they are; the coding
+ * rubric (quality, communication, correctness) and the process checklist sit
+ * in their own "Coding" tab, the way MI shows its MITI globals in "Behaviors".
+ * "Your solution" is the learn-from-it tab: problem, final code, tests, hints,
+ * the approach, and the model solution behind an explicit reveal.
+ *
+ * Both tabs need the coding snapshot; the steps panel self-nulls without
+ * `codingSteps`, so a report graded before the checklist shows only scores.
+ */
 const TECHNICAL_CODING_CHROME: ReportChrome = {
   pollIntervalMs: 2000,
   giveUpAfterMs: 120_000,
@@ -200,6 +232,30 @@ const TECHNICAL_CODING_CHROME: ReportChrome = {
   guardsRepollAfter404: false,
   showsCustomizationStrip: false,
   checkInLead: "In a real interview",
+  showsSourceAttribution: false,
+  practiceAgainHref: (report) => {
+    const base = routes.interview("technical-coding");
+    return report.input?.kind === "technical-coding" ? `${base}?language=${report.input.language}` : base;
+  },
+  extraTabs: [
+    {
+      key: "coding",
+      title: "Coding",
+      available: isCodingReport,
+      render: (report) => (
+        <>
+          <CodingScoresPanel report={report} />
+          <CodingStepsPanel report={report} />
+        </>
+      ),
+    },
+    {
+      key: "solution",
+      title: "Your solution",
+      available: isCodingReport,
+      render: (report) => <CodingSolutionPanel report={report} />,
+    },
+  ],
 };
 
 /**
@@ -243,6 +299,7 @@ function personaChrome(checkInLead: string): ReportChrome {
 
 const CLINICAL_COMMUNICATION_CHROME = personaChrome("In a real patient encounter");
 const MOTIVATIONAL_INTERVIEWING_CHROME = personaChrome("In a real counseling session");
+const SALES_DISCOVERY_CHROME = personaChrome("In a real sales meeting");
 
 const NETWORKING_CHROME: ReportChrome = {
   pollIntervalMs: 2000,
@@ -394,6 +451,7 @@ export function getReportChrome(
   if (slug === "networking") return NETWORKING_CHROME;
   if (slug === "clinical-communication") return CLINICAL_COMMUNICATION_CHROME;
   if (slug === "motivational-interviewing") return MOTIVATIONAL_INTERVIEWING_CHROME;
+  if (slug === "sales-discovery") return SALES_DISCOVERY_CHROME;
   if (slug === "technical-coding") return TECHNICAL_CODING_CHROME;
   if (slug === "pitch-elevator") return PITCH_ELEVATOR_CHROME;
   if (isDeckModeSlug(slug)) return deckChromeFor(slug);

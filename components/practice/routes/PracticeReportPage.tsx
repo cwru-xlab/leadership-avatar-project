@@ -19,12 +19,14 @@ import {
 } from "@/components/practice/ReportChrome";
 import { listRubricDimensionsForSlug } from "@/lib/engine/resolve";
 import type { ReportDTO } from "@/lib/report/dto";
+import type { StructuredReport } from "@/lib/report/structured";
 import { displayReportTitle, formatReportWhen, typeLabelForReport } from "@/lib/report/title";
 import { reportsListHref } from "@/lib/report/filters";
 import { rubricLabelMap } from "@/lib/report/rubric-labels";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { RubricDimension } from "@/lib/engine/types";
 import { routes } from "@/lib/routes";
+import PageTitle from "@/components/shell/PageTitle";
 
 function isPollingStatus(status: ReportDTO["status"] | undefined) {
   return status === "PENDING" || status === "IN_PROGRESS";
@@ -323,7 +325,9 @@ export default function PracticeReportPage({
       onPracticeAgain={
         isInterviewChrome
           ? () => router.push(routes.interview(typeSlug))
-          : undefined
+          : chrome.practiceAgainHref && report && isTerminalStatus(report.status)
+            ? () => router.push(chrome.practiceAgainHref!(report))
+            : undefined
       }
       setup={
         chrome.showsCustomizationStrip &&
@@ -362,7 +366,11 @@ export default function PracticeReportPage({
 
       {report?.status === "READY" ? (
         <ReportBody
-          structured={report.reportStructured}
+          structured={
+            chrome.showsSourceAttribution === false
+              ? withoutSourceAttribution(report.reportStructured)
+              : report.reportStructured
+          }
           markdown={report.reportMarkdown}
           scores={scores}
           metrics={report.metrics ?? null}
@@ -439,6 +447,20 @@ export default function PracticeReportPage({
       {renderReportExtras(chrome, "below", report)}
     </ReportShell>
   );
+}
+
+/**
+ * The structured body with every strength/growth-area `source` cleared, for
+ * a chrome that opts out of attribution chips. Display only; the stored
+ * report is untouched.
+ */
+function withoutSourceAttribution(structured: StructuredReport | null): StructuredReport | null {
+  if (!structured) return structured;
+  return {
+    ...structured,
+    strengths: structured.strengths.map((item) => ({ ...item, source: null })),
+    growth_areas: structured.growth_areas.map((item) => ({ ...item, source: null })),
+  };
 }
 
 function scenarioCharacters(avatars: unknown[]): { name: string; role: string }[] {
@@ -571,9 +593,9 @@ function ReportShell({
               {backLabel}
             </button>
           )}
-          <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+          <PageTitle>
             {title}
-          </h1>
+          </PageTitle>
           {(subtitle || aiLabel || setup) && (
             // `relative` anchors Session setup's panel at phone width. The panel floats, so
             // opening it leaves this line, the title and "Practice again" where they are.

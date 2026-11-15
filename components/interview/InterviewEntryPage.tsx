@@ -55,7 +55,7 @@ export default function InterviewEntryPage() {
               className="flex items-center gap-3 font-display text-2xl font-medium text-cwru-blue"
               id="general-interview-heading"
             >
-              <Briefcase aria-hidden className="shrink-0" size={24} strokeWidth={1.75} />
+              <Briefcase aria-hidden className="la-card-icon shrink-0" size={24} strokeWidth={1.75} />
               General interview
             </h2>
             <p className="text-[15px] leading-6 text-muted">{interviewTagline(GENERAL)}</p>
@@ -111,7 +111,7 @@ export default function InterviewEntryPage() {
               className="flex items-center gap-3 font-display text-2xl font-medium text-cwru-blue"
               id="industry-interview-heading"
             >
-              <Layers aria-hidden className="shrink-0" size={24} strokeWidth={1.75} />
+              <Layers aria-hidden className="la-card-icon shrink-0" size={24} strokeWidth={1.75} />
               Industry-specific interview
             </h2>
             <p className="text-[15px] leading-6 text-muted">

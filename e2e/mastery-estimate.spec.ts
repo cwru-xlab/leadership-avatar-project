@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// student@case.edu holds one perfect live row on Outcome achievement: the
-// "100% off one session" state. alice.johnson@case.edu has a long record.
+// one.session@case.edu (prisma/seed.ts) holds one perfect live row on Outcome
+// achievement and nothing else: the "100% off one session" state.
+// alice.johnson@case.edu has a long record.
 const SHOTS = ".loop-shots";
 
 async function signIn(page: Page, email: string) {
@@ -18,7 +19,7 @@ function card(page: Page, label: string) {
 
 test.describe("Mastery is an estimate, not an average", () => {
   test("one perfect session reads as an early read, not 100% or Mastered", async ({ page }) => {
-    await signIn(page, "student@case.edu");
+    await signIn(page, "one.session@case.edu");
     const apiResponse = page.waitForResponse((r) => r.url().endsWith("/api/mastery") && r.ok());
     await page.goto("/mastery");
     const body = await (await apiResponse).json();
@@ -48,7 +49,8 @@ test.describe("Mastery is an estimate, not an average", () => {
     await page.screenshot({ path: `${SHOTS}/mastery-one-session-1440.png`, fullPage: true });
 
     await outcomeCard.getByText("Trend and evidence").click();
-    await expect(outcomeCard).toContainText("likely 45–90%. You averaged 100% across 1 activity.");
+    await expect(page.getByRole("dialog")).toContainText("likely 45–90%. You averaged 100% across 1 activity.");
+    await page.keyboard.press("Escape");
     await page.getByText("How these numbers work").click();
     await expect(page.getByText("Each session counts once")).toBeVisible();
     await outcomeCard.scrollIntoViewIfNeeded();

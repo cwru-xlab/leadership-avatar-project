@@ -41,6 +41,10 @@ Undecided (not in this pass): fate of the stub `/about` page; whether `/avatar-m
 
 Product name: Leadership Avatar. School mark: Weatherhead / CWRU. Student practice screens already use navy ink (`#102331`) and Weatherhead teal (`#0a7391`) with a serif display on some pickers; admin screens still use default HeroUI blue. Those two languages must converge on the student side. Do not invent testimonials, placement stats, or Weatherhead claims.
 
+## Accent
+
+Orange `#FF9239` (CWRU tertiary) is the app's one accent, token `--la-accent` / Tailwind `accent`. It is decorative only: never text, never status, never a button fill. Allowed spots: the sidebar (active marker, up-next progress fill or its "Continue" arrow at 0%; global chrome, so the same on every page, Mastery included); the short rule under every page title, plain (`PageTitle`) or hero, student and staff; the icon on every live picker card, inline beside its title (`.la-card-icon`: /practice, every sub-picker, the staff home); the Orange ledge under the hero icon tile; the active tab's underline (`.la-tab`, `.la-tab-cursor`), always with the tab's semibold CWRU Blue label; a 3px top edge on the page's one featured panel (`.la-featured`); and the report's practice-next target. Never in Mastery's page body, where it would read as the level-2 orange.
+
 ## Evidence on Hand
 
 Runnable app with seeded users (student@case.edu / student123). Real interaction types in `lib/interactions/index.ts` and engine slugs in `lib/engine/registry.ts`. No PRODUCT.md or DESIGN.md existed before this record. Do not fabricate student outcomes or quotes.

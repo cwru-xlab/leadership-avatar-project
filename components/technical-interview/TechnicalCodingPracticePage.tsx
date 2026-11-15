@@ -22,9 +22,14 @@
  *   the model through the chat body, never the report's evaluation input.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { Clock3, Code2, UsersRound } from "lucide-react";
+
+import PracticeHero from "@/components/practice/PracticeHero";
 import SetupWizard, { type SetupStepNav } from "@/components/practice/SetupWizard";
+import { interviewIcon, interviewTagline } from "@/components/interview/interviewPicker";
+import { routes } from "@/lib/routes";
 import InterviewerStep, {
   type InterviewerOption,
 } from "@/components/practice/steps/InterviewerStep";
@@ -35,20 +40,31 @@ import TechnicalCodingBriefingStep from "@/components/practice/steps/TechnicalCo
 import TechnicalCodingSession from "@/components/technical-interview/TechnicalCodingSession";
 import { getEngineType } from "@/lib/engine/registry";
 import type { CameraMode } from "@/lib/metrics/types";
-import type {
-  TechnicalCodingLanguage,
-  TechnicalDifficulty,
-  TechnicalTopic,
+import {
+  isTechnicalCodingLanguage,
+  type TechnicalCodingLanguage,
+  type TechnicalDifficulty,
+  type TechnicalTopic,
 } from "@/lib/technical-interview/types";
 import type { StartAvatarRequest } from "@/types";
 
+const TECHNICAL_SLUG = "technical-coding";
+
 export default function TechnicalCodingPracticePage() {
-  const engineType = getEngineType("technical-coding");
+  const engineType = getEngineType(TECHNICAL_SLUG);
 
   const [interviewer, setInterviewer] = useState<InterviewerOption | null>(null);
   const [topics, setTopics] = useState<readonly TechnicalTopic[]>([]);
   const [difficulty, setDifficulty] = useState<TechnicalDifficulty | null>(null);
   const [language, setLanguage] = useState<TechnicalCodingLanguage>("python");
+  // A coding report's "Practice again" links here with `?language=`, so the
+  // student retries in the language they just used. Read after mount rather
+  // than through `useSearchParams`, which would force a Suspense boundary on
+  // this statically rendered page for one optional preference.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("language");
+    if (isTechnicalCodingLanguage(requested)) setLanguage(requested);
+  }, []);
   const [resumeId, setResumeId] = useState<string | null>(null);
   const [resumeText, setResumeText] = useState("");
   const [resumeFileName, setResumeFileName] = useState<string | undefined>();
@@ -108,7 +124,21 @@ export default function TechnicalCodingPracticePage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8">
+    // Same frame as the other setup pages (PracticeTypePage): the hero, then
+    // the wizard. overflow-x-clip, not hidden, keeps sticky action bars working.
+    <div className="flex flex-col gap-6 overflow-x-clip">
+      <PracticeHero
+        backHref={routes.industryInterviews()}
+        backLabel="Industry-specific interviews"
+        description={interviewTagline({ slug: TECHNICAL_SLUG, description: "" })}
+        facts={[
+          { icon: Clock3, label: "~30 min" },
+          { icon: Code2, label: "Python or JavaScript" },
+          { icon: UsersRound, label: "Live interviewer" },
+        ]}
+        icon={interviewIcon(TECHNICAL_SLUG)}
+        title="Technical coding"
+      />
       <SetupWizard
         typeSlug={engineType.slug}
         steps={engineType.setupSteps}
@@ -182,6 +212,6 @@ export default function TechnicalCodingPracticePage() {
           return null;
         }}
       />
-    </main>
+    </div>
   );
 }

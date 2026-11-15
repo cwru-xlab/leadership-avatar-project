@@ -200,26 +200,29 @@ export function sanitizeOutcomeQuotes(
     next.reactionCauses = sanitizeReactionCausesArray(reactionCauses);
   }
 
-  // Problem interviews: `processSteps` is a JSON-encoded step list whose
-  // `evidenceQuote` is the candidate's verbatim words. Same guarantee, same
+  // Problem interviews' `processSteps`, the courageous-conversation
+  // `conversationSteps` and the technical-coding `codingSteps` checklists are JSON-encoded step lists whose
+  // `evidenceQuote` is the student's verbatim words. Same guarantee, same
   // representation-preserving rewrite as `reactionCauses` above.
-  const processSteps = next.processSteps;
-  if (typeof processSteps === "string" && processSteps.trim()) {
-    try {
-      const parsed = JSON.parse(processSteps);
-      if (Array.isArray(parsed)) {
-        next.processSteps = JSON.stringify(
-          parsed.map((item) => {
-            if (!item || typeof item !== "object" || Array.isArray(item)) return item;
-            const row = item as Record<string, unknown>;
-            return typeof row.evidenceQuote === "string"
-              ? { ...row, evidenceQuote: sanitizeQuote(row.evidenceQuote).quote }
-              : row;
-          }),
-        );
+  for (const stepsKey of ["processSteps", "conversationSteps", "codingSteps"] as const) {
+    const processSteps = next[stepsKey];
+    if (typeof processSteps === "string" && processSteps.trim()) {
+      try {
+        const parsed = JSON.parse(processSteps);
+        if (Array.isArray(parsed)) {
+          next[stepsKey] = JSON.stringify(
+            parsed.map((item) => {
+              if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+              const row = item as Record<string, unknown>;
+              return typeof row.evidenceQuote === "string"
+                ? { ...row, evidenceQuote: sanitizeQuote(row.evidenceQuote).quote }
+                : row;
+            }),
+          );
+        }
+      } catch {
+        // Left as-is; `asProcessStepResults` drops unparseable values.
       }
-    } catch {
-      // Left as-is; `asProcessStepResults` drops unparseable values.
     }
   }
 

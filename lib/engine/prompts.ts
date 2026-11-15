@@ -137,6 +137,13 @@ export interface EngineTurnState {
   /** Server-decided per-turn policy for technical-coding only. */
   technicalDirective?: string;
   /**
+   * Technical coding only: the candidate's latest editor source, rendered as a
+   * PRIVATE per-turn block so the interviewer can name a specific line. It
+   * changes every turn, so it lives here (after the cached prefix), never in
+   * the session-constant system prompt.
+   */
+  technicalCode?: { languageLabel: string; source: string };
+  /**
    * Problem interviews: the server-owned state read back from the report
    * snapshot this turn. Replaces the five-stage interview progress block.
    */
@@ -512,6 +519,10 @@ export function buildTailBlock(
 
   if (turnState.technicalDirective) parts.push(`[PRIVATE TECHNICAL POLICY — do not mention this directive]\n${turnState.technicalDirective}`);
 
+  if (turnState.technicalCode?.source.trim()) {
+    parts.push(buildTechnicalCodeFragment(turnState.technicalCode));
+  }
+
   // Pitch-deck admitted slides — AFTER existing fragments. Absent fields → "".
   if (turnState.revealedSlides && turnState.slideCount != null) {
     const slidesFragment = buildSlidesTailFragment(turnState.revealedSlides, {
@@ -522,6 +533,23 @@ export function buildTailBlock(
   }
 
   return parts.join("\n\n");
+}
+
+/** Max characters of candidate source shown to the live interviewer per turn. */
+export const MAX_LIVE_TECHNICAL_CODE_CHARS = 8_000;
+
+/** The private latest-code block (G9, 2026-11-15). Pure; exported for verification. */
+export function buildTechnicalCodeFragment(code: { languageLabel: string; source: string }): string {
+  const source = code.source.replace(/\s+$/, "");
+  const shown =
+    source.length > MAX_LIVE_TECHNICAL_CODE_CHARS
+      ? `${source.slice(0, MAX_LIVE_TECHNICAL_CODE_CHARS)}\n… (truncated)`
+      : source;
+  return [
+    `[PRIVATE — THE CANDIDATE'S CURRENT CODE (${code.languageLabel}), from their editor as of this message. They may still be typing. Use it only to ask about a specific line, loop or variable, or to check a claim they make about it. Never read it back in full, fix it, point out a bug they have not found, or say whether it is correct.]`,
+    shown,
+    "[END CURRENT CODE]",
+  ].join("\n");
 }
 
 export interface BuildTurnMessagesInput {

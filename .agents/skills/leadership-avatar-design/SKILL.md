@@ -73,6 +73,30 @@ existing HeroUI defaults.
 | Orange | `#FF9239` | Level 2 | No, Dark Blue text on it |
 | Copper Red | `#D63D1F` | Level 1, errors, End session | Yes, 4.6:1 |
 | Violet Purple | `#692C95` | "AI" label on model-written text | Yes |
+| Accent (Orange) | `#FF9239` | Decorative accent only; see "Accent" below | No, never carries text |
+
+### Accent
+
+The client asked for a little character, so Orange is also the app's one accent (`--la-accent`, Tailwind
+`accent`). Decorative only: never text, never status, never a button fill, and always beside its own
+label. Allowed spots, and no others:
+- the sidebar: the active-item marker and the up-next progress fill (its "Continue" arrow at 0%). The
+  sidebar is global chrome, so it looks the same on every page, Mastery included;
+- the 32x3px rule under every page title, plain or hero, student and staff. Use
+  `components/shell/PageTitle` for a plain header; `PracticeHero` and the study plan band put
+  `.la-title-rule` on their own title;
+- the icon on every live picker card (`.la-card-icon`), inline beside the card title: /practice, every
+  practice sub-picker (deck modes included) and the staff home;
+- the hero header's icon tile sits on an Orange ledge (`.la-hero-tile`, in `PracticeHero`);
+- the active tab's underline (`.la-tab` on hand-built tablists, `.la-tab-cursor` on HeroUI tabs). The
+  selected tab keeps its semibold CWRU Blue label, so the underline is never the only signal;
+- a 3px Orange top edge on the page's one featured panel (`.la-featured`: the report's practice-next
+  panel, the "Build a self-paced study plan" panel);
+- the report's practice-next target.
+
+Mastery's page body never takes it (no title rule, card icon, tab underline or featured edge), where it
+would read as the level-2 orange. Add new placements through these classes, never with `text-accent`
+or a hex in a component.
 
 ### Level ramp
 
@@ -180,6 +204,7 @@ Everything stops under `prefers-reduced-motion`.
 | Status chip with dot, tint, and the word ("Developing") | Status shown by color alone |
 | Muted text as Dark Blue at 68% | Text in `#999999`, Light Blue, Orange, or Vivid Green |
 | Force Blue only while something is live | Force Blue as a decorative accent |
+| The Orange accent only in its listed spots, through its shared classes | Accent in Mastery's page body, on text, or as a status color |
 | Long feedback in an expandable row with a size hint ("18 turns") | Paragraph walls on reports or setup screens |
 | Full transcript in a side panel with Copy and Download, where the page has one | Transcript dumped inline under the report |
 | Four category scores, each with its level word | A blended overall score or a 0–100 ring the scoring doesn't produce |
@@ -226,7 +251,8 @@ Run this on every new or changed screen. Each item maps to a rule above.
       failed, and empty states.
 - [ ] CWRU Blue is visible (sidebar or top bar) and is the only primary button color.
 - [ ] Every color comes from a token; `grep -E '#[0-9a-fA-F]{6}'` on the changed files finds none.
-- [ ] Tertiary colors appear only as status, errors, or the AI label, each with a word or icon.
+- [ ] Tertiary colors appear only as status, errors, or the AI label, each with a word or icon
+      (the exception is the Orange accent in its listed spots).
 - [ ] Type sizes and weights come from the scale; Newsreader only in its roles; no uppercase or
       mono labels; no accent word in a heading.
 - [ ] No icons in tinted squares, glow gradients, decorative shapes, or shadows on resting cards.

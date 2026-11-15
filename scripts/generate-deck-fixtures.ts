@@ -182,6 +182,54 @@ async function buildSpikePptx(): Promise<Buffer> {
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
+/**
+ * Filled shapes, a circle and a stroked Bézier on every page. Real decks are
+ * full of these; text-only fixtures never exercise pdfjs's Path2D handoff to
+ * the canvas, which is how mismatched @napi-rs/canvas copies blanked slides.
+ */
+async function buildVectorPdf(): Promise<Buffer> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (let i = 0; i < 2; i++) {
+    const page = doc.addPage([960, 540]);
+
+    page.drawRectangle({ x: 0, y: 0, width: 960, height: 540, color: rgb(0.04, 0.19, 0.31) });
+    page.drawRectangle({
+      x: 80,
+      y: 120,
+      width: 300,
+      height: 200,
+      color: rgb(0.15, 0.65, 0.87),
+      borderColor: rgb(1, 1, 1),
+      borderWidth: 4,
+    });
+    page.drawCircle({ x: 640, y: 240, size: 110, color: rgb(0.95, 0.66, 0) });
+    page.drawSvgPath("M 0 0 C 100 -150 250 -150 350 0", {
+      x: 300,
+      y: 460,
+      borderColor: rgb(1, 0.2, 0.2),
+      borderWidth: 6,
+    });
+    page.drawText(`Vector slide ${i + 1}: shapes, curves and fills`, {
+      x: 80,
+      y: 470,
+      size: 28,
+      font,
+      color: rgb(1, 1, 1),
+    });
+  }
+  return Buffer.from(await doc.save());
+}
+
+/** OLE2 compound-file header only — enough for magic-byte detection of a pre-2007 .ppt. */
+function buildLegacyPpt(): Buffer {
+  const buf = Buffer.alloc(512);
+
+  Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]).copy(buf, 0);
+  return buf;
+}
+
 async function main() {
   mkdirSync(FIXTURES, { recursive: true });
 
@@ -233,6 +281,9 @@ async function main() {
   writeFileSync(join(FIXTURES, "not-pptx.zip"), await notPptx.generateAsync({ type: "nodebuffer" }));
 
   writeFileSync(join(FIXTURES, "deck-two-slide.pptx"), await buildSpikePptx());
+
+  writeFileSync(join(FIXTURES, "deck-vector.pdf"), await buildVectorPdf());
+  writeFileSync(join(FIXTURES, "legacy.ppt"), buildLegacyPpt());
 
   console.log("Wrote fixtures to", FIXTURES);
 }

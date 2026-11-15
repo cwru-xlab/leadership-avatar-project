@@ -99,6 +99,8 @@ export interface TrendPointDTO {
 export interface ActivityLink {
   href: string;
   label: string;
+  /** The session's own title (live reports only), to tell like rows apart. */
+  detail?: string | null;
 }
 
 export interface WindowDriverDTO {
@@ -110,6 +112,12 @@ export interface WindowDriverDTO {
   percent: number;
   /** Null when the source no longer resolves (deleted report or plan). */
   href: string | null;
+  /**
+   * The report's display title ("Sales meeting with Dana"), when the activity
+   * is a live session that still resolves; null otherwise. Lets a list of
+   * identical "Sales meeting session" rows say which session each one was.
+   */
+  detail: string | null;
 }
 
 export interface RecentGrowthDTO {
@@ -210,6 +218,7 @@ function driverDTOFor(
     occurredAt: driver.occurredAt.toISOString(),
     percent: driver.percent,
     href: link?.href ?? null,
+    detail: link?.detail ?? null,
   };
 }
 

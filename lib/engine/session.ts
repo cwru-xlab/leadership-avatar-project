@@ -1426,6 +1426,7 @@ export async function finishSession({
     const checkpointed = replaceCandidateCheckpoints(report.technicalEvidence, checkpoints.value);
     const evidence = setFinalSource(checkpointed, finalSource.value);
     const turns = evidence.visibleTurns;
+    const finishedAt = Date.now();
 
     const transcript = buildInterviewTranscript({
       reportId: report.id,
@@ -1433,7 +1434,10 @@ export async function finishSession({
       typeSlug: report.typeSlug,
       interviewer: { avatarId: null, name: null },
       startedAt: report.startedAt.getTime(),
-      turns: turns.map((turn) => ({ ...turn, timestamp: Date.now() })),
+      // Each turn carries the server time the chat route recorded it at.
+      // Records written before per-turn stamps fall back to the finish
+      // clock, which is what every turn used to get.
+      turns: turns.map((turn) => ({ role: turn.role, content: turn.content, timestamp: turn.timestamp ?? finishedAt })),
       progress: initialProgress(),
     });
 

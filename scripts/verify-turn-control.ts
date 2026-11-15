@@ -488,7 +488,7 @@ function syntheticInit(slug: string): Parameters<typeof resolveSessionConfig>[1]
       },
     };
   }
-  if (slug === "clinical-communication" || slug === "motivational-interviewing") {
+  if (slug === "clinical-communication" || slug === "motivational-interviewing" || slug === "sales-discovery") {
     // Questioned-persona types resolve through the difficult-conversation
     // instance plus a personaCard, and the card is REQUIRED — without it these
     // types reported a resolve failure that said nothing about turn control.

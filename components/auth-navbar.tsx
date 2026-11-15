@@ -27,7 +27,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { siteConfig } from "@/config/site";
-import { UpNextCard } from "@/components/shell/UpNextCard";
+import { UpNextCard, useUpNext } from "@/components/shell/UpNextCard";
 import { useLayout } from "@/lib/layout-context";
 import { toAppRole } from "@/lib/roles";
 import { routes } from "@/lib/routes";
@@ -59,11 +59,15 @@ export const AuthNavbar = () => {
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
-  if (pathname.startsWith("/kiosk") || pathname === "/login" || fullScreen) {
+  const hidden = pathname.startsWith("/kiosk") || pathname === "/login" || fullScreen;
+  const isStudent = toAppRole(user?.role) === "user";
+  // One fetch shared by both sidebar copies (drawer + desktop) below.
+  const upNext = useUpNext(pathname, !hidden && isStudent && !!user);
+
+  if (hidden) {
     return null;
   }
 
-  const isStudent = toAppRole(user?.role) === "user";
   const navItems: NavItem[] = isStudent ? siteConfig.studentNavItems : siteConfig.navItems;
   const groups = navItems.reduce<Record<string, NavItem[]>>((acc, item) => {
     (acc[item.group] ??= []).push(item);
@@ -126,13 +130,19 @@ export const AuthNavbar = () => {
                         <NextLink
                           aria-current={active ? "page" : undefined}
                           className={clsx(
-                            "flex h-11 items-center gap-3 rounded-lg px-3 text-[14.5px] transition-colors duration-150 ease-out focus-visible:outline-light-blue",
+                            "relative flex h-11 items-center gap-3 rounded-lg px-3 text-[14.5px] transition-colors duration-150 ease-out focus-visible:outline-light-blue",
                             active
                               ? "bg-white font-semibold text-cwru-blue"
                               : "text-white/[0.88] hover:bg-white/10 hover:text-white",
                           )}
                           href={item.href}
                         >
+                          {active && (
+                            <span
+                              aria-hidden
+                              className="absolute inset-y-2.5 left-0 w-[3px] rounded-r-full bg-accent"
+                            />
+                          )}
                           {Icon && <Icon aria-hidden className="shrink-0" size={18} strokeWidth={1.5} />}
                           {item.label}
                         </NextLink>
@@ -146,7 +156,9 @@ export const AuthNavbar = () => {
         )
       )}
 
-      {isStudent && user && <UpNextCard refreshKey={pathname} />}
+      {isStudent && user && (
+        <UpNextCard upNext={upNext} />
+      )}
 
       <div className="mt-auto flex flex-col gap-4">
         <div className="rounded-lg bg-white px-3 py-2">

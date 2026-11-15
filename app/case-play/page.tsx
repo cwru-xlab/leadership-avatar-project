@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { ArrowLeft, Briefcase, PenLine, Plus, Users } from "lucide-react";
+import BalancedGrid from "@/components/layout/BalancedGrid";
 import CaseCard from "@/components/case-card";
 import ScenarioCard from "@/components/scenario/ScenarioCard";
 import type { CaseStudy } from "@/types";
 import { routes } from "@/lib/routes";
+import PageTitle from "@/components/shell/PageTitle";
 
 export default function CasePlayIndexPage() {
   const router = useRouter();
@@ -140,7 +142,8 @@ export default function CasePlayIndexPage() {
     </div>
   );
 
-  const gridClass = "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3";
+  // Rows always fill the width: a short last row splits it instead of leaving a gap.
+  const gridProps = { as: "div", className: "gap-4", perRow: { md: 2, xl: 3 } } as const;
 
   return (
     <div className="flex flex-col gap-6">
@@ -150,9 +153,9 @@ export default function CasePlayIndexPage() {
       </Link>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-2">
-          <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+          <PageTitle>
             Case studies
-          </h1>
+          </PageTitle>
           <p className="max-w-2xl text-[15px] text-muted">
             Work through a real leadership scenario, or build your own roleplay and practice it.
           </p>
@@ -165,8 +168,8 @@ export default function CasePlayIndexPage() {
           <button
             key={t.id}
             aria-selected={tab === t.id}
-            className={`-mb-px h-11 border-b-2 text-[15px] ${
-              tab === t.id ? "border-true-blue font-semibold text-cwru-blue" : "border-transparent font-medium text-muted hover:text-ink"
+            className={`la-tab -mb-px h-11 border-b-2 text-[15px] ${
+              tab === t.id ? "font-semibold text-cwru-blue" : "border-transparent font-medium text-muted hover:text-ink"
             }`}
             role="tab"
             type="button"
@@ -184,11 +187,11 @@ export default function CasePlayIndexPage() {
         ) : casesError ? (
           errorState(casesError)
         ) : cases.length > 0 ? (
-          <div className={gridClass}>
+          <BalancedGrid {...gridProps}>
             {cases.map((caseStudy) => (
               <CaseCard key={caseStudy.id} caseStudy={caseStudy} onClick={handlePlayAdminCase} />
             ))}
-          </div>
+          </BalancedGrid>
         ) : (
           empty(
             <Briefcase className="h-7 w-7" />,
@@ -203,7 +206,7 @@ export default function CasePlayIndexPage() {
       ) : tab === "mine" ? (
         // Student-authored scenarios: your own first, then classmates' tab.
         mine.length > 0 ? (
-          <div className={gridClass}>
+          <BalancedGrid {...gridProps}>
             {mine.map((scenario) => (
               <ScenarioCard
                 key={scenario.id}
@@ -213,7 +216,7 @@ export default function CasePlayIndexPage() {
                 onChanged={loadScenarios}
               />
             ))}
-          </div>
+          </BalancedGrid>
         ) : (
           empty(
             <PenLine className="h-7 w-7" />,
@@ -223,7 +226,7 @@ export default function CasePlayIndexPage() {
           )
         )
       ) : shared.length > 0 ? (
-        <div className={gridClass}>
+        <BalancedGrid {...gridProps}>
           {shared.map((scenario) => (
             <ScenarioCard
               key={scenario.id}
@@ -233,7 +236,7 @@ export default function CasePlayIndexPage() {
               onChanged={loadScenarios}
             />
           ))}
-        </div>
+        </BalancedGrid>
       ) : (
         empty(<Users className="h-7 w-7" />, "Nobody has shared a scenario yet.")
       )}

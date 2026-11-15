@@ -22,7 +22,8 @@ export interface GoldenTranscript {
   description: string;
   lines: Line[];
   /** Checklist steps whose status must match on every run. */
-  expectSteps: Record<string, "hit" | "missed">;
+  /** A list means any of those verdicts is acceptable (a genuinely borderline step). */
+  expectSteps: Record<string, "hit" | "partly" | "missed" | Array<"hit" | "partly" | "missed">>;
   /** Hidden facts whose elicitation must match on every run. */
   expectFacts: Record<string, boolean>;
   /**
@@ -161,7 +162,10 @@ export const GOLDEN: GoldenTranscript[] = [
       elicit_ice: "missed",
       respond_to_cues: "missed",
       summarize: "missed",
-      plain_explanation: "missed",
+      // "Just some tests" after "A what?" is a vague attempt to un-jargon the
+      // plan — Partly ("attempted but incomplete or vague") is as defensible
+      // as Missed. Written before Partly existed (2026-11-14).
+      plain_explanation: ["missed", "partly"],
       teach_back: "missed",
     },
     expectFacts: { family_history: true, smoking: true },

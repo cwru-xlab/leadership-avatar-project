@@ -56,6 +56,7 @@ Schema file: `prisma/schema.prisma`
 | Professor | professor.chen@case.edu | prof123 |
 | Student | student@case.edu | student123 |
 | Student | alice.johnson@case.edu | student123 |
+| Student (one perfect live session on Outcome achievement only; for `e2e/mastery-estimate.spec.ts`) | one.session@case.edu | student123 |
 
 All test users are created by `prisma/seed.ts`.
 

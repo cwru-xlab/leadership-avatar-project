@@ -11,6 +11,7 @@
  */
 
 import type { ProblemSessionSnapshot } from "@/lib/problem-interview/session-state";
+import type { PersonaStyle } from "@/lib/questioned-persona/types";
 import type { DeckModeInputs } from "@/lib/pitch/deck-modes";
 import { isDeckModeSlug } from "@/lib/pitch/deck-modes";
 import {
@@ -159,7 +160,7 @@ export interface DifficultConversationInputSnapshot {
    * itself is never snapshotted — its hidden facts follow hiddenPosition's
    * privacy rule.
    */
-  personaStyle?: "clinical-communication" | "motivational-interviewing";
+  personaStyle?: PersonaStyle;
   personaName?: string;
 }
 

@@ -1,5 +1,5 @@
 {
-  "recordedFrom": "lib/engine/rubric.ts with outcome LAST for every type (pre-outcome-first, b168d09). AMENDED 2026-11-07: clinical-communication and motivational-interviewing were re-taken when their shared `empathy` dimension split into `empathy_clinical` and `empathy_mi` (a deliberate rename, not a reorder). Their digests therefore date from that split rather than from b168d09; the diff that re-took them changed only those two property names and the two digests, and difficult-conversation's `empathy_score` was left untouched. Every other type's bytes are still b168d09's.",
+  "recordedFrom": "lib/engine/rubric.ts with outcome LAST for every type (pre-outcome-first, b168d09). AMENDED 2026-11-07: clinical-communication and motivational-interviewing were re-taken when their shared `empathy` dimension split into `empathy_clinical` and `empathy_mi` (a deliberate rename, not a reorder). Their digests therefore date from that split rather than from b168d09; the diff that re-took them changed only those two property names and the two digests, and difficult-conversation's `empathy_score` was left untouched. AMENDED 2026-11-14: difficult-conversation was re-taken when the optional `conversationSteps` outcome field (the five-moves checklist) was appended after the existing outcome fields; no existing property moved. sales-discovery was added as a new type. AMENDED 2026-11-15: technical-coding was re-taken when it gained its first outcome field, the optional `codingSteps` checklist, which adds an `outcome` property LAST (properties and required); no existing property moved or changed. Every other type's bytes are still b168d09's.",
   "note": "digest = sha256 of JSON.stringify(buildRubricJsonSchema(config)) with outcome last. Instances come from instanceFor() in scripts/verify-rubric-schema-order.ts.",
   "types": {
     "general": {
@@ -321,7 +321,8 @@
         "growth_areas",
         "category_notes",
         "rubric_notes",
-        "practice_next"
+        "practice_next",
+        "outcome"
       ],
       "required": [
         "visual_score",
@@ -336,9 +337,10 @@
         "growth_areas",
         "category_notes",
         "rubric_notes",
-        "practice_next"
+        "practice_next",
+        "outcome"
       ],
-      "digest": "fd08311126562f56a783c43ed949c3d96a173222466b2dff5913c8d92a417856"
+      "digest": "6d04e3ed0e8eaad2c45af053dc29e8d1ba3b5c28430ed7bbd29acf1499eb6014"
     },
     "networking": {
       "problemInterview": false,
@@ -654,7 +656,7 @@
         "practice_next",
         "outcome"
       ],
-      "digest": "3a3c40ac32d40ab21ce2925a38d1cd3755970e316316b297bf8dcfb0e8836722"
+      "digest": "d4acc74aa717aec7b851415351734b334e9c9b462013b61c67ecd3a610184dfb"
     },
     "clinical-communication": {
       "problemInterview": false,
@@ -729,6 +731,45 @@
         "practice_next"
       ],
       "digest": "2d0a06d11af8013c04dafb4762cf3826c319af49d214532285b2e6127a7ba4fd"
+    },
+    "sales-discovery": {
+      "problemInterview": false,
+      "name": "interview_evaluation",
+      "properties": [
+        "visual_score",
+        "vocal_score",
+        "content_score",
+        "behavioral_score",
+        "discovery_before_pitch_score",
+        "active_listening_sales_score",
+        "needs_tailoring_score",
+        "objection_exploration_score",
+        "next_step_agreed_score",
+        "overall_summary",
+        "strengths",
+        "growth_areas",
+        "category_notes",
+        "rubric_notes",
+        "practice_next"
+      ],
+      "required": [
+        "visual_score",
+        "vocal_score",
+        "content_score",
+        "behavioral_score",
+        "discovery_before_pitch_score",
+        "active_listening_sales_score",
+        "needs_tailoring_score",
+        "objection_exploration_score",
+        "next_step_agreed_score",
+        "overall_summary",
+        "strengths",
+        "growth_areas",
+        "category_notes",
+        "rubric_notes",
+        "practice_next"
+      ],
+      "digest": "2825bc20df34c8ce59d73fa1c4ce7b694a036ad822e05b8fac0f4a782e00abdd"
     }
   }
 }

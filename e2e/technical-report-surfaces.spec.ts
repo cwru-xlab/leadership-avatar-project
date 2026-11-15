@@ -2,8 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 
 // Our report features on dev's technical coding interview: derived title,
 // Moments, the check-in lead, and the Interviews chip in My Reports.
-// Needs one READY technical-coding report on Alice's account with vocal
-// turns and a transcript (the merge seeded "Pair Sum" for this).
+// Needs one READY camera-on technical-coding report on Alice's account with
+// visual metrics and a transcript (the merge seeded "Pair Sum" for this). A DB
+// without that fixture SKIPS the report tests with the reason, rather than
+// failing them (G16): real coding sessions run camera-off, so the fixture
+// cannot be produced by using the app. The coding report's own tabs are
+// covered by technical-coding-report.spec.ts, which seeds its own data.
 const SHOTS = ".loop-shots";
 const ALICE = { email: "alice.johnson@case.edu", password: "student123" };
 
@@ -15,7 +19,7 @@ async function signIn(page: Page) {
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
 }
 
-async function technicalReport(page: Page): Promise<{ id: string; title: string }> {
+async function technicalReport(page: Page): Promise<{ id: string; title: string } | null> {
   const res = await page.request.get("/api/practice/reports");
   expect(res.status()).toBe(200);
   const { reports } = (await res.json()) as {
@@ -36,7 +40,7 @@ async function technicalReport(page: Page): Promise<{ id: string; title: string 
       r.metrics?.cameraMode === "ON" &&
       r.metrics.visual != null,
   );
-  if (!report) throw new Error("Alice has no READY camera-on technical-coding report");
+  if (!report) return null;
   return { id: report.id, title: report.input?.assignment?.title ?? "" };
 }
 
@@ -48,7 +52,9 @@ for (const [name, viewport] of [
     test.setTimeout(120_000);
     await page.setViewportSize(viewport);
     await signIn(page);
-    const { id, title } = await technicalReport(page);
+    const found = await technicalReport(page);
+    test.skip(!found, "Alice has no READY camera-on technical-coding report with visual metrics in this DB (fixture-only; see header)");
+    const { id, title } = found!;
     expect(title).not.toBe("");
 
     await page.goto(`/reports/${id}`);
@@ -56,7 +62,8 @@ for (const [name, viewport] of [
     await expect(page.locator("h1")).toHaveText(title);
     await page.screenshot({ path: `${SHOTS}/technical-report-${name}.png`, fullPage: true });
 
-    await page.goto("/reports?type=interview");
+    // Search by title: the list pages 10 at a time and newer sessions push this one down.
+    await page.goto(`/reports?type=interview&q=${encodeURIComponent(title)}`);
     const card = page.getByRole("link", { name: new RegExp(title) }).first();
     await expect(card).toBeVisible({ timeout: 30_000 });
     await page.screenshot({ path: `${SHOTS}/technical-reports-list-${name}.png` });

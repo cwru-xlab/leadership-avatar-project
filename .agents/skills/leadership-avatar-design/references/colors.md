@@ -34,6 +34,15 @@ are opacities of Dark Blue or tints of Light Blue, which keep the palette intact
 | Copper Red | `#D63D1F` | Level 1 (Needs work / Starting out), errors, End session | White on solid passes |
 | Violet Purple | `#692C95` | AI-generated content label | Violet text on 8% violet tint |
 
+### Accent
+Orange `#FF9239` doubles as the one decorative accent (`--la-accent`). It never carries text or status,
+appears only in the spots listed under "Accent" in `SKILL.md`, through its shared classes
+(`PageTitle` / `.la-title-rule`, `.la-card-icon`, `.la-tab` / `.la-tab-cursor`, `.la-featured`,
+`.la-hero-tile`). It stays off Mastery's page body so it can't be read as level 2; the sidebar is global
+chrome and keeps its marker and up-next fill there too. Orange is 2.2:1 on white, so it is never a focus
+indicator or the only sign of a state: focus rings stay True Blue (4.7:1 on white, 4.4:1 on Canvas), and
+the Orange active-tab underline always sits with the tab's bold CWRU Blue label.
+
 Level 3 (Solid / Competent) uses Light Blue, a secondary color, so the middle of the scale reads as
 neutral rather than as a warning. The full ramp with both label sets is in `SKILL.md`.
 

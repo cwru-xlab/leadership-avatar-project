@@ -18,7 +18,8 @@
 import type { ReactNode } from "react";
 import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
-import { Mic, MicOff } from "lucide-react";
+import { Mic } from "lucide-react";
+import { RecordingIcon } from "@/components/session/RecordingIcon";
 
 export function formatElapsed(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
@@ -158,7 +159,7 @@ export function PushToTalkControl({
       <Button
         size="sm"
         variant={isRecording || isTranscribing ? "solid" : "flat"}
-        color={isRecording ? "danger" : isTranscribing ? "primary" : "default"}
+        color={isRecording ? "success" : isTranscribing ? "primary" : "default"}
         className="font-medium text-white"
         isDisabled={isDisabled}
         isLoading={isTranscribing}
@@ -170,7 +171,13 @@ export function PushToTalkControl({
               ? stopAriaLabel
               : startAriaLabel
         }
-        startContent={isRecording ? <MicOff size={15} /> : <Mic size={15} />}
+        startContent={
+          isRecording ? (
+            <RecordingIcon className="h-[15px] w-[15px]" />
+          ) : (
+            <Mic size={15} />
+          )
+        }
       >
         {isTranscribing ? submittedLabel : isRecording ? recordingLabel : idleLabel}
       </Button>

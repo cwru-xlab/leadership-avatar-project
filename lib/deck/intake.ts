@@ -49,6 +49,12 @@ export function detectDeckFormat(buffer: Buffer): DeckFormat | null {
   return null;
 }
 
+/** OLE2 compound-file signature (D0 CF 11 E0 A1 B1 1A E1) — legacy .ppt/.doc/.xls. */
+export function isLegacyOfficeFile(buffer: Buffer): boolean {
+  const OLE2 = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+  return buffer.length >= OLE2.length && OLE2.every((b, i) => buffer[i] === b);
+}
+
 function looksPasswordProtected(error: unknown, buffer: Buffer): boolean {
   const message =
     error instanceof Error
@@ -88,6 +94,11 @@ export async function validateAndExtractDeck(
   const format = detectDeckFormat(buffer);
 
   if (format === null) {
+    // Pre-2007 PowerPoint (.ppt) is an OLE2 compound file, not a ZIP. Name it
+    // so the student knows to re-save, rather than "not a PowerPoint deck".
+    if (isLegacyOfficeFile(buffer)) {
+      return reject("legacy-ppt");
+    }
     return reject("unknown-format");
   }
 

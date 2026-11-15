@@ -5,7 +5,7 @@
 
 import type { ProcessStepResult } from "@/lib/problem-interview/types";
 
-import { CALGARY_CAMBRIDGE_FRAMEWORK, MI_PROCESS_FRAMEWORK } from "./frameworks";
+import { frameworkForStyle } from "./frameworks";
 import type { PersonaAnalysis } from "./types";
 import { isPersonaStyle } from "./types";
 
@@ -31,9 +31,7 @@ export function asPersonaAnalysis(outcome: unknown): PersonaAnalysis | null {
 }
 
 export function frameworkFor(analysis: PersonaAnalysis) {
-  return analysis.style === "clinical-communication"
-    ? CALGARY_CAMBRIDGE_FRAMEWORK
-    : MI_PROCESS_FRAMEWORK;
+  return frameworkForStyle(analysis.style);
 }
 
 export function stepTally(steps: ProcessStepResult[]): { hit: number; applicable: number } {
@@ -95,4 +93,10 @@ export const CODE_LABELS: Record<string, string> = {
   persuade: "Persuade (no permission)",
   persuade_with_permission: "Persuade with permission",
   confront: "Confront",
+  impact_question: "Impact questions",
+  pitch: "Pitch turns",
+  tailored_pitch: "Pitches tied to a stated need",
+  objection_explored: "Objections explored",
+  objection_rebutted: "Objections rebutted",
+  next_step_ask: "Next-step asks",
 };

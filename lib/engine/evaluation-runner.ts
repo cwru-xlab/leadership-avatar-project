@@ -41,6 +41,11 @@ import {
 } from "@/lib/report/snapshot";
 import { asDisengagementDeclineRecord } from "@/lib/report/dto";
 import { asTechnicalEvidence } from "@/lib/technical-interview/evidence";
+import {
+  finalizeCodingStepsOutcome,
+  locateHintTurns,
+  type TechnicalHintEvidence,
+} from "@/lib/technical-interview/grading";
 import { recordLiveSessionContributions } from "@/lib/mastery/from-report";
 import { findProblemQuestion } from "@/lib/problem-interview/banks.server";
 import { buildProblemEvaluatorBrief } from "@/lib/problem-interview/prompts";
@@ -54,6 +59,7 @@ import type { InteractionLog, InteractionEvent } from "@/types";
 
 import { runEvaluation } from "./evaluation";
 import { validateOutcome } from "./outcome";
+import { retimeOutcomeQuotes, studentTurnTexts } from "./quote-timecodes";
 import { getEngineType } from "./registry";
 import { resolveSessionConfig } from "./resolve";
 import type {
@@ -361,6 +367,7 @@ function buildEvaluationContextForReport(
   },
   outcome?: unknown,
   technicalEvidence?: unknown,
+  technicalHints: TechnicalHintEvidence[] = [],
 ): Record<string, unknown> {
   const type = getEngineType(config.typeSlug);
   if (!type) {
@@ -380,6 +387,13 @@ function buildEvaluationContextForReport(
       // The current sandbox deliberately executes nothing. Correctness must
       // remain unavailable rather than be inferred from source or dialogue.
       finalExecution: null,
+      // Rendered by buildTechnicalCodingUserMessage (G1): the learner-visible
+      // problem from the snapshot, the language, and the issued hints. The
+      // reference solution and hidden tests never enter the context.
+      assignment: snapshot.assignment,
+      language: snapshot.language,
+      hints: technicalHints,
+      omittedVisibleTurns: evidence?.omittedVisibleTurns ?? 0,
     };
   }
 
@@ -631,6 +645,20 @@ export async function runAndPersistEvaluation({
     const visualOutcome = resolveVisualOutcome(cameraMode, visual);
     const vocalOutcome = resolveVocalOutcome(vocal);
 
+    // Technical coding: the hints actually issued, located in the transcript.
+    const technicalHints =
+      snapshot?.kind === "technical-coding"
+        ? locateHintTurns(
+            await prisma.technicalInterviewHint.findMany({
+              where: { reportId },
+              select: { tier: true, hintText: true, issuedAt: true },
+              orderBy: { issuedAt: "asc" },
+            }),
+            asTechnicalEvidence(report.technicalEvidence)?.visibleTurns ?? [],
+            report.startedAt.getTime(),
+          )
+        : [];
+
     const evaluationContext = buildEvaluationContextForReport(
       resolved.config,
       snapshot,
@@ -640,6 +668,7 @@ export async function runAndPersistEvaluation({
       },
       report.outcome,
       report.technicalEvidence,
+      technicalHints,
     );
 
     // Type-declared images (looked up via the type record — ResolvedSessionConfig
@@ -726,15 +755,31 @@ export async function runAndPersistEvaluation({
         typeRecord?.problemInterview && snapshot?.kind === "interview"
           ? asProblemSessionSnapshot(snapshot.problem)
           : null;
+      // Quote timecodes come from the student turn each quote was found in,
+      // not the model's own [m:ss] arithmetic (see ./quote-timecodes). Runs
+      // BEFORE finalizeProblemOutcome so the hit/prompted reconciliation
+      // compares nudges against the real time of the evidence.
+      const retimedOutcome = transcriptTurns
+        ? retimeOutcomeQuotes(
+            outcome.producedOutcome,
+            studentTurnTexts(transcriptTurns, transcriptStartedAt),
+          )
+        : outcome.producedOutcome;
+      // Technical coding: keep only the framework's steps, in order, and run
+      // the no-execution guard over each coaching note.
+      const codingOutcome =
+        snapshot?.kind === "technical-coding"
+          ? finalizeCodingStepsOutcome(retimedOutcome)
+          : retimedOutcome;
       const produced = problemSnapshot
         ? finalizeProblemOutcome(
-            outcome.producedOutcome,
+            retimedOutcome,
             problemSnapshot,
             typeRecord?.problemInterview?.frameworks.find(
               (f) => f.key === problemSnapshot.frameworkKey,
             ) ?? null,
           )
-        : outcome.producedOutcome;
+        : codingOutcome;
       const storedOutcome =
         report.outcome && typeof report.outcome === "object" && !Array.isArray(report.outcome)
           ? (report.outcome as Record<string, unknown>)
@@ -786,7 +831,11 @@ export async function runAndPersistEvaluation({
           })
         : scoresForPost;
       // This cannot be left to a prompt: no managed deterministic executor is
-      // configured, so the report may not claim a correctness score.
+      // configured, so the report may not claim a correctness score. Decided
+      // 2026-11-15 (docs/technical-coding/grading-probe.md, "After"): keep it
+      // null ("not run") rather than store a reading-based estimate under a
+      // name that promises an executed result; the reading lands in
+      // coding_quality and the feedback instead.
       const codingScores = snapshot?.kind === "technical-coding"
         ? { ...postProcessedScores, coding_correctness: null }
         : postProcessedScores;

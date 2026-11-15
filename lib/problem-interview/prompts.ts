@@ -22,7 +22,7 @@ import type { InterviewType } from "@/lib/interview/types";
 import {
   PROCESS_RIGOR_DIMENSION,
   PROCESS_RIGOR_SCORING_GUIDE,
-  PROCESS_STEP_STATUSES,
+  PROBLEM_STEP_STATUSES,
   type ProblemQuestion,
   type ProcessFramework,
 } from "./types";
@@ -518,7 +518,7 @@ For EACH step, find the evidence first, then decide — answer two questions in 
 - Before crediting any step that involves math or estimation, re-check the
   candidate's arithmetic yourself. A material arithmetic error the candidate did
   not catch means the criteria are not fully met.
-- Statuses: ${PROCESS_STEP_STATUSES.join(", ")}.
+- Statuses: ${PROBLEM_STEP_STATUSES.join(", ")}.
   - hit: the candidate did it unprompted. Quote their words.
   - prompted: they fully met the criteria, but only after the interviewer's nudge.
   - missed: they never fully met the criteria, nudged or not.

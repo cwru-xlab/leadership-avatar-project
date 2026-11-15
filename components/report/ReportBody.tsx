@@ -45,7 +45,7 @@ import ReportStatistics, {
   measuredVocal,
 } from "@/components/report/ReportStatistics";
 import { fallbackClock, reclockVisual, type ReportMoments } from "@/lib/report/moments";
-import { rubricItemLabel } from "@/lib/report/rubric-labels";
+import { rubricItemKey, rubricItemLabel } from "@/lib/report/rubric-labels";
 import {
   applyCheckInHiding,
   eligibleCheckIns,
@@ -346,7 +346,7 @@ const TAB_CLASSES = {
   tab: "h-12 max-w-fit px-0",
   tabContent:
     "text-[15px] font-medium text-muted group-data-[selected=true]:font-semibold group-data-[selected=true]:text-cwru-blue",
-  cursor: "h-0.5 w-full bg-true-blue",
+  cursor: "la-tab-cursor h-0.5 w-full",
   panel: "px-0 pb-0 pt-6",
 };
 
@@ -473,7 +473,7 @@ export default function ReportBody({
       {structured.practice_next && (
         <section
           aria-labelledby="practice-next"
-          className="flex items-center gap-6 rounded-xl bg-light-blue/32 px-5 py-6 md:px-7"
+          className="la-featured flex items-center gap-6 rounded-xl bg-light-blue/32 px-5 py-6 md:px-7"
         >
           <TargetMark />
           <div className="flex min-w-0 flex-col gap-1">
@@ -730,9 +730,12 @@ function noteBody(note: string): string {
 /**
  * Per-rubric-item rows: the item, its score as a figure and chip, its note.
  *
- * SCORED, not just annotated. `scores` is keyed by dimension key exactly as
- * `rubric_notes[].item` is, so the 1-5 the evaluator already gave each item
- * is shown instead of leaving the reader to infer a verdict from prose. That
+ * SCORED, not just annotated. `scores` is keyed by dimension KEY, while
+ * `rubric_notes[].item` is model-written free text — usually the label
+ * ("Coding Quality"), sometimes the key. `rubricItemKey` resolves either to
+ * the key, so the 1-5 the evaluator already gave each item is shown instead
+ * of leaving the reader to infer a verdict from prose. Looking `item` up in
+ * `scores` directly is why no figure ever appeared for label-shaped items. That
  * is what makes the list scannable: the eye runs down the figures and the
  * chips, and the note is there for the one row that matters.
  *
@@ -756,7 +759,10 @@ function RubricNotes({
   return (
     <dl className="grid gap-2.5 sm:grid-cols-2">
       {notes.map((n) => {
-        const raw = scores[n.item] ?? scores[n.item.replace(/_score$/i, "")] ?? null;
+        const key = rubricItemKey(n.item, labels);
+        const raw = key
+          ? (scores[key] ?? null)
+          : (scores[n.item] ?? scores[n.item.replace(/_score$/i, "")] ?? null);
         const score = typeof raw === "number" ? raw : null;
         const body = noteBody(n.note);
         return (
@@ -790,11 +796,11 @@ function RubricNotes({
 function TargetMark() {
   return (
     <div aria-hidden className="relative size-16 shrink-0 max-sm:hidden">
-      <span className="absolute inset-0 rounded-full border-2 border-true-blue opacity-0 motion-safe:animate-[la-ripple_1.6s_ease-out_0.4s_2]" />
+      <span className="absolute inset-0 rounded-full border-2 border-accent opacity-0 motion-safe:animate-[la-ripple_1.6s_ease-out_0.4s_2]" />
       <svg className="relative" height="64" viewBox="0 0 56 56" width="64">
         <circle cx="28" cy="28" fill="white" r="22" />
         <circle cx="28" cy="28" fill="none" r="16" stroke="var(--la-true-blue)" strokeWidth="2" />
-        <circle cx="28" cy="28" fill="none" r="8" stroke="var(--la-true-blue)" strokeWidth="2" />
+        <circle cx="28" cy="28" fill="var(--la-accent)" r="8" />
         <circle cx="28" cy="28" fill="var(--la-cwru-blue)" r="3" />
         <path d="M28 28 46 10" stroke="var(--la-cwru-blue)" strokeLinecap="round" strokeWidth="2.5" />
         <path

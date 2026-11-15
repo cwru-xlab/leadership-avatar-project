@@ -55,12 +55,14 @@ import { DIFFICULT_CONVERSATION_TYPE } from "../difficult-conversation/conversat
 import {
   CLINICAL_COMMUNICATION_TYPE,
   MOTIVATIONAL_INTERVIEWING_TYPE,
+  SALES_DISCOVERY_TYPE,
 } from "../questioned-persona/persona-types";
 import {
   buildTechnicalCodingSystemPrompt,
   TECHNICAL_CODING_EVALUATOR_PROMPT,
   TECHNICAL_CODING_RUBRIC_EXTRAS,
 } from "../technical-interview/prompts";
+import { CODING_STEPS_OUTCOME_KEY } from "../technical-interview/process-framework";
 import { PRODUCT_MANAGEMENT_TYPE } from "../pm-interview/type";
 // Public parts only (frameworks, addendum, extras, briefing). The bank is
 // registered in lib/problem-interview/banks.server.ts — never here, because
@@ -308,7 +310,20 @@ const TECHNICAL_CODING: InteractionTypeConfig = {
   limits: { targetMinutes: 30, targetQuestionCount: 1 },
   terminationPolicy: { studentMayEnd: true, avatarMayEnd: false, avatarEndReasons: [] },
   visibleContext: { visibleChannels: "*" },
-  outcome: { fields: [] },
+  outcome: {
+    fields: [
+      {
+        // The coding-steps checklist (lib/technical-interview/process-framework.ts):
+        // a JSON-encoded ProcessStepResult[] string, like the courageous-
+        // conversation `conversationSteps`. Optional, so reports graded before
+        // it existed still validate; the report shows no checklist without it.
+        key: CODING_STEPS_OUTCOME_KEY,
+        label: "Coding steps",
+        kind: "string",
+        required: false,
+      },
+    ],
+  },
   timeBudget: { totalSeconds: 30 * 60, warnAtRemainingSeconds: 120 },
   instance: { required: false },
   // Candidate source snapshots are saved by the coding client; they are not
@@ -469,6 +484,7 @@ export const ENGINE_TYPES: InteractionTypeConfig[] = [
   DIFFICULT_CONVERSATION_TYPE,
   CLINICAL_COMMUNICATION_TYPE,
   MOTIVATIONAL_INTERVIEWING_TYPE,
+  SALES_DISCOVERY_TYPE,
 ];
 
 const ENGINE_TYPES_BY_SLUG: Record<string, InteractionTypeConfig> =

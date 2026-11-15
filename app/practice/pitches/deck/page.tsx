@@ -18,6 +18,7 @@ import {
   UserRound,
 } from "lucide-react";
 
+import BalancedGrid from "@/components/layout/BalancedGrid";
 import PracticeHero from "@/components/practice/PracticeHero";
 import { deckModeIcon } from "@/components/practice/deckModeIcons";
 import { listDeckModes } from "@/lib/pitch/deck-modes";
@@ -46,28 +47,26 @@ export default function DeckPitchSettingsPage() {
         <h2 className="font-display text-2xl font-medium text-cwru-blue" id="deck-settings-heading">
           Choose a setting
         </h2>
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Rows always fill the width: five settings are 3 + 2 on desktop, 2 + 2 + 1 on tablet. */}
+        <BalancedGrid className="gap-4" perRow={{ sm: 2, lg: 3 }}>
           {DECK_MODES.map((mode) => {
             const Icon = deckModeIcon(mode.slug);
 
             return (
-              <li
+              <div
                 key={mode.slug}
-                className="group relative flex flex-col gap-4 rounded-2xl border border-line bg-white p-6 transition-shadow hover:shadow-raised"
+                className="group relative flex h-full flex-col gap-4 rounded-2xl border border-line bg-white p-6 transition-shadow hover:shadow-raised"
               >
-                <div className="flex items-start gap-3.5">
-                  <span className="grid size-12 shrink-0 place-items-center rounded-[14px] bg-cwru-blue text-white">
-                    <Icon aria-hidden size={22} strokeWidth={1.75} />
-                  </span>
-                  <div className="flex flex-col gap-0.5">
-                    <h3 className="font-display text-xl font-medium leading-tight text-cwru-blue">
-                      {mode.cardTitle}
-                    </h3>
-                    <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-link">
-                      <UserRound aria-hidden size={14} />
-                      {mode.listenerLine}
-                    </p>
-                  </div>
+                <div className="flex flex-col gap-1">
+                  {/* Icon inline beside the title, like every other picker card. */}
+                  <h3 className="flex items-center gap-3 font-display text-xl font-medium leading-tight text-cwru-blue">
+                    <Icon aria-hidden className="la-card-icon shrink-0" size={22} strokeWidth={1.75} />
+                    {mode.cardTitle}
+                  </h3>
+                  <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-link">
+                    <UserRound aria-hidden size={14} />
+                    {mode.listenerLine}
+                  </p>
                 </div>
 
                 <p className="text-[15px] leading-6 text-muted">{mode.cardBlurb}</p>
@@ -79,7 +78,8 @@ export default function DeckPitchSettingsPage() {
                   </span>
                 </p>
 
-                <div className="flex flex-wrap items-center gap-2">
+                {/* Footer pinned to the bottom so chips and Start line up across a row. */}
+                <div className="mt-auto flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-xs text-ink">
                     <Clock3 aria-hidden size={12} />
                     {minutesRange(mode.envelopeSeconds)}
@@ -97,19 +97,19 @@ export default function DeckPitchSettingsPage() {
                   )}
                 </div>
 
-                <div className="mt-auto flex justify-end pt-1">
+                <div className="-mt-2 flex justify-end">
                   <Link
                     aria-label={`Start ${mode.cardTitle}`}
-                    className="inline-flex items-center gap-1 rounded-md text-sm font-bold text-link after:absolute after:inset-0 after:rounded-2xl hover:underline focus-visible:outline-true-blue"
+                    className="inline-flex min-h-11 items-center gap-1 rounded-md text-sm font-bold text-link after:absolute after:inset-0 after:rounded-2xl hover:underline focus-visible:outline-true-blue"
                     href={routes.deckPitch(mode.slug)}
                   >
                     Start <ArrowRight aria-hidden size={15} strokeWidth={2.5} />
                   </Link>
                 </div>
-              </li>
+              </div>
             );
           })}
-        </ul>
+        </BalancedGrid>
       </section>
     </div>
   );

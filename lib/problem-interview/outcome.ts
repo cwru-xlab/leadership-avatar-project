@@ -66,7 +66,7 @@ function repairStepsJson(text: string): unknown {
     .split(/(?=\{\s*"key"\s*:)/)
     .flatMap((chunk) => {
       const key = chunk.match(/^\{\s*"key"\s*:\s*"([a-z0-9_]+)"/i)?.[1];
-      const status = chunk.match(/"status"\s*:\s*"(hit|prompted|missed|not_applicable)"/)?.[1];
+      const status = chunk.match(/"status"\s*:\s*"(hit|prompted|partly|missed|not_applicable)"/)?.[1];
       if (!key || !status) return [];
       const timecode = chunk.match(/"timecodeSeconds"\s*:\s*(\d+(?:\.\d+)?)/)?.[1];
       const field = (name: string) =>
@@ -257,13 +257,20 @@ export function finalizeProblemOutcome(
     : results;
 
   const reconciled = ordered.map((result): ProcessStepResult => {
+    // Problem interviews grade yes/no on the full criteria (see
+    // PROCESS_STEP_STATUSES): an incomplete attempt is a miss here.
+    if (result.status === "partly") return { ...result, status: "missed" };
     if (result.status !== "hit" && result.status !== "prompted") return result;
     if (isGenericNonAnswer(result.evidenceQuote, defsByKey.get(result.key)?.genericAnswerTerms)) {
       return { ...result, status: "missed" };
     }
     const nudge = nudgedAt.get(result.key);
     if (nudge === undefined) return result;
-    // KNOWN HOLE: the stamp decides hit vs prompted, so a model that wants to
+    // The stamp decides hit vs prompted. The evaluation runner now re-times
+    // each quote from the transcript turn it was found in before this runs
+    // (lib/engine/quote-timecodes.ts), which closes the hole below whenever
+    // the quote is locatable; an unlocatable quote keeps the model's stamp.
+    // HISTORY: a model that wants to
     // keep a "hit" can move it earlier. Case retail-nudged run 3 did exactly
     // that under f4359f6's reverted carve-out: real quotes from lines at 146s
     // and 174s stamped 26s and 54s, which walked past this check and inflated

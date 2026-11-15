@@ -1,9 +1,10 @@
 "use client";
 
 import NextLink from "next/link";
+import clsx from "clsx";
 import { useEffect, useState } from "react";
 
-interface UpNext {
+export interface UpNext {
   planId: string;
   position: number;
   total: number;
@@ -25,21 +26,23 @@ interface PathResponse {
 }
 
 /**
- * The sidebar's "Up next in your plan" card: the newest saved plan's next
- * open step. Renders nothing when there is no plan, no path, or the path is
- * finished, so the sidebar never shows an empty promise. `refreshKey`
- * (the pathname) re-reads after a student completes a step elsewhere.
+ * The newest saved plan's next open step, or null when there is no plan, no
+ * path, or the path is finished. `refreshKey` (the pathname) re-reads after a
+ * student completes a step elsewhere.
+ *
+ * Call this once per page and pass the result to every <UpNextCard>: the
+ * navbar mounts the sidebar twice (mobile drawer + desktop), and a fetch per
+ * card doubled the plans and path requests on every navigation.
  */
-export function UpNextCard({
-  refreshKey,
-  onNavigate,
-}: {
-  refreshKey: string;
-  onNavigate?: () => void;
-}) {
+export function useUpNext(refreshKey: string, enabled: boolean): UpNext | null {
   const [upNext, setUpNext] = useState<UpNext | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setUpNext(null);
+      return;
+    }
+
     const controller = new AbortController();
 
     (async () => {
@@ -70,8 +73,27 @@ export function UpNextCard({
     })();
 
     return () => controller.abort();
-  }, [refreshKey]);
+  }, [refreshKey, enabled]);
 
+  return upNext;
+}
+
+/**
+ * The sidebar's "Up next in your plan" card. Renders nothing without a next
+ * step, so the sidebar never shows an empty promise.
+ *
+ * Accent: the progress fill carries it; at 0% (nothing to fill, and no fake
+ * stub) the "Continue" arrow carries it instead. The sidebar is global
+ * chrome, so this looks the same on every page, Mastery included; only
+ * Mastery's page body stays free of the accent.
+ */
+export function UpNextCard({
+  upNext,
+  onNavigate,
+}: {
+  upNext: UpNext | null;
+  onNavigate?: () => void;
+}) {
   if (!upNext) return null;
 
   const done = upNext.position - 1;
@@ -94,11 +116,16 @@ export function UpNextCard({
         className="h-1 overflow-hidden rounded-full bg-white/[0.16]"
       >
         <span
-          className="block h-full rounded-full bg-light-blue"
+          className="block h-full rounded-full bg-accent"
           style={{ width: `${(done / upNext.total) * 100}%` }}
         />
       </span>
-      <span className="text-[13px] font-semibold">Continue →</span>
+      <span className="text-[13px] font-semibold">
+        Continue{" "}
+        <span aria-hidden className={clsx(done === 0 && "text-accent")}>
+          →
+        </span>
+      </span>
     </NextLink>
   );
 }

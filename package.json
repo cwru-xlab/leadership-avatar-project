@@ -138,5 +138,10 @@
     "tailwindcss": "4.2.2",
     "tsx": "^4.23.15",
     "typescript": "5.9.3"
+  },
+  "overrides": {
+    "pdfjs-dist": {
+      "@napi-rs/canvas": "$@napi-rs/canvas"
+    }
   }
 }

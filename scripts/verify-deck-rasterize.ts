@@ -11,7 +11,7 @@
 import { config as loadEnv } from "dotenv";
 loadEnv({ path: ".env.local" });
 
-import { readdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
 import { validateAndExtractDeck } from "../lib/deck/intake";
@@ -395,6 +395,40 @@ async function main() {
     console.log(`  wrote ${out} (${firstSlidePng.length} bytes)`);
     assert(firstSlidePng.length > 5000, "sample PNG non-blank");
   });
+
+  await section(
+    9,
+    "deck-vector.pdf: filled shapes and curves render (single canvas copy)",
+    async () => {
+      // pdfjs builds Path2D objects from globalThis (set by lib/pdfjs-node.ts
+      // from the app's @napi-rs/canvas) and fills them on canvases from its
+      // own factory. Two installed copies → InvalidArg on every path and a
+      // blank fallback for every real-world slide.
+      const nested = join(
+        process.cwd(),
+        "node_modules/pdfjs-dist/node_modules/@napi-rs/canvas"
+      );
+      assert(
+        !existsSync(nested),
+        "pdfjs-dist has no nested @napi-rs/canvas (package.json overrides dedupe it)"
+      );
+
+      const rasterized = await rasterizePdf(load("deck-vector.pdf"));
+      assert(rasterized.length === 2, "2 slides");
+      assert(
+        rasterized.every((s) => !s.renderFailed),
+        "no renderFailed flag on vector slides"
+      );
+      assert(
+        rasterized.every((s) => s.widthPx > s.heightPx),
+        "16:9 page size preserved (not the 4:3 failure fallback)"
+      );
+      assert(
+        landscapeRasterized?.every((s) => !s.renderFailed) ?? false,
+        "deck-landscape.pdf also rendered without renderFailed"
+      );
+    }
+  );
 
   console.log("\n=== DONE ===");
   if (failed > 0) {
