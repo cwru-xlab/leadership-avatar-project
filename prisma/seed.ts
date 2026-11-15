@@ -144,6 +144,42 @@ async function main() {
     },
   });
 
+  // One-session student (for the mastery-estimate e2e): exactly one perfect
+  // live-session result on Outcome achievement and nothing else, so /mastery
+  // shows the "100% off one session" state (an early read, never Mastered).
+  // Kept apart from student@case.edu, whose record grows as loops practice.
+  const oneSessionStudent = await prisma.user.upsert({
+    where: { email: "one.session@case.edu" },
+    update: {},
+    create: {
+      email: "one.session@case.edu",
+      passwordHash: hashPassword("student123"),
+      name: "Sam Rivera",
+      role: Role.STUDENT,
+      studentNumber: "sxr101",
+      authProvider: AuthProvider.EMAIL,
+      emailVerified: true,
+    },
+  });
+
+  // Fixed id so re-seeding never adds a second row. Like the original row it
+  // mirrors, it has no report behind it. occurredAt is refreshed on every
+  // seed to a day ago, keeping it inside the 30-day "recent" window.
+  const oneSessionAt = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  await prisma.masteryContribution.upsert({
+    where: { id: "seed-one-session-outcome" },
+    update: { occurredAt: oneSessionAt },
+    create: {
+      id: "seed-one-session-outcome",
+      userId: oneSessionStudent.id,
+      competencyKey: "outcome_achievement",
+      source: "LIVE_SESSION",
+      rawScore: 1,
+      weight: 1,
+      occurredAt: oneSessionAt,
+    },
+  });
+
   console.log("✅ Created users");
 
   // ============================================================================
@@ -441,6 +477,7 @@ async function main() {
   console.log("   - 1 Admin (admin@example.com / admin123)");
   console.log("   - 2 Professors (professor.smith@case.edu, professor.chen@case.edu / prof123)");
   console.log("   - 6 Students (alice.johnson@case.edu, etc. / student123)");
+  console.log("   - 1 one-session student (one.session@case.edu / student123) for the mastery e2e");
   console.log("   - 2 Cohorts");
   console.log("   - 3 Cases");
   console.log("   - 7 Attempts (learning records)");

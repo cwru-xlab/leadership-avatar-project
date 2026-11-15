@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// student@case.edu holds one perfect live row on Outcome achievement: the
-// "100% off one session" state. alice.johnson@case.edu has a long record.
+// one.session@case.edu (prisma/seed.ts) holds one perfect live row on Outcome
+// achievement and nothing else: the "100% off one session" state.
+// alice.johnson@case.edu has a long record.
 const SHOTS = ".loop-shots";
 
 async function signIn(page: Page, email: string) {
@@ -18,19 +19,12 @@ function card(page: Page, label: string) {
 
 test.describe("Mastery is an estimate, not an average", () => {
   test("one perfect session reads as an early read, not 100% or Mastered", async ({ page }) => {
-    await signIn(page, "student@case.edu");
+    await signIn(page, "one.session@case.edu");
     const apiResponse = page.waitForResponse((r) => r.url().endsWith("/api/mastery") && r.ok());
     await page.goto("/mastery");
     const body = await (await apiResponse).json();
 
     const outcome = body.mastery.competencies.find((c: { competencyKey: string }) => c.competencyKey === "outcome_achievement");
-    // The premise is ONE perfect live row. Shared dev data drifts: on Nov 14
-    // other loops' sales-discovery runs added eight more 100% rows for this
-    // student, so the one-session state no longer exists to check.
-    test.skip(
-      outcome.lifetime.evidenceCount !== 1,
-      `student@case.edu now has ${outcome.lifetime.evidenceCount} Outcome rows, not the one this test is about`,
-    );
     expect(outcome.lifetime.observedPercent).toBe(100);
     expect(outcome.lifetime.percent).toBe(66.7);
     expect(outcome.lifetime.tier).toBe("THIN");
