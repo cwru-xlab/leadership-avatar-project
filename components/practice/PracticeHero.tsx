@@ -71,21 +71,35 @@ export default function PracticeHero({
            its containing block, and the band's own wrapper is just as tall as
            the band. The anchor is zero-height so the strip costs no layout
            space and the page cannot jump as it appears; `-mb-6` cancels the
-           page column's `gap-6`, and `-mx-4/-mx-8` cancels the content
-           column's padding so the strip spans it edge to edge (the same
-           cancellation the old bottom bar used — it adds no page width).
+           page column's `gap-6`.
 
            `-top-6 md:-top-8` cancels the column's `pt-6 md:pt-8`: sticky
            resolves `top` against the scrollport's CONTENT box, so a plain
            `top-0` parks the strip 24/32px down and leaves a band of canvas
-           above it with the page's own content scrolling through the gap. */
-        <div className="sticky -top-6 z-30 -mx-4 -mb-6 h-0 md:-top-8 md:-mx-8">
+           above it with the page's own content scrolling through the gap.
+
+           NO HORIZONTAL BLEED. This used to carry `-mx-4 md:-mx-8` to cancel
+           the content column's padding and span it edge to edge, which
+           measured 57px WIDER than the cards on each side at every width: a
+           dark slab overhanging everything it floated above, aligned to
+           nothing on the page. Dropping the negative margins lets it inherit
+           the column's own width, so its left and right edges land exactly on
+           the card edges below it — the thing that makes it read as part of
+           the page rather than a bar on top of it. */
+        <div className="sticky -top-6 z-30 -mb-6 h-0 md:-top-8">
           <div
-            className={`flex h-14 items-center gap-3 bg-cwru-blue px-4 transition duration-200 ease-out motion-reduce:transition-none md:px-8 ${
+            className={`flex h-14 items-center gap-3 rounded-b-xl bg-cwru-blue px-4 shadow-[0_10px_24px_rgb(9_20_58/0.18)] transition duration-200 ease-out motion-reduce:transition-none md:px-5 ${
               condensed ? "visible translate-y-0 opacity-100" : "invisible -translate-y-2 opacity-0"
             }`}
             inert={!condensed}
           >
+            {/* `rounded-b-xl` only at the BOTTOM: the strip is anchored to the
+                top of the scrollport, so square top corners read as "attached
+                to the edge" while the bottom corners match the cards' own
+                radius. The shadow does the rest of the joining work — it lifts
+                the strip over the content it covers, which is what tells a
+                student the page is scrolling UNDER a fixed element rather than
+                a stray panel hovering mid-column. */}
             <Link
               className="inline-flex shrink-0 items-center gap-1.5 rounded-sm text-[13px] font-semibold text-light-blue hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-light-blue"
               href={backHref}
