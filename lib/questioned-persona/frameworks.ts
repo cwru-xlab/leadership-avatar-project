@@ -6,7 +6,8 @@
  * `nudge` is required by that contract, but there is no interviewer here to
  * nudge — the avatar is the patient or client. It holds the line the persona
  * may say if the student stalls, written so it never names the step. Steps
- * are graded `hit` / `missed` / `not_applicable`; `prompted` does not apply.
+ * are graded `hit` / `partly` / `missed` / `not_applicable`; `prompted` does
+ * not apply.
  */
 
 import type { ProcessFramework } from "@/lib/problem-interview/types";

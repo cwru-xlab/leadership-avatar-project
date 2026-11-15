@@ -220,9 +220,9 @@ Checklist — ${framework.label}:
 ${steps}
 
 For each step return:
-- status: "hit" if the ${who} clearly did it (credit substance, not wording — a step done well without naming it is a hit); "missed" if not; "not_applicable" ONLY if the encounter ended before the step could reasonably arise through no fault of the student (e.g. a closing step when the transcript stops mid-history). Never use not_applicable to excuse a skipped step.
-- evidenceQuote: for a hit, COPY AND PASTE a span of characters from ONE [S#] line, exactly as it appears. Do not paraphrase, do not stitch two lines together, do not tidy the grammar, do not add or remove words, and do not wrap it in quotation marks. It is checked character by character against the transcript and a quote that is not found is discarded, which leaves the step with no evidence. If no single [S#] line contains words that show the step, the step is "missed", not a hit with an approximate quote. Use "" when missed.
-- note: one sentence of specific coaching for this step, written to the student ("you").
+- status: "hit" if the ${who} clearly did it (credit substance, not wording — a step done well without naming it is a hit); "partly" if they attempted it but the attempt was incomplete or vague (e.g. one open question where the step needs two, a summary of one point with no check for correction, "any questions?" in place of teach-back); "missed" if there was no real attempt, or if the attempt is something the step's HIT criteria explicitly call missed or say does NOT count (e.g. unexplained jargon, "Do you understand?" alone) — those are never partly; "not_applicable" ONLY if the encounter ended before the step could reasonably arise through no fault of the student (e.g. a closing step when the transcript stops mid-history). Never use not_applicable to excuse a skipped step.
+- evidenceQuote: for a hit or partly, COPY AND PASTE a span of characters from ONE [S#] line, exactly as it appears. Do not paraphrase, do not stitch two lines together, do not tidy the grammar, do not add or remove words, and do not wrap it in quotation marks. It is checked character by character against the transcript and a quote that is not found is discarded, which leaves the step with no evidence. If no single [S#] line contains words that show the step (or the attempt), the step is "missed", not a hit or partly with an approximate quote. Use "" when missed.
+- note: one sentence of specific coaching for this step, written to the student ("you"). For partly, say exactly what would have made it a hit.
 
 Hidden facts: elicited = true only if the persona actually disclosed the fact in the transcript. evidenceQuote = the ${who}'s exact question or statement that drew it out; "" if not elicited.
 
@@ -243,7 +243,7 @@ function judgeSchema(style: PersonaStyle, card: PersonaCard): Record<string, unk
         required: ["key", "status", "evidenceQuote", "note"],
         properties: {
           key: { type: "string", enum: framework.steps.map((s) => s.key) },
-          status: { type: "string", enum: ["hit", "missed", "not_applicable"] },
+          status: { type: "string", enum: ["hit", "partly", "missed", "not_applicable"] },
           evidenceQuote: evidence,
           note: { type: "string" },
         },
@@ -297,7 +297,7 @@ function judgeSchema(style: PersonaStyle, card: PersonaCard): Record<string, unk
 }
 
 interface JudgeOutput {
-  steps: Array<{ key: string; status: "hit" | "missed" | "not_applicable"; evidenceQuote: string; note: string }>;
+  steps: Array<{ key: string; status: "hit" | "partly" | "missed" | "not_applicable"; evidenceQuote: string; note: string }>;
   facts: Array<{ id: string; elicited: boolean; evidenceQuote: string }>;
   cues: Array<{ id: string; status: CueResult["status"]; evidenceQuote: string }>;
   ice?: Array<{ key: "ideas" | "concerns" | "expectations"; elicited: boolean; evidenceQuote: string }>;

@@ -13,6 +13,7 @@ import {
   buildConversationSystemPrompt,
   buildInCharacterReminder,
 } from "@/lib/difficult-conversation/conversation-prompts";
+import { CONVERSATION_STEPS_OUTCOME_KEY } from "@/lib/difficult-conversation/framework";
 
 /**
  * PROVISIONAL UNTIL CALIBRATED. Evidence: fixture arithmetic in
@@ -188,6 +189,16 @@ export const DIFFICULT_CONVERSATION_TYPE: InteractionTypeConfig = {
         label: "Reaction causes",
         kind: "string",
         required: true,
+      },
+      {
+        // The five-move checklist (./framework.ts): a JSON-encoded
+        // ProcessStepResult[] string, like reactionCauses. Optional and
+        // appended so reports graded before it existed still validate and
+        // render — the report panel self-nulls without it.
+        key: CONVERSATION_STEPS_OUTCOME_KEY,
+        label: "Five moves",
+        kind: "string",
+        required: false,
       },
       {
         key: "endTurnReasons",
