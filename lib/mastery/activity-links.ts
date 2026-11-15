@@ -12,7 +12,8 @@
  * another student's report or plan.
  */
 import { prisma } from "@/lib/prisma";
-import { typeLabelForReport } from "@/lib/report/title";
+import { asInputSnapshot } from "@/lib/report/snapshot";
+import { displayReportTitle, typeLabelForReport } from "@/lib/report/title";
 import { routes } from "@/lib/routes";
 
 import type { MasteryResult, WindowDriver } from "@/lib/mastery/compute";
@@ -51,7 +52,7 @@ export async function resolveDriverLinks(
     reportIds.size
       ? prisma.interactionReport.findMany({
           where: { id: { in: [...reportIds] }, userId },
-          select: { id: true, typeSlug: true },
+          select: { id: true, typeSlug: true, title: true, inputSnapshot: true },
         })
       : [],
     attemptIds.size
@@ -101,6 +102,11 @@ export async function resolveDriverLinks(
       links.set(key, {
         href: routes.report(report.id),
         label: `${typeLabelForReport(report.typeSlug)} session`,
+        detail: displayReportTitle({
+          title: report.title,
+          typeSlug: report.typeSlug,
+          input: asInputSnapshot(report.inputSnapshot),
+        }),
       });
     }
   }

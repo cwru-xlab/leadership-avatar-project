@@ -1,6 +1,11 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { ArrowRight, ChevronDown, Sparkle, TrendingDown, TrendingUp } from "lucide-react";
+import { Modal, ModalBody, ModalContent, ModalHeader } from "@heroui/modal";
+import { useReducedMotion } from "framer-motion";
+import { ArrowRight, ChevronDown, PanelRight, Sparkle, TrendingDown, TrendingUp } from "lucide-react";
 
 import type {
   CompetencyMasteryDTO,
@@ -48,7 +53,18 @@ import type { GoalProgress } from "@/lib/study-plan/goals";
  * the recent-movement strip, then one badge card per competency with its
  * level shield, progress to the next level and both figures up front, and
  * the trend, evidence and disclosures one click away.
+ *
+ * That click opens a details drawer: a sheet from the right on desktop, from
+ * the bottom on phones. Cards never change size, so a grid row never
+ * stretches and every toggle sits on the same divider in the same place.
  */
+
+/**
+ * One look for every "show more" toggle on this page: link-blue label, the
+ * focus ring only for keyboard focus, hugging the text rather than the card.
+ */
+const TOGGLE_CLASS =
+  "-mx-1 inline-flex w-fit cursor-pointer list-none items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-semibold text-link outline-none transition-colors duration-150 hover:text-cwru-blue focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-solid focus-visible:outline-true-blue [&::-webkit-details-marker]:hidden";
 
 export interface MasteryPanelProps {
   mastery: MasteryDTO;
@@ -169,16 +185,20 @@ function LevelBadge({ level }: { level: { current: LevelResult; lifetime: LevelR
   }
   return (
     <span
-      className="text-[13px] font-semibold text-cwru-blue"
+      className="flex flex-col text-[13px] leading-snug"
       aria-label={`${useCurrent ? "Recent" : "All-time"} level ${shown.level}, ${shown.name}${
         shown.provisional ? ", early read" : ""
       }`}
     >
-      {`Level ${shown.level} · ${shown.name}`}
-      <span className="font-normal text-muted">
-        {useCurrent ? "" : " · all-time level"}
-        {shown.provisional ? " · early read" : ""}
-      </span>
+      {/* The level never breaks mid-phrase; any qualifier gets its own line. */}
+      <span className="whitespace-nowrap font-semibold text-cwru-blue">{`Level ${shown.level} · ${shown.name}`}</span>
+      {useCurrent && !shown.provisional ? null : (
+        <span className="text-xs text-muted">
+          {[useCurrent ? null : "All-time level", shown.provisional ? (useCurrent ? "Early read" : "early read") : null]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
+      )}
     </span>
   );
 }
@@ -208,7 +228,7 @@ function DeltaText({ delta }: { delta: number }) {
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] font-bold",
+        "inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] font-bold",
         delta >= 0 ? "bg-level-4/16 text-level-4" : "bg-copper/12 text-copper-deep",
       )}
     >
@@ -256,35 +276,135 @@ function EvidenceSources({ sources }: { sources: OriginFigureDTO[] }) {
   );
 }
 
-function DriverList({ drivers, timeZone }: { drivers: WindowDriverDTO[]; timeZone: string }) {
+function formatDayTime(iso: string, timeZone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone,
+    }).format(new Date(iso));
+  } catch {
+    return iso.slice(0, 16).replace("T", " ");
+  }
+}
+
+/**
+ * The activities behind a move, one two-line row each: the session's own
+ * title as the link with the score on the right, then when it was and what
+ * kind of activity it was. Rows that would still read the same (same title, same
+ * day) add the time of day, so three "Sales meeting" rows are three sessions.
+ */
+function DriverList({
+  drivers,
+  timeZone,
+  columns = 1,
+}: {
+  drivers: WindowDriverDTO[];
+  timeZone: string;
+  columns?: 1 | 2;
+}) {
   if (drivers.length === 0) return null;
+  const sameDayKey = (driver: WindowDriverDTO) =>
+    `${driver.detail ?? driver.activityLabel}|${formatDay(driver.occurredAt, timeZone)}`;
+  const repeats = new Map<string, number>();
+  for (const driver of drivers) repeats.set(sameDayKey(driver), (repeats.get(sameDayKey(driver)) ?? 0) + 1);
+
   return (
-    <ul className="flex flex-col gap-1.5">
+    <ul
+      className={clsx(
+        "grid divide-y divide-line",
+        columns === 2 && "md:grid-cols-2 md:gap-x-8 md:gap-y-1 md:divide-y-0",
+      )}
+    >
       {drivers.map((driver) => {
-        const body = (
-          <>
-            <span className="font-semibold">{driver.activityLabel}</span>
-            <span className="text-muted">
-              {` · ${driver.originLabel} · ${formatDay(driver.occurredAt, timeZone)} · scored ${formatPercent(driver.percent)}`}
-            </span>
-          </>
-        );
+        const title = driver.detail ?? driver.activityLabel;
+        const when =
+          (repeats.get(sameDayKey(driver)) ?? 0) > 1
+            ? formatDayTime(driver.occurredAt, timeZone)
+            : formatDay(driver.occurredAt, timeZone);
+        // A live session with its own title already says what it was
+        // ("Sales meeting session"), so the "Live practice" group would only
+        // repeat it; checks and coached work keep their group.
+        const kind = driver.detail ? driver.activityLabel : driver.originLabel;
+        const meta = [when, kind === title ? null : kind].filter(Boolean).join(" · ");
         return (
           <li
             key={`${driver.activityLabel}-${driver.occurredAt}-${driver.href ?? ""}`}
-            className="text-xs text-ink"
+            data-testid="driver-row"
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 py-2"
           >
             {driver.href ? (
-              <Link href={driver.href} className="underline decoration-light-blue underline-offset-2 hover:text-link">
-                {body}
+              <Link
+                href={driver.href}
+                className="-mx-0.5 w-fit rounded-sm px-0.5 text-[13px] font-semibold leading-snug text-link underline-offset-2 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-true-blue"
+              >
+                {title}
               </Link>
             ) : (
-              body
+              <span className="text-[13px] font-semibold leading-snug text-ink">{title}</span>
             )}
+            <span className="text-[13px] font-semibold tabular-nums leading-snug text-ink">
+              <span className="sr-only">scored </span>
+              {formatPercent(driver.percent)}
+            </span>
+            <span className="col-span-2 text-xs leading-snug text-muted">{meta}</span>
           </li>
         );
       })}
     </ul>
+  );
+}
+
+type Opened = { kind: "movement" | "competency"; key: string } | null;
+
+/**
+ * The divider and the button under a card's always-visible content that
+ * opens its details drawer. Same divider, same spacing, every card.
+ */
+function DrawerToggle({
+  label,
+  accessibleName,
+  open,
+  onOpen,
+}: {
+  label: string;
+  /** Starts with the visible label, then says which card it belongs to. */
+  accessibleName: string;
+  open: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <div className="border-t border-line pt-3">
+      <button
+        type="button"
+        className={TOGGLE_CLASS}
+        data-testid="expand-toggle"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={accessibleName}
+        onClick={onOpen}
+      >
+        {label}
+        <PanelRight aria-hidden size={16} />
+      </button>
+    </div>
+  );
+}
+
+function movedByLabel(count: number): string {
+  return `Moved by ${count} ${count === 1 ? "activity" : "activities"}`;
+}
+
+function MovementBadge({ entry }: { entry: RecentGrowthDTO }) {
+  return entry.kind === "new" || entry.delta === null ? (
+    <span className="inline-flex w-fit items-center gap-1 rounded-full bg-light-blue/32 px-2 py-0.5 text-[12.5px] font-bold text-cwru-blue">
+      <Sparkle size={13} aria-hidden="true" />
+      First measured
+    </span>
+  ) : (
+    <DeltaText delta={entry.delta} />
   );
 }
 
@@ -294,12 +414,16 @@ function RecentMovement({
   windowDays,
   windowStartsAt,
   timeZone,
+  opened,
+  onOpen,
 }: {
   entries: RecentGrowthDTO[];
   levels: MasteryPanelProps["levels"];
   windowDays: number;
   windowStartsAt: string;
   timeZone: string;
+  opened: Opened;
+  onOpen: (next: Opened) => void;
 }) {
   return (
     <section aria-label="Recent movement" className="flex flex-col gap-3">
@@ -315,50 +439,50 @@ function RecentMovement({
           coached session will show up here.
         </p>
       ) : (
-        <ul className="grid gap-3 md:grid-cols-3">
-          {entries.map((entry) => (
-            <li key={entry.competencyKey} className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4">
-              <div className="flex items-center gap-3">
-                <SkillShield competencyKey={entry.competencyKey} level={shownLevel(levels[entry.competencyKey])} size={40} />
-                <div className="flex min-w-0 flex-col gap-1">
-                  <p className="text-[15px] font-bold leading-snug text-ink">{entry.label}</p>
-                  {entry.kind === "new" || entry.delta === null ? (
-                    <span className="inline-flex w-fit items-center gap-1 rounded-full bg-light-blue/32 px-2 py-0.5 text-[12.5px] font-bold text-cwru-blue">
-                      <Sparkle size={13} aria-hidden="true" />
-                      First measured
-                    </span>
-                  ) : (
-                    <DeltaText delta={entry.delta} />
+        <ul className="grid items-start gap-3 md:grid-cols-3">
+          {entries.map((entry) => {
+            const isOpen = opened?.kind === "movement" && opened.key === entry.competencyKey;
+            return (
+                <li
+                  key={entry.competencyKey}
+                  data-testid="movement-card"
+                  className={clsx(
+                    "flex flex-col gap-3 rounded-2xl border bg-white p-4",
+                    isOpen ? "border-true-blue" : "border-line",
                   )}
-                </div>
-              </div>
-              {entry.kind !== "new" && entry.delta !== null && (
-                <p className="text-xs text-muted">
-                  {`All time ${entry.windowStartDisplay ?? "—"} → ${entry.lifetimeDisplay}`}
-                </p>
-              )}
-              {entry.drivers.length > 0 && (
-                <details className="group text-xs">
-                  <summary className="flex cursor-pointer list-none items-center gap-1 font-semibold text-link [&::-webkit-details-marker]:hidden">
-                    Moved by {entry.drivers.length} {entry.drivers.length === 1 ? "activity" : "activities"}
-                    <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180" size={14} />
-                  </summary>
-                  <div className="mt-2">
-                    <DriverList drivers={entry.drivers} timeZone={timeZone} />
-                  </div>
-                </details>
-              )}
-              {entry.delta !== null && entry.delta < 0 ? (
-                <Link
-                  href={`/paths?competency=${encodeURIComponent(entry.competencyKey)}`}
-                  className="mt-auto inline-flex h-9 w-fit items-center gap-1.5 rounded-lg bg-cwru-blue px-3 text-[13px] font-semibold text-white hover:bg-ink"
-                  aria-label={`Practice ${entry.label}`}
                 >
-                  Practice this <ArrowRight size={14} aria-hidden="true" />
-                </Link>
-              ) : null}
-            </li>
-          ))}
+                  <div className="flex items-center gap-3">
+                    <SkillShield competencyKey={entry.competencyKey} level={shownLevel(levels[entry.competencyKey])} size={40} />
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <p className="text-[15px] font-bold leading-snug text-ink">{entry.label}</p>
+                      <MovementBadge entry={entry} />
+                    </div>
+                  </div>
+                  {entry.kind !== "new" && entry.delta !== null && (
+                    <p className="text-xs text-muted">
+                      {`All time ${entry.windowStartDisplay ?? "—"} → ${entry.lifetimeDisplay}`}
+                    </p>
+                  )}
+                  {entry.delta !== null && entry.delta < 0 ? (
+                    <Link
+                      href={`/paths?competency=${encodeURIComponent(entry.competencyKey)}`}
+                      className="inline-flex h-9 w-fit items-center gap-1.5 rounded-lg bg-cwru-blue px-3 text-[13px] font-semibold text-white hover:bg-ink"
+                      aria-label={`Practice ${entry.label}`}
+                    >
+                      Practice this <ArrowRight size={14} aria-hidden="true" />
+                    </Link>
+                  ) : null}
+                  {entry.drivers.length > 0 && (
+                    <DrawerToggle
+                      label={movedByLabel(entry.drivers.length)}
+                      accessibleName={`${movedByLabel(entry.drivers.length)}: ${entry.label}`}
+                      open={isOpen}
+                      onOpen={() => onOpen({ kind: "movement", key: entry.competencyKey })}
+                    />
+                  )}
+                </li>
+            );
+          })}
         </ul>
       )}
     </section>
@@ -436,19 +560,53 @@ function LevelLadder({ levels }: { levels: MasteryPanelProps["levels"] }) {
   );
 }
 
+/** What sits behind "Trend and evidence", stacked for the drawer. */
+function CompetencyDetail({
+  competency,
+  windowDays,
+}: {
+  competency: CompetencyMasteryDTO;
+  windowDays: number;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="max-w-[65ch] text-[13px] leading-5 text-muted">{competency.description}</p>
+      <TrendRow competency={competency} windowDays={windowDays} />
+      <div className="flex flex-col gap-0.5">
+        <FigureDetail name="All time" figure={competency.lifetime} />
+        {competency.current.evidenceCount !== competency.lifetime.evidenceCount ? (
+          <FigureDetail name="Recent" figure={competency.current} />
+        ) : null}
+      </div>
+      <EvidenceSources sources={competency.sources} />
+      <CompetencyDisclosures competency={competency} />
+    </div>
+  );
+}
+
 function CompetencyCard({
   competency,
   level,
   windowDays,
+  open,
+  onOpen,
 }: {
   competency: CompetencyMasteryDTO;
   level: { current: LevelResult; lifetime: LevelResult } | undefined;
   windowDays: number;
+  open: boolean;
+  onOpen: () => void;
 }) {
   const shown = shownLevel(level);
   const { delta } = competency.windowChange;
   return (
-    <li className="relative flex flex-col gap-4 rounded-2xl border border-line bg-white p-5">
+    <li
+      data-testid="competency-card"
+      className={clsx(
+        "relative flex flex-col gap-4 rounded-2xl border bg-white p-5",
+        open ? "border-true-blue" : "border-line",
+      )}
+    >
       <div className="absolute right-4 top-4">
         {delta !== null ? (
           <DeltaText delta={delta} />
@@ -495,30 +653,140 @@ function CompetencyCard({
         </div>
       </dl>
 
-      <details className="group mt-auto border-t border-line pt-3">
-        <summary className="flex cursor-pointer list-none items-center justify-between text-[13px] font-semibold text-link [&::-webkit-details-marker]:hidden">
-          Trend and evidence
-          <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180" size={16} />
-        </summary>
-        <div className="mt-3 flex flex-col gap-3">
-          <p className="text-[13px] text-muted">{competency.description}</p>
-          <TrendRow competency={competency} windowDays={windowDays} />
-          <div className="flex flex-col gap-0.5">
-            <FigureDetail name="All time" figure={competency.lifetime} />
-            {competency.current.evidenceCount !== competency.lifetime.evidenceCount ? (
-              <FigureDetail name="Recent" figure={competency.current} />
-            ) : null}
-          </div>
-          <EvidenceSources sources={competency.sources} />
-          <CompetencyDisclosures competency={competency} />
-        </div>
-      </details>
+      <DrawerToggle
+        label="Trend and evidence"
+        accessibleName={`Trend and evidence: ${competency.label}`}
+        open={open}
+        onOpen={onOpen}
+      />
     </li>
   );
 }
 
-export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }: MasteryPanelProps) {
+/** At this width (Tailwind `md`) the drawer is a side sheet; below it, a bottom sheet. */
+const DRAWER_SIDE_QUERY = "(min-width: 768px)";
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    const list = window.matchMedia(query);
+    setMatches(list.matches);
+    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches);
+    list.addEventListener("change", onChange);
+    return () => list.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+}
+
+/**
+ * Slides in from the edge it sits on (right on desktop, bottom on phones) in
+ * 200ms; under reduced motion it only fades. HeroUI runs these as
+ * initial="exit", animate="enter", exit="exit".
+ */
+function drawerMotion(isDesktop: boolean, reduceMotion: boolean) {
+  const hidden = reduceMotion ? { opacity: 0 } : isDesktop ? { x: "100%" } : { y: "100%" };
+  const shown = reduceMotion ? { opacity: 1 } : isDesktop ? { x: 0 } : { y: 0 };
+  return {
+    variants: {
+      enter: { ...shown, transition: { duration: 0.2, ease: "easeOut" as const } },
+      exit: { ...hidden, transition: { duration: 0.15, ease: "easeIn" as const } },
+    },
+  };
+}
+
+/**
+ * "Details drawer": a side sheet from the right (a bottom sheet under md),
+ * built on HeroUI's Modal for its focus trap, Esc and return focus.
+ */
+function DetailDrawer({
+  opened,
+  mastery,
+  levels,
+  timeZone,
+  onClose,
+}: {
+  opened: Opened;
+  mastery: MasteryDTO;
+  levels: MasteryPanelProps["levels"];
+  timeZone: string;
+  onClose: () => void;
+}) {
+  const competency =
+    opened?.kind === "competency" ? mastery.competencies.find((c) => c.competencyKey === opened.key) : undefined;
+  const entry =
+    opened?.kind === "movement" ? mastery.recentGrowth.find((g) => g.competencyKey === opened.key) : undefined;
+  const key = competency?.competencyKey ?? entry?.competencyKey;
+  const level = key ? levels[key] : undefined;
+  const isDesktop = useMediaQuery(DRAWER_SIDE_QUERY);
+  const reduceMotion = useReducedMotion() ?? false;
+
+  return (
+    <Modal
+      isOpen={Boolean(competency || entry)}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose();
+      }}
+      placement="bottom"
+      scrollBehavior="inside"
+      motionProps={drawerMotion(isDesktop, reduceMotion)}
+      classNames={{
+        wrapper: "items-end md:items-stretch md:justify-end",
+        base: "m-0 mx-0 my-0 sm:mx-0 sm:my-0 max-h-[88dvh] w-full max-w-full rounded-t-xl rounded-b-none border border-line bg-white shadow-[0_12px_32px_rgb(9_20_58/0.16)] md:h-dvh md:max-h-dvh md:w-[440px] md:max-w-[440px] md:rounded-none md:border-y-0 md:border-r-0",
+        backdrop: "bg-ink/30",
+        header: "flex items-center gap-3 border-b border-line px-5 py-4 pr-12",
+        body: "gap-4 px-5 py-4",
+        closeButton: "right-3 top-3 text-muted",
+      }}
+    >
+      <ModalContent>
+        {key ? (
+          <>
+            <ModalHeader>
+              <SkillShield competencyKey={key} level={shownLevel(level)} size={44} />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-base font-bold leading-snug text-ink">
+                  {competency ? competency.label : entry?.label}
+                </span>
+                {competency ? (
+                  level ? <LevelBadge level={level} /> : null
+                ) : entry ? (
+                  <MovementBadge entry={entry} />
+                ) : null}
+              </div>
+            </ModalHeader>
+            <ModalBody data-testid="expand-detail">
+              {competency ? (
+                <>
+                  <p className="text-[13px] font-semibold text-muted">Trend and evidence</p>
+                  <CompetencyDetail competency={competency} windowDays={mastery.window.days} />
+                </>
+              ) : entry ? (
+                <>
+                  {entry.kind !== "new" && entry.delta !== null ? (
+                    <p className="text-[13px] text-muted">{`All time ${entry.windowStartDisplay ?? "—"} → ${entry.lifetimeDisplay}`}</p>
+                  ) : null}
+                  <p className="text-[13px] font-semibold text-muted">{movedByLabel(entry.drivers.length)}</p>
+                  <DriverList drivers={entry.drivers} timeZone={timeZone} />
+                </>
+              ) : null}
+            </ModalBody>
+          </>
+        ) : null}
+      </ModalContent>
+    </Modal>
+  );
+}
+
+export default function MasteryPanel({
+  mastery,
+  levels,
+  goals,
+  timeZone,
+  intro,
+}: MasteryPanelProps) {
   const { overall, window: masteryWindow, unmappedRowCount } = mastery;
+  // The one card whose details drawer is open, if any.
+  const [opened, setOpened] = useState<Opened>(null);
   const bothOverallNull = overall.currentPercent === null && overall.lifetimePercent === null;
 
   const overallAriaLabel = bothOverallNull
@@ -593,6 +861,8 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
         windowDays={masteryWindow.days}
         windowStartsAt={masteryWindow.startsAt}
         timeZone={timeZone}
+        opened={opened}
+        onOpen={setOpened}
       />
 
       <section aria-label="Mastery by competency" className="flex flex-col gap-3">
@@ -601,9 +871,9 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
           <LevelLadder levels={levels} />
         </div>
         <details className="group text-[13px]">
-          <summary className="flex w-fit cursor-pointer list-none items-center gap-1 font-semibold text-link [&::-webkit-details-marker]:hidden">
+          <summary className={TOGGLE_CLASS}>
             How these numbers work
-            <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180" size={14} />
+            <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" size={16} />
           </summary>
           <ul className="mt-2 flex max-w-[65ch] list-disc flex-col gap-1 pl-5 leading-5 text-muted">
             <li>Each figure is our best estimate, not your average. Every skill starts near the middle of the scale, then moves toward your real scores as you practice.</li>
@@ -611,15 +881,20 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
             <li>The dots show how sure we are. Higher levels also need more sessions, so one great session can&apos;t make a skill Strong or Mastered.</li>
           </ul>
         </details>
-        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {mastery.competencies.map((competency) => (
-            <CompetencyCard
-              key={competency.competencyKey}
-              competency={competency}
-              level={levels[competency.competencyKey]}
-              windowDays={masteryWindow.days}
-            />
-          ))}
+        <ul className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {mastery.competencies.map((competency) => {
+            const key = competency.competencyKey;
+            return (
+              <CompetencyCard
+                key={key}
+                competency={competency}
+                level={levels[key]}
+                windowDays={masteryWindow.days}
+                open={opened?.kind === "competency" && opened.key === key}
+                onOpen={() => setOpened({ kind: "competency", key })}
+              />
+            );
+          })}
         </ul>
       </section>
 
@@ -630,6 +905,14 @@ export default function MasteryPanel({ mastery, levels, goals, timeZone, intro }
           the evidence ledger disagree — it is a data note, not a score.
         </p>
       ) : null}
+
+      <DetailDrawer
+        opened={opened}
+        mastery={mastery}
+        levels={levels}
+        timeZone={timeZone}
+        onClose={() => setOpened(null)}
+      />
     </div>
   );
 }
