@@ -263,7 +263,11 @@ if (process.argv.includes("--write")) {
       "`empathy_mi` (a deliberate rename, not a reorder). Their digests therefore date " +
       "from that split rather than from b168d09; the diff that re-took them changed only " +
       "those two property names and the two digests, and difficult-conversation's " +
-      "`empathy_score` was left untouched. Every other type's bytes are still b168d09's.",
+      "`empathy_score` was left untouched. AMENDED 2026-11-14: difficult-conversation was " +
+      "re-taken when the optional `conversationSteps` outcome field (the five-moves " +
+      "checklist) was appended after the existing outcome fields; no existing property " +
+      "moved. sales-discovery was added as a new type. Every other type's bytes are " +
+      "still b168d09's.",
     note:
       "digest = sha256 of JSON.stringify(buildRubricJsonSchema(config)) with outcome last. " +
       "Instances come from instanceFor() in scripts/verify-rubric-schema-order.ts.",
