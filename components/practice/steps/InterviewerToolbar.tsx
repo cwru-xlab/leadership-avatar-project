@@ -30,7 +30,7 @@
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/select";
-import { ListFilter, Search, X } from "lucide-react";
+import { ListFilter, LayoutGrid, Rows3, Search, X } from "lucide-react";
 
 import {
   EMPTY_FILTERS,
@@ -48,8 +48,11 @@ export interface InterviewerToolbarProps {
   resultCount: number;
   /** The unfiltered roster size, for the "of 54" denominator. */
   totalCount: number;
+  /** Compact rows or the photo grid. */
+  view: "list" | "grid";
   onFiltersChange: (next: InterviewerFilters) => void;
   onSortChange: (next: SortId) => void;
+  onViewChange: (next: "list" | "grid") => void;
 }
 
 const SORT_LABELS: Record<SortId, string> = {
@@ -67,8 +70,10 @@ export default function InterviewerToolbar({
   sort,
   resultCount,
   totalCount,
+  view,
   onFiltersChange,
   onSortChange,
+  onViewChange,
 }: InterviewerToolbarProps) {
   const activeChips = buildChips(facets, filters);
 
@@ -169,6 +174,36 @@ export default function InterviewerToolbar({
             </SelectItem>
           ))}
         </Select>
+
+        {/* View toggle: a 2-option radiogroup, not a dropdown — there are only
+            two states and the icons say which is which at a glance. It is a
+            view control, so it sits with Sort rather than with the facets:
+            neither one changes WHICH faces are listed. */}
+        <div
+          aria-label="View"
+          className="flex shrink-0 items-center gap-1 rounded-sm border border-line bg-white p-1"
+          role="radiogroup"
+        >
+          {([
+            ["list", "Compact list", Rows3],
+            ["grid", "Photo grid", LayoutGrid],
+          ] as const).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              aria-checked={view === id}
+              aria-label={label}
+              className={`grid size-9 place-items-center rounded-sm transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-true-blue ${
+                view === id ? "bg-light-blue/40 text-cwru-blue" : "text-muted hover:bg-canvas"
+              }`}
+              role="radio"
+              title={label}
+              type="button"
+              onClick={() => onViewChange(id)}
+            >
+              <Icon aria-hidden size={17} />
+            </button>
+          ))}
+        </div>
         {/* Reading order puts the count after Sort, and an aria-live region
             has to be in the DOM before it updates or the change is never
             announced — so it lives in the row itself, always mounted, rather

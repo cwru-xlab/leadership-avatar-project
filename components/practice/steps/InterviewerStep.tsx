@@ -32,6 +32,7 @@
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
 import InterviewerActionDock from "@/components/practice/steps/InterviewerActionDock";
+import InterviewerRow from "@/components/practice/steps/InterviewerRow";
 import InterviewerToolbar from "@/components/practice/steps/InterviewerToolbar";
 import {
   availableFacets,
@@ -45,8 +46,11 @@ import {
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
-import { Check, CircleAlert, Mic, SearchX } from "lucide-react";
+import { Check, CircleAlert, LayoutGrid, Mic, Rows3, SearchX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+
+/** Compact rows (default) or the photo grid. See `view` state below. */
+type InterviewerView = "list" | "grid";
 
 export interface InterviewerOption {
   avatarId: string;
@@ -97,6 +101,17 @@ export default function InterviewerStep({
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [filters, setFilters] = useState<InterviewerFilters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortId>("suggested");
+  /**
+   * Compact rows are the default, and the photo grid is one click away.
+   *
+   * The roster is 54 faces: as 240px cards that is ~6.9 screens of scrolling
+   * before the student reaches Continue, and the choice they are making ("who
+   * interviews me") does not need a 240px photograph of each option to be
+   * made. Rows put the same roster in roughly a screen and a half, grouped
+   * exactly as before. The grid stays for anyone who wants to look properly at
+   * the faces — same cards, same grouping, same selection.
+   */
+  const [view, setView] = useState<InterviewerView>("list");
 
   useEffect(() => {
     let isCurrent = true;
@@ -226,6 +241,31 @@ export default function InterviewerStep({
     );
   };
 
+  /**
+   * One interviewer in whichever view is active. Both branches take the same
+   * selection and heading-level rules, so a face cannot behave differently
+   * depending on how the student is looking at it.
+   */
+  const renderOption = (interviewer: InterviewerOption) =>
+    view === "list" ? (
+      <InterviewerRow
+        key={interviewer.avatarId}
+        interviewer={interviewer}
+        nameTag={sections ? "h4" : "h3"}
+        selected={interviewer.avatarId === selectedInterviewerId}
+        suggested={interviewer === suggested}
+        onSelect={() => onSelect(interviewer)}
+      />
+    ) : (
+      renderCard(interviewer)
+    );
+
+  /** The grid classes for the active view: rows pack three to a line. */
+  const gridClass =
+    view === "list"
+      ? "grid gap-2 sm:grid-cols-2 xl:grid-cols-3"
+      : "grid gap-4 sm:grid-cols-2 xl:grid-cols-3";
+
   return (
     <section aria-labelledby="interviewer-heading">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -291,8 +331,10 @@ export default function InterviewerStep({
               resultCount={ordered.length}
               sort={sort}
               totalCount={interviewers.length}
+              view={view}
               onFiltersChange={setFilters}
               onSortChange={setSort}
+              onViewChange={setView}
             />
             {hiddenSelection && selectedInterviewer && (
               <p className="text-[13px] leading-5 text-muted">
@@ -348,15 +390,15 @@ export default function InterviewerStep({
                       </h3>
                       <span className="text-[13px] text-muted">{section.members.length}</span>
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {section.members.map(renderCard)}
+                    <div className={gridClass}>
+                      {section.members.map(renderOption)}
                     </div>
                   </section>
                 ))}
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {ordered.map(renderCard)}
+              <div className={gridClass}>
+                {ordered.map(renderOption)}
               </div>
             )
           )}
