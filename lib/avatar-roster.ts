@@ -90,3 +90,45 @@ export const SEATED_PUBLIC_AVATAR_IDS: Readonly<Record<string, string>> = {
 export const SEATED_PUBLIC_AVATAR_ID_SET: ReadonlySet<string> = new Set(
   Object.keys(SEATED_PUBLIC_AVATAR_IDS),
 );
+
+/**
+ * What a curated look is dressed to PLAY — the picker's one human-readable
+ * facet, since the vendor supplies no scenario metadata at all.
+ *
+ * WHY A HAND-WRITTEN MAP, NOT INFERENCE. Only the handful of names below state
+ * a profession outright (`Judy HR`, `Dexter Lawyer`, `Bryan Tech Expert`,
+ * `Ann Therapist`) — HeyGen named them for the wardrobe in the shot. Every
+ * other entry is a bare first name with an emotion or pose suffix, which says
+ * nothing about an occupation. Guessing one from a face or a first name would
+ * be invention dressed as data, so anything absent here is `general`: a face
+ * that can sit opposite a student in any scenario.
+ *
+ * `coaching`, not "therapy": the app rehearses workplace conversations, so the
+ * therapist looks play a coach or a mentor, never a clinician.
+ *
+ * NOT FOR THE FACULTY. This map covers public-catalog ids only. The account's
+ * five custom avatars are real Weatherhead instructors; typing a named
+ * colleague as a role is not this app's call, so they carry no value at all
+ * and are grouped by WHICH CATALOG they came from instead.
+ *
+ * This is a SIBLING of the list above, deliberately not a reshape of it.
+ * `SEATED_PUBLIC_AVATAR_IDS` is read as a flat id→name record by
+ * `lib/pitch/elevator-personas.ts`, `lib/difficult-conversation/avatar-assignment.ts`
+ * and several `scripts/verify-*.ts` guards; widening its value type would
+ * churn all of them for a facet only the picker uses.
+ *
+ * Same churn contract as the list: an id that vanishes upstream simply stops
+ * matching, and the look falls back to `general` rather than erroring.
+ */
+export type AvatarPlays = "hr" | "legal" | "technical" | "coaching" | "general";
+
+export const PUBLIC_AVATAR_PLAYS: Readonly<Record<string, AvatarPlays>> = {
+  "cd1d101c-9273-431b-8069-63beef736bec": "hr", // Judy HR
+  "65f9e3c9-d48b-4118-b73a-4ae2e3cbb8f0": "hr", // June HR
+  "9650a758-1085-4d49-8bf3-f347565ec229": "hr", // Silas HR
+  "0930fd59-c8ad-434d-ad53-b391a1768720": "legal", // Dexter Lawyer
+  "64b526e4-741c-43b6-a918-4e40f3261c7a": "technical", // Bryan Tech Expert
+  "8175dfc2-7858-49d6-b5fa-0c135d1c4bad": "technical", // Elenora Tech Expert
+  "513fd1b7-7ef9-466d-9af2-344e51eeb833": "coaching", // Ann Therapist
+  "7b888024-f8c9-4205-95e1-78ce01497bda": "coaching", // Shawn Therapist
+};

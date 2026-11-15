@@ -843,6 +843,7 @@ console.log("\n7. The persona cast never cross-pairs an avatar with another's vo
     previewUrl: null,
     voice: { id: `live-voice-${cast.avatarId}`, name: `Voice ${i}` },
     gender: cast.presentation,
+    faculty: false,
   }));
   const voiceByAvatar = new Map(catalog.map((o) => [o.avatarId, o.voice.id]));
   for (const id of castIds) {
