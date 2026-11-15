@@ -23,10 +23,11 @@
  *   selection. The step says so instead (`hiddenSelection` below), because
  *   silently re-picking someone's interviewer is worse than a hidden card.
  *
- * The step's closing action lives in `InterviewerActionDock`, which replaced
- * the old `sticky -bottom-16` bar: it still floats over a long grid, but it
- * lands in flow once the end of the list is in view. Its header comment keeps
- * the geometry reasoning.
+ * The step's closing action lives in `InterviewerActionDock`, which wraps the
+ * grid: the house `border-t` step footer in flow, plus a strip that pins the
+ * same action to the top of the column while that footer is off screen. It
+ * replaced a dock that hovered over the cards. Its header comment keeps the
+ * geometry reasoning.
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
@@ -257,7 +258,32 @@ export default function InterviewerStep({
           </CardBody>
         </Card>
       ) : (
-        <>
+        <InterviewerActionDock
+          continueDisabled={!selectedInterviewer}
+          stripSummary={
+            selectedInterviewer ? (
+              <>
+                Selected{" "}
+                <span className="font-semibold text-white">{selectedInterviewer.name}</span>
+              </>
+            ) : (
+              "Choose an interviewer to continue"
+            )
+          }
+          summary={
+            selectedInterviewer ? (
+              <>
+                Selected{" "}
+                <span className="font-semibold text-ink">
+                  {selectedInterviewer.name}
+                </span>
+              </>
+            ) : (
+              `${interviewers.length} interviewers — choose one to continue`
+            )
+          }
+          onContinue={nav.goNext}
+        >
           <div className="mb-5 flex flex-col gap-3">
             <InterviewerToolbar
               facets={facets}
@@ -282,7 +308,7 @@ export default function InterviewerStep({
           {ordered.length === 0 ? (
             // Compact and left-aligned, not a tall centred hero: the page
             // already carries the pace panel below, so a 260px empty state
-            // pushed its own "Clear filters" button under the floating dock.
+            // wastes the screen the student needs for the filters above it.
             <div className="flex flex-wrap items-center gap-4 rounded-xl border border-line bg-white p-5">
               <SearchX aria-hidden className="shrink-0 text-muted" size={20} />
               <div className="min-w-48 flex-1">
@@ -334,24 +360,7 @@ export default function InterviewerStep({
               </div>
             )
           )}
-
-          <InterviewerActionDock
-            continueDisabled={!selectedInterviewer}
-            summary={
-              selectedInterviewer ? (
-                <>
-                  Selected{" "}
-                  <span className="font-semibold text-ink">
-                    {selectedInterviewer.name}
-                  </span>
-                </>
-              ) : (
-                `${interviewers.length} interviewers — choose one to continue`
-              )
-            }
-            onContinue={nav.goNext}
-          />
-        </>
+        </InterviewerActionDock>
       )}
     </section>
   );
