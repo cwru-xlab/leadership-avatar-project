@@ -30,10 +30,11 @@
   --la-ai: #692C95;
 
   /* Accent: the one brand-character color. CWRU tertiary, used in small,
-     decorative doses only (active nav marker, title rule, practice icons,
-     the practice-next target, the up-next progress fill or arrow). It never
-     carries text and never marks status, and it stays off Mastery (except
-     the nav marker) so it can't be read as the level-2 orange. */
+     decorative doses only (sidebar marker and up-next, the title rule under
+     every student page title, practice picker card icons, the practice-next
+     target, the active tab underline, the featured panel's top edge and the
+     hero icon ledge). It never carries text and never marks status, and it stays off Mastery's page
+     body so it can't be read as the level-2 orange. */
   --la-accent: #FF9239;
 
   /* surfaces */
@@ -99,6 +100,32 @@
     margin-top: 12px;
     border-radius: 2px;
     background: var(--la-accent);
+  }
+
+  /* The accent icon on a picker card (practice pickers, the staff home); the
+     card's own title sits beside it. Live cards only; coming-soon stays muted. */
+  .la-card-icon {
+    color: var(--la-accent);
+  }
+
+  /* Underlined tabs: the active tab's underline is Orange. The selected tab
+     also reads by its semibold CWRU Blue label, so the underline is never the
+     only signal (Orange is 2.2:1 on white). Focus rings stay True Blue. */
+  [role="tab"].la-tab[aria-selected="true"] {
+    border-bottom-color: var(--la-accent);
+  }
+  .la-tab-cursor {
+    background: var(--la-accent);
+  }
+
+  /* The one warm surface: a 3px Orange top edge on the page's featured panel. */
+  .la-featured {
+    box-shadow: inset 0 3px 0 var(--la-accent);
+  }
+
+  /* The hero header's white icon tile sits on an Orange ledge. */
+  .la-hero-tile {
+    box-shadow: 0 6px 0 var(--la-accent);
   }
 
   /* "Not started" / "no data yet" texture. Never behind body-length text. */

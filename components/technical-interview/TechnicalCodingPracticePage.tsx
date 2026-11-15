@@ -24,7 +24,12 @@
 
 import { useCallback, useState } from "react";
 
+import { Clock3, Code2, UsersRound } from "lucide-react";
+
+import PracticeHero from "@/components/practice/PracticeHero";
 import SetupWizard, { type SetupStepNav } from "@/components/practice/SetupWizard";
+import { interviewIcon, interviewTagline } from "@/components/interview/interviewPicker";
+import { routes } from "@/lib/routes";
 import InterviewerStep, {
   type InterviewerOption,
 } from "@/components/practice/steps/InterviewerStep";
@@ -42,8 +47,10 @@ import type {
 } from "@/lib/technical-interview/types";
 import type { StartAvatarRequest } from "@/types";
 
+const TECHNICAL_SLUG = "technical-coding";
+
 export default function TechnicalCodingPracticePage() {
-  const engineType = getEngineType("technical-coding");
+  const engineType = getEngineType(TECHNICAL_SLUG);
 
   const [interviewer, setInterviewer] = useState<InterviewerOption | null>(null);
   const [topics, setTopics] = useState<readonly TechnicalTopic[]>([]);
@@ -108,7 +115,21 @@ export default function TechnicalCodingPracticePage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8">
+    // Same frame as the other setup pages (PracticeTypePage): the hero, then
+    // the wizard. overflow-x-clip, not hidden, keeps sticky action bars working.
+    <div className="flex flex-col gap-6 overflow-x-clip">
+      <PracticeHero
+        backHref={routes.industryInterviews()}
+        backLabel="Industry-specific interviews"
+        description={interviewTagline({ slug: TECHNICAL_SLUG, description: "" })}
+        facts={[
+          { icon: Clock3, label: "~30 min" },
+          { icon: Code2, label: "Python or JavaScript" },
+          { icon: UsersRound, label: "Live interviewer" },
+        ]}
+        icon={interviewIcon(TECHNICAL_SLUG)}
+        title="Technical coding"
+      />
       <SetupWizard
         typeSlug={engineType.slug}
         steps={engineType.setupSteps}
@@ -182,6 +203,6 @@ export default function TechnicalCodingPracticePage() {
           return null;
         }}
       />
-    </main>
+    </div>
   );
 }

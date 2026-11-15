@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { routes } from "@/lib/routes";
 import { loadOwnedDifficultConversation } from "@/lib/difficult-conversation/store";
+import PageTitle from "@/components/shell/PageTitle";
 
 /**
  * Owner-only edit. Loads through loadOwnedDifficultConversation so a
@@ -43,7 +44,7 @@ export default async function EditConversationPage({
             server component, and passing the Link function as a prop to a
             client component throws at render (D15-2). */}
         <BackLink href={routes.courageousConversations()} label="Courageous conversations" />
-        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">Edit conversation</h1>
+        <PageTitle>Edit conversation</PageTitle>
         <p className="max-w-[58ch] text-[15px] text-muted">
           Edits to a published scenario go live after the safety check. A
           failing check keeps your new text saved and privately playable, but

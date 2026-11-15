@@ -25,6 +25,7 @@ import { rubricLabelMap } from "@/lib/report/rubric-labels";
 import type { ScoreMap } from "@/lib/report/snapshot";
 import type { RubricDimension } from "@/lib/engine/types";
 import { routes } from "@/lib/routes";
+import PageTitle from "@/components/shell/PageTitle";
 
 function isPollingStatus(status: ReportDTO["status"] | undefined) {
   return status === "PENDING" || status === "IN_PROGRESS";
@@ -571,9 +572,9 @@ function ReportShell({
               {backLabel}
             </button>
           )}
-          <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+          <PageTitle>
             {title}
-          </h1>
+          </PageTitle>
           {(subtitle || aiLabel || setup) && (
             // `relative` anchors Session setup's panel at phone width. The panel floats, so
             // opening it leaves this line, the title and "Practice again" where they are.

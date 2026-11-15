@@ -392,7 +392,7 @@ export default function NetworkingPersonStep({
           onClick={() => selectBranch("character")}
         >
           <h3 className="flex items-center gap-3 font-display text-2xl font-medium text-cwru-blue">
-            <Users aria-hidden className="shrink-0" size={24} strokeWidth={1.75} />
+            <Users aria-hidden className="la-card-icon shrink-0" size={24} strokeWidth={1.75} />
             Pick someone to practice with
           </h3>
           <p className="mt-2 text-sm leading-6 text-muted">
@@ -412,7 +412,7 @@ export default function NetworkingPersonStep({
           onClick={() => selectBranch("bring-in")}
         >
           <h3 className="flex items-center gap-3 font-display text-2xl font-medium text-cwru-blue">
-            <UserPlus aria-hidden className="shrink-0" size={24} strokeWidth={1.75} />
+            <UserPlus aria-hidden className="la-card-icon shrink-0" size={24} strokeWidth={1.75} />
             Bring in someone real
           </h3>
           <p className="mt-2 text-sm leading-6 text-muted">

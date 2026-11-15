@@ -346,7 +346,7 @@ const TAB_CLASSES = {
   tab: "h-12 max-w-fit px-0",
   tabContent:
     "text-[15px] font-medium text-muted group-data-[selected=true]:font-semibold group-data-[selected=true]:text-cwru-blue",
-  cursor: "h-0.5 w-full bg-true-blue",
+  cursor: "la-tab-cursor h-0.5 w-full",
   panel: "px-0 pb-0 pt-6",
 };
 
@@ -473,7 +473,7 @@ export default function ReportBody({
       {structured.practice_next && (
         <section
           aria-labelledby="practice-next"
-          className="flex items-center gap-6 rounded-xl bg-light-blue/32 px-5 py-6 md:px-7"
+          className="la-featured flex items-center gap-6 rounded-xl bg-light-blue/32 px-5 py-6 md:px-7"
         >
           <TargetMark />
           <div className="flex min-w-0 flex-col gap-1">

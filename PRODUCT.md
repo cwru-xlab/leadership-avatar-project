@@ -43,7 +43,7 @@ Product name: Leadership Avatar. School mark: Weatherhead / CWRU. Student practi
 
 ## Accent
 
-Orange `#FF9239` (CWRU tertiary) is the app's one accent, token `--la-accent` / Tailwind `accent`. It is decorative only: never text, never status, never a button fill. Allowed spots: the active sidebar marker, the short rule under student page titles, the practice-picker tile icons, the report's practice-next target, and the sidebar up-next progress fill (or its "Continue" arrow at 0%). Not on Mastery, where it would read as the level-2 orange; only the sidebar marker shows there.
+Orange `#FF9239` (CWRU tertiary) is the app's one accent, token `--la-accent` / Tailwind `accent`. It is decorative only: never text, never status, never a button fill. Allowed spots: the sidebar (active marker, up-next progress fill or its "Continue" arrow at 0%; global chrome, so the same on every page, Mastery included); the short rule under every page title, plain (`PageTitle`) or hero, student and staff; the icon on every live picker card, inline beside its title (`.la-card-icon`: /practice, every sub-picker, the staff home); the Orange ledge under the hero icon tile; the active tab's underline (`.la-tab`, `.la-tab-cursor`), always with the tab's semibold CWRU Blue label; a 3px top edge on the page's one featured panel (`.la-featured`); and the report's practice-next target. Never in Mastery's page body, where it would read as the level-2 orange.
 
 ## Evidence on Hand
 

@@ -11,6 +11,7 @@ import CaseCard from "@/components/case-card";
 import ScenarioCard from "@/components/scenario/ScenarioCard";
 import type { CaseStudy } from "@/types";
 import { routes } from "@/lib/routes";
+import PageTitle from "@/components/shell/PageTitle";
 
 export default function CasePlayIndexPage() {
   const router = useRouter();
@@ -152,9 +153,9 @@ export default function CasePlayIndexPage() {
       </Link>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-2">
-          <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+          <PageTitle>
             Case studies
-          </h1>
+          </PageTitle>
           <p className="max-w-2xl text-[15px] text-muted">
             Work through a real leadership scenario, or build your own roleplay and practice it.
           </p>
@@ -167,8 +168,8 @@ export default function CasePlayIndexPage() {
           <button
             key={t.id}
             aria-selected={tab === t.id}
-            className={`-mb-px h-11 border-b-2 text-[15px] ${
-              tab === t.id ? "border-true-blue font-semibold text-cwru-blue" : "border-transparent font-medium text-muted hover:text-ink"
+            className={`la-tab -mb-px h-11 border-b-2 text-[15px] ${
+              tab === t.id ? "font-semibold text-cwru-blue" : "border-transparent font-medium text-muted hover:text-ink"
             }`}
             role="tab"
             type="button"
