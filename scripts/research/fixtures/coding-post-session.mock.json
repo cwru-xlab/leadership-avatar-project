@@ -1,0 +1,15 @@
+{
+  "longest-unique-window": {
+    "approach": "MOCK (dev fixture). Grow a window over the string one character at a time and keep it free of repeats. Remember the last index where each character appeared.\n\nWhen the next character already appears inside the window, move the left edge to just past that earlier position. Never move the left edge backwards: an index left of the window is stale.\n\nThe answer is the widest window seen.",
+    "complexity": "O(n) time, O(k) space for k distinct characters",
+    "pitfalls": [
+      "Moving the left edge backwards when a repeat sits outside the current window (try \"abba\").",
+      "Starting the best length at 1, which is wrong for the empty string.",
+      "Rebuilding a set for every start index, which is O(n²) or worse."
+    ],
+    "modelSolutions": {
+      "python": "# MOCK_MODEL_SOLUTION_MARKER (python)\ndef longest_unique_window(s):\n    last_seen = {}\n    left = best = 0\n    for right, ch in enumerate(s):\n        if last_seen.get(ch, -1) >= left:\n            left = last_seen[ch] + 1\n        last_seen[ch] = right\n        best = max(best, right - left + 1)\n    return best\n",
+      "javascript": "// MOCK_MODEL_SOLUTION_MARKER (javascript)\nfunction longest_unique_window(s) {\n  const lastSeen = new Map();\n  let left = 0;\n  let best = 0;\n  for (let right = 0; right < s.length; right += 1) {\n    const ch = s[right];\n    if ((lastSeen.get(ch) ?? -1) >= left) left = lastSeen.get(ch) + 1;\n    lastSeen.set(ch, right);\n    best = Math.max(best, right - left + 1);\n  }\n  return best;\n}\n"
+    }
+  }
+}
