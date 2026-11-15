@@ -22,9 +22,15 @@
  * - A filter that hides the currently selected face does NOT change the
  *   selection. The step says so instead (`hiddenSelection` below), because
  *   silently re-picking someone's interviewer is worse than a hidden card.
+ *
+ * The step's closing action lives in `InterviewerActionDock`, which replaced
+ * the old `sticky -bottom-16` bar: it still floats over a long grid, but it
+ * lands in flow once the end of the list is in view. Its header comment keeps
+ * the geometry reasoning.
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
+import InterviewerActionDock from "@/components/practice/steps/InterviewerActionDock";
 import InterviewerToolbar from "@/components/practice/steps/InterviewerToolbar";
 import {
   availableFacets,
@@ -38,7 +44,7 @@ import {
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
-import { ArrowRight, Check, CircleAlert, Mic, SearchX } from "lucide-react";
+import { Check, CircleAlert, Mic, SearchX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 export interface InterviewerOption {
@@ -329,17 +335,10 @@ export default function InterviewerStep({
             )
           )}
 
-          {/* Sticky, because the roster is ~54 cards deep: a Continue button
-              parked under the last row costs the student a long scroll back.
-              It stays in flow, so it never covers the final row at rest — it
-              only pins while there is still list below. Requires that no
-              ancestor create a scroll container; see the overflow-x-clip note
-              in app/practice/[type]/page.tsx. It pins at -4rem with matching
-              bottom padding because the content column's own 4rem bottom
-              padding would otherwise leave a strip of cards showing under it. */}
-          <div className="sticky -bottom-16 z-30 mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas pb-20 pt-4 shadow-[0_-12px_20px_-16px_rgb(9_20_58/0.35)]">
-            <p className="text-sm text-muted">
-              {selectedInterviewer ? (
+          <InterviewerActionDock
+            continueDisabled={!selectedInterviewer}
+            summary={
+              selectedInterviewer ? (
                 <>
                   Selected{" "}
                   <span className="font-semibold text-ink">
@@ -348,18 +347,10 @@ export default function InterviewerStep({
                 </>
               ) : (
                 `${interviewers.length} interviewers — choose one to continue`
-              )}
-            </p>
-            <Button
-              color="primary"
-              size="lg"
-              isDisabled={!selectedInterviewer}
-              endContent={<ArrowRight size={17} />}
-              onPress={nav.goNext}
-            >
-              Continue
-            </Button>
-          </div>
+              )
+            }
+            onContinue={nav.goNext}
+          />
         </>
       )}
     </section>
