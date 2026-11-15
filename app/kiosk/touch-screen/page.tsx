@@ -40,6 +40,10 @@ import {
   OctagonX,
   RefreshCcw,
 } from "lucide-react";
+import {
+  RecordingIcon,
+  RECORDING_FILL_CLASS,
+} from "@/components/session/RecordingIcon";
 
 import { avatarStorage, type CachedAvatar } from "@/lib/avatar-storage";
 import {
@@ -1418,7 +1422,7 @@ export default function TouchScreen() {
               <Button
                 className={`w-48 h-48 rounded-full transition-all duration-300 shadow-lg ${
                   isRecording
-                    ? "bg-red-500 hover:bg-red-600 scale-110 shadow-red-200"
+                    ? `${RECORDING_FILL_CLASS} scale-110 shadow-level-4/30`
                     : isAIResponding
                       ? "bg-gray-300 shadow-gray-200"
                       : "bg-blue-500 hover:bg-blue-600 shadow-blue-200"
@@ -1430,7 +1434,7 @@ export default function TouchScreen() {
                 aria-label={isRecording ? "Stop recording and send message" : "Start recording message"}
               >
                 {isRecording ? (
-                  <Spinner size="lg" color="white" variant="wave" />
+                  <RecordingIcon className="w-16 h-16 text-white" />
                 ) : isTranscribing ? (
                   <Spinner size="lg" color="white" variant="dots" />
                 ) : isAIResponding ? (
