@@ -38,7 +38,7 @@ export default function Sparkline({
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
-      className="overflow-visible"
+      className="h-auto max-w-full overflow-visible"
     >
       <line
         x1={pad}
@@ -64,7 +64,7 @@ export default function Sparkline({
           key={`${c.x}`}
           cx={c.x}
           cy={c.y}
-          r={c.hasNew ? 2.5 : 1.5}
+          r={c.hasNew ? 3 : 2}
           className={c.hasNew ? "fill-true-blue" : "fill-light-blue"}
         />
       ))}

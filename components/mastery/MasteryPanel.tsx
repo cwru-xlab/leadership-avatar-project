@@ -130,7 +130,7 @@ function FigureValue({ figure }: { figure: MasteryFigureDTO }) {
 function FigureDetail({ name, figure }: { name: string; figure: MasteryFigureDTO }) {
   if (figure.rounded === null || figure.range === null) return null;
   return (
-    <p className="text-xs leading-5 text-ink">
+    <p className="text-sm leading-6 text-ink">
       <span className="font-semibold">{name}:</span>{" "}
       {`likely ${figure.range.low}–${figure.range.high}%. You averaged ${formatPercent(
         figure.observedPercent
@@ -154,7 +154,7 @@ function CompetencyDisclosures({ competency }: { competency: CompetencyMasteryDT
 
   if (lifetimeDisclosure && currentDisclosure && lifetimeDisclosure !== currentDisclosure) {
     return (
-      <div className="flex flex-col gap-1 text-xs leading-5 text-muted">
+      <div className="flex flex-col gap-1 text-sm leading-6 text-muted">
         <p>
           <span className="font-semibold text-ink">All time —</span> {lifetimeDisclosure}
         </p>
@@ -168,7 +168,7 @@ function CompetencyDisclosures({ competency }: { competency: CompetencyMasteryDT
   const single = lifetimeDisclosure ?? currentDisclosure;
   if (!single) return null;
 
-  return <p className="text-xs leading-5 text-muted">{single}</p>;
+  return <p className="text-sm leading-6 text-muted">{single}</p>;
 }
 
 /**
@@ -247,13 +247,13 @@ function DeltaText({ delta }: { delta: number }) {
 function EvidenceSources({ sources }: { sources: OriginFigureDTO[] }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-xs font-semibold text-muted">Evidence from</p>
+      <p className="text-sm font-semibold text-muted">Evidence from</p>
       <ul className="flex flex-col gap-1">
         {sources.map((source) => (
           <li
             key={source.origin}
             className={clsx(
-              "flex items-baseline justify-between gap-3 rounded-md px-2.5 py-1.5 text-xs",
+              "flex items-baseline justify-between gap-3 rounded-md px-3 py-2 text-sm",
               source.lifetime.evidenceCount === 0
                 ? "border border-dashed border-line text-muted"
                 : source.group === "live"
@@ -338,18 +338,18 @@ function DriverList({
             {driver.href ? (
               <Link
                 href={driver.href}
-                className="-mx-0.5 w-fit rounded-sm px-0.5 text-[13px] font-semibold leading-snug text-link underline-offset-2 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-true-blue"
+                className="-mx-0.5 w-fit rounded-sm px-0.5 text-[15px] font-semibold leading-snug text-link underline-offset-2 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-true-blue"
               >
                 {title}
               </Link>
             ) : (
-              <span className="text-[13px] font-semibold leading-snug text-ink">{title}</span>
+              <span className="text-[15px] font-semibold leading-snug text-ink">{title}</span>
             )}
-            <span className="text-[13px] font-semibold tabular-nums leading-snug text-ink">
+            <span className="text-[15px] font-semibold tabular-nums leading-snug text-ink">
               <span className="sr-only">scored </span>
               {formatPercent(driver.percent)}
             </span>
-            <span className="col-span-2 text-xs leading-snug text-muted">{meta}</span>
+            <span className="col-span-2 text-[13px] leading-snug text-muted">{meta}</span>
           </li>
         );
       })}
@@ -501,12 +501,14 @@ function TrendRow({
   const { delta } = competency.windowChange;
   const weeks = competency.trend.length;
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-col gap-2">
       <Sparkline
         points={competency.trend}
         label={`All-time ${competency.label} figure over the last ${weeks} weeks`}
+        width={400}
+        height={72}
       />
-      <div className="flex flex-col gap-1 text-xs leading-5 text-muted">
+      <div className="flex flex-col gap-1 text-sm leading-6 text-muted">
         <p>{`All-time trend, last ${weeks} weeks`}</p>
         <p>
           {delta === null ? (
@@ -569,8 +571,8 @@ function CompetencyDetail({
   windowDays: number;
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <p className="max-w-[65ch] text-[13px] leading-5 text-muted">{competency.description}</p>
+    <div className="flex flex-col gap-4">
+      <p className="max-w-[65ch] text-[15px] leading-6 text-ink">{competency.description}</p>
       <TrendRow competency={competency} windowDays={windowDays} />
       <div className="flex flex-col gap-0.5">
         <FigureDetail name="All time" figure={competency.lifetime} />
@@ -731,10 +733,10 @@ function DetailDrawer({
       motionProps={drawerMotion(isDesktop, reduceMotion)}
       classNames={{
         wrapper: "items-end md:items-stretch md:justify-end",
-        base: "m-0 mx-0 my-0 sm:mx-0 sm:my-0 max-h-[88dvh] w-full max-w-full rounded-t-xl rounded-b-none border border-line bg-white shadow-[0_12px_32px_rgb(9_20_58/0.16)] md:h-dvh md:max-h-dvh md:w-[440px] md:max-w-[440px] md:rounded-none md:border-y-0 md:border-r-0",
+        base: "m-0 mx-0 my-0 sm:mx-0 sm:my-0 max-h-[88dvh] w-full max-w-full rounded-t-xl rounded-b-none border border-line bg-white shadow-[0_12px_32px_rgb(9_20_58/0.16)] md:h-dvh md:max-h-dvh md:w-[480px] md:max-w-[480px] md:rounded-none md:border-y-0 md:border-r-0",
         backdrop: "bg-ink/30",
-        header: "flex items-center gap-3 border-b border-line px-5 py-4 pr-12",
-        body: "gap-4 px-5 py-4",
+        header: "flex items-center gap-3 border-b border-line px-6 py-5 pr-12",
+        body: "gap-4 px-6 py-5",
         closeButton: "right-3 top-3 text-muted",
       }}
     >
@@ -742,9 +744,9 @@ function DetailDrawer({
         {key ? (
           <>
             <ModalHeader>
-              <SkillShield competencyKey={key} level={shownLevel(level)} size={44} />
+              <SkillShield competencyKey={key} level={shownLevel(level)} size={52} />
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-base font-bold leading-snug text-ink">
+                <span className="text-lg font-bold leading-snug text-ink">
                   {competency ? competency.label : entry?.label}
                 </span>
                 {competency ? (
@@ -757,15 +759,15 @@ function DetailDrawer({
             <ModalBody data-testid="expand-detail">
               {competency ? (
                 <>
-                  <p className="text-[13px] font-semibold text-muted">Trend and evidence</p>
+                  <p className="text-sm font-semibold text-muted">Trend and evidence</p>
                   <CompetencyDetail competency={competency} windowDays={mastery.window.days} />
                 </>
               ) : entry ? (
                 <>
                   {entry.kind !== "new" && entry.delta !== null ? (
-                    <p className="text-[13px] text-muted">{`All time ${entry.windowStartDisplay ?? "—"} → ${entry.lifetimeDisplay}`}</p>
+                    <p className="text-[15px] text-ink">{`All time ${entry.windowStartDisplay ?? "—"} → ${entry.lifetimeDisplay}`}</p>
                   ) : null}
-                  <p className="text-[13px] font-semibold text-muted">{movedByLabel(entry.drivers.length)}</p>
+                  <p className="text-sm font-semibold text-muted">{movedByLabel(entry.drivers.length)}</p>
                   <DriverList drivers={entry.drivers} timeZone={timeZone} />
                 </>
               ) : null}
