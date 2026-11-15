@@ -9,7 +9,7 @@
  *
  * Applied by `lib/engine/evaluation-runner.ts` to every outcome field that
  * carries `{ quote, timecodeSeconds }` rows as a JSON-encoded array:
- * the five-moves checklist, problem-interview process steps, and the
+ * the five-moves checklist, the coding-steps checklist, problem-interview process steps, and the
  * difficult-conversation reaction causes. (Questioned-persona checklists
  * already time their quotes from the matched utterance in `assembleAnalysis`,
  * with a stricter verbatim rule, so they do not go through here.)
@@ -153,6 +153,7 @@ export function retimeQuotedRows(
 /** The outcome fields this applies to, and the key holding each row's quote. */
 export const QUOTED_OUTCOME_FIELDS: ReadonlyArray<{ field: string; quoteKey: string }> = [
   { field: "conversationSteps", quoteKey: "evidenceQuote" },
+  { field: "codingSteps", quoteKey: "evidenceQuote" },
   { field: "processSteps", quoteKey: "evidenceQuote" },
   { field: "reactionCauses", quoteKey: "quote" },
 ];

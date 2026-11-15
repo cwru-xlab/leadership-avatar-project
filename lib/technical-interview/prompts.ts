@@ -1,4 +1,7 @@
 import type { ResolvedSessionConfig } from "@/lib/engine/types";
+import type { ProcessFramework } from "@/lib/problem-interview/types";
+
+import { CODING_STEPS_OUTCOME_KEY, TECHNICAL_CODING_FRAMEWORK } from "./process-framework";
 
 import {
   TECHNICAL_CODING_LANGUAGE_PROFILE,
@@ -53,6 +56,7 @@ export const TECHNICAL_CODING_RUBRIC_EXTRAS = [
   {
     key: "coding_correctness",
     label: "Coding correctness",
+    // Not run: no server-side executor exists, so the runner stores null.
     description: "Deterministic outcome from the final test harness.",
   },
   {
@@ -118,12 +122,72 @@ Keep replies concise and conversational — usually one to three sentences. Ask 
   ].join("\n\n");
 }
 
+/**
+ * The coding-steps checklist section, generated from the shared framework so
+ * the prompt and the report can never name different steps (the same way
+ * `buildConversationStepsEvaluatorSection` builds the five moves).
+ */
+export function buildCodingStepsEvaluatorSection(
+  framework: ProcessFramework = TECHNICAL_CODING_FRAMEWORK,
+): string {
+  const steps = framework.steps
+    .map(
+      (step, index) =>
+        `${index + 1}. ${step.label} (key "${step.key}"): ${step.description}\n   Counts as hit: ${step.evidenceCriteria}`,
+    )
+    .join("\n\n");
+
+  return `## The coding steps (graded checklist)
+
+Separately from the scores, grade the candidate's process against these steps, in this order. The report shows this checklist on its own as the candidate's process feedback.
+
+${steps}
+
+For EACH step, find the candidate's own words first, then decide:
+- "hit": the candidate did it on their own, meeting every part of the criteria. Quote them verbatim in evidenceQuote — the shortest span that shows it, at most about 30 words (trim with "…").
+- "prompted": the candidate did it, but only AFTER a hint from hints_given or an interviewer question that asked for exactly this step (e.g. they gave a complexity only after "What's the time complexity?", or found the approach right after a hint). Quote what they said after the prompt. A step done before any prompt is "hit" even if the interviewer later asked about it again.
+- "partly": attempted but incomplete, vague or wrong — e.g. one example and no edge case, an approach with no data structure, a complexity claim that is wrong for the code they wrote, a trace that skips the case that breaks. Quote the attempt; the note says what would have made it a hit.
+- "missed": no real attempt, even after being asked (a refusal or a one-word reply such as "dict" or "it passes the tests" is missed). evidenceQuote is "" or the non-answer itself.
+- "not_applicable": ONLY when the session ended before this step could come up through no fault of the candidate's process. Never use it to excuse a skipped step.
+- timecodeSeconds: the [m:ss] stamp of the transcript line holding the quote, converted to total seconds (minutes × 60 + seconds: [1:25] → 85, NOT 125); null when there is no quote.
+- note: ONE short sentence (under 35 words) of coaching addressed to the candidate ("you"). For a hit, say what made it work. Otherwise give the concrete thing to say or do at that point in THIS problem — built only from the problem and the transcript.
+
+Use the same evidence as the scores and do not contradict it. Do NOT repeat the checklist steps as strengths or growth areas; use those for the code itself (the bug, the complexity, the clarity) and for anything the checklist does not cover.
+
+- ${CODING_STEPS_OUTCOME_KEY}: a STRING containing a JSON array with exactly one object per step, in the order above: [{"key": "${framework.steps[0]?.key ?? ""}", "status": "hit" | "prompted" | "partly" | "missed" | "not_applicable", "evidenceQuote": string, "timecodeSeconds": number | null, "note": string}, ...]. Never a raw JSON array value.`;
+}
+
+/**
+ * Revised 2026-11-15 (G1). The evaluator now receives the problem, the
+ * language, the final code, the visible tests and the hints, plus an explicit
+ * "Execution: NOT RUN" line (lib/technical-interview/grading.ts). Nothing is
+ * executed server-side, so correctness is a READING of the code, never a test
+ * result, and `coding_correctness` stays null ("not run").
+ */
 export const TECHNICAL_CODING_EVALUATOR_PROMPT = `
-You evaluate a practice coding interview from a server-built evidence envelope.
+You evaluate a practice coding interview. The user message gives you, from the server's own records: the problem (statement, constraints, examples, target complexity), the programming language, the visible example tests, the candidate's final source code, the hints the system issued, and the timestamped transcript.
 
-Coding correctness is deterministic: use only the supplied final execution outcome. Do not infer correctness from source code or conversation. Do not claim hidden-test success unless the safe outcome explicitly says so.
+## Nothing was executed
+No code was run and no test result exists. Never write that a test passed or failed, that the code "passed execution", "works on the hidden tests" or was "accepted". When the candidate says "it passes the tests", that is an unverified self-report: you may say they claimed it, never that it is true.
+Judge correctness only by READING the code. Trace it by hand on the visible examples and on the edge cases the problem implies (empty input, a single element, all-equal or all-distinct input, duplicates, the boundaries of the constraints). When you find a bug, name the input and what the code returns versus what it should, phrased as a trace ("tracing [] through your code returns -1, not 0"), and point at the line or variable responsible.
+Derive the real time and space complexity from the code's loops, copies and data structures — not from what the candidate claimed. Count every level: two nested loops over the input that also copy or scan a slice inside the inner loop are O(n³), not O(n²).
 
-Score coding quality from the submitted source, documented constraints, and safe execution history. Score technical communication only from the transcript: clarification, approach, data-structure rationale, complexity, debugging narration, test interpretation, and walkthrough. Issued hints must not change coding correctness or technical communication scores; retain them only as future process/independence reporting evidence.
+## Scores (1–5)
+- coding_correctness: return null. That score is reserved for an executed test harness, which this session does not have. Your reading of correctness goes into coding_quality and the written feedback.
+- coding_quality: from the FINAL SOURCE CODE only, never from how well the candidate talked about it — identical code gets the identical coding_quality whatever was said. It covers correctness by your trace, the actual complexity against the target, boundary handling and clarity. 5 = correct on every case you traced, meets the target, clear. 4 = correct and meets the target, with minor clarity issues. 3 = a real bug on an edge case, OR correct but misses the target complexity. 2 = wrong on a main example, or correct but far from the target (e.g. cubic against a linear target). 1 = no meaningful attempt or does not run in principle.
+- technical_communication: from the TRANSCRIPT only — the spoken process: clarifying the problem, examples and edge cases, stating the approach and data structure before coding, complexity analysis (and whether the claim matches the code), narrating, testing or tracing aloud, and the closing walkthrough. A correct solution written in near-silence scores 1–2 here.
+- content: the structure and substance of the candidate's explanations. behavioral: composure, how they responded to questions and pushback, ownership of mistakes. Both from the transcript; do not use them to repeat the code score.
+- visual and vocal: only from the supplied metrics; null when the metrics are null.
+
+## Hints
+hints_given lists the hints the system issued when the candidate pressed the hint button. Using hints must NOT lower any score. Hints show only in the checklist below: a step reached only after a hint (or after an interviewer question asking for that step) is "prompted".
+
+## Written feedback
+Write coding-interview feedback: about the code, the algorithm, the complexity and the spoken process. Name the specific line, variable or input. Do not mention resumes, STAR, body language or eye contact unless metrics are supplied. Growth-area timecodes come from the transcript's [m:ss] stamps.
+- rubric_notes: one note per scored dimension, with item set to the dimension KEY exactly, never a label: "coding_quality", "technical_communication", "content", "behavioral" (and "visual" / "vocal" only when scored). No note for coding_correctness, which is not scored.
+- growth_areas: set dimension to the rubric key the growth area is about (e.g. "coding_quality" for a bug, "technical_communication" for an unexplained approach).
+
+${buildCodingStepsEvaluatorSection()}
 
 Never reveal hidden cases, reference code, private harness details, provider internals, or scoring thresholds. Return only the required JSON schema.
 `.trim();
