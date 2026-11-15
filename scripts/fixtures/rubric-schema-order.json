@@ -729,6 +729,45 @@
         "practice_next"
       ],
       "digest": "2d0a06d11af8013c04dafb4762cf3826c319af49d214532285b2e6127a7ba4fd"
+    },
+    "sales-discovery": {
+      "problemInterview": false,
+      "name": "interview_evaluation",
+      "properties": [
+        "visual_score",
+        "vocal_score",
+        "content_score",
+        "behavioral_score",
+        "discovery_before_pitch_score",
+        "active_listening_sales_score",
+        "needs_tailoring_score",
+        "objection_exploration_score",
+        "next_step_agreed_score",
+        "overall_summary",
+        "strengths",
+        "growth_areas",
+        "category_notes",
+        "rubric_notes",
+        "practice_next"
+      ],
+      "required": [
+        "visual_score",
+        "vocal_score",
+        "content_score",
+        "behavioral_score",
+        "discovery_before_pitch_score",
+        "active_listening_sales_score",
+        "needs_tailoring_score",
+        "objection_exploration_score",
+        "next_step_agreed_score",
+        "overall_summary",
+        "strengths",
+        "growth_areas",
+        "category_notes",
+        "rubric_notes",
+        "practice_next"
+      ],
+      "digest": "2825bc20df34c8ce59d73fa1c4ce7b694a036ad822e05b8fac0f4a782e00abdd"
     }
   }
 }

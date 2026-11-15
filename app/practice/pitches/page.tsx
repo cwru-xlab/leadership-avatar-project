@@ -15,6 +15,7 @@ import {
   Presentation,
   UserRound,
   Clock3,
+  Handshake,
   Layers,
   Mic,
 } from "lucide-react";
@@ -32,6 +33,20 @@ const ELEVATOR_OPTION = {
     "Thirty to sixty seconds with a live listener — discover what they care about, land a crisp ask, and earn follow-ups or a polite walk-out.",
   minutes: "1–5 min",
   icon: Mic,
+} as const;
+
+/**
+ * Sales meeting (2026-11-14): a live meeting with a prospective buyer, graded
+ * listening first. It runs on the questioned-persona engine
+ * (`sales-discovery`) and keeps its own case list and session route; it is
+ * listed here because students look for selling under pitches.
+ */
+const SALES_OPTION = {
+  title: "Sales meeting",
+  description:
+    "Meet a potential client to sell a product, a service or your business. Listen first — they only share what matters if you ask.",
+  minutes: "About 15 min",
+  icon: Handshake,
 } as const;
 
 const DECK_MODES = listDeckModes();
@@ -85,7 +100,7 @@ export default function PracticePitchesPickerPage() {
   return (
     <div className="flex flex-col gap-6">
       <PracticeHero
-        description="Elevator pitches are short and conversation-first. With a deck, you present slides to a live listener — five settings, each with a different audience and a different judgment."
+        description="Elevator pitches are short and conversation-first. With a deck, you present slides to a live listener. A sales meeting is graded on how well you listen before you sell."
         facts={[
           { icon: Clock3, label: "1–30 min" },
           { icon: UserRound, label: "Live listener" },
@@ -95,7 +110,7 @@ export default function PracticePitchesPickerPage() {
         title="Pitch practice"
       />
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <PickerCard
           actionLabel="Start"
           ariaLabel={`Start ${ELEVATOR_OPTION.title}`}
@@ -112,6 +127,15 @@ export default function PracticePitchesPickerPage() {
           icon={Layers}
           minutes={deckFamilyMinutes(DECK_MODES)}
           title="With a deck"
+        />
+        <PickerCard
+          actionLabel="Choose a buyer"
+          ariaLabel={`Choose a buyer for a ${SALES_OPTION.title.toLowerCase()}`}
+          description={SALES_OPTION.description}
+          href={routes.salesConversations()}
+          icon={SALES_OPTION.icon}
+          minutes={SALES_OPTION.minutes}
+          title={SALES_OPTION.title}
         />
       </div>
     </div>

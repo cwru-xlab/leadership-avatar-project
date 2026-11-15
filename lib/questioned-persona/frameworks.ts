@@ -12,6 +12,8 @@
 
 import type { ProcessFramework } from "@/lib/problem-interview/types";
 
+import type { PersonaStyle } from "./types";
+
 export const CALGARY_CAMBRIDGE_FRAMEWORK: ProcessFramework = {
   key: "calgary-cambridge",
   label: "Calgary–Cambridge consultation checklist",
@@ -190,9 +192,97 @@ export const MI_PROCESS_FRAMEWORK: ProcessFramework = {
   ],
 };
 
-export function frameworkForStyle(
-  style: "clinical-communication" | "motivational-interviewing",
-): ProcessFramework {
+export const SALES_DISCOVERY_FRAMEWORK: ProcessFramework = {
+  key: "sales-discovery",
+  label: "Listening-first sales call checklist",
+  source:
+    "Consultative selling (Hanan, Consultative Selling) and SPIN-style discovery (Rackham, SPIN Selling, 1988: successful larger-sale calls carried more problem and implication questions and fewer early feature statements); active listening (Rogers & Farson, 1957). Step wording is this tool's own.",
+  steps: [
+    {
+      key: "open_agenda",
+      label: "Open and agree the purpose",
+      description: "Introduces themselves, states why they asked for the meeting, and checks the buyer's time or agenda.",
+      evidenceCriteria:
+        "Early on the seller introduces themselves or their company in a sentence AND checks the agenda or time with the buyer (e.g. 'Does it work if I ask a few questions first?', 'How much time do we have?', 'What would make this useful for you?').",
+      nudge: "So, what did you want to show me?",
+    },
+    {
+      key: "situation",
+      label: "Understand their situation",
+      description: "Asks open questions about the buyer's role, organization and how things work today.",
+      evidenceCriteria:
+        "At least two questions about the buyer's current situation (how they do it today, team, volume, tools) asked BEFORE any presentation of the offering.",
+      nudge: "It's a pretty busy operation here.",
+    },
+    {
+      key: "problem",
+      label: "Uncover the problem",
+      description: "Asks what is hard, frustrating or not working for the buyer.",
+      evidenceCriteria:
+        "The seller asks directly about difficulties, frustrations or what is not working (e.g. 'What's the hardest part of…?', 'Where does it break down?'). Assuming the problem for the buyer does not count.",
+      nudge: "Things aren't perfect, but whose are?",
+    },
+    {
+      key: "impact",
+      label: "Explore the impact",
+      description: "Asks what the problem costs — money, time, people, risk — and why it matters now.",
+      evidenceCriteria:
+        "At least one question about the consequence or cost of a problem the buyer named (e.g. 'What does that cost you when it happens?', 'What happens if nothing changes this year?').",
+      nudge: "It's annoying, sure.",
+    },
+    {
+      key: "hold_the_pitch",
+      label: "Hold the pitch until needs are clear",
+      description: "Does not present the offering until the buyer has named at least one real need.",
+      evidenceCriteria:
+        "HIT only if the seller's first description of their product, service, features, pricing or credentials comes AFTER the buyer has stated at least one specific problem or need in their own words. MISSED if the seller presents the offering in the opening turns or before any need was stated. Also HIT if the seller never pitches but discovers well.",
+      nudge: "I'm not sure yet why we're talking.",
+    },
+    {
+      key: "summarize_needs",
+      label: "Summarize needs back",
+      description: "Plays back what they heard and checks it before proposing.",
+      evidenceCriteria:
+        "The seller summarizes at least two things the buyer said (needs, constraints, priorities) and invites correction (e.g. 'Let me check I've got this right…').",
+      nudge: "I've told you a lot. Did that make sense?",
+    },
+    {
+      key: "tailor_offer",
+      label: "Tailor the offer to stated needs",
+      description: "Connects the offering to the needs the buyer actually named, in their words — no feature dump.",
+      evidenceCriteria:
+        "When the seller presents, they explicitly link a capability to a need or pain point the BUYER stated earlier (e.g. 'You said night discharges back up the ER — that's where…'). A generic feature list is missed.",
+      nudge: "How would that actually help us?",
+    },
+    {
+      key: "explore_objection",
+      label: "Explore objections before answering",
+      description: "When the buyer raises a concern, asks about it or acknowledges it before responding.",
+      evidenceCriteria:
+        "When the buyer raises a concern (price, risk, timing, past vendor), the seller's next turn acknowledges it or asks what is behind it before answering. Missed if the seller immediately argues, discounts or rebuts. Not applicable only if the buyer raised no concern.",
+      nudge: "I've heard that kind of promise before.",
+    },
+    {
+      key: "decision_process",
+      label: "Ask how they decide",
+      description: "Asks who else is involved, the budget or timing, and how a decision gets made.",
+      evidenceCriteria:
+        "The seller asks about at least one of: other decision makers or stakeholders, budget or budget cycle, timeline, or how a purchase like this gets approved.",
+      nudge: "This wouldn't only be my call, you know.",
+    },
+    {
+      key: "next_step",
+      label: "Agree a concrete next step",
+      description: "Proposes or asks for a specific next step with a time and who is involved.",
+      evidenceCriteria:
+        "The seller proposes or asks for a specific next step (a follow-up meeting, a pilot, a demo for named people) with a time frame, and the buyer's agreement is sought. 'I'll send you some information' alone is missed.",
+      nudge: "So… where do we go from here?",
+    },
+  ],
+};
+
+export function frameworkForStyle(style: PersonaStyle): ProcessFramework {
+  if (style === "sales-discovery") return SALES_DISCOVERY_FRAMEWORK;
   return style === "clinical-communication"
     ? CALGARY_CAMBRIDGE_FRAMEWORK
     : MI_PROCESS_FRAMEWORK;

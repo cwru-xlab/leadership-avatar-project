@@ -67,6 +67,9 @@ export const STUDY_PLAN_SOURCE_TYPE_SLUGS = [
   "technical-coding",
   "clinical-communication",
   "motivational-interviewing",
+  // OPENED 2026-11-14 with the type itself: same persona engine, same
+  // degradations as the two persona types above.
+  "sales-discovery",
 ] as const;
 
 export type StudyPlanSourceTypeSlug = (typeof STUDY_PLAN_SOURCE_TYPE_SLUGS)[number];

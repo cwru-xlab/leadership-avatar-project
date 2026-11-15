@@ -15,6 +15,8 @@ import { buildStudentBriefing } from "@/lib/difficult-conversation/conversation-
 import { Button } from "@heroui/button";
 import { ArrowRight } from "lucide-react";
 
+import PracticeNotice from "@/components/questioned-persona/PracticeNotice";
+
 /**
  * Student-visible briefing fields only. Deliberately omits `hiddenPosition`
  * — including it here is a TypeScript error by construction.
@@ -40,6 +42,8 @@ export interface ConversationBriefingStepProps {
   footnote?: string;
   /** A visible practice-only disclaimer (questioned-persona cases). */
   disclaimer?: string;
+  /** `quiet` renders the disclaimer as a small grey note (sales). */
+  disclaimerTone?: "banner" | "quiet";
 }
 
 const BLOCKS: Array<{
@@ -65,6 +69,7 @@ export default function ConversationBriefingStep({
   intro,
   footnote,
   disclaimer,
+  disclaimerTone = "banner",
 }: ConversationBriefingStepProps) {
   // Call buildStudentBriefing so the narrower authored-text helper stays on
   // the dependency path (compile-time refusal of hiddenPosition). The UI
@@ -90,13 +95,12 @@ export default function ConversationBriefingStep({
       </div>
 
       {disclaimer ? (
-        <p
-          className="rounded-xl border border-copper/40 bg-copper/[0.08] px-5 py-4 text-sm leading-6 text-ink"
-          data-testid="persona-disclaimer"
-          role="note"
-        >
-          {disclaimer}
-        </p>
+        <PracticeNotice
+          className={disclaimerTone === "banner" ? "py-4" : undefined}
+          testId="persona-disclaimer"
+          text={disclaimer}
+          tone={disclaimerTone}
+        />
       ) : null}
 
       <div className="space-y-4">

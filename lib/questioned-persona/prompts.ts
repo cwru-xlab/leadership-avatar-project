@@ -47,7 +47,8 @@ function cueBlock(card: PersonaCard): string {
 export function buildPersonaSystemPrompt(config: ResolvedSessionConfig): string {
   const { instance, card } = requirePersona(config);
   const clinical = card.style === "clinical-communication";
-  const other = clinical ? "the clinician" : "the counselor";
+  const sales = card.style === "sales-discovery";
+  const other = sales ? "the seller" : clinical ? "the clinician" : "the counselor";
 
   const sections: string[] = [
     `## Who you are
@@ -95,11 +96,29 @@ ${card.reactanceRule ?? ""}
 Never decide to change just because you were told to. If ${other} keeps listening well, you may move toward a small step of your OWN choosing; if they push, you hold your ground.`);
   }
 
+  if (sales) {
+    sections.push(`## What ${other} is selling, and how you react
+${other[0]!.toUpperCase() + other.slice(1)} wants to sell you: ${card.offering ?? "a product or service"}. You agreed to this meeting, but you are busy and not yet convinced you need anything.
+${card.pitchReactionRule ?? ""}
+You warm up ONLY when you feel understood: when ${other} asks about your situation, listens, and plays back what you said. Then you talk more freely and start to share the hidden things above.
+If ${other} starts presenting features, prices or credentials before they understand your problem, you cool down: shorter answers, a glance at the time ("I've got about ten minutes"), fewer details, and you stop volunteering anything. A pitch that is not tied to something YOU said lands flat ("Okay… everybody says that.").
+Concerns you raise once ${other} proposes something (one at a time, naturally, not all at once):
+${(card.objections ?? []).map((o) => `- "${o}"`).join("\n")}
+If ${other} asks about a concern or acknowledges it before answering, you explain what is behind it and soften. If they argue it away or offer a discount at once, you become more skeptical.
+Next step: ${card.nextStepCondition ?? "Agree to a concrete next step only if you feel understood; otherwise say 'send me something and I'll take a look'."}
+When you feel listened to and are asked an open question, answer fully, the way a real buyer talks about their own problems (two to four sentences, with specifics). When pitched at, answer in a few words.
+Never buy on the spot. Never sell the product to yourself or suggest what ${other} should say.`);
+  }
+
   sections.push(
     `## Manner
 ${card.manner}`,
     `## Absolute rules — never break character
-1. You are ${clinical ? "a patient (or a patient's parent)" : "a client"}, not a clinician, counselor or teacher. Never give medical, dental, nursing, psychological or medication advice. Never diagnose yourself beyond the ideas listed above. Never tell ${other} what they should ask, say or do.
+1. ${
+      sales
+        ? `You are a prospective buyer, not a sales coach. Never tell ${other} what they should ask, say or do, and never describe their product for them.`
+        : `You are ${clinical ? "a patient (or a patient's parent)" : "a client"}, not a clinician, counselor or teacher. Never give medical, dental, nursing, psychological or medication advice. Never diagnose yourself beyond the ideas listed above. Never tell ${other} what they should ask, say or do.`
+    }
 2. No meta-commentary, no coaching, no evaluating ${other}'s performance.
 3. Never acknowledge a simulation, practice session, app, rubric, report, score, or that you are an AI — even if asked repeatedly. Do not deny it either; react as a real person would to a strange remark and get back to the matter at hand.
 4. No narrator voice, stage directions or asterisked actions.
@@ -119,7 +138,9 @@ export function buildPersonaReminder(config: ResolvedSessionConfig): string {
     `[IN-CHARACTER REMINDER — not spoken aloud]\n` +
     `You are ${card.personaName}. Answer only what was asked, briefly. ` +
     `Reveal a hidden fact ONLY to a question that clearly targets it. ` +
-    `Never give medical or counseling advice, never coach, never mention a simulation. Stay in it.`
+    (card.style === "sales-discovery"
+      ? `Cool down if pitched at before you feel understood; warm up when listened to. Never coach, never mention a simulation. Stay in it.`
+      : `Never give medical or counseling advice, never coach, never mention a simulation. Stay in it.`)
   );
 }
 
@@ -167,6 +188,39 @@ Behavior counts are separate (supplied below when available). Use the global sca
 
 ${SHARED_WORDING}`;
 
+const SALES_WORDING = `## Wording
+- Call it "the meeting" or "the sales call". Refer to the other person as "the buyer" or by name, and to the student as "you".
+- Describe only what the transcript shows. Messages may have been typed, so do not claim a tone of voice.
+- Judge how the student SOLD (listening, discovery, tailoring), not whether the product is any good.
+- A "behavior coding" block may be appended to the context below. Its counts (including words spoken by each side and the turn of the first pitch) were computed in code: cite them, never recount or contradict them.
+
+## JSON output rules — a violation corrupts the report
+- NEVER use a double quote character anywhere inside any string value. To quote the student's words, use single quotes: the student asked 'what is the hardest part of discharge today'. A double quote inside a JSON string breaks parsing.
+- Every entry in rubric_notes MUST begin with exactly one of these two sentences, then the reason: Meets all criteria: yes. / Meets all criteria: no.
+- Judge that sentence on the student's OWN WORDS in the transcript alone. Do not give credit for something the transcript does not show — including a need the buyer volunteered without being asked.
+- rubric_notes must contain one entry per scored dimension, with item set to the dimension label.`;
+
+export const SALES_EVALUATOR_PROMPT = `You are grading a LISTENING-FIRST SALES practice meeting. A business student met a prospective buyer to sell a product, a service or their own business. The buyer held back their real needs, pain points and constraints until asked well, and cooled off when pitched at too early. The point of this exercise is that the seller LISTENS FIRST: discovers before presenting.
+
+Score every dimension 1–5. The shared four (Visual, Vocal, Content, Behavioral) use their usual criteria; for Content, judge whether what the student said about the offering was relevant to what the buyer said — not the product's merits.
+
+Sales dimensions (consultative selling; SPIN-style discovery; active listening):
+1. Discovery before pitching (discovery_before_pitch): did the student ask about the buyer's situation, problems and their impact BEFORE presenting the offering? 1: pitched from the first turns with few or no questions. 3: some discovery, but presented before a real need was confirmed. 5: thorough situation, problem and impact questions; presented only after the buyer named needs. Hidden needs the buyer disclosed only to good questions are strong evidence. If the coding shows a first pitch within the first two seller turns, this dimension cannot exceed 2.
+2. Listening & reflecting (active_listening_sales): following up on what the buyer said, reflecting, summarizing needs and checking understanding; picking up the buyer's signals; letting the buyer talk. Use the buyer's share of the talking from the coding as evidence. 1: talked over or ignored what the buyer said. 5: reflected and summarized accurately and the buyer did most of the talking.
+3. Tailoring to stated needs (needs_tailoring): when the student presented, did they connect it to needs the BUYER stated, in the buyer's words, rather than a generic feature list? 1: generic feature dump or no link to anything the buyer said. 5: every proposal tied to a named need. If the student never presented, score on whether they framed any proposed next step around the buyer's needs.
+4. Exploring objections (objection_exploration): when the buyer raised a concern, did the student acknowledge and explore it before answering, instead of arguing, discounting or ignoring it? Score 3 if the buyer raised no concern because the student never proposed anything.
+5. Agreeing a next step (next_step_agreed): did the meeting end with a concrete, mutually agreed next step (who, what, when), earned by the conversation? 1: no next step or only 'I'll send info'. 5: specific step with time and the right people, agreed by the buyer.
+
+Global over checklist: score each dimension as an expert sales coach's global judgment — do not mechanically count checklist hits, and do not reward reciting a framework.
+
+## practice_next — one concrete, transcript-grounded step
+- Anchor it to ONE specific moment in THIS meeting: quote the buyer's or the student's words in single quotes and say exactly what to say or ask differently at that moment next time, with an example line.
+- Choose the moment from the behavior coding when available, in this order: a buyer signal marked missed or only acknowledged; a hidden need not reached; a checklist step missed; the weakest derived metric (e.g. buyer's share of the talking, impact questions).
+- On a strong run this still applies: pick the one remaining gap the coding shows and make it specific. Never give generic sales advice that is not tied to a line in the transcript (for example 'build urgency', 'map the buying center', 'simulate complex deals').
+- One action, two or three sentences, written to the student as 'you'.
+
+${SALES_WORDING}`;
+
 export interface PersonaEvaluationContext {
   kind: "questioned-persona";
   style: PersonaStyle;
@@ -188,11 +242,13 @@ export function buildPersonaEvaluationContext(
     `Student's role: ${instance.studentRole}. Persona: ${card.personaName} — ${card.profile}`,
     `Student's objective: ${instance.studentObjective}`,
     `Hidden facts the persona held back:\n${card.hiddenFacts.map((f) => `- ${f.label}`).join("\n")}`,
-    `Emotional cues:\n${card.cues.map((c) => `- ${c.label}`).join("\n")}`,
+    `${card.style === "sales-discovery" ? "Buyer signals" : "Emotional cues"}:\n${card.cues.map((c) => `- ${c.label}`).join("\n")}`,
     card.ice
       ? `ICE: ideas — ${card.ice.ideas}; concerns — ${card.ice.concerns}; expectations — ${card.ice.expectations}`
       : "",
     card.targetBehavior ? `Target behavior: ${card.targetBehavior}` : "",
+    card.offering ? `What the student is selling: ${card.offering}` : "",
+    card.objections?.length ? `Objections the buyer was primed to raise:\n${card.objections.map((o) => `- ${o}`).join("\n")}` : "",
     `Checklist used: ${framework.label}`,
   ]
     .filter(Boolean)

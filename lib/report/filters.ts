@@ -174,8 +174,9 @@ export function matchesTypeFilter(typeSlug: string, filter: TypeFilter): boolean
   if (filter === "interview") return INTERVIEW_TAB_SLUGS.has(typeSlug);
   // All five deck modes (19-01's DECK_MODES table) land under the existing
   // Pitches tab alongside the elevator pitch — no new filter tab is added.
+  // The sales meeting is listed under Practice pitches, so it files there too.
   if (filter === "pitch")
-    return typeSlug === "pitch-elevator" || isDeckModeSlug(typeSlug);
+    return typeSlug === "pitch-elevator" || isDeckModeSlug(typeSlug) || typeSlug === "sales-discovery";
   return typeSlug === filter;
 }
 
