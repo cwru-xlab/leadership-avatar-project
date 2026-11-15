@@ -61,3 +61,23 @@ export function rubricItemLabel(item: string, labels: Record<string, string>): s
   if (!words.length) return trimmed;
   return words.join(" ").replace(/^./, (c) => c.toUpperCase());
 }
+
+/**
+ * The dimension KEY one `rubric_notes[].item` refers to, or null.
+ *
+ * `item` is free text, so it is matched against both the keys and the labels
+ * of the type's own dimensions, ignoring case, separators and a `_score`
+ * suffix: "Coding Quality", "coding_quality" and "coding-quality_score" all
+ * resolve to `coding_quality`. An item that names no dimension ("Solution
+ * approach") returns null, and the row shows no figure rather than a guess.
+ */
+export function rubricItemKey(item: string, labels: Record<string, string>): string | null {
+  const norm = (value: string) =>
+    value.trim().toLowerCase().replace(/[_\s-]+/g, " ").replace(/ score$/, "").trim();
+  const wanted = norm(item);
+  if (!wanted) return null;
+  for (const [key, label] of Object.entries(labels)) {
+    if (norm(key) === wanted || norm(label) === wanted) return key;
+  }
+  return null;
+}

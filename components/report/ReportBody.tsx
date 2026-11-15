@@ -45,7 +45,7 @@ import ReportStatistics, {
   measuredVocal,
 } from "@/components/report/ReportStatistics";
 import { fallbackClock, reclockVisual, type ReportMoments } from "@/lib/report/moments";
-import { rubricItemLabel } from "@/lib/report/rubric-labels";
+import { rubricItemKey, rubricItemLabel } from "@/lib/report/rubric-labels";
 import {
   applyCheckInHiding,
   eligibleCheckIns,
@@ -730,9 +730,12 @@ function noteBody(note: string): string {
 /**
  * Per-rubric-item rows: the item, its score as a figure and chip, its note.
  *
- * SCORED, not just annotated. `scores` is keyed by dimension key exactly as
- * `rubric_notes[].item` is, so the 1-5 the evaluator already gave each item
- * is shown instead of leaving the reader to infer a verdict from prose. That
+ * SCORED, not just annotated. `scores` is keyed by dimension KEY, while
+ * `rubric_notes[].item` is model-written free text — usually the label
+ * ("Coding Quality"), sometimes the key. `rubricItemKey` resolves either to
+ * the key, so the 1-5 the evaluator already gave each item is shown instead
+ * of leaving the reader to infer a verdict from prose. Looking `item` up in
+ * `scores` directly is why no figure ever appeared for label-shaped items. That
  * is what makes the list scannable: the eye runs down the figures and the
  * chips, and the note is there for the one row that matters.
  *
@@ -756,7 +759,10 @@ function RubricNotes({
   return (
     <dl className="grid gap-2.5 sm:grid-cols-2">
       {notes.map((n) => {
-        const raw = scores[n.item] ?? scores[n.item.replace(/_score$/i, "")] ?? null;
+        const key = rubricItemKey(n.item, labels);
+        const raw = key
+          ? (scores[key] ?? null)
+          : (scores[n.item] ?? scores[n.item.replace(/_score$/i, "")] ?? null);
         const score = typeof raw === "number" ? raw : null;
         const body = noteBody(n.note);
         return (

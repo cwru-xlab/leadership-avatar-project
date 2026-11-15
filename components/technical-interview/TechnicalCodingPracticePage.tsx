@@ -22,7 +22,7 @@
  *   the model through the chat body, never the report's evaluation input.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Clock3, Code2, UsersRound } from "lucide-react";
 
@@ -40,10 +40,11 @@ import TechnicalCodingBriefingStep from "@/components/practice/steps/TechnicalCo
 import TechnicalCodingSession from "@/components/technical-interview/TechnicalCodingSession";
 import { getEngineType } from "@/lib/engine/registry";
 import type { CameraMode } from "@/lib/metrics/types";
-import type {
-  TechnicalCodingLanguage,
-  TechnicalDifficulty,
-  TechnicalTopic,
+import {
+  isTechnicalCodingLanguage,
+  type TechnicalCodingLanguage,
+  type TechnicalDifficulty,
+  type TechnicalTopic,
 } from "@/lib/technical-interview/types";
 import type { StartAvatarRequest } from "@/types";
 
@@ -56,6 +57,14 @@ export default function TechnicalCodingPracticePage() {
   const [topics, setTopics] = useState<readonly TechnicalTopic[]>([]);
   const [difficulty, setDifficulty] = useState<TechnicalDifficulty | null>(null);
   const [language, setLanguage] = useState<TechnicalCodingLanguage>("python");
+  // A coding report's "Practice again" links here with `?language=`, so the
+  // student retries in the language they just used. Read after mount rather
+  // than through `useSearchParams`, which would force a Suspense boundary on
+  // this statically rendered page for one optional preference.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("language");
+    if (isTechnicalCodingLanguage(requested)) setLanguage(requested);
+  }, []);
   const [resumeId, setResumeId] = useState<string | null>(null);
   const [resumeText, setResumeText] = useState("");
   const [resumeFileName, setResumeFileName] = useState<string | undefined>();
