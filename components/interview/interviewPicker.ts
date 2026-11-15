@@ -128,3 +128,14 @@ export function listSpecializedInterviews(): SpecializedInterview[] {
     }));
   return [...presets, CODING_INTERVIEW];
 }
+
+/** Picker order: technical interviews first (coding room leading), then the rest in catalog order. */
+const TECHNICAL_FIRST = [CODING_INTERVIEW.key, "system-design", "technical"];
+
+export function orderForPicker(items: SpecializedInterview[]): SpecializedInterview[] {
+  const rank = (item: SpecializedInterview) => {
+    const index = TECHNICAL_FIRST.indexOf(item.key);
+    return index === -1 ? TECHNICAL_FIRST.length : index;
+  };
+  return [...items].sort((a, b) => rank(a) - rank(b));
+}
