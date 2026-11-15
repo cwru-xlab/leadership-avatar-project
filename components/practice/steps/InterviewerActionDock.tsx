@@ -77,6 +77,9 @@ export default function InterviewerActionDock({
      *    toolbar, covering the search field. `head` is a plain, non-sticky
      *    marker at that same spot, so "head has left the top of the column"
      *    means the strip is genuinely pinned rather than resting on content.
+     *    The comparison uses the column's PADDING box (`clientTop` worth of
+     *    padding above the content), matching the `-top-6/-top-8` the strip
+     *    uses to cancel that same padding.
      *
      * 2. CARDS LEFT. The tempting rule "show it when the footer is off screen"
      *    is wrong here and measurably so: this step is followed by the pace
@@ -110,7 +113,7 @@ export default function InterviewerActionDock({
       {/* Non-sticky marker at the strip's natural position: the "is it actually
           pinned?" probe. See the effect above. */}
       <div aria-hidden className="h-px" ref={headRef} />
-      <div className="sticky top-0 z-30 -mx-4 h-0 md:-mx-8">
+      <div className="sticky -top-6 z-30 -mx-4 h-0 md:-top-8 md:-mx-8">
         <div
           className={`flex h-14 items-center gap-3 bg-cwru-blue px-4 transition duration-200 ease-out motion-reduce:transition-none md:px-8 ${
             showStrip ? "visible translate-y-0 opacity-100" : "invisible -translate-y-2 opacity-0"

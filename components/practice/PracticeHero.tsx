@@ -73,8 +73,13 @@ export default function PracticeHero({
            space and the page cannot jump as it appears; `-mb-6` cancels the
            page column's `gap-6`, and `-mx-4/-mx-8` cancels the content
            column's padding so the strip spans it edge to edge (the same
-           cancellation the old bottom bar used — it adds no page width). */
-        <div className="sticky top-0 z-30 -mx-4 -mb-6 h-0 md:-mx-8">
+           cancellation the old bottom bar used — it adds no page width).
+
+           `-top-6 md:-top-8` cancels the column's `pt-6 md:pt-8`: sticky
+           resolves `top` against the scrollport's CONTENT box, so a plain
+           `top-0` parks the strip 24/32px down and leaves a band of canvas
+           above it with the page's own content scrolling through the gap. */
+        <div className="sticky -top-6 z-30 -mx-4 -mb-6 h-0 md:-top-8 md:-mx-8">
           <div
             className={`flex h-14 items-center gap-3 bg-cwru-blue px-4 transition duration-200 ease-out motion-reduce:transition-none md:px-8 ${
               condensed ? "visible translate-y-0 opacity-100" : "invisible -translate-y-2 opacity-0"
