@@ -28,6 +28,7 @@ import {
 } from "@/components/study-plan/PathPanel";
 import { competencyIcon } from "@/components/study-plan/competency-icons";
 import { usePlansWithPaths, type PlanWithPath } from "@/components/study-plan/usePlansWithPaths";
+import PageTitle from "@/components/shell/PageTitle";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -200,9 +201,9 @@ export default function StudyPlansPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-2">
-        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px] la-title-rule">
+        <PageTitle>
           Study plans
-        </h1>
+        </PageTitle>
         <p className="text-[15px] text-muted">Each plan turns your feedback into a path of short steps.</p>
       </header>
 
@@ -234,8 +235,8 @@ export default function StudyPlansPage() {
                 <button
                   key={id}
                   aria-selected={tab === id}
-                  className={`-mb-px h-11 border-b-2 text-[15px] ${
-                    tab === id ? "border-true-blue font-semibold text-cwru-blue" : "border-transparent font-medium text-muted"
+                  className={`la-tab -mb-px h-11 border-b-2 text-[15px] ${
+                    tab === id ? "font-semibold text-cwru-blue" : "border-transparent font-medium text-muted"
                   }`}
                   role="tab"
                   type="button"

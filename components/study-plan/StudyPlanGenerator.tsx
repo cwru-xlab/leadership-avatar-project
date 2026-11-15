@@ -319,7 +319,7 @@ export default function StudyPlanGenerator({
 
   return (
     <>
-      <section className="flex flex-col gap-4 rounded-xl border border-light-blue/70 bg-light-blue/32 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <section className="la-featured flex flex-col gap-4 rounded-xl border border-light-blue/70 bg-light-blue/32 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex max-w-2xl flex-col gap-1">
           <h2 className="font-display text-[22px] font-medium leading-[1.15] text-cwru-blue">
             Build a self-paced study plan

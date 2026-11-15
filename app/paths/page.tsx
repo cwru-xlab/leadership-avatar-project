@@ -32,6 +32,7 @@ import GeneratePathCard from "@/components/study-plan/GeneratePathCard";
 import SincePlanGrowth from "@/components/study-plan/SincePlanGrowth";
 import { GoalsStrip, ProgressRing, usePathMastery } from "@/components/study-plan/PathVisuals";
 import { usePlansWithPaths, type PlanWithPath } from "@/components/study-plan/usePlansWithPaths";
+import PageTitle from "@/components/shell/PageTitle";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -333,9 +334,9 @@ function PathsHub() {
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 flex-1 basis-80 flex-col gap-2">
-          <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px] la-title-rule">
+          <PageTitle>
             Paths
-          </h1>
+          </PageTitle>
           {items.length > 0 ? (
             <PlanSwitcher
               focusCompetency={focusCompetency}

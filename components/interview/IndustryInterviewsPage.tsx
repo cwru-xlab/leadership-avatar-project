@@ -112,7 +112,7 @@ function CompactCard({ item }: { item: SpecializedInterview }) {
   return (
     <div className={clsx(CARD, "flex h-full flex-col gap-1.5 px-4 pt-4")} data-interview={item.key}>
       <h2 className="flex items-start gap-2 font-display text-lg font-medium leading-tight text-cwru-blue">
-        <Icon aria-hidden className="mt-0.5 shrink-0" size={20} strokeWidth={1.75} />
+        <Icon aria-hidden className="la-card-icon mt-0.5 shrink-0" size={20} strokeWidth={1.75} />
         {item.title}
       </h2>
       <p className="text-sm leading-[1.45] text-muted">{item.tagline}</p>

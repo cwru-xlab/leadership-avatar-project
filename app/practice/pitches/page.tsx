@@ -74,7 +74,7 @@ function PickerCard({
     <div className="relative flex flex-col gap-5 rounded-2xl border border-line bg-white p-6 transition-shadow hover:shadow-raised">
       <div className="flex flex-col gap-3">
         <h2 className="flex items-center gap-3 font-display text-2xl font-medium text-cwru-blue">
-          <Icon aria-hidden className="shrink-0" size={24} strokeWidth={1.75} />
+          <Icon aria-hidden className="la-card-icon shrink-0" size={24} strokeWidth={1.75} />
           {title}
         </h2>
         <p className="text-[15px] leading-6 text-muted">{description}</p>

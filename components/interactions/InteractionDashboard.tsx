@@ -12,6 +12,7 @@ import { routes } from "@/lib/routes";
 import BalancedGrid from "@/components/layout/BalancedGrid";
 
 import InteractionTile from "./InteractionTile";
+import PageTitle from "@/components/shell/PageTitle";
 
 const STATUS_WORD: Record<ReportDTO["status"], string | null> = {
   READY: null,
@@ -53,9 +54,9 @@ export default function InteractionDashboard() {
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
-        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px] la-title-rule">
+        <PageTitle>
           What do you want to practice?
-        </h1>
+        </PageTitle>
         <p className="text-[15px] leading-[1.55] text-muted">
           Each session is a{" "}
           <em className="font-semibold not-italic text-ink">personalized</em>{" "}

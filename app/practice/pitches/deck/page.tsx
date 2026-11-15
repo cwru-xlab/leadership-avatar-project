@@ -59,7 +59,7 @@ export default function DeckPitchSettingsPage() {
               >
                 <div className="flex items-start gap-3.5">
                   <span className="grid size-12 shrink-0 place-items-center rounded-[14px] bg-cwru-blue text-white">
-                    <Icon aria-hidden size={22} strokeWidth={1.75} />
+                    <Icon aria-hidden className="la-card-icon" size={22} strokeWidth={1.75} />
                   </span>
                   <div className="flex flex-col gap-0.5">
                     <h3 className="font-display text-xl font-medium leading-tight text-cwru-blue">

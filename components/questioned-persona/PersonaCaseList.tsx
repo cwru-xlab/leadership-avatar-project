@@ -14,6 +14,7 @@ import type { PersonaStyle } from "@/lib/questioned-persona/types";
 import { routes } from "@/lib/routes";
 
 import PracticeNotice from "./PracticeNotice";
+import PageTitle from "@/components/shell/PageTitle";
 
 export default function PersonaCaseList({ style }: { style: PersonaStyle }) {
   const copy = PERSONA_STYLE_COPY[style];
@@ -39,9 +40,9 @@ export default function PersonaCaseList({ style }: { style: PersonaStyle }) {
         {style === "sales-discovery" ? "Practice pitches" : "Practice"}
       </Link>
       <header className="flex flex-col gap-2">
-        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+        <PageTitle>
           {copy.listTitle}
-        </h1>
+        </PageTitle>
         <p className="max-w-2xl text-[15px] text-muted">{copy.listIntro}</p>
       </header>
       <PracticeNotice
@@ -60,7 +61,7 @@ export default function PersonaCaseList({ style }: { style: PersonaStyle }) {
             href={routes.practiceType(style, c.id)}
           >
             <span className="flex items-center gap-2 text-xs font-semibold text-muted">
-              <Icon aria-hidden className="h-4 w-4 text-cwru-blue" />
+              <Icon aria-hidden className="la-card-icon h-4 w-4" />
               {c.discipline}
             </span>
             <span className="font-display text-xl font-medium text-cwru-blue">{c.title}</span>

@@ -52,6 +52,7 @@ import {
 } from "@/lib/report/filters";
 import type { StudyPlanSummaryDTO } from "@/lib/study-plan/plan-dto";
 import StudyPlanGenerator, { scoreOf } from "@/components/study-plan/StudyPlanGenerator";
+import PageTitle from "@/components/shell/PageTitle";
 
 function interviewerName(report: ReportDTO): string | null {
   return report.input?.kind === "interview"
@@ -313,9 +314,9 @@ function MyReportsPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-2">
-        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px] la-title-rule">
+        <PageTitle>
           My reports
-        </h1>
+        </PageTitle>
         <p className="text-[15px] text-muted">Every finished session.</p>
       </header>
 

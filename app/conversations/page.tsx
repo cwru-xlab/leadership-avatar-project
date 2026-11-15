@@ -16,6 +16,7 @@ import { routes } from "@/lib/routes";
 import ConversationCard, {
   type ConversationDiscoveryCard,
 } from "@/components/difficult-conversation/ConversationCard";
+import PageTitle from "@/components/shell/PageTitle";
 
 export default function ConversationsIndexPage() {
   const router = useRouter();
@@ -130,9 +131,9 @@ export default function ConversationsIndexPage() {
       </Link>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-2">
-          <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+          <PageTitle>
             Courageous conversations
-          </h1>
+          </PageTitle>
           <p className="max-w-2xl text-[15px] text-muted">
             Rehearse a hard conversation before you have it for real.
           </p>
@@ -145,8 +146,8 @@ export default function ConversationsIndexPage() {
           <button
             key={t.id}
             aria-selected={tab === t.id}
-            className={`-mb-px h-11 border-b-2 text-[15px] ${
-              tab === t.id ? "border-true-blue font-semibold text-cwru-blue" : "border-transparent font-medium text-muted hover:text-ink"
+            className={`la-tab -mb-px h-11 border-b-2 text-[15px] ${
+              tab === t.id ? "font-semibold text-cwru-blue" : "border-transparent font-medium text-muted hover:text-ink"
             }`}
             role="tab"
             type="button"
