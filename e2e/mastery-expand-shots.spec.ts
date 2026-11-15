@@ -1,12 +1,12 @@
 import { test, type Page } from "@playwright/test";
 
 /**
- * Screenshot capture for the /mastery expand comparison (not an assertion
- * spec). SHOT_MODE=before|tidy|row|drawer picks the label and the ?expand=.
+ * Screenshot capture for /mastery's details drawer (not an assertion spec).
+ * SHOT_MODE is only the file-name prefix ("before" against a dev checkout).
  */
-const MODE = process.env.SHOT_MODE ?? "tidy";
+const MODE = process.env.SHOT_MODE ?? "drawer";
 const DIR = "/Users/ajabreu79/projects/leadership-avatar-wt/screenshots-2026-11-14/mastery-expand";
-const query = MODE === "before" ? "" : `?expand=${MODE}`;
+const query = "";
 
 async function signIn(page: Page) {
   await page.goto("/login");
@@ -35,7 +35,7 @@ test(`mastery expand shots: ${MODE}`, async ({ page }) => {
   const toggle = badges(page).getByText("Trend and evidence", { exact: true }).first();
   await toggle.click();
   await page.waitForTimeout(400);
-  if (MODE === "drawer") {
+  if (MODE !== "before") {
     await page.screenshot({ path: `${DIR}/${MODE}-a-card-open-1440.png` });
     await page.keyboard.press("Escape");
     await page.waitForTimeout(300);
@@ -71,7 +71,7 @@ test(`mastery expand shots: ${MODE}`, async ({ page }) => {
   if (await moved.count()) {
     await moved.click();
     await page.waitForTimeout(400);
-    if (MODE === "drawer") await page.screenshot({ path: `${DIR}/${MODE}-b-movement-open-1440.png` });
+    if (MODE !== "before") await page.screenshot({ path: `${DIR}/${MODE}-b-movement-open-1440.png` });
     else {
       await movement(page).evaluate((el) => el.scrollIntoView({ block: "start" }));
       await page.waitForTimeout(200);
@@ -86,7 +86,7 @@ test(`mastery expand shots: ${MODE}`, async ({ page }) => {
   await narrow.scrollIntoViewIfNeeded();
   await narrow.click();
   await page.waitForTimeout(400);
-  if (MODE === "drawer") await page.screenshot({ path: `${DIR}/${MODE}-c-375.png` });
+  if (MODE !== "before") await page.screenshot({ path: `${DIR}/${MODE}-c-375.png` });
   else {
     const card = badges(page).getByRole("listitem").filter({ has: page.getByText("Trend and evidence", { exact: true }) }).first();
     await card.scrollIntoViewIfNeeded();

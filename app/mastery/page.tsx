@@ -8,7 +8,7 @@ import { Spinner } from "@heroui/spinner";
 import type { MasteryDTO } from "@/lib/mastery/mastery-dto";
 import type { LevelResult } from "@/lib/mastery/levels";
 import type { GoalProgress } from "@/lib/study-plan/goals";
-import MasteryPanel, { DEFAULT_EXPAND_MODE, parseExpandMode, type ExpandMode } from "@/components/mastery/MasteryPanel";
+import MasteryPanel from "@/components/mastery/MasteryPanel";
 
 interface MasteryResponse {
   mastery: MasteryDTO;
@@ -27,12 +27,6 @@ type LoadState =
 export default function MasteryPage() {
   const router = useRouter();
   const [state, setState] = useState<LoadState>({ status: "loading" });
-  // `?expand=tidy|row|drawer` compares the three ways a card's detail opens.
-  // Read after mount (not via useSearchParams) so the page needs no Suspense.
-  const [expand, setExpand] = useState<ExpandMode>(DEFAULT_EXPAND_MODE);
-  useEffect(() => {
-    setExpand(parseExpandMode(new URLSearchParams(window.location.search).get("expand")));
-  }, []);
 
   const load = useCallback(async () => {
     setState({ status: "loading" });
@@ -69,7 +63,6 @@ export default function MasteryPage() {
   if (state.status === "loaded") {
     return (
       <MasteryPanel
-        expand={expand}
         goals={state.data.goals}
         intro={intro}
         levels={state.data.levels}

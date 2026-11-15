@@ -1,10 +1,11 @@
 "use client";
 
-import { Fragment, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { Modal, ModalBody, ModalContent, ModalHeader } from "@heroui/modal";
-import { ArrowRight, ChevronDown, PanelRight, Sparkle, TrendingDown, TrendingUp, X } from "lucide-react";
+import { useReducedMotion } from "framer-motion";
+import { ArrowRight, ChevronDown, PanelRight, Sparkle, TrendingDown, TrendingUp } from "lucide-react";
 
 import type {
   CompetencyMasteryDTO,
@@ -53,20 +54,10 @@ import type { GoalProgress } from "@/lib/study-plan/goals";
  * level shield, progress to the next level and both figures up front, and
  * the trend, evidence and disclosures one click away.
  *
- * Where that click opens is `ExpandMode` (`?expand=` on /mastery, for
- * comparing): "tidy" opens it inside the card, "row" opens a full-width panel
- * under the card's row, "drawer" opens a side sheet (a bottom sheet on phones).
- * In every mode the grid aligns cards to the top, so opening one never
- * stretches its neighbours, and the toggle sits on the same divider open or
- * closed.
+ * That click opens a details drawer: a sheet from the right on desktop, from
+ * the bottom on phones. Cards never change size, so a grid row never
+ * stretches and every toggle sits on the same divider in the same place.
  */
-
-export type ExpandMode = "tidy" | "row" | "drawer";
-export const DEFAULT_EXPAND_MODE: ExpandMode = "tidy";
-
-export function parseExpandMode(value: string | null | undefined): ExpandMode {
-  return value === "tidy" || value === "row" || value === "drawer" ? value : DEFAULT_EXPAND_MODE;
-}
 
 /**
  * One look for every "show more" toggle on this page: link-blue label, the
@@ -82,8 +73,6 @@ export interface MasteryPanelProps {
   timeZone: string;
   /** One line under the title saying what the figures are built from. */
   intro?: string;
-  /** Where "Trend and evidence" and "Moved by" open. */
-  expand?: ExpandMode;
 }
 
 function formatPercent(percent: number | null): string {
@@ -370,98 +359,37 @@ function DriverList({
 
 type Opened = { kind: "movement" | "competency"; key: string } | null;
 
-function detailId(kind: "movement" | "competency", key: string): string {
-  return `mastery-detail-${kind}-${key}`;
-}
-
 /**
- * The divider and the toggle under a card's always-visible content. Same
- * divider, same spacing, same place whether the detail is open or shut; only
- * what the toggle opens differs by mode.
+ * The divider and the button under a card's always-visible content that
+ * opens its details drawer. Same divider, same spacing, every card.
  */
-function ExpandToggle({
-  mode,
+function DrawerToggle({
   label,
+  accessibleName,
   open,
-  controls,
-  onToggle,
-  children,
+  onOpen,
 }: {
-  mode: ExpandMode;
   label: string;
+  /** Starts with the visible label, then says which card it belongs to. */
+  accessibleName: string;
   open: boolean;
-  controls: string;
-  onToggle: () => void;
-  /** The detail itself; only rendered here in "tidy" mode. */
-  children: ReactNode;
+  onOpen: () => void;
 }) {
-  if (mode === "tidy") {
-    return (
-      <details className="group border-t border-line pt-3">
-        <summary className={TOGGLE_CLASS} data-testid="expand-toggle">
-          {label}
-          <ChevronDown aria-hidden className="transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" size={16} />
-        </summary>
-        <div className="mt-3" data-testid="expand-detail">
-          {children}
-        </div>
-      </details>
-    );
-  }
   return (
     <div className="border-t border-line pt-3">
       <button
         type="button"
         className={TOGGLE_CLASS}
         data-testid="expand-toggle"
+        aria-haspopup="dialog"
         aria-expanded={open}
-        aria-controls={mode === "row" ? controls : undefined}
-        aria-haspopup={mode === "drawer" ? "dialog" : undefined}
-        onClick={onToggle}
+        aria-label={accessibleName}
+        onClick={onOpen}
       >
         {label}
-        {mode === "drawer" ? (
-          <PanelRight aria-hidden size={16} />
-        ) : (
-          <ChevronDown aria-hidden className={clsx("transition-transform duration-200 motion-reduce:transition-none", open && "rotate-180")} size={16} />
-        )}
+        <PanelRight aria-hidden size={16} />
       </button>
     </div>
-  );
-}
-
-/** "Expand to full row": the open card's detail as a full-width row under it. */
-function RowPanel({
-  id,
-  title,
-  subtitle,
-  onClose,
-  children,
-}: {
-  id: string;
-  title: string;
-  subtitle?: ReactNode;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <li id={id} className="col-span-full rounded-2xl border border-true-blue bg-white p-5" data-testid="expand-detail">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <p className="text-base font-bold leading-snug text-ink">{title}</p>
-          {subtitle}
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="-m-1 inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted outline-none hover:bg-canvas hover:text-ink focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-true-blue"
-          aria-label={`Close ${title} details`}
-        >
-          <X size={18} aria-hidden />
-        </button>
-      </div>
-      {children}
-    </li>
   );
 }
 
@@ -486,7 +414,6 @@ function RecentMovement({
   windowDays,
   windowStartsAt,
   timeZone,
-  expand,
   opened,
   onOpen,
 }: {
@@ -495,7 +422,6 @@ function RecentMovement({
   windowDays: number;
   windowStartsAt: string;
   timeZone: string;
-  expand: ExpandMode;
   opened: Opened;
   onOpen: (next: Opened) => void;
 }) {
@@ -513,17 +439,16 @@ function RecentMovement({
           coached session will show up here.
         </p>
       ) : (
-        <ul className={clsx("grid items-start gap-3 md:grid-cols-3", expand === "row" && "grid-flow-row-dense")}>
+        <ul className="grid items-start gap-3 md:grid-cols-3">
           {entries.map((entry) => {
             const isOpen = opened?.kind === "movement" && opened.key === entry.competencyKey;
-            const id = detailId("movement", entry.competencyKey);
             return (
-              <Fragment key={entry.competencyKey}>
                 <li
+                  key={entry.competencyKey}
                   data-testid="movement-card"
                   className={clsx(
                     "flex flex-col gap-3 rounded-2xl border bg-white p-4",
-                    isOpen && expand !== "tidy" ? "border-true-blue" : "border-line",
+                    isOpen ? "border-true-blue" : "border-line",
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -548,32 +473,14 @@ function RecentMovement({
                     </Link>
                   ) : null}
                   {entry.drivers.length > 0 && (
-                    <ExpandToggle
-                      mode={expand}
+                    <DrawerToggle
                       label={movedByLabel(entry.drivers.length)}
+                      accessibleName={`${movedByLabel(entry.drivers.length)}: ${entry.label}`}
                       open={isOpen}
-                      controls={id}
-                      onToggle={() => onOpen(isOpen ? null : { kind: "movement", key: entry.competencyKey })}
-                    >
-                      <DriverList drivers={entry.drivers} timeZone={timeZone} />
-                    </ExpandToggle>
+                      onOpen={() => onOpen({ kind: "movement", key: entry.competencyKey })}
+                    />
                   )}
                 </li>
-                {expand === "row" && isOpen ? (
-                  <RowPanel
-                    id={id}
-                    title={`${entry.label}: ${movedByLabel(entry.drivers.length).toLowerCase()}`}
-                    subtitle={
-                      entry.kind !== "new" && entry.delta !== null ? (
-                        <p className="text-xs text-muted">{`All time ${entry.windowStartDisplay ?? "—"} → ${entry.lifetimeDisplay}`}</p>
-                      ) : null
-                    }
-                    onClose={() => onOpen(null)}
-                  >
-                    <DriverList drivers={entry.drivers} timeZone={timeZone} columns={2} />
-                  </RowPanel>
-                ) : null}
-              </Fragment>
             );
           })}
         </ul>
@@ -653,27 +560,18 @@ function LevelLadder({ levels }: { levels: MasteryPanelProps["levels"] }) {
   );
 }
 
-/**
- * What sits behind "Trend and evidence". Stacked inside a card or a drawer;
- * side by side (trend left, figures and evidence right) in a full-width row.
- */
+/** What sits behind "Trend and evidence", stacked for the drawer. */
 function CompetencyDetail({
   competency,
   windowDays,
-  wide = false,
 }: {
   competency: CompetencyMasteryDTO;
   windowDays: number;
-  wide?: boolean;
 }) {
-  const trend = (
-    <>
+  return (
+    <div className="flex flex-col gap-3">
       <p className="max-w-[65ch] text-[13px] leading-5 text-muted">{competency.description}</p>
       <TrendRow competency={competency} windowDays={windowDays} />
-    </>
-  );
-  const evidence = (
-    <>
       <div className="flex flex-col gap-0.5">
         <FigureDetail name="All time" figure={competency.lifetime} />
         {competency.current.evidenceCount !== competency.lifetime.evidenceCount ? (
@@ -682,20 +580,6 @@ function CompetencyDetail({
       </div>
       <EvidenceSources sources={competency.sources} />
       <CompetencyDisclosures competency={competency} />
-    </>
-  );
-  if (!wide) {
-    return (
-      <div className="flex flex-col gap-3">
-        {trend}
-        {evidence}
-      </div>
-    );
-  }
-  return (
-    <div className="grid gap-6 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      <div className="flex flex-col gap-3">{trend}</div>
-      <div className="flex flex-col gap-3 md:border-l md:border-line md:pl-6">{evidence}</div>
     </div>
   );
 }
@@ -704,16 +588,14 @@ function CompetencyCard({
   competency,
   level,
   windowDays,
-  expand,
   open,
-  onToggle,
+  onOpen,
 }: {
   competency: CompetencyMasteryDTO;
   level: { current: LevelResult; lifetime: LevelResult } | undefined;
   windowDays: number;
-  expand: ExpandMode;
   open: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
 }) {
   const shown = shownLevel(level);
   const { delta } = competency.windowChange;
@@ -722,7 +604,7 @@ function CompetencyCard({
       data-testid="competency-card"
       className={clsx(
         "relative flex flex-col gap-4 rounded-2xl border bg-white p-5",
-        open && expand !== "tidy" ? "border-true-blue" : "border-line",
+        open ? "border-true-blue" : "border-line",
       )}
     >
       <div className="absolute right-4 top-4">
@@ -771,17 +653,45 @@ function CompetencyCard({
         </div>
       </dl>
 
-      <ExpandToggle
-        mode={expand}
+      <DrawerToggle
         label="Trend and evidence"
+        accessibleName={`Trend and evidence: ${competency.label}`}
         open={open}
-        controls={detailId("competency", competency.competencyKey)}
-        onToggle={onToggle}
-      >
-        <CompetencyDetail competency={competency} windowDays={windowDays} />
-      </ExpandToggle>
+        onOpen={onOpen}
+      />
     </li>
   );
+}
+
+/** At this width (Tailwind `md`) the drawer is a side sheet; below it, a bottom sheet. */
+const DRAWER_SIDE_QUERY = "(min-width: 768px)";
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    const list = window.matchMedia(query);
+    setMatches(list.matches);
+    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches);
+    list.addEventListener("change", onChange);
+    return () => list.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+}
+
+/**
+ * Slides in from the edge it sits on (right on desktop, bottom on phones) in
+ * 200ms; under reduced motion it only fades. HeroUI runs these as
+ * initial="exit", animate="enter", exit="exit".
+ */
+function drawerMotion(isDesktop: boolean, reduceMotion: boolean) {
+  const hidden = reduceMotion ? { opacity: 0 } : isDesktop ? { x: "100%" } : { y: "100%" };
+  const shown = reduceMotion ? { opacity: 1 } : isDesktop ? { x: 0 } : { y: 0 };
+  return {
+    variants: {
+      enter: { ...shown, transition: { duration: 0.2, ease: "easeOut" as const } },
+      exit: { ...hidden, transition: { duration: 0.15, ease: "easeIn" as const } },
+    },
+  };
 }
 
 /**
@@ -807,6 +717,8 @@ function DetailDrawer({
     opened?.kind === "movement" ? mastery.recentGrowth.find((g) => g.competencyKey === opened.key) : undefined;
   const key = competency?.competencyKey ?? entry?.competencyKey;
   const level = key ? levels[key] : undefined;
+  const isDesktop = useMediaQuery(DRAWER_SIDE_QUERY);
+  const reduceMotion = useReducedMotion() ?? false;
 
   return (
     <Modal
@@ -816,12 +728,7 @@ function DetailDrawer({
       }}
       placement="bottom"
       scrollBehavior="inside"
-      motionProps={{
-        variants: {
-          enter: { opacity: 1, transition: { duration: 0.2, ease: "easeOut" } },
-          exit: { opacity: 0, transition: { duration: 0.15, ease: "easeIn" } },
-        },
-      }}
+      motionProps={drawerMotion(isDesktop, reduceMotion)}
       classNames={{
         wrapper: "items-end md:items-stretch md:justify-end",
         base: "m-0 mx-0 my-0 sm:mx-0 sm:my-0 max-h-[88dvh] w-full max-w-full rounded-t-xl rounded-b-none border border-line bg-white shadow-[0_12px_32px_rgb(9_20_58/0.16)] md:h-dvh md:max-h-dvh md:w-[440px] md:max-w-[440px] md:rounded-none md:border-y-0 md:border-r-0",
@@ -876,10 +783,9 @@ export default function MasteryPanel({
   goals,
   timeZone,
   intro,
-  expand = DEFAULT_EXPAND_MODE,
 }: MasteryPanelProps) {
   const { overall, window: masteryWindow, unmappedRowCount } = mastery;
-  // Row and drawer modes open one detail at a time; tidy mode uses <details>.
+  // The one card whose details drawer is open, if any.
   const [opened, setOpened] = useState<Opened>(null);
   const bothOverallNull = overall.currentPercent === null && overall.lifetimePercent === null;
 
@@ -955,7 +861,6 @@ export default function MasteryPanel({
         windowDays={masteryWindow.days}
         windowStartsAt={masteryWindow.startsAt}
         timeZone={timeZone}
-        expand={expand}
         opened={opened}
         onOpen={setOpened}
       />
@@ -976,37 +881,18 @@ export default function MasteryPanel({
             <li>The dots show how sure we are. Higher levels also need more sessions, so one great session can&apos;t make a skill Strong or Mastered.</li>
           </ul>
         </details>
-        <ul
-          className={clsx(
-            "grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3",
-            expand === "row" && "grid-flow-row-dense",
-          )}
-        >
+        <ul className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
           {mastery.competencies.map((competency) => {
             const key = competency.competencyKey;
-            const isOpen = opened?.kind === "competency" && opened.key === key;
-            const level = levels[key];
             return (
-              <Fragment key={key}>
-                <CompetencyCard
-                  competency={competency}
-                  level={level}
-                  windowDays={masteryWindow.days}
-                  expand={expand}
-                  open={isOpen}
-                  onToggle={() => setOpened(isOpen ? null : { kind: "competency", key })}
-                />
-                {expand === "row" && isOpen ? (
-                  <RowPanel
-                    id={detailId("competency", key)}
-                    title={`${competency.label}: trend and evidence`}
-                    subtitle={level ? <LevelBadge level={level} /> : null}
-                    onClose={() => setOpened(null)}
-                  >
-                    <CompetencyDetail competency={competency} windowDays={masteryWindow.days} wide />
-                  </RowPanel>
-                ) : null}
-              </Fragment>
+              <CompetencyCard
+                key={key}
+                competency={competency}
+                level={levels[key]}
+                windowDays={masteryWindow.days}
+                open={opened?.kind === "competency" && opened.key === key}
+                onOpen={() => setOpened({ kind: "competency", key })}
+              />
             );
           })}
         </ul>
@@ -1020,15 +906,13 @@ export default function MasteryPanel({
         </p>
       ) : null}
 
-      {expand === "drawer" ? (
-        <DetailDrawer
-          opened={opened}
-          mastery={mastery}
-          levels={levels}
-          timeZone={timeZone}
-          onClose={() => setOpened(null)}
-        />
-      ) : null}
+      <DetailDrawer
+        opened={opened}
+        mastery={mastery}
+        levels={levels}
+        timeZone={timeZone}
+        onClose={() => setOpened(null)}
+      />
     </div>
   );
 }

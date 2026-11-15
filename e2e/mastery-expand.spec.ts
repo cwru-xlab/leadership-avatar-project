@@ -1,12 +1,12 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /**
- * /mastery card expansions. student@case.edu has movement and six badges.
- * - Opening one card leaves its neighbours' heights alone (tidy and drawer).
- * - The toggle sits right under the card's figures, open or shut.
- * - The toggle's focus ring shows on keyboard focus, not on a mouse click.
- * - Activity rows: title link and score, then a meta line; repeats get a time.
- * - No sideways scroll at 375.
+ * /mastery details drawer. student@case.edu has movement and six badges.
+ * - Opening a card's drawer leaves every card's height alone.
+ * - The drawer closes on Esc and hands focus back to its toggle.
+ * - At 375 it is a full-width bottom sheet; no sideways scroll.
+ * - The toggle's focus ring shows on keyboard focus, not after a mouse click.
+ * - Activity rows: title link and score, then a meta line; repeats differ.
  */
 async function signIn(page: Page) {
   await page.goto("/login");
@@ -16,24 +16,16 @@ async function signIn(page: Page) {
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
 }
 
-async function openMastery(page: Page, mode: string) {
-  await page.goto(`/mastery?expand=${mode}`);
+async function openMastery(page: Page) {
+  await page.goto("/mastery");
   await page.getByTestId("competency-card").first().waitFor();
 }
 
 const cards = (page: Page) => page.getByTestId("competency-card");
+const movementCards = (page: Page) => page.getByTestId("movement-card");
 
 async function heights(list: Locator): Promise<number[]> {
   return list.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)));
-}
-
-/** Gap between the figures block and the toggle, in px. */
-async function toggleGap(card: Locator): Promise<number> {
-  return card.evaluate((el) => {
-    const dl = el.querySelector("dl")!.getBoundingClientRect();
-    const toggle = el.querySelector('[data-testid="expand-toggle"]')!.getBoundingClientRect();
-    return Math.round(toggle.top - dl.bottom);
-  });
 }
 
 const ring = (el: Locator) =>
@@ -42,71 +34,68 @@ const ring = (el: Locator) =>
     return style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0;
   });
 
-test.describe("Mastery card expansions", () => {
+test.describe("Mastery details drawer", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page);
   });
 
-  for (const mode of ["tidy", "drawer"] as const) {
-    test(`${mode}: opening one card keeps sibling heights`, async ({ page }) => {
-      await openMastery(page, mode);
-      const before = await heights(cards(page));
-      expect(before.length).toBeGreaterThan(2);
+  test("opening a drawer keeps every card's height", async ({ page }) => {
+    await openMastery(page);
+    for (const list of [cards(page), movementCards(page)]) {
+      if ((await list.count()) === 0) continue;
+      const before = await heights(list);
+      const toggle = list.first().getByTestId("expand-toggle");
+      await expect(toggle).toHaveAttribute("aria-haspopup", "dialog");
+      await toggle.click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      expect(await heights(list)).toEqual(before);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toBeHidden();
+    }
+  });
 
-      await cards(page).first().getByTestId("expand-toggle").click();
-      await expect(page.getByTestId("expand-detail").filter({ visible: true }).first()).toBeVisible();
-      const after = await heights(cards(page));
-      // Every card but the first keeps its height.
-      expect(after.slice(1)).toEqual(before.slice(1));
-      if (mode === "drawer") {
-        await expect(page.getByRole("dialog")).toBeVisible();
-        await page.keyboard.press("Escape");
-        await expect(page.getByRole("dialog")).toBeHidden();
-        // Focus returns to the toggle that opened it.
-        await expect(cards(page).first().getByTestId("expand-toggle")).toBeFocused();
-      }
+  test("Esc closes the drawer and focus returns to the toggle", async ({ page }) => {
+    await openMastery(page);
+    const toggle = cards(page).nth(1).getByTestId("expand-toggle");
+    await toggle.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Evidence from");
+    await page.waitForTimeout(300);
+    // At 1440 it is a side sheet on the right edge, full height.
+    const box = (await dialog.boundingBox())!;
+    expect(Math.round(box.x + box.width)).toBeGreaterThanOrEqual(1438);
+    expect(Math.round(box.height)).toBeGreaterThanOrEqual(890);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(toggle).toBeFocused();
 
-      // Recent movement: same rule.
-      const movement = page.getByTestId("movement-card");
-      if ((await movement.count()) > 1) {
-        const mBefore = await heights(movement);
-        await movement.first().getByTestId("expand-toggle").click();
-        const mAfter = await heights(movement);
-        expect(mAfter.slice(1)).toEqual(mBefore.slice(1));
-        if (mode === "drawer") await page.keyboard.press("Escape");
-      }
-    });
-  }
+    // Recent movement opens its activity list the same way.
+    const moved = movementCards(page).first().getByTestId("expand-toggle");
+    if (await moved.count()) {
+      await moved.click();
+      await expect(page.getByRole("dialog").getByTestId("driver-row").first()).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toBeHidden();
+      await expect(moved).toBeFocused();
+    }
+  });
 
-  for (const mode of ["tidy", "row", "drawer"] as const) {
-    test(`${mode}: toggle stays right under its content, open or shut`, async ({ page }) => {
-      await openMastery(page, mode);
-      const card = cards(page).nth(1);
-      const sibling = cards(page).nth(2);
-      const shut = await toggleGap(card);
-      expect(shut).toBeLessThanOrEqual(32);
-      // A shut card whose row-mate is open keeps the same gap.
-      await cards(page).first().getByTestId("expand-toggle").click();
-      if (mode === "drawer") await page.keyboard.press("Escape");
-      expect(await toggleGap(card)).toBe(shut);
-      expect(await toggleGap(sibling)).toBeLessThanOrEqual(32);
-      // And once open, too.
-      await card.getByTestId("expand-toggle").click();
-      expect(await toggleGap(card)).toBe(shut);
-    });
-  }
-
-  test("focus ring on keyboard Tab, not on mouse click", async ({ page }) => {
-    await openMastery(page, "tidy");
+  test("focus ring on keyboard Tab, not after a mouse click", async ({ page }) => {
+    await openMastery(page);
     const toggle = cards(page).first().getByTestId("expand-toggle");
-    await toggle.click();
-    expect(await ring(toggle)).toBe(false);
-    await toggle.click();
 
-    // Keyboard: focus the element before the toggle, then Tab onto it.
-    await page.locator("body").click({ position: { x: 1, y: 1 } });
-    const all = page.locator("a, button, summary, [tabindex='0']");
+    // Mouse: open, close with the mouse; focus lands back on the toggle without a ring.
+    await toggle.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: /close/i }).click();
+    await expect(dialog).toBeHidden();
+    expect(await ring(toggle)).toBe(false);
+
+    // Keyboard: focus the stop before the toggle, then Tab onto it.
+    const all = page.locator("a, button, summary");
     const index = await all.evaluateAll(
       (els, target) => els.indexOf(target as HTMLElement),
       await toggle.elementHandle(),
@@ -115,25 +104,24 @@ test.describe("Mastery card expansions", () => {
     await page.keyboard.press("Tab");
     await expect(toggle).toBeFocused();
     expect(await ring(toggle)).toBe(true);
-    // The ring hugs the label: no wider than the card's content box.
+    // The ring hugs the label, not the card.
     const [toggleBox, cardBox] = await Promise.all([toggle.boundingBox(), cards(page).first().boundingBox()]);
     expect(toggleBox!.width).toBeLessThan(cardBox!.width / 2);
   });
 
   test("activity rows: title link with score, meta on its own line", async ({ page }) => {
-    await openMastery(page, "tidy");
-    const movement = page.getByTestId("movement-card").first();
-    test.skip((await movement.count()) === 0, "no recent movement for this student");
-    await movement.getByTestId("expand-toggle").click();
-    const rows = movement.getByTestId("driver-row");
+    await openMastery(page);
+    const toggle = movementCards(page).first().getByTestId("expand-toggle");
+    test.skip((await toggle.count()) === 0, "no recent movement for this student");
+    await toggle.click();
+    const rows = page.getByRole("dialog").getByTestId("driver-row");
     await expect(rows.first()).toBeVisible();
-    const count = await rows.count();
     const texts: string[] = [];
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < (await rows.count()); i++) {
       const row = rows.nth(i);
       const link = row.getByRole("link");
       if (await link.count()) {
-        // The link is the title alone: no date, score or meta inside it.
+        // The link is the title alone: no score or meta inside it.
         await expect(link).not.toContainText("%");
         await expect(link).not.toContainText("scored");
       }
@@ -143,23 +131,27 @@ test.describe("Mastery card expansions", () => {
     expect(new Set(texts).size).toBe(texts.length);
   });
 
-  test("no sideways scroll at 375 in any mode", async ({ page }) => {
+  test("375: bottom sheet, no sideways scroll", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    for (const mode of ["tidy", "row", "drawer"]) {
-      await openMastery(page, mode);
-      await cards(page).first().getByTestId("expand-toggle").click();
-      const overflow = await page.evaluate(() => {
+    await openMastery(page);
+    const overflow = () =>
+      page.evaluate(() => {
         const roots = [document.documentElement, document.body, ...document.querySelectorAll("main")];
         return Math.max(...roots.map((el) => el.scrollWidth - el.clientWidth));
       });
-      expect(overflow, mode).toBeLessThanOrEqual(0);
-      if (mode === "drawer") {
-        const box = await page.getByRole("dialog").boundingBox();
-        // A bottom sheet: full width, anchored to the bottom.
-        expect(Math.round(box!.width)).toBeGreaterThanOrEqual(370);
-        expect(Math.round(box!.y + box!.height)).toBeGreaterThanOrEqual(810);
-        await page.keyboard.press("Escape");
-      }
-    }
+    expect(await overflow()).toBeLessThanOrEqual(0);
+    const toggle = cards(page).first().getByTestId("expand-toggle");
+    await toggle.scrollIntoViewIfNeeded();
+    await toggle.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await page.waitForTimeout(300);
+    const box = (await dialog.boundingBox())!;
+    expect(Math.round(box.width)).toBeGreaterThanOrEqual(370);
+    expect(Math.round(box.y + box.height)).toBeGreaterThanOrEqual(810);
+    expect(box.y).toBeGreaterThan(0);
+    expect(await overflow()).toBeLessThanOrEqual(0);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
   });
 });
