@@ -32,7 +32,7 @@ import type { DifficultConversationInstance } from "@/lib/engine/types";
 import { useLayout } from "@/lib/layout-context";
 import { routes } from "@/lib/routes";
 import type { DifficultyBand } from "@/lib/difficult-conversation/types";
-import { disclaimerFor, PERSONA_STYLE_COPY } from "@/lib/questioned-persona/copy";
+import { disclaimerFor, disclaimerToneFor, PERSONA_STYLE_COPY } from "@/lib/questioned-persona/copy";
 import { isPersonaStyle } from "@/lib/questioned-persona/types";
 import type { CameraMode } from "@/lib/metrics/types";
 import type { CaseStudy, InteractionLog, StartAvatarRequest } from "@/types";
@@ -45,6 +45,7 @@ import {
   Briefcase,
   CircleAlert,
   FileChartColumn,
+  Handshake,
   HeartHandshake,
   MessageCircleWarning,
   Stethoscope,
@@ -421,7 +422,7 @@ export default function PracticeInstancePage({
             ...(dcInstance.studentRole ? [{ icon: Users, label: `You: ${dcInstance.studentRole}` }] : []),
             { icon: FileChartColumn, label: "Scored report" },
           ]}
-          icon={personaStyle === "clinical-communication" ? Stethoscope : personaStyle ? HeartHandshake : MessageCircleWarning}
+          icon={personaStyle === "clinical-communication" ? Stethoscope : personaStyle === "sales-discovery" ? Handshake : personaStyle ? HeartHandshake : MessageCircleWarning}
           title={personaStyle && dcTitle.trim() ? dcTitle.trim() : personaCopy?.label ?? "Courageous conversation"}
         />
         <div className="flex flex-col gap-6">
@@ -431,7 +432,7 @@ export default function PracticeInstancePage({
             steps={engineType.setupSteps}
             createReportOnLaunch
             progressAriaLabel="Conversation setup progress"
-            launchLabel={personaStyle === "clinical-communication" ? "Start encounter" : personaStyle ? "Start session" : "Start conversation"}
+            launchLabel={personaStyle === "clinical-communication" ? "Start encounter" : personaStyle === "sales-discovery" ? "Start meeting" : personaStyle ? "Start session" : "Start conversation"}
             onBackFromStart={() => router.push(personaStyle ? routes.practiceType(personaStyle) : routes.courageousConversations())}
             buildStartPayload={() => ({
               instanceId: dcInstance.conversationId,
@@ -465,6 +466,7 @@ export default function PracticeInstancePage({
                     intro={personaCopy.briefingIntro}
                     footnote={personaCopy.briefingFootnote}
                     disclaimer={disclaimerFor(personaStyle)}
+                    disclaimerTone={disclaimerToneFor(personaStyle)}
                   />
                 );
               }

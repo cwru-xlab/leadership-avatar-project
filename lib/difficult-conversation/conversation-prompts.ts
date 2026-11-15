@@ -15,6 +15,7 @@ import {
   buildAuthoredTextBlock,
   buildAuthoredTextBlockForStudent,
 } from "@/lib/difficult-conversation/authored-text";
+import { buildConversationStepsEvaluatorSection } from "@/lib/difficult-conversation/framework";
 import type {
   DifficultConversationInstance,
   ResolvedSessionConfig,
@@ -219,7 +220,8 @@ export function buildStudentBriefing(
 }
 
 /**
- * Prompt 2 — post-session grader. Scores all eight dimensions. The unscored
+ * Prompt 2 — post-session grader. Scores all eight dimensions and grades the
+ * five-move checklist (`./framework.ts`) into the outcome. The unscored
  * outcome record and in-role reaction are physically separate from the scores.
  * Do not instruct any cap, zero, or clamp — CONTEXT.md rejects outcome-driven
  * score adjustment for this type.
@@ -249,6 +251,8 @@ The four conversation-specific dimensions:
 
 4. Objective achieved (objective_achieved): This scores the APPROACH, not the result. You are scoring how effectively the student pursued their stated objective — not whether they got it. A student who handled a genuinely immovable character well can still score high here. A student who got what they wanted because the character folded easily does not score high for that alone. Do NOT read the outcome record below and work backwards from it. Score the pursuit.
    Calibration: Objective not met + skilful pursuit = high. Objective met + clumsy pursuit = low.
+
+${buildConversationStepsEvaluatorSection()}
 
 ---
 
@@ -317,6 +321,7 @@ Every outcome value must match its declared kind exactly:
 - reactionCauses: a STRING containing a JSON array (e.g. "[{...}]"), never a raw JSON array value
 - endTurnReasons: string ("" when not avatar-ended)
 - endTurnTimecodeSeconds: number (0 when not avatar-ended)
+- conversationSteps: a STRING containing a JSON array of five objects (e.g. "[{...}]"), never a raw JSON array value
 
 Do not work backwards from objectiveStatus when scoring objective_achieved. Score the pursuit first; fill the outcome record after.
 `;

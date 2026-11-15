@@ -48,6 +48,7 @@ export const routes = {
   networking: () => "/practice/networking",
   clinicalCommunication: () => "/practice/clinical-communication",
   motivationalInterviewing: () => "/practice/motivational-interviewing",
+  salesConversations: () => "/practice/sales-discovery",
   /** Resolve engine slugs used by plans into canonical browser paths. */
   practiceType: (type: string, instanceId?: string) => {
     const id = instanceId ? segment(instanceId) : null;
@@ -70,6 +71,7 @@ export const routes = {
         return "/practice/networking";
       case "clinical-communication":
       case "motivational-interviewing":
+      case "sales-discovery":
         return id ? `/practice/${type}/${id}` : `/practice/${type}`;
       default:
         return routes.interview(type);

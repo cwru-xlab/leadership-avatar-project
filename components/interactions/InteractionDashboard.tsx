@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import NextLink from "next/link";
-import clsx from "clsx";
 import { ChevronRight } from "lucide-react";
 
 import { listInteractionTypes } from "@/lib/interactions";
 import type { ReportDTO } from "@/lib/report/dto";
 import { displayReportTitle, formatReportWhen } from "@/lib/report/title";
 import { routes } from "@/lib/routes";
+
+import BalancedGrid from "@/components/layout/BalancedGrid";
 
 import InteractionTile from "./InteractionTile";
 
@@ -18,23 +19,6 @@ const STATUS_WORD: Record<ReportDTO["status"], string | null> = {
   FAILED: "Couldn't score",
   IN_PROGRESS: "Not finished",
 };
-
-/**
- * Grid spans that never leave a lone card in the last row: three across on
- * wide screens (a short last row splits the width), two across on tablets
- * (an odd last card takes the full row).
- */
-function cardSpan(index: number, count: number): string {
-  const lastRowStart = count - (count % 3 || 3);
-  const wide =
-    index < lastRowStart || count % 3 === 0
-      ? "xl:col-span-2"
-      : count % 3 === 2
-        ? "xl:col-span-3"
-        : "xl:col-span-6";
-  const medium = count % 2 === 1 && index === count - 1 ? "md:col-span-2" : "";
-  return clsx(wide, medium);
-}
 
 /**
  * The student landing experience: a card grid of the leadership
@@ -69,25 +53,22 @@ export default function InteractionDashboard() {
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
-        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px]">
+        <h1 className="font-display text-[28px] font-medium leading-[1.1] tracking-[-0.01em] text-cwru-blue md:text-[32px] la-title-rule">
           What do you want to practice?
         </h1>
         <p className="text-[15px] leading-[1.55] text-muted">
-          Each session is a live conversation with an AI avatar, followed by a
-          scored report.
+          Each session is a{" "}
+          <em className="font-semibold not-italic text-ink">personalized</em>{" "}
+          live conversation with an AI avatar, followed by a scored report.
         </p>
       </header>
 
-      <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        {types.map((type, index) => (
-          <li
-            key={type.slug}
-            className={clsx("flex", cardSpan(index, types.length))}
-          >
-            <InteractionTile className="w-full" type={type} />
-          </li>
+      {/* Rows always fill the width: seven types are 3 + 2 + 2 on desktop, 2 + 2 + 2 + 1 on tablet. */}
+      <BalancedGrid className="gap-4" perRow={{ md: 2, xl: 3 }}>
+        {types.map((type) => (
+          <InteractionTile key={type.slug} className="w-full flex-1" type={type} />
         ))}
-      </ul>
+      </BalancedGrid>
 
       {recent && (
         <section

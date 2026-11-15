@@ -50,7 +50,7 @@ export default function InteractionTile({ type, className }: InteractionTileProp
     <>
       <span className="flex items-center gap-3.5">
         {Icon ? (
-          <Icon aria-hidden className="shrink-0" size={28} strokeWidth={1.5} />
+          <Icon aria-hidden className={clsx("shrink-0", live && "text-accent")} size={28} strokeWidth={1.5} />
         ) : null}
         <span className="font-display text-[22px] font-medium leading-[1.2]">{type.name}</span>
       </span>

@@ -7,11 +7,17 @@
  *
  * Run: npx tsx scripts/verify-networking-characters.ts
  */
+import {
+  SEATED_PUBLIC_AVATAR_ID_SET,
+  SEATED_PUBLIC_AVATAR_IDS,
+} from "../lib/avatar-roster";
 import { MAX_PERSONA_LENGTH } from "../lib/interview/customization";
 import {
+  NETWORKING_CHARACTER_GROUPS,
   NETWORKING_CHARACTERS,
   getNetworkingCharacter,
   listNetworkingCharacters,
+  pickSuggestedAvatar,
 } from "../lib/networking/characters";
 
 let failures = 0;
@@ -25,11 +31,13 @@ function check(name: string, pass: boolean, detail?: string) {
   }
 }
 
-console.log("\n1. Count — between 4 and 6 records inclusive (16-CONTEXT.md band)");
+// The 16-CONTEXT.md band was 4–6. Client feedback (2026-11-14) widened the set
+// beyond business; the picker now filters by group, so the band is 4–16.
+console.log("\n1. Count — between 4 and 16 records inclusive (widened 2026-11-14)");
 {
   const count = NETWORKING_CHARACTERS.length;
   console.log(`  count: ${count}`);
-  check("count is between 4 and 6 inclusive", count >= 4 && count <= 6, `got ${count}`);
+  check("count is between 4 and 16 inclusive", count >= 4 && count <= 16, `got ${count}`);
   check(
     "listNetworkingCharacters returns the same declaration-order array",
     listNetworkingCharacters() === NETWORKING_CHARACTERS ||
@@ -141,17 +149,64 @@ console.log(
 
 // Decision 10: student picks avatar/voice from the Phase 2 catalog. Pinning
 // would also recreate the "pinned avatar went INACTIVE upstream" failure class.
-console.log("\n7. No pinned avatar (decision 10 — Phase 2 catalog supplies face/voice)");
+// Since 2026-11-14 each record SUGGESTS a face (pre-selected, changeable): the
+// only avatar-ish key allowed is `suggestedAvatar`, it must come from the
+// seated public roster (never a faculty likeness), and no voice is stored.
+console.log("\n7. No pinned avatar — only a suggestedAvatar from the public roster");
 {
   const keyRe = /avatar|voice|preview/i;
   for (const c of NETWORKING_CHARACTERS) {
-    const badKeys = Object.keys(c).filter((k) => keyRe.test(k));
+    const badKeys = Object.keys(c).filter(
+      (k) => keyRe.test(k) && k !== "suggestedAvatar",
+    );
     check(
-      `"${c.id}" has no avatar/voice/preview key`,
+      `"${c.id}" has no avatar/voice/preview key besides suggestedAvatar`,
       badKeys.length === 0,
       `keys: ${badKeys.join(", ")}`,
     );
+    const hint = c.suggestedAvatar;
+    check(
+      `"${c.id}" suggestedAvatar is a seated public face (${SEATED_PUBLIC_AVATAR_IDS[hint?.avatarId] ?? "?"})`,
+      Boolean(hint) && SEATED_PUBLIC_AVATAR_ID_SET.has(hint.avatarId),
+    );
+    check(
+      `"${c.id}" suggestedAvatar carries no voice`,
+      Boolean(hint) && !Object.keys(hint).some((k) => /voice/i.test(k)),
+    );
   }
+
+  // Fallback rule, against a fixed catalog.
+  const rosa = getNetworkingCharacter("rosa-delgado")!;
+  const faculty = { avatarId: "faculty-1", gender: undefined };
+  const female = Object.keys(SEATED_PUBLIC_AVATAR_IDS)
+    .filter((id) => id !== rosa.suggestedAvatar.avatarId)
+    .slice(0, 3)
+    .map((avatarId) => ({ avatarId, gender: "female" }));
+  const male = { avatarId: "201f54fe-71a9-449d-b558-26c36badd868", gender: "male" };
+  const exact = { avatarId: rosa.suggestedAvatar.avatarId, gender: "female" };
+
+  check(
+    "suggested avatar in catalog → it is picked",
+    pickSuggestedAvatar("rosa-delgado", [faculty, male, ...female, exact]) === exact,
+  );
+  const fallback = pickSuggestedAvatar("rosa-delgado", [faculty, male, ...female]);
+  check(
+    "suggested avatar missing → a public face of the same presentation",
+    Boolean(fallback) && female.includes(fallback as (typeof female)[number]),
+  );
+  check(
+    "fallback is stable across calls",
+    pickSuggestedAvatar("rosa-delgado", [faculty, male, ...female]) === fallback,
+  );
+  check(
+    "no matching presentation → undefined (caller keeps first entry), never faculty",
+    pickSuggestedAvatar("rosa-delgado", [faculty, male]) === undefined,
+  );
+  check(
+    "brought-in / unknown id → undefined",
+    pickSuggestedAvatar(null, [exact]) === undefined &&
+      pickSuggestedAvatar("no-such-id", [exact]) === undefined,
+  );
 }
 
 // Setting is deferred (16-CONTEXT.md Deferred Ideas). 16-07's prompt assembly
@@ -190,6 +245,19 @@ console.log(
       `"${c.id}" persona does not start with "You are"`,
       !c.persona.startsWith("You are"),
     );
+  }
+}
+
+console.log("\n9b. Groups — every group used, every record in a known group");
+{
+  const known = new Set<string>(NETWORKING_CHARACTER_GROUPS.map((g) => g.id));
+  for (const c of NETWORKING_CHARACTERS) {
+    check(`"${c.id}" group "${c.group}" is known`, known.has(c.group));
+  }
+  for (const g of NETWORKING_CHARACTER_GROUPS) {
+    const n = NETWORKING_CHARACTERS.filter((c) => c.group === g.id).length;
+    console.log(`  ${g.label}: ${n}`);
+    check(`group "${g.id}" has at least two people`, n >= 2);
   }
 }
 

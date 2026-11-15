@@ -235,6 +235,13 @@ console.log("\n5. ENGINE UNTOUCHED since Phase 22 base (59f6166)");
       "':(exclude)lib/engine/termination.ts'",
       "':(exclude)lib/engine/session.ts'",
       "':(exclude)lib/engine/turn-control.ts'",
+      // Registering a new interaction type (2026-11-14 sales-discovery) is a
+      // one-line catalog edit, not coached-mode work.
+      "':(exclude)lib/engine/registry.ts'",
+      // Re-timing evaluator quotes from the transcript (2026-11-14) is a
+      // grading fix, not coached-mode work.
+      "':(exclude)lib/engine/quote-timecodes.ts'",
+      "':(exclude)lib/engine/evaluation-runner.ts'",
     ].join(" ");
     const commits = execSync(
       `git log --no-merges --format=%h 59f6166..HEAD ${hasDev ? "--not origin/dev" : ""} -- lib/engine/ ${walkOutExempt}`,

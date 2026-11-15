@@ -27,9 +27,9 @@ import {
   Type,
   Video,
   Mic,
-  MicOff,
   DoorOpen,
 } from "lucide-react";
+import { RecordingIcon } from "@/components/session/RecordingIcon";
 import {
   Modal,
   ModalContent,
@@ -1452,7 +1452,7 @@ export default function CaseStudySessionView({
                 )}
                 <Button
                   size="lg"
-                  color={isRecording ? "danger" : "primary"}
+                  color={isRecording ? "success" : "primary"}
                   className={`rounded-full w-14 h-14 transition-all shadow-lg ${isRecording ? "scale-110" : ""}`}
                   isIconOnly
                   isDisabled={sending || isTranscribing}
@@ -1460,7 +1460,7 @@ export default function CaseStudySessionView({
                   aria-label={isRecording ? "Stop recording and send answer" : "Start recording answer"}
                 >
                   {isRecording ? (
-                    <MicOff className="w-5 h-5" />
+                    <RecordingIcon className="w-5 h-5" />
                   ) : isTranscribing ? (
                     <Spinner size="sm" color="white" />
                   ) : (

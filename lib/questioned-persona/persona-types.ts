@@ -18,6 +18,7 @@ import {
   buildPersonaSystemPrompt,
   CLINICAL_EVALUATOR_PROMPT,
   MI_EVALUATOR_PROMPT,
+  SALES_EVALUATOR_PROMPT,
 } from "./prompts";
 import type { PersonaStyle } from "./types";
 
@@ -98,22 +99,87 @@ const MI_EXTRAS: RubricDimension[] = [
   },
 ];
 
+/**
+ * Sales discovery (2026-11-14 client ask: "it has to evaluate LISTENING
+ * first"). Listening is weighted first on purpose: three of five dimensions
+ * judge discovery, listening and tailoring to what the buyer said.
+ */
+const SALES_EXTRAS: RubricDimension[] = [
+  {
+    key: "discovery_before_pitch",
+    label: "Discovery before pitching",
+    description:
+      "Asking about the buyer's situation, problems and what they cost before presenting anything (SPIN-style discovery).",
+  },
+  {
+    key: "active_listening_sales",
+    label: "Listening & reflecting",
+    description:
+      "Following up on what the buyer said, reflecting and summarizing their needs, and letting them do most of the talking.",
+  },
+  {
+    key: "needs_tailoring",
+    label: "Tailoring to stated needs",
+    description:
+      "Connecting the offer to needs the buyer actually named, in their words, instead of a generic feature list.",
+  },
+  {
+    key: "objection_exploration",
+    label: "Exploring objections",
+    description:
+      "Acknowledging and exploring a concern before answering it, rather than arguing or discounting.",
+  },
+  {
+    key: "next_step_agreed",
+    label: "Agreeing a next step",
+    description:
+      "Ending with a concrete, mutually agreed next step — who, what and when.",
+  },
+];
+
+const TYPE_TEXT: Record<
+  PersonaStyle,
+  { name: string; description: string; extras: RubricDimension[]; evaluatorPrompt: string; targetMinutes: number }
+> = {
+  "clinical-communication": {
+    name: "Clinical Communication",
+    description:
+      "Take a history from a standardized patient who holds back facts until you ask well, graded on a Calgary–Cambridge checklist plus behavior counts.",
+    extras: CLINICAL_EXTRAS,
+    evaluatorPrompt: CLINICAL_EVALUATOR_PROMPT,
+    targetMinutes: 12,
+  },
+  "motivational-interviewing": {
+    name: "Motivational Interviewing",
+    description: "Counsel an ambivalent client, graded with MITI 4 global scores and coded behavior counts.",
+    extras: MI_EXTRAS,
+    evaluatorPrompt: MI_EVALUATOR_PROMPT,
+    targetMinutes: 15,
+  },
+  "sales-discovery": {
+    name: "Sales Meeting",
+    description:
+      "Meet a prospective buyer who only shares real needs when you listen first, graded on discovery before pitching, talk share and tailoring.",
+    extras: SALES_EXTRAS,
+    evaluatorPrompt: SALES_EVALUATOR_PROMPT,
+    targetMinutes: 15,
+  },
+};
+
 function makePersonaType(style: PersonaStyle): InteractionTypeConfig {
-  const clinical = style === "clinical-communication";
+  const text = TYPE_TEXT[style];
   return {
     slug: style,
-    name: clinical ? "Clinical Communication" : "Motivational Interviewing",
-    description: clinical
-      ? "Take a history from a standardized patient who holds back facts until you ask well, graded on a Calgary–Cambridge checklist plus behavior counts."
-      : "Counsel an ambivalent client, graded with MITI 4 global scores and coded behavior counts.",
-    extraRubricDimensions: clinical ? CLINICAL_EXTRAS : MI_EXTRAS,
+    name: text.name,
+    description: text.description,
+    extraRubricDimensions: text.extras,
     prompts: {
       liveSystemPrompt: (config) => buildPersonaSystemPrompt(config),
-      evaluatorPrompt: clinical ? CLINICAL_EVALUATOR_PROMPT : MI_EVALUATOR_PROMPT,
+      evaluatorPrompt: text.evaluatorPrompt,
       buildEvaluationContext: (config) => ({ ...buildPersonaEvaluationContext(config) }),
       buildTailFragment: buildPersonaReminder,
     },
-    // A patient or client does not walk out; the student ends the session.
+    // A patient, client or buyer does not walk out; the student ends the session.
     terminationPolicy: {
       studentMayEnd: true,
       avatarMayEnd: false,
@@ -141,7 +207,7 @@ function makePersonaType(style: PersonaStyle): InteractionTypeConfig {
       firstTurnWindowSeconds: null,
       adjustableRangeSeconds: null,
     },
-    limits: { targetMinutes: clinical ? 12 : 15, targetQuestionCount: null },
+    limits: { targetMinutes: text.targetMinutes, targetQuestionCount: null },
     instance: { required: true },
     // Same transcript durability as difficult-conversation: the finish call
     // carries the turns.
@@ -161,3 +227,4 @@ function makePersonaType(style: PersonaStyle): InteractionTypeConfig {
 
 export const CLINICAL_COMMUNICATION_TYPE = makePersonaType("clinical-communication");
 export const MOTIVATIONAL_INTERVIEWING_TYPE = makePersonaType("motivational-interviewing");
+export const SALES_DISCOVERY_TYPE = makePersonaType("sales-discovery");

@@ -24,6 +24,7 @@ import { deckModeNegotiates, isDeckModeSlug, type DeckModeSlug } from "@/lib/pit
 
 import NetworkingOutcomePanel from "@/components/practice/panels/NetworkingOutcomePanel";
 import ConversationEndBanner from "@/components/practice/report/ConversationEndBanner";
+import ConversationStepsPanel from "@/components/practice/report/ConversationStepsPanel";
 import ConversationOutcomePanel from "@/components/practice/report/ConversationOutcomePanel";
 import DeckTimelinePanel from "@/components/practice/report/DeckTimelinePanel";
 import DeckVerdictPanel from "@/components/practice/report/DeckVerdictPanel";
@@ -177,6 +178,7 @@ const DIFFICULT_CONVERSATION_CHROME: ReportChrome = {
     above: (report) => <ConversationEndBanner report={report} />,
     below: (report) => (
       <>
+        <ConversationStepsPanel report={report} />
         <ConversationOutcomePanel report={report} />
         <InRoleReactionPanel report={report} />
       </>
@@ -243,6 +245,7 @@ function personaChrome(checkInLead: string): ReportChrome {
 
 const CLINICAL_COMMUNICATION_CHROME = personaChrome("In a real patient encounter");
 const MOTIVATIONAL_INTERVIEWING_CHROME = personaChrome("In a real counseling session");
+const SALES_DISCOVERY_CHROME = personaChrome("In a real sales meeting");
 
 const NETWORKING_CHROME: ReportChrome = {
   pollIntervalMs: 2000,
@@ -394,6 +397,7 @@ export function getReportChrome(
   if (slug === "networking") return NETWORKING_CHROME;
   if (slug === "clinical-communication") return CLINICAL_COMMUNICATION_CHROME;
   if (slug === "motivational-interviewing") return MOTIVATIONAL_INTERVIEWING_CHROME;
+  if (slug === "sales-discovery") return SALES_DISCOVERY_CHROME;
   if (slug === "technical-coding") return TECHNICAL_CODING_CHROME;
   if (slug === "pitch-elevator") return PITCH_ELEVATOR_CHROME;
   if (isDeckModeSlug(slug)) return deckChromeFor(slug);

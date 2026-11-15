@@ -21,6 +21,7 @@ import {
   countCodes,
   deriveMetrics,
   locateQuote,
+  salesTranscriptCounts,
   studentUtterances,
   type StudentUtterance,
 } from "./coding";
@@ -43,11 +44,13 @@ function analysisModel(): string {
 
 type Turn = { role: "user" | "assistant"; content: string; timestamp: number };
 
-function personaWord(style: PersonaStyle): string {
+export function personaWord(style: PersonaStyle): string {
+  if (style === "sales-discovery") return "Buyer";
   return style === "clinical-communication" ? "Patient" : "Client";
 }
 
-function studentWord(style: PersonaStyle): string {
+export function studentWord(style: PersonaStyle): string {
+  if (style === "sales-discovery") return "Seller";
   return style === "clinical-communication" ? "Clinician" : "Counselor";
 }
 
@@ -117,7 +120,9 @@ export function buildTaggerSystemPrompt(style: PersonaStyle): string {
     .map(([code, def]) => `- ${code}: ${def}`)
     .join("\n");
   const frame =
-    style === "motivational-interviewing"
+    style === "sales-discovery"
+      ? "You are a trained sales-call coach coding a consultative (SPIN-style) discovery call. You code the SELLER's utterances in a practice sales meeting with a prospective buyer."
+      : style === "motivational-interviewing"
       ? "You are a trained MITI 4.2.1 coder. You code the COUNSELOR's utterances in a motivational interviewing practice session."
       : "You are a trained standardized-patient communication rater (Calgary–Cambridge / SEGUE). You code the CLINICIAN's utterances in a history-taking practice encounter.";
   return `${frame}
@@ -205,6 +210,12 @@ function caseCardForJudge(card: PersonaCard): string {
   if (card.targetBehavior) {
     parts.push(`Target behavior the client is ambivalent about: ${card.targetBehavior}`);
   }
+  if (card.offering) {
+    parts.push(`What the seller is offering: ${card.offering}`);
+  }
+  if (card.objections?.length) {
+    parts.push(`Objections the buyer raises once something is proposed:\n${card.objections.map((o) => `- ${o}`).join("\n")}`);
+  }
   return parts.join("\n\n");
 }
 
@@ -214,19 +225,25 @@ export function buildJudgeSystemPrompt(style: PersonaStyle): string {
     .map((s) => `- ${s.key} — ${s.label}. HIT when: ${s.evidenceCriteria}`)
     .join("\n");
   const who = studentWord(style).toLowerCase();
-  return `You rate a ${style === "clinical-communication" ? "standardized-patient communication encounter" : "motivational interviewing practice session"} against a checklist. The student is the ${who}. Judge only what the transcript shows.
+  const what =
+    style === "sales-discovery"
+      ? "practice sales meeting where the seller should listen and discover before pitching"
+      : style === "clinical-communication"
+      ? "standardized-patient communication encounter"
+      : "motivational interviewing practice session";
+  return `You rate a ${what} against a checklist. The student is the ${who}. Judge only what the transcript shows.
 
 Checklist — ${framework.label}:
 ${steps}
 
 For each step return:
-- status: "hit" if the ${who} clearly did it (credit substance, not wording — a step done well without naming it is a hit); "missed" if not; "not_applicable" ONLY if the encounter ended before the step could reasonably arise through no fault of the student (e.g. a closing step when the transcript stops mid-history). Never use not_applicable to excuse a skipped step.
-- evidenceQuote: for a hit, COPY AND PASTE a span of characters from ONE [S#] line, exactly as it appears. Do not paraphrase, do not stitch two lines together, do not tidy the grammar, do not add or remove words, and do not wrap it in quotation marks. It is checked character by character against the transcript and a quote that is not found is discarded, which leaves the step with no evidence. If no single [S#] line contains words that show the step, the step is "missed", not a hit with an approximate quote. Use "" when missed.
-- note: one sentence of specific coaching for this step, written to the student ("you").
+- status: "hit" if the ${who} clearly did it (credit substance, not wording — a step done well without naming it is a hit); "partly" if they attempted it but the attempt was incomplete or vague (e.g. one open question where the step needs two, a summary of one point with no check for correction, "any questions?" in place of teach-back); "missed" if there was no real attempt, or if the attempt is something the step's HIT criteria explicitly call missed or say does NOT count (e.g. unexplained jargon, "Do you understand?" alone) — those are never partly; "not_applicable" ONLY if the encounter ended before the step could reasonably arise through no fault of the student (e.g. a closing step when the transcript stops mid-history). Never use not_applicable to excuse a skipped step.
+- evidenceQuote: for a hit or partly, COPY AND PASTE a span of characters from ONE [S#] line, exactly as it appears. Do not paraphrase, do not stitch two lines together, do not tidy the grammar, do not add or remove words, and do not wrap it in quotation marks. It is checked character by character against the transcript and a quote that is not found is discarded, which leaves the step with no evidence. If no single [S#] line contains words that show the step (or the attempt), the step is "missed", not a hit or partly with an approximate quote. Use "" when missed.
+- note: one sentence of specific coaching for this step, written to the student ("you"). For partly, say exactly what would have made it a hit.
 
 Hidden facts: elicited = true only if the persona actually disclosed the fact in the transcript. evidenceQuote = the ${who}'s exact question or statement that drew it out; "" if not elicited.
 
-Cues: for each cue the persona was told to drop: "not_raised" if the persona never voiced it; otherwise "explored" (the ${who} named the feeling and invited more), "acknowledged" (named or validated it but moved on), or "missed" (ignored it). evidenceQuote = the ${who}'s exact response, or "".
+Cues${style === "sales-discovery" ? " (the buyer's signals — a frustration, a hesitation, a hint of what matters)" : ""}: for each cue the persona was told to drop: "not_raised" if the persona never voiced it; otherwise "explored" (the ${who} named the feeling and invited more), "acknowledged" (named or validated it but moved on), or "missed" (ignored it). evidenceQuote = the ${who}'s exact response, or "".
 ${style === "clinical-communication" ? `
 ICE: for ideas, concerns and expectations, elicited = true only if the ${who} ASKED about it (the patient volunteering it does not count). evidenceQuote = the ${who}'s exact question, or "".` : ""}`;
 }
@@ -243,7 +260,7 @@ function judgeSchema(style: PersonaStyle, card: PersonaCard): Record<string, unk
         required: ["key", "status", "evidenceQuote", "note"],
         properties: {
           key: { type: "string", enum: framework.steps.map((s) => s.key) },
-          status: { type: "string", enum: ["hit", "missed", "not_applicable"] },
+          status: { type: "string", enum: ["hit", "partly", "missed", "not_applicable"] },
           evidenceQuote: evidence,
           note: { type: "string" },
         },
@@ -297,7 +314,7 @@ function judgeSchema(style: PersonaStyle, card: PersonaCard): Record<string, unk
 }
 
 interface JudgeOutput {
-  steps: Array<{ key: string; status: "hit" | "missed" | "not_applicable"; evidenceQuote: string; note: string }>;
+  steps: Array<{ key: string; status: "hit" | "partly" | "missed" | "not_applicable"; evidenceQuote: string; note: string }>;
   facts: Array<{ id: string; elicited: boolean; evidenceQuote: string }>;
   cues: Array<{ id: string; status: CueResult["status"]; evidenceQuote: string }>;
   ice?: Array<{ key: "ideas" | "concerns" | "expectations"; elicited: boolean; evidenceQuote: string }>;
@@ -334,10 +351,12 @@ export function assembleAnalysis(opts: {
   tagged: TaggedUtterance[];
   judge: JudgeOutput;
   model: string;
+  /** Sales only: transcript-level counts (talk ratio, first pitch). */
+  extraCounts?: Record<string, number>;
 }): PersonaAnalysis {
   const { style, card, utterances, tagged, judge } = opts;
   const framework = frameworkForStyle(style);
-  const counts = countCodes(style, tagged);
+  const counts = { ...countCodes(style, tagged), ...(opts.extraCounts ?? {}) };
 
   const stepByKey = new Map(judge.steps.map((s) => [s.key, s]));
   const steps: ProcessStepResult[] = framework.steps.map((def) => {
@@ -437,5 +456,8 @@ export async function runPersonaAnalysis(input: {
     tagged: tags.tagged,
     judge: judge.data,
     model: tags.model,
+    ...(input.style === "sales-discovery"
+      ? { extraCounts: salesTranscriptCounts(input.turns, tags.tagged) }
+      : {}),
   });
 }

@@ -26,4 +26,5 @@
  * tripwire, not a business rule: a surprise change here means a type was added
  * without the surrounding guards being considered.
  */
-export const EXPECTED_ENGINE_TYPES_COUNT = 20;
+// 21 since 2026-11-14: sales-discovery (questioned-persona engine, listening-first selling).
+export const EXPECTED_ENGINE_TYPES_COUNT = 21;

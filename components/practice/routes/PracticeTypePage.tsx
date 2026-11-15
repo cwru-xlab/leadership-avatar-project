@@ -85,7 +85,10 @@ import { getEngineType } from "@/lib/engine/registry";
 import { resolveSessionConfig } from "@/lib/engine/resolve";
 import { useLayout } from "@/lib/layout-context";
 import { routes } from "@/lib/routes";
-import { getNetworkingCharacter } from "@/lib/networking/characters";
+import {
+  getNetworkingCharacter,
+  pickSuggestedAvatar,
+} from "@/lib/networking/characters";
 import { proposeDeckSeconds } from "@/lib/pitch/session-length";
 import {
   getDeckMode,
@@ -919,6 +922,11 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
                   instanceId={networkingInstanceId}
                   nav={nav}
                   onChange={({ characterId, instanceId, broughtInLive }) => {
+                    // A different person gets their own suggested face on the
+                    // face/voice step, not the previous person's.
+                    if (characterId !== networkingCharacterId) {
+                      setSelectedInterviewer(null);
+                    }
                     setNetworkingCharacterId(characterId);
                     setNetworkingInstanceId(instanceId);
                     if (broughtInLive) {
@@ -951,7 +959,22 @@ export default function PracticeTypePage({ typeSlug: typeSlugOverride }: { typeS
                         heading: "Choose who you'll pitch to.",
                         roleLabel: deckMode?.listenerLine ?? "Pitch listener",
                       }
-                    : {})}
+                    : isNetworking
+                      ? {
+                          // The face plays the person picked on step 1 — a
+                          // nurse practitioner is not a "hiring manager".
+                          heading: "Choose a face and voice.",
+                          roleLabel: `Plays ${
+                            networkingCharacter?.displayName ||
+                            networkingBroughtInLive?.displayName ||
+                            "your contact"
+                          }`,
+                          // Built-in characters suggest a matching face;
+                          // a brought-in person keeps the first entry.
+                          suggest: (options: InterviewerOption[]) =>
+                            pickSuggestedAvatar(networkingCharacterId, options),
+                        }
+                      : {})}
                 />
               );
             }
