@@ -20,6 +20,7 @@ import assert from "node:assert/strict";
 
 import { buildUserMessage, validateEvaluationResult } from "../lib/engine/evaluation";
 import { validateOutcome } from "../lib/engine/outcome";
+import { buildTailBlock, buildTurnMessages, MAX_LIVE_TECHNICAL_CODE_CHARS } from "../lib/engine/prompts";
 import { retimeOutcomeQuotes, studentTurnTexts } from "../lib/engine/quote-timecodes";
 import { resolveSessionConfig } from "../lib/engine/resolve";
 import { getEngineType } from "../lib/engine/registry";
@@ -256,6 +257,19 @@ check("a coaching note's test claim is stripped, the rest kept", rows[2]?.note =
 check("the candidate's verbatim quote is left alone", rows[2]?.evidenceQuote === "it passes the tests");
 check("finalize leaves an outcome without codingSteps untouched", finalizeCodingStepsOutcome({ other: 1 })?.other === 1 && finalizeCodingStepsOutcome(null) === null);
 check("an unparseable codingSteps is removed, not stored broken", !(CODING_STEPS_OUTCOME_KEY in (finalizeCodingStepsOutcome({ [CODING_STEPS_OUTCOME_KEY]: "nonsense" }) ?? {})));
+
+console.log("\n4. The live interviewer sees the latest code (G9), after the cached prefix");
+const code = { languageLabel: "JavaScript", source: FINAL_SOURCE };
+const tail = buildTailBlock(resolved.config, { technicalCode: code });
+check("tail block carries the current code, marked private", tail.includes(FINAL_SOURCE) && tail.includes("[PRIVATE — THE CANDIDATE'S CURRENT CODE (JavaScript)"));
+check("no code → no block", !buildTailBlock(resolved.config, {}).includes("CURRENT CODE"));
+const technicalSession = { assignment, language: "javascript" as const };
+const turnA = buildTurnMessages({ config: resolved.config, messages: [{ role: "user", content: "hi" }], turnState: { technicalCode: code }, language: { code: "en", name: "English" } as never, technicalSession });
+const turnB = buildTurnMessages({ config: resolved.config, messages: [{ role: "user", content: "hi" }], turnState: { technicalCode: { ...code, source: "function x() {}" } }, language: { code: "en", name: "English" } as never, technicalSession });
+check("system prompt is byte-identical whatever the code (prefix cache)", turnA.systemPrompt === turnB.systemPrompt && !turnA.systemPrompt.includes(FINAL_SOURCE));
+check("code rides on the latest user message", turnA.messages.at(-1)!.content.includes(FINAL_SOURCE));
+const huge = buildTailBlock(resolved.config, { technicalCode: { languageLabel: "Python", source: "x".repeat(MAX_LIVE_TECHNICAL_CODE_CHARS + 500) } });
+check("very long source is truncated", huge.includes("… (truncated)") && huge.length < MAX_LIVE_TECHNICAL_CODE_CHARS + 1000);
 
 if (failures === 0) {
   console.log("\nverify-technical-evaluator-input: ALL CHECKS PASSED\n");

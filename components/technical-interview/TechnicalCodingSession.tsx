@@ -396,6 +396,9 @@ export default function TechnicalCodingSession({
             // transcript history and every interviewer reply.
             messages: [{ role: "user", content: trimmed }],
             engine: { typeSlug: "technical-coding" },
+            // The editor as of this message, so the interviewer sees the
+            // latest code (server-validated like a checkpoint).
+            technicalCheckpoints: evidence(),
             ...(requestHint ? { technicalHintRequestId: crypto.randomUUID() } : {}),
           }),
         });
@@ -449,7 +452,7 @@ export default function TechnicalCodingSession({
         setSendingChat(false);
       }
     },
-    [checkpoint, reportId, sendingChat],
+    [checkpoint, evidence, reportId, sendingChat],
   );
 
   /**

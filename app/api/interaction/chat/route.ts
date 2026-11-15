@@ -45,7 +45,10 @@ import {
   appendServerVisibleTurns,
   emptyTechnicalEvidence,
   parseStoredTechnicalEvidence,
+  replaceCandidateCheckpoints,
+  validateTechnicalCheckpoints,
 } from "@/lib/technical-interview/evidence";
+import { TECHNICAL_CODING_LANGUAGE_PROFILE } from "@/lib/technical-interview/types";
 import {
   buildTechnicalHint,
   categorizeTechnicalChatRequest,
@@ -571,6 +574,10 @@ export async function POST(request: NextRequest) {
       revealedSlideIndex,
       reportId: rawReportId,
       technicalHintRequestId,
+      // Technical coding: the editor's current source, sent with each turn so
+      // the interviewer sees the latest code (G9). Same validator as the
+      // checkpoint route; optional, so an older client still works.
+      technicalCheckpoints: rawTechnicalCheckpoints,
       // TOP-LEVEL, not nested under `interview`/`engine`: this is what
       // PracticeSessionShell's existing `...extraChatBody` spread produces, so
       // the shell needs no edit (quick task 003, decision 4).
@@ -707,6 +714,7 @@ export async function POST(request: NextRequest) {
       const isInterview = Boolean(getInterviewType(sessionConfig.typeSlug));
       let technicalSession: TechnicalSessionContext | null = null;
       let technicalDirective: string | undefined;
+      let technicalCode: { languageLabel: string; source: string } | undefined;
 
       // Technical coding accepts exactly one fresh candidate message. The
       // persisted server transcript supplies all prior context; browser-provided
@@ -733,7 +741,19 @@ export async function POST(request: NextRequest) {
           MAX_JOB_DESCRIPTION_TEXT_LENGTH,
         );
         const latestUser = messages[0];
-        const prior = parseStoredTechnicalEvidence(report.technicalEvidence) ?? emptyTechnicalEvidence();
+        const stored = parseStoredTechnicalEvidence(report.technicalEvidence) ?? emptyTechnicalEvidence();
+        const sentCheckpoints =
+          rawTechnicalCheckpoints === undefined ? null : validateTechnicalCheckpoints(rawTechnicalCheckpoints);
+        if (sentCheckpoints && !sentCheckpoints.ok) return NextResponse.json({ error: sentCheckpoints.error }, { status: 400 });
+        // The code as of this message: it also sharpens the hint-tier inference below.
+        const prior = sentCheckpoints?.ok ? replaceCandidateCheckpoints(stored, sentCheckpoints.value) : stored;
+        const latestSource = prior.checkpoints.at(-1)?.source;
+        if (latestSource?.trim()) {
+          technicalCode = {
+            languageLabel: TECHNICAL_CODING_LANGUAGE_PROFILE[snapshot.language].label,
+            source: latestSource,
+          };
+        }
         // Role and content only: stored turns carry a server timestamp, and
         // the model API rejects unknown message fields.
         const serverTranscript = [
@@ -1175,6 +1195,7 @@ export async function POST(request: NextRequest) {
             ? { revealedSlides, slideCount: slideCountForTail }
             : {}),
           ...(technicalDirective ? { technicalDirective } : {}),
+          ...(technicalCode ? { technicalCode } : {}),
           ...(problemContext
             ? {
                 problem: {
