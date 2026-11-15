@@ -83,18 +83,16 @@ export function useUpNext(refreshKey: string, enabled: boolean): UpNext | null {
  * step, so the sidebar never shows an empty promise.
  *
  * Accent: the progress fill carries it; at 0% (nothing to fill, and no fake
- * stub) the "Continue" arrow carries it instead. `accent={false}` drops it
- * entirely — Mastery passes that so the accent can't be mistaken for the
- * level-2 orange there.
+ * stub) the "Continue" arrow carries it instead. The sidebar is global
+ * chrome, so this looks the same on every page, Mastery included; only
+ * Mastery's page body stays free of the accent.
  */
 export function UpNextCard({
   upNext,
   onNavigate,
-  accent = true,
 }: {
   upNext: UpNext | null;
   onNavigate?: () => void;
-  accent?: boolean;
 }) {
   if (!upNext) return null;
 
@@ -118,13 +116,13 @@ export function UpNextCard({
         className="h-1 overflow-hidden rounded-full bg-white/[0.16]"
       >
         <span
-          className={clsx("block h-full rounded-full", accent ? "bg-accent" : "bg-light-blue")}
+          className="block h-full rounded-full bg-accent"
           style={{ width: `${(done / upNext.total) * 100}%` }}
         />
       </span>
       <span className="text-[13px] font-semibold">
         Continue{" "}
-        <span aria-hidden className={clsx(accent && done === 0 && "text-accent")}>
+        <span aria-hidden className={clsx(done === 0 && "text-accent")}>
           →
         </span>
       </span>

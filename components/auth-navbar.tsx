@@ -157,8 +157,7 @@ export const AuthNavbar = () => {
       )}
 
       {isStudent && user && (
-        // No accent on Mastery: it would read as the level-2 orange there.
-        <UpNextCard accent={!pathname.startsWith("/mastery")} upNext={upNext} />
+        <UpNextCard upNext={upNext} />
       )}
 
       <div className="mt-auto flex flex-col gap-4">
