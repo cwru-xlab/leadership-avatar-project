@@ -4,7 +4,11 @@ import { expect, test, type Page } from "@playwright/test";
  * The Orange accent (--la-accent) shows up the same way everywhere:
  * - every student page title, plain (`PageTitle`) or hero (`PracticeHero`,
  *   the study plan band), has the Orange rule under it;
- * - every live practice picker card carries its icon in Orange;
+ * - every live picker card carries its icon in Orange, inline beside the
+ *   title (deck modes included, no navy tile);
+ * - the active tab underline is Orange, the featured panel has an Orange top
+ *   edge, and the hero icon tile sits on an Orange ledge;
+ * - the staff home has the title rule and the same card icon treatment;
  * - the sidebar (active marker, up-next fill) looks the same on every page,
  *   Mastery included;
  * - Mastery's page body has no accent at all, so it can't be read as the
@@ -13,10 +17,10 @@ import { expect, test, type Page } from "@playwright/test";
 const ACCENT = "rgb(255, 146, 57)";
 const REPORT = "2cd23e87-49e4-4d94-a5b3-aeaa048589f5";
 
-async function signIn(page: Page) {
+async function signIn(page: Page, email = "alice.johnson@case.edu", password = "student123") {
   await page.goto("/login");
-  await page.locator('input[type="email"]').fill("alice.johnson@case.edu");
-  await page.locator('input[type="password"]').fill("student123");
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="password"]').fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
 }
@@ -60,6 +64,7 @@ const HEADERS = [
   { kind: "hero", path: "/practice/pitches" },
   { kind: "hero", path: "/practice/pitches/deck" },
   { kind: "hero", path: "/practice/networking" },
+  { kind: "hero", path: "/practice/interviews/technical" },
 ];
 
 const PICKERS = [
@@ -105,8 +110,37 @@ test.describe("accent consistency", () => {
       const colors = await icons.evaluateAll((els) => els.map((el) => getComputedStyle(el).color));
       expect(colors.length).toBeGreaterThan(0);
       for (const color of colors) expect(color).toBe(ACCENT);
+      // Inline beside the title, never inside a tinted or navy tile.
+      const parents = await icons.evaluateAll((els) => els.map((el) => getComputedStyle(el.parentElement!).backgroundColor));
+      for (const bg of parents) expect(bg).toBe("rgba(0, 0, 0, 0)");
     });
   }
+
+  test("hero icon tile sits on an Orange ledge", async ({ page }) => {
+    await page.goto("/practice/interviews/industry-specific");
+    const shadow = await page.locator("main .la-hero-tile").first().evaluate((el) => getComputedStyle(el).boxShadow);
+    expect(shadow).toContain(ACCENT);
+  });
+
+  test("the active tab underline is Orange", async ({ page }) => {
+    await page.goto("/study-plans");
+    const tab = page.locator('main [role="tab"][aria-selected="true"]').first();
+    await expect(tab).toBeVisible();
+    expect(await tab.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(ACCENT);
+    await page.goto(`/reports/${REPORT}`);
+    const cursor = page.locator("main .la-tab-cursor").first();
+    await expect(cursor).toBeVisible();
+    expect(await cursor.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(ACCENT);
+  });
+
+  test("the featured panel has an Orange top edge", async ({ page }) => {
+    for (const path of ["/reports", `/reports/${REPORT}`]) {
+      await page.goto(path);
+      const panel = page.locator("main .la-featured").first();
+      await expect(panel).toBeVisible();
+      expect(await panel.evaluate((el) => getComputedStyle(el).boxShadow)).toContain(ACCENT);
+    }
+  });
 
   test("the sidebar accent is the same on Mastery and Practice", async ({ page }) => {
     await mockUpNext(page);
@@ -137,8 +171,25 @@ test.describe("accent consistency", () => {
     // accent's own hooks rather than the color.
     const accentHooks = await page
       .locator("main")
-      .locator(".la-title-rule, .la-card-icon, .la-featured, .la-hero-tile, .bg-accent, .text-accent, .border-accent")
+      .locator(".la-title-rule, .la-card-icon, .la-featured, .la-hero-tile, .la-tab, .la-tab-cursor, .bg-accent, .text-accent, .border-accent")
       .count();
     expect(accentHooks).toBe(0);
   });
+});
+
+test.describe("accent on the staff home", () => {
+  for (const [email, password] of [
+    ["admin@example.com", "admin123"],
+    ["professor.smith@case.edu", "prof123"],
+  ]) {
+    test(`${email} home has the title rule and accent card icons`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await signIn(page, email, password);
+      await page.goto("/");
+      await expect(page.locator("main h1").first()).toBeVisible();
+      expect(await titleRuleColor(page)).toBe(ACCENT);
+      const colors = await page.locator("main svg.la-card-icon").evaluateAll((els) => els.map((el) => getComputedStyle(el).color));
+      expect(colors).toEqual([ACCENT, ACCENT]);
+    });
+  }
 });

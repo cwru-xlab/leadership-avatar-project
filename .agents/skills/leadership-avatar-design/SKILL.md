@@ -82,17 +82,21 @@ The client asked for a little character, so Orange is also the app's one accent 
 label. Allowed spots, and no others:
 - the sidebar: the active-item marker and the up-next progress fill (its "Continue" arrow at 0%). The
   sidebar is global chrome, so it looks the same on every page, Mastery included;
-- the 32x3px rule under every student page title, plain or hero. Use `components/shell/PageTitle`
-  for a plain header; `PracticeHero` and the study plan band put `.la-title-rule` on their own title;
-- the icon on every live practice picker card (`.la-card-icon`), on /practice and every sub-picker;
+- the 32x3px rule under every page title, plain or hero, student and staff. Use
+  `components/shell/PageTitle` for a plain header; `PracticeHero` and the study plan band put
+  `.la-title-rule` on their own title;
+- the icon on every live picker card (`.la-card-icon`), inline beside the card title: /practice, every
+  practice sub-picker (deck modes included) and the staff home;
+- the hero header's icon tile sits on an Orange ledge (`.la-hero-tile`, in `PracticeHero`);
+- the active tab's underline (`.la-tab` on hand-built tablists, `.la-tab-cursor` on HeroUI tabs). The
+  selected tab keeps its semibold CWRU Blue label, so the underline is never the only signal;
+- a 3px Orange top edge on the page's one featured panel (`.la-featured`: the report's practice-next
+  panel, the "Build a self-paced study plan" panel);
 - the report's practice-next target.
 
-Mastery's page body never takes it (no title rule, no card icon), where it would read as the level-2
-orange. `lib/brand/accent.ts` holds one switch, `ACCENT_LEVEL`, rendered as `data-accent-level` on
-<html>: "a" is the set above; "b" adds an Orange underline on the active tab (`.la-tab`,
-`.la-tab-cursor`); "c" adds a 3px Orange top edge on the page's featured panel (`.la-featured`) and an
-Orange ledge under the hero icon tile (`.la-hero-tile`). Add new placements through these classes,
-never with `text-accent` or a hex in a component.
+Mastery's page body never takes it (no title rule, card icon, tab underline or featured edge), where it
+would read as the level-2 orange. Add new placements through these classes, never with `text-accent`
+or a hex in a component.
 
 ### Level ramp
 

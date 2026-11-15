@@ -36,32 +36,27 @@ showed the progress fill in Orange everywhere except Mastery, where it was Light
 | /paths | plain | title rule | — |
 | /mastery | band | none in body (correct) | sidebar up-next fill switched to Light Blue and the arrow to white; the user read that as an inconsistency |
 | Session briefing / live session | session frame | none | out of scope; the session frame has no page title |
-| Admin / professor home (/) | centered staff home | sidebar marker only | staff pages aren't in the accent rules; the home's cards mix a blue tinted tile and a green icon (separate issue) |
+| Admin / professor home (/) | centered staff home | sidebar marker only | no title rule; the two cards don't match (blue tinted tile vs green bare icon) |
 
 In short, 4 of the 19 student page headers had the rule, and only the plain headers. No hero header had
 it. Card icons were Orange on /practice and blue on every sub-picker.
 
-## After (this branch, level "a")
+## After (this branch: A + B + C, chosen 2026-11-14)
 
 | Page | Accent | Comes from |
 |---|---|---|
-| every plain student header (practice, reports, report, study plans, paths, persona lists, courageous conversations, case studies, write/edit pages) | title rule | `components/shell/PageTitle` |
-| every hero header (interviews, industry, pitches, deck, elevator, networking, customize) | title rule (Orange on CWRU Blue, 5.7:1) | `PracticeHero` |
+| every plain student header (practice, reports, report, study plans, paths, persona lists, courageous conversations, case studies, write/edit pages) and the staff home | title rule | `components/shell/PageTitle` |
+| every hero header (interviews, industry, technical coding, pitches, deck, elevator, networking, customize) | title rule (Orange on CWRU Blue, 5.7:1) and an Orange ledge under the icon tile | `PracticeHero` (`.la-title-rule`, `.la-hero-tile`) |
 | study plan detail band | title rule | `.la-title-rule` on its h1 |
-| every live picker card icon (/practice, interviews, industry, pitches, deck, networking, sales, clinical, MI) | Orange icon | `.la-card-icon` |
+| every live picker card icon (/practice, interviews, industry, pitches, deck modes, networking, sales, clinical, MI, staff home) | Orange icon inline beside the title | `.la-card-icon` |
+| underlined tabs (report, study plans, courageous conversations, case studies) | Orange active underline; the label stays semibold CWRU Blue | `.la-tab`, `.la-tab-cursor` |
+| featured panel (report practice-next, "Build a self-paced study plan" on reports and study plans) | 3px Orange top edge | `.la-featured` |
 | sidebar (all pages, Mastery included) | marker, up-next fill (or arrow at 0%) | `auth-navbar`, `UpNextCard` (the `accent` prop is gone) |
 | report | practice-next target | `ReportBody` |
-| Mastery body | none | no `PageTitle`; guarded by `e2e/accent-consistency.spec.ts` |
+| Mastery body | none | no `PageTitle` or accent classes; guarded by `e2e/accent-consistency.spec.ts` |
 
-Options "b" and "c" are switched with `ACCENT_LEVEL` in `lib/brand/accent.ts` (`data-accent-level` on
-<html>):
-
-- **b**: the active tab underline is Orange (`.la-tab` on study plans, courageous conversations and
-  case studies; `.la-tab-cursor` on the report tabs). The selected tab also has a semibold CWRU Blue
-  label, so the underline is never the only signal.
-- **c**: a 3px Orange top edge on the featured panel (`.la-featured`: the report's practice-next panel
-  and the "Build a self-paced study plan" panel), plus an Orange ledge under the hero icon tile
-  (`.la-hero-tile`).
+The technical-coding setup now has the same `PracticeHero` as the other interview setups, and the deck
+modes put their icon inline beside the title like every other picker. Their old navy tile is gone.
 
 ## Contrast
 
@@ -70,5 +65,5 @@ Options "b" and "c" are switched with `ACCENT_LEVEL` in `lib/brand/accent.ts` (`
 | Orange on white | 2.2:1 | decorative only; never text, focus or the only state signal |
 | Orange on Canvas | 2.1:1 | same |
 | Orange on CWRU Blue | 5.7:1 | hero title rule, sidebar marker and fill |
-| True Blue focus ring on white / Canvas | 4.7:1 / 4.4:1 | focus stays True Blue at every level (≥ 3:1) |
+| True Blue focus ring on white / Canvas | 4.7:1 / 4.4:1 | focus stays True Blue (≥ 3:1) |
 | Light Blue focus ring on CWRU Blue (sidebar) | 7.8:1 | unchanged |
