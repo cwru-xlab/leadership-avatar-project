@@ -23,28 +23,9 @@
  * keyboard story and the screen-reader story do not change with the view.
  */
 
-import { Check, Mic } from "lucide-react";
+import { Check } from "lucide-react";
 
 import type { InterviewerOption } from "@/components/practice/steps/InterviewerStep";
-
-/**
- * The voice name is mostly the face's own name again — "Scott Cowen" for Scott
- * Cowen, "Dexter - Professional" for Dexter Lawyer — and a 64px row has no
- * space for a restatement (house rule 3, "show less"). Keep only the part the
- * name does not already say: the voice profile ("Professional", "Lifelike"),
- * or nothing at all for the faculty, whose custom voice carries just their
- * name. The photo grid still shows the full voice name.
- */
-function voiceDetail(name: string, voiceName: string): string | null {
-  const firstWord = name.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
-  // Vendor voice names are "<face> - <profile>", or bare "<face>".
-  const [lead, ...rest] = voiceName.split(/\s+-\s+/);
-  const restates =
-    lead?.trim().toLowerCase() === firstWord ||
-    voiceName.trim().toLowerCase() === name.trim().toLowerCase();
-  const detail = restates ? rest.join(" - ").trim() : voiceName.trim();
-  return detail || null;
-}
 
 export interface InterviewerRowProps {
   interviewer: InterviewerOption;
@@ -62,7 +43,6 @@ export default function InterviewerRow({
   nameTag: NameTag,
   onSelect,
 }: InterviewerRowProps) {
-  const detail = voiceDetail(interviewer.name, interviewer.voice.name);
   return (
     <button
       type="button"
@@ -74,10 +54,6 @@ export default function InterviewerRow({
           : "border-line bg-white hover:border-true-blue/50 hover:bg-canvas"
       }`}
     >
-      {/* The full voice name stays in the accessible name even when the visible
-          row drops it as a restatement, so the row never says less than the
-          photo card did. */}
-      <span className="sr-only">{`Voice: ${interviewer.voice.name}.`}</span>
       {interviewer.previewUrl ? (
         <img
           alt=""
@@ -90,16 +66,14 @@ export default function InterviewerRow({
 
       <span className="flex min-w-0 flex-1 flex-col">
         {/* Sentence-case label type, not the card's Newsreader: the house rule
-            keeps the serif off dense rows and tables. */}
+            keeps the serif off dense rows and tables.
+
+            ONE name, no voice line. `InterviewerOption.name` is now derived
+            from the voice name, so the mic line this row used to carry was
+            either a restatement or vendor jargon ("IA", "Lifelike"). */}
         <NameTag className="truncate text-[14.5px] font-semibold leading-5 text-ink">
           {interviewer.name}
         </NameTag>
-        {detail && (
-          <span className="mt-0.5 flex items-center gap-1 text-[12.5px] leading-4 text-muted">
-            <Mic aria-hidden className="shrink-0" size={11} />
-            <span aria-hidden className="truncate">{detail}</span>
-          </span>
-        )}
       </span>
 
       {suggested && !selected && (

@@ -19,7 +19,6 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardBody } from "@heroui/card";
-import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import { Button } from "@heroui/button";
 import { Check, CircleAlert } from "lucide-react";
@@ -163,11 +162,11 @@ export default function AvatarPickerGrid({
             <div className="absolute inset-0 z-10 bg-gradient-to-t from-ink from-15% via-ink/65 via-45% to-transparent to-75%" />
             <div className="absolute inset-x-0 bottom-0 z-20 p-5 text-white">
               <div className="mb-3 flex justify-between gap-2">
-                <Chip size="sm" className="bg-ink/80 text-white ring-1 ring-white/20">
-                  {interviewer.voice.name}
-                </Chip>
+                {/* No voice chip: the name below is now derived from the voice
+                    name, so a chip here would restate it. Matches the
+                    interviewer picker's card. */}
                 {selected && (
-                  <span className="grid h-6 w-6 place-items-center rounded-full bg-level-4 text-ink">
+                  <span className="ml-auto grid h-6 w-6 place-items-center rounded-full bg-level-4 text-ink">
                     <Check size={15} />
                   </span>
                 )}

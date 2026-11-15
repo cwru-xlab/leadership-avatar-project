@@ -92,10 +92,10 @@ test("picker shows new people, filters by field, and starts one", async ({ page 
   await expect(page.getByText("Plays Rosa Delgado · Live session").first()).toBeVisible();
   // Rosa suggests a female face (Anna): first in the grid, tagged, pre-selected,
   // visible without scrolling, and still changeable.
-  await expect(page.getByText("Selected Anna (Friendly)")).toBeVisible();
+  await expect(page.getByText("Selected Anna")).toBeVisible();
   const faces = page.locator("section[aria-labelledby='interviewer-heading'] .grid > button");
   const first = faces.first();
-  await expect(first).toContainText("Anna (Friendly)");
+  await expect(first).toContainText("Anna");
   await expect(first).toContainText("Suggested");
   await expect(first).toHaveAttribute("aria-pressed", "true");
   await expect(first).toBeInViewport();
@@ -109,8 +109,8 @@ test("picker shows new people, filters by field, and starts one", async ({ page 
     { timeout: 20_000 },
   ).catch(() => undefined);
   await page.screenshot({ path: `${SHOTS}/customize-step-rosa.png` });
-  await page.getByRole("button", { name: /Maya \(Friendly\)/ }).click();
-  await expect(page.getByText("Selected Maya (Friendly)")).toBeVisible();
+  await page.getByRole("button", { name: /^Maya$/ }).click();
+  await expect(page.getByText("Selected Maya")).toBeVisible();
 });
 
 test("Harold suggests an older male face", async ({ page }) => {
@@ -121,11 +121,11 @@ test("Harold suggests an older male face", async ({ page }) => {
   await page.getByLabel("Your networking goal").fill("A once-a-semester mentor check-in");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByText("Plays Harold Brennan · Live session").first()).toBeVisible();
-  await expect(page.getByText("Selected Dexter Lawyer")).toBeVisible();
+  await expect(page.getByText("Selected Dexter")).toBeVisible();
   await expect(
     page.locator("section[aria-labelledby='interviewer-heading'] .grid > button").first(),
-  ).toContainText("Dexter Lawyer");
-  await shotSelectedFace(page, /Dexter Lawyer/, `${SHOTS}/customize-step-harold.png`);
+  ).toContainText("Dexter");
+  await shotSelectedFace(page, /Dexter/, `${SHOTS}/customize-step-harold.png`);
 });
 
 test("picker at phone width", async ({ page }) => {

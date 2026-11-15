@@ -46,7 +46,7 @@ import {
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
-import { Check, CircleAlert, LayoutGrid, Mic, Rows3, SearchX } from "lucide-react";
+import { Check, CircleAlert, LayoutGrid, Rows3, SearchX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 /** Compact rows (default) or the photo grid. See `view` state below. */
@@ -214,14 +214,11 @@ export default function InterviewerStep({
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-ink from-15% via-ink/65 via-45% to-transparent to-75%" />
         <div className="absolute inset-x-0 bottom-0 z-20 p-5 text-white">
           <div className="mb-3 flex justify-between gap-2">
-            <span
-              className="inline-flex items-center gap-1 rounded-full bg-ink/80 px-2.5 py-0.5 text-xs text-white ring-1 ring-white/20"
-              title="Voice profile"
-            >
-              <Mic aria-hidden size={12} />
-              <span className="sr-only">Voice: </span>
-              {interviewer.voice.name}
-            </span>
+            {/* NO voice pill. It used to sit above the name and, now that the
+                name is derived from the voice name, would restate it
+                verbatim — the "James / James (Friendly)" double listing this
+                card was asked to drop. The voice is still named in the step's
+                intro line, once, for the whole roster. */}
             {interviewer === suggested && (
               <span className="mr-auto rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-cwru-blue">
                 Suggested

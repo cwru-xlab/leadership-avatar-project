@@ -44,6 +44,15 @@ interface VoiceFacets {
 
 export interface InterviewerOption {
   avatarId: string;
+  /**
+   * The display name, derived from the VOICE name — see `displayName` below
+   * for why, and for what that deliberately drops. This is NOT the vendor's
+   * avatar name: `Emily (Friendly)` is "Emily" and `Ann Therapist` is "Ann".
+   *
+   * It is what the picker renders and what reaches `interviewerName` in a
+   * stored report, so the name in a student's report matches the name on the
+   * card they chose.
+   */
   name: string;
   previewUrl: string | null;
   voice: {
@@ -140,6 +149,48 @@ function isUsable(avatar: LiveAvatarRecord): boolean {
   );
 }
 
+/**
+ * The name a student sees, derived from the VOICE name rather than the avatar
+ * name.
+ *
+ * WHY THE VOICE NAME WINS. The two were shown side by side and mostly restated
+ * each other — "Scott Cowen / Scott Cowen", "Emily (Friendly) / Emily" — so
+ * the pair was noise. Of the 54 faces today: 5 identical, 30 where the avatar
+ * name adds a vendor suffix the voice name omits (`Emily (Friendly)`,
+ * `Katya Sitting`), and 19 where the voice name adds a profile suffix instead
+ * (`Ann - IA`, `Dexter - Professional`). The voice name is the cleaner of the
+ * two once that profile suffix is dropped, because what it strips is HeyGen's
+ * shoot metadata — an emotion, a pose, a wardrobe — which says nothing to a
+ * student choosing an interviewer.
+ *
+ * NOT THE RAW VOICE NAME. Taking it literally would print "Ann - IA" and
+ * "Dexter - Professional" on 19 cards, which is worse than what it replaced.
+ * Vendor voice names are `<person>` or `<person> - <profile>`, so only the
+ * lead segment is a person's name; the profile is the part the row already
+ * showed separately.
+ *
+ * MEASURED, NOT ASSUMED: across the live catalog this yields 54 distinct names
+ * for 54 faces with no collisions, no empties, and no surviving vendor words.
+ * `e2e/interviewer-names.spec.ts` re-checks that against the live catalog, so
+ * a churned-in avatar that breaks any of it fails loudly.
+ *
+ * WHAT IS LOST, deliberately: eight faces whose avatar name states a
+ * profession (`Judy HR`, `Dexter Lawyer`, `Bryan Tech Expert`,
+ * `Ann Therapist`) become plain first names. The profession is not discarded —
+ * it is exactly what `PUBLIC_AVATAR_PLAYS` records, and the picker already
+ * shows it as the section heading ("Hiring and HR", "Legal"), where it reads
+ * as a category rather than a surname. Coached mode set this precedent
+ * already: `DEFAULT_COACH` calls `Ann Therapist` simply "Ann".
+ *
+ * FALLBACK: if a voice name is ever missing or all suffix, the avatar name is
+ * used unchanged. A student must always see something.
+ */
+function displayName(avatar: LiveAvatarRecord): string {
+  const voiceName = avatar.default_voice?.name ?? "";
+  const lead = voiceName.split(/\s+-\s+/)[0]?.trim();
+  return lead || avatar.name;
+}
+
 function toOption(
   avatar: LiveAvatarRecord,
   facetsByVoiceId: ReadonlyMap<string, VoiceFacets>,
@@ -161,7 +212,7 @@ function toOption(
     : (PUBLIC_AVATAR_PLAYS[avatar.id] ?? "general");
   return {
     avatarId: avatar.id,
-    name: avatar.name,
+    name: displayName(avatar),
     previewUrl: avatar.preview_url || null,
     voice: {
       id: voiceId,
