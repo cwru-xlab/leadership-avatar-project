@@ -62,7 +62,8 @@ for (const [name, viewport] of [
     await expect(page.locator("h1")).toHaveText(title);
     await page.screenshot({ path: `${SHOTS}/technical-report-${name}.png`, fullPage: true });
 
-    await page.goto("/reports?type=interview");
+    // Search by title: the list pages 10 at a time and newer sessions push this one down.
+    await page.goto(`/reports?type=interview&q=${encodeURIComponent(title)}`);
     const card = page.getByRole("link", { name: new RegExp(title) }).first();
     await expect(card).toBeVisible({ timeout: 30_000 });
     await page.screenshot({ path: `${SHOTS}/technical-reports-list-${name}.png` });

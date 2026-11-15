@@ -39,7 +39,7 @@ test("/practice/interviews/technical still opens the coding interview", async ({
   await signIn(page);
   await page.goto("/practice/interviews/technical");
   await expect(page.getByRole("heading", { name: "Engineering Behavioral Interview" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Coding interview room" })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("heading", { name: "Technical coding", level: 1 })).toBeVisible({ timeout: 45_000 });
   await page.screenshot({ path: `${SHOTS}/coding-route.png`, fullPage: true });
 
   await page.goto("/practice/interviews/technical-coding");
