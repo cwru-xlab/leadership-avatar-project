@@ -4,14 +4,14 @@ import { expect, test, type Page } from "@playwright/test";
  * The compact roster row's thumbnail: its size, its framing, and what both
  * cost in scrolling.
  *
- * WHY THIS EXISTS. The picker's compact list defaults on, and its thumbnail
- * shipped at 44px with a plain centred `object-fit: cover`. The verdict on that
- * was "the images are quite a bit too small since it will be difficult for
- * users to make out what the avatar looks like", and measuring the roster found
- * the dominant cause was FRAMING, not pixels: every `previewUrl` is 16:9, and
- * the five Weatherhead faculty were filmed STANDING, so a centred square crop
- * spent the thumbnail on a torso, a desk and a bookshelf with the head at only
- * ~17% of frame height — about a 7px face.
+ * WHY THIS EXISTS. The picker's compact list is one of two views, and its
+ * thumbnail shipped at 44px with a plain centred `object-fit: cover`. The
+ * verdict on that was "the images are quite a bit too small since it will be
+ * difficult for users to make out what the avatar looks like", and measuring
+ * the roster found the dominant cause was FRAMING, not pixels: every
+ * `previewUrl` is 16:9, and the five Weatherhead faculty were filmed STANDING,
+ * so a centred square crop spent the thumbnail on a torso, a desk and a
+ * bookshelf with the head at only ~17% of frame height — about a 7px face.
  *
  * The fix was a per-shoot-family head crop plus 44 -> 56px. Each assertion
  * below pins one half of that, because each has a specific way of silently
@@ -169,8 +169,11 @@ test("the compact row's thumbnail is big enough and cropped to the face", async 
   await page.setViewportSize({ width: 1440, height: 900 });
   await openPicker(page);
 
-  // Compact list is the default, but assert it rather than assume it: this
-  // whole spec is about that view.
+  // This spec is about the COMPACT ROW, so select that view explicitly rather
+  // than relying on which view opens first — the default is a product decision
+  // that has already changed once (rows, then the photo grid) and this spec
+  // should not break or silently start measuring cards when it changes again.
+  await page.getByRole("radio", { name: "Compact list" }).click();
   await expect(page.getByRole("radio", { name: "Compact list" })).toHaveAttribute(
     "aria-checked",
     "true",

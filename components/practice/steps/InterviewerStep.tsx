@@ -103,16 +103,21 @@ export default function InterviewerStep({
   const [filters, setFilters] = useState<InterviewerFilters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortId>("suggested");
   /**
-   * Compact rows are the default, and the photo grid is one click away.
+   * The photo grid is the default, and compact rows are one click away.
    *
-   * The roster is 54 faces: as 240px cards that is ~6.9 screens of scrolling
-   * before the student reaches Continue, and the choice they are making ("who
-   * interviews me") does not need a 240px photograph of each option to be
-   * made. Rows put the same roster in roughly a screen and a half, grouped
-   * exactly as before. The grid stays for anyone who wants to look properly at
-   * the faces — same cards, same grouping, same selection.
+   * The roster is 54 faces. As 240px cards that is ~6.9 screens of scrolling
+   * against ~3.1 for rows, so rows are by far the cheaper way to get to
+   * Continue — but cheap scrolling is not what this step is for. The student is
+   * choosing who will interview them, which is a judgement about a face, and a
+   * 56px thumbnail is enough to recognise someone you already know and not
+   * enough to pick someone you don't. The grid leads with the photograph
+   * because that is the actual decision; rows stay for anyone scanning by name
+   * or coming back to a face they have already settled on.
+   *
+   * Both views share the same cards, grouping, filters and selection, so this
+   * is purely which one opens first.
    */
-  const [view, setView] = useState<InterviewerView>("list");
+  const [view, setView] = useState<InterviewerView>("grid");
 
   useEffect(() => {
     let isCurrent = true;

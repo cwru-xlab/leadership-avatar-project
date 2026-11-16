@@ -214,7 +214,7 @@ export default function LoginPage() {
         <div className="mx-auto flex min-h-0 w-full max-w-[880px] flex-col gap-6 [container-type:inline-size] min-[900px]:gap-8">
           <div className="flex items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-white font-display text-xl italic text-cwru-blue">
-              La
+              LA
             </span>
             <span className="font-display text-xl font-medium">
               Leadership Avatar
