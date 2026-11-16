@@ -58,6 +58,26 @@ export function interviewIcon(slug: string): LucideIcon {
   return ICONS[slug] ?? Briefcase;
 }
 
+/**
+ * Whether this preset is one of the cards on the industry-specific tab.
+ *
+ * DERIVED, not a slug list. The tab is `listSpecializedInterviews()` below,
+ * which is every LISTED preset except `general` (plus the coding room, which
+ * has no customize page), so membership is exactly that predicate and a preset
+ * added to `lib/interview/types.ts` is classified with no edit here. In
+ * particular `early-career` is `listed: false` and therefore NOT
+ * industry-specific, even though it is reachable by slug.
+ *
+ * It lives in this module because this is the one that already owns the
+ * picker's view of the catalog. `InterviewCustomizePage` asks because the role
+ * is implied by an industry-specific interview — a software-engineering
+ * interview already knows the job — so that page neither offers nor submits a
+ * role for one.
+ */
+export function isIndustrySpecificInterview(type: InterviewType): boolean {
+  return isListedInterviewType(type) && type.slug !== DEFAULT_INTERVIEW_TYPE.slug;
+}
+
 function firstSentence(text: string): string {
   const match = text.match(/^.*?[.!?](\s|$)/);
   return (match ? match[0] : text).trim();
@@ -113,7 +133,7 @@ const CODING_INTERVIEW: SpecializedInterview = {
 /** Every listed preset except general, then the coding room. */
 export function listSpecializedInterviews(): SpecializedInterview[] {
   const presets = listInterviewTypes()
-    .filter((type) => isListedInterviewType(type) && type.slug !== DEFAULT_INTERVIEW_TYPE.slug)
+    .filter(isIndustrySpecificInterview)
     .map<SpecializedInterview>((type) => ({
       key: type.slug,
       title: shortInterviewLabel(type.label),
