@@ -89,13 +89,20 @@ export default function InterviewerRow({
         /* WRAPPER, not a bare <img>. The thumbnail is zoomed with a transform
            (see `rosterThumbnailFramingStyle`), and `overflow` does not apply
            to replaced elements — a transform on the <img> itself would spill
-           past its own rounded corners. The clip has to live on a parent. */
+           past its own rounded corners. The clip has to live on a parent.
+
+           `object-cover` is in the class list but the object-position comes
+           from the framing style, because two shoots do not centre their
+           subject and need an X offset. */
         <span className="relative size-14 shrink-0 overflow-hidden rounded-md bg-canvas">
           <img
             alt=""
             className="size-full object-cover"
             src={interviewer.previewUrl}
-            style={rosterThumbnailFramingStyle(interviewer.faculty)}
+            style={rosterThumbnailFramingStyle(
+              interviewer.faculty,
+              interviewer.avatarId,
+            )}
           />
         </span>
       ) : (
