@@ -129,7 +129,6 @@ async function rasterizePdfPage(
   const loadingTask = pdfjs.getDocument({
     data,
     useSystemFonts: true,
-    isEvalSupported: false,
   });
   const doc = await loadingTask.promise;
   if (pageNumber < 1 || pageNumber > doc.numPages) {
@@ -152,7 +151,7 @@ async function rasterizePdfPage(
   });
   await renderTask.promise;
   const png = Buffer.from(canvas.toBuffer("image/png"));
-  await doc.destroy();
+  await doc.loadingTask.destroy();
   return { png, width, height, pageCount: doc.numPages };
 }
 
@@ -193,7 +192,6 @@ async function section1PdfToPng(): Promise<void> {
   const doc = await pdfjs.getDocument({
     data: Uint8Array.from(pdfBytes),
     useSystemFonts: true,
-    isEvalSupported: false,
   }).promise;
   const page = await doc.getPage(1);
   const { png, width, height } = await renderPageToPng(page, { longEdgePx: 1600 });
@@ -223,7 +221,7 @@ async function section1PdfToPng(): Promise<void> {
   writeFileSync(outThumb, thumbPng);
   console.log(`    wrote ${outThumb} (${thumbPng.length} bytes, ${thumbW}x${thumbH})`);
 
-  await doc.destroy().catch(() => undefined);
+  await doc.loadingTask.destroy().catch(() => undefined);
 
   step(4, "PDF → PNG section OK");
   console.log(`    sha256(slide)=${createHash("sha256").update(png).digest("hex").slice(0, 16)}…`);

@@ -98,7 +98,7 @@ async function readPdfText(
 
   let doc: Awaited<ReturnType<typeof pdfjs.getDocument>["promise"]>;
   try {
-    doc = await pdfjs.getDocument({ data: bytes, isEvalSupported: false }).promise;
+    doc = await pdfjs.getDocument({ data: bytes }).promise;
   } catch (error) {
     if ((error as { name?: string } | null)?.name === "PasswordException") {
       return {
@@ -126,7 +126,7 @@ async function readPdfText(
   } catch {
     return { ok: false, error: DAMAGED_MESSAGE };
   } finally {
-    await doc.destroy();
+    await doc.loadingTask.destroy();
   }
 }
 

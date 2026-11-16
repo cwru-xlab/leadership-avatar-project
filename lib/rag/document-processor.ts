@@ -43,7 +43,6 @@ export class DocumentProcessor {
     const loadingTask = pdfjs.getDocument({
       data: new Uint8Array(buffer),
       useSystemFonts: true,
-      isEvalSupported: false,
     });
     let doc: Awaited<typeof loadingTask.promise>;
     try {
@@ -68,7 +67,7 @@ export class DocumentProcessor {
       }
       return fullText;
     } finally {
-      await doc.destroy();
+      await doc.loadingTask.destroy();
     }
   }
 
