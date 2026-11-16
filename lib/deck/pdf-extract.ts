@@ -26,7 +26,6 @@ export async function extractPerPageText(buffer: Buffer): Promise<string[]> {
       data,
       // Node: no browser worker; disable to keep extraction in-process.
       useSystemFonts: true,
-      isEvalSupported: false,
     });
     const doc = await loadingTask.promise;
     const pages: string[] = [];
@@ -49,7 +48,7 @@ export async function extractPerPageText(buffer: Buffer): Promise<string[]> {
       pages.push(normalizeDeckWhitespace(pieces.join(" ")));
     }
 
-    await doc.destroy();
+    await doc.loadingTask.destroy();
 
     return pages;
   } catch (error) {

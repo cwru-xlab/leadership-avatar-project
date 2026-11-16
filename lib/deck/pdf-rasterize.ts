@@ -175,7 +175,6 @@ export async function rasterizePdf(buffer: Buffer): Promise<RasterizedSlide[]> {
     const loadingTask = pdfjs.getDocument({
       data,
       useSystemFonts: true,
-      isEvalSupported: false,
       disableFontFace: true,
       useWorkerFetch: false,
       isOffscreenCanvasSupported: false,
@@ -239,7 +238,7 @@ export async function rasterizePdf(buffer: Buffer): Promise<RasterizedSlide[]> {
   }
 
   try {
-    await doc.destroy();
+    await doc.loadingTask.destroy();
   } catch {
     /* ignore */
   }
