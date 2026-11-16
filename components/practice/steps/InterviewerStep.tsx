@@ -28,6 +28,9 @@
  * (`components/shell/FloatingAction`) that stands in for that footer while it
  * is off screen. It replaced a dock that hovered over the cards. Those two
  * header comments keep the geometry reasoning.
+ *
+ * WHICH OF THE TWO VIEWS OPENS is width-dependent — see `GRID_DEFAULT_QUERY`
+ * and the `picked`/`view` pair below.
  */
 
 import type { SetupStepNav } from "@/components/practice/SetupWizard";
@@ -43,14 +46,28 @@ import {
   type InterviewerFilters,
   type SortId,
 } from "@/lib/interview/interviewer-facets";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Spinner } from "@heroui/spinner";
 import { Check, CircleAlert, LayoutGrid, Rows3, SearchX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-/** Compact rows (default) or the photo grid. See `view` state below. */
+/** Compact rows or the photo grid. See `view` below. */
 type InterviewerView = "list" | "grid";
+
+/**
+ * Width at which the picker opens on the photo grid rather than compact rows.
+ *
+ * It is the house shell breakpoint, not a number chosen here: `min-[900px]` is
+ * where `app/layout.tsx` flips the frame to a sidebar and `components/auth-navbar.tsx`
+ * changes the nav's shape, so it is already this app's line between "a phone or
+ * a narrow tablet" and "a desktop window". The picker's own grid uses `sm` and
+ * `xl` for its COLUMN count, which is a different question — 900 sits inside
+ * the two-column band, so the split here is about how much screen the student
+ * has, not about where a column is added.
+ */
+const GRID_DEFAULT_QUERY = "(min-width: 900px)";
 
 export interface InterviewerOption {
   avatarId: string;
@@ -103,21 +120,34 @@ export default function InterviewerStep({
   const [filters, setFilters] = useState<InterviewerFilters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortId>("suggested");
   /**
-   * The photo grid is the default, and compact rows are one click away.
+   * WHICH VIEW OPENS, and why it depends on the viewport.
    *
-   * The roster is 54 faces. As 240px cards that is ~6.9 screens of scrolling
-   * against ~3.1 for rows, so rows are by far the cheaper way to get to
-   * Continue — but cheap scrolling is not what this step is for. The student is
-   * choosing who will interview them, which is a judgement about a face, and a
-   * 56px thumbnail is enough to recognise someone you already know and not
-   * enough to pick someone you don't. The grid leads with the photograph
-   * because that is the actual decision; rows stay for anyone scanning by name
-   * or coming back to a face they have already settled on.
+   * The roster is 54 faces, and the two views cost very different amounts of
+   * screen: as 240px cards that is ~6.9 screens of scrolling at 1440 and ~24 at
+   * 375, against ~3.1 and ~9.3 for rows. Cheap scrolling is not what this step
+   * is for — the student is choosing who will interview them, which is a
+   * judgement about a face, and a 56px thumbnail is enough to recognise someone
+   * you already know and not enough to pick someone you don't. So the grid
+   * leads with the photograph wherever there is room for it, and on a phone,
+   * where the grid is a single file of cards and 24 screens deep, rows open
+   * instead. Either way the other view is one click away in the toolbar.
    *
-   * Both views share the same cards, grouping, filters and selection, so this
-   * is purely which one opens first.
+   * THE EXPLICIT CHOICE WINS. `picked` is null until the student touches the
+   * toggle, and non-null forever after, so `view` is derived rather than
+   * synced: a resize, a re-render or a filter change cannot walk back over a
+   * choice that was made on purpose. Nothing is persisted — this is a default,
+   * not a remembered setting.
+   *
+   * HYDRATION. `useMediaQuery` answers `false` on the server and on the first
+   * client render, so both agree on rows and only the following commit reads
+   * the real viewport. Nothing flashes in practice: the catalog is still
+   * loading at that point, so the first roster the student sees is already in
+   * the right view.
    */
-  const [view, setView] = useState<InterviewerView>("grid");
+  const [picked, setPicked] = useState<InterviewerView | null>(null);
+  const wideEnoughForTheGrid = useMediaQuery(GRID_DEFAULT_QUERY);
+  const view: InterviewerView = picked ?? (wideEnoughForTheGrid ? "grid" : "list");
+
 
   useEffect(() => {
     let isCurrent = true;
@@ -337,7 +367,7 @@ export default function InterviewerStep({
               view={view}
               onFiltersChange={setFilters}
               onSortChange={setSort}
-              onViewChange={setView}
+              onViewChange={setPicked}
             />
             {hiddenSelection && selectedInterviewer && (
               <p className="text-[13px] leading-5 text-muted">
