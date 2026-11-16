@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { s3Storage } from "@/lib/s3-client";
+import { isSeededCaseStudyId } from "@/lib/case-study/seeded";
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,6 +10,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Missing case ID" },
         { status: 400 }
+      );
+    }
+
+    if (isSeededCaseStudyId(id)) {
+      return NextResponse.json(
+        { error: "Built-in case studies are read-only. Change them in lib/case-study/seeded.ts." },
+        { status: 403 }
       );
     }
 
