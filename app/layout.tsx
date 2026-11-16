@@ -43,7 +43,12 @@ export default function RootLayout({
         )}
       >
         <Providers>
-          <div className="relative flex h-dvh flex-col overflow-hidden md:flex-row">
+          {/* The direction flips at the SAME width the nav changes shape
+              (`min-[900px]` in components/auth-navbar.tsx), not at `md`. With
+              `md:flex-row` the 768-899px band laid the MOBILE top bar out as a
+              row item, so it took 378px of width and squeezed the content
+              column to 358px on every page in this frame. */}
+          <div className="relative flex h-dvh flex-col overflow-hidden min-[900px]:flex-row">
             <AuthNavbar />
             <MainContent>{children}</MainContent>
           </div>

@@ -3,11 +3,25 @@
 /**
  * Renders a study plan's path as a winding map of steps (Phase 23): a
  * progress ring, the steps in position order as icon nodes (done / next /
- * pending), and selecting a node opens its card in place (competency level
- * badge, stored reason, an action link for every pending step). The side
- * rail holds ONE prominent "Continue" call-to-action for the next step
- * showing the FULL stored reason, the skills the path works on with their
- * levels, and a completion state linking to Mastery once every step is done.
+ * pending), and selecting a node opens its card in an anchored popover over
+ * the map (competency level badge, stored reason, an action link for every
+ * pending step). The side rail holds ONE prominent "Continue" call-to-action
+ * for the next step showing the FULL stored reason, the skills the path works
+ * on with their levels, and a completion state linking to Mastery once every
+ * step is done.
+ *
+ * THE STEP CARD NEVER TAKES LAYOUT SPACE. It used to render in flow under the
+ * selected node, which pushed every later step (and the page below the map)
+ * down by the height of a paragraph on each click — the trail jumped under
+ * the cursor and the node the student had just aimed at moved. It is now a
+ * fixed-position popover measured off the node's own rect, so opening and
+ * closing a card moves nothing. `position: fixed` is deliberate and the
+ * popover is a SIBLING of the trail, never a descendant of a step row: the
+ * rows carry `transform: translateX(...)` for the wave, and a transformed
+ * ancestor becomes the containing block for a fixed child, which would both
+ * re-anchor it and let the map's `overflow-hidden` clip it. `overflow-hidden`
+ * alone does not clip a fixed element whose containing block is the viewport,
+ * which is why the map can stay clipped while the card escapes it.
  *
  * NO SELECTION AND NO REASON GENERATION HAPPEN HERE. Every `selectionReason`
  * rendered below is the STORED string the server sent — this component only
@@ -47,7 +61,7 @@
  * server-side generation route (app/api/study-plans/[planId]/path/route.ts)
  * is the first line — this is only a backstop.
  */
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { routes } from "@/lib/routes";
 import clsx from "clsx";
 import Link from "next/link";
@@ -62,6 +76,7 @@ import {
   RotateCcw,
   Sparkles,
   Trophy,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -227,17 +242,22 @@ function MapNode({
   selected,
   highlighted,
   onSelect,
+  registerNode,
 }: {
   step: PathStepViewDTO;
   state: NodeState;
   selected: boolean;
   highlighted: boolean;
   onSelect: () => void;
+  /** Hands the button up so the popover can measure its rect. */
+  registerNode: (element: HTMLButtonElement | null) => void;
 }) {
   const Icon = nodeIcon(step);
   const big = state === "next" || Boolean(step.proveIt);
   return (
     <button
+      ref={registerNode}
+      aria-controls={selected ? "path-step-card" : undefined}
       aria-expanded={selected}
       aria-label={`Step ${step.position}: ${KIND_LABEL[step.kind]}, ${step.competencyLabel}${
         state === "done" ? ", complete" : state === "next" ? ", up next" : ""
@@ -267,6 +287,244 @@ function MapNode({
         <Icon aria-hidden size={big ? 36 : 28} strokeWidth={1.75} />
       )}
     </button>
+  );
+}
+
+const CARD_WIDTH = 320;
+/** Gap between the node and the card, and the margin the card keeps from the
+ * edges of the area it is allowed to sit in. */
+const CARD_GAP = 12;
+const EDGE_MARGIN = 12;
+
+interface CardPlacement {
+  left: number;
+  top: number;
+  width: number;
+}
+
+/**
+ * Places the card beside the node when the MAP has room on either side, and
+ * under it when it does not (narrow viewports, or a node near the middle of a
+ * cramped column).
+ *
+ * `bounds` is the map panel's own rect, not the viewport: measuring against
+ * the viewport let the card sit in the empty space to the right of the map,
+ * which is exactly where the side rail's Up next card lives — the step card
+ * covered the page's primary call-to-action. Horizontal placement therefore
+ * stays inside the map; only the vertical axis is clamped to the viewport,
+ * and the card may run past the fold where the page scrolls to it rather than
+ * being squeezed to fit.
+ *
+ * `preferSide` is the side AWAY from the node's own label (the wave flips the
+ * label from right to left every few steps). A popover has to cover
+ * something, and the one thing it must not cover is the label naming the step
+ * the student just clicked — so when the preferred side has no room the card
+ * drops BELOW the node, nudged toward that same empty side, rather than
+ * falling back onto the label's side. At the app shell's widths the map
+ * column is around 520px and the wave offsets nodes by up to 88px, so below
+ * is the common case and beside is the bonus on a wide screen.
+ */
+function placeCard(
+  node: DOMRect,
+  bounds: DOMRect,
+  viewportHeight: number,
+  preferSide: "left" | "right",
+  cardHeight: number,
+): CardPlacement {
+  const width = Math.min(CARD_WIDTH, bounds.width - EDGE_MARGIN * 2);
+  const room = preferSide === "left" ? node.left - bounds.left : bounds.right - node.right;
+  const beside = room >= width + CARD_GAP + EDGE_MARGIN;
+
+  const left = beside
+    ? preferSide === "left"
+      ? node.left - CARD_GAP - width
+      : node.right + CARD_GAP
+    : // Below: hang the card off the node's centre line, into the empty side.
+      preferSide === "left"
+      ? node.left + node.width / 2 - width
+      : node.left + node.width / 2;
+  const top = beside ? node.top : node.bottom + CARD_GAP;
+
+  // Lifted so the whole card is on screen when it can be. A card taller than
+  // the viewport is pinned to the top instead of being pulled off it; it
+  // keeps following its node on scroll either way.
+  const lowestTop = Math.max(viewportHeight - cardHeight - EDGE_MARGIN, EDGE_MARGIN);
+
+  return {
+    left: Math.min(
+      Math.max(left, bounds.left + EDGE_MARGIN),
+      bounds.right - width - EDGE_MARGIN,
+    ),
+    top: Math.max(Math.min(top, lowestTop), EDGE_MARGIN),
+    width,
+  };
+}
+
+/**
+ * The selected step's card, as a popover anchored to its node.
+ *
+ * Dismissal follows the same three rules as the plan switcher in
+ * `app/paths/page.tsx`: Escape, a pointer press outside, and losing focus to
+ * something outside. Escape and outside-press return focus to the node, so a
+ * keyboard student lands back where they opened from instead of at the top of
+ * the trail. It is not a modal — nothing behind it is disabled and no focus
+ * trap is installed, because the card is an aside on the map, not a decision
+ * the student has to answer before continuing.
+ */
+function StepCard({
+  planId,
+  step,
+  state,
+  statusLabel,
+  purpose,
+  level,
+  anchor,
+  bounds,
+  preferSide,
+  onClose,
+}: {
+  planId: string;
+  step: PathStepViewDTO;
+  state: NodeState;
+  statusLabel: string;
+  purpose: string | null;
+  level: ReactNode;
+  /** The selected node's button, measured for placement. */
+  anchor: HTMLButtonElement;
+  /** The map panel the card has to stay inside of, horizontally. */
+  bounds: HTMLElement;
+  /** The side of the node its label is NOT on. */
+  preferSide: "left" | "right";
+  onClose: (options?: { refocusAnchor?: boolean }) => void;
+}) {
+  const [placement, setPlacement] = useState<CardPlacement | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const href = hrefForStep(planId, step);
+  const isActionable = step.status === "PENDING" || step.status === "IN_PROGRESS";
+
+  // Re-measured on scroll and resize because the card is fixed while the
+  // node scrolls with the map: without this it would detach from its node.
+  useEffect(() => {
+    const reposition = () =>
+      setPlacement(
+        placeCard(
+          anchor.getBoundingClientRect(),
+          bounds.getBoundingClientRect(),
+          window.innerHeight,
+          preferSide,
+          cardRef.current?.offsetHeight ?? 0,
+        ),
+      );
+    reposition();
+    // The first pass runs before the card has been laid out, so its height is
+    // 0 and the lift is a no-op; this second pass, after paint, gets it.
+    const settle = requestAnimationFrame(reposition);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      cancelAnimationFrame(settle);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [anchor, bounds, preferSide]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose({ refocusAnchor: true });
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (cardRef.current?.contains(target) || anchor.contains(target)) return;
+      onClose({ refocusAnchor: true });
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [anchor, onClose]);
+
+  return (
+    <div
+      ref={cardRef}
+      // Not `role="dialog"`: a dialog promises a focus trap and a modal
+      // backdrop, neither of which this card has or wants.
+      aria-label={`Step ${step.position}: ${step.competencyLabel}`}
+      className="fixed z-40 rounded-xl border border-line bg-white p-4 shadow-raised motion-safe:animate-[la-fade_150ms_ease-out_both]"
+      id="path-step-card"
+      role="group"
+      style={{
+        left: placement?.left ?? 0,
+        top: placement?.top ?? 0,
+        width: placement?.width,
+        // Hidden for the single frame before the first measurement, so the
+        // card never flashes at the top-left corner.
+        visibility: placement ? "visible" : "hidden",
+      }}
+      onBlur={(event) => {
+        const next = event.relatedTarget as Node | null;
+        if (next && !event.currentTarget.contains(next) && !anchor.contains(next)) onClose();
+      }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[15px] font-bold text-ink">{step.competencyLabel}</p>
+          {level}
+        </div>
+        <button
+          aria-label="Close step details"
+          className="-mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink focus-visible:outline-true-blue"
+          type="button"
+          onClick={() => onClose({ refocusAnchor: true })}
+        >
+          <X aria-hidden size={16} />
+        </button>
+      </div>
+      {purpose === null ? (
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">{step.selectionReason}</p>
+      ) : (
+        <>
+          <p className="mt-2 text-sm leading-6 text-ink">{purpose}</p>
+          <details className="mt-1 text-xs text-muted">
+            <summary className="cursor-pointer select-none font-semibold text-link">Why this skill</summary>
+            <p className="mt-1 whitespace-pre-wrap leading-5">{step.selectionReason}</p>
+          </details>
+        </>
+      )}
+      {step.proveIt ? <p className="mt-2 text-xs leading-5 text-muted">{step.proveIt.brief}</p> : null}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <span className={clsx("text-xs font-semibold", state === "done" ? "text-level-4" : "text-muted")}>
+          {statusLabel}
+          {step.completedAt ? ` · ${formatGeneratedAt(step.completedAt)}` : ""}
+        </span>
+        {isActionable ? (
+          href ? (
+            <Link
+              href={href}
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-cwru-blue px-3.5 text-sm font-semibold text-cwru-blue hover:bg-canvas"
+            >
+              {actionLabelForStep(step)}
+              <ArrowRight size={14} aria-hidden="true" />
+            </Link>
+          ) : (
+            <span className="text-xs text-muted">Preparing…</span>
+          )
+        ) : step.status === "COMPLETE" && href ? (
+          // Review, Duolingo-style: always open, never gates anything.
+          // Each destination keeps its own redo rules (a drill redo
+          // writes new evidence; a check shows its stored result).
+          <Link
+            href={href}
+            data-testid="practice-again"
+            className="inline-flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-level-4 hover:bg-canvas"
+          >
+            <RotateCcw size={14} aria-hidden="true" />
+            Practice again
+          </Link>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -339,6 +597,31 @@ export default function PathPanel({
   // next step, so an open card on the same node would say it twice. A
   // competency handed in from mastery still opens its first step.
   const [selectedId, setSelectedId] = useState<string | null>(firstHighlightedId);
+  // The selected node's button, so the card can measure where to sit. Kept in
+  // state rather than a ref because the card has to re-render once the node
+  // mounts; the map stores every node so a selection made before paint (the
+  // mastery deep link) still finds its anchor.
+  const nodes = useRef(new Map<string, HTMLButtonElement>());
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  // State, not a ref: the card's placement is measured off this element, so
+  // the render that first sees it has to be a render React actually performs.
+  const [map, setMap] = useState<HTMLElement | null>(null);
+
+  const closeCard = useCallback((options?: { refocusAnchor?: boolean }) => {
+    setSelectedId((current) => {
+      if (options?.refocusAnchor && current) {
+        nodes.current.get(current)?.focus({ preventScroll: true });
+      }
+      return null;
+    });
+  }, []);
+
+  useEffect(() => {
+    setAnchor(selectedId ? nodes.current.get(selectedId) ?? null : null);
+  }, [selectedId]);
+
+  const selectedStep = selectedId ? orderedSteps.find((s) => s.id === selectedId) ?? null : null;
+  const selectedIndex = selectedStep ? orderedSteps.indexOf(selectedStep) : -1;
 
   useEffect(() => {
     if (!firstHighlightedId) return;
@@ -365,6 +648,7 @@ export default function PathPanel({
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <section
+        ref={setMap}
         aria-label="Path map"
         className="la-map-dots relative overflow-hidden rounded-2xl border border-line bg-white px-4 pb-10 pt-5 sm:px-6"
       >
@@ -382,18 +666,14 @@ export default function PathPanel({
 
         <ol className="mt-8 flex flex-col items-center gap-6">
           {orderedSteps.map((step, index) => {
-            const href = hrefForStep(planId, step);
-            const isActionable = step.status === "PENDING" || step.status === "IN_PROGRESS";
             const state: NodeState = isStepDone(step)
               ? "done"
               : target && target.step.id === step.id
                 ? "next"
                 : "pending";
-            const statusLabel = STATUS_LABEL[step.status] ?? step.status;
             const highlighted = Boolean(highlightCompetency) && step.competencyKey === highlightCompetency;
             const selected = selectedId === step.id;
             const wave = WAVE[index % WAVE.length];
-            const purpose = repeatedReasonPurpose(step, orderedSteps[index - 1]);
             return (
               <li
                 key={step.id}
@@ -409,10 +689,17 @@ export default function PathPanel({
                 >
                   <MapNode
                     highlighted={highlighted}
+                    registerNode={(element) => {
+                      if (element) nodes.current.set(step.id, element);
+                      else nodes.current.delete(step.id);
+                    }}
                     selected={selected}
                     state={state}
                     step={step}
-                    onSelect={() => setSelectedId(selected ? null : step.id)}
+                    onSelect={() => {
+                      if (selected) return closeCard({ refocusAnchor: false });
+                      setSelectedId(step.id);
+                    }}
                   />
                   <span className={clsx("flex w-36 flex-col md:w-40", wave > 0 && "md:items-end md:text-right")}>
                     <span className="text-xs text-muted">
@@ -429,63 +716,38 @@ export default function PathPanel({
                     {state === "next" && <span className="text-xs font-semibold text-link">Up next</span>}
                   </span>
                 </div>
-
-                {selected && (
-                  <div className="w-full max-w-md rounded-xl border border-line bg-white p-4 shadow-raised">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-[15px] font-bold text-ink">{step.competencyLabel}</p>
-                      {levels ? <LevelBadge level={levels[step.competencyKey]?.current} /> : null}
-                    </div>
-                    {purpose === null ? (
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">{step.selectionReason}</p>
-                    ) : (
-                      <>
-                        <p className="mt-2 text-sm leading-6 text-ink">{purpose}</p>
-                        <details className="mt-1 text-xs text-muted">
-                          <summary className="cursor-pointer select-none font-semibold text-link">Why this skill</summary>
-                          <p className="mt-1 whitespace-pre-wrap leading-5">{step.selectionReason}</p>
-                        </details>
-                      </>
-                    )}
-                    {step.proveIt ? <p className="mt-2 text-xs leading-5 text-muted">{step.proveIt.brief}</p> : null}
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                      <span className={clsx("text-xs font-semibold", state === "done" ? "text-level-4" : "text-muted")}>
-                        {statusLabel}
-                        {step.completedAt ? ` · ${formatGeneratedAt(step.completedAt)}` : ""}
-                      </span>
-                      {isActionable ? (
-                        href ? (
-                          <Link
-                            href={href}
-                            className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-cwru-blue px-3.5 text-sm font-semibold text-cwru-blue hover:bg-canvas"
-                          >
-                            {actionLabelForStep(step)}
-                            <ArrowRight size={14} aria-hidden="true" />
-                          </Link>
-                        ) : (
-                          <span className="text-xs text-muted">Preparing…</span>
-                        )
-                      ) : step.status === "COMPLETE" && href ? (
-                        // Review, Duolingo-style: always open, never gates anything.
-                        // Each destination keeps its own redo rules (a drill redo
-                        // writes new evidence; a check shows its stored result).
-                        <Link
-                          href={href}
-                          data-testid="practice-again"
-                          className="inline-flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-level-4 hover:bg-canvas"
-                        >
-                          <RotateCcw size={14} aria-hidden="true" />
-                          Practice again
-                        </Link>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
               </li>
             );
           })}
         </ol>
       </section>
+
+      {/* THE CARD LIVES HERE, not in the step row above: see the
+          transform/containing-block note in this file's header comment. */}
+      {selectedStep && anchor && map ? (
+        <StepCard
+          anchor={anchor}
+          bounds={map}
+          level={levels ? <LevelBadge level={levels[selectedStep.competencyKey]?.current} /> : null}
+          planId={planId}
+          // A step on the right of the wave wears its label on the left
+          // (`md:flex-row-reverse` below), so the card goes right, and the
+          // other way round.
+          preferSide={WAVE[selectedIndex % WAVE.length] > 0 ? "right" : "left"}
+          purpose={repeatedReasonPurpose(selectedStep, orderedSteps[selectedIndex - 1])}
+          state={
+            isStepDone(selectedStep)
+              ? "done"
+              : target && target.step.id === selectedStep.id
+                ? "next"
+                : "pending"
+          }
+          statusLabel={STATUS_LABEL[selectedStep.status] ?? selectedStep.status}
+          step={selectedStep}
+          onClose={closeCard}
+        />
+      ) : null}
+
 
       <aside className="flex flex-col gap-4 lg:sticky lg:top-0">
         {path.rebuildable && onRebuilt ? <RebuildPathNotice planId={planId} onRebuilt={onRebuilt} /> : null}

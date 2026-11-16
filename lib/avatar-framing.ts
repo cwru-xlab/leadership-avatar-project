@@ -74,3 +74,62 @@ export function avatarFramingStyle(
     transformOrigin: `50% ${framing.originY}%`,
   };
 }
+
+/**
+ * Head-and-shoulders framing for the picker's COMPACT ROW thumbnail.
+ *
+ * WHY THIS EXISTS, AND WHY IT IS NOT THE MAP ABOVE. The compact roster row
+ * shows each interviewer at 56px square. Every `previewUrl` in the catalog is
+ * 16:9 (measured: 1280x720 for the 5 faculty and the 19 `Sitting`/`HR`/
+ * `Therapist`/`Lawyer` looks, 1920x1080 for the 30 `(Friendly)` looks — 54 of
+ * 54, no exceptions). A 16:9 still covering a 1:1 box renders at 78.2x44 for a
+ * 44px box: `overflowY` is exactly ZERO. That number is the whole reason this
+ * function exists, because it means `object-position` has nothing to slide
+ * vertically — a head-biased `object-position: 50% 0%` is a literal no-op here
+ * and only a zoom can crop in on a face. Anyone "simplifying" this to an
+ * object-position offset will silently restore the old thumbnails.
+ *
+ * WHY TWO VALUES AND NOT 54. Head height was measured as a fraction of the
+ * source frame on a per-shoot-family basis (see the probe grids that produced
+ * `screenshots/thumb-legibility/probe-measure-*.png`):
+ *
+ *   - FACULTY (5, standing full-length in their own offices): head top ~8%,
+ *     chin ~26% — a head only ~0.17 of frame height. At 44px that is a ~7px
+ *     face, which is why no size increase alone could fix this: even 64px
+ *     uncropped only buys ~10px.
+ *   - STOCK (49, seated at a desk): head top ~12-15%, chin ~45-49% — a head
+ *     ~0.32-0.34 of frame height. Families B and C measured within two points
+ *     of each other, so they take ONE rule; splitting them would be per-shoot
+ *     precision the measurements do not support.
+ *
+ * So the smallest rule that serves the whole roster is two values keyed off the
+ * `faculty` flag the catalog already carries, rather than a per-avatar table
+ * that would need an entry for every avatar the account ever adds. An
+ * unrecognised face falls to the STOCK rule, which is the safe default: the
+ * curated public catalog is seated by construction (`lib/avatar-roster.ts`).
+ *
+ * THE ARITHMETIC. With the full source height visible, box position maps 1:1
+ * to source fraction, so `scale(z)` about `50% originY%` shows the source band
+ * from `originY*(1 - 1/z)` to `originY*(1 - 1/z) + 100/z` percent:
+ *
+ *   - faculty  z=2.7, originY=6  -> band  3.8%..40.8%, head fills ~49%
+ *   - stock    z=1.6, originY=10 -> band  3.8%..66.3%, head fills ~54%
+ *
+ * Both land the head at roughly half the thumbnail with headroom above, which
+ * is the framing a face needs to be identifiable at this size.
+ *
+ * HORIZONTAL STAYS CENTRED. Every subject measured within a few points of the
+ * frame's horizontal centre, so `50%` is correct and no per-avatar X is needed.
+ */
+export function rosterThumbnailFramingStyle(faculty: boolean | undefined): {
+  transform: string;
+  transformOrigin: string;
+} {
+  const framing: AvatarFraming = faculty
+    ? { scale: 2.7, originY: 6 }
+    : { scale: 1.6, originY: 10 };
+  return {
+    transform: `scale(${framing.scale})`,
+    transformOrigin: `50% ${framing.originY}%`,
+  };
+}

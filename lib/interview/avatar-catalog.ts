@@ -5,7 +5,13 @@
  * cached list the picker renders (a route module cannot export this).
  */
 
-import { SEATED_PUBLIC_AVATAR_ID_SET, SEATED_PUBLIC_AVATAR_IDS } from "@/lib/avatar-roster";
+import {
+  FACULTY_VOICE_GENDER,
+  PUBLIC_AVATAR_PLAYS,
+  SEATED_PUBLIC_AVATAR_ID_SET,
+  SEATED_PUBLIC_AVATAR_IDS,
+  type AvatarPlays,
+} from "@/lib/avatar-roster";
 import { getHeygenApiKey, getLiveAvatarApiUrl } from "@/lib/heygen-server";
 import type { HeygenErrorCode } from "@/lib/heygen-types";
 
@@ -27,10 +33,26 @@ interface LiveAvatarRecord {
 interface LiveAvatarVoiceRecord {
   id: string;
   gender?: string | null;
+  language?: string | null;
+}
+
+/** The facets one preset-voice record can contribute to an option. */
+interface VoiceFacets {
+  gender?: string;
+  language?: string;
 }
 
 export interface InterviewerOption {
   avatarId: string;
+  /**
+   * The display name, derived from the VOICE name — see `displayName` below
+   * for why, and for what that deliberately drops. This is NOT the vendor's
+   * avatar name: `Emily (Friendly)` is "Emily" and `Ann Therapist` is "Ann".
+   *
+   * It is what the picker renders and what reaches `interviewerName` in a
+   * stored report, so the name in a student's report matches the name on the
+   * card they chose.
+   */
   name: string;
   previewUrl: string | null;
   voice: {
@@ -39,21 +61,60 @@ export interface InterviewerOption {
   };
   /**
    * Presented gender, joined from the preset voice catalog (`/v1/voices`) via
-   * the avatar's own `default_voice.id`. The avatar records carry no
-   * demographic metadata of their own, so this is the only vendor-supplied
-   * facet available for filtering.
+   * the avatar's own `default_voice.id`, and for the faculty filled in from
+   * `FACULTY_VOICE_GENDER`. The avatar records carry no demographic metadata
+   * of their own, so those are the only two sources available for filtering.
    *
-   * ABSENT IS MEANINGFUL, not a failure: the account's five custom faculty
-   * avatars use custom voices that are not in the preset catalog, so no gender
-   * is supplied for them. They are real people, and guessing from a name is
-   * exactly the wrong move. **A gender filter must treat an absent value as
-   * always-visible** — filtering it out would hide the faculty, who are the
-   * roster's most important entries.
+   * THE VENDOR WINS where it supplies a value; the curated map only fills the
+   * gap the preset catalog leaves for the account's custom faculty voices.
+   * That gap used to mean all five faculty stayed visible under BOTH gender
+   * choices, which showed four male instructors to a student asking for a
+   * female voice. The curated values are stated by the course owners about
+   * named colleagues, not inferred from names or faces — guessing remains the
+   * wrong move, and nothing here guesses.
+   *
+   * ABSENT IS STILL MEANINGFUL, and still possible: a future faculty avatar
+   * with no entry in that map supplies no gender. **A gender filter must keep
+   * treating an absent value as always-visible** — filtering it out would hide
+   * a face rather than admit the data is missing.
    *
    * Note this is the VOICE's gender, a reliable proxy only because HeyGen
    * pairs each avatar with its own voice (`Ann Therapist` ships `Ann - IA`).
    */
   gender?: string;
+  /**
+   * Voice-catalog language, joined from the same `/v1/voices` record as
+   * `gender`, so it carries the same contract: **absent means "we were told
+   * nothing", and such an option stays visible under a language filter.** The
+   * faculty's custom voices supply no language either.
+   *
+   * The vendor ships a short code, not a display name — every preset voice on
+   * this account reads `"en"` today — so the value is kept VERBATIM and any
+   * label is the UI's job. A picker facet built on it should expect to find
+   * only one distinct value and hide itself accordingly.
+   */
+  language?: string;
+  /**
+   * What this face is dressed to play, from the curated map in
+   * `lib/avatar-roster.ts`. Curated, never inferred — see that map's comment.
+   * A stock face not in that map is `general`, which is a real answer rather
+   * than a gap: plain business dress can sit opposite a student in any
+   * scenario.
+   *
+   * ABSENT FOR THE FACULTY, deliberately. The five custom avatars are real
+   * Weatherhead instructors, and type-casting a named colleague as a role is
+   * not this app's call to make. They are grouped by `faculty` instead, which
+   * is a fact about which catalog they came from rather than a judgement about
+   * them.
+   */
+  plays?: AvatarPlays;
+  /**
+   * True for the account's own avatars (`/v1/avatars`) — the Weatherhead
+   * faculty likenesses. False for the curated public roster. Unlike the other
+   * facets this is always known, because it is which catalog the record came
+   * from rather than anything the vendor had to tell us.
+   */
+  faculty: boolean;
 }
 
 interface CacheEntry {
@@ -88,15 +149,70 @@ function isUsable(avatar: LiveAvatarRecord): boolean {
   );
 }
 
+/**
+ * The name a student sees, derived from the VOICE name rather than the avatar
+ * name.
+ *
+ * WHY THE VOICE NAME WINS. The two were shown side by side and mostly restated
+ * each other — "Scott Cowen / Scott Cowen", "Emily (Friendly) / Emily" — so
+ * the pair was noise. Of the 54 faces today: 5 identical, 30 where the avatar
+ * name adds a vendor suffix the voice name omits (`Emily (Friendly)`,
+ * `Katya Sitting`), and 19 where the voice name adds a profile suffix instead
+ * (`Ann - IA`, `Dexter - Professional`). The voice name is the cleaner of the
+ * two once that profile suffix is dropped, because what it strips is HeyGen's
+ * shoot metadata — an emotion, a pose, a wardrobe — which says nothing to a
+ * student choosing an interviewer.
+ *
+ * NOT THE RAW VOICE NAME. Taking it literally would print "Ann - IA" and
+ * "Dexter - Professional" on 19 cards, which is worse than what it replaced.
+ * Vendor voice names are `<person>` or `<person> - <profile>`, so only the
+ * lead segment is a person's name; the profile is the part the row already
+ * showed separately.
+ *
+ * MEASURED, NOT ASSUMED: across the live catalog this yields 54 distinct names
+ * for 54 faces with no collisions, no empties, and no surviving vendor words.
+ * `e2e/interviewer-names.spec.ts` re-checks that against the live catalog, so
+ * a churned-in avatar that breaks any of it fails loudly.
+ *
+ * WHAT IS LOST, deliberately: eight faces whose avatar name states a
+ * profession (`Judy HR`, `Dexter Lawyer`, `Bryan Tech Expert`,
+ * `Ann Therapist`) become plain first names. The profession is not discarded —
+ * it is exactly what `PUBLIC_AVATAR_PLAYS` records, and the picker already
+ * shows it as the section heading ("Hiring and HR", "Legal"), where it reads
+ * as a category rather than a surname. Coached mode set this precedent
+ * already: `DEFAULT_COACH` calls `Ann Therapist` simply "Ann".
+ *
+ * FALLBACK: if a voice name is ever missing or all suffix, the avatar name is
+ * used unchanged. A student must always see something.
+ */
+function displayName(avatar: LiveAvatarRecord): string {
+  const voiceName = avatar.default_voice?.name ?? "";
+  const lead = voiceName.split(/\s+-\s+/)[0]?.trim();
+  return lead || avatar.name;
+}
+
 function toOption(
   avatar: LiveAvatarRecord,
-  genderByVoiceId: ReadonlyMap<string, string>,
+  facetsByVoiceId: ReadonlyMap<string, VoiceFacets>,
+  faculty: boolean,
 ): InterviewerOption {
   const voiceId = avatar.default_voice!.id;
-  const gender = genderByVoiceId.get(voiceId);
+  const facets = facetsByVoiceId.get(voiceId);
+  const vendorGender =
+    facets?.gender && facets.gender !== "unknown" ? facets.gender : undefined;
+  // Curated faculty voices fill the gap the preset catalog leaves, and ONLY
+  // that gap: the vendor's own value wins wherever it exists, so this can
+  // never contradict `/v1/voices`. See `FACULTY_VOICE_GENDER`.
+  const gender = vendorGender ?? FACULTY_VOICE_GENDER[avatar.id];
+  const language = facets?.language;
+  // The faculty get no `plays` at all — see the field's comment. A stock face
+  // the curated map does not mention is `general`, which is an answer.
+  const plays = faculty
+    ? undefined
+    : (PUBLIC_AVATAR_PLAYS[avatar.id] ?? "general");
   return {
     avatarId: avatar.id,
-    name: avatar.name,
+    name: displayName(avatar),
     previewUrl: avatar.preview_url || null,
     voice: {
       id: voiceId,
@@ -104,20 +220,26 @@ function toOption(
     },
     // Omit rather than emit a placeholder, so "we were told nothing" stays
     // distinguishable from a real "unknown" the catalog reports.
-    ...(gender && gender !== "unknown" ? { gender } : {}),
+    ...(gender ? { gender } : {}),
+    ...(language && language !== "unknown" ? { language } : {}),
+    ...(plays ? { plays } : {}),
+    faculty,
   };
 }
 
 /**
- * Preset voice catalog, reduced to the one field worth filtering on.
+ * Preset voice catalog, reduced to the two fields worth filtering on.
  *
- * A failure here costs the gender facet and nothing else — every option still
- * renders — so it degrades silently rather than failing the picker.
+ * A failure here costs the gender and language facets and nothing else —
+ * every option still renders — so it degrades silently rather than failing
+ * the picker. Both fields ride the SAME request on purpose: they come from one
+ * record, so a partial join (gender but no language) is not a state worth
+ * having.
  */
-async function fetchVoiceGenders(
+async function fetchVoiceFacets(
   apiKey: string,
-): Promise<ReadonlyMap<string, string>> {
-  const genderByVoiceId = new Map<string, string>();
+): Promise<ReadonlyMap<string, VoiceFacets>> {
+  const facetsByVoiceId = new Map<string, VoiceFacets>();
   for (let page = 1; page <= PUBLIC_MAX_PAGES; page += 1) {
     const result = await fetchLiveAvatar(
       `/v1/voices?page=${page}&page_size=${PUBLIC_PAGE_SIZE}`,
@@ -126,11 +248,16 @@ async function fetchVoiceGenders(
     if (!result.ok) break;
     const voices = result.results as unknown as LiveAvatarVoiceRecord[];
     for (const voice of voices) {
-      if (voice.id && voice.gender) genderByVoiceId.set(voice.id, voice.gender);
+      if (!voice.id) continue;
+      if (!voice.gender && !voice.language) continue;
+      facetsByVoiceId.set(voice.id, {
+        ...(voice.gender ? { gender: voice.gender } : {}),
+        ...(voice.language ? { language: voice.language } : {}),
+      });
     }
     if (voices.length < PUBLIC_PAGE_SIZE) break;
   }
-  return genderByVoiceId;
+  return facetsByVoiceId;
 }
 
 /**
@@ -247,10 +374,10 @@ export async function loadInterviewerCatalog(): Promise<InterviewerCatalogResult
   try {
     // The account's own avatars — the Weatherhead faculty likenesses — lead the
     // picker, ahead of the stock roster.
-    const [custom, publicSeated, genderByVoiceId] = await Promise.all([
+    const [custom, publicSeated, facetsByVoiceId] = await Promise.all([
       fetchLiveAvatar("/v1/avatars", apiKey),
       fetchSeatedPublicAvatars(apiKey),
-      fetchVoiceGenders(apiKey),
+      fetchVoiceFacets(apiKey),
     ]);
 
     if (!custom.ok && publicSeated.records.length === 0) {
@@ -263,12 +390,19 @@ export async function loadInterviewerCatalog(): Promise<InterviewerCatalogResult
       };
     }
 
+    // `faculty` is set per catalog here rather than inside `toOption`, because
+    // WHICH catalog a record arrived from is the only place that fact exists.
     const interviewers = [
-      ...(custom.ok ? custom.results : []),
-      ...publicSeated.records,
+      ...(custom.ok ? custom.results : []).map((avatar) => ({
+        avatar,
+        faculty: true,
+      })),
+      ...publicSeated.records.map((avatar) => ({ avatar, faculty: false })),
     ]
-      .filter(isUsable)
-      .map((avatar) => toOption(avatar, genderByVoiceId));
+      .filter(({ avatar }) => isUsable(avatar))
+      .map(({ avatar, faculty }) =>
+        toOption(avatar, facetsByVoiceId, faculty),
+      );
 
     if (!interviewers.length) {
       console.error("[interviewers] No usable LiveAvatar profiles found");

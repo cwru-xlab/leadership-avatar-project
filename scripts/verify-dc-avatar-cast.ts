@@ -28,6 +28,7 @@ function option(
   name: string,
   voiceId: string,
   gender?: "female" | "male",
+  faculty = false,
 ): InterviewerOption {
   return {
     avatarId,
@@ -35,14 +36,15 @@ function option(
     previewUrl: null,
     voice: { id: voiceId, name: name.split(" ")[0]! },
     ...(gender ? { gender } : {}),
+    faculty,
   };
 }
 
 // Today's catalog entries for the cast, plus faculty-shaped custom avatars
 // (no gender, not in the public roster) and spare stock avatars for fallback.
 const FACULTY: InterviewerOption[] = [
-  option("52b24044-7b0c-4211-b113-239443801a5b", "Scott Cowen", "66f105d8-a342-4a5d-9d41-6ffd21674806"),
-  option("0f0eec42-9bcb-4365-8b31-09b2d30b594d", "John Paul Stephens", "fa23626c-f9f2-437b-aa79-19b38ca4f385"),
+  option("52b24044-7b0c-4211-b113-239443801a5b", "Scott Cowen", "66f105d8-a342-4a5d-9d41-6ffd21674806", undefined, true),
+  option("0f0eec42-9bcb-4365-8b31-09b2d30b594d", "John Paul Stephens", "fa23626c-f9f2-437b-aa79-19b38ca4f385", undefined, true),
 ];
 const CAST_OPTIONS: InterviewerOption[] = [
   option("e2336732-dc9b-4c90-8a91-3d80f4b8dd13", "Maya (Friendly)", "8d7ca40c-5ee6-45f3-8b4a-e2b01df302a1", "female"),

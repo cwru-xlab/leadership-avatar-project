@@ -28,7 +28,7 @@
  * as the top-level `problemFamily` param.
  */
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@heroui/button";
 import { Textarea } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
@@ -38,6 +38,7 @@ import { ArrowRight, ChevronDown, Clock3, Gauge, RotateCcw, Sparkles, UserRound 
 import ChoiceTiles, { type ChoiceTile } from "@/components/interview/ChoiceTiles";
 import { interviewIcon, interviewTagline } from "@/components/interview/interviewPicker";
 import PracticeHero from "@/components/practice/PracticeHero";
+import FloatingAction from "@/components/shell/FloatingAction";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
 import {
   CURATED_INDUSTRIES,
@@ -55,6 +56,10 @@ import { getEngineType } from "@/lib/engine/registry";
 const MAX_PROFILE_TEXT_LENGTH = 4000;
 /** "" in any field means "the preset's own value" — used when no curated option matches it. */
 const PRESET = "";
+/** Title of the synthetic `PRESET` tile. The setup recap keys off it: that title
+ *  names no setting on its own, so the recap shows the tile's hint instead,
+ *  which is where the preset's concrete value lives. */
+const PRESET_TILE_TITLE = "Interview default";
 
 type Field = "family" | "industry" | "role" | "difficulty" | "length" | "interviewer";
 /** The question-type value for "Surprise me": no family preference. */
@@ -73,6 +78,9 @@ const DIFFICULTY_HINTS: Record<string, string> = {
 };
 
 const stripArticle = (text: string) => text.replace(/^(an?|the)\s+/i, "");
+/** Preset hints are written to read mid-sentence ("early-career professional
+ *  role"); the setup recap shows them as a value, so raise the first letter. */
+const sentenceCase = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 export default function InterviewCustomizePage({ slug }: { slug: string }) {
   const router = useRouter();
@@ -105,7 +113,7 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
 
   const options: Record<Field, ChoiceTile[]> = useMemo(() => {
     const withPreset = (tiles: ChoiceTile[], isCurated: boolean, hint: string) =>
-      isCurated ? tiles : [{ value: PRESET, title: "Interview default", hint }, ...tiles];
+      isCurated ? tiles : [{ value: PRESET, title: PRESET_TILE_TITLE, hint }, ...tiles];
     return {
       family: families.length
         ? [
@@ -187,6 +195,41 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
   const chosenLength = SESSION_LENGTH_PRESETS.find((p) => p.slug === values.length);
   const minutes = chosenLength?.targetMinutes ?? preset.targetMinutes;
 
+  /**
+   * The setup recap reads back the SELECTED TILE, never the raw slug, so a row
+   * can never disagree with the tiles it summarizes. It shows the tile's hint
+   * instead of its title where the title names no value: "Interview default" on
+   * a preset tile, and the length names ("Standard") — a student checking their
+   * setup wants the minutes, which is what the tile prints.
+   *
+   * Ported from the rail variant, which carried this same summary in a sticky
+   * second column. Here it is a recap at the end of the form instead: the form
+   * keeps its full width, and the summary still answers "what did I just pick?"
+   * at the moment the student is about to commit.
+   */
+  const tileLabel = (field: Field, preferHint = false) => {
+    const option = options[field].find((o) => o.value === values[field]);
+    if (!option) return "—";
+    if (option.hint && (preferHint || option.title === PRESET_TILE_TITLE)) return sentenceCase(option.hint);
+    return option.title;
+  };
+
+  // Only the rows whose control is actually on the page: question type on
+  // problem interviews, industry on the generic types.
+  const summaryRows: Array<{ label: string; value: string }> = [
+    {
+      label: "Personality",
+      // A distilled persona disables the Personality tiles, so the row names
+      // the modeled interviewer rather than a dial the student cannot change.
+      value: distilledPersona ? (personaDisplayName ?? "Modeled interviewer") : tileLabel("interviewer"),
+    },
+    ...(options.family.length > 0 ? [{ label: "Question type", value: tileLabel("family") }] : []),
+    { label: "Role", value: tileLabel("role") },
+    ...(isProblemInterview ? [] : [{ label: "Industry", value: tileLabel("industry") }]),
+    { label: "Difficulty", value: tileLabel("difficulty") },
+    { label: "Session length", value: tileLabel("length", true) },
+  ];
+
   const buildPersona = async () => {
     const trimmed = profileText.trim();
     if (!trimmed) return;
@@ -244,9 +287,45 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
 
   const fromGeneral = preset.slug === DEFAULT_INTERVIEW_TYPE.slug || !isListedInterviewType(preset);
 
+  /**
+   * THE FORWARD ACTION, in three places and never twice at once.
+   *
+   * `heroAction` rides the in-flow hero band at the top of the page, secondary
+   * weight (bordered white on CWRU Blue). `continueToSetupRef` marks the page's
+   * one CWRU Blue primary at the end of the form — the only button whose
+   * accessible name is exactly "Continue to setup", which
+   * `e2e/interview-picker.spec.ts` clicks in strict mode. `FloatingAction`
+   * below stands in for that primary while it is scrolled out of the
+   * scrollport.
+   *
+   * WHAT THIS REPLACED. The band used to condense into a 56px CWRU Blue strip
+   * pinned across the top of the content column, carrying a back link, the
+   * title and a Continue. Two things were wrong with it. It could not reach the
+   * sidebar on the left or the viewport on the right, because `<main>` is
+   * centred and capped (`components/main-content.tsx`), so it read as clipped.
+   * And it stayed pinned at the BOTTOM of the page, where "Continue to setup"
+   * is already on screen, so the page showed two competing primary actions at
+   * once. The pill fixes both: it needs no edge to align to, and it hides
+   * whenever the real control is visible. The back link and the title are not
+   * in it — they stay in the in-flow band, a scroll up, where they are also in
+   * keyboard order.
+   */
+  const continueToSetupRef = useRef<HTMLDivElement>(null);
+  const heroAction = (
+    <Button
+      className="h-11 rounded-lg border-white/60 bg-transparent px-4 font-semibold text-white data-[hover=true]:bg-white/12"
+      endContent={<ArrowRight aria-hidden size={16} strokeWidth={2.5} />}
+      variant="bordered"
+      onPress={continueToSetup}
+    >
+      Continue
+    </Button>
+  );
+
   return (
     <div className="flex flex-col gap-6 pb-4">
       <PracticeHero
+        action={heroAction}
         backHref={fromGeneral ? routes.interviews() : routes.industryInterviews()}
         backLabel={fromGeneral ? "Interview practice" : "Industry-specific interviews"}
         description={interviewTagline(preset)}
@@ -258,6 +337,29 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
         icon={Icon}
         title={preset.label}
       />
+
+      {/* Rendered HERE, directly after the band, because that is the point past
+          which the pill should start floating: its non-sticky probe sits at this
+          position, so "the probe has left the top of the column" means the whole
+          band — back link, title and its own Continue — has scrolled away.
+          `-mb-6` cancels the two `gap-6` rows this column would otherwise open
+          for the component's two zero-height elements.
+          The label is live setup state, not navigation: it re-reads as the
+          student changes tiles, which is the one thing worth carrying up here
+          when the form itself is off screen. */}
+      <FloatingAction
+        className="-mb-6"
+        inFlowRef={continueToSetupRef}
+        label={`${values.difficulty || preset.difficulty} · ~${minutes} min`}
+      >
+        <Button
+          className="h-9 shrink-0 rounded-full bg-white px-4 font-semibold text-cwru-blue data-[hover=true]:bg-light-blue"
+          endContent={<ArrowRight aria-hidden size={15} strokeWidth={2.5} />}
+          onPress={continueToSetup}
+        >
+          Continue
+        </Button>
+      </FloatingAction>
 
       <details className="group rounded-lg border border-line bg-white">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-5 py-3 text-sm font-semibold text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-true-blue [&::-webkit-details-marker]:hidden">
@@ -449,11 +551,33 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
         />
       </section>
 
-      <div className="sticky bottom-0 z-20 -mx-4 flex items-center justify-between gap-3 border-t border-line bg-white px-4 py-3 sm:mx-0 sm:rounded-lg sm:border sm:px-5">
-        <p className="hidden min-w-0 flex-1 text-[13px] leading-5 text-muted sm:block">
+      {/* The end of the form: the setup recap, then the real action row under
+          the house hairline, both in flow. */}
+      <section className="rounded-lg border border-line bg-white px-5 py-4" aria-labelledby="setup-recap">
+        <h2 className="font-display text-[17px] font-medium text-cwru-blue" id="setup-recap">
+          Your setup
+        </h2>
+        <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+          {summaryRows.map((row) => (
+            <div key={row.label}>
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{row.label}</dt>
+              <dd className="mt-0.5 text-sm font-semibold leading-5 text-ink">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      {/* The real end-of-page action, under the house hairline every setup step
+          closes with (`border-t border-line pt-6`, as in
+          `InterviewerActionDock`). The hairline is what makes this read as the
+          end of the form rather than one more row, and the ref is what
+          `FloatingAction` watches: the pill stands down the moment any part of
+          this is in the scrollport, so the page never offers two primaries. */}
+      <div className="flex flex-col gap-4 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <p className="max-w-[62ch] text-[13px] leading-5 text-muted">
           Next: pick your interviewer and, if you like, add a resume and job posting.
         </p>
-        <div className="flex flex-1 items-center justify-end gap-2 sm:flex-none">
+        <div className="flex items-center gap-2 sm:shrink-0">
           {changed && (
             <Button
               className="h-11 font-semibold text-link"
@@ -464,13 +588,15 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
               Reset
             </Button>
           )}
-          <Button
-            className="h-11 flex-1 rounded-lg bg-cwru-blue px-5 font-semibold text-white sm:flex-none"
-            endContent={<ArrowRight aria-hidden size={16} strokeWidth={2.5} />}
-            onPress={continueToSetup}
-          >
-            Continue to setup
-          </Button>
+          <div className="flex-1 sm:flex-none" ref={continueToSetupRef}>
+            <Button
+              className="h-11 w-full rounded-lg bg-cwru-blue px-5 font-semibold text-white"
+              endContent={<ArrowRight aria-hidden size={16} strokeWidth={2.5} />}
+              onPress={continueToSetup}
+            >
+              Continue to setup
+            </Button>
+          </div>
         </div>
       </div>
     </div>

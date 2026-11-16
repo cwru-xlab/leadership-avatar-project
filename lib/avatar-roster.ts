@@ -90,3 +90,86 @@ export const SEATED_PUBLIC_AVATAR_IDS: Readonly<Record<string, string>> = {
 export const SEATED_PUBLIC_AVATAR_ID_SET: ReadonlySet<string> = new Set(
   Object.keys(SEATED_PUBLIC_AVATAR_IDS),
 );
+
+/**
+ * What a curated look is dressed to PLAY — the picker's one human-readable
+ * facet, since the vendor supplies no scenario metadata at all.
+ *
+ * WHY A HAND-WRITTEN MAP, NOT INFERENCE. Only the handful of names below state
+ * a profession outright (`Judy HR`, `Dexter Lawyer`, `Bryan Tech Expert`,
+ * `Ann Therapist`) — HeyGen named them for the wardrobe in the shot. Every
+ * other entry is a bare first name with an emotion or pose suffix, which says
+ * nothing about an occupation. Guessing one from a face or a first name would
+ * be invention dressed as data, so anything absent here is `general`: a face
+ * that can sit opposite a student in any scenario.
+ *
+ * `coaching`, not "therapy": the app rehearses workplace conversations, so the
+ * therapist looks play a coach or a mentor, never a clinician.
+ *
+ * NOT FOR THE FACULTY. This map covers public-catalog ids only. The account's
+ * five custom avatars are real Weatherhead instructors; typing a named
+ * colleague as a role is not this app's call, so they carry no value at all
+ * and are grouped by WHICH CATALOG they came from instead.
+ *
+ * This is a SIBLING of the list above, deliberately not a reshape of it.
+ * `SEATED_PUBLIC_AVATAR_IDS` is read as a flat id→name record by
+ * `lib/pitch/elevator-personas.ts`, `lib/difficult-conversation/avatar-assignment.ts`
+ * and several `scripts/verify-*.ts` guards; widening its value type would
+ * churn all of them for a facet only the picker uses.
+ *
+ * Same churn contract as the list: an id that vanishes upstream simply stops
+ * matching, and the look falls back to `general` rather than erroring.
+ */
+export type AvatarPlays = "hr" | "legal" | "technical" | "coaching" | "general";
+
+export const PUBLIC_AVATAR_PLAYS: Readonly<Record<string, AvatarPlays>> = {
+  "cd1d101c-9273-431b-8069-63beef736bec": "hr", // Judy HR
+  "65f9e3c9-d48b-4118-b73a-4ae2e3cbb8f0": "hr", // June HR
+  "9650a758-1085-4d49-8bf3-f347565ec229": "hr", // Silas HR
+  "0930fd59-c8ad-434d-ad53-b391a1768720": "legal", // Dexter Lawyer
+  "64b526e4-741c-43b6-a918-4e40f3261c7a": "technical", // Bryan Tech Expert
+  "8175dfc2-7858-49d6-b5fa-0c135d1c4bad": "technical", // Elenora Tech Expert
+  "513fd1b7-7ef9-466d-9af2-344e51eeb833": "coaching", // Ann Therapist
+  "7b888024-f8c9-4205-95e1-78ce01497bda": "coaching", // Shawn Therapist
+};
+
+/**
+ * Voice gender for the account's five custom faculty avatars, keyed by
+ * LiveAvatar avatar id.
+ *
+ * WHY THIS MAP EXISTS. The faculty speak with custom voices that are absent
+ * from HeyGen's preset `/v1/voices` catalog, so the vendor supplies no gender
+ * for any of them. The picker's Voice filter reads absent as "no opinion" and
+ * keeps such a face visible under every choice — the right default, since the
+ * alternative hides the roster's most important entries. But with all five
+ * absent, a student asking for a female voice was shown four male instructors,
+ * and a student asking for a male voice was shown Jenny Hawkins. The filter
+ * was wrong for every faculty member in one direction or the other.
+ *
+ * WHY THIS IS NOT THE INFERENCE THE OTHER COMMENTS FORBID. `avatar-catalog.ts`
+ * and `PUBLIC_AVATAR_PLAYS` both refuse to GUESS a facet from a name or a
+ * face, and that still stands: nothing here is derived. These five values were
+ * stated by the people who run the course, about five named colleagues whose
+ * recorded voices they have heard. Curated fact, supplied by a human, in the
+ * same spirit as the `plays` map above — which is why it lives beside it
+ * rather than inside the vendor join.
+ *
+ * STILL THE VOICE, NOT THE PERSON. The value answers "what does this avatar
+ * sound like", which is what a student filtering by voice is asking. The UI
+ * labels the control "Voice" for exactly that reason.
+ *
+ * SCOPE: faculty only. Stock faces already carry a vendor gender, and this map
+ * must never override one — see the merge in `lib/interview/avatar-catalog.ts`.
+ *
+ * CHURN: same contract as its siblings. An id that vanishes upstream stops
+ * matching and that face simply returns to always-visible; a faculty avatar
+ * added without an entry here behaves exactly as all five did before.
+ */
+export const FACULTY_VOICE_GENDER: Readonly<Record<string, "female" | "male">> =
+  {
+    "0192261e-bef3-4de4-be8d-8ed075b9aea9": "female", // Jenny Hawkins
+    "52b24044-7b0c-4211-b113-239443801a5b": "male", // Scott Cowen
+    "c0fdc362-a015-40b9-bb20-ec8805ddb01e": "male", // Richard Boyatsis
+    "77c6f78c-8154-40f0-be95-fdaa6d0f2f19": "male", // Michael Goldberg
+    "0f0eec42-9bcb-4365-8b31-09b2d30b594d": "male", // John Paul Stephens
+  };

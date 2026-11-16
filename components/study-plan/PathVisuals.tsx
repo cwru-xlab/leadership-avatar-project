@@ -190,9 +190,38 @@ function LevelProgress({ level, wide = false }: { level: LevelResult; wide?: boo
   );
 }
 
-/** Full-width progress toward the next level, for cards that already show the level. */
+/**
+ * Full-width progress toward the next level, for cards that already show the
+ * level.
+ *
+ * THE TOP LEVEL STILL RENDERS A BAR. `LevelProgress` returns null when
+ * `nextLevelAtPercent` is null, which is exactly level 5 — there is no next
+ * level to progress toward. Returning null from here too left the caller's
+ * "Progress to the next level" heading stranded above empty space, and made a
+ * Mastered card measurably shorter than the cards beside it in the same grid
+ * row, which is the mismatch this exists to prevent. A filled bar in the level
+ * ramp's own top color is the honest reading of "nothing above this", and it
+ * occupies the same height as every other card's bar.
+ */
 export function LevelProgressBar({ level }: { level: LevelResult | undefined }) {
   if (!level || level.level === null) return null;
+  if (level.nextLevelAtPercent === null) {
+    return (
+      <span className="inline-flex w-full flex-col items-stretch gap-1.5 font-normal text-muted">
+        <span
+          className="block h-2 w-full overflow-hidden rounded-full bg-light-blue/40"
+          role="progressbar"
+          aria-label={`Level ${level.level}, the top level, reached`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={100}
+        >
+          <span className="block h-full w-full rounded-full bg-level-5" />
+        </span>
+        <span className="text-xs">Nothing above this level</span>
+      </span>
+    );
+  }
   return <LevelProgress level={level} wide />;
 }
 

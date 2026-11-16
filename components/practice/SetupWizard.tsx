@@ -226,6 +226,14 @@ export default function SetupWizard({
         <StepTracker ariaLabel={progressAriaLabel} current={stepIndex} labels={allSteps.map((step) => step.label)} />
       </div>
 
+      {/* ABOVE the step, not below it. Each step closes with its own footer and
+          primary action, and guidance rendered after the step landed *below*
+          that Continue — leaving the step's main action stranded mid-page with
+          content after it. Putting the action genuinely last is why this sits
+          here; the ideal slot (between the step's body and its footer) is not
+          reachable without threading a slot through all ~10 step components. */}
+      {supplementalContent}
+
       {isCamera ? (
         <CameraConsentStep
           stepNumber={stepNumber}
@@ -245,7 +253,6 @@ export default function SetupWizard({
           optional: Boolean(current.optional),
         })
       )}
-      {supplementalContent}
     </div>
   );
 }
