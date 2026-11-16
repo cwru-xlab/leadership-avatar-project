@@ -23,7 +23,7 @@ import {
   ProgressRing,
   SkillShield,
 } from "@/components/study-plan/PathVisuals";
-import type { LevelResult } from "@/lib/mastery/levels";
+import { LEVEL_THRESHOLDS, type LevelResult } from "@/lib/mastery/levels";
 import type { GoalProgress } from "@/lib/study-plan/goals";
 
 /**
@@ -529,35 +529,73 @@ function TrendRow({
   );
 }
 
-/** The 1-5 ladder, so a level number always has its word nearby. */
+/**
+ * The 1-5 ladder, so a level number always has its word nearby.
+ *
+ * ALWAYS ALL FIVE RUNGS. This is a LEGEND — the key that decodes the colored
+ * level numbers on the badges below it — so it shows the whole scale whether or
+ * not a given student has reached each rung. It used to render only the levels
+ * present in that student's own `levels` prop, which broke it in exactly the
+ * cases where a key matters most: a student sitting at levels 2 and 3 saw a
+ * two-rung ladder reading "2 Building — 3 Competent" with no indication that 1,
+ * 4 and 5 exist, so a partial scale looked like the whole scale and there was
+ * no way to tell that "Competent" is the middle of five rather than the top of
+ * two. A brand-new student (one distinct level, or none) fell under the
+ * `length < 2` guard and got no key at all.
+ *
+ * The names come from `LEVEL_THRESHOLDS`, the same source the route's
+ * `levelFor` labels from, because the absent rungs are by definition not in the
+ * props. This does NOT breach the no-computation rule in the file header: it
+ * reads static label text, and performs no threshold comparison, percentage
+ * arithmetic or tier derivation. Which rung a student is ON still arrives
+ * already computed.
+ *
+ * Reached rungs are marked so the ladder still says something about this
+ * student: full-strength dot and ink word for levels they hold, dimmed for the
+ * rest. Dimming is a SECOND cue only — `aria-label` states "reached"/"not
+ * reached" per rung, so the distinction survives for a screen reader and for
+ * anyone who cannot separate the two tints.
+ */
 function LevelLadder({ levels }: { levels: MasteryPanelProps["levels"] }) {
-  const names = new Map<number, string>();
+  const reached = new Set<number>();
   for (const entry of Object.values(levels)) {
     for (const result of [entry.current, entry.lifetime]) {
-      if (result.level !== null) names.set(result.level, result.name);
+      if (result.level !== null) reached.add(result.level);
     }
   }
-  const steps = ([1, 2, 3, 4, 5] as const).filter((n) => names.has(n));
-  if (steps.length < 2) return null;
   return (
     <ol aria-label="Levels" className="flex flex-wrap items-center gap-x-1 gap-y-2">
-      {steps.map((n, i) => (
-        <li key={n} className="flex items-center gap-1">
-          <span className="flex items-center gap-1.5 text-xs text-muted">
+      {LEVEL_THRESHOLDS.map(({ level, name }, i) => {
+        const isReached = reached.has(level);
+        return (
+          <li key={level} className="flex items-center gap-1">
             <span
               className={clsx(
-                "grid size-[22px] place-items-center rounded-full text-[11px] font-bold",
-                levelDotClass(n),
-                n === 2 || n === 3 ? "text-ink" : "text-white",
+                "flex items-center gap-1.5 text-xs",
+                isReached ? "font-semibold text-ink" : "text-muted",
               )}
+              aria-label={`Level ${level}, ${name}${isReached ? ", reached" : ", not reached"}`}
             >
-              {n}
+              <span
+                className={clsx(
+                  "grid size-[22px] place-items-center rounded-full text-[11px] font-bold",
+                  levelDotClass(level),
+                  level === 2 || level === 3 ? "text-ink" : "text-white",
+                  // Not-yet-reached rungs keep their ramp color (a key has to
+                  // show the color it decodes) at reduced strength.
+                  isReached ? null : "opacity-45",
+                )}
+              >
+                {level}
+              </span>
+              {name}
             </span>
-            {names.get(n)}
-          </span>
-          {i < steps.length - 1 && <span aria-hidden className="mx-1 h-px w-3 bg-line" />}
-        </li>
-      ))}
+            {i < LEVEL_THRESHOLDS.length - 1 && (
+              <span aria-hidden className="mx-1 h-px w-3 bg-line" />
+            )}
+          </li>
+        );
+      })}
     </ol>
   );
 }
