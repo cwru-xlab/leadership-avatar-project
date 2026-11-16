@@ -376,7 +376,15 @@ function DrawerToggle({
   onOpen: () => void;
 }) {
   return (
-    <div className="border-t border-line pt-3">
+    /**
+     * `mt-auto` pins this to the bottom of a flex-column card. In a stretched
+     * grid row the cards are all the row's height, so without it each card's
+     * divider would sit wherever its own content happened to end and the rule
+     * would step up and down across the row. In a content-sized grid there is
+     * no free space, so it is a no-op — which keeps the movement cards
+     * unaffected.
+     */
+    <div className="mt-auto border-t border-line pt-3">
       <button
         type="button"
         className={TOGGLE_CLASS}
@@ -665,7 +673,12 @@ function CompetencyCard({
 
       {shown && shown.level !== null ? (
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold text-muted">Progress to the next level</span>
+          {/* The heading has to agree with the bar below it: at the top level
+              there is no next level, so claiming progress toward one would be
+              false even though the bar is full. */}
+          <span className="text-xs font-semibold text-muted">
+            {shown.nextLevelAtPercent === null ? "Top level reached" : "Progress to the next level"}
+          </span>
           <LevelProgressBar level={shown} />
         </div>
       ) : (
@@ -921,7 +934,13 @@ export default function MasteryPanel({
             <li>The dots show how sure we are. Higher levels also need more sessions, so one great session can&apos;t make a skill Strong or Mastered.</li>
           </ul>
         </details>
-        <ul className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {/* No `items-start`: the cards must STRETCH to their row's height.
+            Competencies carry different content — a level and a progress bar,
+            or a description when unmeasured; a one-line title or a wrapped
+            one — so content-sized cards left neighbours in the same row at
+            visibly different heights. Stretching equalises them, and the
+            toggle's `mt-auto` keeps every card's divider on one line. */}
+        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {mastery.competencies.map((competency) => {
             const key = competency.competencyKey;
             return (
