@@ -8,9 +8,10 @@
  * PracticeSessionShell via CaseStudySessionView.
  *
  * Difficult-conversation: ConversationBriefingStep →
- * ConversationDifficultyStep → CameraConsentStep, then the shell with
- * SessionSafetyPanel + InCharacterClosePrompt in the existing sessionPanel
- * slot (consumed from 14-10 / parallel Phase 14 — not a second mechanism).
+ * ConversationDifficultyStep → CameraConsentStep, then the shell. The shell's
+ * End controls (stage-header icon, End beside Pause) open
+ * ConversationEndDialog, and SessionSupportNote sits under the answer
+ * controls — nothing floats over the avatar (2026-11-16).
  */
 
 import PracticeSessionShell, {
@@ -19,8 +20,10 @@ import PracticeSessionShell, {
 import SetupWizard, {
   type SetupStepNav,
 } from "@/components/practice/SetupWizard";
-import InCharacterClosePrompt from "@/components/practice/panels/InCharacterClosePrompt";
-import SessionSafetyPanel from "@/components/practice/panels/SessionSafetyPanel";
+import {
+  ConversationEndDialog,
+  SessionSupportNote,
+} from "@/components/practice/panels/ConversationEndControls";
 import ConversationBriefingStep from "@/components/practice/steps/ConversationBriefingStep";
 import ConversationDifficultyStep from "@/components/practice/steps/ConversationDifficultyStep";
 import InstanceIntroStep from "@/components/practice/steps/InstanceIntroStep";
@@ -104,6 +107,7 @@ export default function PracticeInstancePage({
     null,
   );
   const [ending, setEnding] = useState(false);
+  const [endDialogOpen, setEndDialogOpen] = useState(false);
   const sessionFinishRef = useRef<SessionFinishFn | null>(null);
 
   useEffect(() => {
@@ -376,7 +380,7 @@ export default function PracticeInstancePage({
           interviewerName={dcInstance.role}
           interviewerAvatarId={dcInstance.avatarId}
           language="en"
-          hideDefaultEndControl
+          onEndRequest={() => setEndDialogOpen(true)}
           autoFinishOnAvatarEnd
           defaultReportTitle={
             dcTitle.trim()
@@ -384,17 +388,16 @@ export default function PracticeInstancePage({
               : personaCopy?.reportLabel ?? "Courageous conversation"
           }
           sessionFinishRef={sessionFinishRef}
-          sessionPanel={
-            <div className="flex w-full flex-col items-stretch gap-1">
-              <SessionSafetyPanel
+          answerControlsSupplement={
+            <>
+              <SessionSupportNote />
+              <ConversationEndDialog
+                isOpen={endDialogOpen}
+                onClose={() => setEndDialogOpen(false)}
                 isEnding={ending}
-                onEndSession={finishWith}
+                onEnd={finishWith}
               />
-              <InCharacterClosePrompt
-                isClosing={ending}
-                onConfirmClose={finishWith}
-              />
-            </div>
+            </>
           }
           onExit={() => {
             setPhase("wizard");

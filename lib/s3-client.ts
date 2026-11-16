@@ -28,6 +28,11 @@ import { gzip, gunzip } from "zlib";
 import { promisify } from "util";
 import type { Avatar, VersionManifest, AvatarVersion } from "./avatar-storage";
 import type { ChatSession, ChatMessage, ChatSessionMetadata, VideoAudioProfile, CaseStudy, InteractionLog } from "@/types";
+import {
+  getSeededCaseStudy,
+  isSeededCaseStudyId,
+  listSeededCaseStudies,
+} from "@/lib/case-study/seeded";
 import type { Cohort } from "@/types/cohort";
 import type { InterviewTranscript } from "./interview/transcript";
 import type { DifficultConversationRecord } from "@/lib/difficult-conversation/types";
@@ -961,6 +966,10 @@ export class S3AvatarStorage {
    */
 
   async saveCase(caseStudy: CaseStudy): Promise<void> {
+    // Built-in case studies (lib/case-study/seeded.ts) are code, not S3 data.
+    if (isSeededCaseStudyId(caseStudy.id)) {
+      throw new Error(`Case '${caseStudy.id}' is built in and read-only`);
+    }
     const key = `${CASES_PREFIX}${caseStudy.id}.json`;
 
     const command = new PutObjectCommand({
@@ -987,6 +996,8 @@ export class S3AvatarStorage {
   }
 
   async getCase(id: string): Promise<CaseStudy | null> {
+    const seeded = getSeededCaseStudy(id);
+    if (seeded) return seeded;
     try {
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
@@ -1011,9 +1022,13 @@ export class S3AvatarStorage {
   }
 
   async listCases(): Promise<CaseStudy[]> {
+    // Built-in case studies come first and need no S3 access, so they list
+    // even where the bucket is unreachable.
+    const cases: CaseStudy[] = listSeededCaseStudies();
     try {
-      const index = await this.readCaseIndex();
-      const cases: CaseStudy[] = [];
+      const index = (await this.readCaseIndex()).filter(
+        (entry) => !isSeededCaseStudyId(entry.id)
+      );
 
       for (const entry of index) {
         const caseStudy = await this.getCase(entry.id);
@@ -1023,11 +1038,14 @@ export class S3AvatarStorage {
       return cases;
     } catch (error) {
       console.error("Failed to list cases:", error);
-      return [];
+      return cases;
     }
   }
 
   async deleteCase(id: string): Promise<void> {
+    if (isSeededCaseStudyId(id)) {
+      throw new Error(`Case '${id}' is built in and read-only`);
+    }
     const command = new DeleteObjectCommand({
       Bucket: BUCKET_NAME,
       Key: `${CASES_PREFIX}${id}.json`,
@@ -1040,6 +1058,7 @@ export class S3AvatarStorage {
   }
 
   async caseExists(id: string): Promise<boolean> {
+    if (isSeededCaseStudyId(id)) return true;
     try {
       const command = new HeadObjectCommand({
         Bucket: BUCKET_NAME,

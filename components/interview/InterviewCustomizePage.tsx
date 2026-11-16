@@ -26,6 +26,12 @@
  * bank). "Surprise me" (random) is the default and sends nothing; a chosen
  * family travels in the handoff as `problemFamily` and reaches session start
  * as the top-level `problemFamily` param.
+ *
+ * NOT every option the panel had reaches every preset. `offered` below is the
+ * single answer to "does this preset put a control on the page for this
+ * field?", and the restore, the recap and the handoff all read it, so a field
+ * the student never saw cannot reach the prompt. "The job" (role, and industry
+ * with it) is the big case: it is a general-interview question only.
  */
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -36,7 +42,11 @@ import { addToast } from "@heroui/toast";
 import { ArrowRight, ChevronDown, Clock3, Gauge, RotateCcw, Sparkles, UserRound } from "lucide-react";
 
 import ChoiceTiles, { type ChoiceTile } from "@/components/interview/ChoiceTiles";
-import { interviewIcon, interviewTagline } from "@/components/interview/interviewPicker";
+import {
+  interviewIcon,
+  interviewTagline,
+  isIndustrySpecificInterview,
+} from "@/components/interview/interviewPicker";
 import PracticeHero from "@/components/practice/PracticeHero";
 import FloatingAction from "@/components/shell/FloatingAction";
 import type { InterviewCustomizationInput } from "@/lib/interview/customization";
@@ -49,7 +59,7 @@ import {
   SESSION_LENGTH_PRESETS,
   sessionLengthChoices,
 } from "@/lib/interview/customization-options";
-import { DEFAULT_INTERVIEW_TYPE, getInterviewType, isListedInterviewType } from "@/lib/interview/types";
+import { DEFAULT_INTERVIEW_TYPE, getInterviewType } from "@/lib/interview/types";
 import { routes } from "@/lib/routes";
 import { getEngineType } from "@/lib/engine/registry";
 
@@ -95,6 +105,36 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
   const families = problemSpec?.families ?? [];
   const lengthHint = (minutes: number, questions: number) =>
     isProblemInterview ? `~${minutes} min` : `~${minutes} min · ${questions} questions`;
+
+  /**
+   * "THE JOB" IS A GENERAL-INTERVIEW QUESTION ONLY.
+   *
+   * Every preset on the industry-specific tab already names the job it is for —
+   * `technical` interviews for a software engineering role, `finance` for an
+   * investment banking analyst role — and carries it in `defaultRoleTitle`,
+   * which is what the prompt interpolates as "- Target role:" and tailors its
+   * role/industry-specific stage to. Asking a second time was not just
+   * redundant: the tiles were LIVE. `resolveInterviewType` overwrites
+   * `defaultRoleTitle` with any curated role slug it is handed, so picking
+   * "Sales / client-facing" on the software-engineering interview really did
+   * send "a sales or client-facing role" into that prompt, contradicting the
+   * interview the student had chosen with no sign that it had happened.
+   *
+   * Hiding the section is therefore only half the fix. The other half is that
+   * `role` is neither restored from the query string nor submitted on this
+   * path, so no stale `?role=` from a shared link or a Back out of the wizard
+   * can reach the prompt behind a section that is no longer on screen. The
+   * interview's own role wins by being the only role in play.
+   *
+   * Industry goes with it, because it is the section's other half and because
+   * for these presets it is the same kind of claim: the interview already names
+   * its industry. The generic types keep the whole section — there the job
+   * genuinely is the student's to describe.
+   */
+  const offersTheJob = !isIndustrySpecificInterview(preset);
+  // Industry additionally stays off the problem interviews, which keep "The
+  // job" only if they are generic — see the section below for why.
+  const offersIndustry = offersTheJob && !isProblemInterview;
 
   const presetLength = SESSION_LENGTH_PRESETS.find(
     (p) => p.targetMinutes === preset.targetMinutes && p.targetQuestionCount === preset.targetQuestionCount,
@@ -155,11 +195,32 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
   const [personaDisplayName, setPersonaDisplayName] = useState<string | undefined>();
   const [distilling, setDistilling] = useState(false);
 
+  /**
+   * Which fields this preset actually puts a control on the page for.
+   *
+   * One answer, read by all four things that have to agree with the tiles: the
+   * query-string restore, the `changed` test, the handoff and the setup recap.
+   * The rule is that a control the student cannot see contributes NOTHING — it
+   * cannot be set from a URL, it cannot make the page look customized, and
+   * above all it cannot reach the prompt, which is the failure the role tiles
+   * had. A hidden field therefore stays at the preset's own value, and
+   * `resolveInterviewType` falls back to it for every field we omit.
+   */
+  const offered: Record<Field, boolean> = {
+    family: options.family.length > 0,
+    industry: offersIndustry,
+    role: offersTheJob,
+    difficulty: true,
+    length: true,
+    interviewer: true,
+  };
+
   // Restore choices from the query string (Back from the wizard, or a shared link).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const restored = { ...defaults };
     (Object.keys(restored) as Field[]).forEach((field) => {
+      if (!offered[field]) return;
       const raw = params.get(field);
       if (raw !== null && options[field].some((o) => o.value === raw)) restored[field] = raw;
     });
@@ -182,7 +243,9 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
   };
 
   const changed =
-    (Object.keys(values) as Field[]).some((field) => values[field] !== defaults[field]) || Boolean(distilledPersona);
+    (Object.keys(values) as Field[]).some(
+      (field) => offered[field] && values[field] !== defaults[field],
+    ) || Boolean(distilledPersona);
 
   const reset = () => {
     setValues(defaults);
@@ -215,7 +278,10 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
   };
 
   // Only the rows whose control is actually on the page: question type on
-  // problem interviews, industry on the generic types.
+  // problem interviews, "The job"'s role and industry on the generic types.
+  // `offered` is the one answer, so a row can never summarize a control the
+  // student was never shown — an industry-specific interview would otherwise
+  // print a Role it does not use.
   const summaryRows: Array<{ label: string; value: string }> = [
     {
       label: "Personality",
@@ -223,9 +289,9 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
       // the modeled interviewer rather than a dial the student cannot change.
       value: distilledPersona ? (personaDisplayName ?? "Modeled interviewer") : tileLabel("interviewer"),
     },
-    ...(options.family.length > 0 ? [{ label: "Question type", value: tileLabel("family") }] : []),
-    { label: "Role", value: tileLabel("role") },
-    ...(isProblemInterview ? [] : [{ label: "Industry", value: tileLabel("industry") }]),
+    ...(offered.family ? [{ label: "Question type", value: tileLabel("family") }] : []),
+    ...(offered.role ? [{ label: "Role", value: tileLabel("role") }] : []),
+    ...(offered.industry ? [{ label: "Industry", value: tileLabel("industry") }] : []),
     { label: "Difficulty", value: tileLabel("difficulty") },
     { label: "Session length", value: tileLabel("length", true) },
   ];
@@ -265,15 +331,23 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
     const key = `interview:customization:${preset.slug}`;
     try {
       if (changed) {
+        // Only the fields this page offered. A hidden field is omitted rather
+        // than sent at its default, because `resolveInterviewType` treats an
+        // absent value as "use the preset's own" — which is exactly what an
+        // industry-specific interview's role and industry must be, and is the
+        // half of this fix that keeps a contradictory role out of the prompt
+        // rather than merely off the screen.
         const input: InterviewCustomizationInput = {
-          industrySlug: values.industry || undefined,
-          roleSlug: values.role || undefined,
+          ...(offered.industry ? { industrySlug: values.industry || undefined } : {}),
+          ...(offered.role ? { roleSlug: values.role || undefined } : {}),
           difficulty: values.difficulty || undefined,
           lengthSlug: values.length || undefined,
           personalitySlug: values.interviewer || undefined,
           distilledPersona: distilledPersona || undefined,
           personaDisplayName: personaDisplayName || undefined,
-          ...(values.family !== RANDOM_FAMILY ? { problemFamily: values.family } : {}),
+          ...(offered.family && values.family !== RANDOM_FAMILY
+            ? { problemFamily: values.family }
+            : {}),
         };
         sessionStorage.setItem(key, JSON.stringify(input));
       } else {
@@ -285,7 +359,9 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
     router.push(routes.interview(preset.slug));
   };
 
-  const fromGeneral = preset.slug === DEFAULT_INTERVIEW_TYPE.slug || !isListedInterviewType(preset);
+  // The back link follows the same split: a preset on the industry-specific tab
+  // came from there, and everything else from the general interview page.
+  const fromGeneral = offersTheJob;
 
   /**
    * THE FORWARD ACTION, in three places and never twice at once.
@@ -490,44 +566,49 @@ export default function InterviewCustomizePage({ slug }: { slug: string }) {
         </details>
       </section>
 
-      <section aria-labelledby="customize-role" className="flex flex-col gap-6 rounded-lg border border-line bg-white p-5 sm:p-6">
-        <h2 className="font-display text-[22px] font-medium leading-tight text-cwru-blue" id="customize-role">
-          The job
-        </h2>
-        <ChoiceTiles
-          label="Role"
-          layout="wrap"
-          name="role"
-          options={options.role}
-          value={values.role}
-          onChange={(value) => setField("role", value)}
-        />
-        {/* Industry is OFFERED ONLY on the generic types.
-            On a problem interview the session is one question pinned from that
-            type's own bank and read to the candidate word for word, so industry
-            cannot reach the thing being practised. Measured on the finance
-            preset: switching Finance -> Healthcare changed exactly 1 of 145
-            prompt lines, the "- Industry:" context header, and left the problem,
-            the interviewer facts, the exhibits and the process framework
-            identical. The tile row implied it would re-theme the interview and
-            then handed the student the same LBO.
-            The generic types are the opposite case, and keep the control: there
-            the industry is a real variable the prompt spends twice, once in the
-            header and once to steer the role/industry-specific stage.
-            `values.industry` still defaults to the preset's own industry and is
-            still submitted, so the resolved prompt is byte-identical to today —
-            this hides a control that did nothing, it does not change behaviour. */}
-        {!isProblemInterview && (
+      {/* "The job": role, plus industry on the generic types. ABSENT ENTIRELY
+          on the industry-specific tab — see `offersTheJob` above for why, and
+          for why the values are withheld from the handoff rather than just
+          hidden here. */}
+      {offersTheJob && (
+        <section aria-labelledby="customize-role" className="flex flex-col gap-6 rounded-lg border border-line bg-white p-5 sm:p-6">
+          <h2 className="font-display text-[22px] font-medium leading-tight text-cwru-blue" id="customize-role">
+            The job
+          </h2>
           <ChoiceTiles
-            label="Industry"
+            label="Role"
             layout="wrap"
-            name="industry"
-            options={options.industry}
-            value={values.industry}
-            onChange={(value) => setField("industry", value)}
+            name="role"
+            options={options.role}
+            value={values.role}
+            onChange={(value) => setField("role", value)}
           />
-        )}
-      </section>
+          {/* Industry is OFFERED ONLY on the generic types.
+              On a problem interview the session is one question pinned from that
+              type's own bank and read to the candidate word for word, so industry
+              cannot reach the thing being practised. Measured on the finance
+              preset: switching Finance -> Healthcare changed exactly 1 of 145
+              prompt lines, the "- Industry:" context header, and left the problem,
+              the interviewer facts, the exhibits and the process framework
+              identical. The tile row implied it would re-theme the interview and
+              then handed the student the same LBO.
+              The generic types are the opposite case, and keep the control: there
+              the industry is a real variable the prompt spends twice, once in the
+              header and once to steer the role/industry-specific stage.
+              Now that an industry-specific preset shows no "The job" at all, this
+              only ever hides industry on a problem interview that IS generic. */}
+          {offersIndustry && (
+            <ChoiceTiles
+              label="Industry"
+              layout="wrap"
+              name="industry"
+              options={options.industry}
+              value={values.industry}
+              onChange={(value) => setField("industry", value)}
+            />
+          )}
+        </section>
+      )}
 
       <section aria-labelledby="customize-pace" className="flex flex-col gap-6 rounded-lg border border-line bg-white p-5 sm:p-6">
         <h2 className="font-display text-[22px] font-medium leading-tight text-cwru-blue" id="customize-pace">

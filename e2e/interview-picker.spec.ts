@@ -108,7 +108,13 @@ test("industry-specific: every listed card opens, customizes and carries into se
 
     if (key === "technical-coding") {
       await page.waitForURL((url) => url.pathname === "/practice/interviews/technical", { timeout: 45_000 });
-      await expect(page.getByRole("heading", { name: "Coding interview room" })).toBeVisible({ timeout: 45_000 });
+      // The coding room's own `PracticeHero` title. It stopped being "Coding
+      // interview room" when the bespoke landing card was replaced by the
+      // shared setup wizard; `e2e/technical-preset-route.spec.ts` was moved to
+      // this heading and this call site was missed. Pinned at level 1 for the
+      // same reason that spec does: the hero's h1 is the page's identity, and
+      // the wizard below it carries headings of its own.
+      await expect(page.getByRole("heading", { name: "Technical coding", level: 1 })).toBeVisible({ timeout: 45_000 });
       continue;
     }
 

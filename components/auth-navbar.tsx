@@ -92,7 +92,7 @@ export const AuthNavbar = () => {
       href="/"
     >
       <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-white font-display text-xl italic text-cwru-blue">
-        La
+        LA
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="font-display text-xl font-medium leading-tight text-white">

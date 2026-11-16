@@ -24,6 +24,8 @@ import {
   SkillShield,
 } from "@/components/study-plan/PathVisuals";
 import { LEVEL_THRESHOLDS, type LevelResult } from "@/lib/mastery/levels";
+import { useMediaQuery } from "@/lib/use-media-query";
+
 import type { GoalProgress } from "@/lib/study-plan/goals";
 
 /**
@@ -718,18 +720,6 @@ function CompetencyCard({
 
 /** At this width (Tailwind `md`) the drawer is a side sheet; below it, a bottom sheet. */
 const DRAWER_SIDE_QUERY = "(min-width: 768px)";
-
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
-  useEffect(() => {
-    const list = window.matchMedia(query);
-    setMatches(list.matches);
-    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches);
-    list.addEventListener("change", onChange);
-    return () => list.removeEventListener("change", onChange);
-  }, [query]);
-  return matches;
-}
 
 /**
  * Slides in from the edge it sits on (right on desktop, bottom on phones) in
