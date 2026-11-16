@@ -165,7 +165,23 @@ test("the floating action replaces one primary, never doubles it", async ({ page
       await expect(page.getByRole("heading", { name: target.heading }).first()).toBeVisible({
         timeout: 60_000,
       });
-      await page.waitForTimeout(1500);
+      /**
+       * Wait for the pill to EXIST rather than sleeping a fixed interval. A
+       * flat `waitForTimeout` passed locally on a warm server and failed on a
+       * cold one — the first width to touch a route pays Turbopack's compile,
+       * and the probe then reported "no pill" for a page that was merely still
+       * being built. Waiting on the element makes the spec measure the layout
+       * instead of the dev server's compile time.
+       */
+      await page.waitForFunction(
+        () => {
+          const main = document.querySelector("main");
+          const sticky = main?.querySelector("div.sticky");
+          return Boolean(sticky?.firstElementChild?.firstElementChild);
+        },
+        null,
+        { timeout: 60_000 },
+      );
       const where = `${target.name} @${width}`;
 
       // The bar used to carry the back link and the title; the pill does not,
