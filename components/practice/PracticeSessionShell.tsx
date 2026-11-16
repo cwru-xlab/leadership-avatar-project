@@ -216,10 +216,13 @@ interface PracticeSessionShellProps {
    */
   defaultStudentEndReason?: string;
   /**
-   * Hide the shell's built-in End control when a type panel owns End-session
-   * (difficult-conversation SessionSafetyPanel).
+   * When set, the type owns the end flow (difficult-conversation
+   * ConversationEndDialog): the stage-header End icon calls this instead of
+   * the shell's own end modal, and a labelled End button joins the answer
+   * controls beside Pause — and beside Resume while paused, so ending is never
+   * gated on the session's state. Keeps the type's end chrome off the avatar.
    */
-  hideDefaultEndControl?: boolean;
+  onEndRequest?: () => void;
   /**
    * Avatar-accepted ends finish immediately with a neutral transition — no
    * error toast, no "session ended unexpectedly" copy (15-08 walk-out).
@@ -302,7 +305,7 @@ function PracticeInterviewRoom({
   onOpeningTurnTimingChange,
   sessionFinishRef,
   defaultStudentEndReason,
-  hideDefaultEndControl = false,
+  onEndRequest,
   autoFinishOnAvatarEnd = false,
   defaultReportTitle = "",
 }: PracticeSessionShellProps) {
@@ -1246,16 +1249,19 @@ function PracticeInterviewRoom({
               {sessionPanel}
             </div>
           ) : null}
-          {!hideDefaultEndControl ? (
-          <Tooltip content="End the interview">
+          <Tooltip content={onEndRequest ? "End the conversation" : "End the interview"}>
             <Button
               isIconOnly
-              aria-label="End interview"
+              aria-label={onEndRequest ? "End conversation" : "End interview"}
               variant="light"
               className="bg-ink/65 text-white backdrop-blur-md"
               isDisabled={walkOutLock}
               onPress={() => {
                 if (walkOutLockRef.current) return;
+                if (onEndRequest) {
+                  onEndRequest();
+                  return;
+                }
                 if (defaultStudentEndReason) {
                   pendingTerminationRef.current = {
                     reason: defaultStudentEndReason,
@@ -1268,9 +1274,6 @@ function PracticeInterviewRoom({
               <CircleStop size={20} />
             </Button>
           </Tooltip>
-          ) : (
-            <div className="h-10 w-10" aria-hidden />
-          )}
         </SessionStageHeader>
 
         {mediaLayout === "deck-primary" ? (
@@ -1520,7 +1523,22 @@ function PracticeInterviewRoom({
           {isPaused ? (
             <div className="flex items-center justify-between gap-3 rounded-xl border border-light-blue/40 bg-ink p-3">
               <div className="text-sm text-light-blue">Your session is paused. The interviewer cannot hear you.</div>
-              <Button size="sm" color="primary" onPress={() => setIsPaused(false)}>Resume</Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" color="primary" onPress={() => setIsPaused(false)}>Resume</Button>
+                {onEndRequest ? (
+                  <Button
+                    size="sm"
+                    color="danger"
+                    startContent={<CircleStop size={14} aria-hidden="true" />}
+                    isDisabled={walkOutLock}
+                    onPress={() => {
+                      if (!walkOutLockRef.current) onEndRequest();
+                    }}
+                  >
+                    End
+                  </Button>
+                ) : null}
+              </div>
             </div>
           ) : (
             <>
@@ -1570,6 +1588,7 @@ function PracticeInterviewRoom({
                   }
                   onToggle={toggleRecording}
                 />
+                <div className="flex items-center gap-2">
                 <Button
                   size="sm"
                   variant="light"
@@ -1582,6 +1601,20 @@ function PracticeInterviewRoom({
                 >
                   Pause
                 </Button>
+                {onEndRequest ? (
+                  <Button
+                    size="sm"
+                    color="danger"
+                    startContent={<CircleStop size={14} aria-hidden="true" />}
+                    isDisabled={walkOutLock}
+                    onPress={() => {
+                      if (!walkOutLockRef.current) onEndRequest();
+                    }}
+                  >
+                    End
+                  </Button>
+                ) : null}
+                </div>
               </div>
             </>
           )}
