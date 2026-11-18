@@ -267,7 +267,7 @@ export default function PracticeInstancePage({
             <p className="text-muted">
               Choose a practice session from your Leadership Avatar workspace.
             </p>
-            <Button color="primary" onPress={() => router.push("/")}>
+            <Button color="primary" onPress={() => router.push(routes.practice())}>
               Back to practice
             </Button>
           </CardBody>

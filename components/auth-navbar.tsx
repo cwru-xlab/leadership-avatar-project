@@ -89,7 +89,9 @@ export const AuthNavbar = () => {
   const brand = (
     <NextLink
       className="flex items-center gap-3 rounded-lg focus-visible:outline-light-blue"
-      href="/"
+      // A student's home is the practice picker; "/" only reaches it through a
+      // middleware redirect, an extra server round trip on every logo click.
+      href={isStudent ? routes.practice() : "/"}
     >
       <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-white font-display text-xl italic text-cwru-blue">
         LA
