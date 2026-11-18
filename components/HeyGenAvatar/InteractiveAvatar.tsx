@@ -6,6 +6,7 @@ import {
   forwardRef,
   useCallback,
 } from "react";
+import { preconnect } from "react-dom";
 import { useMemoizedFn, useUnmount } from "ahooks";
 import { SessionEvent, SessionState } from "@heygen/liveavatar-web-sdk";
 import { StartAvatarRequest } from "@/types";
@@ -17,6 +18,7 @@ import { useTextChat } from "./logic/useTextChat";
 import { useInterrupt } from "./logic/useInterrupt";
 import { useConversationState } from "./logic/useConversationState";
 import { StreamingAvatarProvider, StreamingAvatarSessionState } from "./logic";
+import { liveAvatarApiUrl } from "./logic/context";
 import { LoaderCircle, Circle, Square } from "lucide-react";
 import { MessageHistory } from "./AvatarSession/MessageHistory";
 import { TextInput } from "./AvatarSession/TextInput";
@@ -406,6 +408,11 @@ const InteractiveAvatarWrapper = forwardRef<
   const triggerStart = useCallback(async () => {
     setError(null);
     setIsStarting(true);
+    // The SDK's first browser request after the token is POST /v1/sessions/start
+    // to this origin (credentialed, so it also preflights). Warming DNS + TLS
+    // now overlaps that handshake with the token round trip through our server
+    // instead of paying for it afterwards. A hint only: it changes no request.
+    preconnect(liveAvatarApiUrl(), { crossOrigin: "use-credentials" });
     try {
       const token = await fetchSessionToken(configRef.current);
       setSessionToken(token);

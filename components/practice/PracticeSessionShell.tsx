@@ -241,6 +241,8 @@ export type SessionFinishFn = (opts: {
 }) => Promise<void>;
 
 const HISTORY_TURNS = 10;
+/** The canned student line that opens every auto-started session. */
+const OPENING_LINE = "I’m ready to begin the interview.";
 // MIN_RECORDING_MS / MIN_AUDIO_BYTES / MIN_PEAK_RMS, KEEP_ALIVE_INTERVAL_MS
 // and formatElapsed moved verbatim to the shared session chrome
 // (components/session/, 22-SHARED-SHELL-DECISION.md).
@@ -653,6 +655,105 @@ function PracticeInterviewRoom({
     return () => window.clearInterval(interval);
   }, [isAwaitingResponse]);
 
+  /**
+   * The chat request body for one turn. Shared by `sendMessage` and the opening
+   * prefetch below so the two can never send different requests.
+   */
+  const buildChatBody = useCallback(
+    (
+      messageHistory: ChatMessage[],
+      firstTurnStartedAt: number | null,
+      firstTurnDelivered: boolean,
+      forceWalkOutFarewell: boolean
+    ) => ({
+      messages: messageHistory
+        .slice(-HISTORY_TURNS * 2)
+        .map(({ role, content: messageContent }) => ({
+          role,
+          content: messageContent,
+        })),
+      language,
+      engine: {
+        typeSlug: sessionConfig.typeSlug,
+        instance:
+          sessionConfig.instance.kind === "none"
+            ? undefined
+            : sessionConfig.instance,
+        // REQ-23: resent unchanged on every turn, never re-derived or
+        // mutated here. The server re-resolves this identically each
+        // time, and byte-stability is what keeps the assembled system
+        // prompt session-constant for the OpenAI prefix cache.
+        customization,
+        resumeText,
+        turnState: {
+          progress,
+          startedAt: startedAtRef.current ?? Date.now(),
+          firstTurnStartedAt,
+          firstTurnDelivered,
+          forceWalkOutFarewell,
+          walkOutProof: walkOutProofRef.current,
+        },
+      },
+      ...(extraChatBodyRef.current ?? {}),
+      // The row THIS shell will finish. Sent after the caller's extra
+      // body so a page-level reportId that drifted (a double launch
+      // made a second row) can never bind the walk-out proof to a row
+      // other than the one finishSession checks it against (UAT F20-2).
+      ...(reportIdRef.current ? { reportId: reportIdRef.current } : {}),
+    }),
+    [customization, language, progress, resumeText, sessionConfig]
+  );
+
+  /**
+   * The opening turn, requested when the shell mounts instead of after the
+   * avatar connects. The provider's session start takes several seconds, and
+   * the interviewer's first line used to wait for all of it before even asking
+   * the model; now both run at once and `sendMessage` picks the reply up on
+   * CONNECTED. Nothing is shown or spoken early: the reply only reaches the
+   * transcript and the avatar through the normal path.
+   *
+   * Skipped for soft first-turn-window types (they send no canned opening) and
+   * for deck sessions, whose chat turns record slide reveals server-side.
+   */
+  const openingPrefetchRef = useRef<Promise<Response> | null>(null);
+  useEffect(() => {
+    const extra = extraChatBodyRef.current;
+    if (
+      sessionConfig.timeBudget.firstTurnWindowSeconds != null ||
+      (extra && "revealedSlideIndex" in extra) ||
+      openingSentRef.current ||
+      messagesRef.current.length > 0
+    ) {
+      return;
+    }
+    const controller = new AbortController();
+    const request = fetch("/api/interaction/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify(
+        buildChatBody(
+          [{ role: "user", content: OPENING_LINE, timestamp: Date.now() }],
+          Date.now(),
+          false,
+          false
+        )
+      ),
+    });
+    // A rejection is handled where the promise is consumed; this only keeps an
+    // unconsumed, aborted request from surfacing as an unhandled rejection.
+    request.catch(() => {});
+    openingPrefetchRef.current = request;
+    return () => {
+      controller.abort();
+      if (openingPrefetchRef.current === request) {
+        openingPrefetchRef.current = null;
+      }
+    };
+    // Mount only: this is the opening turn, built from the initial state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const sendMessage = useCallback(
     async (candidateMessage: string, forceWalkOutFarewell = false) => {
       const content = candidateMessage.trim();
@@ -700,46 +801,30 @@ function PracticeInterviewRoom({
       setIsAwaitingResponse(true);
 
       try {
-        const response = await fetch("/api/interaction/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: messageHistory
-              .slice(-HISTORY_TURNS * 2)
-              .map(({ role, content: messageContent }) => ({
-                role,
-                content: messageContent,
-              })),
-            language,
-            engine: {
-              typeSlug: sessionConfig.typeSlug,
-              instance:
-                sessionConfig.instance.kind === "none"
-                  ? undefined
-                  : sessionConfig.instance,
-              // REQ-23: resent unchanged on every turn, never re-derived or
-              // mutated here. The server re-resolves this identically each
-              // time, and byte-stability is what keeps the assembled system
-              // prompt session-constant for the OpenAI prefix cache.
-              customization,
-              resumeText,
-              turnState: {
-                progress,
-                startedAt: startedAtRef.current ?? Date.now(),
-                firstTurnStartedAt: firstTurnStartedAtForPayload,
-                firstTurnDelivered: pitchWindowConcluded,
-                forceWalkOutFarewell,
-                walkOutProof: walkOutProofRef.current,
-              },
-            },
-            ...(extraChatBodyRef.current ?? {}),
-            // The row THIS shell will finish. Sent after the caller's extra
-            // body so a page-level reportId that drifted (a double launch
-            // made a second row) can never bind the walk-out proof to a row
-            // other than the one finishSession checks it against (UAT F20-2).
-            ...(reportIdRef.current ? { reportId: reportIdRef.current } : {}),
-          }),
-        });
+        const requestChat = () =>
+          fetch("/api/interaction/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(
+              buildChatBody(
+                messageHistory,
+                firstTurnStartedAtForPayload,
+                pitchWindowConcluded,
+                forceWalkOutFarewell
+              )
+            ),
+          });
+        // The opening turn was requested while the avatar connected; use that
+        // reply if it is for this exact turn, and fetch normally otherwise.
+        const prefetched =
+          !forceWalkOutFarewell &&
+          content === OPENING_LINE &&
+          messageHistory.length === 1
+            ? openingPrefetchRef.current
+            : null;
+        openingPrefetchRef.current = null;
+        let response = prefetched ? await prefetched.catch(() => null) : null;
+        if (!response?.ok) response = await requestChat();
 
         if (!response.ok) throw new Error("The interviewer could not respond.");
         const reader = response.body?.getReader();
@@ -920,6 +1005,7 @@ function PracticeInterviewRoom({
     },
     [
       appendMessage,
+      buildChatBody,
       checkpoint,
       sessionConfig,
       customization,
@@ -1051,7 +1137,7 @@ function PracticeInterviewRoom({
     if (sessionConfig.timeBudget.firstTurnWindowSeconds != null) {
       return;
     }
-    void sendMessage("I’m ready to begin the interview.");
+    void sendMessage(OPENING_LINE);
   }, [sendMessage, sessionConfig.timeBudget.firstTurnWindowSeconds]);
 
   const handleAvatarStateChange = useCallback(

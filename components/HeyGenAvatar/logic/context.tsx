@@ -101,8 +101,12 @@ const useSessionState = (sessionRef: React.RefObject<LiveAvatarSession>) => {
       }
     };
 
+    // Named so `off` can find it: an inline arrow passed to `off` is a new
+    // function that was never registered, so the cleanup removed nothing.
+    const handleStreamReady = () => setIsStreamReady(true);
+
     session.on(SessionEvent.SESSION_STATE_CHANGED, handleStateChange);
-    session.on(SessionEvent.SESSION_STREAM_READY, () => setIsStreamReady(true));
+    session.on(SessionEvent.SESSION_STREAM_READY, handleStreamReady);
     session.on(
       SessionEvent.SESSION_CONNECTION_QUALITY_CHANGED,
       setConnectionQuality,
@@ -110,7 +114,7 @@ const useSessionState = (sessionRef: React.RefObject<LiveAvatarSession>) => {
 
     return () => {
       session.off(SessionEvent.SESSION_STATE_CHANGED, handleStateChange);
-      session.off(SessionEvent.SESSION_STREAM_READY, () => setIsStreamReady(true));
+      session.off(SessionEvent.SESSION_STREAM_READY, handleStreamReady);
       session.off(
         SessionEvent.SESSION_CONNECTION_QUALITY_CHANGED,
         setConnectionQuality,
@@ -134,9 +138,18 @@ const useVoiceChatState = (sessionRef: React.RefObject<LiveAvatarSession>) => {
     const session = sessionRef.current;
     if (!session) return;
 
-    session.voiceChat.on(VoiceChatEvent.MUTED, () => setIsMuted(true));
-    session.voiceChat.on(VoiceChatEvent.UNMUTED, () => setIsMuted(false));
+    const handleMuted = () => setIsMuted(true);
+    const handleUnmuted = () => setIsMuted(false);
+
+    session.voiceChat.on(VoiceChatEvent.MUTED, handleMuted);
+    session.voiceChat.on(VoiceChatEvent.UNMUTED, handleUnmuted);
     session.voiceChat.on(VoiceChatEvent.STATE_CHANGED, setVoiceChatState);
+
+    return () => {
+      session.voiceChat.off(VoiceChatEvent.MUTED, handleMuted);
+      session.voiceChat.off(VoiceChatEvent.UNMUTED, handleUnmuted);
+      session.voiceChat.off(VoiceChatEvent.STATE_CHANGED, setVoiceChatState);
+    };
   }, [sessionRef]);
 
   return { isMuted, voiceChatState, isVoiceChatLoading, isVoiceChatActive };
@@ -150,10 +163,24 @@ const useTalkingState = (sessionRef: React.RefObject<LiveAvatarSession>) => {
     const session = sessionRef.current;
     if (!session) return;
 
-    session.on(AgentEventsEnum.USER_SPEAK_STARTED, () => setIsUserTalking(true));
-    session.on(AgentEventsEnum.USER_SPEAK_ENDED, () => setIsUserTalking(false));
-    session.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, () => setIsAvatarTalking(true));
-    session.on(AgentEventsEnum.AVATAR_SPEAK_ENDED, () => setIsAvatarTalking(false));
+    const handleUserStarted = () => setIsUserTalking(true);
+    const handleUserEnded = () => setIsUserTalking(false);
+    const handleAvatarStarted = () => setIsAvatarTalking(true);
+    const handleAvatarEnded = () => setIsAvatarTalking(false);
+
+    session.on(AgentEventsEnum.USER_SPEAK_STARTED, handleUserStarted);
+    session.on(AgentEventsEnum.USER_SPEAK_ENDED, handleUserEnded);
+    session.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, handleAvatarStarted);
+    session.on(AgentEventsEnum.AVATAR_SPEAK_ENDED, handleAvatarEnded);
+
+    // Strict Mode runs this effect twice on one session; without cleanup every
+    // speech event fired each handler twice.
+    return () => {
+      session.off(AgentEventsEnum.USER_SPEAK_STARTED, handleUserStarted);
+      session.off(AgentEventsEnum.USER_SPEAK_ENDED, handleUserEnded);
+      session.off(AgentEventsEnum.AVATAR_SPEAK_STARTED, handleAvatarStarted);
+      session.off(AgentEventsEnum.AVATAR_SPEAK_ENDED, handleAvatarEnded);
+    };
   }, [sessionRef]);
 
   return { isUserTalking, isAvatarTalking };
@@ -174,6 +201,15 @@ const useListeningState = () => {
   return { isListening, setIsListening };
 };
 
+/** The LiveAvatar API origin the browser SDK talks to during `start()`. */
+export function liveAvatarApiUrl(): string {
+  return (
+    (typeof window !== "undefined"
+      ? process.env.NEXT_PUBLIC_LIVEAVATAR_API_URL
+      : undefined) || "https://api.liveavatar.com"
+  );
+}
+
 type StreamingAvatarProviderProps = {
   children: React.ReactNode;
   sessionAccessToken: string;
@@ -187,12 +223,7 @@ export const StreamingAvatarProvider = ({
   voiceChatConfig = true,
   apiUrl,
 }: StreamingAvatarProviderProps) => {
-  const effectiveApiUrl =
-    apiUrl ||
-    (typeof window !== "undefined"
-      ? process.env.NEXT_PUBLIC_LIVEAVATAR_API_URL
-      : undefined) ||
-    "https://api.liveavatar.com";
+  const effectiveApiUrl = apiUrl || liveAvatarApiUrl();
 
   // Lazy initialization: only create the session once, not on every render.
   // Using null as initial value and checking before creating to avoid
